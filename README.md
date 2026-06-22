@@ -1,8 +1,8 @@
-# Handy
+# Handy for Mac
 
-Handy is a native macOS speech-to-text app. Press a shortcut, speak, and Handy pastes the transcription into the active app.
+Handy for Mac is a native macOS speech-to-text app. Press a shortcut, speak, and Handy pastes the transcription into the active app.
 
-This repository is an experimental native Swift rewrite of [cjpais/Handy](https://github.com/cjpais/Handy), the original open-source Handy project. The goal is to keep the same direct speech-to-text workflow while making the app feel at home on macOS: SwiftUI/AppKit UI, Core ML local transcription, Keychain-backed credentials, native shortcuts, and a small reproducible SwiftPM build.
+This repository, `Handy-For-Mac`, is an experimental native Swift rewrite of [cjpais/Handy](https://github.com/cjpais/Handy), the original open-source Handy project. The goal is to keep the same direct speech-to-text workflow while making the app feel at home on macOS: SwiftUI/AppKit UI, Core ML local transcription, Keychain-backed credentials, native shortcuts, and a small reproducible SwiftPM build.
 
 Compared with the original app, this fork also adds configurable API transcription models, OpenAI-compatible provider settings, Mistral Voxtral support, color themes, a native model screen, and a more Mac-focused packaging/readiness workflow.
 

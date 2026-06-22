@@ -1,6 +1,6 @@
 # Build Instructions
 
-Handy is built as a native macOS SwiftPM app.
+Handy for Mac is built as a native macOS SwiftPM app. The built app bundle and executable are still named `Handy`.
 
 ## Prerequisites
 
