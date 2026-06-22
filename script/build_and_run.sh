@@ -475,6 +475,12 @@ run_readiness_smokes() {
     --smoke-output-json "$READINESS_DIR/replacement-readiness.json" || failed=1
 
   run_readiness_command \
+    overlay-visible \
+    --start-hidden \
+    --smoke-overlay-state recording \
+    --smoke-output-json "$READINESS_DIR/overlay-visible.json" || failed=1
+
+  run_readiness_command \
     remote-control-launchservices \
     --smoke-remote-control-listener \
     --smoke-remote-control-launchservices \

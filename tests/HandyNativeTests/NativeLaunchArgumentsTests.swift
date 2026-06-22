@@ -1764,6 +1764,19 @@ final class NativeLaunchArgumentsTests: XCTestCase {
         XCTAssertNil(
             NativeLaunchArguments.parse(["Handy", "--smoke-overlay-state", "missing"]).smokeOverlayState
         )
+        XCTAssertEqual(
+            NativeLaunchArguments.parse([
+                "Handy",
+                "--smoke-overlay-state",
+                "recording",
+                "--smoke-output-json",
+                "/tmp/overlay.json",
+            ]).smokeOverlayOutputPath,
+            "/tmp/overlay.json"
+        )
+        XCTAssertNil(
+            NativeLaunchArguments.parse(["Handy", "--smoke-output-json", "/tmp/overlay.json"]).smokeOverlayOutputPath
+        )
     }
 
     func testParseOnboardingSmokeArguments() {

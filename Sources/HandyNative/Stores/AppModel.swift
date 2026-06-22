@@ -136,6 +136,17 @@ final class AppModel: ObservableObject {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(300))
                 showOverlayForVisualSmoke(smokeOverlayState)
+                if let outputPath = launchArguments.smokeOverlayOutputPath {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    let diagnostics = overlayPanelController.diagnostics(expectedState: smokeOverlayState)
+                    do {
+                        try Self.writeOverlaySmokeDiagnostics(diagnostics, to: outputPath)
+                        exit(diagnostics.success ? 0 : 1)
+                    } catch {
+                        FileHandle.standardError.writeLine(error.localizedDescription)
+                        exit(1)
+                    }
+                }
             }
         }
     }
@@ -1379,6 +1390,21 @@ final class AppModel: ObservableObject {
         if state == .recording {
             overlayPanelController.updateLevels([0.16, 0.34, 0.58, 0.82, 1, 0.74, 0.5, 0.29, 0.18])
         }
+    }
+
+    private static func writeOverlaySmokeDiagnostics(
+        _ diagnostics: RecordingOverlayPanelDiagnostics,
+        to path: String
+    ) throws {
+        let outputURL = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(diagnostics)
+        try data.write(to: outputURL, options: .atomic)
     }
 
     private func refreshTranscriptionCredentialStatus() {
