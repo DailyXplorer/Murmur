@@ -1,0 +1,46 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Local app output
+*.app
+*.dmg
+*.zip
+recording_*
+
+# Logs and local env
+logs/
+*.log
+*.local
+*.local.*
+.env
+.env.*
+
+# Editor and macOS
+.DS_Store
+.idea/
+.vscode/
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+* 2
+* 2.*
+* copy*
+* Copy*
+*.bak
+*.old
+*.tmp
+*~
+
+# Agent and scratch artifacts
+.agent/
+.codex/
+work/
+outputs/
+
+# Tool-local state
+.claude/
+.crush/
