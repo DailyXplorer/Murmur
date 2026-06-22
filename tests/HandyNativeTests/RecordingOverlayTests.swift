@@ -96,8 +96,8 @@ final class RecordingOverlayTests: XCTestCase {
         }
 
         controller.show(state: .recording, palette: AppTheme.pink.palette)
-        try await Task.sleep(for: .milliseconds(350))
         controller.refreshVisiblePanelForActiveSpace()
+        try await Task.sleep(for: .milliseconds(50))
         let diagnostics = controller.diagnostics(expectedState: .recording)
 
         XCTAssertTrue(diagnostics.success)

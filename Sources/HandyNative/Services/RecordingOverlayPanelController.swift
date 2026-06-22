@@ -194,6 +194,7 @@ final class RecordingOverlayPanelController {
             NSApp.unhideWithoutActivation()
         }
         panel.collectionBehavior = Self.overlayCollectionBehavior
+        panel.alphaValue = 1
         panel.setFrameOrigin(Self.overlayOrigin(for: panel.frame.size, position: lastPosition))
         panel.orderFrontRegardless()
     }
