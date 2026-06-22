@@ -1771,11 +1771,28 @@ final class NativeLaunchArgumentsTests: XCTestCase {
                 "recording",
                 "--smoke-output-json",
                 "/tmp/overlay.json",
+                "--smoke-output-image",
+                "/tmp/overlay.png",
             ]).smokeOverlayOutputPath,
             "/tmp/overlay.json"
         )
+        XCTAssertEqual(
+            NativeLaunchArguments.parse([
+                "Handy",
+                "--smoke-overlay-state",
+                "recording",
+                "--smoke-output-json",
+                "/tmp/overlay.json",
+                "--smoke-output-image",
+                "/tmp/overlay.png",
+            ]).smokeOverlayImageOutputPath,
+            "/tmp/overlay.png"
+        )
         XCTAssertNil(
             NativeLaunchArguments.parse(["Handy", "--smoke-output-json", "/tmp/overlay.json"]).smokeOverlayOutputPath
+        )
+        XCTAssertNil(
+            NativeLaunchArguments.parse(["Handy", "--smoke-output-image", "/tmp/overlay.png"]).smokeOverlayImageOutputPath
         )
     }
 

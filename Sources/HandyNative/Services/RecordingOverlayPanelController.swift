@@ -28,10 +28,38 @@ final class RecordingOverlayPanelController {
     private var panel: RecordingOverlayPanel?
     private var hideTask: Task<Void, Never>?
     private var visibilityGeneration = 0
+    nonisolated(unsafe) private var activeSpaceObserver: NSObjectProtocol?
+    private var lastPosition: OverlayPosition = .bottom
+
+    private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
+        .moveToActiveSpace,
+        .fullScreenAuxiliary,
+        .transient,
+        .ignoresCycle,
+    ]
+
+    init() {
+        activeSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshVisiblePanelForActiveSpace()
+            }
+        }
+    }
+
+    deinit {
+        if let activeSpaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activeSpaceObserver)
+        }
+    }
 
     func show(state: RecordingOverlayState, palette: HandyThemePalette, position: OverlayPosition = .bottom) {
         visibilityGeneration += 1
         viewModel.state = state
+        lastPosition = position
         hideTask?.cancel()
         hideTask = nil
 
@@ -46,6 +74,7 @@ final class RecordingOverlayPanelController {
         if NSApp.isHidden {
             NSApp.unhideWithoutActivation()
         }
+        panel.collectionBehavior = Self.overlayCollectionBehavior
         panel.orderFrontRegardless()
 
         if shouldFadeIn {
@@ -88,6 +117,7 @@ final class RecordingOverlayPanelController {
                         return
                     }
                     panel?.orderOut(nil)
+                    self.panel = nil
                     self.hideTask = nil
                 }
             }
@@ -97,6 +127,7 @@ final class RecordingOverlayPanelController {
             hideTask = nil
             panel.alphaValue = 0
             panel.orderOut(nil)
+            self.panel = nil
         }
     }
 
@@ -111,25 +142,31 @@ final class RecordingOverlayPanelController {
                 level: 0,
                 frame: .zero,
                 frameWithinVisibleFrame: false,
+                isOnActiveSpace: false,
                 hasStatusBarLevel: false,
                 canBecomeKey: false,
                 canBecomeMain: false,
                 collectionBehaviorRawValue: 0,
+                visualSnapshot: .failure(reason: "missing-panel"),
                 matchesExpectedState: expectedState == nil
             )
         }
 
         let matchesExpectedState = expectedState.map { $0 == viewModel.state } ?? true
         let frameWithinVisibleFrame = Self.frameIsWithinVisibleFrame(panel.frame)
+        let isOnActiveSpace = panel.isOnActiveSpace
         let hasStatusBarLevel = panel.level == .statusBar
         let alphaValue = Double(panel.alphaValue)
         let isVisible = panel.isVisible
+        let visualSnapshot = Self.visualSnapshotDiagnostics(for: panel)
 
         return RecordingOverlayPanelDiagnostics(
             success: isVisible &&
                 alphaValue >= 0.95 &&
                 hasStatusBarLevel &&
                 frameWithinVisibleFrame &&
+                isOnActiveSpace &&
+                visualSnapshot.success &&
                 matchesExpectedState,
             state: viewModel.state.diagnosticName,
             expectedState: expectedState?.diagnosticName,
@@ -138,17 +175,44 @@ final class RecordingOverlayPanelController {
             level: Int(panel.level.rawValue),
             frame: RecordingOverlayPanelFrame(panel.frame),
             frameWithinVisibleFrame: frameWithinVisibleFrame,
+            isOnActiveSpace: isOnActiveSpace,
             hasStatusBarLevel: hasStatusBarLevel,
             canBecomeKey: panel.canBecomeKey,
             canBecomeMain: panel.canBecomeMain,
             collectionBehaviorRawValue: panel.collectionBehavior.rawValue,
+            visualSnapshot: visualSnapshot,
             matchesExpectedState: matchesExpectedState
         )
+    }
+
+    func refreshVisiblePanelForActiveSpace() {
+        guard let panel, panel.isVisible else {
+            return
+        }
+
+        if NSApp.isHidden {
+            NSApp.unhideWithoutActivation()
+        }
+        panel.collectionBehavior = Self.overlayCollectionBehavior
+        panel.setFrameOrigin(Self.overlayOrigin(for: panel.frame.size, position: lastPosition))
+        panel.orderFrontRegardless()
+    }
+
+    func visualSnapshotPNGData() throws -> Data {
+        guard let panel else {
+            throw RecordingOverlayVisualSnapshotError.missingPanel
+        }
+        let bitmap = try Self.visualSnapshotBitmap(for: panel)
+        guard let data = bitmap.representation(using: .png, properties: [:]) else {
+            throw RecordingOverlayVisualSnapshotError.pngEncodingFailed
+        }
+        return data
     }
 
     private func ensurePanel(palette: HandyThemePalette) -> RecordingOverlayPanel {
         if let panel {
             panel.contentView = makeContentView(palette: palette)
+            panel.collectionBehavior = Self.overlayCollectionBehavior
             return panel
         }
 
@@ -162,7 +226,7 @@ final class RecordingOverlayPanelController {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.collectionBehavior = Self.overlayCollectionBehavior
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -206,6 +270,95 @@ final class RecordingOverlayPanelController {
             screen.visibleFrame.contains(frame)
         }
     }
+
+    private static func visualSnapshotDiagnostics(for panel: RecordingOverlayPanel) -> RecordingOverlayVisualSnapshotDiagnostics {
+        do {
+            let bitmap = try visualSnapshotBitmap(for: panel)
+            return analyzeVisualSnapshot(bitmap)
+        } catch {
+            return .failure(reason: error.localizedDescription)
+        }
+    }
+
+    private static func visualSnapshotBitmap(for panel: RecordingOverlayPanel) throws -> NSBitmapImageRep {
+        guard let contentView = panel.contentView else {
+            throw RecordingOverlayVisualSnapshotError.missingContentView
+        }
+
+        contentView.layoutSubtreeIfNeeded()
+        let bounds = contentView.bounds
+        guard bounds.width > 0, bounds.height > 0 else {
+            throw RecordingOverlayVisualSnapshotError.emptyBounds
+        }
+        guard let bitmap = contentView.bitmapImageRepForCachingDisplay(in: bounds) else {
+            throw RecordingOverlayVisualSnapshotError.bitmapCreationFailed
+        }
+        bitmap.size = bounds.size
+        contentView.cacheDisplay(in: bounds, to: bitmap)
+        return bitmap
+    }
+
+    private static func analyzeVisualSnapshot(_ bitmap: NSBitmapImageRep) -> RecordingOverlayVisualSnapshotDiagnostics {
+        let width = bitmap.pixelsWide
+        let height = bitmap.pixelsHigh
+        guard width > 0, height > 0 else {
+            return .failure(reason: "empty-bitmap")
+        }
+
+        let step = max(1, Int(sqrt(Double(width * height) / 4_000.0)))
+        var sampledPixelCount = 0
+        var nonTransparentPixelCount = 0
+        var highlightedPixelCount = 0
+        var alphaTotal = 0.0
+        var luminanceTotal = 0.0
+
+        for y in stride(from: 0, to: height, by: step) {
+            for x in stride(from: 0, to: width, by: step) {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
+                    continue
+                }
+                let alpha = Double(color.alphaComponent)
+                let luminance = (0.2126 * Double(color.redComponent)) +
+                    (0.7152 * Double(color.greenComponent)) +
+                    (0.0722 * Double(color.blueComponent))
+
+                sampledPixelCount += 1
+                alphaTotal += alpha
+                luminanceTotal += luminance
+
+                if alpha > 0.05 {
+                    nonTransparentPixelCount += 1
+                }
+                if alpha > 0.05, luminance > 0.08 {
+                    highlightedPixelCount += 1
+                }
+            }
+        }
+
+        guard sampledPixelCount > 0 else {
+            return .failure(reason: "no-sampled-pixels")
+        }
+
+        let sampled = Double(sampledPixelCount)
+        let nonTransparentPixelRatio = Double(nonTransparentPixelCount) / sampled
+        let highlightedPixelRatio = Double(highlightedPixelCount) / sampled
+        let averageAlpha = alphaTotal / sampled
+        let averageLuminance = luminanceTotal / sampled
+
+        return RecordingOverlayVisualSnapshotDiagnostics(
+            success: nonTransparentPixelRatio >= 0.25 &&
+                highlightedPixelRatio >= 0.005 &&
+                averageAlpha >= 0.2,
+            pixelWidth: width,
+            pixelHeight: height,
+            sampledPixelCount: sampledPixelCount,
+            nonTransparentPixelRatio: nonTransparentPixelRatio,
+            highlightedPixelRatio: highlightedPixelRatio,
+            averageAlpha: averageAlpha,
+            averageLuminance: averageLuminance,
+            failureReason: nil
+        )
+    }
 }
 
 final class RecordingOverlayPanel: NSPanel {
@@ -222,10 +375,12 @@ struct RecordingOverlayPanelDiagnostics: Codable, Equatable {
     var level: Int
     var frame: RecordingOverlayPanelFrame
     var frameWithinVisibleFrame: Bool
+    var isOnActiveSpace: Bool
     var hasStatusBarLevel: Bool
     var canBecomeKey: Bool
     var canBecomeMain: Bool
     var collectionBehaviorRawValue: NSWindow.CollectionBehavior.RawValue
+    var visualSnapshot: RecordingOverlayVisualSnapshotDiagnostics
     var matchesExpectedState: Bool
 }
 
@@ -242,6 +397,55 @@ struct RecordingOverlayPanelFrame: Codable, Equatable {
         y = Double(frame.origin.y)
         width = Double(frame.width)
         height = Double(frame.height)
+    }
+}
+
+struct RecordingOverlayVisualSnapshotDiagnostics: Codable, Equatable {
+    var success: Bool
+    var pixelWidth: Int
+    var pixelHeight: Int
+    var sampledPixelCount: Int
+    var nonTransparentPixelRatio: Double
+    var highlightedPixelRatio: Double
+    var averageAlpha: Double
+    var averageLuminance: Double
+    var failureReason: String?
+
+    static func failure(reason: String) -> RecordingOverlayVisualSnapshotDiagnostics {
+        RecordingOverlayVisualSnapshotDiagnostics(
+            success: false,
+            pixelWidth: 0,
+            pixelHeight: 0,
+            sampledPixelCount: 0,
+            nonTransparentPixelRatio: 0,
+            highlightedPixelRatio: 0,
+            averageAlpha: 0,
+            averageLuminance: 0,
+            failureReason: reason
+        )
+    }
+}
+
+private enum RecordingOverlayVisualSnapshotError: LocalizedError {
+    case missingPanel
+    case missingContentView
+    case emptyBounds
+    case bitmapCreationFailed
+    case pngEncodingFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .missingPanel:
+            "missing-panel"
+        case .missingContentView:
+            "missing-content-view"
+        case .emptyBounds:
+            "empty-bounds"
+        case .bitmapCreationFailed:
+            "bitmap-creation-failed"
+        case .pngEncodingFailed:
+            "png-encoding-failed"
+        }
     }
 }
 

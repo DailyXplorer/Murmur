@@ -136,11 +136,19 @@ final class AppModel: ObservableObject {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(300))
                 showOverlayForVisualSmoke(smokeOverlayState)
-                if let outputPath = launchArguments.smokeOverlayOutputPath {
+                if launchArguments.smokeOverlayOutputPath != nil || launchArguments.smokeOverlayImageOutputPath != nil {
                     try? await Task.sleep(for: .milliseconds(450))
                     let diagnostics = overlayPanelController.diagnostics(expectedState: smokeOverlayState)
                     do {
-                        try Self.writeOverlaySmokeDiagnostics(diagnostics, to: outputPath)
+                        if let imageOutputPath = launchArguments.smokeOverlayImageOutputPath {
+                            try Self.writeOverlaySmokeImage(
+                                overlayPanelController.visualSnapshotPNGData(),
+                                to: imageOutputPath
+                            )
+                        }
+                        if let outputPath = launchArguments.smokeOverlayOutputPath {
+                            try Self.writeOverlaySmokeDiagnostics(diagnostics, to: outputPath)
+                        }
                         exit(diagnostics.success ? 0 : 1)
                     } catch {
                         FileHandle.standardError.writeLine(error.localizedDescription)
@@ -1404,6 +1412,15 @@ final class AppModel: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(diagnostics)
+        try data.write(to: outputURL, options: .atomic)
+    }
+
+    private static func writeOverlaySmokeImage(_ data: Data, to path: String) throws {
+        let outputURL = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try data.write(to: outputURL, options: .atomic)
     }
 

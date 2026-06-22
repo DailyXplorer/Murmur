@@ -478,7 +478,8 @@ run_readiness_smokes() {
     overlay-visible \
     --start-hidden \
     --smoke-overlay-state recording \
-    --smoke-output-json "$READINESS_DIR/overlay-visible.json" || failed=1
+    --smoke-output-json "$READINESS_DIR/overlay-visible.json" \
+    --smoke-output-image "$READINESS_DIR/overlay-visible.png" || failed=1
 
   run_readiness_command \
     remote-control-launchservices \

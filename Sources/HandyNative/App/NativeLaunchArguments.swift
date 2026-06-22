@@ -25,6 +25,7 @@ struct NativeLaunchArguments: Equatable {
     var smokeGlobalShortcutRecordingRequest: NativeGlobalShortcutRecordingSmokeRequest?
     var smokeOverlayState: RecordingOverlayState?
     var smokeOverlayOutputPath: String?
+    var smokeOverlayImageOutputPath: String?
     var smokeOnboardingStep: NativeOnboardingStep?
 
     static let none = NativeLaunchArguments(
@@ -52,6 +53,7 @@ struct NativeLaunchArguments: Equatable {
         smokeGlobalShortcutRecordingRequest: nil,
         smokeOverlayState: nil,
         smokeOverlayOutputPath: nil,
+        smokeOverlayImageOutputPath: nil,
         smokeOnboardingStep: nil
     )
 
@@ -284,6 +286,7 @@ struct NativeLaunchArguments: Equatable {
                 : nil,
             smokeOverlayState: smokeOverlayState,
             smokeOverlayOutputPath: smokeOverlayState == nil ? nil : value(for: "--smoke-output-json", in: rawArguments),
+            smokeOverlayImageOutputPath: smokeOverlayState == nil ? nil : value(for: "--smoke-output-image", in: rawArguments),
             smokeOnboardingStep: smokeOnboardingStep
         )
     }
