@@ -1,6 +1,11 @@
 import Foundation
 
 struct SettingsStore {
+    struct LoadResult: Equatable {
+        var settings: AppSettings
+        var warningMessage: String?
+    }
+
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let settingsURL: URL
@@ -8,10 +13,12 @@ struct SettingsStore {
     private let legacyCredentialMigrationMarkerURL: URL
     private let paths: AppPaths
     private let credentialStore: any PostProcessCredentialStoring
+    private let now: () -> Date
 
     init(
         paths: AppPaths? = try? AppPaths.resolve(),
-        credentialStore: (any PostProcessCredentialStoring)? = nil
+        credentialStore: (any PostProcessCredentialStoring)? = nil,
+        now: @escaping () -> Date = Date.init
     ) {
         let resolvedPaths = paths ?? AppPaths(
             appDataDirectory: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("HandyNative", isDirectory: true),
@@ -28,19 +35,26 @@ struct SettingsStore {
         legacySettingsURL = resolvedPaths.appDataDirectory.appendingPathComponent("settings_store.json")
         legacyCredentialMigrationMarkerURL = resolvedPaths.appDataDirectory.appendingPathComponent(".legacy_api_credentials_imported")
         self.credentialStore = credentialStore ?? LocalPostProcessCredentialStore(paths: resolvedPaths)
+        self.now = now
     }
 
     func load() -> AppSettings {
+        loadResult().settings
+    }
+
+    func loadResult() -> LoadResult {
         migrateLegacyCredentialsIfNeeded()
 
         guard let data = try? Data(contentsOf: settingsURL) else {
-            var settings = AppSettings.defaults
-            settings.nativeOnboardingCompleted = hasExistingHandyState()
-            return settings
+            return LoadResult(settings: defaultSettingsForCurrentState(), warningMessage: nil)
         }
 
         guard var settings = try? decoder.decode(AppSettings.self, from: data) else {
-            return .defaults
+            let backupMessage = backUpInvalidSettingsFile()
+            return LoadResult(
+                settings: defaultSettingsForCurrentState(),
+                warningMessage: backupMessage
+            )
         }
 
         if !hasNativeOnboardingCompletedValue(data) {
@@ -52,7 +66,7 @@ struct SettingsStore {
            normalizedData != data {
             try? normalizedData.write(to: settingsURL, options: [.atomic])
         }
-        return settings
+        return LoadResult(settings: settings, warningMessage: nil)
     }
 
     func save(_ settings: AppSettings) {
@@ -72,11 +86,37 @@ struct SettingsStore {
             LocalModelStorageService.states(paths: paths).values.contains { $0.isDownloaded }
     }
 
+    private func defaultSettingsForCurrentState() -> AppSettings {
+        var settings = AppSettings.defaults
+        settings.nativeOnboardingCompleted = hasExistingHandyState()
+        return settings
+    }
+
     private func hasNativeOnboardingCompletedValue(_ data: Data) -> Bool {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return false
         }
         return object.keys.contains("nativeOnboardingCompleted")
+    }
+
+    private func backUpInvalidSettingsFile() -> String {
+        let backupURL = invalidSettingsBackupURL()
+        do {
+            try FileManager.default.moveItem(at: settingsURL, to: backupURL)
+            return "Handy could not read its settings, so defaults were loaded. The invalid settings file was moved to \(backupURL.lastPathComponent)."
+        } catch {
+            return "Handy could not read its settings, so defaults were loaded. The invalid settings file could not be backed up: \(error.localizedDescription)"
+        }
+    }
+
+    private func invalidSettingsBackupURL() -> URL {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let timestamp = formatter.string(from: now())
+            .replacingOccurrences(of: ":", with: "-")
+        return settingsURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(settingsURL.lastPathComponent).\(timestamp).invalid")
     }
 
     private func migrateLegacyCredentialsIfNeeded() {

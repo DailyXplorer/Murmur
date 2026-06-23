@@ -489,14 +489,31 @@ run_readiness_smokes() {
     --smoke-output-json "$READINESS_DIR/remote-control-launchservices.json" || failed=1
 
   run_readiness_command \
-    update-install-script \
-    --smoke-update-install-script \
-    --smoke-update-protected-target \
-    --smoke-output-json "$READINESS_DIR/update-install-script.json" || failed=1
-
-  run_readiness_command \
     model-cache-status \
     --smoke-model-cache-status tiny || failed=1
+
+  if [[ "${HANDY_READINESS_AUDIO_RECORDING_SMOKE:-0}" == "1" ]]; then
+    local -a audio_recording_args=(
+      --smoke-record-audio "$READINESS_DIR/audio-recording.wav"
+      --smoke-record-duration-ms "${HANDY_READINESS_RECORD_DURATION_MS:-1500}"
+      --smoke-output-json "$READINESS_DIR/audio-recording.json"
+    )
+    if [[ -n "${HANDY_READINESS_MICROPHONE:-}" ]]; then
+      audio_recording_args+=(--smoke-record-microphone "$HANDY_READINESS_MICROPHONE")
+    fi
+
+    run_readiness_command audio-recording "${audio_recording_args[@]}" || failed=1
+
+    if [[ "${HANDY_READINESS_REQUIRE_VOICE_PROCESSING:-0}" == "1" ]]; then
+      if [[ ! -f "$READINESS_DIR/audio-recording.json" ]]; then
+        printf 'readiness failed: audio-recording JSON is missing\n' >&2
+        failed=1
+      elif ! /usr/bin/grep -Eq '"voiceProcessingEnabled"[[:space:]]*:[[:space:]]*true' "$READINESS_DIR/audio-recording.json"; then
+        printf 'readiness failed: audio-recording voice processing was not enabled\n' >&2
+        failed=1
+      fi
+    fi
+  fi
 
   write_readiness_notarization_status
 

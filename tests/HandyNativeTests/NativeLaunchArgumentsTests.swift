@@ -400,6 +400,40 @@ final class NativeLaunchArgumentsTests: XCTestCase {
         XCTAssertNil(paste["clipboardAfter"])
     }
 
+    func testAudioRecordingSmokeOutputEncodesVoiceProcessingContract() throws {
+        let output = NativeAudioRecordingSmokeOutput(
+            outputPath: "/tmp/native-recording.wav",
+            requestedDurationMilliseconds: 1_500,
+            sampleCount: 24_000,
+            sampleRate: 16_000,
+            durationSeconds: 1.5,
+            maxLevel: 0.42,
+            levelObservationCount: 18,
+            byteCount: 48_044,
+            microphoneName: "Studio Mic",
+            voiceProcessingStatus: "unavailable",
+            voiceProcessingEnabled: false,
+            voiceProcessingAGCEnabled: false,
+            voiceProcessingFallbackReason: "Apple voice processing unavailable for this microphone; using raw input."
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        let data = try encoder.encode(output)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["outputPath"] as? String, "/tmp/native-recording.wav")
+        XCTAssertEqual(object["sampleRate"] as? Double, 16_000)
+        XCTAssertEqual(object["microphoneName"] as? String, "Studio Mic")
+        XCTAssertEqual(object["voiceProcessingStatus"] as? String, "unavailable")
+        XCTAssertEqual(object["voiceProcessingEnabled"] as? Bool, false)
+        XCTAssertEqual(object["voiceProcessingAGCEnabled"] as? Bool, false)
+        XCTAssertEqual(
+            object["voiceProcessingFallbackReason"] as? String,
+            "Apple voice processing unavailable for this microphone; using raw input."
+        )
+    }
+
     func testRecordTranscriptionSmokeOutputEncodesJSONContract() throws {
         let output = NativeRecordTranscriptionSmokeOutput(
             outputPath: "/tmp/native-record-transcribe.wav",
@@ -739,40 +773,6 @@ final class NativeLaunchArgumentsTests: XCTestCase {
         XCTAssertEqual(object["loadedAfterExplicitUnload"] as? Bool, false)
         XCTAssertEqual(object["loadedModelIDsAfterPrepare"] as? [String], ["tiny"])
         XCTAssertEqual(object["loadedModelIDsAfterExplicitUnload"] as? [String], [])
-    }
-
-    func testUpdateInstallScriptSmokeOutputEncodesScriptSafetyContract() throws {
-        let output = NativeUpdateInstallScriptSmokeOutput(
-            success: true,
-            version: "0.9.0",
-            protectedTargetParent: true,
-            artifactFileName: "Handy_0.9.0_aarch64.app.zip",
-            preparedAppBundleName: "Handy.app",
-            installerScriptName: "install-handy-update.sh",
-            installerScriptShellCheckStatus: 0,
-            targetParentWritable: false,
-            scriptContainsAdminBranch: true,
-            scriptContainsWritableBranch: true,
-            scriptContainsRollback: true,
-            scriptContainsUserRelaunch: true,
-            helperContainsRelaunch: false
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
-        let data = try encoder.encode(output)
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-
-        XCTAssertEqual(object["success"] as? Bool, true)
-        XCTAssertEqual(object["version"] as? String, "0.9.0")
-        XCTAssertEqual(object["protectedTargetParent"] as? Bool, true)
-        XCTAssertEqual(object["targetParentWritable"] as? Bool, false)
-        XCTAssertEqual(object["scriptContainsAdminBranch"] as? Bool, true)
-        XCTAssertEqual(object["scriptContainsWritableBranch"] as? Bool, true)
-        XCTAssertEqual(object["scriptContainsRollback"] as? Bool, true)
-        XCTAssertEqual(object["scriptContainsUserRelaunch"] as? Bool, true)
-        XCTAssertEqual(object["helperContainsRelaunch"] as? Bool, false)
-        XCTAssertEqual(object["installerScriptShellCheckStatus"] as? Int, 0)
     }
 
     func testRemoteControlListenerSmokeOutputEncodesRoundTripContract() throws {
@@ -1630,7 +1630,7 @@ final class NativeLaunchArgumentsTests: XCTestCase {
         )
     }
 
-    func testParseUpdateInstallScriptSmokeArguments() {
+    func testUpdateInstallScriptSmokeFlagsAreIgnored() {
         let arguments = NativeLaunchArguments.parse([
             "Handy",
             "--smoke-update-install-script",
@@ -1639,25 +1639,7 @@ final class NativeLaunchArgumentsTests: XCTestCase {
             "--smoke-output-json=/tmp/update-install.json",
         ])
 
-        XCTAssertEqual(
-            arguments.smokeUpdateInstallScriptRequest,
-            NativeUpdateInstallScriptSmokeRequest(
-                version: "1.2.3",
-                protectedTargetParent: true,
-                outputPath: "/tmp/update-install.json"
-            )
-        )
-    }
-
-    func testUpdateInstallScriptSmokeDefaults() {
-        let request = NativeLaunchArguments.parse([
-            "Handy",
-            "--smoke-update-install-script=true",
-        ]).smokeUpdateInstallScriptRequest
-
-        XCTAssertEqual(request?.version, "0.9.0")
-        XCTAssertFalse(request?.protectedTargetParent ?? true)
-        XCTAssertNil(request?.outputPath)
+        XCTAssertEqual(arguments, .none)
     }
 
     func testParseRemoteControlSmokeArguments() {

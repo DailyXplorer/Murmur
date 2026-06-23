@@ -31,6 +31,10 @@ struct GeneralView: View {
                     microphoneControls
                 }
                 HandyDivider()
+                HandySettingRow("Apple Voice Processing", description: appleVoiceProcessingDescription) {
+                    HandyToggle(isOn: binding(\.appleVoiceProcessingEnabled))
+                }
+                HandyDivider()
                 HandySettingRow("Mute While Recording", description: "Mute system audio during recording") {
                     HandyToggle(isOn: binding(\.muteWhileRecording))
                 }
@@ -120,6 +124,23 @@ struct GeneralView: View {
             }
             .buttonStyle(HandyButtonStyle(variant: .secondary))
             .disabled(appModel.settings.selectedMicrophoneName == nil)
+        }
+    }
+
+    private var appleVoiceProcessingDescription: String {
+        if appModel.settings.appleVoiceProcessingEnabled == false {
+            return "Apple microphone processing is off."
+        }
+
+        switch appModel.audioInputVoiceProcessingStatus {
+        case .enabled:
+            return "Apple noise suppression and automatic gain control are active."
+        case .unavailable:
+            return "Unavailable for the current microphone; Handy is using raw input."
+        case .disabled:
+            return "Apple microphone processing is off."
+        case .notConfigured:
+            return "Use macOS voice processing before transcription."
         }
     }
 

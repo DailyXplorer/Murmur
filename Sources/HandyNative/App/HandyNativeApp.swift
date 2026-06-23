@@ -25,10 +25,6 @@ struct HandyNativeApp: App {
             NativeReplacementReadinessSmokeRunner.runSynchronouslyAndExit(smokeReplacementReadinessRequest)
         }
 
-        if let smokeUpdateInstallScriptRequest = launchArguments.smokeUpdateInstallScriptRequest {
-            NativeUpdateInstallScriptSmokeRunner.runSynchronouslyAndExit(smokeUpdateInstallScriptRequest)
-        }
-
         if let smokeRemoteControlListenerRequest = launchArguments.smokeRemoteControlListenerRequest {
             NativeRemoteControlSmokeRunner.runListenerSynchronouslyAndExit(smokeRemoteControlListenerRequest)
         }

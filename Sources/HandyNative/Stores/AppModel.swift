@@ -31,6 +31,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var localModelRuntimeStates: [String: LocalModelRuntimeState] = [:]
     @Published private(set) var localModelDownloadStates: [String: LocalModelDownloadState] = [:]
     @Published private(set) var onboardingStep: NativeOnboardingStep = .checking
+    @Published private(set) var audioInputVoiceProcessingStatus: AudioInputVoiceProcessingStatus = .notConfigured
 
     let paths: AppPaths
 
@@ -39,12 +40,12 @@ final class AppModel: ObservableObject {
     private let historyStore: HistoryStore?
     private let logStore: NativeLogStore
     private let permissionService = PermissionService()
-    private let audioCaptureService = AudioCaptureService()
-    private let audioFeedbackService = AudioFeedbackService()
+    private let audioCaptureService: any AudioCaptureServicing
+    private let audioFeedbackService: any AudioFeedbackPlaying
     private let audioPlaybackService = AudioPlaybackService()
-    private let systemAudioMuteService = SystemAudioMuteService()
     private let launchAtLoginService: any LaunchAtLoginServicing
-    private let pasteService = PasteService()
+    private let pasteService: any PasteServicing
+    private let recordingWorkflow: RecordingWorkflow
     private let appleSpeechTranscriptionService = AppleSpeechTranscriptionService()
     private let whisperKitTranscriptionService = WhisperKitTranscriptionService()
     private let overlayPanelController = RecordingOverlayPanelController()
@@ -67,10 +68,15 @@ final class AppModel: ObservableObject {
 
     init(
         launchArguments: NativeLaunchArguments = .none,
-        launchAtLoginService: any LaunchAtLoginServicing = LaunchAtLoginService()
+        launchAtLoginService: any LaunchAtLoginServicing = LaunchAtLoginService(),
+        dependencies: AppModelDependencies = .live()
     ) {
         self.launchArguments = launchArguments
         self.launchAtLoginService = launchAtLoginService
+        audioCaptureService = dependencies.audioCaptureService
+        audioFeedbackService = dependencies.audioFeedbackService
+        pasteService = dependencies.pasteService
+        recordingWorkflow = dependencies.recordingWorkflow
 
         let resolvedPaths = (try? AppPaths.resolve()) ?? AppPaths(
             appDataDirectory: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("HandyNative", isDirectory: true),
@@ -84,7 +90,8 @@ final class AppModel: ObservableObject {
         let credentialStore = LocalPostProcessCredentialStore(paths: resolvedPaths)
         postProcessCredentialStore = credentialStore
         settingsStore = SettingsStore(paths: resolvedPaths, credentialStore: credentialStore)
-        let persistedSettings = settingsStore.load()
+        let settingsLoadResult = settingsStore.loadResult()
+        let persistedSettings = settingsLoadResult.settings
         persistedDebugModeAtLaunch = persistedSettings.debugMode
         persistedShowMenuBarIconAtLaunch = persistedSettings.showMenuBarIcon
         let runtimeSettings = Self.applyingRuntimeOverrides(launchArguments, to: persistedSettings)
@@ -118,6 +125,10 @@ final class AppModel: ObservableObject {
             log(.error, "History store failed to initialize: \(historyInitializationError.localizedDescription)")
         } else {
             reloadHistory()
+        }
+        if let settingsWarning = settingsLoadResult.warningMessage {
+            lastErrorMessage = settingsWarning
+            log(.warn, settingsWarning)
         }
         refreshLocalModelStorageStates()
         refreshLocalModelRuntimeStates()
@@ -203,7 +214,7 @@ final class AppModel: ObservableObject {
     }
 
     var appVersion: String {
-        UpdateCheckService.currentBundleVersion()
+        AppVersionProvider.currentBundleVersion()
     }
 
     var canUnloadCurrentModelFromMenuBar: Bool {
@@ -298,15 +309,19 @@ final class AppModel: ObservableObject {
             activeRecordingPostProcessRequested = postProcessRequested
             audioLevel = 0
             prewarmSelectedLocalModelIfAvailable()
-            try audioCaptureService.start(selectedMicrophoneName: effectiveRecordingMicrophoneName()) { [weak self] level in
+            try recordingWorkflow.start(
+                settings: settings,
+                paths: paths,
+                selectedMicrophoneName: effectiveRecordingMicrophoneName()
+            ) { [weak self] level in
                 Task { @MainActor in
                     self?.handleAudioLevel(level)
                 }
             }
             recordingState = coordinator.state
             refreshGlobalShortcutMonitorIfRunning()
+            handleAudioInputVoiceProcessingStatus()
             showOverlay(.recording)
-            audioFeedbackService.play(.start, settings: settings, paths: paths)
             applyMuteAfterFeedbackDelay()
             log(.info, "Recording started.")
         } catch {
@@ -340,8 +355,6 @@ final class AppModel: ObservableObject {
         activeRecordingPostProcessRequested = false
         refreshGlobalShortcutMonitorIfRunning()
         showOverlay(.transcribing)
-        systemAudioMuteService.removeMuteIfNeeded()
-        audioFeedbackService.play(.stop, settings: settings, paths: paths)
         log(.info, "Recording stopped; preparing transcription.")
 
         activeRecordingTask?.cancel()
@@ -354,10 +367,6 @@ final class AppModel: ObservableObject {
     }
 
     private func stopRecordingAfterTrailingBuffer(postProcessRequested: Bool, operationID: UUID) async {
-        let trailingBufferMilliseconds = settings.extraRecordingBufferMilliseconds
-        if trailingBufferMilliseconds > 0 {
-            try? await Task.sleep(for: .milliseconds(trailingBufferMilliseconds))
-        }
         guard isCurrentRecordingOperation(operationID), Task.isCancelled == false else {
             return
         }
@@ -365,10 +374,7 @@ final class AppModel: ObservableObject {
         let fileURL: URL
         let historyEntryID: Int64?
         do {
-            let capturedRecording = try audioCaptureService.stop(
-                keepStreamOpen: settings.alwaysOnMicrophone,
-                lazyClose: settings.lazyStreamClose
-            )
+            let capturedRecording = try await recordingWorkflow.stopAfterTrailingBuffer(settings: settings, paths: paths)
             guard capturedRecording.hasAudibleSignal else {
                 audioLevel = 0
                 finishRecordingOperation(operationID: operationID)
@@ -391,6 +397,8 @@ final class AppModel: ObservableObject {
             activeRecordingHistoryEntryID = historyEntryID
             audioLevel = 0
             log(.debug, "Recording saved as \(fileURL.lastPathComponent).")
+        } catch is CancellationError {
+            return
         } catch {
             if isCurrentRecordingOperation(operationID) {
                 lastErrorMessage = error.localizedDescription
@@ -418,11 +426,7 @@ final class AppModel: ObservableObject {
         activeRecordingHistoryEntryID = nil
         activeRecordingTask?.cancel()
         activeRecordingTask = nil
-        audioCaptureService.cancel(
-            keepStreamOpen: settings.alwaysOnMicrophone,
-            lazyClose: settings.lazyStreamClose
-        )
-        systemAudioMuteService.removeMuteIfNeeded()
+        recordingWorkflow.cancel(settings: settings)
         coordinator.cancel()
         activeRecordingShortcutID = nil
         activeRecordingPostProcessRequested = false
@@ -462,6 +466,7 @@ final class AppModel: ObservableObject {
         let previousAlwaysOnMicrophone = settings.alwaysOnMicrophone
         let previousMicrophoneName = settings.selectedMicrophoneName
         let previousClamshellMicrophoneName = settings.clamshellMicrophoneName
+        let previousAppleVoiceProcessingEnabled = settings.appleVoiceProcessingEnabled
         let previousLogLevel = settings.logLevel
         update(&settings)
         settingsStore.save(persistableSettings())
@@ -481,7 +486,8 @@ final class AppModel: ObservableObject {
         }
         if previousAlwaysOnMicrophone != settings.alwaysOnMicrophone ||
             previousMicrophoneName != settings.selectedMicrophoneName ||
-            previousClamshellMicrophoneName != settings.clamshellMicrophoneName {
+            previousClamshellMicrophoneName != settings.clamshellMicrophoneName ||
+            previousAppleVoiceProcessingEnabled != settings.appleVoiceProcessingEnabled {
             applyIdleMicrophonePreference()
         }
         if globalShortcutService.isRunning {
@@ -525,12 +531,19 @@ final class AppModel: ObservableObject {
     func applyIdleMicrophonePreference() {
         guard settings.alwaysOnMicrophone else {
             audioCaptureService.closeIdleStream()
+            audioInputVoiceProcessingStatus = audioCaptureService.voiceProcessingStatus
             return
         }
 
         do {
-            try audioCaptureService.openIdleStream(selectedMicrophoneName: effectiveRecordingMicrophoneName())
-            lastErrorMessage = nil
+            try audioCaptureService.openIdleStream(
+                selectedMicrophoneName: effectiveRecordingMicrophoneName(),
+                voiceProcessingConfiguration: settings.audioInputVoiceProcessingConfiguration
+            )
+            let didWarn = handleAudioInputVoiceProcessingStatus()
+            if didWarn == false {
+                lastErrorMessage = nil
+            }
             log(.debug, "Idle microphone stream opened.")
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -1368,10 +1381,12 @@ final class AppModel: ObservableObject {
     }
 
     private func applyMuteAfterFeedbackDelay() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
-            if recordingState.isRecording {
-                systemAudioMuteService.applyMuteIfNeeded(settings: settings)
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            await recordingWorkflow.applyMuteAfterStartFeedback(settings: settings) {
+                recordingState.isRecording
             }
         }
     }
@@ -1550,6 +1565,21 @@ final class AppModel: ObservableObject {
             clamshellMicrophoneName: settings.clamshellMicrophoneName,
             isClamshellClosed: AudioDeviceService.isClamshellClosed()
         )
+    }
+
+    @discardableResult
+    private func handleAudioInputVoiceProcessingStatus() -> Bool {
+        audioInputVoiceProcessingStatus = audioCaptureService.voiceProcessingStatus
+        guard settings.appleVoiceProcessingEnabled,
+              case let .unavailable(reason) = audioInputVoiceProcessingStatus
+        else {
+            return false
+        }
+
+        let warning = "Apple voice processing unavailable for this microphone; using raw input."
+        lastErrorMessage = warning
+        log(.warn, "\(warning) Reason: \(reason)")
+        return true
     }
 
     private func globalShortcutRegistrations() -> [GlobalShortcutRegistration] {

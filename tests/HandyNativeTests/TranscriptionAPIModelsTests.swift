@@ -4,7 +4,7 @@ import XCTest
 final class TranscriptionAPIModelsTests: XCTestCase {
     func testMistralDefaultsUseCurrentVoxtralAliases() throws {
         let settings = AppSettings.defaults
-        let mistralProvider = try XCTUnwrap(
+        _ = try XCTUnwrap(
             settings.transcriptionAPIProviders.first { $0.id == TranscriptionAPIProvider.mistralProviderID }
         )
         let defaultModel = try XCTUnwrap(
@@ -13,8 +13,31 @@ final class TranscriptionAPIModelsTests: XCTestCase {
 
         XCTAssertEqual(settings.selectedModel, "voxtral-small-latest")
         XCTAssertEqual(defaultModel.modelID, "voxtral-small-latest")
-        XCTAssertEqual(mistralProvider.suggestedModels, ["voxtral-small-latest", "voxtral-mini-latest"])
-        XCTAssertFalse(mistralProvider.suggestedModels.contains("voxtral-mini-2507"))
+        XCTAssertFalse(settings.transcriptionAPIModels.contains { $0.id == "voxtral-mini-2507" })
+    }
+
+    func testTranscriptionAPIProviderIgnoresRemovedSchemaKeys() throws {
+        let data = """
+        {
+          "id": "custom",
+          "label": "Custom",
+          "base_url": "http://localhost:11434/v1",
+          "allow_base_url_edit": true,
+          "models_endpoint": "/models",
+          "api_kind": "audio_transcriptions",
+          "suggested_models": ["legacy-model"],
+          "requires_api_key": false
+        }
+        """.data(using: .utf8)!
+
+        let provider = try JSONDecoder().decode(TranscriptionAPIProvider.self, from: data)
+
+        XCTAssertEqual(provider.id, "custom")
+        XCTAssertEqual(provider.label, "Custom")
+        XCTAssertEqual(provider.baseURL, "http://localhost:11434/v1")
+        XCTAssertTrue(provider.allowBaseURLEdit)
+        XCTAssertEqual(provider.apiKind, .audioTranscriptions)
+        XCTAssertFalse(provider.requiresAPIKey)
     }
 
     func testEnsureDefaultsMigratesLegacyVoxtralSelection() throws {
@@ -25,8 +48,7 @@ final class TranscriptionAPIModelsTests: XCTestCase {
                 id: TranscriptionAPIProvider.mistralProviderID,
                 label: "Mistral",
                 baseURL: "https://api.mistral.ai/v1",
-                apiKind: .chatCompletionsInputAudio,
-                suggestedModels: ["voxtral-small-2507", "voxtral-mini-2507"]
+                apiKind: .chatCompletionsInputAudio
             ),
         ]
         settings.transcriptionAPIModels = [
@@ -46,7 +68,7 @@ final class TranscriptionAPIModelsTests: XCTestCase {
             settings.transcriptionAPIProviders.first { $0.id == TranscriptionAPIProvider.mistralProviderID }
         )
         XCTAssertEqual(settings.selectedModel, "voxtral-small-latest")
-        XCTAssertEqual(mistralProvider.suggestedModels, ["voxtral-small-latest", "voxtral-mini-latest"])
+        XCTAssertEqual(mistralProvider.apiKind, .chatCompletionsInputAudio)
         XCTAssertTrue(settings.transcriptionAPIModels.contains { $0.id == "voxtral-small-latest" })
         XCTAssertFalse(settings.transcriptionAPIModels.contains { $0.id == "voxtral-small-2507" })
     }

@@ -10,9 +10,7 @@ struct TranscriptionAPIProvider: Identifiable, Codable, Equatable {
     var label: String
     var baseURL: String
     var allowBaseURLEdit: Bool
-    var modelsEndpoint: String?
     var apiKind: TranscriptionAPIKind
-    var suggestedModels: [String]
     var requiresAPIKey: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -20,9 +18,7 @@ struct TranscriptionAPIProvider: Identifiable, Codable, Equatable {
         case label
         case baseURL = "base_url"
         case allowBaseURLEdit = "allow_base_url_edit"
-        case modelsEndpoint = "models_endpoint"
         case apiKind = "api_kind"
-        case suggestedModels = "suggested_models"
         case requiresAPIKey = "requires_api_key"
     }
 
@@ -31,18 +27,14 @@ struct TranscriptionAPIProvider: Identifiable, Codable, Equatable {
         label: String,
         baseURL: String,
         allowBaseURLEdit: Bool = false,
-        modelsEndpoint: String? = nil,
         apiKind: TranscriptionAPIKind = .audioTranscriptions,
-        suggestedModels: [String] = [],
         requiresAPIKey: Bool = true
     ) {
         self.id = id
         self.label = label
         self.baseURL = baseURL
         self.allowBaseURLEdit = allowBaseURLEdit
-        self.modelsEndpoint = modelsEndpoint
         self.apiKind = apiKind
-        self.suggestedModels = suggestedModels
         self.requiresAPIKey = requiresAPIKey
     }
 
@@ -52,9 +44,7 @@ struct TranscriptionAPIProvider: Identifiable, Codable, Equatable {
         label = try container.decode(String.self, forKey: .label)
         baseURL = try container.decode(String.self, forKey: .baseURL)
         allowBaseURLEdit = try container.decodeIfPresent(Bool.self, forKey: .allowBaseURLEdit) ?? false
-        modelsEndpoint = try container.decodeIfPresent(String.self, forKey: .modelsEndpoint)
         apiKind = try container.decodeIfPresent(TranscriptionAPIKind.self, forKey: .apiKind) ?? .audioTranscriptions
-        suggestedModels = try container.decodeIfPresent([String].self, forKey: .suggestedModels) ?? []
         requiresAPIKey = try container.decodeIfPresent(Bool.self, forKey: .requiresAPIKey) ?? true
     }
 
@@ -73,39 +63,31 @@ struct TranscriptionAPIProvider: Identifiable, Codable, Equatable {
             id: openAIProviderID,
             label: "OpenAI",
             baseURL: "https://api.openai.com/v1",
-            modelsEndpoint: "/models",
-            apiKind: .audioTranscriptions,
-            suggestedModels: ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"]
+            apiKind: .audioTranscriptions
         ),
         TranscriptionAPIProvider(
             id: mistralProviderID,
             label: "Mistral",
             baseURL: "https://api.mistral.ai/v1",
-            modelsEndpoint: "/models",
-            apiKind: .chatCompletionsInputAudio,
-            suggestedModels: [mistralVoxtralModelID, "voxtral-mini-latest"]
+            apiKind: .chatCompletionsInputAudio
         ),
         TranscriptionAPIProvider(
             id: openRouterProviderID,
             label: "OpenRouter",
             baseURL: "https://openrouter.ai/api/v1",
-            modelsEndpoint: "/models",
             apiKind: .chatCompletionsInputAudio
         ),
         TranscriptionAPIProvider(
             id: "groq",
             label: "Groq",
             baseURL: "https://api.groq.com/openai/v1",
-            modelsEndpoint: "/models",
-            apiKind: .audioTranscriptions,
-            suggestedModels: ["whisper-large-v3", "whisper-large-v3-turbo"]
+            apiKind: .audioTranscriptions
         ),
         TranscriptionAPIProvider(
             id: "custom",
             label: "Custom",
             baseURL: "http://localhost:11434/v1",
             allowBaseURLEdit: true,
-            modelsEndpoint: "/models",
             apiKind: .audioTranscriptions,
             requiresAPIKey: false
         ),

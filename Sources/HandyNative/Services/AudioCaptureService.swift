@@ -22,24 +22,38 @@ final class AudioCaptureService {
     private var engine: AVAudioEngine?
     private var accumulator: AudioSampleAccumulator?
     private var activeMicrophoneName: String?
+    private var activeVoiceProcessingConfiguration: AudioInputVoiceProcessingConfiguration?
     private var lazyCloseTask: Task<Void, Never>?
     private var lazyCloseToken = UUID()
+
+    private(set) var voiceProcessingStatus: AudioInputVoiceProcessingStatus = .notConfigured
+
+    init() {}
 
     var isRecording: Bool {
         accumulator != nil
     }
 
-    func start(selectedMicrophoneName: String?, onLevel: @escaping @Sendable (Float) -> Void) throws {
+    func start(
+        selectedMicrophoneName: String?,
+        voiceProcessingConfiguration: AudioInputVoiceProcessingConfiguration = .handyDefault,
+        onLevel: @escaping @Sendable (Float) -> Void
+    ) throws {
         guard accumulator == nil else {
             throw AudioCaptureError.alreadyRecording
         }
         lazyCloseTask?.cancel()
 
-        if engine != nil, activeMicrophoneName != selectedMicrophoneName {
+        if engine != nil,
+           activeMicrophoneName != selectedMicrophoneName ||
+            activeVoiceProcessingConfiguration != voiceProcessingConfiguration {
             closeEngine()
         }
 
-        let engine = try ensureEngine(selectedMicrophoneName: selectedMicrophoneName)
+        let engine = try ensureEngine(
+            selectedMicrophoneName: selectedMicrophoneName,
+            voiceProcessingConfiguration: voiceProcessingConfiguration
+        )
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
         guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
@@ -66,6 +80,7 @@ final class AudioCaptureService {
         self.engine = engine
         self.accumulator = accumulator
         activeMicrophoneName = selectedMicrophoneName
+        activeVoiceProcessingConfiguration = voiceProcessingConfiguration
     }
 
     func stop(keepStreamOpen: Bool = false, lazyClose: Bool = false) throws -> AudioRecording {
@@ -88,12 +103,18 @@ final class AudioCaptureService {
         closeOrScheduleEngineClose(keepStreamOpen: keepStreamOpen, lazyClose: lazyClose)
     }
 
-    func openIdleStream(selectedMicrophoneName: String?) throws {
+    func openIdleStream(
+        selectedMicrophoneName: String?,
+        voiceProcessingConfiguration: AudioInputVoiceProcessingConfiguration = .handyDefault
+    ) throws {
         guard accumulator == nil else {
             return
         }
 
-        _ = try ensureEngine(selectedMicrophoneName: selectedMicrophoneName)
+        _ = try ensureEngine(
+            selectedMicrophoneName: selectedMicrophoneName,
+            voiceProcessingConfiguration: voiceProcessingConfiguration
+        )
     }
 
     func closeIdleStream() {
@@ -132,8 +153,13 @@ final class AudioCaptureService {
         }
     }
 
-    private func ensureEngine(selectedMicrophoneName: String?) throws -> AVAudioEngine {
-        if let engine, activeMicrophoneName == selectedMicrophoneName {
+    private func ensureEngine(
+        selectedMicrophoneName: String?,
+        voiceProcessingConfiguration: AudioInputVoiceProcessingConfiguration
+    ) throws -> AVAudioEngine {
+        if let engine,
+           activeMicrophoneName == selectedMicrophoneName,
+           activeVoiceProcessingConfiguration == voiceProcessingConfiguration {
             if engine.isRunning == false {
                 try engine.start()
             }
@@ -144,9 +170,19 @@ final class AudioCaptureService {
 
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
-        if let deviceID = AudioDeviceService.inputDeviceID(named: selectedMicrophoneName) {
-            try Self.setInputDevice(deviceID, on: inputNode)
-        }
+        let selectedDeviceID = AudioDeviceService.inputDeviceID(named: selectedMicrophoneName)
+        voiceProcessingStatus = try AudioInputVoiceProcessingInputPreparation.prepare(
+            selectedDeviceID: selectedDeviceID,
+            setInputDevice: { deviceID in
+                try Self.setInputDevice(deviceID, on: inputNode)
+            },
+            configureVoiceProcessing: {
+                try AudioInputVoiceProcessingConfigurator.configure(
+                    inputNode,
+                    configuration: voiceProcessingConfiguration
+                )
+            }
+        )
         let inputFormat = inputNode.outputFormat(forBus: 0)
         guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
             throw AudioCaptureError.unavailableInput
@@ -155,6 +191,7 @@ final class AudioCaptureService {
         try engine.start()
         self.engine = engine
         activeMicrophoneName = selectedMicrophoneName
+        activeVoiceProcessingConfiguration = voiceProcessingConfiguration
         return engine
     }
 
@@ -163,6 +200,8 @@ final class AudioCaptureService {
         engine?.stop()
         engine = nil
         activeMicrophoneName = nil
+        activeVoiceProcessingConfiguration = nil
+        voiceProcessingStatus = .notConfigured
     }
 
     private static func setInputDevice(_ deviceID: AudioDeviceID, on inputNode: AVAudioInputNode) throws {

@@ -16,7 +16,6 @@ struct NativeLaunchArguments: Equatable {
     var smokeModelRuntimeRequest: NativeModelRuntimeSmokeRequest?
     var smokePermissionStatusRequest: NativePermissionStatusSmokeRequest?
     var smokeReplacementReadinessRequest: NativeReplacementReadinessSmokeRequest?
-    var smokeUpdateInstallScriptRequest: NativeUpdateInstallScriptSmokeRequest?
     var smokeRemoteControlListenerRequest: NativeRemoteControlListenerSmokeRequest?
     var smokeRemoteControlSendRequest: NativeRemoteControlSendSmokeRequest?
     var smokeExternalPasteTargetRequest: NativeExternalPasteTargetSmokeRequest?
@@ -44,7 +43,6 @@ struct NativeLaunchArguments: Equatable {
         smokeModelRuntimeRequest: nil,
         smokePermissionStatusRequest: nil,
         smokeReplacementReadinessRequest: nil,
-        smokeUpdateInstallScriptRequest: nil,
         smokeRemoteControlListenerRequest: nil,
         smokeRemoteControlSendRequest: nil,
         smokeExternalPasteTargetRequest: nil,
@@ -79,8 +77,6 @@ struct NativeLaunchArguments: Equatable {
             value(for: "--smoke-permission-status", in: rawArguments) != nil
         let smokeReplacementReadiness = flags.contains("--smoke-replacement-readiness") ||
             value(for: "--smoke-replacement-readiness", in: rawArguments) != nil
-        let smokeUpdateInstallScript = flags.contains("--smoke-update-install-script") ||
-            value(for: "--smoke-update-install-script", in: rawArguments) != nil
         let parsedSmokeRemoteControlCommand = remoteControlCommand(
             from: value(for: "--smoke-remote-control-command", in: rawArguments)
         )
@@ -194,13 +190,6 @@ struct NativeLaunchArguments: Equatable {
                     outputPath: value(for: "--smoke-replacement-readiness", in: rawArguments) ??
                         value(for: "--smoke-output-json", in: rawArguments),
                     strict: flags.contains("--smoke-replacement-readiness-strict")
-                )
-                : nil,
-            smokeUpdateInstallScriptRequest: smokeUpdateInstallScript
-                ? NativeUpdateInstallScriptSmokeRequest(
-                    version: value(for: "--smoke-update-version", in: rawArguments) ?? "0.9.0",
-                    protectedTargetParent: flags.contains("--smoke-update-protected-target"),
-                    outputPath: value(for: "--smoke-output-json", in: rawArguments)
                 )
                 : nil,
             smokeRemoteControlListenerRequest: flags.contains("--smoke-remote-control-listener")
@@ -655,12 +644,6 @@ struct NativeModelRuntimeSmokeRequest: Equatable {
     var unloadTimeout: ModelUnloadTimeout
     var waitMilliseconds: Int
     var explicitUnload: Bool
-    var outputPath: String?
-}
-
-struct NativeUpdateInstallScriptSmokeRequest: Equatable {
-    var version: String
-    var protectedTargetParent: Bool
     var outputPath: String?
 }
 

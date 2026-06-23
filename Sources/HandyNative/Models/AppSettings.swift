@@ -325,11 +325,11 @@ struct AppSettings: Codable, Equatable {
     var selectedMicrophoneName: String?
     var clamshellMicrophoneName: String?
     var selectedOutputDeviceName: String?
+    var appleVoiceProcessingEnabled: Bool
     var alwaysOnMicrophone: Bool
     var muteWhileRecording: Bool
     var startHidden: Bool
     var autostartEnabled: Bool
-    var updateChecksEnabled: Bool
     var showMenuBarIcon: Bool
     var showOverlay: Bool
     var overlayPosition: OverlayPosition
@@ -380,11 +380,11 @@ struct AppSettings: Codable, Equatable {
         selectedMicrophoneName: nil,
         clamshellMicrophoneName: nil,
         selectedOutputDeviceName: nil,
+        appleVoiceProcessingEnabled: true,
         alwaysOnMicrophone: false,
         muteWhileRecording: false,
         startHidden: false,
         autostartEnabled: false,
-        updateChecksEnabled: false,
         showMenuBarIcon: true,
         showOverlay: true,
         overlayPosition: .bottom,
@@ -436,11 +436,11 @@ struct AppSettings: Codable, Equatable {
         selectedMicrophoneName: String?,
         clamshellMicrophoneName: String?,
         selectedOutputDeviceName: String?,
+        appleVoiceProcessingEnabled: Bool,
         alwaysOnMicrophone: Bool,
         muteWhileRecording: Bool,
         startHidden: Bool,
         autostartEnabled: Bool,
-        updateChecksEnabled: Bool,
         showMenuBarIcon: Bool,
         showOverlay: Bool,
         overlayPosition: OverlayPosition,
@@ -490,11 +490,11 @@ struct AppSettings: Codable, Equatable {
         self.selectedMicrophoneName = selectedMicrophoneName
         self.clamshellMicrophoneName = clamshellMicrophoneName
         self.selectedOutputDeviceName = selectedOutputDeviceName
+        self.appleVoiceProcessingEnabled = appleVoiceProcessingEnabled
         self.alwaysOnMicrophone = alwaysOnMicrophone
         self.muteWhileRecording = muteWhileRecording
         self.startHidden = startHidden
         self.autostartEnabled = autostartEnabled
-        self.updateChecksEnabled = false
         self.showMenuBarIcon = showMenuBarIcon
         self.overlayPosition = showOverlay ? overlayPosition : .none
         self.showOverlay = self.overlayPosition != .none
@@ -551,12 +551,11 @@ struct AppSettings: Codable, Equatable {
         selectedMicrophoneName = try container.decodeIfPresent(String.self, forKey: .selectedMicrophoneName) ?? defaults.selectedMicrophoneName
         clamshellMicrophoneName = try container.decodeIfPresent(String.self, forKey: .clamshellMicrophoneName) ?? defaults.clamshellMicrophoneName
         selectedOutputDeviceName = try container.decodeIfPresent(String.self, forKey: .selectedOutputDeviceName) ?? defaults.selectedOutputDeviceName
+        appleVoiceProcessingEnabled = try container.decodeIfPresent(Bool.self, forKey: .appleVoiceProcessingEnabled) ?? defaults.appleVoiceProcessingEnabled
         alwaysOnMicrophone = try container.decodeIfPresent(Bool.self, forKey: .alwaysOnMicrophone) ?? defaults.alwaysOnMicrophone
         muteWhileRecording = try container.decodeIfPresent(Bool.self, forKey: .muteWhileRecording) ?? defaults.muteWhileRecording
         startHidden = try container.decodeIfPresent(Bool.self, forKey: .startHidden) ?? defaults.startHidden
         autostartEnabled = try container.decodeIfPresent(Bool.self, forKey: .autostartEnabled) ?? defaults.autostartEnabled
-        _ = try container.decodeIfPresent(Bool.self, forKey: .updateChecksEnabled)
-        updateChecksEnabled = false
         showMenuBarIcon = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? defaults.showMenuBarIcon
         if let decodedOverlayPosition = try container.decodeIfPresent(OverlayPosition.self, forKey: .overlayPosition) {
             overlayPosition = decodedOverlayPosition

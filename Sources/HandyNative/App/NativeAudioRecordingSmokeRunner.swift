@@ -32,6 +32,7 @@ enum NativeAudioRecordingSmokeRunner {
         try audioCaptureService.start(selectedMicrophoneName: request.microphoneName) { level in
             stats.observe(level)
         }
+        let voiceProcessingStatus = audioCaptureService.voiceProcessingStatus
         Thread.sleep(forTimeInterval: TimeInterval(request.durationMilliseconds) / 1_000)
         let recording = try audioCaptureService.stop()
 
@@ -52,7 +53,11 @@ enum NativeAudioRecordingSmokeRunner {
             maxLevel: observedStats.maxLevel,
             levelObservationCount: observedStats.observationCount,
             byteCount: byteCount,
-            microphoneName: request.microphoneName
+            microphoneName: request.microphoneName,
+            voiceProcessingStatus: voiceProcessingStatus.name,
+            voiceProcessingEnabled: voiceProcessingStatus.isVoiceProcessingEnabled,
+            voiceProcessingAGCEnabled: voiceProcessingStatus.automaticGainControlEnabled,
+            voiceProcessingFallbackReason: voiceProcessingStatus.fallbackReason
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -61,7 +66,7 @@ enum NativeAudioRecordingSmokeRunner {
     }
 }
 
-private struct NativeAudioRecordingSmokeOutput: Encodable {
+struct NativeAudioRecordingSmokeOutput: Encodable {
     var outputPath: String
     var requestedDurationMilliseconds: Int
     var sampleCount: Int
@@ -71,6 +76,10 @@ private struct NativeAudioRecordingSmokeOutput: Encodable {
     var levelObservationCount: Int
     var byteCount: Int64
     var microphoneName: String?
+    var voiceProcessingStatus: String
+    var voiceProcessingEnabled: Bool
+    var voiceProcessingAGCEnabled: Bool?
+    var voiceProcessingFallbackReason: String?
 }
 
 private final class LockedAudioRecordingStats: @unchecked Sendable {

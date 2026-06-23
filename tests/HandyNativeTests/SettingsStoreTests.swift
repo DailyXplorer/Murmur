@@ -24,8 +24,8 @@ final class SettingsStoreTests: XCTestCase {
         let settings = SettingsStore(paths: makePaths()).load()
 
         XCTAssertEqual(settings, .defaults)
-        XCTAssertFalse(settings.updateChecksEnabled)
         XCTAssertEqual(settings.selectedModel, TranscriptionAPIProvider.mistralVoxtralModelID)
+        XCTAssertTrue(settings.appleVoiceProcessingEnabled)
         XCTAssertFalse(settings.nativeOnboardingCompleted)
     }
 
@@ -63,6 +63,32 @@ final class SettingsStoreTests: XCTestCase {
         let settings = SettingsStore(paths: paths).load()
 
         XCTAssertTrue(settings.nativeOnboardingCompleted)
+    }
+
+    func testLoadResultBacksUpMalformedNativeSettingsAndReturnsWarning() throws {
+        let paths = makePaths()
+        let settingsURL = paths.appDataDirectory.appendingPathComponent("native_settings.json")
+        try #"{"pushToTalk":false"#.write(to: settingsURL, atomically: true, encoding: .utf8)
+        let store = SettingsStore(
+            paths: paths,
+            now: { Date(timeIntervalSince1970: 1_234) }
+        )
+
+        let result = store.loadResult()
+
+        XCTAssertEqual(result.settings, .defaults)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: settingsURL.path))
+        let backupURLs = try FileManager.default.contentsOfDirectory(
+            at: paths.appDataDirectory,
+            includingPropertiesForKeys: nil
+        ).filter {
+            $0.lastPathComponent.hasPrefix("native_settings.json.") &&
+                $0.lastPathComponent.hasSuffix(".invalid")
+        }
+        XCTAssertEqual(backupURLs.count, 1)
+        XCTAssertEqual(try String(contentsOf: backupURLs[0], encoding: .utf8), #"{"pushToTalk":false"#)
+        XCTAssertTrue(result.warningMessage?.contains("could not read its settings") == true)
+        XCTAssertTrue(result.warningMessage?.contains(backupURLs[0].lastPathComponent) == true)
     }
 
     func testLegacySettingsAPIKeysAreImportedToNativeCredentialStore() throws {
@@ -126,7 +152,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(settings.pushToTalk)
         XCTAssertEqual(settings.selectedLanguage, "de-DE")
         XCTAssertFalse(settings.autostartEnabled)
-        XCTAssertFalse(settings.updateChecksEnabled)
+        XCTAssertTrue(settings.appleVoiceProcessingEnabled)
         XCTAssertEqual(settings.transcribeShortcutBinding.currentBinding, "option+space")
         XCTAssertEqual(settings.transcribeWithPostProcessShortcutBinding.currentBinding, "option+shift+space")
         XCTAssertEqual(settings.cancelShortcutBinding.currentBinding, "escape")
@@ -136,12 +162,24 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.recordingRetentionPeriod, .preserveLimit)
     }
 
-    func testNativeSettingsDecodeDisablesPersistedUpdateChecks() throws {
-        let data = #"{"updateChecksEnabled":true}"#.data(using: .utf8)!
+    func testNativeSettingsIgnoreRemovedUpdateCheckKey() throws {
+        let data = #"{"updateChecksEnabled":true,"pushToTalk":false}"#.data(using: .utf8)!
 
         let settings = try JSONDecoder().decode(AppSettings.self, from: data)
 
-        XCTAssertFalse(settings.updateChecksEnabled)
+        XCTAssertFalse(settings.pushToTalk)
+    }
+
+    func testNativeSettingsDecodeCanDisableAppleVoiceProcessing() throws {
+        let data = #"{"appleVoiceProcessingEnabled":false}"#.data(using: .utf8)!
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: data)
+
+        XCTAssertFalse(settings.appleVoiceProcessingEnabled)
+        XCTAssertEqual(
+            settings.audioInputVoiceProcessingConfiguration,
+            AudioInputVoiceProcessingConfiguration(isEnabled: false, fallbackToUnprocessedAudio: true)
+        )
     }
 
     func testLoadEnsuresNativeTranscriptionAPIDefaults() throws {
