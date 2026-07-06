@@ -4,7 +4,7 @@ Guidance for AI coding assistants working in this repository.
 
 ## Project Shape
 
-Handy is now a native macOS SwiftPM app. Do not reintroduce the deleted cross-platform project surfaces.
+Murmur is now a native macOS SwiftPM app. Do not reintroduce the deleted cross-platform project surfaces.
 
 Keep the app focused on:
 
@@ -18,15 +18,15 @@ Keep the app focused on:
 ```bash
 swift test -debug-info-format none
 ./script/build_and_run.sh
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 ```
 
 ## Structure
 
-- `Sources/HandyNative/` - app source
-- `tests/HandyNativeTests/` - XCTest coverage
+- `Sources/MurmurNative/` - app source
+- `tests/MurmurNativeTests/` - XCTest coverage
 - `ThirdParty/ArgmaxWhisperKit/` - vendored WhisperKit dependency
 - `Resources/` - packaging resources copied into the app bundle
 - `script/build_and_run.sh` - build, sign, launch, archive, readiness, and notarization helper

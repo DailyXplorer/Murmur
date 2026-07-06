@@ -17,7 +17,7 @@ jobs:
         run: swift test -debug-info-format none
 
       - name: Verify staged app
-        run: HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
+        run: MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
 
       - name: Validate local archives
-        run: HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
+        run: MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness

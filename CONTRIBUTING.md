@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on Handy.
+Thanks for working on Murmur.
 
 This repository contains the native macOS app only. Keep changes aligned with that scope.
 
@@ -18,14 +18,14 @@ Run:
 
 ```bash
 swift test -debug-info-format none
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
 ```
 
 For packaging or release-related changes, also run:
 
 ```bash
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 ```
 
 ## Scope

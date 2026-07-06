@@ -2,24 +2,24 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="Handy"
+APP_NAME="Murmur"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOURCE_DIR="$ROOT_DIR/Resources"
-DIST_DIR="${HANDY_DIST_DIR:-/tmp/handy-native-dist}"
+DIST_DIR="${MURMUR_DIST_DIR:-/tmp/murmur-native-dist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
-ENTITLEMENTS_PLIST="${HANDY_ENTITLEMENTS_PLIST:-$RESOURCE_DIR/Entitlements.plist}"
-ARCHIVE_DIR="${HANDY_ARCHIVE_DIR:-$DIST_DIR/archive}"
+ENTITLEMENTS_PLIST="${MURMUR_ENTITLEMENTS_PLIST:-$RESOURCE_DIR/Entitlements.plist}"
+ARCHIVE_DIR="${MURMUR_ARCHIVE_DIR:-$DIST_DIR/archive}"
 
-BUNDLE_ID="${HANDY_BUNDLE_ID:-com.pais.handy}"
-APP_VERSION="${HANDY_APP_VERSION:-0.1.0}"
-APP_BUILD="${HANDY_APP_BUILD:-1}"
+BUNDLE_ID="${MURMUR_BUNDLE_ID:-com.pais.murmur}"
+APP_VERSION="${MURMUR_APP_VERSION:-0.1.0}"
+APP_BUILD="${MURMUR_APP_BUILD:-1}"
 
 fail() {
   printf 'error: %s\n' "$*" >&2
@@ -27,8 +27,8 @@ fail() {
 }
 
 detect_codesign_identity() {
-  if [[ -n "${HANDY_CODESIGN_IDENTITY:-}" ]]; then
-    printf '%s\n' "$HANDY_CODESIGN_IDENTITY"
+  if [[ -n "${MURMUR_CODESIGN_IDENTITY:-}" ]]; then
+    printf '%s\n' "$MURMUR_CODESIGN_IDENTITY"
     return 0
   fi
 
@@ -138,32 +138,32 @@ create_archives() {
 configure_notary_args() {
   NOTARY_ARGS=()
 
-  if [[ -n "${HANDY_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
-    NOTARY_ARGS=(--keychain-profile "$HANDY_NOTARY_KEYCHAIN_PROFILE")
+  if [[ -n "${MURMUR_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+    NOTARY_ARGS=(--keychain-profile "$MURMUR_NOTARY_KEYCHAIN_PROFILE")
     return 0
   fi
 
-  if [[ -n "${HANDY_NOTARY_APPLE_ID:-}" && -n "${HANDY_NOTARY_TEAM_ID:-}" && -n "${HANDY_NOTARY_PASSWORD:-}" ]]; then
-    NOTARY_ARGS=(--apple-id "$HANDY_NOTARY_APPLE_ID" --team-id "$HANDY_NOTARY_TEAM_ID" --password "$HANDY_NOTARY_PASSWORD")
+  if [[ -n "${MURMUR_NOTARY_APPLE_ID:-}" && -n "${MURMUR_NOTARY_TEAM_ID:-}" && -n "${MURMUR_NOTARY_PASSWORD:-}" ]]; then
+    NOTARY_ARGS=(--apple-id "$MURMUR_NOTARY_APPLE_ID" --team-id "$MURMUR_NOTARY_TEAM_ID" --password "$MURMUR_NOTARY_PASSWORD")
     return 0
   fi
 
-  fail "notarization requires HANDY_NOTARY_KEYCHAIN_PROFILE or HANDY_NOTARY_APPLE_ID, HANDY_NOTARY_TEAM_ID, and HANDY_NOTARY_PASSWORD"
+  fail "notarization requires MURMUR_NOTARY_KEYCHAIN_PROFILE or MURMUR_NOTARY_APPLE_ID, MURMUR_NOTARY_TEAM_ID, and MURMUR_NOTARY_PASSWORD"
 }
 
 require_developer_id_identity() {
   if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
-    fail "notarization requires HANDY_CODESIGN_IDENTITY to be a Developer ID Application identity"
+    fail "notarization requires MURMUR_CODESIGN_IDENTITY to be a Developer ID Application identity"
   fi
 
-  if [[ "${HANDY_ALLOW_NON_DEVELOPER_ID_NOTARIZATION:-0}" == "1" ]]; then
+  if [[ "${MURMUR_ALLOW_NON_DEVELOPER_ID_NOTARIZATION:-0}" == "1" ]]; then
     return 0
   fi
 
   if ! /usr/bin/security find-identity -p codesigning -v 2>/dev/null \
     | /usr/bin/grep -F "$CODESIGN_IDENTITY" \
     | /usr/bin/grep -q "Developer ID Application"; then
-    fail "notarization requires a Developer ID Application identity; set HANDY_CODESIGN_IDENTITY or HANDY_ALLOW_NON_DEVELOPER_ID_NOTARIZATION=1 for local tool testing"
+    fail "notarization requires a Developer ID Application identity; set MURMUR_CODESIGN_IDENTITY or MURMUR_ALLOW_NON_DEVELOPER_ID_NOTARIZATION=1 for local tool testing"
   fi
 }
 
@@ -222,8 +222,8 @@ mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
-if [[ -f "$RESOURCE_DIR/Handy.icns" ]]; then
-  cp "$RESOURCE_DIR/Handy.icns" "$APP_RESOURCES/Handy.icns"
+if [[ -f "$RESOURCE_DIR/Murmur.icns" ]]; then
+  cp "$RESOURCE_DIR/Murmur.icns" "$APP_RESOURCES/Murmur.icns"
 fi
 
 for sound in marimba_start.wav marimba_stop.wav pop_start.wav pop_stop.wav; do
@@ -241,7 +241,7 @@ if [[ -d "$FONT_DIR" ]]; then
 fi
 
 if [[ -d "$RESOURCE_DIR" ]]; then
-  cp "$RESOURCE_DIR"/HandyTextLogo*.png "$APP_RESOURCES/" 2>/dev/null || true
+  cp "$RESOURCE_DIR"/MurmurTextLogo*.png "$APP_RESOURCES/" 2>/dev/null || true
 fi
 
 cat >"$INFO_PLIST" <<PLIST
@@ -264,7 +264,7 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundleVersion</key>
   <string>$APP_BUILD</string>
   <key>CFBundleIconFile</key>
-  <string>Handy</string>
+  <string>Murmur</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
@@ -274,9 +274,9 @@ cat >"$INFO_PLIST" <<PLIST
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Handy needs microphone access to transcribe audio locally.</string>
+  <string>Murmur needs microphone access to transcribe audio locally.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Handy needs speech recognition access to transcribe recorded audio.</string>
+  <string>Murmur needs speech recognition access to transcribe recorded audio.</string>
 </dict>
 </plist>
 PLIST
@@ -298,10 +298,10 @@ open_app() {
     open_args+=(-g)
   fi
 
-  if [[ "${HANDY_PORTABLE_SMOKE:-0}" == "1" ]]; then
+  if [[ "${MURMUR_PORTABLE_SMOKE:-0}" == "1" ]]; then
     local smoke_data_dir="$DIST_DIR/smoke-data"
     mkdir -p "$smoke_data_dir"
-    open_args+=(--env "HANDY_APP_DATA_DIR=$smoke_data_dir")
+    open_args+=(--env "MURMUR_APP_DATA_DIR=$smoke_data_dir")
   fi
 
   open_args+=(-a "$APP_BUNDLE")
@@ -319,7 +319,7 @@ run_readiness_command() {
   local stdout_path="$READINESS_DIR/$name.stdout"
   local stderr_path="$READINESS_DIR/$name.stderr"
   printf 'readiness: %s\n' "$name"
-  if HANDY_APP_DATA_DIR="$READINESS_DATA_DIR" "$APP_BINARY" "$@" >"$stdout_path" 2>"$stderr_path"; then
+  if MURMUR_APP_DATA_DIR="$READINESS_DATA_DIR" "$APP_BINARY" "$@" >"$stdout_path" 2>"$stderr_path"; then
     if [[ -s "$stdout_path" && ! -f "$READINESS_DIR/$name.json" ]]; then
       cp "$stdout_path" "$READINESS_DIR/$name.json"
     fi
@@ -357,10 +357,10 @@ write_readiness_notarization_status() {
   if /usr/bin/xcrun --find stapler >/dev/null 2>&1; then
     stapler_present=1
   fi
-  if [[ -n "${HANDY_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+  if [[ -n "${MURMUR_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
     keychain_profile_present=1
   fi
-  if [[ -n "${HANDY_NOTARY_APPLE_ID:-}" && -n "${HANDY_NOTARY_TEAM_ID:-}" && -n "${HANDY_NOTARY_PASSWORD:-}" ]]; then
+  if [[ -n "${MURMUR_NOTARY_APPLE_ID:-}" && -n "${MURMUR_NOTARY_TEAM_ID:-}" && -n "${MURMUR_NOTARY_PASSWORD:-}" ]]; then
     env_credentials_present=1
   fi
   if [[ "$developer_id_identity_present" == "1" &&
@@ -492,19 +492,19 @@ run_readiness_smokes() {
     model-cache-status \
     --smoke-model-cache-status tiny || failed=1
 
-  if [[ "${HANDY_READINESS_AUDIO_RECORDING_SMOKE:-0}" == "1" ]]; then
+  if [[ "${MURMUR_READINESS_AUDIO_RECORDING_SMOKE:-0}" == "1" ]]; then
     local -a audio_recording_args=(
       --smoke-record-audio "$READINESS_DIR/audio-recording.wav"
-      --smoke-record-duration-ms "${HANDY_READINESS_RECORD_DURATION_MS:-1500}"
+      --smoke-record-duration-ms "${MURMUR_READINESS_RECORD_DURATION_MS:-1500}"
       --smoke-output-json "$READINESS_DIR/audio-recording.json"
     )
-    if [[ -n "${HANDY_READINESS_MICROPHONE:-}" ]]; then
-      audio_recording_args+=(--smoke-record-microphone "$HANDY_READINESS_MICROPHONE")
+    if [[ -n "${MURMUR_READINESS_MICROPHONE:-}" ]]; then
+      audio_recording_args+=(--smoke-record-microphone "$MURMUR_READINESS_MICROPHONE")
     fi
 
     run_readiness_command audio-recording "${audio_recording_args[@]}" || failed=1
 
-    if [[ "${HANDY_READINESS_REQUIRE_VOICE_PROCESSING:-0}" == "1" ]]; then
+    if [[ "${MURMUR_READINESS_REQUIRE_VOICE_PROCESSING:-0}" == "1" ]]; then
       if [[ ! -f "$READINESS_DIR/audio-recording.json" ]]; then
         printf 'readiness failed: audio-recording JSON is missing\n' >&2
         failed=1
@@ -517,72 +517,72 @@ run_readiness_smokes() {
 
   write_readiness_notarization_status
 
-  if [[ -n "${HANDY_READINESS_TRANSCRIPTION_AUDIO:-}" ]]; then
+  if [[ -n "${MURMUR_READINESS_TRANSCRIPTION_AUDIO:-}" ]]; then
     run_readiness_command \
       transcription-file \
-      --smoke-transcribe-file "$HANDY_READINESS_TRANSCRIPTION_AUDIO" \
-      --smoke-transcribe-model "${HANDY_READINESS_TRANSCRIPTION_MODEL:-tiny}" \
-      --smoke-transcribe-language "${HANDY_READINESS_TRANSCRIPTION_LANGUAGE:-en}" \
+      --smoke-transcribe-file "$MURMUR_READINESS_TRANSCRIPTION_AUDIO" \
+      --smoke-transcribe-model "${MURMUR_READINESS_TRANSCRIPTION_MODEL:-tiny}" \
+      --smoke-transcribe-language "${MURMUR_READINESS_TRANSCRIPTION_LANGUAGE:-en}" \
       --smoke-output-json "$READINESS_DIR/transcription-file.json" || failed=1
   fi
 
-  if [[ "${HANDY_READINESS_MODEL_RUNTIME:-0}" == "1" ]]; then
+  if [[ "${MURMUR_READINESS_MODEL_RUNTIME:-0}" == "1" ]]; then
     run_readiness_command \
       model-runtime \
-      --smoke-model-runtime-state "${HANDY_READINESS_MODEL_RUNTIME_MODEL:-tiny}" \
+      --smoke-model-runtime-state "${MURMUR_READINESS_MODEL_RUNTIME_MODEL:-tiny}" \
       --smoke-model-runtime-unload-timeout immediate \
       --smoke-model-runtime-explicit-unload \
       --smoke-output-json "$READINESS_DIR/model-runtime.json" || failed=1
   fi
 
-  if [[ "${HANDY_READINESS_PERMISSION_SMOKES:-0}" == "1" ]]; then
+  if [[ "${MURMUR_READINESS_PERMISSION_SMOKES:-0}" == "1" ]]; then
     run_readiness_command \
       global-shortcut-event-tap \
       --smoke-global-shortcut-event-tap \
-      --smoke-global-shortcut-id "${HANDY_READINESS_SHORTCUT_ID:-readiness}" \
-      --smoke-global-shortcut-binding "${HANDY_READINESS_SHORTCUT_BINDING:-command+control+option+shift+9}" \
+      --smoke-global-shortcut-id "${MURMUR_READINESS_SHORTCUT_ID:-readiness}" \
+      --smoke-global-shortcut-binding "${MURMUR_READINESS_SHORTCUT_BINDING:-command+control+option+shift+9}" \
       --smoke-output-json "$READINESS_DIR/global-shortcut-event-tap.json" || failed=1
   fi
 
-  if [[ "${HANDY_READINESS_LIVE_DICTATION_SMOKE:-0}" == "1" ]]; then
+  if [[ "${MURMUR_READINESS_LIVE_DICTATION_SMOKE:-0}" == "1" ]]; then
     local -a live_dictation_args=(
       --smoke-global-shortcut-recording
-      --smoke-global-shortcut-id "${HANDY_READINESS_LIVE_SHORTCUT_ID:-transcribe}"
-      --smoke-global-shortcut-binding "${HANDY_READINESS_SHORTCUT_BINDING:-command+control+option+shift+9}"
-      --smoke-record-duration-ms "${HANDY_READINESS_RECORD_DURATION_MS:-1500}"
+      --smoke-global-shortcut-id "${MURMUR_READINESS_LIVE_SHORTCUT_ID:-transcribe}"
+      --smoke-global-shortcut-binding "${MURMUR_READINESS_SHORTCUT_BINDING:-command+control+option+shift+9}"
+      --smoke-record-duration-ms "${MURMUR_READINESS_RECORD_DURATION_MS:-1500}"
       --smoke-global-shortcut-recording-output "$READINESS_DIR/live-dictation.wav"
       --smoke-transcribe-after-shortcut-recording
-      --smoke-transcribe-model "${HANDY_READINESS_TRANSCRIPTION_MODEL:-tiny}"
-      --smoke-transcribe-language "${HANDY_READINESS_TRANSCRIPTION_LANGUAGE:-en}"
+      --smoke-transcribe-model "${MURMUR_READINESS_TRANSCRIPTION_MODEL:-tiny}"
+      --smoke-transcribe-language "${MURMUR_READINESS_TRANSCRIPTION_LANGUAGE:-en}"
       --smoke-output-json "$READINESS_DIR/live-dictation.json"
     )
-    if [[ -n "${HANDY_READINESS_MICROPHONE:-}" ]]; then
-      live_dictation_args+=(--smoke-record-microphone "$HANDY_READINESS_MICROPHONE")
+    if [[ -n "${MURMUR_READINESS_MICROPHONE:-}" ]]; then
+      live_dictation_args+=(--smoke-record-microphone "$MURMUR_READINESS_MICROPHONE")
     fi
-    if [[ "${HANDY_READINESS_SELECTED_SETTINGS:-0}" == "1" ]]; then
+    if [[ "${MURMUR_READINESS_SELECTED_SETTINGS:-0}" == "1" ]]; then
       live_dictation_args+=(--smoke-transcribe-selected-settings)
     fi
-    if [[ "${HANDY_READINESS_POST_PROCESS:-0}" == "1" ]]; then
+    if [[ "${MURMUR_READINESS_POST_PROCESS:-0}" == "1" ]]; then
       live_dictation_args+=(--smoke-post-process)
     fi
-    if [[ "${HANDY_READINESS_RECORD_HISTORY:-0}" == "1" ]]; then
+    if [[ "${MURMUR_READINESS_RECORD_HISTORY:-0}" == "1" ]]; then
       live_dictation_args+=(--smoke-record-history)
     fi
-    if [[ "${HANDY_READINESS_LIVE_PASTE:-0}" == "1" ]]; then
+    if [[ "${MURMUR_READINESS_LIVE_PASTE:-0}" == "1" ]]; then
       live_dictation_args+=(
         --smoke-external-paste-after-transcribe
-        --smoke-paste-method "${HANDY_READINESS_PASTE_METHOD:-direct}"
-        --smoke-clipboard-handling "${HANDY_READINESS_CLIPBOARD_HANDLING:-restore}"
+        --smoke-paste-method "${MURMUR_READINESS_PASTE_METHOD:-direct}"
+        --smoke-clipboard-handling "${MURMUR_READINESS_CLIPBOARD_HANDLING:-restore}"
       )
     fi
 
     run_readiness_command live-dictation "${live_dictation_args[@]}" || failed=1
   fi
 
-  if [[ "${HANDY_READINESS_FOCUS_SMOKES:-0}" == "1" ]]; then
+  if [[ "${MURMUR_READINESS_FOCUS_SMOKES:-0}" == "1" ]]; then
     run_readiness_command \
       external-paste-roundtrip \
-      --smoke-external-paste-roundtrip "Handy native readiness paste" \
+      --smoke-external-paste-roundtrip "Murmur native readiness paste" \
       --smoke-paste-method direct \
       --smoke-clipboard-handling restore \
       --smoke-output-json "$READINESS_DIR/external-paste-roundtrip.json" || failed=1
@@ -626,7 +626,7 @@ case "$MODE" in
     wait_for_native
     clean_bundle_xattrs
     /usr/bin/codesign --verify --deep --strict "$APP_BUNDLE" >/dev/null
-    if [[ "${HANDY_KEEP_VERIFY_APP:-0}" != "1" ]]; then
+    if [[ "${MURMUR_KEEP_VERIFY_APP:-0}" != "1" ]]; then
       terminate_existing_native
     fi
     ;;

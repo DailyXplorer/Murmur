@@ -7,7 +7,7 @@
 <!-- Commands run and any manual checks performed. -->
 
 - [ ] `swift test -debug-info-format none`
-- [ ] `HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify`
+- [ ] `MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify`
 
 ## Scope Check
 

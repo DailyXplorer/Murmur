@@ -3,14 +3,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "HandyNative",
+    name: "MurmurNative",
     platforms: [
         .macOS(.v14)
     ],
     products: [
         .executable(
-            name: "Handy",
-            targets: ["HandyNative"]
+            name: "Murmur",
+            targets: ["MurmurNative"]
         )
     ],
     dependencies: [
@@ -18,16 +18,16 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "HandyNative",
+            name: "MurmurNative",
             dependencies: [
                 .product(name: "WhisperKit", package: "ArgmaxWhisperKit")
             ],
-            path: "Sources/HandyNative"
+            path: "Sources/MurmurNative"
         ),
         .testTarget(
-            name: "HandyNativeTests",
-            dependencies: ["HandyNative"],
-            path: "tests/HandyNativeTests"
+            name: "MurmurNativeTests",
+            dependencies: ["MurmurNative"],
+            path: "tests/MurmurNativeTests"
         )
     ]
 )

@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a problem with the native macOS Handy app
+about: Report a problem with the native macOS Murmur app
 title: "[BUG] "
 labels: ["bug"]
 assignees: ""
@@ -26,7 +26,7 @@ What happened instead?
 
 ## System Information
 
-- Handy version:
+- Murmur version:
 - macOS version:
 - Mac model / chip:
 - Transcription path: Local Whisper / Mistral API / other API / Apple Speech

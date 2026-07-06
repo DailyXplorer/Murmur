@@ -1,8 +1,8 @@
-# Handy for Mac
+# Murmur for Mac
 
-Handy for Mac is a native macOS speech-to-text app. Press a shortcut, speak, and Handy pastes the transcription into the active app.
+Murmur for Mac is a native macOS speech-to-text app. Press a shortcut, speak, and Murmur pastes the transcription into the active app.
 
-This repository, `Handy-For-Mac`, is an experimental native Swift rewrite of [cjpais/Handy](https://github.com/cjpais/Handy), the original open-source Handy project. The goal is to keep the same direct speech-to-text workflow while making the app feel at home on macOS: SwiftUI/AppKit UI, Core ML local transcription, Keychain-backed credentials, native shortcuts, and a small reproducible SwiftPM build.
+This repository, `Murmur`, is an experimental native Swift rewrite of [cjpais/Handy](https://github.com/cjpais/Handy), the original open-source Handy project. The goal is to keep the same direct speech-to-text workflow while making the app feel at home on macOS: SwiftUI/AppKit UI, Core ML local transcription, Keychain-backed credentials, native shortcuts, and a small reproducible SwiftPM build.
 
 Compared with the original app, this fork also adds configurable API transcription models, OpenAI-compatible provider settings, Mistral Voxtral support, color themes, a native model screen, and a more Mac-focused packaging/readiness workflow.
 
@@ -67,13 +67,13 @@ swift test -debug-info-format none
 The build script creates and launches:
 
 ```text
-/tmp/handy-native-dist/Handy.app
+/tmp/murmur-native-dist/Murmur.app
 ```
 
 For an isolated smoke launch:
 
 ```bash
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
 ```
 
 ## Local Packaging
@@ -81,13 +81,13 @@ HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
 Create local ZIP and DMG artifacts:
 
 ```bash
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 ```
 
 Artifacts are written under:
 
 ```text
-/tmp/handy-native-dist/archive/
+/tmp/murmur-native-dist/archive/
 ```
 
 Local builds are ad-hoc signed by default. Developer ID signing and notarization are only needed if you distribute prebuilt binaries to other people.
@@ -96,21 +96,21 @@ Local builds are ad-hoc signed by default. Developer ID signing and notarization
 
 ```bash
 swift test -debug-info-format none
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
-HANDY_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
+MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 ```
 
 `--readiness` writes JSON reports under:
 
 ```text
-/tmp/handy-native-dist/readiness/
+/tmp/murmur-native-dist/readiness/
 ```
 
 ## Architecture
 
-- `Sources/HandyNative/` - native app source
-- `tests/HandyNativeTests/` - XCTest coverage
+- `Sources/MurmurNative/` - native app source
+- `tests/MurmurNativeTests/` - XCTest coverage
 - `ThirdParty/ArgmaxWhisperKit/` - vendored WhisperKit dependency
 - `Resources/` - app icon, entitlements, fonts, logos, and sounds used by the packaging script
 - `script/build_and_run.sh` - build, sign, launch, archive, readiness, and notarization helper
@@ -126,17 +126,17 @@ Main transcription paths:
 The app binary supports these runtime flags:
 
 ```bash
-/Applications/Handy.app/Contents/MacOS/Handy --toggle-transcription
-/Applications/Handy.app/Contents/MacOS/Handy --toggle-post-process
-/Applications/Handy.app/Contents/MacOS/Handy --cancel
-/Applications/Handy.app/Contents/MacOS/Handy --start-hidden
-/Applications/Handy.app/Contents/MacOS/Handy --no-tray
-/Applications/Handy.app/Contents/MacOS/Handy --debug
+/Applications/Murmur.app/Contents/MacOS/Murmur --toggle-transcription
+/Applications/Murmur.app/Contents/MacOS/Murmur --toggle-post-process
+/Applications/Murmur.app/Contents/MacOS/Murmur --cancel
+/Applications/Murmur.app/Contents/MacOS/Murmur --start-hidden
+/Applications/Murmur.app/Contents/MacOS/Murmur --no-tray
+/Applications/Murmur.app/Contents/MacOS/Murmur --debug
 ```
 
 ## Permissions
 
-Handy needs:
+Murmur needs:
 
 - Microphone access to record speech
 - Accessibility access to paste or type the transcription into other apps
