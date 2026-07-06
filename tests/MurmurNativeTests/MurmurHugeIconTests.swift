@@ -1,4 +1,5 @@
 @testable import MurmurNative
+import AppKit
 import XCTest
 
 final class MurmurHugeIconTests: XCTestCase {
@@ -77,5 +78,14 @@ final class MurmurHugeIconTests: XCTestCase {
             ].map(\.pathData.isEmpty),
             Array(repeating: false, count: 14)
         )
+    }
+
+    func testMenuBarMicIconUsesTemplateImage() {
+        let image = MurmurMenuBarIconImage.make()
+
+        XCTAssertEqual(image.size.width, 18)
+        XCTAssertEqual(image.size.height, 18)
+        XCTAssertTrue(image.isTemplate)
+        XCTAssertNotNil(image.tiffRepresentation)
     }
 }

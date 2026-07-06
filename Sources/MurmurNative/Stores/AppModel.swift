@@ -170,14 +170,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    var menuBarSystemImage: String {
-        switch recordingState {
-        case .idle: "mic"
-        case .recording: "record.circle"
-        case .transcribing, .processing: "waveform"
-        }
-    }
-
     var recordingActionTitle: String {
         switch recordingState {
         case .idle:

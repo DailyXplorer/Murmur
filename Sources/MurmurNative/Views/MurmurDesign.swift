@@ -5,6 +5,8 @@ enum MurmurDesign {
     static let windowWidth: CGFloat = 860
     static let windowHeight: CGFloat = 640
     static let sidebarWidth: CGFloat = 160
+    static let sidebarLogoWidth: CGFloat = 144
+    static let sidebarLogoHeight: CGFloat = 44
     static let contentWidth: CGFloat = 768
     static let cornerRadius: CGFloat = 8
 

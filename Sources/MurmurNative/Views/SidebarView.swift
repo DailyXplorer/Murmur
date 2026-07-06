@@ -9,8 +9,8 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MurmurLogoView()
-                .padding(.vertical, 16)
+            MurmurLogoView(width: MurmurDesign.sidebarLogoWidth, height: MurmurDesign.sidebarLogoHeight)
+                .padding(.vertical, 18)
 
             VStack(spacing: 4) {
                 ForEach(AppSection.visibleSections(settings: appModel.settings)) { section in
