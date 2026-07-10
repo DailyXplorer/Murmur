@@ -339,7 +339,9 @@ final class AppModel: ObservableObject {
             activeRecordingShortcutID = shortcutID
             activeRecordingPostProcessRequested = postProcessRequested
             audioLevel = 0
+            showOverlay(.recording)
             prewarmSelectedLocalModelIfAvailable()
+            let engineStart = ContinuousClock.now
             try recordingWorkflow.start(
                 settings: settings,
                 paths: paths,
@@ -349,12 +351,12 @@ final class AppModel: ObservableObject {
                     self?.handleAudioLevel(level)
                 }
             }
+            let engineElapsed = ContinuousClock.now - engineStart
+            log(.info, "Recording started (audio engine ready in \(engineElapsed.formattedMilliseconds)).")
             recordingState = coordinator.state
             refreshGlobalShortcutMonitorIfRunning()
             handleAudioInputVoiceProcessingStatus()
-            showOverlay(.recording)
             applyMuteAfterFeedbackDelay()
-            log(.info, "Recording started.")
         } catch {
             coordinator.cancel()
             activeRecordingOperationID = nil
@@ -1812,5 +1814,12 @@ private enum HistoryRetryError: LocalizedError {
         case let .missingAudioFile(fileName):
             "Recording audio file '\(fileName)' was not found."
         }
+    }
+}
+
+private extension Duration {
+    var formattedMilliseconds: String {
+        let milliseconds = components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
+        return "\(milliseconds) ms"
     }
 }
