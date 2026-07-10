@@ -1215,7 +1215,7 @@ final class AppModel: ObservableObject {
                     model: model,
                     settings: settings,
                     paths: paths,
-                    unloadTimeout: settings.modelUnloadTimeout
+                    unloadTimeout: nil
                 )
                 await refreshLocalModelRuntimeStatesNow()
                 scheduleLocalModelRuntimeStateRefreshAfterCurrentUnloadTimeout()

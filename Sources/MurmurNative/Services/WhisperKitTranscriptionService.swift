@@ -25,6 +25,8 @@ actor WhisperKitTranscriptionService {
         _ = try await pipeline(for: model, settings: settings, paths: paths, modelDirectory: modelDirectory)
         if let unloadTimeout {
             scheduleUnload(for: key, timeout: unloadTimeout)
+        } else {
+            cancelScheduledUnload(for: key)
         }
     }
 
@@ -121,6 +123,12 @@ actor WhisperKitTranscriptionService {
         let pipeline = try await WhisperKit(config)
         pipelines[key] = pipeline
         return pipeline
+    }
+
+    private func cancelScheduledUnload(for key: PipelineKey) {
+        scheduledUnloadTasks[key]?.cancel()
+        scheduledUnloadTasks[key] = nil
+        unloadTokens[key] = nil
     }
 
     private func scheduleUnload(for key: PipelineKey, timeout: ModelUnloadTimeout) {
