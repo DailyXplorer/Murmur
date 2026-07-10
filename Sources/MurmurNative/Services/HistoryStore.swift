@@ -293,13 +293,14 @@ final class HistoryStore {
     func cleanup(
         retentionPeriod: RecordingRetentionPeriod,
         historyLimit: Int,
+        excludingID: Int64? = nil,
         now: Date = Date()
     ) throws {
         switch retentionPeriod {
         case .never:
             return
         case .preserveLimit:
-            try cleanupByCount(limit: historyLimit)
+            try cleanupByCount(limit: historyLimit, excludingID: excludingID)
         case .days3, .weeks2, .months3:
             guard let interval = retentionPeriod.retentionInterval else {
                 return
@@ -309,19 +310,23 @@ final class HistoryStore {
         }
     }
 
-    func cleanupByCount(limit: Int) throws {
+    func cleanupByCount(limit: Int, excludingID: Int64? = nil) throws {
         let database = try openDatabase()
         defer { sqlite3_close(database) }
 
         let statement = try prepare(
-            "SELECT id, file_name FROM transcription_history WHERE saved = 0 ORDER BY timestamp DESC",
+            "SELECT id, file_name FROM transcription_history WHERE saved = 0 ORDER BY timestamp DESC, id DESC",
             in: database
         )
         defer { sqlite3_finalize(statement) }
 
         var rows: [(id: Int64, fileName: String)] = []
         while sqlite3_step(statement) == SQLITE_ROW {
-            rows.append((sqlite3_column_int64(statement, 0), textColumn(statement, 1) ?? ""))
+            let id = sqlite3_column_int64(statement, 0)
+            if let excludingID, id == excludingID {
+                continue
+            }
+            rows.append((id, textColumn(statement, 1) ?? ""))
         }
 
         let boundedLimit = max(0, limit)

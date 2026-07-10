@@ -252,6 +252,15 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.keyboardImplementation, .nativeEventTap)
     }
 
+    func testNativeSettingsDecodeClampsHistoryLimitToAtLeastOne() throws {
+        let settings = try JSONDecoder().decode(
+            AppSettings.self,
+            from: #"{"historyLimit":0}"#.data(using: .utf8)!
+        )
+
+        XCTAssertEqual(settings.historyLimit, 1)
+    }
+
     private func makePaths() -> AppPaths {
         let appDataDirectory = temporaryDirectory.appendingPathComponent("app-data", isDirectory: true)
         try? FileManager.default.createDirectory(at: appDataDirectory, withIntermediateDirectories: true)

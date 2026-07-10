@@ -599,7 +599,7 @@ struct AppSettings: Codable, Equatable {
         restoreClipboardAfterPaste = clipboardHandling == .dontModify
         autoSubmitAfterPaste = try container.decodeIfPresent(Bool.self, forKey: .autoSubmitAfterPaste) ?? defaults.autoSubmitAfterPaste
         autoSubmitKey = try container.decodeIfPresent(AutoSubmitKey.self, forKey: .autoSubmitKey) ?? defaults.autoSubmitKey
-        historyLimit = try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? defaults.historyLimit
+        historyLimit = max(1, try container.decodeIfPresent(Int.self, forKey: .historyLimit) ?? defaults.historyLimit)
         recordingRetentionPeriod = try container.decodeIfPresent(RecordingRetentionPeriod.self, forKey: .recordingRetentionPeriod) ?? defaults.recordingRetentionPeriod
         debugMode = try container.decodeIfPresent(Bool.self, forKey: .debugMode) ?? defaults.debugMode
         logLevel = try container.decodeIfPresent(NativeLogLevel.self, forKey: .logLevel) ?? defaults.logLevel

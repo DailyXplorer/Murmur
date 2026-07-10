@@ -1255,6 +1255,7 @@ final class AppModel: ObservableObject {
                 postProcessRequested: postProcessRequested
             )
             historyEntries.insert(entry, at: 0)
+            activeRecordingHistoryEntryID = entry.id
             cleanupHistoryIfNeeded()
             return entry
         } catch {
@@ -1405,7 +1406,8 @@ final class AppModel: ObservableObject {
         do {
             try historyStore.cleanup(
                 retentionPeriod: settings.recordingRetentionPeriod,
-                historyLimit: settings.historyLimit
+                historyLimit: settings.historyLimit,
+                excludingID: activeRecordingHistoryEntryID
             )
             reloadHistory()
         } catch {

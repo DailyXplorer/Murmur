@@ -251,6 +251,85 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: savedOld.fileName).path))
     }
 
+    func testCleanupByCountKeepsNewestInsertOnTimestampTie() throws {
+        let store = try makeStore()
+        let sharedTimestamp = Date(timeIntervalSince1970: 100)
+        let first = try saveEntryWithAudio(
+            store: store,
+            fileName: "tie-first.wav",
+            timestamp: sharedTimestamp
+        )
+        let second = try saveEntryWithAudio(
+            store: store,
+            fileName: "tie-second.wav",
+            timestamp: sharedTimestamp
+        )
+        let third = try saveEntryWithAudio(
+            store: store,
+            fileName: "tie-third.wav",
+            timestamp: sharedTimestamp
+        )
+        XCTAssertLessThan(first.id, second.id)
+        XCTAssertLessThan(second.id, third.id)
+
+        try store.cleanupByCount(limit: 2)
+
+        let survivors = try store.entries().entries
+        XCTAssertEqual(Set(survivors.map(\.id)), Set([second.id, third.id]))
+        XCTAssertNil(try store.entry(id: first.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: first.fileName).path))
+    }
+
+    func testCleanupExcludesActiveEntry() throws {
+        let store = try makeStore()
+        let oldest = try saveEntryWithAudio(
+            store: store,
+            fileName: "active-oldest.wav",
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let middle = try saveEntryWithAudio(
+            store: store,
+            fileName: "middle.wav",
+            timestamp: Date(timeIntervalSince1970: 200)
+        )
+        let newest = try saveEntryWithAudio(
+            store: store,
+            fileName: "newest.wav",
+            timestamp: Date(timeIntervalSince1970: 300)
+        )
+
+        try store.cleanup(retentionPeriod: .preserveLimit, historyLimit: 1, excludingID: oldest.id)
+
+        let survivors = try store.entries().entries
+        XCTAssertEqual(Set(survivors.map(\.id)), Set([oldest.id, newest.id]))
+        XCTAssertNil(try store.entry(id: middle.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: middle.fileName).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: oldest.fileName).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: newest.fileName).path))
+    }
+
+    func testCleanupLimitZeroWithExclusionKeepsExcluded() throws {
+        let store = try makeStore()
+        let excluded = try saveEntryWithAudio(
+            store: store,
+            fileName: "excluded.wav",
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let other = try saveEntryWithAudio(
+            store: store,
+            fileName: "other.wav",
+            timestamp: Date(timeIntervalSince1970: 200)
+        )
+
+        try store.cleanupByCount(limit: 0, excludingID: excluded.id)
+
+        let survivors = try store.entries().entries
+        XCTAssertEqual(survivors.map(\.id), [excluded.id])
+        XCTAssertNil(try store.entry(id: other.id))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: excluded.fileName).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.audioFileURL(fileName: other.fileName).path))
+    }
+
     func testOutputTextPrefersPostProcessedText() {
         let entry = HistoryEntry(
             id: 1,

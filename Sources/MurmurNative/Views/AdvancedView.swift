@@ -99,7 +99,7 @@ struct AdvancedView: View {
 
             MurmurSettingsGroup("HISTORY") {
                 MurmurSettingRow("History limit", description: "Maximum number of entries kept in local history.") {
-                    Stepper("\(appModel.settings.historyLimit)", value: binding(\.historyLimit), in: 0...100, step: 1)
+                    Stepper("\(appModel.settings.historyLimit)", value: binding(\.historyLimit), in: 1...100, step: 1)
                         .font(MurmurDesign.font(size: 13))
                 }
                 MurmurDivider()
