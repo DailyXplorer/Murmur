@@ -1301,6 +1301,14 @@ final class AppModel: ObservableObject {
             }
             lastOutputText = result.outputText
 
+            var pasteError: Error?
+            do {
+                try await pasteService.paste(result.outputText, options: PasteOutputOptions(settings: settings))
+                log(.info, "Transcription completed and output inserted.")
+            } catch {
+                pasteError = error
+            }
+
             if let historyEntryID {
                 updateHistoryTranscription(
                     id: historyEntryID,
@@ -1314,11 +1322,9 @@ final class AppModel: ObservableObject {
             await refreshLocalModelRuntimeStatesNow()
             scheduleLocalModelRuntimeStateRefreshAfterCurrentUnloadTimeout()
 
-            guard isCurrentRecordingOperation(operationID), Task.isCancelled == false else {
-                return
+            if let pasteError {
+                throw pasteError
             }
-            try await pasteService.paste(result.outputText, options: PasteOutputOptions(settings: settings))
-            log(.info, "Transcription completed and output inserted.")
         } catch is CancellationError {
             log(.info, "Transcription operation cancelled.")
         } catch {
