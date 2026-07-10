@@ -17,7 +17,27 @@ enum CustomWordCorrectionService {
 
         let customWordsNoSpace = normalizedCustomWords
             .map { $0.lowercased().replacingOccurrences(of: " ", with: "") }
-        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+
+        return text
+            .components(separatedBy: "\n")
+            .map {
+                applyCustomWordsToLine(
+                    $0,
+                    normalizedCustomWords: normalizedCustomWords,
+                    customWordsNoSpace: customWordsNoSpace,
+                    threshold: threshold
+                )
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func applyCustomWordsToLine(
+        _ line: String,
+        normalizedCustomWords: [String],
+        customWordsNoSpace: [String],
+        threshold: Double
+    ) -> String {
+        let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
         var result: [String] = []
         var index = 0
 

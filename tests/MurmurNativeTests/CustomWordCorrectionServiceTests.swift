@@ -55,6 +55,16 @@ final class CustomWordCorrectionServiceTests: XCTestCase {
         XCTAssertTrue(result.contains("MacBook Pro"))
     }
 
+    func testCustomWordCorrectionPreservesNewlines() {
+        let result = CustomWordCorrectionService.applyCustomWords(
+            to: "first line untouched\ncharge bee rocks",
+            customWords: ["ChargeBee"],
+            threshold: 0.5
+        )
+
+        XCTAssertEqual(result, "first line untouched\nChargeBee rocks")
+    }
+
     func testUIWordSanitizerValidation() {
         XCTAssertEqual(AppSettings.sanitizeCustomWord("  ChargeBee  "), "ChargeBee")
         XCTAssertEqual(AppSettings.sanitizeCustomWord("<ChargeBee>"), "ChargeBee")

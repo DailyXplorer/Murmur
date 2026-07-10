@@ -70,9 +70,12 @@ enum AudioFileTranscriptionPipeline {
         postProcessRequested: Bool
     ) async -> ProcessedAudioTranscription {
         let cleanText = PostProcessingService.stripInvisibleCharacters(text)
+        let filterLanguage = settings.selectedLanguage == "auto"
+            ? settings.appLanguage
+            : settings.selectedLanguage
         let filteredText = TranscriptionOutputFilterService.filter(
             cleanText,
-            appLanguage: settings.appLanguage,
+            language: filterLanguage,
             customFillerWords: settings.customFillerWords
         )
         let variantText = ChineseVariantConversionService.convertedText(

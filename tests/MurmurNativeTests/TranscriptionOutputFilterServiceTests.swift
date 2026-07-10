@@ -5,7 +5,7 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testEnglishDefaultFillersAreRemoved() {
         let result = TranscriptionOutputFilterService.filter(
             "um I think um this is good",
-            appLanguage: "en",
+            language: "en",
             customFillerWords: nil
         )
 
@@ -15,7 +15,7 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testPortuguesePreservesUmAsRealWord() {
         let result = TranscriptionOutputFilterService.filter(
             "um gato bonito",
-            appLanguage: "pt-BR",
+            language: "pt-BR",
             customFillerWords: nil
         )
 
@@ -25,7 +25,7 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testSpanishPreservesHaAsRealWord() {
         let result = TranscriptionOutputFilterService.filter(
             "ha sido un buen dia",
-            appLanguage: "es",
+            language: "es",
             customFillerWords: nil
         )
 
@@ -35,7 +35,7 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testCustomFillerWordsOverrideLanguageDefaults() {
         let result = TranscriptionOutputFilterService.filter(
             "okay so I think right this works",
-            appLanguage: "en",
+            language: "en",
             customFillerWords: ["okay", "right"]
         )
 
@@ -45,7 +45,7 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testEmptyCustomFillerWordsDisableFillerRemoval() {
         let result = TranscriptionOutputFilterService.filter(
             "So uhm I was thinking uh about this",
-            appLanguage: "en",
+            language: "en",
             customFillerWords: []
         )
 
@@ -55,10 +55,66 @@ final class TranscriptionOutputFilterServiceTests: XCTestCase {
     func testRepeatedAlphabeticStuttersAreCollapsed() {
         let result = TranscriptionOutputFilterService.filter(
             "wh wh wh what I I I mean",
-            appLanguage: "en",
+            language: "en",
             customFillerWords: []
         )
 
         XCTAssertEqual(result, "wh what I mean")
+    }
+
+    func testMillimetersAndInterjectionsSurviveEnglishFiltering() {
+        let result = TranscriptionOutputFilterService.filter(
+            "The gap is 5 mm. Ah well, ha!",
+            language: "en",
+            customFillerWords: nil
+        )
+
+        XCTAssertEqual(result, "The gap is 5 mm. Ah well, ha!")
+    }
+
+    func testFillerLanguageFollowsDictationLanguage() {
+        let french = TranscriptionOutputFilterService.filter(
+            "euh bonjour",
+            language: "fr",
+            customFillerWords: nil
+        )
+        let english = TranscriptionOutputFilterService.filter(
+            "euh bonjour",
+            language: "en",
+            customFillerWords: nil
+        )
+
+        XCTAssertEqual(french, "bonjour")
+        XCTAssertEqual(english, "euh bonjour")
+    }
+
+    func testGenuineFillerStillRemovedWithPunctuation() {
+        let result = TranscriptionOutputFilterService.filter(
+            "Um, hello",
+            language: "en",
+            customFillerWords: nil
+        )
+
+        XCTAssertEqual(result, "hello")
+    }
+
+    func testParagraphBreaksSurviveFiltering() {
+        let result = TranscriptionOutputFilterService.filter(
+            "First paragraph line one.\nStill first.\n\nSecond paragraph.",
+            language: "en",
+            customFillerWords: nil
+        )
+
+        XCTAssertEqual(result, "First paragraph line one.\nStill first.\n\nSecond paragraph.")
+    }
+
+    func testStutterCollapseStillWorksWithinALine() {
+        let result = TranscriptionOutputFilterService.filter(
+            "wh wh wh what I mean\nsecond line stays",
+            language: "en",
+            customFillerWords: []
+        )
+
+        XCTAssertEqual(result, "wh what I mean\nsecond line stays")
     }
 }

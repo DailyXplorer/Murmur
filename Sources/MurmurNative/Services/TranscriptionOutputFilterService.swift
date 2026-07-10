@@ -3,10 +3,10 @@ import Foundation
 enum TranscriptionOutputFilterService {
     static func filter(
         _ text: String,
-        appLanguage: String,
+        language: String,
         customFillerWords: [String]?
     ) -> String {
-        let fillerWords = customFillerWords ?? defaultFillerWords(for: appLanguage)
+        let fillerWords = customFillerWords ?? defaultFillerWords(for: language)
         var filtered = text
 
         for word in fillerWords where word.isEmpty == false {
@@ -26,7 +26,7 @@ enum TranscriptionOutputFilterService {
 
         switch baseLanguage {
         case "en":
-            return ["uh", "um", "uhm", "umm", "uhh", "uhhh", "ah", "hmm", "hm", "mmm", "mm", "mh", "eh", "ehh", "ha"]
+            return ["uh", "um", "uhm", "umm", "uhh", "uhhh", "hmm", "hm", "mmm", "ehh"]
         case "es":
             return ["ehm", "mmm", "hmm", "hm"]
         case "pt":
@@ -44,7 +44,7 @@ enum TranscriptionOutputFilterService {
         case "ar", "ja", "ko", "zh":
             return ["hmm", "mmm"]
         default:
-            return ["uh", "uhm", "umm", "uhh", "uhhh", "ah", "hmm", "hm", "mmm", "mm", "mh", "ehh"]
+            return ["uh", "uhm", "umm", "uhh", "uhhh", "hmm", "hm", "mmm", "ehh"]
         }
     }
 
@@ -65,9 +65,16 @@ enum TranscriptionOutputFilterService {
     }
 
     private static func collapseRepeatedStutters(in text: String) -> String {
-        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        text
+            .components(separatedBy: "\n")
+            .map { collapseRepeatedStuttersInLine($0) }
+            .joined(separator: "\n")
+    }
+
+    private static func collapseRepeatedStuttersInLine(_ line: String) -> String {
+        let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
         guard words.isEmpty == false else {
-            return text
+            return line
         }
 
         var result: [String] = []
@@ -101,14 +108,19 @@ enum TranscriptionOutputFilterService {
     }
 
     private static func collapseWhitespace(in text: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\s{2,}"#) else {
+        let horizontal = replacing(text, pattern: #"[ \t]{2,}"#, with: " ")
+        return replacing(horizontal, pattern: #"\n{3,}"#, with: "\n\n")
+    }
+
+    private static func replacing(_ text: String, pattern: String, with template: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return text
         }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return regex.stringByReplacingMatches(
             in: text,
             range: range,
-            withTemplate: " "
+            withTemplate: template
         )
     }
 }
