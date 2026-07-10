@@ -49,6 +49,26 @@ final class GlobalShortcutMatcherTests: XCTestCase {
         XCTAssertFalse(matcher.isPressed)
     }
 
+    func testResyncClearsStalePressedState() {
+        var matcher = GlobalShortcutMatcher(descriptor: .optionSpace)
+
+        XCTAssertEqual(matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate), .pressed)
+        // The key-up was lost while the tap was disabled; the key is no longer
+        // physically held.
+        matcher.resyncPressedState(isPhysicallyDown: false)
+
+        XCTAssertEqual(matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate), .pressed)
+    }
+
+    func testResyncPreservesHeldKey() {
+        var matcher = GlobalShortcutMatcher(descriptor: .optionSpace)
+
+        XCTAssertEqual(matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate), .pressed)
+        matcher.resyncPressedState(isPhysicallyDown: true)
+
+        XCTAssertEqual(matcher.handle(type: .keyUp, keyCode: 49, flags: []), .released)
+    }
+
     func testShortcutDescriptorParsesConfiguredBindings() throws {
         let descriptor = try XCTUnwrap(GlobalShortcutDescriptor.parse("option+shift+space"))
 

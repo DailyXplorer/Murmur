@@ -237,6 +237,10 @@ struct GlobalShortcutMatcher {
     mutating func markPressedForCarryOver() {
         isPressed = true
     }
+
+    mutating func resyncPressedState(isPhysicallyDown: Bool) {
+        isPressed = isPhysicallyDown
+    }
 }
 
 enum GlobalShortcutMatch: Equatable {
@@ -272,6 +276,22 @@ final class GlobalShortcutService {
 
     var isRunning: Bool {
         eventTap != nil
+    }
+
+    enum TapHealth: Equatable {
+        case notInstalled
+        case healthy
+        case installedButDisabled   // tap exists but the OS disabled/invalidated it
+    }
+
+    var tapHealth: TapHealth {
+        guard let eventTap else {
+            return .notInstalled
+        }
+        guard CFMachPortIsValid(eventTap), CGEvent.tapIsEnabled(tap: eventTap) else {
+            return .installedButDisabled
+        }
+        return .healthy
     }
 
     func start(
@@ -384,6 +404,15 @@ final class GlobalShortcutService {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
+            }
+            for bindingID in matchers.keys {
+                guard var matcher = matchers[bindingID] else { continue }
+                let physicallyDown = CGEventSource.keyState(
+                    .combinedSessionState,
+                    key: matcher.descriptor.keyCode
+                )
+                matcher.resyncPressedState(isPhysicallyDown: physicallyDown)
+                matchers[bindingID] = matcher
             }
             return Unmanaged.passUnretained(event)
         }

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Foundation
 
@@ -64,6 +65,8 @@ final class AppModel: ObservableObject {
     private var localModelDownloadTasks: [String: Task<Void, Never>] = [:]
     private var localModelRuntimeRefreshTask: Task<Void, Never>?
     private var debugModeShortcutMonitor: Any?
+    private var shortcutHealthTask: Task<Void, Never>?
+    nonisolated(unsafe) private var wakeObserver: NSObjectProtocol?
     private let historyPageSize = 30
 
     init(
@@ -170,6 +173,14 @@ final class AppModel: ObservableObject {
         }
         Task { @MainActor [weak self] in
             await self?.refreshPermissionsAtLaunch()
+        }
+        startShortcutHealthWatchdog()
+    }
+
+    deinit {
+        shortcutHealthTask?.cancel()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
         }
     }
 
@@ -305,7 +316,7 @@ final class AppModel: ObservableObject {
 
     func startRecording(postProcessRequested: Bool = false, shortcutID: String? = nil) {
         guard coordinator.start() else {
-            log(.debug, "Ignored start recording request while coordinator was busy.")
+            log(.warn, "Ignored start recording request while coordinator was busy (state: \(recordingState)).")
             return
         }
 
@@ -1521,6 +1532,61 @@ final class AppModel: ObservableObject {
             startGlobalShortcutMonitoring()
         } else {
             refreshGlobalShortcutStatus()
+        }
+    }
+
+    static let secureInputStatusMessage = "Suspended: another app holds secure keyboard entry"
+
+    private func startShortcutHealthWatchdog() {
+        shortcutHealthTask?.cancel()
+        shortcutHealthTask = Task { @MainActor [weak self] in
+            while Task.isCancelled == false {
+                try? await Task.sleep(for: .seconds(10))
+                self?.runShortcutHealthCheck()
+            }
+        }
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.runShortcutHealthCheck()
+            }
+        }
+    }
+
+    private func runShortcutHealthCheck() {
+        let snapshot = permissionService.snapshot()
+        let action = ShortcutHealthPolicy.assess(
+            accessibilityTrusted: snapshot.accessibilityTrusted,
+            tapInstalled: globalShortcutService.isRunning,
+            tapHealthy: globalShortcutService.tapHealth == .healthy,
+            secureInputActive: IsSecureEventInputEnabled(),
+            recordingActive: recordingState.isActive
+        )
+
+        switch action {
+        case .none:
+            if globalShortcutStatus == Self.secureInputStatusMessage {
+                refreshGlobalShortcutStatus()
+            }
+        case .install, .reinstall:
+            permissionSnapshot = snapshot
+            log(.warn, "Shortcut health check: reinstalling global shortcut monitor (\(action == .install ? "not installed" : "tap dead")).")
+            startGlobalShortcutMonitoring()
+        case .teardownAndWarn:
+            permissionSnapshot = snapshot
+            globalShortcutService.stop()
+            refreshGlobalShortcutStatus()
+            log(.error, "Accessibility permission was revoked; dictation shortcut disabled until it is granted again.")
+        case .warnSecureInput:
+            guard globalShortcutStatus != Self.secureInputStatusMessage else {
+                break
+            }
+            globalShortcutStatus = Self.secureInputStatusMessage
+            log(.warn, "Global shortcut suspended: another process has secure keyboard entry enabled.")
         }
     }
 
