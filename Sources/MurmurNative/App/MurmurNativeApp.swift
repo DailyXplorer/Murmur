@@ -70,7 +70,8 @@ struct MurmurNativeApp: App {
         _appModel = StateObject(wrappedValue: AppModel(launchArguments: launchArguments))
 
         if let command = launchArguments.remoteCommand,
-           NativeRemoteControlService.sendToRunningInstance(command) {
+           let remoteControlToken = NativeRemoteControlService.resolveLocalAuthorizationToken(),
+           NativeRemoteControlService.sendToRunningInstance(command, token: remoteControlToken) {
             DispatchQueue.main.async {
                 NSApp.terminate(nil)
             }

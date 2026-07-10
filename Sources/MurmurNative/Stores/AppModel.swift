@@ -143,7 +143,11 @@ final class AppModel: ObservableObject {
         refreshTranscriptionCredentialStatus()
         refreshOnboardingState()
         synchronizeLaunchAtLoginWithStoredSetting()
-        remoteControlService.start { [weak self] command in
+        remoteControlService.start(
+            expectedToken: NativeRemoteControlService.localAuthorizationToken(
+                appDataDirectory: resolvedPaths.appDataDirectory
+            )
+        ) { [weak self] command in
             Task { @MainActor in
                 self?.handleRemoteControlCommand(command)
             }

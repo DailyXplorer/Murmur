@@ -17,7 +17,7 @@ enum NativeRemoteControlSmokeRunner {
 
     static func runSenderSynchronouslyAndExit(_ request: NativeRemoteControlSendSmokeRequest) -> Never {
         do {
-            let output = runSender(request)
+            let output = try runSender(request)
             try write(output: output, to: request.outputPath)
             if request.outputPath == nil {
                 FileHandle.standardOutput.writeLine(try outputString(for: output))
@@ -30,9 +30,13 @@ enum NativeRemoteControlSmokeRunner {
     }
 
     private static func runListener(_ request: NativeRemoteControlListenerSmokeRequest) throws -> NativeRemoteControlListenerSmokeOutput {
+        guard let expectedToken = NativeRemoteControlService.resolveLocalAuthorizationToken() else {
+            throw NativeRemoteControlSmokeError.missingAuthorizationToken
+        }
+
         let receivedCommands = LockedRemoteControlCommands()
         let service = NativeRemoteControlService()
-        service.start { command in
+        service.start(expectedToken: expectedToken) { command in
             receivedCommands.append(command)
         }
         defer {
@@ -117,7 +121,11 @@ enum NativeRemoteControlSmokeRunner {
         ]
     }
 
-    private static func runSender(_ request: NativeRemoteControlSendSmokeRequest) -> NativeRemoteControlSendSmokeOutput {
+    private static func runSender(_ request: NativeRemoteControlSendSmokeRequest) throws -> NativeRemoteControlSendSmokeOutput {
+        guard let token = NativeRemoteControlService.resolveLocalAuthorizationToken() else {
+            throw NativeRemoteControlSmokeError.missingAuthorizationToken
+        }
+
         let bundleIdentifier = Bundle.main.bundleIdentifier
         let processIdentifier = getpid()
         let peerAvailableBeforeSend = NativeRemoteControlService.hasRunningPeer(
@@ -126,6 +134,7 @@ enum NativeRemoteControlSmokeRunner {
         )
         let sent = NativeRemoteControlService.sendToRunningInstance(
             request.command,
+            token: token,
             bundleIdentifier: bundleIdentifier,
             currentProcessIdentifier: processIdentifier
         )
@@ -260,6 +269,7 @@ private final class LockedRemoteControlCommands: @unchecked Sendable {
 private enum NativeRemoteControlSmokeError: LocalizedError {
     case missingExecutable
     case missingAppBundle(String)
+    case missingAuthorizationToken
 
     var errorDescription: String? {
         switch self {
@@ -267,6 +277,8 @@ private enum NativeRemoteControlSmokeError: LocalizedError {
             "Unable to locate the current Murmur executable for remote-control smoke validation."
         case let .missingAppBundle(path):
             "LaunchServices remote-control smoke requires a .app bundle; got \(path)."
+        case .missingAuthorizationToken:
+            "Unable to resolve the Murmur remote-control authorization token for smoke validation."
         }
     }
 }
