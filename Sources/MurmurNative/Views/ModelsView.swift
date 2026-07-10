@@ -20,11 +20,19 @@ struct ModelsView: View {
     }
 
     private struct PendingModelDeletion: Identifiable {
-        var model: LocalTranscriptionModel
+        enum Target {
+            case local(LocalTranscriptionModel)
+            case api(TranscriptionAPIModel)
+        }
+
+        var target: Target
         var confirmation: LocalModelDeletionConfirmation
 
         var id: String {
-            model.id
+            switch target {
+            case let .local(model): model.id
+            case let .api(model): model.id
+            }
         }
     }
 
@@ -108,7 +116,12 @@ struct ModelsView: View {
                 pendingModelDeletion = nil
             }
             Button(pendingDeletion.confirmation.destructiveButtonTitle, role: .destructive) {
-                appModel.deleteLocalTranscriptionModel(id: pendingDeletion.model.id)
+                switch pendingDeletion.target {
+                case let .local(model):
+                    appModel.deleteLocalTranscriptionModel(id: model.id)
+                case let .api(model):
+                    appModel.removeTranscriptionAPIModel(id: model.id)
+                }
                 pendingModelDeletion = nil
             }
         } message: { pendingDeletion in
@@ -266,6 +279,10 @@ struct ModelsView: View {
             status: appModel.settings.selectedModel == model.id ? "Active" : "Use",
             emphasized: appModel.settings.selectedModel == model.id,
             primaryTitle: appModel.settings.selectedModel == model.id ? "Active" : "Use",
+            secondaryIcon: model.isCustom ? .delete : nil,
+            secondaryDisabled: !model.isCustom,
+            secondaryHelp: model.isCustom ? "Remove model" : nil,
+            secondaryAction: model.isCustom ? { requestAPIModelDeletion(model) } : nil,
             details: AnyView(apiModelIdentifier(model))
         ) {
             appModel.selectTranscriptionModel(id: model.id)
@@ -416,7 +433,17 @@ struct ModelsView: View {
 
     private func requestLocalModelDeletion(_ model: LocalTranscriptionModel) {
         pendingModelDeletion = PendingModelDeletion(
-            model: model,
+            target: .local(model),
+            confirmation: LocalModelDeletionConfirmation.request(
+                for: model,
+                isActive: appModel.settings.selectedModel == model.id
+            )
+        )
+    }
+
+    private func requestAPIModelDeletion(_ model: TranscriptionAPIModel) {
+        pendingModelDeletion = PendingModelDeletion(
+            target: .api(model),
             confirmation: LocalModelDeletionConfirmation.request(
                 for: model,
                 isActive: appModel.settings.selectedModel == model.id

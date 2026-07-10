@@ -183,4 +183,82 @@ final class TranscriptionAPIModelsTests: XCTestCase {
             1
         )
     }
+
+    func testRemoveCustomAPIModelRemovesEntry() throws {
+        var settings = AppSettings.defaults
+        settings.selectTranscriptionAPIProvider(id: TranscriptionAPIProvider.openAIProviderID)
+        let model = try XCTUnwrap(
+            settings.addTranscriptionAPIModelForSelectedProvider(
+                modelID: "gpt-4o-mini-transcribe",
+                displayName: ""
+            )
+        )
+
+        let removed = settings.removeTranscriptionAPIModel(id: model.id)
+
+        XCTAssertTrue(removed)
+        XCTAssertFalse(settings.transcriptionAPIModels.contains { $0.id == model.id })
+    }
+
+    func testRemoveBuiltInAPIModelIsRefused() throws {
+        var settings = AppSettings.defaults
+        XCTAssertTrue(
+            settings.transcriptionAPIModels.contains { $0.id == TranscriptionAPIProvider.mistralVoxtralModelID }
+        )
+
+        let removed = settings.removeTranscriptionAPIModel(id: TranscriptionAPIProvider.mistralVoxtralModelID)
+
+        XCTAssertFalse(removed)
+        XCTAssertTrue(
+            settings.transcriptionAPIModels.contains { $0.id == TranscriptionAPIProvider.mistralVoxtralModelID }
+        )
+    }
+
+    func testRemoveActiveCustomModelFallsBackToDefault() throws {
+        var settings = AppSettings.defaults
+        settings.selectTranscriptionAPIProvider(id: TranscriptionAPIProvider.openAIProviderID)
+        let model = try XCTUnwrap(
+            settings.upsertTranscriptionAPIModelForSelectedProvider(modelID: "gpt-4o-mini-transcribe")
+        )
+        XCTAssertEqual(settings.selectedModel, model.id)
+
+        let removed = settings.removeTranscriptionAPIModel(id: model.id)
+
+        XCTAssertTrue(removed)
+        XCTAssertFalse(settings.transcriptionAPIModels.contains { $0.id == model.id })
+        XCTAssertEqual(settings.selectedModel, TranscriptionAPIProvider.mistralVoxtralModelID)
+    }
+
+    func testRemoveUnknownIDReturnsFalse() throws {
+        var settings = AppSettings.defaults
+        let modelsBefore = settings.transcriptionAPIModels
+
+        let removed = settings.removeTranscriptionAPIModel(id: "api:openai:does-not-exist")
+
+        XCTAssertFalse(removed)
+        XCTAssertEqual(settings.transcriptionAPIModels, modelsBefore)
+    }
+
+    func testEnsureDefaultsRepairsUnknownSelectedModel() throws {
+        var settings = AppSettings.defaults
+        settings.selectedModel = "ghost-model"
+
+        settings.ensureTranscriptionAPIDefaults()
+
+        XCTAssertEqual(settings.selectedModel, TranscriptionAPIProvider.mistralVoxtralModelID)
+    }
+
+    func testEnsureDefaultsKeepsValidCustomSelection() throws {
+        var settings = AppSettings.defaults
+        settings.selectTranscriptionAPIProvider(id: TranscriptionAPIProvider.openAIProviderID)
+        let model = try XCTUnwrap(
+            settings.upsertTranscriptionAPIModelForSelectedProvider(modelID: "gpt-4o-mini-transcribe")
+        )
+        XCTAssertEqual(settings.selectedModel, model.id)
+
+        settings.ensureTranscriptionAPIDefaults()
+
+        XCTAssertEqual(settings.selectedModel, model.id)
+        XCTAssertTrue(settings.transcriptionAPIModels.contains { $0.id == model.id })
+    }
 }

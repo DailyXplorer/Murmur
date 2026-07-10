@@ -16,4 +16,15 @@ struct LocalModelDeletionConfirmation: Equatable {
             cancelButtonTitle: "Cancel"
         )
     }
+
+    static func request(for model: TranscriptionAPIModel, isActive: Bool) -> LocalModelDeletionConfirmation {
+        LocalModelDeletionConfirmation(
+            title: "Remove Model",
+            message: isActive
+                ? "\(model.displayName) is your active model. Removing it will switch you back to the default model. Are you sure?"
+                : "Are you sure you want to remove \(model.displayName)? You can add it again by typing its model ID.",
+            destructiveButtonTitle: "Remove",
+            cancelButtonTitle: "Cancel"
+        )
+    }
 }

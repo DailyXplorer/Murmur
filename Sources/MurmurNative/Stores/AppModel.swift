@@ -1006,6 +1006,12 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func removeTranscriptionAPIModel(id: String) {
+        updateSettings {
+            _ = $0.removeTranscriptionAPIModel(id: id)
+        }
+    }
+
     func useSelectedTranscriptionAPIModel(modelID: String) {
         updateSettings {
             _ = $0.upsertTranscriptionAPIModelForSelectedProvider(modelID: modelID)

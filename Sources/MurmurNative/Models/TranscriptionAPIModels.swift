@@ -252,6 +252,13 @@ extension AppSettings {
             selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             selectedModel = TranscriptionAPIProvider.mistralVoxtralModelID
         }
+
+        let selectionIsValid = selectedModel == TranscriptionAPIProvider.appleSpeechModelID ||
+            LocalTranscriptionModel.model(for: selectedModel) != nil ||
+            transcriptionAPIModels.contains { $0.id == selectedModel }
+        if !selectionIsValid {
+            selectedModel = TranscriptionAPIProvider.mistralVoxtralModelID
+        }
     }
 
     mutating func selectTranscriptionAPIProvider(id: String) {
@@ -341,6 +348,21 @@ extension AppSettings {
         transcriptionAPIModels.append(model)
         selectedModel = model.id
         return model
+    }
+
+    @discardableResult
+    mutating func removeTranscriptionAPIModel(id: String) -> Bool {
+        guard let index = transcriptionAPIModels.firstIndex(where: { $0.id == id }),
+              transcriptionAPIModels[index].isCustom
+        else {
+            return false
+        }
+
+        transcriptionAPIModels.remove(at: index)
+        if selectedModel == id {
+            selectedModel = TranscriptionAPIProvider.mistralVoxtralModelID
+        }
+        return true
     }
 
     static func transcriptionAPIModelRecordID(providerID: String, modelID: String) -> String {
