@@ -10,6 +10,7 @@ struct GeneralView: View {
         VStack(alignment: .leading, spacing: 24) {
             MurmurSettingsGroup("GENERAL") {
                 shortcutRow(appModel.settings.transcribeShortcutBinding, width: 170)
+                shortcutStatusRow
 
                 MurmurDivider()
                 MurmurSettingRow("Push To Talk", description: "Hold to record, release to stop") {
@@ -166,6 +167,26 @@ struct GeneralView: View {
             .buttonStyle(MurmurButtonStyle(variant: .secondary))
             .disabled(!appModel.settings.audioFeedback || appModel.settings.selectedOutputDeviceName == nil)
         }
+    }
+
+    private var shortcutStatusRow: some View {
+        Text(appModel.globalShortcutStatus)
+            .font(MurmurDesign.font(size: 12))
+            .foregroundStyle(shortcutStatusIsFailure ? Color.red : MurmurDesign.midGray)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+    }
+
+    private var shortcutStatusIsFailure: Bool {
+        let failureStatuses: Set<String> = [
+            "Accessibility required",
+            "No valid shortcut",
+            "Shortcut unavailable",
+            "Transcribe shortcut not set",
+            AppModel.secureInputStatusMessage,
+        ]
+        return failureStatuses.contains(appModel.globalShortcutStatus)
     }
 
     private func shortcutRow(_ shortcut: ShortcutBinding, width: CGFloat) -> some View {

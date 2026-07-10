@@ -85,8 +85,38 @@ final class RecordingOverlayPanelController {
         }
     }
 
+    func showTransientOutcome(
+        state: RecordingOverlayState,
+        palette: MurmurThemePalette,
+        position: OverlayPosition,
+        dismissAfterMilliseconds: Int = 2500
+    ) {
+        show(state: state, palette: palette, position: position)
+        scheduleAutoHide(afterMilliseconds: dismissAfterMilliseconds)
+    }
+
     func updateLevels(_ levels: [Float]) {
         viewModel.levels = levels
+    }
+
+    private func scheduleAutoHide(afterMilliseconds milliseconds: Int) {
+        let generation = visibilityGeneration
+        hideTask?.cancel()
+        hideTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(milliseconds))
+            } catch {
+                return
+            }
+            await MainActor.run {
+                guard let self,
+                      self.visibilityGeneration == generation
+                else {
+                    return
+                }
+                self.hide()
+            }
+        }
     }
 
     func hide(animated: Bool = true) {
@@ -459,6 +489,10 @@ private extension RecordingOverlayState {
             "transcribing"
         case .processing:
             "processing"
+        case .failure:
+            "failure"
+        case .notice:
+            "notice"
         }
     }
 }

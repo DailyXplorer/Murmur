@@ -54,7 +54,21 @@ struct RecordingOverlayView: View {
             .frame(height: 24, alignment: .bottom)
         case .transcribing, .processing:
             PulsingOverlayText(viewModel.state.title)
+        case let .failure(message):
+            outcomeText(message, color: Color(red: 1, green: 0.45, blue: 0.42))
+        case let .notice(message):
+            outcomeText(message, color: .white)
         }
+    }
+
+    private func outcomeText(_ message: String, color: Color) -> some View {
+        Text(message)
+            .font(MurmurDesign.font(size: 12))
+            .foregroundStyle(color)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.8)
     }
 
     @ViewBuilder

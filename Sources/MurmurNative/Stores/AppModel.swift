@@ -320,6 +320,15 @@ final class AppModel: ObservableObject {
             return
         }
 
+        if permissionSnapshot.microphone == .denied || permissionSnapshot.microphone == .restricted {
+            coordinator.cancel()
+            recordingState = coordinator.state
+            lastErrorMessage = "Microphone access is denied. Enable it in System Settings > Privacy & Security > Microphone."
+            presentRecordingOutcome(.failure(message: "Microphone access denied"))
+            log(.error, "Recording blocked: microphone permission denied.")
+            return
+        }
+
         do {
             lastErrorMessage = nil
             lastRecordingURL = nil
@@ -357,6 +366,7 @@ final class AppModel: ObservableObject {
             recordingState = coordinator.state
             lastErrorMessage = error.localizedDescription
             overlayPanelController.hide(animated: false)
+            presentRecordingOutcome(.failure(message: "Could not start recording"))
             log(.error, "Recording failed to start: \(error.localizedDescription)")
         }
     }
@@ -399,16 +409,20 @@ final class AppModel: ObservableObject {
             let capturedRecording = try await recordingWorkflow.stopAfterTrailingBuffer(settings: settings, paths: paths)
             guard capturedRecording.hasAudibleSignal else {
                 audioLevel = 0
+                lastErrorMessage = "No speech detected. Check that the right microphone is selected and its input level."
                 finishRecordingOperation(operationID: operationID)
-                log(.info, "Recording discarded: no audible signal.")
+                presentRecordingOutcome(.notice(message: "No speech detected"))
+                log(.warn, "Recording discarded: no audible signal (peak \(capturedRecording.peakAmplitude), rms \(capturedRecording.rootMeanSquare)).")
                 return
             }
 
             let recording = capturedRecording.preparedForTranscriptionInput()
             guard recording.isEmpty == false else {
                 audioLevel = 0
+                lastErrorMessage = "No speech detected. Check that the right microphone is selected and its input level."
                 finishRecordingOperation(operationID: operationID)
-                log(.info, "Recording discarded: no prepared audio samples.")
+                presentRecordingOutcome(.notice(message: "No speech detected"))
+                log(.warn, "Recording discarded: no prepared audio samples.")
                 return
             }
             fileURL = paths.recordingsDirectory
@@ -425,6 +439,7 @@ final class AppModel: ObservableObject {
             if isCurrentRecordingOperation(operationID) {
                 lastErrorMessage = error.localizedDescription
                 finishRecordingOperation(operationID: operationID)
+                presentRecordingOutcome(.failure(message: "Recording failed"))
                 log(.error, "Recording failed to finish: \(error.localizedDescription)")
             }
             return
@@ -1254,8 +1269,12 @@ final class AppModel: ObservableObject {
         postProcessRequested: Bool,
         operationID: UUID
     ) async {
+        var failureOutcome: RecordingOverlayState?
         defer {
             finishRecordingOperation(operationID: operationID)
+            if let failureOutcome {
+                presentRecordingOutcome(failureOutcome)
+            }
         }
 
         do {
@@ -1297,6 +1316,7 @@ final class AppModel: ObservableObject {
         } catch {
             if isCurrentRecordingOperation(operationID) {
                 lastErrorMessage = error.localizedDescription
+                failureOutcome = .failure(message: "Transcription failed")
                 log(.error, "Transcription or output insertion failed: \(error.localizedDescription)")
             }
         }
@@ -1419,6 +1439,18 @@ final class AppModel: ObservableObject {
         }
 
         overlayPanelController.show(
+            state: state,
+            palette: settings.appTheme.palette,
+            position: settings.overlayPosition
+        )
+    }
+
+    private func presentRecordingOutcome(_ state: RecordingOverlayState) {
+        guard settings.overlayPosition != .none else {
+            return
+        }
+
+        overlayPanelController.showTransientOutcome(
             state: state,
             palette: settings.appTheme.palette,
             position: settings.overlayPosition

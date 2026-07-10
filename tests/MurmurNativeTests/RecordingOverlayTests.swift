@@ -88,6 +88,72 @@ final class RecordingOverlayTests: XCTestCase {
     }
 
     @MainActor
+    func testShowTransientOutcomeShowsFailureStateThenAutoHides() async throws {
+        try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
+        let controller = RecordingOverlayPanelController()
+        defer {
+            controller.hide(animated: false)
+        }
+
+        controller.showTransientOutcome(
+            state: .failure(message: "Transcription failed"),
+            palette: AppTheme.pink.palette,
+            position: .bottom,
+            dismissAfterMilliseconds: 50
+        )
+
+        let shownDiagnostics = controller.diagnostics(expectedState: .failure(message: "Transcription failed"))
+        XCTAssertTrue(shownDiagnostics.isVisible)
+        XCTAssertTrue(shownDiagnostics.matchesExpectedState)
+        XCTAssertEqual(shownDiagnostics.state, "failure")
+
+        let hidden = try await Self.poll(timeoutMilliseconds: 2_000) {
+            controller.diagnostics().isVisible == false
+        }
+        XCTAssertTrue(hidden, "Panel should auto-hide after the transient dismiss interval plus fade.")
+    }
+
+    @MainActor
+    func testShowDuringTransientWindowCancelsAutoHide() async throws {
+        try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
+        let controller = RecordingOverlayPanelController()
+        defer {
+            controller.hide(animated: false)
+        }
+
+        controller.showTransientOutcome(
+            state: .notice(message: "No speech detected"),
+            palette: AppTheme.pink.palette,
+            position: .bottom,
+            dismissAfterMilliseconds: 50
+        )
+        controller.show(state: .recording, palette: AppTheme.pink.palette)
+
+        try await Task.sleep(for: .milliseconds(500))
+        let diagnostics = controller.diagnostics(expectedState: .recording)
+
+        XCTAssertTrue(diagnostics.isVisible)
+        XCTAssertTrue(diagnostics.matchesExpectedState)
+        XCTAssertGreaterThanOrEqual(diagnostics.alphaValue, 0.95)
+    }
+
+    @MainActor
+    private static func poll(
+        timeoutMilliseconds: Int,
+        intervalMilliseconds: Int = 50,
+        condition: () -> Bool
+    ) async throws -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(timeoutMilliseconds))
+        while ContinuousClock.now < deadline {
+            if condition() {
+                return true
+            }
+            try await Task.sleep(for: .milliseconds(intervalMilliseconds))
+        }
+        return condition()
+    }
+
+    @MainActor
     func testActiveSpaceRefreshKeepsPanelVisibleWithoutResettingState() async throws {
         try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
         let controller = RecordingOverlayPanelController()
