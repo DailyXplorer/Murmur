@@ -70,7 +70,7 @@ final class AudioPipelineTests: XCTestCase {
         XCTAssertEqual(audibleRecording.rootMeanSquare, 0.01, accuracy: 0.0001)
     }
 
-    func testAudioRecordingRejectsFlatLowLevelNoiseBeforeTranscription() {
+    func testAudioRecordingKeepsFlatLowLevelNoiseForTranscriptionEngine() {
         let recording = AudioRecording(
             samples: Array(repeating: 0.0012, count: 32_000),
             sampleRate: 16_000,
@@ -79,11 +79,11 @@ final class AudioPipelineTests: XCTestCase {
         )
 
         XCTAssertTrue(recording.hasAudibleSignal)
-        XCTAssertTrue(recording.trimmedAroundAudibleSignal().isEmpty)
-        XCTAssertTrue(recording.preparedForTranscriptionInput().isEmpty)
+        XCTAssertEqual(recording.trimmedAroundAudibleSignal(), recording)
+        XCTAssertEqual(recording.preparedForTranscriptionInput(), recording)
     }
 
-    func testAudioRecordingRejectsFluctuatingLowLevelNoiseBeforeTranscription() {
+    func testAudioRecordingKeepsFluctuatingLowLevelNoiseForTranscriptionEngine() {
         var samples: [Float] = []
         for frameIndex in 0..<64 {
             let amplitude: Float = frameIndex.isMultiple(of: 2) ? 0.0012 : 0.0021
@@ -97,8 +97,8 @@ final class AudioPipelineTests: XCTestCase {
         )
 
         XCTAssertTrue(recording.hasAudibleSignal)
-        XCTAssertTrue(recording.trimmedAroundAudibleSignal().isEmpty)
-        XCTAssertTrue(recording.preparedForTranscriptionInput().isEmpty)
+        XCTAssertEqual(recording.trimmedAroundAudibleSignal(), recording)
+        XCTAssertEqual(recording.preparedForTranscriptionInput(), recording)
     }
 
     func testAdaptiveNoiseFloorKeepsSpeechAboveLowBackgroundNoise() {
@@ -181,7 +181,7 @@ final class AudioPipelineTests: XCTestCase {
         XCTAssertTrue(trimmed.samples.contains { abs($0 - 0.03) < 0.0001 })
     }
 
-    func testAudioRecordingDropsIsolatedAudibleFrameBeforeOnset() {
+    func testAudioRecordingKeepsIsolatedAudibleFrameBeforeOnsetForTranscriptionEngine() {
         let recording = AudioRecording(
             samples: Array(repeating: 0, count: 9_600) +
                 Array(repeating: Float(0.02), count: 480) +
@@ -192,7 +192,7 @@ final class AudioPipelineTests: XCTestCase {
         )
 
         XCTAssertTrue(recording.hasAudibleSignal)
-        XCTAssertTrue(recording.trimmedAroundAudibleSignal().isEmpty)
+        XCTAssertEqual(recording.trimmedAroundAudibleSignal(), recording)
     }
 
     func testAudioRecordingDoesNotTrimSilentInput() {

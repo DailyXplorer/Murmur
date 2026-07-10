@@ -51,12 +51,10 @@ struct SpeechActivityTrimmer {
         let frameSize = max(1, Int((recording.sampleRate * configuration.frameDuration).rounded()))
         let analyses = frameAnalyses(for: recording, frameSize: frameSize)
         if isLikelyFlatNoise(analyses) {
-            return AudioRecording(
-                samples: [],
-                sampleRate: recording.sampleRate,
-                startedAt: recording.startedAt,
-                endedAt: recording.endedAt
-            )
+            // The transcription engine is the judge of whether audio contains speech;
+            // a flat-noise misclassification here would destroy quietly captured real
+            // speech, so keep the original take and let the engine decide.
+            return recording
         }
 
         let adaptiveNoiseProfile = adaptiveNoiseProfile(from: analyses)
@@ -105,12 +103,10 @@ struct SpeechActivityTrimmer {
         }
 
         guard outputSamples.isEmpty == false else {
-            return AudioRecording(
-                samples: [],
-                sampleRate: recording.sampleRate,
-                startedAt: recording.startedAt,
-                endedAt: recording.endedAt
-            )
+            // The caller already deemed this recording audible; trimming must never
+            // delete it wholesale. Fall back to the untrimmed take and let the
+            // transcription engine decide whether it contains speech.
+            return recording
         }
 
         guard outputSamples.count != recording.samples.count else {
@@ -195,15 +191,28 @@ struct SpeechActivityTrimmer {
             return nil
         }
 
+        let maxRootMeanSquare = analyses.map(\.metrics.rootMeanSquare).max() ?? 0
+        let maxPeak = analyses.map(\.metrics.peak).max() ?? 0
+        let raisedRootMeanSquare = max(
+            configuration.rootMeanSquareThreshold,
+            rootMeanSquareFloor * configuration.adaptiveNoiseRootMeanSquareMultiplier
+        )
+        let raisedPeak = max(
+            configuration.peakThreshold,
+            peakFloor * configuration.adaptiveNoisePeakMultiplier
+        )
+        // If the raised thresholds approach the recording's own maxima, the "noise
+        // floor" is really the speech itself (quiet mic, continuous talking). Using
+        // the profile would classify every frame as non-voice, so fall back to the
+        // base thresholds instead.
+        guard raisedRootMeanSquare <= maxRootMeanSquare * 0.5,
+              raisedPeak <= maxPeak * 0.5 else {
+            return nil
+        }
+
         return AdaptiveNoiseProfile(
-            peakThreshold: max(
-                configuration.peakThreshold,
-                peakFloor * configuration.adaptiveNoisePeakMultiplier
-            ),
-            rootMeanSquareThreshold: max(
-                configuration.rootMeanSquareThreshold,
-                rootMeanSquareFloor * configuration.adaptiveNoiseRootMeanSquareMultiplier
-            )
+            peakThreshold: raisedPeak,
+            rootMeanSquareThreshold: raisedRootMeanSquare
         )
     }
 
