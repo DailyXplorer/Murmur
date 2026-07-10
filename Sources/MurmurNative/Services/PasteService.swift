@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 
 struct PasteOutputOptions: Equatable {
@@ -24,12 +25,18 @@ enum PasteServiceError: LocalizedError {
     case emptyText
     case eventCreationFailed
     case unsupportedPasteMethod(PasteMethod)
+    case accessibilityNotTrusted
+    case secureInputActive
 
     var errorDescription: String? {
         switch self {
         case .emptyText: "There is no text to paste."
         case .eventCreationFailed: "Unable to create the keyboard event needed to paste."
         case let .unsupportedPasteMethod(method): "Paste method '\(method.title)' is not supported in the native macOS app."
+        case .accessibilityNotTrusted:
+            "Murmur needs Accessibility permission to paste. Enable it in System Settings > Privacy & Security > Accessibility. The text is on your clipboard — press Cmd+V to paste it."
+        case .secureInputActive:
+            "A password field is capturing keyboard input, so Murmur could not paste. The text is on your clipboard — press Cmd+V to paste it."
         }
     }
 }
@@ -39,15 +46,21 @@ final class PasteService {
     private let pasteboard: NSPasteboard
     private let keyboardEventPoster: KeyboardEventPosting
     private let directTextInserter: DirectTextInserting
+    private let isProcessTrusted: () -> Bool
+    private let isSecureInputActive: () -> Bool
 
     init(
         pasteboard: NSPasteboard = .general,
         keyboardEventPoster: KeyboardEventPosting = CGKeyboardEventPoster(),
-        directTextInserter: DirectTextInserting? = nil
+        directTextInserter: DirectTextInserting? = nil,
+        isProcessTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
+        isSecureInputActive: @escaping () -> Bool = { IsSecureEventInputEnabled() }
     ) {
         self.pasteboard = pasteboard
         self.keyboardEventPoster = keyboardEventPoster
         self.directTextInserter = directTextInserter ?? AccessibilityDirectTextInserter(fallbackPoster: keyboardEventPoster)
+        self.isProcessTrusted = isProcessTrusted
+        self.isSecureInputActive = isSecureInputActive
     }
 
     func paste(_ rawText: String, options: PasteOutputOptions) async throws {
@@ -62,6 +75,10 @@ final class PasteService {
         case .commandShiftV:
             try await pasteViaClipboard(text, virtualKey: KeyCode.v, flags: [.maskCommand, .maskShift], options: options)
         case .direct:
+            guard isProcessTrusted() else {
+                leaveTranscriptOnClipboard(text)
+                throw PasteServiceError.accessibilityNotTrusted
+            }
             try typeTextDirectly(text)
             try await sendAutoSubmitIfNeeded(options: options)
             copyToClipboardIfRequested(text, options: options)
@@ -78,23 +95,40 @@ final class PasteService {
         flags: CGEventFlags,
         options: PasteOutputOptions
     ) async throws {
+        guard isProcessTrusted() else {
+            leaveTranscriptOnClipboard(text)
+            throw PasteServiceError.accessibilityNotTrusted
+        }
+        if isSecureInputActive() {
+            leaveTranscriptOnClipboard(text)
+            throw PasteServiceError.secureInputActive
+        }
+
         let previousString = pasteboard.string(forType: .string)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let changeCountAfterSet = pasteboard.changeCount
         try await Task.sleep(for: .milliseconds(max(0, options.pasteDelayMilliseconds)))
         try sendKeyboardShortcut(virtualKey: virtualKey, flags: flags)
         try await Task.sleep(for: .milliseconds(max(200, options.pasteDelayMilliseconds)))
         try await sendAutoSubmitIfNeeded(options: options)
 
-        if options.clipboardHandling == .dontModify, pasteboard.string(forType: .string) == text {
+        if options.clipboardHandling == .dontModify,
+           pasteboard.changeCount == changeCountAfterSet,
+           let previousString {
             pasteboard.clearContents()
-            if let previousString {
-                pasteboard.setString(previousString, forType: .string)
-            }
+            pasteboard.setString(previousString, forType: .string)
         } else if options.clipboardHandling == .copyToClipboard {
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
         }
+    }
+
+    /// When a paste cannot be delivered, leave the transcript on the clipboard
+    /// so the user can press Cmd+V manually instead of losing the text.
+    private func leaveTranscriptOnClipboard(_ text: String) {
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 
     nonisolated static func preparedText(_ rawText: String, options: PasteOutputOptions) -> String {

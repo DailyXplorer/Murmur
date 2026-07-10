@@ -59,7 +59,9 @@ final class PasteServiceTests: XCTestCase {
         let keyboardEventPoster = RecordingKeyboardEventPoster()
         let service = PasteService(
             pasteboard: pasteboard,
-            keyboardEventPoster: keyboardEventPoster
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
         )
 
         try await service.paste("  hello  ", options: PasteOutputOptions(settings: settings))
@@ -84,7 +86,9 @@ final class PasteServiceTests: XCTestCase {
         let keyboardEventPoster = RecordingKeyboardEventPoster()
         let service = PasteService(
             pasteboard: pasteboard,
-            keyboardEventPoster: keyboardEventPoster
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
         )
 
         try await service.paste("hello", options: PasteOutputOptions(settings: settings))
@@ -106,7 +110,9 @@ final class PasteServiceTests: XCTestCase {
         let keyboardEventPoster = RecordingKeyboardEventPoster()
         let service = PasteService(
             pasteboard: Self.makePasteboard(),
-            keyboardEventPoster: keyboardEventPoster
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
         )
 
         try await service.paste("hello", options: PasteOutputOptions(settings: settings))
@@ -131,7 +137,9 @@ final class PasteServiceTests: XCTestCase {
         let service = PasteService(
             pasteboard: Self.makePasteboard(),
             keyboardEventPoster: keyboardEventPoster,
-            directTextInserter: directTextInserter
+            directTextInserter: directTextInserter,
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
         )
 
         try await service.paste("hello", options: PasteOutputOptions(settings: settings))
@@ -164,6 +172,132 @@ final class PasteServiceTests: XCTestCase {
         XCTAssertEqual(keyboardEventPoster.typedTexts, [])
     }
 
+    @MainActor
+    func testPasteThrowsWhenAccessibilityNotTrusted() async {
+        var settings = AppSettings.defaults
+        settings.pasteMethod = .commandV
+        settings.pasteDelayMilliseconds = 0
+        let pasteboard = Self.makePasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString("previous", forType: .string)
+        let keyboardEventPoster = RecordingKeyboardEventPoster()
+        let service = PasteService(
+            pasteboard: pasteboard,
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { false },
+            isSecureInputActive: { false }
+        )
+
+        do {
+            try await service.paste("hello", options: PasteOutputOptions(settings: settings))
+            XCTFail("Expected accessibilityNotTrusted to be thrown")
+        } catch PasteServiceError.accessibilityNotTrusted {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "hello")
+        XCTAssertEqual(keyboardEventPoster.shortcuts, [])
+        XCTAssertEqual(keyboardEventPoster.typedTexts, [])
+    }
+
+    @MainActor
+    func testPasteThrowsWhenSecureInputActive() async {
+        var settings = AppSettings.defaults
+        settings.pasteMethod = .commandV
+        settings.pasteDelayMilliseconds = 0
+        let pasteboard = Self.makePasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString("previous", forType: .string)
+        let keyboardEventPoster = RecordingKeyboardEventPoster()
+        let service = PasteService(
+            pasteboard: pasteboard,
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { true },
+            isSecureInputActive: { true }
+        )
+
+        do {
+            try await service.paste("hello", options: PasteOutputOptions(settings: settings))
+            XCTFail("Expected secureInputActive to be thrown")
+        } catch PasteServiceError.secureInputActive {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "hello")
+        XCTAssertEqual(keyboardEventPoster.shortcuts, [])
+        XCTAssertEqual(keyboardEventPoster.typedTexts, [])
+    }
+
+    @MainActor
+    func testDontModifyRestoresPreviousStringWhenClipboardUntouched() async throws {
+        var settings = AppSettings.defaults
+        settings.pasteMethod = .commandV
+        settings.clipboardHandling = .dontModify
+        settings.pasteDelayMilliseconds = 0
+        let pasteboard = Self.makePasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString("before", forType: .string)
+        let service = PasteService(
+            pasteboard: pasteboard,
+            keyboardEventPoster: RecordingKeyboardEventPoster(),
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
+        )
+
+        try await service.paste("hello", options: PasteOutputOptions(settings: settings))
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "before")
+    }
+
+    @MainActor
+    func testDontModifyKeepsTranscriptWhenPreviousClipboardWasEmpty() async throws {
+        var settings = AppSettings.defaults
+        settings.pasteMethod = .commandV
+        settings.clipboardHandling = .dontModify
+        settings.pasteDelayMilliseconds = 0
+        let pasteboard = Self.makePasteboard()
+        pasteboard.clearContents()
+        let service = PasteService(
+            pasteboard: pasteboard,
+            keyboardEventPoster: RecordingKeyboardEventPoster(),
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
+        )
+
+        try await service.paste("hello", options: PasteOutputOptions(settings: settings))
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "hello")
+    }
+
+    @MainActor
+    func testDontModifySkipsRestoreWhenClipboardChangedExternally() async throws {
+        var settings = AppSettings.defaults
+        settings.pasteMethod = .commandV
+        settings.clipboardHandling = .dontModify
+        settings.pasteDelayMilliseconds = 0
+        let pasteboard = Self.makePasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString("before", forType: .string)
+        let keyboardEventPoster = ClipboardWritingKeyboardEventPoster(
+            pasteboard: pasteboard,
+            externalText: "external"
+        )
+        let service = PasteService(
+            pasteboard: pasteboard,
+            keyboardEventPoster: keyboardEventPoster,
+            isProcessTrusted: { true },
+            isSecureInputActive: { false }
+        )
+
+        try await service.paste("hello", options: PasteOutputOptions(settings: settings))
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "external")
+    }
+
     private static func makePasteboard() -> NSPasteboard {
         NSPasteboard(name: NSPasteboard.Name("MurmurNativeTests-\(UUID().uuidString)"))
     }
@@ -191,6 +325,26 @@ private final class RecordingKeyboardEventPoster: KeyboardEventPosting {
     func postText(_ text: String) throws {
         typedTexts.append(text)
     }
+}
+
+/// Simulates another app writing to the clipboard while the synthetic Cmd+V
+/// is "in flight": the write happens when the paste shortcut is posted.
+@MainActor
+private final class ClipboardWritingKeyboardEventPoster: KeyboardEventPosting {
+    private let pasteboard: NSPasteboard
+    private let externalText: String
+
+    init(pasteboard: NSPasteboard, externalText: String) {
+        self.pasteboard = pasteboard
+        self.externalText = externalText
+    }
+
+    func postShortcut(virtualKey: CGKeyCode, flags: CGEventFlags) throws {
+        pasteboard.clearContents()
+        pasteboard.setString(externalText, forType: .string)
+    }
+
+    func postText(_ text: String) throws {}
 }
 
 @MainActor
