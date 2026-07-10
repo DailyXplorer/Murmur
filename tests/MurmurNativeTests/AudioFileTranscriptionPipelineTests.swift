@@ -99,6 +99,21 @@ final class AudioFileTranscriptionPipelineTests: XCTestCase {
         XCTAssertEqual(result.postProcessedText, "um this stays")
     }
 
+    func testFilterEatingWholeTranscriptFallsBackToRawText() async {
+        var settings = AppSettings.defaults
+        settings.appLanguage = "en"
+
+        let result = await AudioFileTranscriptionPipeline.processRecognizedText(
+            "hmm",
+            settings: settings,
+            credentialStore: EmptyPipelineCredentialStore(),
+            postProcessRequested: false
+        )
+
+        XCTAssertEqual(result.transcriptionText, "hmm")
+        XCTAssertEqual(result.outputText, "hmm")
+    }
+
     func testLocalWhisperTranscriptionRequiresDownloadedModel() async throws {
         let paths = try makeTemporaryPipelinePaths()
         let audioURL = paths.recordingsDirectory.appendingPathComponent("recording.wav")

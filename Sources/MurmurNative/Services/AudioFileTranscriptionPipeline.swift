@@ -73,11 +73,17 @@ enum AudioFileTranscriptionPipeline {
         let filterLanguage = settings.selectedLanguage == "auto"
             ? settings.appLanguage
             : settings.selectedLanguage
-        let filteredText = TranscriptionOutputFilterService.filter(
+        var filteredText = TranscriptionOutputFilterService.filter(
             cleanText,
             language: filterLanguage,
             customFillerWords: settings.customFillerWords
         )
+        if filteredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !cleanText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Filtering must never turn a real transcription into silent nothing;
+            // if it removed everything, output the unfiltered text instead.
+            filteredText = cleanText
+        }
         let variantText = ChineseVariantConversionService.convertedText(
             filteredText,
             selectedLanguage: settings.selectedLanguage
