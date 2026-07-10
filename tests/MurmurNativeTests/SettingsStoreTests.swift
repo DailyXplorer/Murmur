@@ -391,6 +391,65 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.historyLimit, 1)
     }
 
+    func testMissingSettingsFileYieldsDefaultsWithoutWarning() {
+        let result = SettingsStore(paths: makePaths()).loadResult()
+
+        XCTAssertNil(result.warningMessage)
+        XCTAssertEqual(result.settings, .defaults)
+    }
+
+    func testSaveReturnsFalseWhenDirectoryIsNotWritable() throws {
+        try XCTSkipIf(getuid() == 0, "Running as root; permission checks are bypassed.")
+        let paths = makePaths()
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500],
+            ofItemAtPath: paths.appDataDirectory.path
+        )
+        addTeardownBlock {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: paths.appDataDirectory.path
+            )
+        }
+        let store = SettingsStore(paths: paths)
+
+        XCTAssertFalse(store.save(.defaults))
+    }
+
+    func testUnreadableSettingsFileYieldsWarningAndNoOverwrite() throws {
+        try XCTSkipIf(getuid() == 0, "Running as root; permission checks are bypassed.")
+        let paths = makePaths()
+        let settingsURL = paths.appDataDirectory.appendingPathComponent("native_settings.json")
+        let originalContents = #"{"pushToTalk":false,"selectedLanguage":"fr-FR"}"#
+        try originalContents.write(to: settingsURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o000],
+            ofItemAtPath: settingsURL.path
+        )
+        addTeardownBlock {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o644],
+                ofItemAtPath: settingsURL.path
+            )
+        }
+        let store = SettingsStore(paths: paths)
+
+        let result = store.loadResult()
+
+        XCTAssertNotNil(result.warningMessage)
+        XCTAssertEqual(result.settings, .defaults)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o644],
+            ofItemAtPath: settingsURL.path
+        )
+        XCTAssertEqual(try String(contentsOf: settingsURL, encoding: .utf8), originalContents)
+        let reloaded = store.loadResult()
+        XCTAssertNil(reloaded.warningMessage)
+        XCTAssertEqual(reloaded.settings.pushToTalk, false)
+        XCTAssertEqual(reloaded.settings.selectedLanguage, "fr-FR")
+    }
+
     private func makePaths() -> AppPaths {
         let appDataDirectory = temporaryDirectory.appendingPathComponent("app-data", isDirectory: true)
         try? FileManager.default.createDirectory(at: appDataDirectory, withIntermediateDirectories: true)

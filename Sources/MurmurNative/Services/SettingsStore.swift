@@ -45,8 +45,18 @@ struct SettingsStore {
     func loadResult() -> LoadResult {
         migrateLegacyCredentialsIfNeeded()
 
-        guard let data = try? Data(contentsOf: settingsURL) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: settingsURL)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             return LoadResult(settings: defaultSettingsForCurrentState(), warningMessage: nil)
+        } catch {
+            // Real read error: do NOT treat as first launch (a later save would
+            // overwrite the real file with defaults once the error clears).
+            return LoadResult(
+                settings: defaultSettingsForCurrentState(),
+                warningMessage: "Settings file could not be read (\(error.localizedDescription)); using defaults for this session without overwriting it."
+            )
         }
 
         guard var settings = try? decoder.decode(AppSettings.self, from: data) else {
@@ -69,16 +79,19 @@ struct SettingsStore {
         return LoadResult(settings: settings, warningMessage: nil)
     }
 
-    func save(_ settings: AppSettings) {
-        guard let data = try? encoder.encode(settings) else {
-            return
+    @discardableResult
+    func save(_ settings: AppSettings) -> Bool {
+        do {
+            let data = try encoder.encode(settings)
+            try FileManager.default.createDirectory(
+                at: settingsURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: settingsURL, options: [.atomic])
+            return true
+        } catch {
+            return false
         }
-
-        try? FileManager.default.createDirectory(
-            at: settingsURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? data.write(to: settingsURL, options: [.atomic])
     }
 
     private func hasExistingMurmurState() -> Bool {

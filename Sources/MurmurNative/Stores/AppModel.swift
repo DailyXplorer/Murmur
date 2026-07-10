@@ -307,7 +307,9 @@ final class AppModel: ObservableObject {
            settings.nativeOnboardingCompleted == false,
            shouldBypassNativeOnboarding == false {
             settings.nativeOnboardingCompleted = true
-            settingsStore.save(persistableSettings())
+            if settingsStore.save(persistableSettings()) == false {
+                log(.error, "Settings save failed while completing onboarding.")
+            }
         }
     }
 
@@ -510,8 +512,13 @@ final class AppModel: ObservableObject {
         let previousClamshellMicrophoneName = settings.clamshellMicrophoneName
         let previousAppleVoiceProcessingEnabled = settings.appleVoiceProcessingEnabled
         let previousLogLevel = settings.logLevel
+        let old = settings
         update(&settings)
-        settingsStore.save(persistableSettings())
+        let changes = SettingsChangeSet(old: old, new: settings)
+        if settingsStore.save(persistableSettings()) == false {
+            lastErrorMessage = "Settings could not be saved to disk."
+            log(.error, "Settings save failed.")
+        }
         if previousLogLevel != settings.logLevel {
             log(.info, "Log level changed to \(settings.logLevel.rawValue).")
         }
@@ -532,18 +539,26 @@ final class AppModel: ObservableObject {
             previousAppleVoiceProcessingEnabled != settings.appleVoiceProcessingEnabled {
             applyIdleMicrophonePreference()
         }
-        if globalShortcutService.isRunning {
-            startGlobalShortcutMonitoring()
-        } else {
-            refreshGlobalShortcutStatus()
+        if changes.shortcutsChanged {
+            if globalShortcutService.isRunning {
+                startGlobalShortcutMonitoring()
+            } else {
+                refreshGlobalShortcutStatus()
+            }
         }
         if !AppSection.visibleSections(settings: settings).contains(selectedSection) {
             selectedSection = .advanced
         }
-        refreshPostProcessCredentialStatus()
-        refreshTranscriptionCredentialStatus()
+        if changes.postProcessCredentialsChanged {
+            refreshPostProcessCredentialStatus()
+        }
+        if changes.transcriptionCredentialsChanged {
+            refreshTranscriptionCredentialStatus()
+        }
         refreshOnboardingState()
-        cleanupHistoryIfNeeded()
+        if changes.historyRetentionChanged {
+            cleanupHistoryIfNeeded()
+        }
     }
 
     private func installDebugModeShortcutMonitor() {
