@@ -47,7 +47,10 @@ final class AppModel: ObservableObject {
     private let launchAtLoginService: any LaunchAtLoginServicing
     private let pasteService: any PasteServicing
     private let recordingWorkflow: RecordingWorkflow
-    private let appleSpeechTranscriptionService = AppleSpeechTranscriptionService()
+    // The recognition timeout is the termination backstop for Apple Speech: its
+    // completion handler has no provably terminal nil-result/nil-error signal, so
+    // without a timeout a stalled recognition would hang the pipeline forever.
+    private let appleSpeechTranscriptionService = AppleSpeechTranscriptionService(recognitionTimeout: 120)
     private let whisperKitTranscriptionService = WhisperKitTranscriptionService()
     private let overlayPanelController = RecordingOverlayPanelController()
     private let globalShortcutService = GlobalShortcutService()
@@ -418,14 +421,10 @@ final class AppModel: ObservableObject {
                 return
             }
 
-            let recording = capturedRecording.preparedForTranscriptionInput()
-            guard recording.isEmpty == false else {
-                audioLevel = 0
-                lastErrorMessage = "No speech detected. Check that the right microphone is selected and its input level."
-                finishRecordingOperation(operationID: operationID)
-                presentRecordingOutcome(.notice(message: "No speech detected"))
-                log(.warn, "Recording discarded: no prepared audio samples.")
-                return
+            var recording = capturedRecording.preparedForTranscriptionInput()
+            if recording.isEmpty {
+                log(.warn, "Prepared audio was empty; falling back to the untrimmed recording.")
+                recording = capturedRecording.paddedForShortTranscriptionInput()
             }
             fileURL = paths.recordingsDirectory
                 .appendingPathComponent(recordingFileName(for: recording.startedAt))
