@@ -8,7 +8,7 @@ actor WhisperKitTranscriptionService {
         var accelerator: WhisperAcceleratorSetting
     }
 
-    private var pipelines: [PipelineKey: WhisperKit] = [:]
+    private var pipelineTasks: [PipelineKey: Task<WhisperKit, Error>] = [:]
     private var scheduledUnloadTasks: [PipelineKey: Task<Void, Never>] = [:]
     private var unloadTokens: [PipelineKey: UUID] = [:]
 
@@ -50,13 +50,14 @@ actor WhisperKitTranscriptionService {
 
     func unloadAll() {
         scheduledUnloadTasks.values.forEach { $0.cancel() }
-        pipelines.removeAll()
+        pipelineTasks.values.forEach { $0.cancel() }
+        pipelineTasks.removeAll()
         scheduledUnloadTasks.removeAll()
         unloadTokens.removeAll()
     }
 
     func loadedModelIDs() -> Set<String> {
-        Set(pipelines.keys.map(\.modelID))
+        Set(pipelineTasks.keys.map(\.modelID))
     }
 
     func transcribe(
@@ -103,8 +104,8 @@ actor WhisperKitTranscriptionService {
         modelDirectory: URL
     ) async throws -> WhisperKit {
         let key = PipelineKey(modelID: model.id, accelerator: settings.whisperAccelerator)
-        if let pipeline = pipelines[key] {
-            return pipeline
+        if let existing = pipelineTasks[key] {
+            return try await existing.value
         }
 
         try FileManager.default.createDirectory(
@@ -122,9 +123,14 @@ actor WhisperKitTranscriptionService {
             prewarm: true,
             download: false
         )
-        let pipeline = try await WhisperKit(config)
-        pipelines[key] = pipeline
-        return pipeline
+        let task = Task { try await WhisperKit(config) }
+        pipelineTasks[key] = task
+        do {
+            return try await task.value
+        } catch {
+            pipelineTasks[key] = nil
+            throw error
+        }
     }
 
     private func cancelScheduledUnload(for key: PipelineKey) {
@@ -143,7 +149,8 @@ actor WhisperKitTranscriptionService {
         }
 
         guard delaySeconds > 0 else {
-            pipelines[key] = nil
+            pipelineTasks[key]?.cancel()
+            pipelineTasks[key] = nil
             scheduledUnloadTasks[key] = nil
             unloadTokens[key] = nil
             return
@@ -164,7 +171,8 @@ actor WhisperKitTranscriptionService {
             return
         }
 
-        pipelines[key] = nil
+        pipelineTasks[key]?.cancel()
+        pipelineTasks[key] = nil
         scheduledUnloadTasks[key] = nil
         unloadTokens[key] = nil
     }
