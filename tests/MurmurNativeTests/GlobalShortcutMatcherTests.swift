@@ -26,6 +26,29 @@ final class GlobalShortcutMatcherTests: XCTestCase {
         XCTAssertEqual(matcher.handle(type: .keyDown, keyCode: 49, flags: flags), .passThrough)
     }
 
+    func testAutorepeatKeyDownIsConsumedButNotRoutedWhenPressed() {
+        var matcher = GlobalShortcutMatcher(descriptor: .optionSpace)
+
+        XCTAssertEqual(matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate), .pressed)
+        XCTAssertEqual(
+            matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate, isAutorepeat: true),
+            .consume
+        )
+        XCTAssertEqual(matcher.handle(type: .keyUp, keyCode: 49, flags: []), .released)
+    }
+
+    func testAutorepeatKeyDownAfterStateLossIsConsumedNotPressed() {
+        // Simulates the old reset bug: a fresh matcher receives an autorepeat
+        // keyDown for a key the user never released.
+        var matcher = GlobalShortcutMatcher(descriptor: .optionSpace)
+
+        XCTAssertEqual(
+            matcher.handle(type: .keyDown, keyCode: 49, flags: .maskAlternate, isAutorepeat: true),
+            .consume
+        )
+        XCTAssertFalse(matcher.isPressed)
+    }
+
     func testShortcutDescriptorParsesConfiguredBindings() throws {
         let descriptor = try XCTUnwrap(GlobalShortcutDescriptor.parse("option+shift+space"))
 

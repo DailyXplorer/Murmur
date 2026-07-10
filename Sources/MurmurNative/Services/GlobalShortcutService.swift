@@ -198,7 +198,7 @@ struct GlobalShortcutMatcher {
     private(set) var isPressed = false
     let descriptor: GlobalShortcutDescriptor
 
-    mutating func handle(type: CGEventType, keyCode: CGKeyCode, flags: CGEventFlags) -> GlobalShortcutMatch {
+    mutating func handle(type: CGEventType, keyCode: CGKeyCode, flags: CGEventFlags, isAutorepeat: Bool = false) -> GlobalShortcutMatch {
         guard keyCode == descriptor.keyCode else {
             return .passThrough
         }
@@ -207,6 +207,13 @@ struct GlobalShortcutMatcher {
         case .keyDown:
             guard flags.matchesExactly(descriptor.requiredFlags) else {
                 return .passThrough
+            }
+
+            if isAutorepeat {
+                // Autorepeat of a bound key: swallow it, but never treat it as a
+                // fresh press (protects against matcher state resets while the
+                // key is physically held).
+                return .consume
             }
 
             if isPressed {
@@ -225,6 +232,10 @@ struct GlobalShortcutMatcher {
         default:
             return .passThrough
         }
+    }
+
+    mutating func markPressedForCarryOver() {
+        isPressed = true
     }
 }
 
@@ -282,7 +293,14 @@ final class GlobalShortcutService {
         onPressed: @escaping @Sendable (String) -> Void,
         onReleased: @escaping @Sendable (String) -> Void
     ) throws {
-        stop()
+        if eventTap != nil {
+            // Tap already installed: swap registrations in place so a key the
+            // user is physically holding keeps its pressed state.
+            updateRegistrations(registrations)
+            self.onPressed = onPressed
+            self.onReleased = onReleased
+            return
+        }
 
         let activeRegistrations = registrations.isEmpty
             ? [GlobalShortcutRegistration(bindingID: ShortcutBinding.transcribeID, descriptor: .optionSpace)]
@@ -323,6 +341,28 @@ final class GlobalShortcutService {
         CGEvent.tapEnable(tap: tap, enable: true)
     }
 
+    static func carryingOverPressState(
+        from previous: [String: GlobalShortcutMatcher],
+        registrations: [GlobalShortcutRegistration]
+    ) -> [String: GlobalShortcutMatcher] {
+        Dictionary(uniqueKeysWithValues: registrations.map { registration in
+            var matcher = GlobalShortcutMatcher(descriptor: registration.descriptor)
+            if let existing = previous[registration.bindingID],
+               existing.descriptor == registration.descriptor,
+               existing.isPressed {
+                matcher.markPressedForCarryOver()
+            }
+            return (registration.bindingID, matcher)
+        })
+    }
+
+    func updateRegistrations(_ registrations: [GlobalShortcutRegistration]) {
+        let activeRegistrations = registrations.isEmpty
+            ? [GlobalShortcutRegistration(bindingID: ShortcutBinding.transcribeID, descriptor: .optionSpace)]
+            : registrations
+        matchers = Self.carryingOverPressState(from: matchers, registrations: activeRegistrations)
+    }
+
     func stop() {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
@@ -349,12 +389,13 @@ final class GlobalShortcutService {
         }
 
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+        let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
         var handled: (bindingID: String, match: GlobalShortcutMatch)?
         for bindingID in matchers.keys.sorted() {
             guard var matcher = matchers[bindingID] else {
                 continue
             }
-            let match = matcher.handle(type: type, keyCode: keyCode, flags: event.flags)
+            let match = matcher.handle(type: type, keyCode: keyCode, flags: event.flags, isAutorepeat: isAutorepeat)
             matchers[bindingID] = matcher
             if match.shouldConsume {
                 handled = (bindingID, match)
