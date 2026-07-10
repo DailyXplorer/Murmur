@@ -16,8 +16,10 @@ No previous cross-platform toolchain is required.
 ## Test
 
 ```bash
-swift test -debug-info-format none
+./script/test.sh
 ```
+
+If a bare `swift test` appears to hang forever, that is the missing `-debug-info-format none` flag — use `./script/test.sh`.
 
 ## Run
 
@@ -26,6 +28,8 @@ swift test -debug-info-format none
 ```
 
 This builds the `Murmur` executable, creates `~/Applications/MurmurDist/Murmur.app`, signs it locally, and launches it.
+
+The script builds in the `release` configuration by default, so the staged app and all packaged artifacts are optimized. Set `MURMUR_BUILD_CONFIG=debug` for faster local iteration.
 
 Set `MURMUR_DIST_DIR` to stage the app somewhere else. Earlier versions staged the app under `/tmp`, but macOS purges `/tmp` at reboot, so the app bundle (and any launch-at-login entry pointing at it) silently disappeared after a restart.
 
@@ -85,6 +89,7 @@ The script also accepts Apple ID credentials through:
 
 ## Useful Environment Variables
 
+- `MURMUR_BUILD_CONFIG` - SwiftPM build configuration used by the build script, defaults to `release`; set `debug` for faster local iteration
 - `MURMUR_DIST_DIR` - staged app and archive output directory, defaults to `~/Applications/MurmurDist` (the old default under `/tmp` was purged at every reboot, which silently broke launch-at-login)
 - `MURMUR_ARCHIVE_DIR` - archive output directory, defaults to `$MURMUR_DIST_DIR/archive`
 - `MURMUR_BUNDLE_ID` - bundle identifier, defaults to `com.pais.murmur`

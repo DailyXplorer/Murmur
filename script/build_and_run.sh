@@ -7,6 +7,7 @@ MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOURCE_DIR="$ROOT_DIR/Resources"
+BUILD_CONFIG="${MURMUR_BUILD_CONFIG:-release}"
 DIST_DIR="${MURMUR_DIST_DIR:-$HOME/Applications/MurmurDist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -236,8 +237,9 @@ esac
 
 terminate_existing_native
 
-swift build -debug-info-format none --product "$APP_NAME"
-BUILD_BINARY="$(swift build -debug-info-format none --show-bin-path)/$APP_NAME"
+printf 'build configuration: %s\n' "$BUILD_CONFIG"
+swift build -c "$BUILD_CONFIG" -debug-info-format none --product "$APP_NAME"
+BUILD_BINARY="$(swift build -c "$BUILD_CONFIG" -debug-info-format none --show-bin-path)/$APP_NAME"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"

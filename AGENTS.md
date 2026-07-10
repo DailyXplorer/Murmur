@@ -16,12 +16,14 @@ Keep the app focused on:
 ## Commands
 
 ```bash
-swift test -debug-info-format none
+./script/test.sh
 ./script/build_and_run.sh
 MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --verify
 MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --readiness
 MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 ```
+
+If a bare `swift test` appears to hang forever, that is the missing `-debug-info-format none` flag — use `./script/test.sh`.
 
 ## Structure
 
