@@ -7,7 +7,7 @@ MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOURCE_DIR="$ROOT_DIR/Resources"
-DIST_DIR="${MURMUR_DIST_DIR:-/tmp/murmur-native-dist}"
+DIST_DIR="${MURMUR_DIST_DIR:-$HOME/Applications/MurmurDist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
@@ -32,10 +32,32 @@ detect_codesign_identity() {
     return 0
   fi
 
+  local identities
+  identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+
+  if printf '%s' "$identities" | grep -q '"Murmur Dev"'; then
+    printf '%s\n' "Murmur Dev"
+    return 0
+  fi
+
+  local apple_dev
+  apple_dev="$(printf '%s' "$identities" | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')"
+  if [[ -n "$apple_dev" ]]; then
+    printf '%s\n' "$apple_dev"
+    return 0
+  fi
+
   printf '%s\n' "-"
 }
 
 CODESIGN_IDENTITY="$(detect_codesign_identity)"
+
+if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
+  printf 'warning: signing ad-hoc. Every rebuild resets the Accessibility grant in\n' >&2
+  printf 'warning: System Settings (the toggle looks ON but the app is not trusted).\n' >&2
+  printf 'warning: Create a self-signed "Murmur Dev" certificate or set MURMUR_CODESIGN_IDENTITY.\n' >&2
+  printf 'warning: See BUILD.md "Stable local signing".\n' >&2
+fi
 
 artifact_arch() {
   case "$(uname -m)" in

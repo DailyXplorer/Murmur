@@ -67,8 +67,10 @@ swift test -debug-info-format none
 The build script creates and launches:
 
 ```text
-/tmp/murmur-native-dist/Murmur.app
+~/Applications/MurmurDist/Murmur.app
 ```
+
+Set `MURMUR_DIST_DIR` to stage the app somewhere else. Earlier versions staged the app under `/tmp`, but macOS purges `/tmp` at reboot, which silently broke launch-at-login.
 
 For an isolated smoke launch:
 
@@ -87,7 +89,7 @@ MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 Artifacts are written under:
 
 ```text
-/tmp/murmur-native-dist/archive/
+~/Applications/MurmurDist/archive/
 ```
 
 Local builds are ad-hoc signed by default. Developer ID signing and notarization are only needed if you distribute prebuilt binaries to other people.
@@ -104,7 +106,7 @@ MURMUR_PORTABLE_SMOKE=1 ./script/build_and_run.sh --release-readiness
 `--readiness` writes JSON reports under:
 
 ```text
-/tmp/murmur-native-dist/readiness/
+~/Applications/MurmurDist/readiness/
 ```
 
 ## Architecture
@@ -141,6 +143,23 @@ Murmur needs:
 - Microphone access to record speech
 - Accessibility access to paste or type the transcription into other apps
 - Speech Recognition access only when using Apple Speech
+
+## Reporting A Problem / Logs
+
+Murmur writes a log file that diagnoses most startup and shortcut problems:
+
+```text
+~/Library/Logs/com.pais.murmur/murmur-native.log
+```
+
+Debug-level logging is on by default, so the file usually already contains what a bug report needs. Please attach it (or the relevant lines) when reporting an issue.
+
+To inspect logging from inside the app, open the Debug settings pane:
+
+- launch the app with the `--debug` flag, or
+- press Shift+Command+D (or Shift+Control+D) inside the app window.
+
+The Debug pane includes an "Open Logs Folder" button that reveals the log file in Finder.
 
 ## Contributing
 

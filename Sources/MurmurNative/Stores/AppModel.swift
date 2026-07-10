@@ -168,6 +168,9 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+        Task { @MainActor [weak self] in
+            await self?.refreshPermissionsAtLaunch()
+        }
     }
 
     var recordingActionTitle: String {
@@ -228,6 +231,22 @@ final class AppModel: ObservableObject {
         permissionSnapshot = permissionService.snapshot()
         refreshGlobalShortcutForPermissionSnapshot()
         refreshOnboardingState()
+    }
+
+    private var didRunLaunchPermissionCheck = false
+
+    func refreshPermissionsAtLaunch() async {
+        guard didRunLaunchPermissionCheck == false else { return }
+        didRunLaunchPermissionCheck = true
+        await refreshPermissions()
+
+        if settings.nativeOnboardingCompleted,
+           permissionSnapshot.accessibilityTrusted == false {
+            // A previously working install lost its grant (typically a re-signed
+            // rebuild): ask the OS to show the Accessibility prompt once.
+            _ = permissionService.requestAccessibilityPrompt()
+            log(.error, "Accessibility permission missing at launch; dictation shortcut is disabled until it is granted.")
+        }
     }
 
     func requestAccessibility() {
@@ -1444,7 +1463,7 @@ final class AppModel: ObservableObject {
         guard permissionSnapshot.accessibilityTrusted else {
             globalShortcutService.stop()
             globalShortcutStatus = "Accessibility required"
-            log(.debug, "Global shortcut monitoring requires Accessibility permission.")
+            log(.warn, "Global shortcut monitoring requires Accessibility permission.")
             return
         }
 
@@ -1466,7 +1485,7 @@ final class AppModel: ObservableObject {
                     self?.handleGlobalShortcutReleased(bindingID: bindingID)
                 }
             }
-            globalShortcutStatus = "\(settings.transcribeShortcutBinding.displayBinding) active"
+            globalShortcutStatus = activeTranscribeShortcutStatus()
             log(.info, "Global shortcut monitoring started.")
         } catch {
             globalShortcutStatus = "Shortcut unavailable"
@@ -1477,12 +1496,24 @@ final class AppModel: ObservableObject {
 
     private func refreshGlobalShortcutStatus() {
         if globalShortcutService.isRunning {
-            globalShortcutStatus = "\(settings.transcribeShortcutBinding.displayBinding) active"
+            globalShortcutStatus = activeTranscribeShortcutStatus()
         } else if permissionSnapshot.accessibilityTrusted {
             globalShortcutStatus = "Ready to enable"
         } else {
             globalShortcutStatus = "Accessibility required"
         }
+    }
+
+    private func activeTranscribeShortcutStatus() -> String {
+        guard let resolution = Self.descriptorWithFallback(for: settings.transcribeShortcutBinding) else {
+            return "Transcribe shortcut not set"
+        }
+
+        if resolution.usedFallback {
+            return "\(ShortcutBinding.displayName(for: settings.transcribeShortcutBinding.defaultBinding)) active (default — stored shortcut invalid)"
+        }
+
+        return "\(settings.transcribeShortcutBinding.displayBinding) active"
     }
 
     private func refreshGlobalShortcutForPermissionSnapshot() {
@@ -1574,34 +1605,47 @@ final class AppModel: ObservableObject {
         return true
     }
 
+    static func descriptorWithFallback(for binding: ShortcutBinding) -> (descriptor: GlobalShortcutDescriptor, usedFallback: Bool)? {
+        if let descriptor = GlobalShortcutDescriptor.parse(binding.currentBinding) {
+            return (descriptor, false)
+        }
+        if let descriptor = GlobalShortcutDescriptor.parse(binding.defaultBinding) {
+            return (descriptor, true)
+        }
+        return nil
+    }
+
     private func globalShortcutRegistrations() -> [GlobalShortcutRegistration] {
         var registrations: [GlobalShortcutRegistration] = []
 
-        if let descriptor = GlobalShortcutDescriptor.parse(settings.transcribeShortcutBinding.currentBinding) {
+        if let resolution = Self.descriptorWithFallback(for: settings.transcribeShortcutBinding) {
+            if resolution.usedFallback {
+                log(.warn, "Stored shortcut '\(settings.transcribeShortcutBinding.currentBinding)' is not usable; falling back to \(settings.transcribeShortcutBinding.defaultBinding).")
+            }
             registrations.append(
                 GlobalShortcutRegistration(
                     bindingID: ShortcutBinding.transcribeID,
-                    descriptor: descriptor
+                    descriptor: resolution.descriptor
                 )
             )
         }
 
         if settings.postProcessEnabled,
-           let descriptor = GlobalShortcutDescriptor.parse(settings.transcribeWithPostProcessShortcutBinding.currentBinding) {
+           let resolution = Self.descriptorWithFallback(for: settings.transcribeWithPostProcessShortcutBinding) {
             registrations.append(
                 GlobalShortcutRegistration(
                     bindingID: ShortcutBinding.transcribeWithPostProcessID,
-                    descriptor: descriptor
+                    descriptor: resolution.descriptor
                 )
             )
         }
 
         if recordingState.isActive,
-           let descriptor = GlobalShortcutDescriptor.parse(settings.cancelShortcutBinding.currentBinding) {
+           let resolution = Self.descriptorWithFallback(for: settings.cancelShortcutBinding) {
             registrations.append(
                 GlobalShortcutRegistration(
                     bindingID: ShortcutBinding.cancelID,
-                    descriptor: descriptor
+                    descriptor: resolution.descriptor
                 )
             )
         }

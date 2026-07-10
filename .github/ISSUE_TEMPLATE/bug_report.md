@@ -33,4 +33,4 @@ What happened instead?
 
 ## Logs
 
-Attach relevant logs or screenshots if available.
+Attach relevant logs or screenshots if available. The log file lives at `~/Library/Logs/com.pais.murmur/murmur-native.log` — see the [Reporting A Problem / Logs](../../README.md#reporting-a-problem--logs) section of the README for how to find and open it.

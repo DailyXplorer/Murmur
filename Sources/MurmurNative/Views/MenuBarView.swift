@@ -10,6 +10,15 @@ struct MenuBarView: View {
 
         Divider()
 
+        if appModel.settings.nativeOnboardingCompleted,
+           appModel.permissionSnapshot.accessibilityTrusted == false {
+            Button("Accessibility permission required…") {
+                appModel.requestAccessibility()
+            }
+
+            Divider()
+        }
+
         Button("Settings") {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
