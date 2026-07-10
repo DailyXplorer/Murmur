@@ -97,3 +97,7 @@ The script also accepts Apple ID credentials through:
 - `MURMUR_APP_BUILD` - build number, defaults to `1`
 - `MURMUR_CODESIGN_IDENTITY` - signing identity, overrides the detection cascade described in "Stable Local Signing"; without it the script falls back to `Murmur Dev`, then `Apple Development`, then ad-hoc signing (`-`)
 - `MURMUR_ENTITLEMENTS_PLIST` - entitlements path, defaults to `Resources/Entitlements.plist`
+
+## Upgrade Notes
+
+Builds prior to the legacy credential scrub left provider API keys (transcription and post-processing) in plaintext in the legacy `settings_store.json` file, even after they had been imported into the keychain/credential store. On first launch, current builds strip those key fields from the legacy file (the file itself is kept as an upgrade signal). If you upgraded from one of those older builds, rotating the affected provider API keys is recommended, since they previously sat unencrypted on disk.

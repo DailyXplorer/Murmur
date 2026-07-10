@@ -119,30 +119,82 @@ struct SettingsStore {
             .appendingPathComponent("\(settingsURL.lastPathComponent).\(timestamp).invalid")
     }
 
+    private static let legacyAPIKeyFields = [
+        "post_process_api_keys", "postProcessAPIKeys",
+        "transcription_api_api_keys", "transcriptionAPIAPIKeys",
+    ]
+
     private func migrateLegacyCredentialsIfNeeded() {
         guard FileManager.default.fileExists(atPath: legacySettingsURL.path),
-              !FileManager.default.fileExists(atPath: legacyCredentialMigrationMarkerURL.path),
               let data = try? Data(contentsOf: legacySettingsURL),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
             return
         }
 
-        let settingsObject = object["settings"] as? [String: Any] ?? object
-        var apiKeys = legacyAPIKeys(from: settingsObject["post_process_api_keys"])
-        apiKeys.merge(legacyAPIKeys(from: settingsObject["postProcessAPIKeys"])) { _, new in new }
-        apiKeys.merge(legacyAPIKeys(from: settingsObject["transcription_api_api_keys"])) { _, new in new }
-        apiKeys.merge(legacyAPIKeys(from: settingsObject["transcriptionAPIAPIKeys"])) { _, new in new }
-        guard !apiKeys.isEmpty else {
-            markLegacyCredentialsImported()
+        let alreadyImported = FileManager.default.fileExists(atPath: legacyCredentialMigrationMarkerURL.path)
+        guard containsLegacyAPIKeyFields(object) else {
+            if !alreadyImported {
+                markLegacyCredentialsImported()
+            }
             return
         }
 
-        do {
-            try credentialStore.importAPIKeys(apiKeys)
-            markLegacyCredentialsImported()
-        } catch {
+        if !alreadyImported {
+            let settingsObject = object["settings"] as? [String: Any] ?? object
+            var apiKeys = legacyAPIKeys(from: settingsObject["post_process_api_keys"])
+            apiKeys.merge(legacyAPIKeys(from: settingsObject["postProcessAPIKeys"])) { _, new in new }
+            apiKeys.merge(legacyAPIKeys(from: settingsObject["transcription_api_api_keys"])) { _, new in new }
+            apiKeys.merge(legacyAPIKeys(from: settingsObject["transcriptionAPIAPIKeys"])) { _, new in new }
+            if !apiKeys.isEmpty {
+                do {
+                    try credentialStore.importAPIKeys(apiKeys)
+                } catch {
+                    return
+                }
+            }
+        }
+
+        // Strip first, then mark, so a failed strip retries on the next launch.
+        // importAPIKeys is idempotent (it skips providers that already have a
+        // stored key), so re-running the import on retry is safe.
+        guard writeLegacySettings(stripLegacyAPIKeys(from: object)) else {
             return
+        }
+        if !alreadyImported {
+            markLegacyCredentialsImported()
+        }
+    }
+
+    private func containsLegacyAPIKeyFields(_ object: [String: Any]) -> Bool {
+        let nested = object["settings"] as? [String: Any] ?? [:]
+        return Self.legacyAPIKeyFields.contains { object[$0] != nil || nested[$0] != nil }
+    }
+
+    private func stripLegacyAPIKeys(from object: [String: Any]) -> [String: Any] {
+        var result = object
+        for field in Self.legacyAPIKeyFields {
+            result.removeValue(forKey: field)
+        }
+        if var nested = result["settings"] as? [String: Any] {
+            for field in Self.legacyAPIKeyFields {
+                nested.removeValue(forKey: field)
+            }
+            result["settings"] = nested
+        }
+        return result
+    }
+
+    private func writeLegacySettings(_ object: [String: Any]) -> Bool {
+        do {
+            let data = try JSONSerialization.data(
+                withJSONObject: object,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            try data.write(to: legacySettingsURL, options: [.atomic])
+            return true
+        } catch {
+            return false
         }
     }
 

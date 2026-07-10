@@ -144,6 +144,136 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try credentialStore.readAPIKey(providerID: "mistral"), "legacy-post-key")
     }
 
+    func testMigrationStripsLegacyKeyFieldsAfterImport() throws {
+        let paths = makePaths()
+        let legacySettingsURL = paths.appDataDirectory.appendingPathComponent("settings_store.json")
+        try """
+        {
+          "post_process_api_keys": {
+            "mistral": "test-key-1"
+          },
+          "transcription_api_api_keys": {
+            "mistral": "test-key-2"
+          },
+          "selected_model": "tiny"
+        }
+        """.write(to: legacySettingsURL, atomically: true, encoding: .utf8)
+        let credentialStore = FlakyCredentialStore()
+
+        _ = SettingsStore(paths: paths, credentialStore: credentialStore).loadResult()
+
+        XCTAssertEqual(try credentialStore.readAPIKey(providerID: "mistral"), "test-key-2")
+        XCTAssertFalse(credentialStore.savedProviderIDs.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacySettingsURL.path))
+        let strippedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: legacySettingsURL)
+            ) as? [String: Any]
+        )
+        XCTAssertNil(strippedObject["post_process_api_keys"])
+        XCTAssertNil(strippedObject["postProcessAPIKeys"])
+        XCTAssertNil(strippedObject["transcription_api_api_keys"])
+        XCTAssertNil(strippedObject["transcriptionAPIAPIKeys"])
+        XCTAssertEqual(strippedObject["selected_model"] as? String, "tiny")
+    }
+
+    func testMigrationStripsNestedSettingsKeyFields() throws {
+        let paths = makePaths()
+        let legacySettingsURL = paths.appDataDirectory.appendingPathComponent("settings_store.json")
+        try """
+        {
+          "settings": {
+            "postProcessAPIKeys": {
+              "mistral": "test-key-3"
+            },
+            "transcriptionAPIAPIKeys": {
+              "mistral": "test-key-4"
+            },
+            "selected_model": "tiny"
+          }
+        }
+        """.write(to: legacySettingsURL, atomically: true, encoding: .utf8)
+        let credentialStore = FlakyCredentialStore()
+
+        _ = SettingsStore(paths: paths, credentialStore: credentialStore).loadResult()
+
+        XCTAssertEqual(try credentialStore.readAPIKey(providerID: "mistral"), "test-key-4")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacySettingsURL.path))
+        let strippedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: legacySettingsURL)
+            ) as? [String: Any]
+        )
+        let nested = try XCTUnwrap(strippedObject["settings"] as? [String: Any])
+        XCTAssertNil(nested["postProcessAPIKeys"])
+        XCTAssertNil(nested["transcriptionAPIAPIKeys"])
+        XCTAssertNil(nested["post_process_api_keys"])
+        XCTAssertNil(nested["transcription_api_api_keys"])
+        XCTAssertEqual(nested["selected_model"] as? String, "tiny")
+    }
+
+    func testAlreadyMarkedMigrationStillStripsResidualKeys() throws {
+        let paths = makePaths()
+        let legacySettingsURL = paths.appDataDirectory.appendingPathComponent("settings_store.json")
+        let markerURL = paths.appDataDirectory.appendingPathComponent(".legacy_api_credentials_imported")
+        try "imported\n".write(to: markerURL, atomically: true, encoding: .utf8)
+        try """
+        {
+          "post_process_api_keys": {
+            "mistral": "test-key-5"
+          },
+          "selected_model": "tiny"
+        }
+        """.write(to: legacySettingsURL, atomically: true, encoding: .utf8)
+        let credentialStore = FlakyCredentialStore()
+
+        _ = SettingsStore(paths: paths, credentialStore: credentialStore).loadResult()
+
+        XCTAssertTrue(credentialStore.savedProviderIDs.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacySettingsURL.path))
+        let strippedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: legacySettingsURL)
+            ) as? [String: Any]
+        )
+        XCTAssertNil(strippedObject["post_process_api_keys"])
+        XCTAssertEqual(strippedObject["selected_model"] as? String, "tiny")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: markerURL.path))
+    }
+
+    func testMigrationPreservesNonKeyLegacyContent() throws {
+        let paths = makePaths()
+        let legacySettingsURL = paths.appDataDirectory.appendingPathComponent("settings_store.json")
+        let original: [String: Any] = [
+            "selected_model": "tiny",
+            "history_limit": 42,
+            "push_to_talk": true,
+            "settings": [
+                "selected_language": "fr-FR",
+                "post_process_api_keys": ["mistral": "test-key-6"],
+                "custom_words": ["murmur", "voxtral"],
+            ] as [String: Any],
+            "transcription_api_api_keys": ["mistral": "test-key-7"],
+        ]
+        let originalData = try JSONSerialization.data(withJSONObject: original)
+        try originalData.write(to: legacySettingsURL)
+        let credentialStore = FlakyCredentialStore()
+
+        _ = SettingsStore(paths: paths, credentialStore: credentialStore).loadResult()
+
+        let strippedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: legacySettingsURL)
+            ) as? [String: Any]
+        )
+        var expected = original
+        expected.removeValue(forKey: "transcription_api_api_keys")
+        var expectedNested = try XCTUnwrap(expected["settings"] as? [String: Any])
+        expectedNested.removeValue(forKey: "post_process_api_keys")
+        expected["settings"] = expectedNested
+        XCTAssertEqual(strippedObject as NSDictionary, expected as NSDictionary)
+    }
+
     func testNativeSettingsDecodeMissingValuesFromDefaults() throws {
         let data = #"{"pushToTalk":false,"selectedLanguage":"de-DE"}"#.data(using: .utf8)!
 
@@ -275,6 +405,7 @@ final class SettingsStoreTests: XCTestCase {
 
 private final class FlakyCredentialStore: PostProcessCredentialStoring, @unchecked Sendable {
     var shouldFailSaves = false
+    private(set) var savedProviderIDs: [String] = []
     private var apiKeys: [String: String] = [:]
 
     func readAPIKey(providerID: String) throws -> String? {
@@ -285,6 +416,7 @@ private final class FlakyCredentialStore: PostProcessCredentialStoring, @uncheck
         if shouldFailSaves {
             throw NSError(domain: "FlakyCredentialStore", code: 1)
         }
+        savedProviderIDs.append(providerID)
         apiKeys[providerID] = apiKey
     }
 
