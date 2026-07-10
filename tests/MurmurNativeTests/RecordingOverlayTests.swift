@@ -171,4 +171,71 @@ final class RecordingOverlayTests: XCTestCase {
         XCTAssertTrue(diagnostics.isOnActiveSpace)
         XCTAssertGreaterThanOrEqual(diagnostics.alphaValue, 0.95)
     }
+
+    @MainActor
+    func testShowTwiceReusesPanelAndContentView() async throws {
+        try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
+        let controller = RecordingOverlayPanelController()
+        defer {
+            controller.hide(animated: false)
+        }
+
+        controller.show(state: .recording, palette: AppTheme.pink.palette)
+        let firstDiagnostics = controller.diagnostics(expectedState: .recording)
+        let firstContentView = controller.panel?.contentView
+
+        controller.show(state: .transcribing, palette: AppTheme.pink.palette)
+        let secondDiagnostics = controller.diagnostics(expectedState: .transcribing)
+        let secondContentView = controller.panel?.contentView
+
+        XCTAssertNotNil(firstDiagnostics.panelInstanceID)
+        XCTAssertEqual(firstDiagnostics.panelInstanceID, secondDiagnostics.panelInstanceID)
+        XCTAssertNotNil(firstContentView)
+        XCTAssertTrue(firstContentView === secondContentView)
+        XCTAssertEqual(controller.viewModel.state, .transcribing)
+        XCTAssertTrue(secondDiagnostics.matchesExpectedState)
+    }
+
+    @MainActor
+    func testHideKeepsPanelForReuse() async throws {
+        try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
+        let controller = RecordingOverlayPanelController()
+        defer {
+            controller.hide(animated: false)
+        }
+
+        controller.show(state: .recording, palette: AppTheme.pink.palette)
+        let shownID = controller.diagnostics().panelInstanceID
+        XCTAssertNotNil(shownID)
+
+        controller.hide(animated: false)
+        let hiddenDiagnostics = controller.diagnostics()
+        XCTAssertFalse(hiddenDiagnostics.isVisible)
+        XCTAssertEqual(hiddenDiagnostics.panelInstanceID, shownID)
+
+        controller.show(state: .recording, palette: AppTheme.pink.palette)
+        let reshownDiagnostics = controller.diagnostics(expectedState: .recording)
+        XCTAssertTrue(reshownDiagnostics.isVisible)
+        XCTAssertEqual(reshownDiagnostics.panelInstanceID, shownID)
+        XCTAssertTrue(reshownDiagnostics.matchesExpectedState)
+    }
+
+    @MainActor
+    func testPaletteChangeFlowsThroughViewModel() async throws {
+        try XCTSkipIf(NSScreen.main == nil, "Recording overlay panel tests require a visible screen.")
+        let controller = RecordingOverlayPanelController()
+        defer {
+            controller.hide(animated: false)
+        }
+
+        controller.show(state: .recording, palette: AppTheme.pink.palette)
+        XCTAssertEqual(controller.viewModel.palette, AppTheme.pink.palette)
+
+        controller.show(state: .recording, palette: AppTheme.blue.palette)
+        XCTAssertEqual(controller.viewModel.palette, AppTheme.blue.palette)
+
+        let diagnostics = controller.diagnostics(expectedState: .recording)
+        XCTAssertTrue(diagnostics.isVisible)
+        XCTAssertTrue(diagnostics.matchesExpectedState)
+    }
 }

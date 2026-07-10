@@ -5,6 +5,7 @@ import SwiftUI
 final class RecordingOverlayViewModel: ObservableObject {
     @Published var state: RecordingOverlayState = .recording
     @Published var levels: [Float] = Array(repeating: 0, count: 9)
+    @Published var palette: MurmurThemePalette = AppTheme.pink.palette
 }
 
 enum RecordingOverlayLevelMapper {
@@ -24,8 +25,9 @@ enum RecordingOverlayLevelMapper {
 final class RecordingOverlayPanelController {
     var onCancel: (() -> Void)?
 
-    private let viewModel = RecordingOverlayViewModel()
-    private var panel: RecordingOverlayPanel?
+    let viewModel = RecordingOverlayViewModel()
+    private(set) var panel: RecordingOverlayPanel?
+    private var panelInstanceID: UUID?
     private var hideTask: Task<Void, Never>?
     private var visibilityGeneration = 0
     nonisolated(unsafe) private var activeSpaceObserver: NSObjectProtocol?
@@ -147,7 +149,6 @@ final class RecordingOverlayPanelController {
                         return
                     }
                     panel?.orderOut(nil)
-                    self.panel = nil
                     self.hideTask = nil
                 }
             }
@@ -157,7 +158,6 @@ final class RecordingOverlayPanelController {
             hideTask = nil
             panel.alphaValue = 0
             panel.orderOut(nil)
-            self.panel = nil
         }
     }
 
@@ -178,7 +178,8 @@ final class RecordingOverlayPanelController {
                 canBecomeMain: false,
                 collectionBehaviorRawValue: 0,
                 visualSnapshot: .failure(reason: "missing-panel"),
-                matchesExpectedState: expectedState == nil
+                matchesExpectedState: expectedState == nil,
+                panelInstanceID: nil
             )
         }
 
@@ -211,7 +212,8 @@ final class RecordingOverlayPanelController {
             canBecomeMain: panel.canBecomeMain,
             collectionBehaviorRawValue: panel.collectionBehavior.rawValue,
             visualSnapshot: visualSnapshot,
-            matchesExpectedState: matchesExpectedState
+            matchesExpectedState: matchesExpectedState,
+            panelInstanceID: panelInstanceID
         )
     }
 
@@ -241,8 +243,8 @@ final class RecordingOverlayPanelController {
     }
 
     private func ensurePanel(palette: MurmurThemePalette) -> RecordingOverlayPanel {
+        viewModel.palette = palette
         if let panel {
-            panel.contentView = makeContentView(palette: palette)
             panel.collectionBehavior = Self.overlayCollectionBehavior
             return panel
         }
@@ -263,18 +265,18 @@ final class RecordingOverlayPanelController {
         panel.hasShadow = false
         panel.canHide = false
         panel.ignoresMouseEvents = false
-        panel.contentView = makeContentView(palette: palette)
+        panel.contentView = makeContentView()
 
         self.panel = panel
+        panelInstanceID = UUID()
         return panel
     }
 
-    private func makeContentView(palette: MurmurThemePalette) -> NSView {
+    private func makeContentView() -> NSView {
         NSHostingView(
-            rootView: RecordingOverlayView(viewModel: viewModel) { [weak self] in
+            rootView: RecordingOverlayRootView(viewModel: viewModel) { [weak self] in
                 self?.onCancel?()
             }
-            .environment(\.murmurTheme, palette)
         )
     }
 
@@ -392,6 +394,16 @@ final class RecordingOverlayPanelController {
     }
 }
 
+private struct RecordingOverlayRootView: View {
+    @ObservedObject var viewModel: RecordingOverlayViewModel
+    let onCancel: () -> Void
+
+    var body: some View {
+        RecordingOverlayView(viewModel: viewModel, onCancel: onCancel)
+            .environment(\.murmurTheme, viewModel.palette)
+    }
+}
+
 final class RecordingOverlayPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -413,6 +425,7 @@ struct RecordingOverlayPanelDiagnostics: Codable, Equatable {
     var collectionBehaviorRawValue: NSWindow.CollectionBehavior.RawValue
     var visualSnapshot: RecordingOverlayVisualSnapshotDiagnostics
     var matchesExpectedState: Bool
+    var panelInstanceID: UUID?
 }
 
 struct RecordingOverlayPanelFrame: Codable, Equatable {
