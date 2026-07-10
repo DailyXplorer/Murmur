@@ -74,7 +74,9 @@ actor WhisperKitTranscriptionService {
         let options = DecodingOptions(
             task: settings.translateToEnglish && model.supportsTranslation ? .translate : .transcribe,
             language: Self.whisperLanguageCode(from: settings.selectedLanguage),
-            skipSpecialTokens: true
+            temperatureFallbackCount: 2,
+            skipSpecialTokens: true,
+            withoutTimestamps: true
         )
 
         let results = try await pipeline.transcribe(
