@@ -9,7 +9,6 @@ interface TextDisplayProps {
   grouped?: boolean;
   placeholder?: string;
   copyable?: boolean;
-  monospace?: boolean;
   onCopy?: (value: string) => void;
 }
 
@@ -21,7 +20,6 @@ export const TextDisplay: React.FC<TextDisplayProps> = ({
   grouped = false,
   placeholder = "Not available",
   copyable = false,
-  monospace = false,
   onCopy,
 }) => {
   const [showCopied, setShowCopied] = useState(false);
@@ -42,7 +40,6 @@ export const TextDisplay: React.FC<TextDisplayProps> = ({
   };
 
   const displayValue = value || placeholder;
-  const textClasses = monospace ? "font-mono break-all" : "break-words";
 
   return (
     <SettingContainer
@@ -55,7 +52,7 @@ export const TextDisplay: React.FC<TextDisplayProps> = ({
       <div className="flex items-center space-x-2">
         <div className="flex-1 min-w-0">
           <div
-            className={`px-2 min-h-8 flex items-center bg-mid-gray/10 border border-mid-gray/80 rounded-md text-xs ${textClasses} ${!value ? "opacity-60" : ""}`}
+            className={`px-2 min-h-8 flex items-center bg-mid-gray/10 border border-mid-gray/80 rounded-md text-xs font-sans break-words ${!value ? "opacity-60" : ""}`}
           >
             {displayValue}
           </div>

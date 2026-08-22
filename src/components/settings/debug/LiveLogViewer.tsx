@@ -226,7 +226,7 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-72 overflow-y-auto rounded-lg border border-mid-gray/30 bg-[var(--color-log-surface)] p-3 font-mono text-xs leading-relaxed select-text"
+        className="h-72 overflow-y-auto rounded-lg border border-mid-gray/30 bg-[var(--color-log-surface)] p-3 font-sans text-xs leading-relaxed select-text"
       >
         {logs.length === 0 ? (
           <div className="text-mid-gray select-none">
