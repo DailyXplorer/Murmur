@@ -10,7 +10,7 @@ async changeBinding(id: string, binding: string) : Promise<Result<BindingRespons
     return { status: "ok", data: await TAURI_INVOKE("change_binding", { id, binding }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
@@ -18,7 +18,7 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
     return { status: "ok", data: await TAURI_INVOKE("reset_binding", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changePttSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -26,7 +26,7 @@ async changePttSetting(enabled: boolean) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_ptt_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -34,7 +34,7 @@ async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string
     return { status: "ok", data: await TAURI_INVOKE("change_audio_feedback_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAudioFeedbackVolumeSetting(volume: number) : Promise<Result<null, string>> {
@@ -42,7 +42,7 @@ async changeAudioFeedbackVolumeSetting(volume: number) : Promise<Result<null, st
     return { status: "ok", data: await TAURI_INVOKE("change_audio_feedback_volume_setting", { volume }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeSoundThemeSetting(theme: string) : Promise<Result<null, string>> {
@@ -50,7 +50,7 @@ async changeSoundThemeSetting(theme: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_sound_theme_setting", { theme }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeThemeSetting(theme: string) : Promise<Result<null, string>> {
@@ -58,7 +58,7 @@ async changeThemeSetting(theme: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_theme_setting", { theme }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeStartHiddenSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -66,7 +66,7 @@ async changeStartHiddenSetting(enabled: boolean) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("change_start_hidden_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAutostartSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -74,7 +74,7 @@ async changeAutostartSetting(enabled: boolean) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_autostart_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeSelectedLanguageSetting(language: string) : Promise<Result<null, string>> {
@@ -82,7 +82,7 @@ async changeSelectedLanguageSetting(language: string) : Promise<Result<null, str
     return { status: "ok", data: await TAURI_INVOKE("change_selected_language_setting", { language }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeOverlayPositionSetting(position: string) : Promise<Result<null, string>> {
@@ -90,7 +90,7 @@ async changeOverlayPositionSetting(position: string) : Promise<Result<null, stri
     return { status: "ok", data: await TAURI_INVOKE("change_overlay_position_setting", { position }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeOverlayStyleSetting(style: string) : Promise<Result<null, string>> {
@@ -98,7 +98,7 @@ async changeOverlayStyleSetting(style: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_overlay_style_setting", { style }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeDebugModeSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -106,7 +106,7 @@ async changeDebugModeSetting(enabled: boolean) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_debug_mode_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeWordCorrectionThresholdSetting(threshold: number) : Promise<Result<null, string>> {
@@ -114,7 +114,7 @@ async changeWordCorrectionThresholdSetting(threshold: number) : Promise<Result<n
     return { status: "ok", data: await TAURI_INVOKE("change_word_correction_threshold_setting", { threshold }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeExtraRecordingBufferSetting(ms: number) : Promise<Result<null, string>> {
@@ -122,7 +122,7 @@ async changeExtraRecordingBufferSetting(ms: number) : Promise<Result<null, strin
     return { status: "ok", data: await TAURI_INVOKE("change_extra_recording_buffer_setting", { ms }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changePasteDelayMsSetting(ms: number) : Promise<Result<null, string>> {
@@ -130,7 +130,7 @@ async changePasteDelayMsSetting(ms: number) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_paste_delay_ms_setting", { ms }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changePasteDelayAfterMsSetting(ms: number) : Promise<Result<null, string>> {
@@ -138,7 +138,7 @@ async changePasteDelayAfterMsSetting(ms: number) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("change_paste_delay_after_ms_setting", { ms }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeReliablePasteSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -146,7 +146,7 @@ async changeReliablePasteSetting(enabled: boolean) : Promise<Result<null, string
     return { status: "ok", data: await TAURI_INVOKE("change_reliable_paste_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changePasteMethodSetting(method: string) : Promise<Result<null, string>> {
@@ -154,7 +154,7 @@ async changePasteMethodSetting(method: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_paste_method_setting", { method }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getAvailableTypingTools() : Promise<string[]> {
@@ -165,7 +165,7 @@ async changeTypingToolSetting(tool: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_typing_tool_setting", { tool }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeExternalScriptPathSetting(path: string | null) : Promise<Result<null, string>> {
@@ -173,7 +173,7 @@ async changeExternalScriptPathSetting(path: string | null) : Promise<Result<null
     return { status: "ok", data: await TAURI_INVOKE("change_external_script_path_setting", { path }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeClipboardHandlingSetting(handling: string) : Promise<Result<null, string>> {
@@ -181,7 +181,7 @@ async changeClipboardHandlingSetting(handling: string) : Promise<Result<null, st
     return { status: "ok", data: await TAURI_INVOKE("change_clipboard_handling_setting", { handling }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAutoSubmitSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -189,7 +189,7 @@ async changeAutoSubmitSetting(enabled: boolean) : Promise<Result<null, string>> 
     return { status: "ok", data: await TAURI_INVOKE("change_auto_submit_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAutoSubmitKeySetting(key: string) : Promise<Result<null, string>> {
@@ -197,7 +197,7 @@ async changeAutoSubmitKeySetting(key: string) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("change_auto_submit_key_setting", { key }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeExperimentalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -205,7 +205,7 @@ async changeExperimentalEnabledSetting(enabled: boolean) : Promise<Result<null, 
     return { status: "ok", data: await TAURI_INVOKE("change_experimental_enabled_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async updateCustomWords(words: string[]) : Promise<Result<null, string>> {
@@ -213,7 +213,7 @@ async updateCustomWords(words: string[]) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("update_custom_words", { words }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async suspendAllBindings() : Promise<Result<null, string>> {
@@ -221,7 +221,7 @@ async suspendAllBindings() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("suspend_all_bindings") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async resumeAllBindings() : Promise<Result<null, string>> {
@@ -229,7 +229,7 @@ async resumeAllBindings() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("resume_all_bindings") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeMuteWhileRecordingSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -237,7 +237,7 @@ async changeMuteWhileRecordingSetting(enabled: boolean) : Promise<Result<null, s
     return { status: "ok", data: await TAURI_INVOKE("change_mute_while_recording_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAppendTrailingSpaceSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -245,7 +245,7 @@ async changeAppendTrailingSpaceSetting(enabled: boolean) : Promise<Result<null, 
     return { status: "ok", data: await TAURI_INVOKE("change_append_trailing_space_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeLazyStreamCloseSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -253,7 +253,7 @@ async changeLazyStreamCloseSetting(enabled: boolean) : Promise<Result<null, stri
     return { status: "ok", data: await TAURI_INVOKE("change_lazy_stream_close_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeFillerWordRemovalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -261,7 +261,7 @@ async changeFillerWordRemovalEnabledSetting(enabled: boolean) : Promise<Result<n
     return { status: "ok", data: await TAURI_INVOKE("change_filler_word_removal_enabled_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeAppLanguageSetting(language: string) : Promise<Result<null, string>> {
@@ -269,7 +269,7 @@ async changeAppLanguageSetting(language: string) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("change_app_language_setting", { language }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeUpdateChecksSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -277,7 +277,7 @@ async changeUpdateChecksSetting(enabled: boolean) : Promise<Result<null, string>
     return { status: "ok", data: await TAURI_INVOKE("change_update_checks_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeShowWhatsNewOnUpdateSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -285,7 +285,7 @@ async changeShowWhatsNewOnUpdateSetting(enabled: boolean) : Promise<Result<null,
     return { status: "ok", data: await TAURI_INVOKE("change_show_whats_new_on_update_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeWhatsNewLastSeenVersionSetting(version: string) : Promise<Result<null, string>> {
@@ -293,7 +293,7 @@ async changeWhatsNewLastSeenVersionSetting(version: string) : Promise<Result<nul
     return { status: "ok", data: await TAURI_INVOKE("change_whats_new_last_seen_version_setting", { version }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async changeShowTrayIconSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -301,7 +301,7 @@ async changeShowTrayIconSetting(enabled: boolean) : Promise<Result<null, string>
     return { status: "ok", data: await TAURI_INVOKE("change_show_tray_icon_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async triggerUpdateCheck() : Promise<Result<null, string>> {
@@ -309,7 +309,7 @@ async triggerUpdateCheck() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("trigger_update_check") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async showMainWindowCommand() : Promise<Result<null, string>> {
@@ -317,7 +317,7 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("show_main_window_command") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async cancelOperation() : Promise<void> {
@@ -331,7 +331,7 @@ async getAppDirPath() : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_app_dir_path") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getAppSettings() : Promise<Result<AppSettings, string>> {
@@ -339,7 +339,7 @@ async getAppSettings() : Promise<Result<AppSettings, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_app_settings") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getDefaultSettings() : Promise<Result<AppSettings, string>> {
@@ -347,7 +347,7 @@ async getDefaultSettings() : Promise<Result<AppSettings, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_default_settings") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getLogDirPath() : Promise<Result<string, string>> {
@@ -355,7 +355,7 @@ async getLogDirPath() : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_log_dir_path") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async setLogLevel(level: LogLevel) : Promise<Result<null, string>> {
@@ -363,7 +363,7 @@ async setLogLevel(level: LogLevel) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("set_log_level", { level }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async openRecordingsFolder() : Promise<Result<null, string>> {
@@ -371,7 +371,7 @@ async openRecordingsFolder() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("open_recordings_folder") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async openLogDir() : Promise<Result<null, string>> {
@@ -379,7 +379,7 @@ async openLogDir() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("open_log_dir") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async openAppDataDir() : Promise<Result<null, string>> {
@@ -387,7 +387,7 @@ async openAppDataDir() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("open_app_data_dir") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 /**
@@ -399,7 +399,7 @@ async initializeEnigo() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("initialize_enigo") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 /**
@@ -412,7 +412,7 @@ async initializeShortcuts() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("initialize_shortcuts") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
@@ -420,7 +420,7 @@ async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("update_microphone_mode", { alwaysOn }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getMicrophoneMode() : Promise<Result<boolean, string>> {
@@ -428,7 +428,7 @@ async getMicrophoneMode() : Promise<Result<boolean, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_microphone_mode") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getWindowsMicrophonePermissionStatus() : Promise<WindowsMicrophonePermissionStatus> {
@@ -439,7 +439,7 @@ async openMicrophonePrivacySettings() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("open_microphone_privacy_settings") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getAvailableMicrophones() : Promise<Result<AudioDevice[], string>> {
@@ -447,7 +447,7 @@ async getAvailableMicrophones() : Promise<Result<AudioDevice[], string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_available_microphones") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async setSelectedMicrophone(deviceName: string) : Promise<Result<null, string>> {
@@ -455,7 +455,7 @@ async setSelectedMicrophone(deviceName: string) : Promise<Result<null, string>> 
     return { status: "ok", data: await TAURI_INVOKE("set_selected_microphone", { deviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getSelectedMicrophone() : Promise<Result<string, string>> {
@@ -463,7 +463,7 @@ async getSelectedMicrophone() : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_selected_microphone") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getAvailableOutputDevices() : Promise<Result<AudioDevice[], string>> {
@@ -471,7 +471,7 @@ async getAvailableOutputDevices() : Promise<Result<AudioDevice[], string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_available_output_devices") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async setSelectedOutputDevice(deviceName: string) : Promise<Result<null, string>> {
@@ -479,7 +479,7 @@ async setSelectedOutputDevice(deviceName: string) : Promise<Result<null, string>
     return { status: "ok", data: await TAURI_INVOKE("set_selected_output_device", { deviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getSelectedOutputDevice() : Promise<Result<string, string>> {
@@ -487,7 +487,7 @@ async getSelectedOutputDevice() : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_selected_output_device") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async playTestSound(soundType: string) : Promise<void> {
@@ -501,7 +501,7 @@ async setClamshellMicrophone(deviceName: string) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("set_clamshell_microphone", { deviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getClamshellMicrophone() : Promise<Result<string, string>> {
@@ -509,7 +509,7 @@ async getClamshellMicrophone() : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_clamshell_microphone") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async isRecording() : Promise<boolean> {
@@ -520,7 +520,7 @@ async getMicrophoneChannels(deviceName: string) : Promise<Result<number, string>
     return { status: "ok", data: await TAURI_INVOKE("get_microphone_channels", { deviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async setSelectedChannel(channel: number | null) : Promise<Result<null, string>> {
@@ -528,7 +528,7 @@ async setSelectedChannel(channel: number | null) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("set_selected_channel", { channel }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getCodexAuthStatus() : Promise<CodexAuthStatus> {
@@ -539,7 +539,7 @@ async completeOnboarding() : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("complete_onboarding") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<Result<PaginatedHistory, string>> {
@@ -547,7 +547,7 @@ async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<R
     return { status: "ok", data: await TAURI_INVOKE("get_history_entries", { cursor, limit }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
@@ -555,7 +555,7 @@ async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("toggle_history_entry_saved", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async getAudioFilePath(fileName: string) : Promise<Result<string, string>> {
@@ -563,7 +563,7 @@ async getAudioFilePath(fileName: string) : Promise<Result<string, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_audio_file_path", { fileName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
@@ -571,7 +571,7 @@ async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("delete_history_entry", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async retryHistoryEntryTranscription(id: number) : Promise<Result<null, string>> {
@@ -579,7 +579,7 @@ async retryHistoryEntryTranscription(id: number) : Promise<Result<null, string>>
     return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async updateHistoryLimit(limit: number) : Promise<Result<null, string>> {
@@ -587,7 +587,7 @@ async updateHistoryLimit(limit: number) : Promise<Result<null, string>> {
     return { status: "ok", data: await TAURI_INVOKE("update_history_limit", { limit }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, string>> {
@@ -595,7 +595,7 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
     return { status: "ok", data: await TAURI_INVOKE("update_recording_retention_period", { period }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 },
 /**
@@ -609,7 +609,7 @@ async isLaptop() : Promise<Result<boolean, string>> {
     return { status: "ok", data: await TAURI_INVOKE("is_laptop") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
+    else return { status: "error", error: String(e) };
 }
 }
 }

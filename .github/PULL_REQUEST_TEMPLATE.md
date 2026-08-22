@@ -27,7 +27,10 @@ TODO: contributor-written description
 
 ## AI Assistance
 
+<!-- Required: select exactly one option. If AI was used, "Tools and scope"
+must name the tools and describe what they changed or reviewed. -->
+
 - [ ] No AI was used
 - [ ] AI was used
 
-Tools and scope:
+Tools and scope (required when AI was used):

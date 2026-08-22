@@ -332,10 +332,10 @@
     "transcription": {
       "title": "轉錄",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
-      "ready": "Connected",
-      "missing": "Not signed in"
+      "sessionDescription": "音訊會傳送至 Codex 使用的同一個雲端轉錄服務。如果此處顯示未連線，請登入 Codex 應用程式。",
+      "checking": "正在檢查工作階段…",
+      "ready": "已連線",
+      "missing": "尚未登入"
     }
   },
   "footer": {

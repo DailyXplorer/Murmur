@@ -332,10 +332,10 @@
     "transcription": {
       "title": "Přepis",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
-      "ready": "Connected",
-      "missing": "Not signed in"
+      "sessionDescription": "Zvuk se odesílá do stejné cloudové služby pro přepis, kterou používá Codex. Pokud se zde zobrazuje odpojeno, přihlaste se do aplikace Codex.",
+      "checking": "Kontrola relace…",
+      "ready": "Připojeno",
+      "missing": "Nejste přihlášeni"
     }
   },
   "footer": {

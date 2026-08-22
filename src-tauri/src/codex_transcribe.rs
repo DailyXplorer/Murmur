@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 use hound::WavSpec;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -144,8 +145,7 @@ fn load_session() -> Result<Session> {
             path.display()
         )
     })?;
-    let auth: AuthFile =
-        serde_json::from_str(&raw).context("failed to parse ~/.codex/auth.json")?;
+    let auth = parse_auth_file(&raw, &path)?;
 
     if let Some(tokens) = auth.tokens.filter(|tokens| !tokens.access_token.is_empty()) {
         let account_id = tokens
@@ -161,6 +161,10 @@ fn load_session() -> Result<Session> {
     Err(anyhow!(
         "A ChatGPT subscription session is required. Sign in to Codex with ChatGPT and configure Codex to store credentials in auth.json."
     ))
+}
+
+fn parse_auth_file(raw: &str, path: &std::path::Path) -> Result<AuthFile> {
+    serde_json::from_str(raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
 fn auth_path() -> Result<PathBuf> {
@@ -230,30 +234,25 @@ fn jwt_payload(token: &str) -> Option<serde_json::Value> {
 }
 
 fn decode_base64url(input: &str) -> Option<Vec<u8>> {
-    fn value(byte: u8) -> Option<u8> {
-        match byte {
-            b'A'..=b'Z' => Some(byte - b'A'),
-            b'a'..=b'z' => Some(byte - b'a' + 26),
-            b'0'..=b'9' => Some(byte - b'0' + 52),
-            b'-' => Some(62),
-            b'_' => Some(63),
-            _ => None,
-        }
+    let padding_start = input.find('=').unwrap_or(input.len());
+    let padding = &input[padding_start..];
+
+    if !padding.bytes().all(|byte| byte == b'=') || padding.len() > 2 {
+        return None;
+    }
+    if !padding.is_empty() && !input.len().is_multiple_of(4) {
+        return None;
+    }
+    if padding.is_empty() && input.len() % 4 == 1 {
+        return None;
     }
 
-    let mut output = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buffer = 0_u32;
-    let mut bits = 0_u8;
-    for byte in input.bytes() {
-        buffer = (buffer << 6) | u32::from(value(byte)?);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            output.push((buffer >> bits) as u8);
-            buffer &= (1_u32 << bits).saturating_sub(1);
-        }
+    let mut normalized = input.to_string();
+    if padding.is_empty() {
+        normalized.extend(std::iter::repeat_n('=', (4 - input.len() % 4) % 4));
     }
-    Some(output)
+
+    URL_SAFE.decode(normalized).ok()
 }
 
 #[cfg(test)]
@@ -302,6 +301,37 @@ mod tests {
             chatgpt_account_id_from_jwt(token).as_deref(),
             Some("acct_123")
         );
+    }
+
+    #[test]
+    fn decodes_padded_and_unpadded_base64url() {
+        assert_eq!(decode_base64url("SGVsbG8"), Some(b"Hello".to_vec()));
+        assert_eq!(decode_base64url("SGVsbG8="), Some(b"Hello".to_vec()));
+        assert_eq!(decode_base64url("SGk="), Some(b"Hi".to_vec()));
+        assert_eq!(decode_base64url("SGk"), Some(b"Hi".to_vec()));
+    }
+
+    #[test]
+    fn rejects_malformed_base64url_padding() {
+        for malformed in [
+            "SG=VsbG8",
+            "SGVsbG8===",
+            "SGVsbG8=A",
+            "TQ=",
+            "TQ===",
+            "TQ==A",
+            "A",
+            "SGVsbG8==",
+        ] {
+            assert_eq!(decode_base64url(malformed), None, "accepted {malformed}");
+        }
+    }
+
+    #[test]
+    fn auth_parse_error_names_the_resolved_path() {
+        let path = std::path::Path::new("/custom/codex/auth.json");
+        let error = parse_auth_file("{", path).unwrap_err().to_string();
+        assert!(error.contains("/custom/codex/auth.json"));
     }
 
     #[test]

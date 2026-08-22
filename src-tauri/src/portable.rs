@@ -80,14 +80,11 @@ pub fn store_path(relative: &str) -> PathBuf {
     }
 }
 
-/// Check if a marker file path contains the portable magic string.
+/// Check if a marker file contains exactly the portable magic string.
 /// Extracted for testability.
 fn is_valid_portable_marker(path: &std::path::Path) -> bool {
     std::fs::read_to_string(path)
-        .map(|s| {
-            let trimmed = s.trim();
-            trimmed.starts_with("Murmur Portable Mode")
-        })
+        .map(|contents| contents.trim() == "Murmur Portable Mode")
         .unwrap_or(false)
 }
 
@@ -124,6 +121,17 @@ mod tests {
         let marker = dir.join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
         write!(f, "some other content").unwrap();
+        assert!(!is_valid_portable_marker(&marker));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn test_suffixed_magic_string_does_not_enable_portable() {
+        let dir = std::env::temp_dir().join("murmur_test_suffixed");
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("portable");
+        let mut f = std::fs::File::create(&marker).unwrap();
+        write!(f, "Murmur Portable Mode-extra").unwrap();
         assert!(!is_valid_portable_marker(&marker));
         std::fs::remove_dir_all(dir).unwrap();
     }

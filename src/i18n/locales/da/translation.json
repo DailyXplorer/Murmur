@@ -332,10 +332,10 @@
     "transcription": {
       "title": "Transskription",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
-      "ready": "Connected",
-      "missing": "Not signed in"
+      "sessionDescription": "Lyden sendes til den samme skybaserede transskriptionstjeneste, som Codex bruger. Log ind i Codex-appen, hvis dette vises som afbrudt.",
+      "checking": "Kontrollerer session…",
+      "ready": "Forbundet",
+      "missing": "Ikke logget ind"
     }
   },
   "footer": {

@@ -42,6 +42,18 @@ use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKi
 
 use crate::settings::get_settings;
 
+#[cfg(debug_assertions)]
+fn normalize_generated_bindings(path: &std::path::Path) -> std::io::Result<()> {
+    let generated = std::fs::read_to_string(path)?;
+    let normalized = normalize_generated_bindings_source(&generated);
+    std::fs::write(path, normalized)
+}
+
+#[cfg(debug_assertions)]
+fn normalize_generated_bindings_source(generated: &str) -> String {
+    generated.replace("error: e  as any", "error: String(e)")
+}
+
 // Global atomic to store the file log level filter
 // We use u8 to store the log::LevelFilter as a number
 pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u8);
@@ -482,7 +494,9 @@ pub fn run(cli_args: CliArgs) {
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     specta_builder
         .export(
-            Typescript::default().bigint(BigIntExportBehavior::Number),
+            Typescript::default()
+                .bigint(BigIntExportBehavior::Number)
+                .formatter(normalize_generated_bindings),
             "../src/bindings.ts",
         )
         .expect("Failed to export typescript bindings");
@@ -722,7 +736,7 @@ pub fn run(cli_args: CliArgs) {
 
 #[cfg(test)]
 mod headless_guard_tests {
-    use super::run_headless_guarded;
+    use super::{normalize_generated_bindings_source, run_headless_guarded};
 
     #[test]
     fn preserves_normal_exit_codes() {
@@ -732,5 +746,15 @@ mod headless_guard_tests {
     #[test]
     fn converts_worker_panics_to_runtime_failures() {
         assert_eq!(run_headless_guarded(|| panic!("simulated failure")), 1);
+    }
+
+    #[test]
+    fn generated_result_errors_are_normalized_to_strings() {
+        let generated = r#"else return { status: "error", error: e  as any };"#;
+        let normalized = normalize_generated_bindings_source(generated);
+        assert_eq!(
+            normalized,
+            r#"else return { status: "error", error: String(e) };"#
+        );
     }
 }

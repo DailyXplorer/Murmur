@@ -190,7 +190,7 @@
       },
       "customWords": {
         "title": "कस्टम शब्दहरू",
-        "description": "Use fuzzy correction for custom words written with A–Z letters and numbers.",
+        "description": "फजी सुधार हाल A–Z अक्षर र अंक प्रयोग गर्ने शब्दहरूमा मात्र सीमित छ।",
         "placeholder": "शब्द थप्नुहोस्",
         "add": "थप्नुहोस्",
         "remove": "{{word}} हटाउनुहोस्",
@@ -332,10 +332,10 @@
     "transcription": {
       "title": "ट्रान्सक्रिप्सन",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
-      "ready": "Connected",
-      "missing": "Not signed in"
+      "sessionDescription": "अडियो Codex ले प्रयोग गर्ने उही क्लाउड ट्रान्सक्रिप्सन सेवामा पठाइन्छ। यहाँ विच्छेदित देखिएमा Codex एपमा साइन इन गर्नुहोस्।",
+      "checking": "सत्र जाँच्दै…",
+      "ready": "जडान भयो",
+      "missing": "साइन इन गरिएको छैन"
     }
   },
   "footer": {

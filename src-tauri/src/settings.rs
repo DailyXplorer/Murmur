@@ -1,11 +1,13 @@
 use log::{debug, warn};
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 use std::collections::HashMap;
+use std::fmt;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Trace,
@@ -13,6 +15,59 @@ pub enum LogLevel {
     Info,
     Warn,
     Error,
+}
+
+impl<'de> Deserialize<'de> for LogLevel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct LogLevelVisitor;
+
+        impl<'de> Visitor<'de> for LogLevelVisitor {
+            type Value = LogLevel;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a log level name or legacy integer from 1 through 5")
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<LogLevel, E> {
+                match value.to_ascii_lowercase().as_str() {
+                    "trace" => Ok(LogLevel::Trace),
+                    "debug" => Ok(LogLevel::Debug),
+                    "info" => Ok(LogLevel::Info),
+                    "warn" => Ok(LogLevel::Warn),
+                    "error" => Ok(LogLevel::Error),
+                    _ => Err(E::unknown_variant(
+                        value,
+                        &["trace", "debug", "info", "warn", "error"],
+                    )),
+                }
+            }
+
+            fn visit_u64<E: de::Error>(self, value: u64) -> Result<LogLevel, E> {
+                match value {
+                    1 => Ok(LogLevel::Trace),
+                    2 => Ok(LogLevel::Debug),
+                    3 => Ok(LogLevel::Info),
+                    4 => Ok(LogLevel::Warn),
+                    5 => Ok(LogLevel::Error),
+                    _ => Err(E::invalid_value(
+                        de::Unexpected::Unsigned(value),
+                        &"1 through 5",
+                    )),
+                }
+            }
+
+            fn visit_i64<E: de::Error>(self, value: i64) -> Result<LogLevel, E> {
+                let value = u64::try_from(value)
+                    .map_err(|_| E::invalid_value(de::Unexpected::Signed(value), &"1 through 5"))?;
+                self.visit_u64(value)
+            }
+        }
+
+        deserializer.deserialize_any(LogLevelVisitor)
+    }
 }
 
 impl From<LogLevel> for tauri_plugin_log::LogLevel {
@@ -277,7 +332,7 @@ fn default_show_whats_new_on_update() -> bool {
 }
 
 fn default_whats_new_last_seen_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    String::new()
 }
 
 fn default_selected_language() -> String {
@@ -574,6 +629,36 @@ mod tests {
     }
 
     #[test]
+    fn log_level_accepts_legacy_numbers_and_serializes_as_names() {
+        let expected = [
+            LogLevel::Trace,
+            LogLevel::Debug,
+            LogLevel::Info,
+            LogLevel::Warn,
+            LogLevel::Error,
+        ];
+        for (legacy, level) in (1_u64..=5).zip(expected) {
+            assert_eq!(
+                serde_json::from_value::<LogLevel>(serde_json::json!(legacy)).unwrap(),
+                level
+            );
+        }
+        assert_eq!(serde_json::to_value(LogLevel::Trace).unwrap(), "trace");
+        assert_eq!(serde_json::to_value(LogLevel::Error).unwrap(), "error");
+    }
+
+    #[test]
+    fn salvage_preserves_legacy_numeric_log_level() {
+        let mut stored = default_settings_json();
+        stored["log_level"] = serde_json::json!(5);
+        stored["sound_theme"] = serde_json::json!("theremin");
+
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(salvaged.log_level, LogLevel::Error);
+        assert_eq!(salvaged.sound_theme, default_sound_theme());
+    }
+
+    #[test]
     fn salvage_preserves_valid_fields_when_one_value_is_invalid() {
         let mut stored = default_settings_json();
         let map = stored.as_object_mut().unwrap();
@@ -670,6 +755,7 @@ mod tests {
         let settings = get_default_settings();
         assert!(!settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
+        assert!(settings.whats_new_last_seen_version.is_empty());
     }
 
     #[cfg(not(target_os = "linux"))]

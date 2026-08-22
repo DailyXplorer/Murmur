@@ -27,8 +27,6 @@ export const GeneralSettings: React.FC = () => {
         {!isLinux && !pushToTalk && (
           <ShortcutInput shortcutId="cancel" grouped={true} />
         )}
-      </SettingsGroup>
-      <SettingsGroup title={t("settings.general.language.title")}>
         <LanguageSelector
           descriptionMode="tooltip"
           grouped={true}

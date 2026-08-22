@@ -91,8 +91,7 @@ fn windows_taskbar_theme() -> Option<AppTheme> {
     })
 }
 
-/// Gets the appropriate icon path for the given theme and state.
-///
+/// Selects the bundled tray icon for the requested appearance and lifecycle state.
 pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
     match (theme, state) {
         // Dark theme uses light icons

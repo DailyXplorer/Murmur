@@ -14,17 +14,21 @@ const SUPPORTED_LANGUAGES: &[&str] = &[
 ];
 
 #[derive(Clone)]
+/// Runs Murmur's single ChatGPT-session transcription pipeline.
 pub struct TranscriptionManager {
     app_handle: AppHandle,
 }
 
 impl TranscriptionManager {
+    /// Creates a transcription manager bound to the current Tauri app.
     pub fn new(app_handle: &AppHandle) -> Self {
         Self {
             app_handle: app_handle.clone(),
         }
     }
 
+    /// Transcribes mono PCM samples and applies the configured local text
+    /// normalization. An empty input produces an empty transcript.
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {

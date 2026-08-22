@@ -332,10 +332,10 @@
     "transcription": {
       "title": "Transkripsiyon",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
-      "ready": "Connected",
-      "missing": "Not signed in"
+      "sessionDescription": "Ses, Codex'in kullandığı aynı bulut transkripsiyon hizmetine gönderilir. Burada bağlantı kesildi olarak görünüyorsa Codex uygulamasında oturum açın.",
+      "checking": "Oturum kontrol ediliyor…",
+      "ready": "Bağlı",
+      "missing": "Oturum açılmadı"
     }
   },
   "footer": {

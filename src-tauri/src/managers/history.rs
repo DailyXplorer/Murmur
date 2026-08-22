@@ -14,16 +14,76 @@ use tauri_specta::Event;
 /// Each migration is applied in order. The library tracks which migrations
 /// have been applied using SQLite's user_version pragma.
 ///
-static MIGRATIONS: &[M] = &[M::up(
-    "CREATE TABLE IF NOT EXISTS transcription_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        file_name TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        saved BOOLEAN NOT NULL DEFAULT 0,
-        title TEXT NOT NULL,
-        transcription_text TEXT NOT NULL
-    );",
-)];
+static MIGRATIONS: &[M] = &[
+    M::up(
+        "CREATE TABLE IF NOT EXISTS transcription_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            saved BOOLEAN NOT NULL DEFAULT 0,
+            title TEXT NOT NULL,
+            transcription_text TEXT NOT NULL
+        );",
+    ),
+    M::up("ALTER TABLE transcription_history ADD COLUMN post_processed_text TEXT;"),
+    M::up("ALTER TABLE transcription_history ADD COLUMN post_process_prompt TEXT;"),
+    M::up(
+        "ALTER TABLE transcription_history ADD COLUMN post_process_requested BOOLEAN NOT NULL DEFAULT 0;",
+    ),
+    M::up(
+        "CREATE TABLE transcription_history_cloud_only (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            saved BOOLEAN NOT NULL DEFAULT 0,
+            title TEXT NOT NULL,
+            transcription_text TEXT NOT NULL
+        );
+        INSERT INTO transcription_history_cloud_only (
+            id, file_name, timestamp, saved, title, transcription_text
+        ) SELECT id, file_name, timestamp, saved, title, transcription_text
+          FROM transcription_history;
+        DROP TABLE transcription_history;
+        ALTER TABLE transcription_history_cloud_only RENAME TO transcription_history;",
+    ),
+];
+
+/// Converts the migration counter used by the former SQL plugin into SQLite's
+/// `user_version` so already-applied schema changes are not replayed.
+fn migrate_from_tauri_plugin_sql(conn: &Connection) -> Result<()> {
+    let has_legacy_tracking: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+    if !has_legacy_tracking {
+        return Ok(());
+    }
+
+    let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if current_version > 0 {
+        return Ok(());
+    }
+
+    let legacy_version: i32 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations WHERE success = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    if legacy_version > 0 {
+        info!(
+            "Converting legacy history migration tracking at version {}",
+            legacy_version
+        );
+        conn.pragma_update(None, "user_version", legacy_version)?;
+    }
+
+    Ok(())
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct PaginatedHistory {
@@ -89,6 +149,8 @@ impl HistoryManager {
         info!("Initializing database at {:?}", self.db_path);
 
         let mut conn = Connection::open(&self.db_path)?;
+
+        migrate_from_tauri_plugin_sql(&conn)?;
 
         // Create migrations object and run to latest version
         let migrations = Migrations::new(MIGRATIONS.to_vec());
@@ -605,5 +667,140 @@ mod tests {
 
         assert_eq!(entry.timestamp, 100);
         assert_eq!(entry.transcription_text, "completed");
+    }
+
+    #[test]
+    fn migration_from_version_four_preserves_history_and_removes_retired_columns() {
+        let mut conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(
+            "CREATE TABLE transcription_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                saved BOOLEAN NOT NULL DEFAULT 0,
+                title TEXT NOT NULL,
+                transcription_text TEXT NOT NULL,
+                post_processed_text TEXT,
+                post_process_prompt TEXT,
+                post_process_requested BOOLEAN NOT NULL DEFAULT 0
+            );
+            INSERT INTO transcription_history (
+                file_name, timestamp, saved, title, transcription_text,
+                post_processed_text, post_process_prompt, post_process_requested
+            ) VALUES (
+                'murmur-100.wav', 100, 1, 'Recording 100', 'preserved',
+                'retired output', 'retired prompt', 1
+            );
+            PRAGMA user_version = 4;",
+        )
+        .expect("create version-four history database");
+
+        Migrations::new(MIGRATIONS.to_vec())
+            .to_latest(&mut conn)
+            .expect("upgrade version-four database");
+
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("read migrated version");
+        assert_eq!(version, 5);
+
+        let columns = conn
+            .prepare("PRAGMA table_info(transcription_history)")
+            .expect("prepare table info")
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query table info")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect column names");
+        assert_eq!(
+            columns,
+            [
+                "id",
+                "file_name",
+                "timestamp",
+                "saved",
+                "title",
+                "transcription_text"
+            ]
+        );
+
+        let preserved: (String, bool) = conn
+            .query_row(
+                "SELECT transcription_text, saved FROM transcription_history WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read preserved history entry");
+        assert_eq!(preserved, ("preserved".to_string(), true));
+    }
+
+    #[test]
+    fn fresh_migrations_create_only_the_cloud_transcription_schema() {
+        let mut conn = Connection::open_in_memory().expect("open in-memory db");
+        Migrations::new(MIGRATIONS.to_vec())
+            .to_latest(&mut conn)
+            .expect("migrate fresh database");
+
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("read migrated version");
+        assert_eq!(version, 5);
+
+        let columns = conn
+            .prepare("PRAGMA table_info(transcription_history)")
+            .expect("prepare table info")
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query table info")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect column names");
+        assert_eq!(
+            columns,
+            [
+                "id",
+                "file_name",
+                "timestamp",
+                "saved",
+                "title",
+                "transcription_text"
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_sql_plugin_tracking_is_converted_before_cloud_only_migration() {
+        let mut conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.execute_batch(
+            "CREATE TABLE _sqlx_migrations (
+                version INTEGER PRIMARY KEY,
+                success BOOLEAN NOT NULL
+            );
+            INSERT INTO _sqlx_migrations (version, success)
+                VALUES (1, 1), (2, 1), (3, 1), (4, 1);
+            CREATE TABLE transcription_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                saved BOOLEAN NOT NULL DEFAULT 0,
+                title TEXT NOT NULL,
+                transcription_text TEXT NOT NULL,
+                post_processed_text TEXT,
+                post_process_prompt TEXT,
+                post_process_requested BOOLEAN NOT NULL DEFAULT 0
+            );",
+        )
+        .expect("create legacy SQL-plugin database");
+
+        migrate_from_tauri_plugin_sql(&conn).expect("convert legacy tracking");
+        let converted_version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("read converted version");
+        assert_eq!(converted_version, 4);
+
+        Migrations::new(MIGRATIONS.to_vec())
+            .to_latest(&mut conn)
+            .expect("apply cloud-only migration");
+        let final_version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("read final version");
+        assert_eq!(final_version, 5);
     }
 }

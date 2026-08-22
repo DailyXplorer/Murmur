@@ -13,10 +13,8 @@ fn generate_tray_translations() {
     println!("cargo:rerun-if-changed=../src/i18n/locales");
 
     let mut translations: BTreeMap<String, serde_json::Value> = BTreeMap::new();
-    for entry in fs::read_dir(locales_dir)
-        .expect("locale directory is readable")
-        .flatten()
-    {
+    for entry_result in fs::read_dir(locales_dir).expect("locale directory is readable") {
+        let entry = entry_result.expect("locale directory entry is readable");
         let path = entry.path();
         if !path.is_dir() {
             continue;

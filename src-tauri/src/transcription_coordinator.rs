@@ -75,6 +75,7 @@ pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
 }
 
+/// Returns whether `id` names the sole supported transcription shortcut.
 pub fn is_transcribe_binding(id: &str) -> bool {
     id == "transcribe"
 }
