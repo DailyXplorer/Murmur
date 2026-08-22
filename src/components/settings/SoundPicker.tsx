@@ -1,7 +1,7 @@
 import React from "react";
+import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
 import { Button } from "../ui/Button";
 import { Dropdown, DropdownOption } from "../ui/Dropdown";
-import { PlayIcon } from "lucide-react";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSettings } from "../../hooks/useSettings";
@@ -57,7 +57,7 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
           onClick={handlePlayBothSounds}
           title="Preview sound theme (plays start then stop)"
         >
-          <PlayIcon className="h-4 w-4" />
+          <PlayIcon size={15} />
         </Button>
       </div>
     </SettingContainer>

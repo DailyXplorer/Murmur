@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -188,7 +188,7 @@ export const Dialog: React.FC<DialogProps> = ({
               aria-label={closeLabel}
               className="shrink-0 cursor-pointer rounded-md border border-transparent p-1 text-mid-gray transition-colors hover:border-mid-gray/20 hover:bg-mid-gray/10 hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
+              <XIcon size={15} aria-hidden="true" />
             </button>
           )}
         </div>

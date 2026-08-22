@@ -1,5 +1,5 @@
 import React from "react";
-import ResetIcon from "../icons/ResetIcon";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 
 interface ResetButtonProps {
   onClick: () => void;
@@ -22,7 +22,7 @@ export const ResetButton: React.FC<ResetButtonProps> = React.memo(
       onClick={onClick}
       disabled={disabled}
     >
-      {children ?? <ResetIcon />}
+      {children ?? <ArrowCounterClockwiseIcon size={18} />}
     </button>
   ),
 );

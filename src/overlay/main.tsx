@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { listen } from "@tauri-apps/api/event";
 import RecordingOverlay from "./RecordingOverlay";
+import PhosphorIconProvider from "@/components/icons/PhosphorIconProvider";
 import {
   applyTheme,
   getStoredTheme,
@@ -20,6 +21,8 @@ listen<Theme>("theme-changed", (event) => applyTheme(event.payload));
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <RecordingOverlay />
+    <PhosphorIconProvider>
+      <RecordingOverlay />
+    </PhosphorIconProvider>
   </React.StrictMode>,
 );

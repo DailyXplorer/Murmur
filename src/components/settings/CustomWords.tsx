@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSettings } from "../../hooks/useSettings";
@@ -102,19 +103,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                 aria-label={t("settings.advanced.customWords.remove", { word })}
               >
                 <span>{word}</span>
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <XIcon size={12} />
               </Button>
             ))}
           </div>
