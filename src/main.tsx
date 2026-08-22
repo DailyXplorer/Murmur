@@ -8,6 +8,13 @@ import {
   getStoredTheme,
   syncThemeFromSettings,
 } from "./lib/utils/theme";
+import {
+  applyAccentColor,
+  getStoredAccentColor,
+  syncAccentColorFromSettings,
+} from "./lib/utils/accentColor";
+import { listen } from "@tauri-apps/api/event";
+import type { AccentColor } from "@/bindings";
 
 installCompatShims();
 
@@ -18,6 +25,11 @@ document.documentElement.dataset.platform = platform();
 // the wrong palette, then reconcile with the persisted setting once it loads.
 applyTheme(getStoredTheme());
 syncThemeFromSettings();
+applyAccentColor(getStoredAccentColor());
+syncAccentColorFromSettings();
+listen<AccentColor>("accent-color-changed", (event) =>
+  applyAccentColor(event.payload),
+);
 
 // Initialize i18n
 import "./i18n";

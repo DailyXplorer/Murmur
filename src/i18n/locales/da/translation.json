@@ -398,6 +398,18 @@
       "dark": "Mørk"
     }
   },
+  "accentColor": {
+    "title": "Accentfarve",
+    "description": "Vælg Murmurs primære farve og logo",
+    "options": {
+      "pink": "Lyserød",
+      "blue": "Blå",
+      "green": "Grøn",
+      "yellow": "Gul",
+      "orange": "Orange",
+      "red": "Rød"
+    }
+  },
   "overlay": {
     "transcribing": "Transskriberer..."
   }

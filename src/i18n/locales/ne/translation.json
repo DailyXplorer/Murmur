@@ -398,6 +398,18 @@
       "dark": "अँध्यारो"
     }
   },
+  "accentColor": {
+    "title": "एक्सेन्ट रङ",
+    "description": "Murmur को मुख्य रङ र लोगो छान्नुहोस्",
+    "options": {
+      "pink": "गुलाबी",
+      "blue": "निलो",
+      "green": "हरियो",
+      "yellow": "पहेँलो",
+      "orange": "सुन्तला",
+      "red": "रातो"
+    }
+  },
   "overlay": {
     "transcribing": "ट्रान्सक्राइब गरिँदैछ..."
   }

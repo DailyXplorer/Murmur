@@ -3,9 +3,10 @@
 mod handler;
 pub mod tauri_impl;
 
+use crate::accent;
 use crate::settings::{
-    self, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle, PasteMethod,
-    ShortcutBinding, SoundTheme, Theme, TypingTool,
+    self, AccentColor, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle,
+    PasteMethod, ShortcutBinding, SoundTheme, Theme, TypingTool,
 };
 use crate::tray;
 use log::{debug, warn};
@@ -189,6 +190,31 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     apply_window_theme(&app, parsed);
     let _ = app.emit("theme-changed", parsed);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_accent_color_setting(app: AppHandle, accent_color: String) -> Result<(), String> {
+    let parsed = match accent_color.as_str() {
+        "pink" => AccentColor::Pink,
+        "blue" => AccentColor::Blue,
+        "green" => AccentColor::Green,
+        "yellow" => AccentColor::Yellow,
+        "orange" => AccentColor::Orange,
+        "red" => AccentColor::Red,
+        _ => return Err(format!("Invalid accent color: {accent_color}")),
+    };
+
+    let mut value = settings::get_settings(&app);
+    value.accent_color = parsed;
+    settings::write_settings(&app, value);
+
+    if let Err(error) = accent::apply_native_accent(&app, parsed) {
+        warn!("Failed to update native accent icon: {error}");
+    }
+    tray::refresh_tray_icon(&app);
+    let _ = app.emit("accent-color-changed", parsed);
     Ok(())
 }
 

@@ -395,6 +395,18 @@
       "dark": "داكن"
     }
   },
+  "accentColor": {
+    "title": "لون التمييز",
+    "description": "اختر اللون الرئيسي وشعار Murmur",
+    "options": {
+      "pink": "وردي",
+      "blue": "أزرق",
+      "green": "أخضر",
+      "yellow": "أصفر",
+      "orange": "برتقالي",
+      "red": "أحمر"
+    }
+  },
   "overlay": {
     "transcribing": "...جاري التفريغ"
   },

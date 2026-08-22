@@ -61,6 +61,14 @@ async changeThemeSetting(theme: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async changeAccentColorSetting(accentColor: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_accent_color_setting", { accentColor }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeStartHiddenSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_start_hidden_setting", { enabled }) };
@@ -531,9 +539,19 @@ async setSelectedChannel(channel: number | null) : Promise<Result<null, string>>
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Returns whether the local Codex authentication cache contains a usable
+ * ChatGPT session. This check never refreshes or writes credentials.
+ */
 async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
+/**
+ * Marks onboarding as complete in Murmur's settings store.
+ *
+ * Returns an error string only if the command contract changes to expose a
+ * persistence failure; the current store API completes synchronously.
+ */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("complete_onboarding") };
@@ -630,6 +648,10 @@ historyUpdatePayload: "history-update-payload"
 /** user-defined types **/
 
 /**
+ * Brand accent used by the webviews and native application icons.
+ */
+export type AccentColor = "pink" | "blue" | "green" | "yellow" | "orange" | "red"
+/**
  * The container-level `serde(default)` (backed by the `Default` impl below)
  * guarantees every field — including ones added in the future — falls back to
  * its `get_default_settings()` value when missing from a stored settings
@@ -650,7 +672,7 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number;
 /**
  * Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
  * after the target app actually reads the transcript, instead of after a

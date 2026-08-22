@@ -398,6 +398,18 @@
       "dark": "Donker"
     }
   },
+  "accentColor": {
+    "title": "Accentkleur",
+    "description": "Kies de hoofdkleur en logokleur van Murmur",
+    "options": {
+      "pink": "Roze",
+      "blue": "Blauw",
+      "green": "Groen",
+      "yellow": "Geel",
+      "orange": "Oranje",
+      "red": "Rood"
+    }
+  },
   "overlay": {
     "transcribing": "Transcriberen..."
   }
