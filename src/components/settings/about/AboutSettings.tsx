@@ -31,7 +31,7 @@ export const AboutSettings: React.FC = () => {
 
   const handleDonateClick = async () => {
     try {
-      await openUrl("https://github.com/DailyXplorer/Murmur");
+      await openUrl("https://buymeacoffee.com/dailyxplorer");
     } catch (error) {
       console.error("Failed to open donate link:", error);
     }
@@ -48,7 +48,7 @@ export const AboutSettings: React.FC = () => {
           grouped={true}
         >
           {/* eslint-disable-next-line i18next/no-literal-string */}
-          <span className="text-sm font-mono">v{version}</span>
+          <span className="text-sm font-sans">v{version}</span>
         </SettingContainer>
 
         <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
