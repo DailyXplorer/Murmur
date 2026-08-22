@@ -5,6 +5,7 @@ import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { getLanguageDirection } from "@/lib/utils/rtl";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 
 type OverlayState = "recording" | "transcribing";
 
@@ -96,14 +97,7 @@ const RecordingOverlay: React.FC = () => {
       aria-label="cancel"
       onClick={() => commands.cancelOperation()}
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          d="M4 4 L12 12 M12 4 L4 12"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        />
-      </svg>
+      <XIcon size={9} aria-hidden="true" />
     </button>
   );
 

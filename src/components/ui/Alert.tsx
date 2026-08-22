@@ -1,5 +1,9 @@
 import React from "react";
-import { AlertCircle, AlertTriangle, Info, CheckCircle } from "lucide-react";
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
+import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle";
+import { WarningIcon } from "@phosphor-icons/react/dist/csr/Warning";
+import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 
 type AlertVariant = "error" | "warning" | "info" | "success";
 
@@ -37,11 +41,11 @@ const variantStyles: Record<
   },
 };
 
-const variantIcons: Record<AlertVariant, React.ElementType> = {
-  error: AlertCircle,
-  warning: AlertTriangle,
-  info: Info,
-  success: CheckCircle,
+const variantIcons: Record<AlertVariant, Icon> = {
+  error: WarningCircleIcon,
+  warning: WarningIcon,
+  info: InfoIcon,
+  success: CheckCircleIcon,
 };
 
 export const Alert: React.FC<AlertProps> = ({
@@ -57,7 +61,7 @@ export const Alert: React.FC<AlertProps> = ({
     <div
       className={`flex items-start gap-3 p-4 ${styles.container} ${contained ? "" : "rounded-lg"} ${className}`}
     >
-      <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${styles.icon}`} />
+      <Icon size={18} className={`shrink-0 mt-0.5 ${styles.icon}`} />
       <p className={`text-sm ${styles.text}`}>{children}</p>
     </div>
   );

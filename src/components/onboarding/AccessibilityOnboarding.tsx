@@ -11,7 +11,10 @@ import { toast } from "sonner";
 import { commands } from "@/bindings";
 import { useSettingsStore } from "@/stores/settingsStore";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
-import { Keyboard, Mic, Check, Loader2 } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { CircleNotchIcon } from "@phosphor-icons/react/dist/csr/CircleNotch";
+import { KeyboardIcon } from "@phosphor-icons/react/dist/csr/Keyboard";
+import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
 
 interface AccessibilityOnboardingProps {
   onComplete: () => void;
@@ -285,7 +288,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   if (isChecking) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-text/50" />
+        <CircleNotchIcon size={28} className="animate-spin text-text/50" />
       </div>
     );
   }
@@ -295,7 +298,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4">
         <div className="p-4 rounded-full bg-emerald-500/20">
-          <Check className="w-12 h-12 text-emerald-400" />
+          <CheckIcon size={40} className="text-emerald-400" />
         </div>
         <p className="text-lg font-medium text-text">
           {t("onboarding.permissions.allGranted")}
@@ -326,7 +329,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
           <div className="w-full p-4 rounded-lg bg-white/5 border border-mid-gray/20">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
-                <Mic className="w-6 h-6 text-logo-primary" />
+                <MicrophoneIcon size={22} className="text-logo-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-text">
@@ -337,12 +340,12 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                 </p>
                 {permissions.microphone === "granted" ? (
                   <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                    <Check className="w-4 h-4" />
+                    <CheckIcon size={15} />
                     {t("onboarding.permissions.granted")}
                   </div>
                 ) : permissions.microphone === "waiting" ? (
                   <div className="flex items-center gap-2 text-text/50 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <CircleNotchIcon size={15} className="animate-spin" />
                     {t("onboarding.permissions.waiting")}
                   </div>
                 ) : (
@@ -365,7 +368,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
           <div className="w-full p-4 rounded-lg bg-white/5 border border-mid-gray/20">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
-                <Keyboard className="w-6 h-6 text-logo-primary" />
+                <KeyboardIcon size={22} className="text-logo-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-text">
@@ -376,12 +379,12 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                 </p>
                 {permissions.accessibility === "granted" ? (
                   <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                    <Check className="w-4 h-4" />
+                    <CheckIcon size={15} />
                     {t("onboarding.permissions.granted")}
                   </div>
                 ) : permissions.accessibility === "waiting" ? (
                   <div className="flex items-center gap-2 text-text/50 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <CircleNotchIcon size={15} className="animate-spin" />
                     {t("onboarding.permissions.waiting")}
                   </div>
                 ) : (
