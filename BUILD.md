@@ -112,8 +112,8 @@ After installing the final bundle at `/Applications/Murmur.app`, quit Murmur, cl
 stale Accessibility record, then reopen it:
 
 ```bash
-osascript -e 'tell application id "com.pais.murmur" to quit' || true
-tccutil reset Accessibility com.pais.murmur
+osascript -e 'tell application id "com.dailyxplorer.murmur" to quit' || true
+tccutil reset Accessibility com.dailyxplorer.murmur
 open /Applications/Murmur.app
 ```
 

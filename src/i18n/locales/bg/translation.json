@@ -4,17 +4,15 @@
     "checkUpdates": "Проверка за актуализации...",
     "copyLastTranscript": "Копиране на последния транскрипт",
     "quit": "Изход",
-    "cancel": "Отказ",
-    "secureInputWarning": "⚠ Бързите клавиши са блокирани от Secure Input"
+    "cancel": "Отказ"
   },
   "sidebar": {
     "general": "Общи",
-    "models": "Модели",
     "advanced": "Разширени",
-    "postProcessing": "Постобработка",
     "history": "История",
     "debug": "Отстраняване",
-    "about": "За приложението"
+    "about": "За приложението",
+    "transcription": "Транскрипция"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Настройки на {{model}}"
-    },
     "general": {
       "title": "Общи",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "Бърз клавиш за отказ",
             "description": "Клавишната комбинация за отмяна на текущия запис."
-          },
-          "transcribe_with_post_process": {
-            "name": "Бърз клавиш за постобработка",
-            "description": "По избор: отделна комбинация, която винаги прилага ИИ постобработка върху транскрипцията."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "Натискане за говорене",
         "description": "Задръжте за запис, пуснете за спиране"
       }
-    },
-    "models": {
-      "title": "Модели за транскрипция",
-      "description": "Изберете модел за транскрипция или изтеглете допълнителни. Различните модели предлагат различна точност и скорост.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Звук",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Персонализирани думи",
-        "description": "Помогнете на поддържаните модели да разпознават имена и специализирани термини. Приблизителната корекция в момента е ограничена до думи с букви A–Z и цифри.",
+        "description": "Приблизителната корекция в момента е ограничена до думи с букви A–Z и цифри.",
         "placeholder": "Добавете дума",
         "add": "Добавяне",
         "remove": "Премахване на {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Премахване на думи паразити",
         "description": "Премахва често срещаните думи за колебание от транскрипциите. Изключете, за да ги запазите."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Бърз клавиш"
-      },
-      "api": {
-        "title": "API (съвместим с OpenAI)",
-        "provider": {
-          "title": "Доставчик",
-          "description": "Изберете доставчик, съвместим с OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence не е налична на това устройство. Необходим е Mac с Apple Silicon и macOS Tahoe (26.0) или по-нова с включена Apple Intelligence в Системните настройки."
-        },
-        "baseUrl": {
-          "title": "Базов URL",
-          "description": "Базов API URL за избрания доставчик. Редактируем е само при персонализиран доставчик.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API ключ",
-          "description": "API ключ за избрания доставчик.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Модел",
-          "descriptionCustom": "Въведете идентификатора на модела, очакван от вашия персонализиран краен адрес.",
-          "descriptionDefault": "Изберете модел, предлаган от избрания доставчик.",
-          "placeholderWithOptions": "Търсене или избор на модел",
-          "placeholderNoOptions": "Въведете име на модел",
-          "refreshModels": "Опресняване на моделите"
-        }
-      },
-      "prompts": {
-        "title": "Подкана",
-        "selectedPrompt": {
-          "title": "Избрана подкана",
-          "description": "Изберете шаблон за подобряване на транскрипции или създайте нов. Използвайте ${output} в текста на подканата, за да препратите към уловения транскрипт."
-        },
-        "noPrompts": "Няма налични подкани",
-        "selectPrompt": "Изберете подкана",
-        "createNew": "Нова подкана",
-        "promptLabel": "Етикет на подканата",
-        "promptLabelPlaceholder": "Въведете име на подканата",
-        "promptInstructions": "Инструкции за подканата",
-        "promptInstructionsPlaceholder": "Напишете инструкциите за изпълнение след транскрипция. Пример: Подобрете граматиката и яснотата на следния текст: ${output}",
-        "promptTip": "Съвет: Използвайте <code>${output}</code>, за да вмъкнете транскрибирания текст в подканата.",
-        "updatePrompt": "Обновяване на подканата",
-        "deletePrompt": "Изтриване на подканата",
-        "createPrompt": "Създаване на подкана",
-        "cancel": "Отказ",
-        "selectToEdit": "Изберете подкана по-горе, за да видите и редактирате подробностите ѝ.",
-        "createFirst": "Натиснете „Нова подкана“ по-горе, за да създадете първата си подкана за постобработка."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Микрофон при затворен капак",
         "description": "Микрофон за използване, когато капакът на лаптопа е затворен"
       },
-      "postProcessingToggle": {
-        "label": "Постобработка",
-        "description": "Включване на подобряване на текста с ИИ след транскрипция"
-      },
       "muteWhileRecording": {
         "label": "Заглушаване при запис",
         "description": "Заглушаване на системния звук по време на запис"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Интервал в края",
         "description": "Добавяне на интервал след поставената транскрипция"
-      },
-      "keyboardImplementation": {
-        "title": "Реализация на клавиатурата",
-        "description": "Избор на бекенд за глобалните бързи клавиши.",
-        "bindingsReset": "Бързите клавиши бяха несъвместими и са нулирани към подразбираните"
-      },
-      "paths": {
-        "appData": "Данни на приложението:",
-        "models": "Модели:",
-        "settings": "Настройки:"
       },
       "pasteDelay": {
         "title": "Забавяне при поставяне (преди)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Допълнителен буфер на записа",
         "description": "Допълнително време (в милисекунди) за запис след пускане на клавиша, за да се улови краят на аудиото. 0 = без допълнителен буфер."
-      },
-      "keyboardDiagnostic": {
-        "title": "Диагностика на клавиатурата",
-        "description": "Проверява дали клавиатурните събития достигат до Murmur. Записва се само броят на събитията — никога кои клавиши натискате.",
-        "run": "Стартиране на 10-секундна диагностика",
-        "running": "Слушане… натиснете бързия си клавиш няколко пъти (напр. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "включен",
-        "disabled": "изключен",
-        "holder": "задържан от {{name}} (pid {{pid}})",
-        "holderUnknown": "няма видим държател",
-        "keyDown": "Натиснат клавиш",
-        "keyUp": "Отпуснат клавиш",
-        "flagsChanged": "Модификатори",
-        "mouse": "Мишка",
-        "verdictBlocked": "Secure Input блокира клавишните събития — бързите клавиши с обикновен клавиш не могат да работят, докато това не бъде решено.",
-        "verdictSuspicious": "Пристигнаха събития от модификатори, но нито едно клавишно събитие — нещо потиска клавишите, въпреки че Secure Input се отчита като изключен. Моля, съобщете за това в GitHub.",
-        "verdictOk": "Клавишните събития достигат до Murmur нормално.",
-        "verdictNoEvents": "Не са уловени събития — натиснахте ли някакви клавиши по време на теста?",
-        "failed": "Диагностиката е неуспешна: {{error}}"
       },
       "whatsNewPreview": {
         "title": "Преглед на новостите",
@@ -434,6 +328,14 @@
         "label": "Показвай новостите",
         "description": "Показвай бележки към изданието след актуализации на Murmur"
       }
+    },
+    "transcription": {
+      "title": "Транскрипция",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Подготовка...",
     "checkForUpdates": "Проверка за актуализации",
     "portableUpdateTitle": "Необходима е ръчна актуализация",
-    "portableUpdateMessage": "Преносимите инсталации не могат да бъдат актуализирани автоматично. Изтеглете инсталатора за вашата система от бутона по-долу, стартирайте го и инсталирайте в същата папка — папката Data/ (настройки, модели, записи) остава на мястото си.",
+    "portableUpdateMessage": "Преносимите инсталации не могат да бъдат актуализирани автоматично. Изтеглете инсталатора за вашата система от бутона по-долу, стартирайте го и инсталирайте в същата папка — папката Data/ остава на мястото си.",
     "portableUpdateButton": "Изтегляне на инсталатора",
-    "portableUpdateBrowseMessage": "Преносимите инсталации не могат да бъдат актуализирани автоматично. Изтеглете най-новата версия за вашата система от GitHub Releases и я инсталирайте в същата папка — папката Data/ (настройки, модели, записи) остава на мястото си.",
+    "portableUpdateBrowseMessage": "Преносимите инсталации не могат да бъдат актуализирани автоматично. Изтеглете най-новата версия за вашата система от GitHub Releases и я инсталирайте в същата папка — папката Data/ остава на мястото си.",
     "portableUpdateBrowseButton": "Отвори GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Не е намерен микрофон",
     "noInputDevice": "Не е открито аудио входно устройство. Свържете микрофон или слушалки и опитайте отново.",
     "recordingFailed": "Стартирането на записа не бе успешно: {{error}}",
-    "modelLoadFailed": "Зареждането на модела не бе успешно: {{model}}",
-    "modelLoadFailedUnknown": "неизвестен модел",
     "pasteFailedTitle": "Неуспешно поставяне на текст",
     "pasteFailed": "Текстът не можа да бъде поставен в активното приложение.",
     "transcriptionFailedTitle": "Неуспешна транскрипция"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Транскрибиране...",
-    "processing": "Обработка..."
+    "transcribing": "Транскрибиране..."
   },
   "whatsNew": {
     "title": "Ново в Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} може да блокира 1 бърз клавиш",
-    "blockedWithCulprit_other": "{{name}} може да блокира {{count}} бързи клавиша",
-    "blockedNoCulprit_one": "macOS временно блокира 1 бърз клавиш",
-    "blockedNoCulprit_other": "macOS временно блокира {{count}} бързи клавиша",
-    "recorderBlockedWithCulprit": "{{name}} може да блокира промените на бързите клавиши",
-    "recorderBlockedNoCulprit": "macOS временно блокира промените на бързите клавиши",
-    "learnMore": "Как да поправите това",
-    "recorderBlocked": "В момента не могат да се записват бързи клавиши — Secure Input на macOS блокира клавишните събития. Първо отстранете предупреждението за Secure Input.",
-    "dismiss": "Отхвърляне"
   }
 }

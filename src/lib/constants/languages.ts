@@ -122,9 +122,8 @@ export const SELECTABLE_LANGUAGES: Language[] = LANGUAGES.filter(
 // Collapse a language tag to the base code Murmur matches on, dropping any
 // BCP-47 region or script subtag: "en-US" → "en", "zh-CN" → "zh", "zh-Hant" →
 // "zh". Bare and three-letter codes ("haw") pass through unchanged. This lets
-// the picker match a model's *real* codes — which may be full locales like
-// "en-US" — against Murmur's canonical bare-code
-// LANGUAGES list without the backend having to mangle the codes the engine needs.
+// the picker match service codes — which may be full locales like "en-US" —
+// against Murmur's canonical bare-code language list.
 export const recognitionLanguage = (languageCode: string): string => {
   const separatorIndex = languageCode.indexOf("-");
   return separatorIndex === -1

@@ -4,17 +4,15 @@
     "checkUpdates": "檢查更新...",
     "copyLastTranscript": "複製最新轉錄",
     "quit": "結束",
-    "cancel": "取消",
-    "secureInputWarning": "⚠ 快捷鍵被 Secure Input 阻擋"
+    "cancel": "取消"
   },
   "sidebar": {
     "general": "一般",
-    "models": "模型",
     "advanced": "進階",
-    "postProcessing": "後處理",
     "history": "歷史紀錄",
     "debug": "偵錯",
-    "about": "關於"
+    "about": "關於",
+    "transcription": "轉錄"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}} 設定"
-    },
     "general": {
       "title": "一般",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "取消快捷鍵",
             "description": "用於取消目前錄製的鍵盤快捷鍵"
-          },
-          "transcribe_with_post_process": {
-            "name": "後處理快捷鍵",
-            "description": "可選：專用快捷鍵，使用時一律對轉錄結果套用 AI 後處理"
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "按住說話",
         "description": "按住錄製，放開停止"
       }
-    },
-    "models": {
-      "title": "轉錄模型",
-      "description": "選擇轉錄模型或下載其他模型。不同模型提供不同的準確度和速度",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "聲音",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "自訂詞彙",
-        "description": "協助支援的模型辨識名稱和專業術語。目前，模糊修正僅適用於使用 A–Z 字母和數字的詞語。",
+        "description": "目前，模糊修正僅適用於使用 A–Z 字母和數字的詞語。",
         "placeholder": "新增詞彙",
         "add": "新增",
         "remove": "刪除 {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "移除語助詞",
         "description": "從轉錄中移除常見的語助詞。關閉此選項即可保留這些詞。"
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "快捷鍵"
-      },
-      "api": {
-        "title": "API（相容 OpenAI）",
-        "provider": {
-          "title": "供應商",
-          "description": "選擇一個相容 OpenAI 的供應商"
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence 在此裝置上不可用。需要執行 macOS Tahoe（26.0）或更高版本的 Apple Silicon Mac，並在系統設定中啟用 Apple Intelligence"
-        },
-        "baseUrl": {
-          "title": "基礎網址",
-          "description": "所選供應商的 API 基礎網址，僅自訂供應商可編輯",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API 金鑰",
-          "description": "所選供應商的 API 金鑰",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "模型",
-          "descriptionCustom": "輸入自訂端點所需的模型 ID",
-          "descriptionDefault": "從所選供應商的可用模型中選擇",
-          "placeholderWithOptions": "搜尋或選擇模型",
-          "placeholderNoOptions": "輸入模型名稱",
-          "refreshModels": "重新整理模型"
-        }
-      },
-      "prompts": {
-        "title": "提示詞",
-        "selectedPrompt": {
-          "title": "已選提示詞",
-          "description": "選擇用於最佳化轉錄的範本或建立新範本。在提示詞文字中使用 ${output} 來引用轉錄結果"
-        },
-        "noPrompts": "沒有可用的提示詞",
-        "selectPrompt": "選擇提示詞",
-        "createNew": "建立新提示詞",
-        "promptLabel": "提示詞名稱",
-        "promptLabelPlaceholder": "輸入提示詞名稱",
-        "promptInstructions": "提示詞指令",
-        "promptInstructionsPlaceholder": "撰寫轉錄後要執行的指令。範例：改善以下文字的語法和清晰度: ${output}",
-        "promptTip": "提示：使用 <code>${output}</code> 將轉錄文字插入到您的提示詞中",
-        "updatePrompt": "更新提示詞",
-        "deletePrompt": "刪除提示詞",
-        "createPrompt": "建立提示詞",
-        "cancel": "取消",
-        "selectToEdit": "選擇上方的提示詞以檢視和編輯其詳細資訊",
-        "createFirst": "點選上方的「建立新提示詞」來建立您的第一個後處理提示詞"
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "闔蓋麥克風",
         "description": "筆記型電腦闔蓋時使用的麥克風"
       },
-      "postProcessingToggle": {
-        "label": "後處理",
-        "description": "啟用轉錄後的 AI 文字最佳化"
-      },
       "muteWhileRecording": {
         "label": "錄製時靜音",
         "description": "錄製期間靜音系統音訊"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "附加尾部空格",
         "description": "在貼上的轉錄後新增空格"
-      },
-      "keyboardImplementation": {
-        "title": "鍵盤實作",
-        "description": "選擇鍵盤快捷鍵的後端",
-        "bindingsReset": "鍵盤快捷鍵不相容，已重設為預設值"
-      },
-      "paths": {
-        "appData": "應用程式資料:",
-        "models": "模型:",
-        "settings": "設定:"
       },
       "pasteDelay": {
         "title": "貼上延遲（前）",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "額外錄音緩衝",
         "description": "放開按鍵後繼續錄音的額外時間（毫秒），以捕捉尾音。0 = 無額外緩衝。"
-      },
-      "keyboardDiagnostic": {
-        "title": "鍵盤診斷",
-        "description": "檢查鍵盤事件是否能送達 Murmur。只會記錄事件數量，絕不記錄您按了哪些按鍵。",
-        "run": "執行 10 秒診斷",
-        "running": "正在監聽… 請按幾次您的快捷鍵（例如 Option+Space）",
-        "secureInputLabel": "Secure Input",
-        "enabled": "已啟用",
-        "disabled": "已停用",
-        "holder": "被 {{name}}（pid {{pid}}）占用",
-        "holderUnknown": "找不到占用的程式",
-        "keyDown": "按鍵按下",
-        "keyUp": "按鍵放開",
-        "flagsChanged": "修飾鍵",
-        "mouse": "滑鼠",
-        "verdictBlocked": "Secure Input 正在阻擋按鍵事件——在問題解決前，包含一般按鍵的快捷鍵無法運作。",
-        "verdictSuspicious": "收到了修飾鍵事件，但沒有按鍵事件——即使 Secure Input 回報為已停用，仍有程式在抑制按鍵。請在 GitHub 上回報此問題。",
-        "verdictOk": "按鍵事件正常送達 Murmur。",
-        "verdictNoEvents": "未擷取到任何事件——測試期間您有按鍵嗎？",
-        "failed": "診斷失敗：{{error}}"
       },
       "whatsNewPreview": {
         "title": "預覽新功能",
@@ -434,6 +328,14 @@
         "label": "顯示新功能",
         "description": "Murmur 更新後顯示版本資訊"
       }
+    },
+    "transcription": {
+      "title": "轉錄",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "準備中...",
     "checkForUpdates": "檢查更新",
     "portableUpdateTitle": "需要手動更新",
-    "portableUpdateMessage": "可攜式安裝無法自動更新。請透過下方按鈕下載適用於你的系統的安裝程式，執行後安裝到相同資料夾，你的 Data/ 資料夾（設定、模型、錄音）會保留在原處。",
+    "portableUpdateMessage": "可攜式安裝無法自動更新。請透過下方按鈕下載適用於你的系統的安裝程式，執行後安裝到相同資料夾，你的 Data/ 資料夾會保留在原處。",
     "portableUpdateButton": "下載安裝程式",
-    "portableUpdateBrowseMessage": "可攜式安裝無法自動更新。請從 GitHub Releases 下載適用於你的系統的最新版本，並安裝到相同資料夾，你的 Data/ 資料夾（設定、模型、錄音）會保留在原處。",
+    "portableUpdateBrowseMessage": "可攜式安裝無法自動更新。請從 GitHub Releases 下載適用於你的系統的最新版本，並安裝到相同資料夾，你的 Data/ 資料夾會保留在原處。",
     "portableUpdateBrowseButton": "開啟 GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "找不到麥克風",
     "noInputDevice": "未偵測到音訊輸入裝置。請連接麥克風或耳機後重試。",
     "recordingFailed": "錄音啟動失敗: {{error}}",
-    "modelLoadFailed": "載入模型失敗: {{model}}",
-    "modelLoadFailedUnknown": "未知模型",
     "pasteFailedTitle": "貼上文字失敗",
     "pasteFailed": "無法將文字貼上至目前作用中的應用程式。",
     "transcriptionFailedTitle": "轉錄失敗"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "正在轉錄...",
-    "processing": "處理中..."
+    "transcribing": "正在轉錄..."
   },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} 可能正在阻擋 1 個快捷鍵",
-    "blockedWithCulprit_other": "{{name}} 可能正在阻擋 {{count}} 個快捷鍵",
-    "blockedNoCulprit_one": "macOS 正在暫時阻擋 1 個快捷鍵",
-    "blockedNoCulprit_other": "macOS 正在暫時阻擋 {{count}} 個快捷鍵",
-    "recorderBlockedWithCulprit": "{{name}} 可能正在阻擋快捷鍵變更",
-    "recorderBlockedNoCulprit": "macOS 正在暫時阻擋快捷鍵變更",
-    "learnMore": "如何解決",
-    "recorderBlocked": "目前無法錄製快捷鍵——macOS 的 Secure Input 正在阻擋按鍵事件。請先解決 Secure Input 警告。",
-    "dismiss": "關閉"
   }
 }

@@ -587,10 +587,7 @@ Function .onInit
 
 
   ; --- PORTABLE MODE --- Auto-detect portable mode during updates.
-  ; Preserve portable installs that use either the current magic-string marker
-  ; or the legacy empty marker created by older Handy releases. Require Data/
-  ; for the legacy empty-marker case so stale scoop side-effect files do not
-  ; accidentally opt an updater run into portable mode.
+  ; Preserve portable installs that use the Murmur magic-string marker.
   ${If} $PortableMode <> 1
   ${AndIf} $UpdateMode = 1
   ${AndIf} ${FileExists} "$INSTDIR\portable"
@@ -598,10 +595,6 @@ Function .onInit
     FileRead $1 $2
     FileClose $1
     ${If} $2 == "Murmur Portable Mode"
-    ${OrIf} $2 == "Handy Portable Mode"
-      StrCpy $PortableMode 1
-    ${OrIf} $2 == ""
-    ${AndIf} ${FileExists} "$INSTDIR\Data"
       StrCpy $PortableMode 1
     ${EndIf}
   ${EndIf}

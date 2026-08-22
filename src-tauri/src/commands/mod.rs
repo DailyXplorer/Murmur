@@ -1,6 +1,5 @@
 pub mod audio;
 pub mod history;
-pub mod models;
 pub mod transcription;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
@@ -112,21 +111,6 @@ pub fn open_app_data_dir(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Check if Apple Intelligence is available on this device.
-/// Called by the frontend when the user selects Apple Intelligence provider.
-#[specta::specta]
-#[tauri::command]
-pub fn check_apple_intelligence_available() -> bool {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        crate::apple_intelligence::check_apple_intelligence_availability()
-    }
-    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-    {
-        false
-    }
-}
-
 /// Try to initialize Enigo (keyboard/mouse simulation).
 /// On macOS, this will return an error if accessibility permissions are not granted.
 #[specta::specta]
@@ -179,9 +163,8 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
     // Initialize shortcuts
     crate::shortcut::init_shortcuts(&app);
 
-    // Mark as initialized before reconciling the macOS Secure Input fallback.
+    // Mark as initialized after registration succeeds.
     app.manage(ShortcutsInitialized);
-    crate::secure_input::reconcile_fallback(&app);
 
     log::info!("Shortcuts initialized successfully");
     Ok(())

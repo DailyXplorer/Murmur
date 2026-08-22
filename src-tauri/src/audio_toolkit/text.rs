@@ -33,8 +33,7 @@ fn build_custom_word_match_keys(word: &str, word_index: usize) -> Vec<CustomWord
 
     // The fallback matcher is intentionally limited to ASCII terms. Its
     // whitespace tokenization and Soundex scoring are not suitable for CJK
-    // scripts. Unicode custom words remain available to models that accept
-    // them as native decode prompts; they are simply skipped by this fallback.
+    // scripts. Unicode custom words are simply skipped by this fallback.
     if is_supported_fuzzy_key(&primary_key) {
         keys.push(CustomWordMatchKey {
             word_index,
@@ -273,24 +272,16 @@ fn extract_punctuation(word: &str) -> (&str, &str) {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OutputLanguageEvidence {
     UserSelected(String),
-    ModelConstrained(String),
-    /// The transcription model itself identified the language.
-    ModelDetected(String),
     /// Detected from the transcribed text with high confidence, constrained to
-    /// the model's supported languages. Weakest accepted evidence.
+    /// the service's supported languages. Weakest accepted evidence.
     TextDetected(String),
-    TranslatedToEnglish,
     Unknown,
 }
 
 impl OutputLanguageEvidence {
     fn language(&self) -> Option<&str> {
         match self {
-            Self::UserSelected(language)
-            | Self::ModelConstrained(language)
-            | Self::ModelDetected(language)
-            | Self::TextDetected(language) => Some(language),
-            Self::TranslatedToEnglish => Some("en"),
+            Self::UserSelected(language) | Self::TextDetected(language) => Some(language),
             Self::Unknown => None,
         }
     }
@@ -686,13 +677,16 @@ mod tests {
 
     #[test]
     fn test_filter_detected_evidence_unlocks_gated_fillers() {
-        let model = remove_filler_words(
+        let detected = remove_filler_words(
             "um I think this works",
-            &OutputLanguageEvidence::ModelDetected("en".to_string()),
+            &OutputLanguageEvidence::TextDetected("en".to_string()),
             &None,
             true,
         );
-        assert_eq!(normalize_transcription_output(&model), "I think this works");
+        assert_eq!(
+            normalize_transcription_output(&detected),
+            "I think this works"
+        );
 
         let text = remove_filler_words(
             "euh je pense que ça marche",
@@ -811,10 +805,10 @@ mod tests {
 
     #[test]
     fn test_apply_custom_words_handles_unicode_punctuation() {
-        let text = "「Handee。」";
-        let custom_words = vec!["Handy".to_string()];
+        let text = "「Murmurr。」";
+        let custom_words = vec!["Murmur".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "「Handy。」");
+        assert_eq!(result, "「Murmur。」");
     }
 
     #[test]

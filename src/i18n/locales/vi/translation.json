@@ -4,17 +4,15 @@
     "checkUpdates": "Kiểm tra cập nhật...",
     "copyLastTranscript": "Sao chép bản chép lời mới nhất",
     "quit": "Thoát",
-    "cancel": "Hủy",
-    "secureInputWarning": "⚠ Phím tắt bị Secure Input chặn"
+    "cancel": "Hủy"
   },
   "sidebar": {
     "general": "Chung",
-    "models": "Mô hình",
     "advanced": "Nâng cao",
-    "postProcessing": "Xử lý sau",
     "history": "Lịch sử",
     "debug": "Gỡ lỗi",
-    "about": "Giới thiệu"
+    "about": "Giới thiệu",
+    "transcription": "Phiên âm"
   },
   "onboarding": {
     "permissions": {
@@ -39,18 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Cài đặt {{model}}"
-    },
-    "models": {
-      "title": "Mô hình chuyển đổi",
-      "description": "Chọn mô hình chuyển đổi hoặc tải thêm mô hình. Các mô hình khác nhau có mức độ chính xác và tốc độ khác nhau.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
-    },
     "general": {
       "title": "Chung",
       "shortcut": {
@@ -68,10 +54,6 @@
           "cancel": {
             "name": "Phím tắt hủy",
             "description": "Phím tắt để hủy bản ghi hiện tại."
-          },
-          "transcribe_with_post_process": {
-            "name": "Phím tắt xử lý sau",
-            "description": "Tùy chọn: Phím tắt chuyên dụng luôn áp dụng xử lý sau bằng AI cho bản chuyển đổi của bạn."
           }
         },
         "errors": {
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Từ tùy chỉnh",
-        "description": "Giúp các mô hình được hỗ trợ nhận dạng tên và thuật ngữ chuyên ngành. Tính năng sửa gần đúng hiện chỉ áp dụng cho các từ sử dụng chữ cái A–Z và chữ số.",
+        "description": "Tính năng sửa gần đúng hiện chỉ áp dụng cho các từ sử dụng chữ cái A–Z và chữ số.",
         "placeholder": "Thêm một từ",
         "add": "Thêm",
         "remove": "Xóa {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Loại bỏ từ đệm",
         "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời. Tắt để giữ lại các từ này."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Phím tắt"
-      },
-      "api": {
-        "title": "API (Tương thích OpenAI)",
-        "provider": {
-          "title": "Nhà cung cấp",
-          "description": "Chọn một nhà cung cấp tương thích OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence không khả dụng trên thiết bị này. Yêu cầu Mac Apple Silicon chạy macOS Tahoe (26.0) trở lên với Apple Intelligence được bật trong Cài đặt Hệ thống."
-        },
-        "baseUrl": {
-          "title": "URL cơ sở",
-          "description": "URL cơ sở API cho nhà cung cấp đã chọn. Chỉ có thể chỉnh sửa nhà cung cấp tùy chỉnh.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "Khóa API",
-          "description": "Khóa API cho nhà cung cấp đã chọn.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Mô hình",
-          "descriptionCustom": "Cung cấp định danh mô hình được yêu cầu bởi điểm cuối tùy chỉnh của bạn.",
-          "descriptionDefault": "Chọn một mô hình được cung cấp bởi nhà cung cấp đã chọn.",
-          "placeholderWithOptions": "Tìm kiếm hoặc chọn một mô hình",
-          "placeholderNoOptions": "Nhập tên mô hình",
-          "refreshModels": "Làm mới mô hình"
-        }
-      },
-      "prompts": {
-        "title": "Câu lệnh",
-        "selectedPrompt": {
-          "title": "Prompt đã chọn",
-          "description": "Chọn một mẫu để tinh chỉnh bản ghi hoặc tạo mới. Sử dụng ${output} trong văn bản prompt để tham chiếu bản ghi đã chụp."
-        },
-        "noPrompts": "Không có prompt nào",
-        "selectPrompt": "Chọn một prompt",
-        "createNew": "Tạo Prompt mới",
-        "promptLabel": "Nhãn Prompt",
-        "promptLabelPlaceholder": "Nhập tên prompt",
-        "promptInstructions": "Hướng dẫn Prompt",
-        "promptInstructionsPlaceholder": "Viết hướng dẫn để chạy sau khi chuyển đổi. Ví dụ: Cải thiện ngữ pháp và độ rõ ràng cho văn bản sau: ${output}",
-        "promptTip": "Mẹo: Sử dụng <code>${output}</code> để chèn văn bản đã chuyển đổi vào prompt của bạn.",
-        "updatePrompt": "Cập nhật Prompt",
-        "deletePrompt": "Xóa Prompt",
-        "createPrompt": "Tạo Prompt",
-        "cancel": "Hủy",
-        "selectToEdit": "Chọn một prompt ở trên để xem và chỉnh sửa chi tiết.",
-        "createFirst": "Nhấn 'Tạo Prompt mới' ở trên để tạo prompt xử lý sau đầu tiên của bạn."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Micrô chế độ gập",
         "description": "Micrô sử dụng khi nắp laptop được đóng"
       },
-      "postProcessingToggle": {
-        "label": "Xử lý sau",
-        "description": "Bật tinh chỉnh văn bản bằng AI sau khi chuyển đổi"
-      },
       "muteWhileRecording": {
         "label": "Tắt tiếng khi ghi âm",
         "description": "Tắt tiếng âm thanh hệ thống trong khi ghi âm"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Thêm dấu cách cuối",
         "description": "Thêm một dấu cách sau bản ghi đã dán"
-      },
-      "keyboardImplementation": {
-        "title": "Triển khai bàn phím",
-        "description": "Chọn hệ thống xử lý phím tắt.",
-        "bindingsReset": "Các phím tắt không tương thích và đã được đặt lại về mặc định"
-      },
-      "paths": {
-        "appData": "Dữ liệu ứng dụng:",
-        "models": "Mô hình:",
-        "settings": "Cài đặt:"
       },
       "pasteDelay": {
         "title": "Độ trễ dán (trước)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Bộ đệm ghi âm thêm",
         "description": "Thời gian thêm (tính bằng mili giây) để tiếp tục ghi âm sau khi nhả phím, để thu âm thanh cuối. 0 = không có bộ đệm thêm."
-      },
-      "keyboardDiagnostic": {
-        "title": "Chẩn đoán bàn phím",
-        "description": "Kiểm tra xem các sự kiện bàn phím có đến được Murmur hay không. Chỉ số lượng sự kiện được ghi lại — không bao giờ ghi lại bạn bấm phím nào.",
-        "run": "Chạy chẩn đoán 10 giây",
-        "running": "Đang lắng nghe… hãy bấm phím tắt của bạn vài lần (ví dụ: Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "đang bật",
-        "disabled": "đang tắt",
-        "holder": "bị {{name}} (pid {{pid}}) giữ",
-        "holderUnknown": "không thấy tiến trình nào giữ",
-        "keyDown": "Nhấn phím",
-        "keyUp": "Nhả phím",
-        "flagsChanged": "Phím bổ trợ",
-        "mouse": "Chuột",
-        "verdictBlocked": "Secure Input đang chặn các sự kiện phím — phím tắt có chứa phím thường không thể hoạt động cho đến khi vấn đề này được xử lý.",
-        "verdictSuspicious": "Có sự kiện phím bổ trợ nhưng không có sự kiện phím nào — thứ gì đó đang chặn phím dù Secure Input báo là đang tắt. Vui lòng báo cáo việc này trên GitHub.",
-        "verdictOk": "Các sự kiện phím đang đến Murmur bình thường.",
-        "verdictNoEvents": "Không ghi nhận sự kiện nào — bạn có bấm phím nào trong lúc kiểm tra không?",
-        "failed": "Chẩn đoán thất bại: {{error}}"
       },
       "whatsNewPreview": {
         "title": "Xem trước điểm mới",
@@ -434,6 +328,14 @@
         "label": "Hiển thị điểm mới",
         "description": "Hiển thị ghi chú phát hành sau khi Murmur cập nhật"
       }
+    },
+    "transcription": {
+      "title": "Phiên âm",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Đang chuẩn bị...",
     "checkForUpdates": "Kiểm tra cập nhật",
     "portableUpdateTitle": "Cần cập nhật thủ công",
-    "portableUpdateMessage": "Bản cài đặt di động không thể cập nhật tự động. Hãy tải trình cài đặt phù hợp với hệ thống của bạn bên dưới, chạy nó và cài vào cùng thư mục — thư mục Data/ (cài đặt, mô hình, bản ghi) của bạn được giữ nguyên.",
+    "portableUpdateMessage": "Bản cài đặt di động không thể cập nhật tự động. Hãy tải trình cài đặt phù hợp với hệ thống của bạn bên dưới, chạy nó và cài vào cùng thư mục — thư mục Data/ của bạn được giữ nguyên.",
     "portableUpdateButton": "Tải trình cài đặt",
-    "portableUpdateBrowseMessage": "Bản cài đặt di động không thể cập nhật tự động. Hãy tải phiên bản mới nhất phù hợp với hệ thống của bạn từ GitHub Releases và cài vào cùng thư mục — thư mục Data/ (cài đặt, mô hình, bản ghi) của bạn được giữ nguyên.",
+    "portableUpdateBrowseMessage": "Bản cài đặt di động không thể cập nhật tự động. Hãy tải phiên bản mới nhất phù hợp với hệ thống của bạn từ GitHub Releases và cài vào cùng thư mục — thư mục Data/ của bạn được giữ nguyên.",
     "portableUpdateBrowseButton": "Mở GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Không tìm thấy micrô",
     "noInputDevice": "Không phát hiện thiết bị đầu vào âm thanh nào. Vui lòng kết nối micrô hoặc tai nghe và thử lại.",
     "recordingFailed": "Không thể bắt đầu ghi âm: {{error}}",
-    "modelLoadFailed": "Không thể tải mô hình: {{model}}",
-    "modelLoadFailedUnknown": "mô hình không xác định",
     "pasteFailedTitle": "Không thể dán văn bản",
     "pasteFailed": "Không thể dán văn bản vào ứng dụng đang hoạt động.",
     "transcriptionFailedTitle": "Phiên âm thất bại"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Đang chuyển đổi...",
-    "processing": "Đang xử lý..."
+    "transcribing": "Đang chuyển đổi..."
   },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} có thể đang chặn 1 phím tắt",
-    "blockedWithCulprit_other": "{{name}} có thể đang chặn {{count}} phím tắt",
-    "blockedNoCulprit_one": "macOS đang tạm thời chặn 1 phím tắt",
-    "blockedNoCulprit_other": "macOS đang tạm thời chặn {{count}} phím tắt",
-    "recorderBlockedWithCulprit": "{{name}} có thể đang chặn việc thay đổi phím tắt",
-    "recorderBlockedNoCulprit": "macOS đang tạm thời chặn việc thay đổi phím tắt",
-    "learnMore": "Cách khắc phục",
-    "recorderBlocked": "Hiện không thể ghi phím tắt — Secure Input của macOS đang chặn các sự kiện phím. Hãy xử lý cảnh báo Secure Input trước.",
-    "dismiss": "Bỏ qua"
   }
 }

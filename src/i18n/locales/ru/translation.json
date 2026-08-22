@@ -4,17 +4,15 @@
     "checkUpdates": "Проверить обновления...",
     "copyLastTranscript": "Скопировать последнюю транскрипцию",
     "quit": "Выход",
-    "cancel": "Отмена",
-    "secureInputWarning": "⚠ Сочетания клавиш заблокированы Secure Input"
+    "cancel": "Отмена"
   },
   "sidebar": {
     "general": "Общие",
-    "models": "Модели",
     "advanced": "Продвинутые",
-    "postProcessing": "Постобработка",
     "history": "История",
     "debug": "Отладка",
-    "about": "О программе"
+    "about": "О программе",
+    "transcription": "Транскрипция"
   },
   "onboarding": {
     "permissions": {
@@ -39,18 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Настройки {{model}}"
-    },
-    "models": {
-      "title": "Модели транскрипции",
-      "description": "Выберите модель транскрипции или загрузите дополнительные модели. Разные модели предлагают разные уровни точности и скорости.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
-    },
     "general": {
       "title": "Общие",
       "shortcut": {
@@ -68,10 +54,6 @@
           "cancel": {
             "name": "Горячая клавиша отмены",
             "description": "Сочетание клавиш для отмены текущей записи."
-          },
-          "transcribe_with_post_process": {
-            "name": "Горячая клавиша постобработки",
-            "description": "Специальное сочетание клавиш для ИИ-постобработки вашей транскрипции."
           }
         },
         "errors": {
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Пользовательский словарь",
-        "description": "Помогите поддерживаемым моделям распознавать имена и специализированные термины. Нечёткая коррекция сейчас доступна только для слов, содержащих буквы A–Z и цифры.",
+        "description": "Нечёткая коррекция сейчас доступна только для слов, содержащих буквы A–Z и цифры.",
         "placeholder": "Добавить слово",
         "add": "Добавить",
         "remove": "Удалить {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Удалять слова-паразиты",
         "description": "Удаляет распространённые слова-заминки из расшифровок. Отключите, чтобы сохранить их."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Горячая клавиша"
-      },
-      "api": {
-        "title": "API (совместимый с OpenAI)",
-        "provider": {
-          "title": "Поставщик",
-          "description": "Выберите поставщика, совместимого с OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence недоступен на этом устройстве. Требуется Apple Silicon Mac под управлением macOS Tahoe (26.0) или более поздней версии с включенным Apple Intelligence в настройках системы."
-        },
-        "baseUrl": {
-          "title": "Базовый URL",
-          "description": "Базовый URL-адрес API для выбранного провайдера. Редактировать можно только настраиваемого поставщика.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API-ключ",
-          "description": "API-ключ для выбранного провайдера.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Модель",
-          "descriptionCustom": "Укажите идентификатор модели, ожидаемый вашей пользовательской конечной точкой.",
-          "descriptionDefault": "Выберите модель, предоставляемую выбранным поставщиком.",
-          "placeholderWithOptions": "Найдите или выберите модель",
-          "placeholderNoOptions": "Введите название модели",
-          "refreshModels": "Обновить модели"
-        }
-      },
-      "prompts": {
-        "title": "Запрос к модели",
-        "selectedPrompt": {
-          "title": "Выберите запрос",
-          "description": "Выберите запрос для постобработки транскрипции или создайте новый. Используйте ${output} внутри текста запроса для ссылки на записанную транскрипцию."
-        },
-        "noPrompts": "Нет доступных запросов",
-        "selectPrompt": "Выберите запрос",
-        "createNew": "Создать новый запрос",
-        "promptLabel": "Название запроса",
-        "promptLabelPlaceholder": "Введите название запроса",
-        "promptInstructions": "Инструкции",
-        "promptInstructionsPlaceholder": "Напишите инструкции для постобработки транскрипции. Например: Улучшить грамматику и ясность следующего текста: ${output}",
-        "promptTip": "Совет: используйте <code>${output}</code>, чтобы вставить транскрипцию.",
-        "updatePrompt": "Обновить запрос",
-        "deletePrompt": "Удалить запрос",
-        "createPrompt": "Создать запрос",
-        "cancel": "Отмена",
-        "selectToEdit": "Выберите запрос выше, чтобы просмотреть и изменить его сведения.",
-        "createFirst": "Нажмите «Создать новый запрос» выше, чтобы создать первый запрос для постобработки."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Раскладной микрофон",
         "description": "Микрофон для использования при закрытой крышке ноутбука"
       },
-      "postProcessingToggle": {
-        "label": "Постобработка",
-        "description": "Включить уточнение текста с помощью искусственного интеллекта после транскрипции"
-      },
       "muteWhileRecording": {
         "label": "Отключить звук во время записи",
         "description": "Отключение звука системы во время записи"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Добавить пробел",
         "description": "Добавить пробел после вставленной транскрипции"
-      },
-      "keyboardImplementation": {
-        "title": "Реализация клавиатуры",
-        "description": "Выберите бэкенд для клавиатурных сочетаний.",
-        "bindingsReset": "Клавиатурные сочетания были несовместимы и сброшены к значениям по умолчанию"
-      },
-      "paths": {
-        "appData": "Данные приложения:",
-        "models": "Модели:",
-        "settings": "Настройки:"
       },
       "pasteDelay": {
         "title": "Задержка вставки (до)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Дополнительный буфер записи",
         "description": "Дополнительное время (в миллисекундах) для продолжения записи после отпускания клавиши, чтобы захватить завершающий звук. 0 = без дополнительного буфера."
-      },
-      "keyboardDiagnostic": {
-        "title": "Диагностика клавиатуры",
-        "description": "Проверяет, доходят ли события клавиатуры до Murmur. Записывается только количество событий — никогда то, какие клавиши вы нажимаете.",
-        "run": "Запустить 10-секундную диагностику",
-        "running": "Прослушивание… нажмите своё сочетание клавиш несколько раз (например, Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "включён",
-        "disabled": "выключен",
-        "holder": "удерживает {{name}} (pid {{pid}})",
-        "holderUnknown": "видимый владелец не найден",
-        "keyDown": "Нажатие клавиши",
-        "keyUp": "Отпускание клавиши",
-        "flagsChanged": "Модификаторы",
-        "mouse": "Мышь",
-        "verdictBlocked": "Secure Input блокирует события клавиш — сочетания с обычной клавишей не смогут работать, пока это не будет устранено.",
-        "verdictSuspicious": "События модификаторов приходят, а события клавиш — нет: что-то подавляет клавиши, хотя Secure Input отмечен как выключенный. Пожалуйста, сообщите об этом на GitHub.",
-        "verdictOk": "События клавиш доходят до Murmur нормально.",
-        "verdictNoEvents": "События не зафиксированы — вы нажимали клавиши во время теста?",
-        "failed": "Диагностика не удалась: {{error}}"
       },
       "whatsNewPreview": {
         "title": "Предпросмотр новинок",
@@ -434,6 +328,14 @@
         "label": "Показывать новинки",
         "description": "Показывать примечания к выпуску после обновлений Murmur"
       }
+    },
+    "transcription": {
+      "title": "Транскрипция",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Подготовка...",
     "checkForUpdates": "Проверить наличие обновлений",
     "portableUpdateTitle": "Требуется ручное обновление",
-    "portableUpdateMessage": "Портативные установки нельзя обновить автоматически. Скачайте ниже установщик для вашей системы, запустите его и установите в ту же папку — папка Data/ (настройки, модели, записи) останется на месте.",
+    "portableUpdateMessage": "Портативные установки нельзя обновить автоматически. Скачайте ниже установщик для вашей системы, запустите его и установите в ту же папку — папка Data/ останется на месте.",
     "portableUpdateButton": "Скачать установщик",
-    "portableUpdateBrowseMessage": "Портативные установки нельзя обновить автоматически. Скачайте последнюю версию для вашей системы со страницы GitHub Releases и установите её в ту же папку — папка Data/ (настройки, модели, записи) останется на месте.",
+    "portableUpdateBrowseMessage": "Портативные установки нельзя обновить автоматически. Скачайте последнюю версию для вашей системы со страницы GitHub Releases и установите её в ту же папку — папка Data/ останется на месте.",
     "portableUpdateBrowseButton": "Открыть GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Микрофон не найден",
     "noInputDevice": "Аудиоустройство ввода не обнаружено. Подключите микрофон или гарнитуру и попробуйте снова.",
     "recordingFailed": "Не удалось начать запись: {{error}}",
-    "modelLoadFailed": "Не удалось загрузить модель: {{model}}",
-    "modelLoadFailedUnknown": "неизвестная модель",
     "pasteFailedTitle": "Не удалось вставить текст",
     "pasteFailed": "Не удалось вставить текст в активное приложение.",
     "transcriptionFailedTitle": "Ошибка транскрипции"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Расшифровка...",
-    "processing": "Обработка..."
+    "transcribing": "Расшифровка..."
   },
   "whatsNew": {
     "title": "Новое в Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} может блокировать 1 сочетание клавиш",
-    "blockedWithCulprit_other": "{{name}} может блокировать {{count}} сочетаний клавиш",
-    "blockedNoCulprit_one": "macOS временно блокирует 1 сочетание клавиш",
-    "blockedNoCulprit_other": "macOS временно блокирует {{count}} сочетаний клавиш",
-    "recorderBlockedWithCulprit": "{{name}} может блокировать изменение сочетаний клавиш",
-    "recorderBlockedNoCulprit": "macOS временно блокирует изменение сочетаний клавиш",
-    "learnMore": "Как это исправить",
-    "recorderBlocked": "Сейчас нельзя записать сочетание клавиш — Secure Input в macOS блокирует события клавиш. Сначала устраните предупреждение о Secure Input.",
-    "dismiss": "Скрыть"
   }
 }

@@ -4,17 +4,15 @@
     "checkUpdates": "...التحقق من وجود تحديثات",
     "copyLastTranscript": "نسخ آخر نص تم تفريغه",
     "quit": "إنهاء",
-    "cancel": "إلغاء",
-    "secureInputWarning": "⚠ الاختصارات محجوبة بواسطة Secure Input"
+    "cancel": "إلغاء"
   },
   "sidebar": {
     "general": "عام",
     "advanced": "متقدم",
-    "postProcessing": "معالجة لاحقة",
     "history": "السجل",
     "debug": "تصحيح الأخطاء",
     "about": "حول",
-    "models": "النماذج"
+    "transcription": "النسخ"
   },
   "onboarding": {
     "permissions": {
@@ -56,10 +54,6 @@
           "cancel": {
             "name": "اختصار الإلغاء",
             "description": ".اختصار لوحة المفاتيح لإلغاء التسجيل الحالي"
-          },
-          "transcribe_with_post_process": {
-            "name": "مفتاح المعالجة اللاحقة",
-            "description": "اختياري: مفتاح اختصار مخصص يطبق دائماً المعالجة اللاحقة بالذكاء الاصطناعي على التفريغ الصوتي."
           }
         },
         "errors": {
@@ -196,7 +190,7 @@
       },
       "customWords": {
         "title": "كلمات مخصصة",
-        "description": "ساعد النماذج المدعومة على التعرّف على الأسماء والمصطلحات المتخصصة. يقتصر التصحيح التقريبي حاليًا على الكلمات التي تستخدم الأحرف A–Z والأرقام.",
+        "description": "يقتصر التصحيح التقريبي حاليًا على الكلمات التي تستخدم الأحرف A–Z والأرقام.",
         "placeholder": "أضف كلمة",
         "add": "إضافة",
         "remove": "إزالة {{word}}",
@@ -205,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "إزالة كلمات الحشو",
         "description": "يزيل كلمات التردد الشائعة من النصوص. عطّل هذا الخيار للاحتفاظ بها."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "مفتاح الاختصار"
-      },
-      "api": {
-        "title": "API (متوافق مع OpenAI)",
-        "provider": {
-          "title": "المزود",
-          "description": "اختر مزوداً متوافقاً مع OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence غير متاح على هذا الجهاز. يتطلب جهاز Mac بمعالج Apple Silicon يعمل بنظام macOS Tahoe (26.0) أو أحدث مع تمكين Apple Intelligence في إعدادات النظام."
-        },
-        "baseUrl": {
-          "title": "URL الأساسي",
-          "description": "URL الأساسي لـ API للمزود المختار. يمكن تعديل المزود المخصص فقط.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "مفتاح API",
-          "description": "مفتاح API للمزود المختار.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "النموذج",
-          "descriptionCustom": "قدم معرف النموذج المتوقع من قبل نقطة النهاية المخصصة الخاصة بك.",
-          "descriptionDefault": "اختر نموذجاً يعرضه المزود المختار.",
-          "placeholderWithOptions": "ابحث عن نموذج أو اختره",
-          "placeholderNoOptions": "اكتب اسم النموذج",
-          "refreshModels": "تحديث النماذج"
-        }
-      },
-      "prompts": {
-        "title": "المطالبة",
-        "selectedPrompt": {
-          "title": "المطالبة المختارة",
-          "description": ".اختر قالباً لتحسين التفريغ الصوتي أو أنشئ قالباً جديداً. استخدم ${output} داخل نص المطالبة للإشارة إلى النص الملتقط"
-        },
-        "noPrompts": "لا توجد مطالبات متاحة",
-        "selectPrompt": "اختر مطالبة",
-        "createNew": "إنشاء مطالبة جديدة",
-        "promptLabel": "تسمية المطالبة",
-        "promptLabelPlaceholder": "أدخل اسم المطالبة",
-        "promptInstructions": "تعليمات المطالبة",
-        "promptInstructionsPlaceholder": ".اكتب التعليمات المراد تشغيلها بعد التفريغ الصوتي. مثال: قم بتحسين القواعد والوضوح للنص التالي: ${output}",
-        "promptTip": "تلميح: استخدم <code>${output}</code> لإدراج النص المفرغ في مطالبتك.",
-        "updatePrompt": "تحديث المطالبة",
-        "deletePrompt": "حذف المطالبة",
-        "createPrompt": "إنشاء مطالبة",
-        "cancel": "إلغاء",
-        "selectToEdit": ".اختر مطالبة أعلاه لعرض وتعديل تفاصيلها",
-        "createFirst": ".انقر على 'إنشاء مطالبة جديدة' أعلاه لإنشاء أول مطالبة معالجة لاحقة لك"
       }
     },
     "history": {
@@ -332,10 +272,6 @@
         "title": "ميكروفون وضع الإغلاق",
         "description": "الميكروفون المراد استخدامه عندما يكون غطاء المحمول مغلقاً"
       },
-      "postProcessingToggle": {
-        "label": "معالجة لاحقة",
-        "description": "تمكين تحسين النص المدعوم بالذكاء الاصطناعي بعد التفريغ الصوتي"
-      },
       "muteWhileRecording": {
         "label": "كتم الصوت أثناء التسجيل",
         "description": "كتم صوت النظام أثناء التسجيل"
@@ -343,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "إضافة مسافة تابعة",
         "description": "إضافة مسافة بعد التفريغ الملصق"
-      },
-      "keyboardImplementation": {
-        "title": "تنفيذ لوحة المفاتيح",
-        "description": ".اختر الواجهة الخلفية لاختصارات لوحة المفاتيح",
-        "bindingsReset": "كانت اختصارات لوحة المفاتيح غير متوافقة وتمت إعادة تعيينها إلى القيم الافتراضية"
-      },
-      "paths": {
-        "appData": "بيانات التطبيق:",
-        "models": "النماذج:",
-        "settings": "الإعدادات:"
       },
       "pasteDelay": {
         "title": "تأخير اللصق (قبل)",
@@ -369,26 +295,6 @@
       "recordingBuffer": {
         "title": "مخزن التسجيل الإضافي",
         "description": "وقت إضافي (بالمللي ثانية) للاستمرار في التسجيل بعد تحرير المفتاح، لالتقاط الصوت المتبقي. 0 = لا مخزن إضافي."
-      },
-      "keyboardDiagnostic": {
-        "title": "تشخيص لوحة المفاتيح",
-        "description": "يتحقق مما إذا كانت أحداث لوحة المفاتيح تصل إلى Murmur. يُسجَّل عدد الأحداث فقط — ولا تُسجَّل أبدًا المفاتيح التي تضغط عليها.",
-        "run": "تشغيل تشخيص لمدة 10 ثوانٍ",
-        "running": "جارٍ الاستماع… اضغط اختصارك عدة مرات (مثل Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "مُفعَّل",
-        "disabled": "مُعطَّل",
-        "holder": "يحتجزه {{name}} (pid {{pid}})",
-        "holderUnknown": "لا يوجد محتجِز ظاهر",
-        "keyDown": "ضغط مفتاح",
-        "keyUp": "تحرير مفتاح",
-        "flagsChanged": "مفاتيح التعديل",
-        "mouse": "الماوس",
-        "verdictBlocked": "يحجب Secure Input أحداث المفاتيح — لا يمكن للاختصارات التي تتضمن مفتاحًا عاديًا أن تعمل حتى تُحلّ المشكلة.",
-        "verdictSuspicious": "وصلت أحداث مفاتيح التعديل لكن لم يصل أي حدث مفتاح — هناك شيء يمنع المفاتيح رغم أن Secure Input يظهر معطلاً. يُرجى الإبلاغ عن ذلك على GitHub.",
-        "verdictOk": "أحداث المفاتيح تصل إلى Murmur بشكل طبيعي.",
-        "verdictNoEvents": "لم يُسجَّل أي حدث — هل ضغطت أي مفاتيح أثناء الاختبار؟",
-        "failed": "فشل التشخيص: {{error}}"
       },
       "whatsNewPreview": {
         "title": "معاينة الجديد",
@@ -423,17 +329,13 @@
         "description": "إظهار ملاحظات الإصدار بعد تحديثات Murmur"
       }
     },
-    "modelSettings": {
-      "title": "إعدادات {{model}}"
-    },
-    "models": {
-      "title": "نماذج النسخ",
-      "description": "اختر نموذج نسخ أو قم بتنزيل نماذج إضافية. تقدم النماذج المختلفة مستويات متفاوتة من الدقة والسرعة.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
+    "transcription": {
+      "title": "النسخ",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "...جاري التحضير",
     "checkForUpdates": "التحقق من وجود تحديثات",
     "portableUpdateTitle": "التحديث اليدوي مطلوب",
-    "portableUpdateMessage": "لا يمكن تحديث التثبيتات المحمولة تلقائيًا. نزّل المثبّت المناسب لنظامك من الزر أدناه، شغّله، وثبّته في المجلد نفسه — يبقى مجلد Data/ (الإعدادات والنماذج والتسجيلات) في مكانه.",
+    "portableUpdateMessage": "لا يمكن تحديث التثبيتات المحمولة تلقائيًا. نزّل المثبّت المناسب لنظامك من الزر أدناه، شغّله، وثبّته في المجلد نفسه — يبقى مجلد Data/ في مكانه.",
     "portableUpdateButton": "تنزيل المثبّت",
-    "portableUpdateBrowseMessage": "لا يمكن تحديث التثبيتات المحمولة تلقائيًا. نزّل أحدث إصدار مناسب لنظامك من GitHub Releases وثبّته في المجلد نفسه — يبقى مجلد Data/ (الإعدادات والنماذج والتسجيلات) في مكانه.",
+    "portableUpdateBrowseMessage": "لا يمكن تحديث التثبيتات المحمولة تلقائيًا. نزّل أحدث إصدار مناسب لنظامك من GitHub Releases وثبّته في المجلد نفسه — يبقى مجلد Data/ في مكانه.",
     "portableUpdateBrowseButton": "فتح GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "لم يتم العثور على ميكروفون",
     "noInputDevice": "لم يتم اكتشاف أي جهاز إدخال صوتي. يرجى توصيل ميكروفون أو سماعة رأس والمحاولة مرة أخرى.",
     "recordingFailed": "فشل في بدء التسجيل: {{error}}",
-    "modelLoadFailed": "فشل في تحميل النموذج: {{model}}",
-    "modelLoadFailedUnknown": "نموذج غير معروف",
     "pasteFailedTitle": "فشل لصق النص",
     "pasteFailed": "تعذر لصق النص في التطبيق النشط.",
     "transcriptionFailedTitle": "فشل التفريغ النصي"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "...جاري التفريغ",
-    "processing": "...جاري المعالجة"
+    "transcribing": "...جاري التفريغ"
   },
   "whatsNew": {
     "title": "الجديد في Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "قد يحظر {{name}} اختصارًا واحدًا",
-    "blockedWithCulprit_other": "قد يحظر {{name}} {{count}} اختصارات",
-    "blockedNoCulprit_one": "يحظر macOS مؤقتًا اختصارًا واحدًا",
-    "blockedNoCulprit_other": "يحظر macOS مؤقتًا {{count}} اختصارات",
-    "recorderBlockedWithCulprit": "قد يمنع {{name}} تغيير الاختصارات",
-    "recorderBlockedNoCulprit": "يمنع macOS مؤقتًا تغيير الاختصارات",
-    "learnMore": "كيفية الإصلاح",
-    "recorderBlocked": "لا يمكن تسجيل الاختصارات الآن — يحجب Secure Input في macOS أحداث المفاتيح. عالج تحذير Secure Input أولاً.",
-    "dismiss": "تجاهل"
   }
 }

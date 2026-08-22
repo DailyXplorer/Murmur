@@ -4,17 +4,15 @@
     "checkUpdates": "अपडेट जांचें...",
     "copyLastTranscript": "पिछला ट्रांसक्रिप्ट कॉपी करें",
     "quit": "बाहर निकलें",
-    "cancel": "रद्द करें",
-    "secureInputWarning": "⚠ Secure Input ने शॉर्टकट ब्लॉक किए हैं"
+    "cancel": "रद्द करें"
   },
   "sidebar": {
     "general": "सामान्य",
-    "models": "मॉडल",
     "advanced": "ऐडवांस",
-    "postProcessing": "पोस्ट प्रोसेस",
     "history": "इतिहास",
     "debug": "डिबग",
-    "about": "के बारे में"
+    "about": "के बारे में",
+    "transcription": "ट्रांसक्रिप्शन"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}} सेटिंग"
-    },
     "general": {
       "title": "सामान्य",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "रद्द करने का शॉर्टकट",
             "description": "मौजूदा रिकॉर्डिंग रद्द करने के लिए कीबोर्ड शॉर्टकट."
-          },
-          "transcribe_with_post_process": {
-            "name": "पोस्ट-प्रोसेसिंग हॉटकी",
-            "description": "वैकल्पिक: एक अलग हॉटकी जो आपके ट्रांसक्रिप्शन पर हमेशा AI पोस्ट-प्रोसेसिंग लागू करती है."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "पुश टू टॉक",
         "description": "रिकॉर्ड करने के लिए दबाकर रखें, रोकने के लिए छोड़ दें"
       }
-    },
-    "models": {
-      "title": "ट्रांसक्रिप्शन मॉडल",
-      "description": "कोई ट्रांसक्रिप्शन मॉडल चुनें या दूसरे मॉडल डाउनलोड करें. अलग-अलग मॉडल की सटीकता और स्पीड अलग-अलग होती है.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "आवाज़",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "कस्टम शब्द",
-        "description": "समर्थित मॉडल को नाम और विशेष शब्द पहचानने में मदद करें। फ़ज़ी सुधार फिलहाल A–Z अक्षरों और संख्याओं वाले शब्दों तक सीमित है।",
+        "description": "Use fuzzy correction for custom words written with A–Z letters and numbers.",
         "placeholder": "शब्द जोड़ें",
         "add": "जोड़ें",
         "remove": "{{word}} हटाएं",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "फिलर शब्द हटाएं",
         "description": "ट्रांसक्रिप्शन से आम हिचकिचाहट वाले शब्द हटाता है। उन्हें बनाए रखने के लिए इसे बंद करें।"
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "हॉटकी"
-      },
-      "api": {
-        "title": "API (OpenAI संगत)",
-        "provider": {
-          "title": "प्रोवाइडर",
-          "description": "कोई OpenAI-संगत प्रोवाइडर चुनें."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence इस डिवाइस पर उपलब्ध नहीं है. इसके लिए macOS Tahoe (26.0) या उसके बाद का वर्शन चलाने वाला Apple Silicon Mac चाहिए, जिसमें System Settings में Apple Intelligence चालू हो."
-        },
-        "baseUrl": {
-          "title": "बेस URL",
-          "description": "चुने गए प्रोवाइडर के लिए API बेस URL. केवल कस्टम प्रोवाइडर में बदलाव किया जा सकता है.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API कुंजी",
-          "description": "चुने गए प्रोवाइडर के लिए API कुंजी.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "मॉडल",
-          "descriptionCustom": "वह मॉडल आईडी डालें जो आपके कस्टम एंडपॉइंट को चाहिए.",
-          "descriptionDefault": "चुने गए प्रोवाइडर का कोई मॉडल चुनें.",
-          "placeholderWithOptions": "मॉडल खोजें या चुनें",
-          "placeholderNoOptions": "मॉडल का नाम लिखें",
-          "refreshModels": "मॉडल रीफ़्रेश करें"
-        }
-      },
-      "prompts": {
-        "title": "प्रॉम्प्ट",
-        "selectedPrompt": {
-          "title": "चुना गया प्रॉम्प्ट",
-          "description": "ट्रांसक्रिप्शन को बेहतर बनाने के लिए कोई टेम्पलेट चुनें या नया बनाएं. प्रॉम्प्ट टेक्स्ट में कैप्चर किए गए ट्रांसक्रिप्ट का इस्तेमाल करने के लिए ${output} लिखें."
-        },
-        "noPrompts": "कोई प्रॉम्प्ट उपलब्ध नहीं है",
-        "selectPrompt": "कोई प्रॉम्प्ट चुनें",
-        "createNew": "नया प्रॉम्प्ट बनाएं",
-        "promptLabel": "प्रॉम्प्ट का लेबल",
-        "promptLabelPlaceholder": "प्रॉम्प्ट का नाम डालें",
-        "promptInstructions": "प्रॉम्प्ट के निर्देश",
-        "promptInstructionsPlaceholder": "ट्रांसक्रिप्शन के बाद चलाने के लिए निर्देश लिखें. उदाहरण: इस टेक्स्ट का व्याकरण और स्पष्टता सुधारें: ${output}",
-        "promptTip": "सुझाव: अपने प्रॉम्प्ट में ट्रांसक्राइब किया गया टेक्स्ट डालने के लिए <code>${output}</code> का इस्तेमाल करें.",
-        "updatePrompt": "प्रॉम्प्ट अपडेट करें",
-        "deletePrompt": "प्रॉम्प्ट हटाएं",
-        "createPrompt": "प्रॉम्प्ट बनाएं",
-        "cancel": "रद्द करें",
-        "selectToEdit": "जानकारी देखने और बदलाव करने के लिए, ऊपर कोई प्रॉम्प्ट चुनें.",
-        "createFirst": "अपना पहला पोस्ट-प्रोसेसिंग प्रॉम्प्ट बनाने के लिए, ऊपर 'नया प्रॉम्प्ट बनाएं' पर क्लिक करें."
       }
     },
     "history": {
@@ -351,10 +279,6 @@
         "title": "क्लैमशेल माइक्रोफ़ोन",
         "description": "लैपटॉप का ढक्कन बंद होने पर इस्तेमाल होने वाला माइक्रोफ़ोन"
       },
-      "postProcessingToggle": {
-        "label": "पोस्ट प्रोसेसिंग",
-        "description": "ट्रांसक्रिप्शन के बाद AI की मदद से टेक्स्ट सुधारने की सुविधा चालू करें"
-      },
       "muteWhileRecording": {
         "label": "रिकॉर्डिंग के दौरान म्यूट करें",
         "description": "रिकॉर्डिंग के दौरान सिस्टम ऑडियो म्यूट करें"
@@ -362,16 +286,6 @@
       "appendTrailingSpace": {
         "label": "आखिर में स्पेस जोड़ें",
         "description": "पेस्ट किए गए ट्रांसक्रिप्शन के बाद एक स्पेस जोड़ें"
-      },
-      "keyboardImplementation": {
-        "title": "कीबोर्ड बैकएंड",
-        "description": "कीबोर्ड शॉर्टकट का बैकएंड चुनें.",
-        "bindingsReset": "कीबोर्ड शॉर्टकट संगत नहीं थे, इसलिए उन्हें डिफ़ॉल्ट पर रीसेट कर दिया गया"
-      },
-      "paths": {
-        "appData": "ऐप डेटा:",
-        "models": "मॉडल:",
-        "settings": "सेटिंग:"
       },
       "pasteDelay": {
         "title": "पेस्ट में देरी (पहले)",
@@ -388,26 +302,6 @@
       "recordingBuffer": {
         "title": "अतिरिक्त रिकॉर्डिंग बफ़र",
         "description": "बटन छोड़ने के बाद भी रिकॉर्डिंग जारी रखने का अतिरिक्त समय (मिलीसेकंड में), ताकि आखिरी हिस्से का ऑडियो कैप्चर हो सके. 0 = कोई अतिरिक्त बफ़र नहीं."
-      },
-      "keyboardDiagnostic": {
-        "title": "कीबोर्ड डायग्नोस्टिक",
-        "description": "जाँचता है कि कीबोर्ड इवेंट Murmur तक पहुँच रहे हैं या नहीं. सिर्फ़ इवेंट की गिनती रिकॉर्ड होती है — कभी नहीं कि आपने कौन-सी कुंजियाँ दबाईं.",
-        "run": "10 सेकंड का डायग्नोस्टिक चलाएँ",
-        "running": "सुन रहे हैं… अपना शॉर्टकट कुछ बार दबाएँ (जैसे Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "चालू",
-        "disabled": "बंद",
-        "holder": "{{name}} (pid {{pid}}) ने रोका हुआ है",
-        "holderUnknown": "कोई दिखने वाला ऐप नहीं",
-        "keyDown": "कुंजी दबाई",
-        "keyUp": "कुंजी छोड़ी",
-        "flagsChanged": "मॉडिफ़ायर",
-        "mouse": "माउस",
-        "verdictBlocked": "Secure Input कुंजी इवेंट ब्लॉक कर रहा है — जब तक यह हल नहीं होता, सामान्य कुंजी वाले शॉर्टकट काम नहीं कर सकते.",
-        "verdictSuspicious": "मॉडिफ़ायर इवेंट आए, लेकिन कोई कुंजी इवेंट नहीं — Secure Input के बंद दिखने के बावजूद कुछ कुंजियों को दबा रहा है. कृपया इसकी रिपोर्ट GitHub पर करें.",
-        "verdictOk": "कुंजी इवेंट Murmur तक सामान्य रूप से पहुँच रहे हैं.",
-        "verdictNoEvents": "कोई इवेंट कैप्चर नहीं हुआ — क्या आपने टेस्ट के दौरान कोई कुंजी दबाई थी?",
-        "failed": "डायग्नोस्टिक विफल: {{error}}"
       }
     },
     "about": {
@@ -434,6 +328,14 @@
         "description": "Murmur को आगे बढ़ाने में हमारी मदद करें",
         "button": "दान करें"
       }
+    },
+    "transcription": {
+      "title": "ट्रांसक्रिप्शन",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "तैयारी हो रही है...",
     "checkForUpdates": "अपडेट जांचें",
     "portableUpdateTitle": "मैन्युअल अपडेट ज़रूरी है",
-    "portableUpdateMessage": "पोर्टेबल इंस्टॉल अपने आप अपडेट नहीं हो सकते. नीचे से अपने सिस्टम के लिए इंस्टॉलर डाउनलोड करें, उसे चलाएँ और उसी फ़ोल्डर में इंस्टॉल करें — आपका Data/ फ़ोल्डर (सेटिंग, मॉडल, रिकॉर्डिंग) जहाँ है वहीं बना रहता है.",
+    "portableUpdateMessage": "पोर्टेबल इंस्टॉल अपने आप अपडेट नहीं हो सकते. नीचे से अपने सिस्टम के लिए इंस्टॉलर डाउनलोड करें, उसे चलाएँ और उसी फ़ोल्डर में इंस्टॉल करें — आपका Data/ फ़ोल्डर जहाँ है वहीं बना रहता है.",
     "portableUpdateButton": "इंस्टॉलर डाउनलोड करें",
-    "portableUpdateBrowseMessage": "पोर्टेबल इंस्टॉल अपने आप अपडेट नहीं हो सकते. GitHub Releases से अपने सिस्टम के लिए नया वर्शन डाउनलोड करें और उसे उसी फ़ोल्डर में इंस्टॉल करें — आपका Data/ फ़ोल्डर (सेटिंग, मॉडल, रिकॉर्डिंग) जहाँ है वहीं बना रहता है.",
+    "portableUpdateBrowseMessage": "पोर्टेबल इंस्टॉल अपने आप अपडेट नहीं हो सकते. GitHub Releases से अपने सिस्टम के लिए नया वर्शन डाउनलोड करें और उसे उसी फ़ोल्डर में इंस्टॉल करें — आपका Data/ फ़ोल्डर जहाँ है वहीं बना रहता है.",
     "portableUpdateBrowseButton": "GitHub Releases खोलें"
   },
   "whatsNew": {
@@ -479,8 +381,6 @@
     "noInputDeviceTitle": "कोई माइक्रोफ़ोन नहीं मिला",
     "noInputDevice": "कोई ऑडियो इनपुट डिवाइस नहीं मिला. कृपया माइक्रोफ़ोन या हेडसेट कनेक्ट करके फिर से कोशिश करें.",
     "recordingFailed": "रिकॉर्डिंग शुरू नहीं हो सकी: {{error}}",
-    "modelLoadFailed": "मॉडल लोड नहीं हो सका: {{model}}",
-    "modelLoadFailedUnknown": "अज्ञात मॉडल",
     "pasteFailedTitle": "टेक्स्ट पेस्ट नहीं हो सका",
     "pasteFailed": "खुले हुए ऐप्लिकेशन में टेक्स्ट पेस्ट नहीं किया जा सका.",
     "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका"
@@ -499,18 +399,6 @@
     }
   },
   "overlay": {
-    "transcribing": "ट्रांसक्राइब हो रहा है...",
-    "processing": "प्रोसेस हो रहा है..."
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} शायद 1 शॉर्टकट को ब्लॉक कर रहा है",
-    "blockedWithCulprit_other": "{{name}} शायद {{count}} शॉर्टकट को ब्लॉक कर रहा है",
-    "blockedNoCulprit_one": "macOS अस्थायी रूप से 1 शॉर्टकट को ब्लॉक कर रहा है",
-    "blockedNoCulprit_other": "macOS अस्थायी रूप से {{count}} शॉर्टकट को ब्लॉक कर रहा है",
-    "recorderBlockedWithCulprit": "{{name}} शायद शॉर्टकट में बदलाव को ब्लॉक कर रहा है",
-    "recorderBlockedNoCulprit": "macOS अस्थायी रूप से शॉर्टकट में बदलाव को ब्लॉक कर रहा है",
-    "learnMore": "इसे कैसे ठीक करें",
-    "recorderBlocked": "अभी शॉर्टकट रिकॉर्ड नहीं किए जा सकते — macOS Secure Input कुंजी इवेंट ब्लॉक कर रहा है. पहले Secure Input चेतावनी हल करें.",
-    "dismiss": "खारिज करें"
+    "transcribing": "ट्रांसक्राइब हो रहा है..."
   }
 }

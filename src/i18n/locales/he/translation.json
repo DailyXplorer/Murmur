@@ -4,17 +4,15 @@
     "checkUpdates": "בדוק עדכונים...",
     "copyLastTranscript": "העתק את התמלול האחרון",
     "quit": "יציאה",
-    "cancel": "ביטול",
-    "secureInputWarning": "⚠ קיצורי המקשים חסומים על ידי Secure Input"
+    "cancel": "ביטול"
   },
   "sidebar": {
     "general": "כללי",
-    "models": "מודלים",
     "advanced": "מתקדם",
-    "postProcessing": "עיבוד משלים",
     "history": "היסטוריה",
     "debug": "ניפוי שגיאות",
-    "about": "אודות"
+    "about": "אודות",
+    "transcription": "תמלול"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "הגדרות עבור {{model}}"
-    },
     "general": {
       "title": "כללי",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "קיצור מקשים לביטול",
             "description": "קיצור המקלדת לביטול ההקלטה הנוכחית."
-          },
-          "transcribe_with_post_process": {
-            "name": "קיצור לעיבוד משלים",
-            "description": "אופציונלי: קיצור מקשים ייעודי שתמיד מפעיל עיבוד AI על התמלול."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "לחץ כדי לדבר",
         "description": "החזק כדי להקליט, שחרר כדי לעצור"
       }
-    },
-    "models": {
-      "title": "מודלי תמלול",
-      "description": "בחר מודל תמלול או הורד מודלים נוספים. מודלים שונים מציעים רמות שונות של דיוק ומהירות.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "שמע",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "מילים מותאמות אישית",
-        "description": "עזרו למודלים נתמכים לזהות שמות ומונחים מקצועיים. תיקון בקירוב מוגבל כרגע למילים המשתמשות באותיות A–Z ובמספרים.",
+        "description": "תיקון בקירוב מוגבל כרגע למילים המשתמשות באותיות A–Z ובמספרים.",
         "placeholder": "הוסף מילה",
         "add": "הוסף",
         "remove": "הסר את {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "הסרת מילות מילוי",
         "description": "מסיר מילות היסוס נפוצות מתמלולים. השבת כדי להשאיר אותן."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "קיצור מקשים"
-      },
-      "api": {
-        "title": "API (תואם OpenAI)",
-        "provider": {
-          "title": "ספק",
-          "description": "בחר ספק שתואם ל-OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence לא זמין במכשיר הזה. נדרש Mac עם Apple Silicon שמריץ macOS Tahoe (26.0) ומעלה, עם Apple Intelligence מופעל בהגדרות המערכת."
-        },
-        "baseUrl": {
-          "title": "כתובת URL בסיסית",
-          "description": "כתובת ה-API הבסיסית עבור הספק הנבחר. רק ספק מותאם אישית ניתן לעריכה.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "מפתח API",
-          "description": "מפתח API עבור הספק הנבחר.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "מודל",
-          "descriptionCustom": "ספק את מזהה המודל שה-endpoint המותאם שלך מצפה לו.",
-          "descriptionDefault": "בחר מודל שהספק הנבחר חושף.",
-          "placeholderWithOptions": "חפש או בחר מודל",
-          "placeholderNoOptions": "הקלד שם מודל",
-          "refreshModels": "רענן מודלים"
-        }
-      },
-      "prompts": {
-        "title": "פרומפט",
-        "selectedPrompt": {
-          "title": "פרומפט נבחר",
-          "description": "בחר תבנית לשיפור התמלול או צור חדשה. השתמש ב-${output} בתוך טקסט הפרומפט כדי להפנות לתמלול שנקלט."
-        },
-        "noPrompts": "אין פרומפטים זמינים",
-        "selectPrompt": "בחר פרומפט",
-        "createNew": "צור פרומפט חדש",
-        "promptLabel": "שם הפרומפט",
-        "promptLabelPlaceholder": "הזן שם לפרומפט",
-        "promptInstructions": "הוראות לפרומפט",
-        "promptInstructionsPlaceholder": "כתוב את ההוראות שירוצו אחרי התמלול. לדוגמה: שפר דקדוק ובהירות עבור הטקסט הבא: ${output}",
-        "promptTip": "טיפ: השתמש ב-<code>${output}</code> כדי להכניס את הטקסט המתומלל לפרומפט שלך.",
-        "updatePrompt": "עדכן פרומפט",
-        "deletePrompt": "מחק פרומפט",
-        "createPrompt": "צור פרומפט",
-        "cancel": "ביטול",
-        "selectToEdit": "בחר פרומפט למעלה כדי לצפות בפרטים שלו ולערוך אותם.",
-        "createFirst": "לחץ על 'צור פרומפט חדש' למעלה כדי ליצור את פרומפט העיבוד הראשון שלך."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "מיקרופון במצב clamshell",
         "description": "המיקרופון שישמש כשהמחשב הנייד סגור"
       },
-      "postProcessingToggle": {
-        "label": "עיבוד משלים",
-        "description": "הפעל שיפור טקסט מבוסס AI אחרי התמלול"
-      },
       "muteWhileRecording": {
         "label": "השתק בזמן הקלטה",
         "description": "השתק את שמע המערכת בזמן הקלטה"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "הוסף רווח בסוף",
         "description": "הוסף רווח אחרי התמלול המודבק"
-      },
-      "keyboardImplementation": {
-        "title": "מימוש מקלדת",
-        "description": "בחר את מנגנון קיצורי המקלדת.",
-        "bindingsReset": "קיצורי המקלדת לא היו תואמים ואופסו לברירות המחדל"
-      },
-      "paths": {
-        "appData": "נתוני אפליקציה:",
-        "models": "מודלים:",
-        "settings": "הגדרות:"
       },
       "pasteDelay": {
         "title": "השהיית הדבקה (לפני)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "באפר הקלטה נוסף",
         "description": "זמן נוסף (במילישניות) להמשך הקלטה אחרי שחרור המקש, כדי ללכוד סוף דיבור. 0 = בלי באפר נוסף."
-      },
-      "keyboardDiagnostic": {
-        "title": "אבחון מקלדת",
-        "description": "בודק אם אירועי מקלדת מגיעים ל-Murmur. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
-        "run": "הרצת אבחון של 10 שניות",
-        "running": "מאזין… הקש על קיצור המקשים שלך כמה פעמים (למשל Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "מופעל",
-        "disabled": "מושבת",
-        "holder": "מוחזק על ידי {{name}} (pid {{pid}})",
-        "holderUnknown": "אין מחזיק גלוי",
-        "keyDown": "לחיצת מקש",
-        "keyUp": "שחרור מקש",
-        "flagsChanged": "מקשי החלפה",
-        "mouse": "עכבר",
-        "verdictBlocked": "Secure Input חוסם אירועי מקשים — קיצורים הכוללים מקש רגיל לא יוכלו לפעול עד שהבעיה תיפתר.",
-        "verdictSuspicious": "הגיעו אירועים של מקשי החלפה אך לא אירועי מקשים — משהו מדכא מקשים למרות ש-Secure Input מדווח כמושבת. אנא דווח על כך ב-GitHub.",
-        "verdictOk": "אירועי מקשים מגיעים ל-Murmur כרגיל.",
-        "verdictNoEvents": "לא נקלטו אירועים — האם הקשת על מקשים במהלך הבדיקה?",
-        "failed": "האבחון נכשל: {{error}}"
       },
       "whatsNewPreview": {
         "title": "תצוגה מקדימה של מה חדש",
@@ -434,6 +328,14 @@
         "label": "הצג מה חדש",
         "description": "הצג הערות גרסה לאחר עדכוני Murmur"
       }
+    },
+    "transcription": {
+      "title": "תמלול",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "מכין...",
     "checkForUpdates": "בדוק עדכונים",
     "portableUpdateTitle": "נדרש עדכון ידני",
-    "portableUpdateMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד למטה את המתקין המתאים למערכת שלך, הפעל אותו והתקן לאותה תיקייה — תיקיית Data/ (הגדרות, מודלים, הקלטות) נשמרת במקומה.",
+    "portableUpdateMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד למטה את המתקין המתאים למערכת שלך, הפעל אותו והתקן לאותה תיקייה — תיקיית Data/ נשמרת במקומה.",
     "portableUpdateButton": "הורדת המתקין",
-    "portableUpdateBrowseMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד את הגרסה האחרונה המתאימה למערכת שלך מ-GitHub Releases והתקן אותה לאותה תיקייה — תיקיית Data/ (הגדרות, מודלים, הקלטות) נשמרת במקומה.",
+    "portableUpdateBrowseMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד את הגרסה האחרונה המתאימה למערכת שלך מ-GitHub Releases והתקן אותה לאותה תיקייה — תיקיית Data/ נשמרת במקומה.",
     "portableUpdateBrowseButton": "פתח את GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "לא נמצא מיקרופון",
     "noInputDevice": "לא זוהה התקן קלט שמע. חבר מיקרופון או אוזנייה ונסה שוב.",
     "recordingFailed": "הפעלת ההקלטה נכשלה: {{error}}",
-    "modelLoadFailed": "טעינת המודל נכשלה: {{model}}",
-    "modelLoadFailedUnknown": "מודל לא ידוע",
     "pasteFailedTitle": "ההדבקה נכשלה",
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
     "transcriptionFailedTitle": "התמלול נכשל"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "מתמלל...",
-    "processing": "מעבד..."
+    "transcribing": "מתמלל..."
   },
   "whatsNew": {
     "title": "חדש ב-Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "ייתכן ש-{{name}} חוסם קיצור דרך אחד",
-    "blockedWithCulprit_other": "ייתכן ש-{{name}} חוסם {{count}} קיצורי דרך",
-    "blockedNoCulprit_one": "macOS חוסם זמנית קיצור דרך אחד",
-    "blockedNoCulprit_other": "macOS חוסם זמנית {{count}} קיצורי דרך",
-    "recorderBlockedWithCulprit": "ייתכן ש-{{name}} חוסם שינויים בקיצורי דרך",
-    "recorderBlockedNoCulprit": "macOS חוסם זמנית שינויים בקיצורי דרך",
-    "learnMore": "איך לתקן את זה",
-    "recorderBlocked": "לא ניתן להקליט קיצורים כרגע — Secure Input של macOS חוסם אירועי מקשים. פתור תחילה את אזהרת Secure Input.",
-    "dismiss": "התעלם"
   }
 }

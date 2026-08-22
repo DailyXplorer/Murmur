@@ -33,7 +33,7 @@
  * ubuntu-latest runner, and a GitHub Actions macos-latest runner, which is
  * enough to break any single-hash FOD.
  *
- * Concretely, the Handy install hits this with
+ * Concretely, the Murmur install hits this with
  *   - update-browserslist-db/.bin/browserslist (update-browserslist-db
  *     declares browserslist as a peer, browserslist has
  *     update-browserslist-db in its regular dependencies → cycle), and

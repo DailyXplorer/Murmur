@@ -1,20 +1,15 @@
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
-use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
+use crate::settings::{get_settings, OverlayStyle};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
-use crate::utils::{
-    self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
-};
+use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
 use crate::TranscriptionCoordinator;
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
-use log::{debug, error, warn};
+use log::{debug, error};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::future::Future;
@@ -53,45 +48,7 @@ pub trait ShortcutAction: Send + Sync {
 }
 
 // Transcribe Action
-struct TranscribeAction {
-    post_process: bool,
-}
-
-/// Field name for structured output JSON schema
-const TRANSCRIPTION_FIELD: &str = "transcription";
-
-/// Strip invisible Unicode characters that some LLMs may insert
-fn strip_invisible_chars(s: &str) -> String {
-    s.replace(['\u{200B}', '\u{200C}', '\u{200D}', '\u{FEFF}'], "")
-}
-
-/// Strip a leading `<think>...</think>` block. Some endpoints can't disable
-/// reasoning, and some local servers put the reasoning text into `content`
-/// instead of a separate field — without this the user would get the model's
-/// chain of thought pasted along with the cleaned transcription.
-fn strip_think_block(s: &str) -> &str {
-    if let Some(rest) = s.trim_start().strip_prefix("<think>") {
-        if let Some(end) = rest.find("</think>") {
-            return rest[end + "</think>".len()..].trim_start();
-        }
-    }
-    s
-}
-
-/// Build a system prompt from the user's prompt template.
-/// Removes `${output}` placeholder since the transcription is sent as the user message.
-fn build_system_prompt(prompt_template: &str) -> String {
-    prompt_template.replace("${output}", "").trim().to_string()
-}
-
-/// Returns `true` when a transcription has no meaningful content to
-/// post-process (empty or whitespace-only). Used to skip the post-processing
-/// LLM call when nothing was actually transcribed, which would otherwise make
-/// the model reply with an error message such as "you need to provide the
-/// transcription".
-fn is_blank_transcription(transcription: &str) -> bool {
-    transcription.trim().is_empty()
-}
+struct TranscribeAction;
 
 async fn complete_unless_cancelled<F, C>(operation: F, is_cancelled: C) -> Option<F::Output>
 where
@@ -113,241 +70,12 @@ where
     }
 }
 
-async fn post_process_transcription(settings: &AppSettings, transcription: &str) -> Option<String> {
-    if is_blank_transcription(transcription) {
-        debug!("Post-processing skipped because the transcription is empty");
-        return None;
-    }
-
-    let provider = match settings.active_post_process_provider().cloned() {
-        Some(provider) => provider,
-        None => {
-            debug!("Post-processing enabled but no provider is selected");
-            return None;
-        }
-    };
-
-    let model = settings
-        .post_process_models
-        .get(&provider.id)
-        .cloned()
-        .unwrap_or_default();
-
-    if model.trim().is_empty() {
-        debug!(
-            "Post-processing skipped because provider '{}' has no model configured",
-            provider.id
-        );
-        return None;
-    }
-
-    let selected_prompt_id = match &settings.post_process_selected_prompt_id {
-        Some(id) => id.clone(),
-        None => {
-            debug!("Post-processing skipped because no prompt is selected");
-            return None;
-        }
-    };
-
-    let prompt = match settings
-        .post_process_prompts
-        .iter()
-        .find(|prompt| prompt.id == selected_prompt_id)
-    {
-        Some(prompt) => prompt.prompt.clone(),
-        None => {
-            debug!(
-                "Post-processing skipped because prompt '{}' was not found",
-                selected_prompt_id
-            );
-            return None;
-        }
-    };
-
-    if prompt.trim().is_empty() {
-        debug!("Post-processing skipped because the selected prompt is empty");
-        return None;
-    }
-
-    debug!(
-        "Starting LLM post-processing with provider '{}' (model: {})",
-        provider.id, model
-    );
-
-    let api_key = settings
-        .post_process_api_keys
-        .get(&provider.id)
-        .cloned()
-        .unwrap_or_default();
-
-    // Ask these providers to skip reasoning/thinking — post-processing rarely
-    // benefits from it and it adds seconds of latency. llm_client picks the
-    // field the endpoint understands and retries without it if rejected.
-    let disable_reasoning = matches!(provider.id.as_str(), "custom" | "openrouter");
-
-    if provider.supports_structured_output {
-        debug!("Using structured outputs for provider '{}'", provider.id);
-
-        let system_prompt = build_system_prompt(&prompt);
-        let user_content = transcription.to_string();
-
-        // Handle Apple Intelligence separately since it uses native Swift APIs
-        if provider.id == APPLE_INTELLIGENCE_PROVIDER_ID {
-            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-            {
-                if !apple_intelligence::check_apple_intelligence_availability() {
-                    debug!(
-                        "Apple Intelligence selected but not currently available on this device"
-                    );
-                    return None;
-                }
-
-                let token_limit = model.trim().parse::<i32>().unwrap_or(0);
-                return match apple_intelligence::process_text_with_system_prompt(
-                    &system_prompt,
-                    &user_content,
-                    token_limit,
-                ) {
-                    Ok(result) => {
-                        if result.trim().is_empty() {
-                            debug!("Apple Intelligence returned an empty response");
-                            None
-                        } else {
-                            let result = strip_invisible_chars(&result);
-                            debug!(
-                                "Apple Intelligence post-processing succeeded. Output length: {} chars",
-                                result.len()
-                            );
-                            Some(result)
-                        }
-                    }
-                    Err(err) => {
-                        error!("Apple Intelligence post-processing failed: {}", err);
-                        None
-                    }
-                };
-            }
-
-            #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-            {
-                debug!("Apple Intelligence provider selected on unsupported platform");
-                return None;
-            }
-        }
-
-        // Define JSON schema for transcription output
-        let json_schema = serde_json::json!({
-            "type": "object",
-            "properties": {
-                (TRANSCRIPTION_FIELD): {
-                    "type": "string",
-                    "description": "The cleaned and processed transcription text"
-                }
-            },
-            "required": [TRANSCRIPTION_FIELD],
-            "additionalProperties": false
-        });
-
-        match crate::llm_client::send_chat_completion_with_schema(
-            &provider,
-            api_key.clone(),
-            &model,
-            user_content,
-            Some(system_prompt),
-            Some(json_schema),
-            disable_reasoning,
-        )
-        .await
-        {
-            Ok(Some(content)) => {
-                // Parse the JSON response to extract the transcription field
-                let content = strip_think_block(&content);
-                match serde_json::from_str::<serde_json::Value>(content) {
-                    Ok(json) => {
-                        if let Some(transcription_value) =
-                            json.get(TRANSCRIPTION_FIELD).and_then(|t| t.as_str())
-                        {
-                            let result = strip_invisible_chars(transcription_value);
-                            debug!(
-                                "Structured output post-processing succeeded for provider '{}'. Output length: {} chars",
-                                provider.id,
-                                result.len()
-                            );
-                            return Some(result);
-                        } else {
-                            error!("Structured output response missing 'transcription' field");
-                            return Some(strip_invisible_chars(content));
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to parse structured output JSON: {}. Returning raw content.",
-                            e
-                        );
-                        return Some(strip_invisible_chars(content));
-                    }
-                }
-            }
-            Ok(None) => {
-                error!("LLM API response has no content");
-                return None;
-            }
-            Err(e) => {
-                warn!(
-                    "Structured output failed for provider '{}': {}. Falling back to legacy mode.",
-                    provider.id, e
-                );
-                // Fall through to legacy mode below
-            }
-        }
-    }
-
-    // Legacy mode: Replace ${output} variable in the prompt with the actual text
-    let processed_prompt = prompt.replace("${output}", transcription);
-    debug!("Processed prompt length: {} chars", processed_prompt.len());
-
-    match crate::llm_client::send_chat_completion(
-        &provider,
-        api_key,
-        &model,
-        processed_prompt,
-        disable_reasoning,
-    )
-    .await
-    {
-        Ok(Some(content)) => {
-            let content = strip_invisible_chars(strip_think_block(&content));
-            debug!(
-                "LLM post-processing succeeded for provider '{}'. Output length: {} chars",
-                provider.id,
-                content.len()
-            );
-            Some(content)
-        }
-        Ok(None) => {
-            error!("LLM API response has no content");
-            None
-        }
-        Err(e) => {
-            error!(
-                "LLM post-processing failed for provider '{}': {}. Falling back to original transcription.",
-                provider.id,
-                e
-            );
-            None
-        }
-    }
-}
-
 async fn maybe_convert_chinese_variant(
     effective_language: &str,
     transcription: &str,
 ) -> Option<String> {
-    // Gate on the language the model actually transcribed in (the effective
-    // language), not the persisted intent. A leftover zh-Hans/zh-Hant intent
-    // from a previously selected model must not run OpenCC S2T/T2S over output a
-    // non-Chinese model produced — that would silently rewrite any shared CJK
-    // characters (e.g. Japanese kanji) in the result.
+    // Gate conversion on the explicitly selected Chinese variant so automatic
+    // detection never rewrites characters in Japanese or other CJK output.
     let is_simplified = effective_language == "zh-Hans";
     let is_traditional = effective_language == "zh-Hant";
 
@@ -387,77 +115,18 @@ async fn maybe_convert_chinese_variant(
     }
 }
 
-pub(crate) struct ProcessedTranscription {
-    pub final_text: String,
-    pub post_processed_text: Option<String>,
-    pub post_process_prompt: Option<String>,
-}
-
-/// Resolve the persisted language *intent* into the language the currently-loaded
-/// model will actually use — the same capability-aware coercion the transcription
-/// paths apply (see [`crate::managers::model::effective_language`]). Post-processing
-/// resolves it independently so it agrees with the language the transcription ran
-/// in, without threading a value through the pipeline.
-fn resolve_effective_language(app: &AppHandle, settings: &AppSettings) -> String {
-    let tm = app.state::<Arc<TranscriptionManager>>();
-    let model_manager = app.state::<Arc<ModelManager>>();
-    let active_model = tm
-        .get_current_model()
-        .unwrap_or_else(|| settings.selected_model.clone());
-    match model_manager.get_model_info(&active_model) {
-        Some(info) => crate::managers::model::effective_language(
-            &settings.selected_language,
-            &info.supported_languages,
-            info.supports_language_detection,
-        ),
-        None => settings.selected_language.clone(),
-    }
-}
-
-pub(crate) async fn process_transcription_output(
-    app: &AppHandle,
-    transcription: &str,
-    post_process: bool,
-) -> ProcessedTranscription {
+pub(crate) async fn process_transcription_output(app: &AppHandle, transcription: &str) -> String {
     let settings = get_settings(app);
     let mut final_text = transcription.to_string();
-    let mut post_processed_text: Option<String> = None;
-    let mut post_process_prompt: Option<String> = None;
 
-    // Resolve the language the transcription actually ran in (the persisted
-    // intent coerced against the loaded model's capabilities) so OpenCC keys off
-    // the effective language rather than a possibly-stale intent.
-    let effective_language = resolve_effective_language(app, &settings);
+    let effective_language = settings.selected_language;
     if let Some(converted_text) =
         maybe_convert_chinese_variant(&effective_language, transcription).await
     {
         final_text = converted_text;
     }
 
-    if post_process {
-        if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
-            post_processed_text = Some(processed_text.clone());
-            final_text = processed_text;
-
-            if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
-                if let Some(prompt) = settings
-                    .post_process_prompts
-                    .iter()
-                    .find(|prompt| &prompt.id == prompt_id)
-                {
-                    post_process_prompt = Some(prompt.prompt.clone());
-                }
-            }
-        }
-    } else if final_text != transcription {
-        post_processed_text = Some(final_text.clone());
-    }
-
-    ProcessedTranscription {
-        final_text,
-        post_processed_text,
-        post_process_prompt,
-    }
+    final_text
 }
 
 impl ShortcutAction for TranscribeAction {
@@ -465,12 +134,9 @@ impl ShortcutAction for TranscribeAction {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
 
-        // Load model in the background
-        let tm = app.state::<Arc<TranscriptionManager>>();
         let rm = app.state::<Arc<AudioRecordingManager>>();
 
         let kickoff_started = Instant::now();
-        tm.initiate_model_load();
         let rm_clone = Arc::clone(&rm);
         std::thread::spawn(move || {
             if let Err(e) = rm_clone.ensure_recorder() {
@@ -490,18 +156,15 @@ impl ShortcutAction for TranscribeAction {
         let is_always_on = settings.always_on_microphone;
         let plan_elapsed = plan_started.elapsed();
 
-        // Sizing the overlay follows the same advertised capability. A model that
-        // doesn't stream (or whose capability is not known yet) gets the compact
-        // pill instead of an oversized transparent live window.
         let overlay_started = Instant::now();
         match settings.overlay_style {
-            OverlayStyle::Live | OverlayStyle::Minimal => show_recording_overlay(app),
+            OverlayStyle::Minimal => show_recording_overlay(app),
             OverlayStyle::None => {}
         }
         // Everything above runs before capture can begin, so each span here is
         // added keypress->capture latency.
         debug!(
-            "start-path pre-recording steps: model_kickoff={:?} tray={:?} settings+stream_plan={:?} overlay={:?}",
+            "start-path pre-recording steps: recorder_kickoff={:?} tray={:?} settings+stream_plan={:?} overlay={:?}",
             kickoff_elapsed,
             tray_elapsed,
             plan_elapsed,
@@ -530,7 +193,7 @@ impl ShortcutAction for TranscribeAction {
                     // arming animation on hardware that normally starts too fast
                     // to make it visible.
                     #[cfg(debug_assertions)]
-                    if let Ok(delay_ms) = std::env::var("HANDY_DEBUG_MIC_READY_DELAY_MS")
+                    if let Ok(delay_ms) = std::env::var("MURMUR_DEBUG_MIC_READY_DELAY_MS")
                         .unwrap_or_default()
                         .parse::<u64>()
                     {
@@ -626,7 +289,6 @@ impl ShortcutAction for TranscribeAction {
         play_feedback_sound(app, SoundType::Stop);
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
-        let post_process = self.post_process;
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -658,7 +320,7 @@ impl ShortcutAction for TranscribeAction {
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
-                    let file_name = format!("handy-{}.wav", chrono::Utc::now().timestamp());
+                    let file_name = format!("murmur-{}.wav", chrono::Utc::now().timestamp());
                     let wav_path = hm.recordings_dir().join(&file_name);
                     let wav_path_for_verify = wav_path.clone();
                     let samples_for_wav = samples.clone();
@@ -667,7 +329,15 @@ impl ShortcutAction for TranscribeAction {
                     });
 
                     let transcription_time = Instant::now();
-                    let transcription_result = tm.transcribe(samples);
+                    let transcription_result =
+                        match tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
+                            .await
+                        {
+                            Ok(result) => result,
+                            Err(error) => {
+                                Err(anyhow::anyhow!("Transcription worker panicked: {error}"))
+                            }
+                        };
 
                     // Await WAV save and verify
                     let wav_saved = match wav_handle.await {
@@ -703,16 +373,13 @@ impl ShortcutAction for TranscribeAction {
                     match transcription_result {
                         Ok(transcription) => {
                             debug!(
-                                "Transcription completed in {:?}: '{}'",
+                                "Transcription completed in {:?} ({} characters)",
                                 transcription_time.elapsed(),
-                                transcription
+                                transcription.chars().count()
                             );
 
-                            if post_process {
-                                show_processing_overlay(&ah);
-                            }
-                            let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                            let Some(final_text) = complete_unless_cancelled(
+                                process_transcription_output(&ah, &transcription),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
@@ -732,24 +399,17 @@ impl ShortcutAction for TranscribeAction {
 
                             // Save to history if WAV was saved
                             if wav_saved {
-                                if let Err(err) = hm.save_entry(
-                                    file_name,
-                                    transcription,
-                                    post_process,
-                                    processed.post_processed_text.clone(),
-                                    processed.post_process_prompt.clone(),
-                                ) {
+                                if let Err(err) = hm.save_entry(file_name, final_text.clone()) {
                                     error!("Failed to save history entry: {}", err);
                                 }
                             }
 
-                            if processed.final_text.is_empty() {
+                            if final_text.is_empty() {
                                 utils::hide_recording_overlay(&ah);
                                 change_tray_icon(&ah, TrayIconState::Idle);
                             } else {
                                 let ah_clone = ah.clone();
                                 let paste_time = Instant::now();
-                                let final_text = processed.final_text;
                                 let rm_for_paste = Arc::clone(&rm);
                                 ah.run_on_main_thread(move || {
                                     if rm_for_paste.was_cancelled_since(cancel_generation) {
@@ -791,17 +451,11 @@ impl ShortcutAction for TranscribeAction {
 
                             error!("Transcription failed: {}", err);
                             // Surface the failure to the UI (toast). The full
-                            // message is also in handy.log via the line above.
+                            // message is also in murmur.log via the line above.
                             let _ = ah.emit("transcription-error", err.to_string());
                             // Save entry with empty text so user can retry
                             if wav_saved {
-                                if let Err(save_err) = hm.save_entry(
-                                    file_name,
-                                    String::new(),
-                                    post_process,
-                                    None,
-                                    None,
-                                ) {
+                                if let Err(save_err) = hm.save_entry(file_name, String::new()) {
                                     error!("Failed to save failed history entry: {}", save_err);
                                 }
                             }
@@ -839,13 +493,7 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     let mut map = HashMap::new();
     map.insert(
         "transcribe".to_string(),
-        Arc::new(TranscribeAction {
-            post_process: false,
-        }) as Arc<dyn ShortcutAction>,
-    );
-    map.insert(
-        "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),
@@ -856,25 +504,12 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 
 #[cfg(test)]
 mod tests {
-    use super::{complete_unless_cancelled, is_blank_transcription, strip_think_block};
+    use super::complete_unless_cancelled;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
-
-    #[test]
-    fn blank_transcription_is_detected() {
-        assert!(is_blank_transcription(""));
-        assert!(is_blank_transcription("   "));
-        assert!(is_blank_transcription("\t\n  \r\n"));
-    }
-
-    #[test]
-    fn non_blank_transcription_is_kept() {
-        assert!(!is_blank_transcription("hello"));
-        assert!(!is_blank_transcription("  hello  "));
-    }
 
     #[test]
     fn completed_operation_returns_its_output() {
@@ -902,31 +537,5 @@ mod tests {
 
         cancel_thread.join().unwrap();
         assert_eq!(result, None);
-    }
-
-    #[test]
-    fn leading_think_block_is_stripped() {
-        assert_eq!(
-            strip_think_block("<think>pondering...</think>Cleaned text."),
-            "Cleaned text."
-        );
-        assert_eq!(
-            strip_think_block("  \n<think>multi\nline</think>\n  Cleaned text."),
-            "Cleaned text."
-        );
-    }
-
-    #[test]
-    fn content_without_think_block_is_unchanged() {
-        assert_eq!(strip_think_block("Cleaned text."), "Cleaned text.");
-        assert_eq!(
-            strip_think_block("Mentions <think> mid-sentence."),
-            "Mentions <think> mid-sentence."
-        );
-        // Unclosed block: leave untouched rather than guess
-        assert_eq!(
-            strip_think_block("<think>never closed"),
-            "<think>never closed"
-        );
     }
 }

@@ -93,19 +93,7 @@ fn windows_taskbar_theme() -> Option<AppTheme> {
 
 /// Gets the appropriate icon path for the given theme and state.
 ///
-/// `warning` overlays a badge on the idle icon while keyboard shortcuts are
-/// blocked (macOS Secure Input); recording/transcribing states keep their
-/// normal icons so in-flight activity stays recognizable.
-pub fn get_icon_path(theme: AppTheme, state: TrayIconState, warning: bool) -> &'static str {
-    if warning && state == TrayIconState::Idle {
-        return match theme {
-            AppTheme::Dark => "resources/tray_idle_warning.png",
-            AppTheme::Light => "resources/tray_idle_warning_dark.png",
-            // Linux never sets the warning flag (Secure Input is macOS-only),
-            // but fall back to the normal icon just in case.
-            AppTheme::Colored => "resources/murmur.png",
-        };
-    }
+pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
     match (theme, state) {
         // Dark theme uses light icons
         (AppTheme::Dark, TrayIconState::Idle) => "resources/tray_idle.png",
@@ -129,8 +117,7 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     // Store current state
     app.state::<CurrentTrayIconState>().set(icon);
 
-    let warning = crate::secure_input::tray_warning_active(app);
-    let icon_path = get_icon_path(theme, icon, warning);
+    let icon_path = get_icon_path(theme, icon);
 
     let icon_started = std::time::Instant::now();
     if let Err(err) = load_tray_icon(
@@ -185,20 +172,6 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
 
     let locale = locale.unwrap_or(&settings.app_language);
     let strings = get_tray_translations(Some(locale.to_string()));
-
-    // Secure Input warning entry (macOS): clicking opens the settings window
-    // where the full warning banner explains the situation. Locales that
-    // haven't translated the key yet get the English string rather than a
-    // blank menu item (build.rs emits "" for missing keys).
-    let secure_input_warning = crate::secure_input::tray_warning_active(app).then(|| {
-        let label = if strings.secure_input_warning.is_empty() {
-            get_tray_translations(Some("en".to_string())).secure_input_warning
-        } else {
-            strings.secure_input_warning.clone()
-        };
-        MenuItem::with_id(app, "secure_input_warning", &label, true, None::<&str>)
-            .expect("failed to create secure input warning item")
-    });
 
     // Platform-specific accelerators
     #[cfg(target_os = "macos")]
@@ -275,25 +248,13 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
         .expect("failed to create menu"),
     };
 
-    // Both layouts start with [version, separator, ...]; slot the warning in
-    // right below the version line so it's the first actionable thing seen.
-    let mut tooltip = version_label;
-    if let Some(warning_item) = secure_input_warning {
-        let _ = menu.insert(&warning_item, 2);
-        let _ = menu.insert(&separator(), 3);
-        tooltip = format!("{} — {}", tooltip, warning_item.text().unwrap_or_default());
-    }
-
     let tray = app.state::<TrayIcon>();
     let _ = tray.set_menu(Some(menu));
-    let _ = tray.set_tooltip(Some(tooltip));
+    let _ = tray.set_tooltip(Some(version_label));
 }
 
 fn last_transcript_text(entry: &HistoryEntry) -> &str {
-    entry
-        .post_processed_text
-        .as_deref()
-        .unwrap_or(&entry.transcription_text)
+    &entry.transcription_text
 }
 
 pub fn set_tray_visibility(app: &AppHandle, visible: bool) {
@@ -341,29 +302,20 @@ mod tests {
     use super::{last_transcript_text, load_tray_icon};
     use crate::managers::history::HistoryEntry;
 
-    fn build_entry(transcription: &str, post_processed: Option<&str>) -> HistoryEntry {
+    fn build_entry(transcription: &str) -> HistoryEntry {
         HistoryEntry {
             id: 1,
-            file_name: "handy-1.wav".to_string(),
+            file_name: "murmur-1.wav".to_string(),
             timestamp: 0,
             saved: false,
             title: "Recording".to_string(),
             transcription_text: transcription.to_string(),
-            post_processed_text: post_processed.map(|text| text.to_string()),
-            post_process_prompt: None,
-            post_process_requested: false,
         }
     }
 
     #[test]
-    fn uses_post_processed_text_when_available() {
-        let entry = build_entry("raw", Some("processed"));
-        assert_eq!(last_transcript_text(&entry), "processed");
-    }
-
-    #[test]
-    fn falls_back_to_raw_transcription() {
-        let entry = build_entry("raw", None);
+    fn uses_transcription_text() {
+        let entry = build_entry("raw");
         assert_eq!(last_transcript_text(&entry), "raw");
     }
 

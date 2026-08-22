@@ -11,7 +11,7 @@ import { AudioFeedback } from "../AudioFeedback";
 import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
-import { ModelSettingsCard } from "./ModelSettingsCard";
+import { LanguageSelector } from "../LanguageSelector";
 
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -28,7 +28,13 @@ export const GeneralSettings: React.FC = () => {
           <ShortcutInput shortcutId="cancel" grouped={true} />
         )}
       </SettingsGroup>
-      <ModelSettingsCard />
+      <SettingsGroup title={t("settings.general.language.title")}>
+        <LanguageSelector
+          descriptionMode="tooltip"
+          grouped={true}
+          supportsLanguageDetection={true}
+        />
+      </SettingsGroup>
       <SettingsGroup title={t("settings.sound.title")}>
         <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
         <ChannelSelector descriptionMode="tooltip" grouped={true} />
