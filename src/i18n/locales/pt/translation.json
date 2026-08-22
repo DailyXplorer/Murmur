@@ -4,17 +4,15 @@
     "checkUpdates": "Verificar Atualizações...",
     "copyLastTranscript": "Copiar última transcrição",
     "quit": "Sair",
-    "cancel": "Cancelar",
-    "secureInputWarning": "⚠ Atalhos bloqueados pelo Secure Input"
+    "cancel": "Cancelar"
   },
   "sidebar": {
     "general": "Geral",
-    "models": "Modelos",
     "advanced": "Avançado",
-    "postProcessing": "Pós-Processamento",
     "history": "Histórico",
     "debug": "Depuração",
-    "about": "Sobre"
+    "about": "Sobre",
+    "transcription": "Transcrição"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Configurações de {{model}}"
-    },
     "general": {
       "title": "Geral",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "Atalho de Cancelar",
             "description": "O atalho de teclado para cancelar a gravação atual."
-          },
-          "transcribe_with_post_process": {
-            "name": "Tecla de Pós-Processamento",
-            "description": "Opcional: Uma tecla de atalho dedicada que sempre aplica pós-processamento com IA à sua transcrição."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "Pressionar para Falar",
         "description": "Segure para gravar, solte para parar"
       }
-    },
-    "models": {
-      "title": "Modelos de Transcrição",
-      "description": "Selecione um modelo de transcrição ou baixe modelos adicionais. Diferentes modelos oferecem diferentes níveis de precisão e velocidade.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Som",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Palavras Personalizadas",
-        "description": "Ajude os modelos compatíveis a reconhecer nomes e termos especializados. A correção aproximada está atualmente limitada a palavras que usam letras de A–Z e números.",
+        "description": "A correção aproximada está atualmente limitada a palavras que usam letras de A–Z e números.",
         "placeholder": "Adicionar uma palavra",
         "add": "Adicionar",
         "remove": "Remover {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Remover palavras de preenchimento",
         "description": "Remove hesitações comuns das transcrições. Desative para mantê-las."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Tecla de atalho"
-      },
-      "api": {
-        "title": "API (Compatível com OpenAI)",
-        "provider": {
-          "title": "Provedor",
-          "description": "Selecione um provedor compatível com OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence não está disponível neste dispositivo. Requer um Mac Apple Silicon executando macOS Tahoe (26.0) ou posterior com Apple Intelligence habilitado nas Configurações do Sistema."
-        },
-        "baseUrl": {
-          "title": "URL Base",
-          "description": "URL base da API para o provedor selecionado. Apenas o provedor personalizado pode ser editado.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "Chave da API",
-          "description": "Chave da API para o provedor selecionado.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Modelo",
-          "descriptionCustom": "Forneça o identificador do modelo esperado pelo seu endpoint personalizado.",
-          "descriptionDefault": "Escolha um modelo exposto pelo provedor selecionado.",
-          "placeholderWithOptions": "Buscar ou selecionar um modelo",
-          "placeholderNoOptions": "Digite o nome de um modelo",
-          "refreshModels": "Atualizar modelos"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Prompt Selecionado",
-          "description": "Selecione um modelo para refinar transcrições ou crie um novo. Use ${output} dentro do texto do prompt para referenciar a transcrição capturada."
-        },
-        "noPrompts": "Nenhum prompt disponível",
-        "selectPrompt": "Selecionar um prompt",
-        "createNew": "Criar Novo Prompt",
-        "promptLabel": "Rótulo do Prompt",
-        "promptLabelPlaceholder": "Digite o nome do prompt",
-        "promptInstructions": "Instruções do Prompt",
-        "promptInstructionsPlaceholder": "Escreva as instruções para executar após a transcrição. Exemplo: Melhore a gramática e clareza do seguinte texto: ${output}",
-        "promptTip": "Dica: Use <code>${output}</code> para inserir o texto transcrito no seu prompt.",
-        "updatePrompt": "Atualizar Prompt",
-        "deletePrompt": "Excluir Prompt",
-        "createPrompt": "Criar Prompt",
-        "cancel": "Cancelar",
-        "selectToEdit": "Selecione um prompt acima para visualizar e editar seus detalhes.",
-        "createFirst": "Clique em 'Criar Novo Prompt' acima para criar seu primeiro prompt de pós-processamento."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Microfone em Modo Fechado",
         "description": "Microfone a usar quando a tampa do laptop está fechada"
       },
-      "postProcessingToggle": {
-        "label": "Pós-Processamento",
-        "description": "Habilitar refinamento de texto com IA após a transcrição"
-      },
       "muteWhileRecording": {
         "label": "Silenciar Durante Gravação",
         "description": "Silenciar áudio do sistema durante a gravação"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Adicionar Espaço Final",
         "description": "Adicionar um espaço após a transcrição colada"
-      },
-      "keyboardImplementation": {
-        "title": "Implementação do Teclado",
-        "description": "Escolha o sistema responsável pelos atalhos de teclado.",
-        "bindingsReset": "Os atalhos de teclado eram incompatíveis e foram redefinidos para os padrões"
-      },
-      "paths": {
-        "appData": "Dados do App:",
-        "models": "Modelos:",
-        "settings": "Configurações:"
       },
       "pasteDelay": {
         "title": "Atraso de colagem (antes)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Buffer de gravação extra",
         "description": "Tempo extra (em milissegundos) para continuar gravando após soltar a tecla, para capturar áudio restante. 0 = sem buffer extra."
-      },
-      "keyboardDiagnostic": {
-        "title": "Diagnóstico do teclado",
-        "description": "Verifica se os eventos de teclado chegam ao Murmur. Apenas a contagem de eventos é registrada — nunca quais teclas você pressiona.",
-        "run": "Executar diagnóstico de 10 s",
-        "running": "Ouvindo… pressione seu atalho algumas vezes (ex.: Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "ativado",
-        "disabled": "desativado",
-        "holder": "retido por {{name}} (pid {{pid}})",
-        "holderUnknown": "sem responsável visível",
-        "keyDown": "Tecla pressionada",
-        "keyUp": "Tecla liberada",
-        "flagsChanged": "Modificadores",
-        "mouse": "Mouse",
-        "verdictBlocked": "O Secure Input está bloqueando os eventos de tecla — atalhos que incluem uma tecla normal não funcionam até que isso seja resolvido.",
-        "verdictSuspicious": "Chegaram eventos de modificadores, mas nenhum evento de tecla — algo está suprimindo as teclas mesmo com o Secure Input indicando desativado. Por favor, relate isso no GitHub.",
-        "verdictOk": "Os eventos de tecla estão chegando normalmente ao Murmur.",
-        "verdictNoEvents": "Nenhum evento capturado — você pressionou alguma tecla durante o teste?",
-        "failed": "Falha no diagnóstico: {{error}}"
       },
       "whatsNewPreview": {
         "title": "Pré-visualizar novidades",
@@ -434,6 +328,14 @@
         "label": "Mostrar novidades",
         "description": "Mostrar notas de versão após atualizações do Murmur"
       }
+    },
+    "transcription": {
+      "title": "Transcrição",
+      "sessionTitle": "Codex",
+      "sessionDescription": "O áudio é enviado para o mesmo serviço de transcrição na nuvem usado pelo Codex. Inicie sessão na aplicação Codex se aqui aparecer como desligado.",
+      "checking": "Verificando a sessão…",
+      "ready": "Conectado",
+      "missing": "Sem sessão iniciada"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Preparando...",
     "checkForUpdates": "Verificar atualizações",
     "portableUpdateTitle": "Atualização manual necessária",
-    "portableUpdateMessage": "Instalações portáteis não podem ser atualizadas automaticamente. Baixe abaixo o instalador para o seu sistema, execute-o e instale na mesma pasta — a sua pasta Data/ (configurações, modelos, gravações) é mantida.",
+    "portableUpdateMessage": "Instalações portáteis não podem ser atualizadas automaticamente. Baixe abaixo o instalador para o seu sistema, execute-o e instale na mesma pasta — a sua pasta Data/ é mantida.",
     "portableUpdateButton": "Baixar instalador",
-    "portableUpdateBrowseMessage": "Instalações portáteis não podem ser atualizadas automaticamente. Baixe a versão mais recente para o seu sistema no GitHub Releases e instale-a na mesma pasta — a sua pasta Data/ (configurações, modelos, gravações) é mantida.",
+    "portableUpdateBrowseMessage": "Instalações portáteis não podem ser atualizadas automaticamente. Baixe a versão mais recente para o seu sistema no GitHub Releases e instale-a na mesma pasta — a sua pasta Data/ é mantida.",
     "portableUpdateBrowseButton": "Abrir GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Nenhum microfone encontrado",
     "noInputDevice": "Nenhum dispositivo de entrada de áudio foi detectado. Conecte um microfone ou fone de ouvido e tente novamente.",
     "recordingFailed": "Falha ao iniciar a gravação: {{error}}",
-    "modelLoadFailed": "Falha ao carregar o modelo: {{model}}",
-    "modelLoadFailedUnknown": "modelo desconhecido",
     "pasteFailedTitle": "Falha ao colar o texto",
     "pasteFailed": "Não foi possível colar o texto no aplicativo ativo.",
     "transcriptionFailedTitle": "Falha na transcrição"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcrevendo...",
-    "processing": "Processando..."
+    "transcribing": "Transcrevendo..."
   },
   "whatsNew": {
     "title": "Novidades no Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} pode estar bloqueando 1 atalho",
-    "blockedWithCulprit_other": "{{name}} pode estar bloqueando {{count}} atalhos",
-    "blockedNoCulprit_one": "O macOS está bloqueando temporariamente 1 atalho",
-    "blockedNoCulprit_other": "O macOS está bloqueando temporariamente {{count}} atalhos",
-    "recorderBlockedWithCulprit": "{{name}} pode estar bloqueando alterações nos atalhos",
-    "recorderBlockedNoCulprit": "O macOS está bloqueando temporariamente alterações nos atalhos",
-    "learnMore": "Como resolver isso",
-    "recorderBlocked": "Não é possível gravar atalhos agora — o Secure Input do macOS está bloqueando os eventos de tecla. Resolva primeiro o aviso do Secure Input.",
-    "dismiss": "Dispensar"
   }
 }

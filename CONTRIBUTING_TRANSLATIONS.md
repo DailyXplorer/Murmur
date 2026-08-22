@@ -120,24 +120,24 @@ Found a typo or better translation?
 
 ### Don't:
 
-- Translate brand names (Murmur, transcribe.cpp, ggml, OpenAI)
+- Translate brand names (Murmur, Codex, ChatGPT, OpenAI)
 - Change or remove `{{variables}}`
 - Modify JSON keys
 - Add extra spaces or formatting
 
 ### Handling Variables
 
-Some strings contain variables like `{{error}}` or `{{model}}`. Keep these exactly as-is:
+Some strings contain variables like `{{error}}` or `{{version}}`. Keep these exactly as-is:
 
 ```json
 // English
-"downloadModel": "Failed to download model: {{error}}"
+"requestFailed": "Transcription failed: {{error}}"
 
 // French (correct)
-"downloadModel": "Échec du téléchargement du modèle : {{error}}"
+"requestFailed": "Échec de la transcription : {{error}}"
 
 // French (incorrect - don't translate the variable!)
-"downloadModel": "Échec du téléchargement du modèle : {{erreur}}"
+"requestFailed": "Échec de la transcription : {{erreur}}"
 ```
 
 ### Handling Plurals

@@ -16,10 +16,6 @@ pub struct CliArgs {
     #[arg(long)]
     pub toggle_transcription: bool,
 
-    /// Toggle transcription with post-processing on/off (sent to running instance)
-    #[arg(long)]
-    pub toggle_post_process: bool,
-
     /// Cancel the current operation (sent to running instance)
     #[arg(long)]
     pub cancel: bool,
@@ -32,25 +28,6 @@ pub struct CliArgs {
     /// batch transcription path as the app — no mic, no download.
     #[arg(short = 'f', long, value_name = "WAV")]
     pub transcribe_file: Option<PathBuf>,
-
-    #[arg(long, hide = true)]
-    pub model: Option<String>,
-
-    #[arg(long, value_name = "N", hide = true)]
-    pub device_index: Option<usize>,
-
-    /// Print the transcription backend and exit.
-    #[arg(long)]
-    pub list_devices: bool,
-
-    /// List the available models (with ids) and exit. Pass an id to --model.
-    /// Honors --json for machine-readable output.
-    #[arg(long)]
-    pub list_models: bool,
-
-    /// Repeat the transcription N times (best_ms reports the fastest run).
-    #[arg(long, value_name = "N")]
-    pub repeat: Option<usize>,
 
     /// Emit --transcribe-file results as JSON.
     #[arg(long)]

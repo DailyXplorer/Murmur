@@ -6,8 +6,9 @@
 /* Register the shared color tokens (src/styles/theme.css) as Tailwind
    utilities */
 @theme inline {
-  --font-sans: "Instrument Sans Variable", "Instrument Sans", ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans:
+    "Instrument Sans Variable", "Instrument Sans", ui-sans-serif, system-ui,
+    sans-serif;
   --color-text: var(--color-text);
   --color-background: var(--color-background);
   --color-background-ui: var(--color-background-ui);

@@ -16,7 +16,7 @@ import { commands, type Theme } from "@/bindings";
  * avoiding a flash of the wrong palette.
  */
 
-export const THEME_STORAGE_KEY = "handy.theme";
+export const THEME_STORAGE_KEY = "murmur.theme";
 
 export const THEME_OPTIONS: Theme[] = ["system", "light", "dark"];
 

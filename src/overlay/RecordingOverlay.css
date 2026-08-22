@@ -3,8 +3,9 @@
 @import "../styles/theme.css";
 
 :root {
-  --s-font: "Instrument Sans Variable", "Instrument Sans", ui-sans-serif,
-    system-ui, sans-serif;
+  --s-font:
+    "Instrument Sans Variable", "Instrument Sans", ui-sans-serif, system-ui,
+    sans-serif;
   font-family: var(--s-font);
   /* Near-opaque app surface (theme.css --color-background at 98%). Auto-flips
      light/dark with --color-background, so no dark-mode override is needed. */

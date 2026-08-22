@@ -60,7 +60,7 @@ Murmur follows a clean architecture pattern:
 **Backend (Rust - `src-tauri/src/`):**
 
 - `lib.rs` - Main application entry point with Tauri setup
-- `managers/` - Core business logic (audio, model, transcription)
+- `managers/` - Core business logic (audio, transcription, history)
 - `audio_toolkit/` - Low-level audio processing (recording, resampling)
 - `commands/` - Tauri command handlers for frontend communication
 - `shortcut.rs` - Global keyboard shortcut handling
@@ -114,7 +114,6 @@ We use GitHub Discussions for feature requests rather than issues. This keeps is
 
 1. **Search existing discussions** at [github.com/DailyXplorer/Murmur/discussions](https://github.com/DailyXplorer/Murmur/discussions)
 2. **Check common feature requests**:
-   - [Post-processing / Editing Transcripts](https://github.com/DailyXplorer/Murmur/discussions/168)
    - [Keyboard Shortcuts / Hotkeys](https://github.com/DailyXplorer/Murmur/discussions/211)
 
 ### Submitting a Feature Request

@@ -7,10 +7,9 @@ import {
   checkAccessibilityPermission,
   checkMicrophonePermission,
 } from "tauri-plugin-macos-permissions-api";
-import { ModelStateEvent, RecordingErrorEvent } from "./lib/types/events";
+import { RecordingErrorEvent } from "./lib/types/events";
 import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
-import SecureInputWarning from "./components/SecureInputWarning";
 import Footer from "./components/footer";
 import { AccessibilityOnboarding } from "./components/onboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -136,25 +135,6 @@ function App() {
     };
   }, [t]);
 
-  useEffect(() => {
-    const unlisten = listen<ModelStateEvent>("model-state-changed", (event) => {
-      if (event.payload.event_type === "loading_failed") {
-        toast.error(
-          t("errors.modelLoadFailed", {
-            model:
-              event.payload.model_name || t("errors.modelLoadFailedUnknown"),
-          }),
-          {
-            description: event.payload.error,
-          },
-        );
-      }
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [t]);
-
   const revealMainWindowForPermissions = async () => {
     try {
       await commands.showMainWindowCommand();
@@ -217,18 +197,23 @@ function App() {
 
   const handleAccessibilityComplete = async () => {
     try {
-      let result = await commands.setActiveModel("codex");
-      if (result.status === "error") {
-        console.warn("Failed to activate Codex transcription:", result.error);
-        result = await commands.setActiveModel("codex");
+      const auth = await commands.getCodexAuthStatus();
+      if (!auth.signed_in) {
+        toast.error(t("settings.transcription.missing"), {
+          description: t("settings.transcription.sessionDescription"),
+        });
+        return;
       }
+      const result = await commands.completeOnboarding();
       if (result.status === "error") {
-        toast.error(t("errors.modelLoadFailed", { model: "Codex" }), {
+        toast.error(t("errors.transcriptionFailedTitle"), {
           description: result.error,
         });
+        return;
       }
     } catch (e) {
-      console.warn("Failed to activate Codex transcription:", e);
+      console.warn("Failed to complete onboarding:", e);
+      return;
     }
     setOnboardingStep("done");
   };
@@ -277,7 +262,6 @@ function App() {
             <div className="flex-1 overflow-y-auto">
               <div className="flex flex-col items-center p-4 gap-4">
                 <AccessibilityPermissions />
-                <SecureInputWarning />
                 {renderSettingsContent(currentSection)}
               </div>
             </div>

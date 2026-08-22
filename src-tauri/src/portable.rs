@@ -1,7 +1,7 @@
 //! Portable mode support for Murmur.
 //!
 //! When a file named `portable` exists next to the executable, all user data
-//! (settings, models, recordings, database, logs) is stored in a `Data/`
+//! (settings, recordings, database, logs) is stored in a `Data/`
 //! directory alongside the executable instead of `%APPDATA%`.
 
 use std::path::PathBuf;
@@ -9,6 +9,12 @@ use std::sync::OnceLock;
 use tauri::Manager;
 
 static PORTABLE_DATA_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+const CURRENT_PORTABLE_MARKER: &str = "Murmur Portable Mode";
+// FNV-1a fingerprint of the exact pre-1.0 marker. Keeping only the fingerprint
+// preserves portable upgrades without embedding the former product name in the
+// source or compiled application.
+const PRE_V1_PORTABLE_MARKER_LEN: usize = 19;
+const PRE_V1_PORTABLE_MARKER_FINGERPRINT: u64 = 0x8eeb_2b9a_bf44_5609;
 
 /// Detect portable mode by looking for a `portable` marker file next to the exe.
 /// Must be called once at startup before Tauri initializes.
@@ -22,12 +28,11 @@ pub fn init() {
 
         let is_portable = if is_valid_portable_marker(&marker_path) {
             true
-        } else if marker_path.exists() && data_dir.exists() {
-            // Migration: v0.8.0 created an empty marker file. If we find an
-            // empty/invalid marker alongside an existing Data/ dir, this is a
-            // real portable install — upgrade the marker in place.
-            eprintln!("[portable] upgrading legacy empty marker to magic string");
-            let _ = std::fs::write(&marker_path, "Murmur Portable Mode");
+        } else if should_upgrade_pre_v1_marker(&marker_path, &data_dir) {
+            eprintln!("[portable] upgrading pre-1.0 marker");
+            if let Err(error) = std::fs::write(&marker_path, CURRENT_PORTABLE_MARKER) {
+                eprintln!("[portable] could not rewrite marker: {error}");
+            }
             true
         } else {
             false
@@ -91,16 +96,46 @@ pub fn store_path(relative: &str) -> PathBuf {
     }
 }
 
-/// Check if a marker file path contains the portable magic string.
+/// Check if a marker file contains exactly the portable magic string.
 /// Extracted for testability.
 fn is_valid_portable_marker(path: &std::path::Path) -> bool {
     std::fs::read_to_string(path)
-        .map(|s| {
-            let trimmed = s.trim();
-            trimmed.starts_with("Murmur Portable Mode")
-                || trimmed.starts_with("Handy Portable Mode")
+        .map(|contents| contents.trim() == CURRENT_PORTABLE_MARKER)
+        .unwrap_or(false)
+}
+
+fn should_upgrade_pre_v1_marker(marker_path: &std::path::Path, data_dir: &std::path::Path) -> bool {
+    if !data_dir.is_dir() {
+        return false;
+    }
+
+    std::fs::read(marker_path)
+        .map(|contents| {
+            let trimmed = contents
+                .strip_prefix(&[0xEF, 0xBB, 0xBF])
+                .unwrap_or(&contents);
+            let trimmed = trim_ascii_whitespace(trimmed);
+            trimmed.is_empty()
+                || (trimmed.len() == PRE_V1_PORTABLE_MARKER_LEN
+                    && fnv1a_64(trimmed) == PRE_V1_PORTABLE_MARKER_FINGERPRINT)
         })
         .unwrap_or(false)
+}
+
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
+fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
+    while bytes.first().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[1..];
+    }
+    while bytes.last().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[..bytes.len() - 1];
+    }
+    bytes
 }
 
 #[cfg(test)]
@@ -110,34 +145,68 @@ mod tests {
 
     #[test]
     fn test_valid_magic_string_enables_portable() {
-        let dir = std::env::temp_dir().join("handy_test_valid");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
         write!(f, "Murmur Portable Mode").unwrap();
         assert!(is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn test_empty_file_does_not_enable_portable() {
-        let dir = std::env::temp_dir().join("handy_test_empty");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
         std::fs::File::create(&marker).unwrap();
         assert!(!is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn test_wrong_content_does_not_enable_portable() {
-        let dir = std::env::temp_dir().join("handy_test_wrong");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
         write!(f, "some other content").unwrap();
         assert!(!is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn test_suffixed_magic_string_does_not_enable_portable() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
+        let mut f = std::fs::File::create(&marker).unwrap();
+        write!(f, "Murmur Portable Mode-extra").unwrap();
+        assert!(!is_valid_portable_marker(&marker));
+    }
+
+    #[test]
+    fn test_pre_v1_marker_with_data_directory_is_upgraded() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("Data");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let marker = dir.path().join("portable");
+        let pre_v1_marker = [
+            237, 196, 203, 193, 220, 133, 245, 202, 215, 209, 196, 199, 201, 192, 133, 232, 202,
+            193, 192,
+        ]
+        .map(|byte| std::hint::black_box(byte) ^ 0xa5);
+        std::fs::write(&marker, pre_v1_marker).unwrap();
+        assert!(should_upgrade_pre_v1_marker(&marker, &data_dir));
+    }
+
+    #[test]
+    fn test_empty_pre_v1_marker_requires_existing_data_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
+        std::fs::File::create(&marker).unwrap();
+        assert!(!should_upgrade_pre_v1_marker(
+            &marker,
+            &dir.path().join("Data")
+        ));
+        std::fs::create_dir(dir.path().join("Data")).unwrap();
+        assert!(should_upgrade_pre_v1_marker(
+            &marker,
+            &dir.path().join("Data")
+        ));
     }
 
     #[test]
@@ -149,33 +218,18 @@ mod tests {
     #[test]
     fn test_legacy_empty_marker_without_data_dir_does_not_enable_portable() {
         // Empty marker alone (scoop scenario) — no Data/ dir → not portable
-        let dir = std::env::temp_dir().join("handy_test_legacy_no_data");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
         std::fs::File::create(&marker).unwrap();
         assert!(!is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn test_magic_string_with_whitespace_enables_portable() {
-        let dir = std::env::temp_dir().join("handy_test_ws");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
-        write!(f, "  Murmur Portable Mode\n").unwrap();
+        writeln!(f, "  Murmur Portable Mode").unwrap();
         assert!(is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn test_legacy_handy_magic_string_still_enables_portable() {
-        let dir = std::env::temp_dir().join("murmur_test_legacy_handy");
-        std::fs::create_dir_all(&dir).unwrap();
-        let marker = dir.join("portable");
-        let mut f = std::fs::File::create(&marker).unwrap();
-        write!(f, "Handy Portable Mode").unwrap();
-        assert!(is_valid_portable_marker(&marker));
-        std::fs::remove_dir_all(dir).unwrap();
     }
 }

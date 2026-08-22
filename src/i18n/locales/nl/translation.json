@@ -4,17 +4,15 @@
     "checkUpdates": "Controleren op updates...",
     "copyLastTranscript": "Laatste transcriptie kopiëren",
     "quit": "Afsluiten",
-    "cancel": "Annuleren",
-    "secureInputWarning": "⚠ Sneltoetsen geblokkeerd door Secure Input"
+    "cancel": "Annuleren"
   },
   "sidebar": {
     "general": "Algemeen",
-    "models": "Modellen",
     "advanced": "Geavanceerd",
-    "postProcessing": "Naverwerking",
     "history": "Geschiedenis",
     "debug": "Probleemoplossing",
-    "about": "Over Murmur"
+    "about": "Over Murmur",
+    "transcription": "Transcriptie"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Instellingen voor {{model}}"
-    },
     "general": {
       "title": "Algemeen",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "Sneltoets voor annuleren",
             "description": "De sneltoets om de huidige opname te annuleren."
-          },
-          "transcribe_with_post_process": {
-            "name": "Sneltoets voor naverwerking",
-            "description": "Optioneel: Een specifieke sneltoets die altijd AI-naverwerking toepast op je transcriptie."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "Push-to-talk",
         "description": "Ingedrukt houden om op te nemen, loslaten om te stoppen"
       }
-    },
-    "models": {
-      "title": "Transcriptiemodellen",
-      "description": "Selecteer een transcriptiemodel of download extra modellen. Verschillende modellen bieden variërende niveaus van nauwkeurigheid en snelheid.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Geluid",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Eigen woordenlijst",
-        "description": "Help ondersteunde modellen namen en vaktermen te herkennen. Fuzzy-correctie is momenteel beperkt tot woorden met de letters A–Z en cijfers.",
+        "description": "Fuzzy-correctie is momenteel beperkt tot woorden met de letters A–Z en cijfers.",
         "placeholder": "Woord toevoegen",
         "add": "Toevoegen",
         "remove": "{{word}} verwijderen",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Opvulwoorden verwijderen",
         "description": "Verwijdert veelvoorkomende aarzelwoorden uit transcripties. Schakel dit uit om ze te behouden."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Sneltoets"
-      },
-      "api": {
-        "title": "API (OpenAI-compatibel)",
-        "provider": {
-          "title": "Provider",
-          "description": "Selecteer een OpenAI-compatibele provider."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence is niet beschikbaar op dit apparaat. Vereist een Apple Silicon Mac met macOS Tahoe (26.0) of nieuwer waarop Apple Intelligence is ingeschakeld via de Systeeminstellingen."
-        },
-        "baseUrl": {
-          "title": "Basis-URL",
-          "description": "API-basis-URL voor de geselecteerde provider. Alleen de aangepaste provider kan worden bewerkt.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API-sleutel",
-          "description": "API-sleutel voor de geselecteerde provider.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Model",
-          "descriptionCustom": "Geef de model-ID op die door je aangepaste eindpunt wordt verwacht.",
-          "descriptionDefault": "Kies een model dat door de geselecteerde provider wordt aangeboden.",
-          "placeholderWithOptions": "Zoek of selecteer een model",
-          "placeholderNoOptions": "Typ een modelnaam",
-          "refreshModels": "Modellen verversen"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Geselecteerde prompt",
-          "description": "Selecteer een sjabloon voor het verfijnen van transcripties of maak een nieuwe aan. Gebruik ${output} in de prompttekst om naar de gemaakte transcriptie te verwijzen."
-        },
-        "noPrompts": "Geen prompts beschikbaar",
-        "selectPrompt": "Selecteer een prompt",
-        "createNew": "Nieuwe prompt maken",
-        "promptLabel": "Promptnaam",
-        "promptLabelPlaceholder": "Voer promptnaam in",
-        "promptInstructions": "Prompt-instructies",
-        "promptInstructionsPlaceholder": "Schrijf de instructies die na de transcriptie moeten worden uitgevoerd. Voorbeeld: Verbeter de grammatica en helderheid van de volgende tekst: ${output}",
-        "promptTip": "Tip: Gebruik <code>${output}</code> om de getranscribeerde tekst in je prompt in te voegen.",
-        "updatePrompt": "Prompt bijwerken",
-        "deletePrompt": "Prompt verwijderen",
-        "createPrompt": "Prompt maken",
-        "cancel": "Annuleren",
-        "selectToEdit": "Selecteer hierboven een prompt om de details te bekijken en te bewerken.",
-        "createFirst": "Klik hierboven op 'Nieuwe prompt maken' om je eerste naverwerkingsprompt aan te maken."
       }
     },
     "history": {
@@ -351,10 +279,6 @@
         "title": "Clamshell-microfoon",
         "description": "Microfoon die gebruikt moet worden wanneer het laptopscherm gesloten is"
       },
-      "postProcessingToggle": {
-        "label": "Naverwerking",
-        "description": "Schakel AI-gestuurde tekstverfijning in na transcriptie"
-      },
       "muteWhileRecording": {
         "label": "Dempen tijdens opname",
         "description": "Systeemgeluid dempen tijdens het opnemen"
@@ -362,16 +286,6 @@
       "appendTrailingSpace": {
         "label": "Spatie achteraan toevoegen",
         "description": "Voeg een spatie toe na de geplakte transcriptie"
-      },
-      "keyboardImplementation": {
-        "title": "Toetsenbord-implementatie",
-        "description": "Kies de backend voor sneltoetsen.",
-        "bindingsReset": "Sneltoetsen waren incompatibel en zijn teruggezet naar de standaardwaarden"
-      },
-      "paths": {
-        "appData": "App-data:",
-        "models": "Modellen:",
-        "settings": "Instellingen:"
       },
       "pasteDelay": {
         "title": "Plakvertraging (voor)",
@@ -388,26 +302,6 @@
       "recordingBuffer": {
         "title": "Extra opnamebuffer",
         "description": "Extra tijd (in milliseconden) om te blijven opnemen nadat je de toets loslaat, om naloopaudio op te vangen. 0 = geen extra buffer."
-      },
-      "keyboardDiagnostic": {
-        "title": "Toetsenborddiagnose",
-        "description": "Controleert of toetsenbordgebeurtenissen Murmur bereiken. Alleen het aantal gebeurtenissen wordt vastgelegd — nooit welke toetsen je indrukt.",
-        "run": "Diagnose van 10 s uitvoeren",
-        "running": "Luisteren… druk je sneltoets een paar keer in (bijv. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "ingeschakeld",
-        "disabled": "uitgeschakeld",
-        "holder": "vastgehouden door {{name}} (pid {{pid}})",
-        "holderUnknown": "geen zichtbare veroorzaker",
-        "keyDown": "Toets ingedrukt",
-        "keyUp": "Toets losgelaten",
-        "flagsChanged": "Modificatietoetsen",
-        "mouse": "Muis",
-        "verdictBlocked": "Secure Input blokkeert toetsgebeurtenissen — sneltoetsen met een gewone toets kunnen pas weer werken als dit is opgelost.",
-        "verdictSuspicious": "Er kwamen wel modificatiegebeurtenissen binnen, maar geen toetsgebeurtenissen — iets onderdrukt toetsen terwijl Secure Input als uitgeschakeld wordt gemeld. Meld dit op GitHub.",
-        "verdictOk": "Toetsgebeurtenissen bereiken Murmur normaal.",
-        "verdictNoEvents": "Geen gebeurtenissen vastgelegd — heb je tijdens de test toetsen ingedrukt?",
-        "failed": "Diagnose mislukt: {{error}}"
       }
     },
     "about": {
@@ -434,6 +328,14 @@
         "description": "Help ons om te blijven bouwen aan Murmur",
         "button": "Doneren"
       }
+    },
+    "transcription": {
+      "title": "Transcriptie",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio wordt verzonden naar dezelfde cloudtranscriptieservice die Codex gebruikt. Meld je aan bij de Codex-app als hier 'niet verbonden' staat.",
+      "checking": "Sessie controleren…",
+      "ready": "Verbonden",
+      "missing": "Niet aangemeld"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Voorbereiden...",
     "checkForUpdates": "Controleren op updates",
     "portableUpdateTitle": "Handmatige update vereist",
-    "portableUpdateMessage": "Draagbare (portable) installaties kunnen niet automatisch worden bijgewerkt. Download hieronder het installatiebestand voor je systeem, voer het uit en installeer in dezelfde map — je Data/-map (instellingen, modellen, opnames) blijft behouden.",
+    "portableUpdateMessage": "Draagbare installaties kunnen niet automatisch worden bijgewerkt. Download hieronder het installatiebestand voor je systeem, voer het uit en installeer in dezelfde map — je Data/-map blijft behouden.",
     "portableUpdateButton": "Installatiebestand downloaden",
-    "portableUpdateBrowseMessage": "Draagbare (portable) installaties kunnen niet automatisch worden bijgewerkt. Download de nieuwste versie voor je systeem van GitHub Releases en installeer die in dezelfde map — je Data/-map (instellingen, modellen, opnames) blijft behouden.",
+    "portableUpdateBrowseMessage": "Draagbare installaties kunnen niet automatisch worden bijgewerkt. Download de nieuwste versie voor je systeem van GitHub Releases en installeer die in dezelfde map — je Data/-map blijft behouden.",
     "portableUpdateBrowseButton": "GitHub Releases openen"
   },
   "whatsNew": {
@@ -479,8 +381,6 @@
     "noInputDeviceTitle": "Geen microfoon gevonden",
     "noInputDevice": "Er is geen audio-invoerapparaat gedetecteerd. Sluit een microfoon of headset aan en probeer het opnieuw.",
     "recordingFailed": "Opname starten mislukt: {{error}}",
-    "modelLoadFailed": "Model laden mislukt: {{model}}",
-    "modelLoadFailedUnknown": "onbekend model",
     "pasteFailedTitle": "Tekst plakken mislukt",
     "pasteFailed": "Tekst kon niet worden geplakt in de actieve applicatie.",
     "transcriptionFailedTitle": "Transcriptie mislukt"
@@ -499,18 +399,6 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcriberen...",
-    "processing": "Verwerken..."
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",
-    "blockedWithCulprit_other": "{{name}} blokkeert mogelijk {{count}} sneltoetsen",
-    "blockedNoCulprit_one": "macOS blokkeert tijdelijk 1 sneltoets",
-    "blockedNoCulprit_other": "macOS blokkeert tijdelijk {{count}} sneltoetsen",
-    "recorderBlockedWithCulprit": "{{name}} blokkeert mogelijk wijzigingen aan sneltoetsen",
-    "recorderBlockedNoCulprit": "macOS blokkeert tijdelijk wijzigingen aan sneltoetsen",
-    "learnMore": "Hoe je dit oplost",
-    "recorderBlocked": "Sneltoetsen kunnen nu niet worden opgenomen — Secure Input van macOS blokkeert toetsgebeurtenissen. Los eerst de Secure Input-waarschuwing op.",
-    "dismiss": "Sluiten"
+    "transcribing": "Transcriberen..."
   }
 }

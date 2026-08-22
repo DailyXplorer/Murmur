@@ -1,15 +1,14 @@
 use anyhow::{anyhow, Context, Result};
+use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 use hound::WavSpec;
-use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcribe";
-const TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const SAMPLE_RATE: u32 = 16_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -19,28 +18,15 @@ pub struct CodexAuthStatus {
 
 #[derive(Debug, Deserialize)]
 struct AuthFile {
-    #[serde(rename = "OPENAI_API_KEY")]
-    openai_api_key: Option<String>,
     #[serde(default)]
     tokens: Option<AuthTokens>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct AuthTokens {
     access_token: String,
     #[serde(default)]
-    refresh_token: Option<String>,
-    #[serde(default)]
     account_id: Option<String>,
-    #[serde(default)]
-    id_token: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RefreshResponse {
-    access_token: Option<String>,
-    refresh_token: Option<String>,
-    id_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,19 +53,7 @@ pub fn transcribe(samples: &[f32], language: Option<&str>) -> Result<String> {
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
     let session = load_session()?;
-    match transcribe_with_session(&session, &wav, language) {
-        Ok(text) => Ok(text),
-        Err(err) if is_unauthorized(&err) => {
-            info!("Codex transcription got an unauthorized response, refreshing session");
-            let refreshed = refresh_session(&session)?;
-            transcribe_with_session(&refreshed, &wav, language)
-        }
-        Err(err) => Err(err),
-    }
-}
-
-fn is_unauthorized(err: &anyhow::Error) -> bool {
-    err.to_string().contains("401")
+    transcribe_with_session(&session, &wav, language)
 }
 
 fn transcribe_with_session(
@@ -89,6 +63,8 @@ fn transcribe_with_session(
 ) -> Result<String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent(user_agent())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(90))
         .build()
         .context("failed to build transcription HTTP client")?;
 
@@ -124,8 +100,13 @@ fn transcribe_with_session(
         .context("failed to read Codex transcription response")?;
 
     if !status.is_success() {
-        let preview: String = body.chars().take(300).collect();
-        return Err(anyhow!("Codex transcription failed ({status}): {preview}"));
+        return if status.as_u16() == 401 {
+            Err(anyhow!(
+                "Codex transcription session expired. Open Codex, sign in again, and retry."
+            ))
+        } else {
+            Err(anyhow!("Codex transcription failed with HTTP {status}"))
+        };
     }
 
     parse_transcript(&body)
@@ -164,8 +145,7 @@ fn load_session() -> Result<Session> {
             path.display()
         )
     })?;
-    let auth: AuthFile =
-        serde_json::from_str(&raw).context("failed to parse ~/.codex/auth.json")?;
+    let auth = parse_auth_file(&raw, &path)?;
 
     if let Some(tokens) = auth.tokens.filter(|tokens| !tokens.access_token.is_empty()) {
         let account_id = tokens
@@ -178,118 +158,24 @@ fn load_session() -> Result<Session> {
         });
     }
 
-    let _ = auth.openai_api_key;
     Err(anyhow!(
-        "Codex/ChatGPT session is missing. Open the Codex app and sign in, then try again."
+        "A ChatGPT subscription session is required. Sign in to Codex with ChatGPT and configure Codex to store credentials in auth.json."
     ))
 }
 
-fn refresh_session(current: &Session) -> Result<Session> {
-    let path = auth_path()?;
-    let raw = fs::read_to_string(&path).context("failed to read Codex auth.json for refresh")?;
-    let mut auth: serde_json::Value =
-        serde_json::from_str(&raw).context("failed to parse Codex auth.json for refresh")?;
-
-    let refresh_token = auth
-        .get("tokens")
-        .and_then(|tokens| tokens.get("refresh_token"))
-        .and_then(|value| value.as_str())
-        .filter(|token| !token.is_empty())
-        .ok_or_else(|| anyhow!("Codex session has no refresh token"))?
-        .to_string();
-
-    let client_id = jwt_claim(&current.access_token, "client_id")
-        .ok_or_else(|| anyhow!("Codex access token is missing client_id"))?;
-
-    let client = reqwest::blocking::Client::builder()
-        .user_agent(user_agent())
-        .build()
-        .context("failed to build auth refresh client")?;
-
-    let response = client
-        .post(TOKEN_URL)
-        .json(&serde_json::json!({
-            "client_id": client_id,
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "scope": "openid profile email"
-        }))
-        .send()
-        .context("Codex token refresh request failed")?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .context("failed to read token refresh body")?;
-    if !status.is_success() {
-        let preview: String = body.chars().take(200).collect();
-        return Err(anyhow!("Codex token refresh failed ({status}): {preview}"));
-    }
-
-    let parsed: RefreshResponse =
-        serde_json::from_str(&body).context("failed to parse Codex token refresh response")?;
-    let access_token = parsed
-        .access_token
-        .filter(|token| !token.is_empty())
-        .ok_or_else(|| anyhow!("Codex token refresh returned no access token"))?;
-
-    if let Some(tokens) = auth
-        .get_mut("tokens")
-        .and_then(|value| value.as_object_mut())
-    {
-        tokens.insert(
-            "access_token".to_string(),
-            serde_json::Value::String(access_token.clone()),
-        );
-        if let Some(refresh_token) = parsed.refresh_token.filter(|token| !token.is_empty()) {
-            tokens.insert(
-                "refresh_token".to_string(),
-                serde_json::Value::String(refresh_token),
-            );
-        }
-        if let Some(id_token) = parsed.id_token.filter(|token| !token.is_empty()) {
-            tokens.insert("id_token".to_string(), serde_json::Value::String(id_token));
-        }
-    }
-    auth.as_object_mut().map(|object| {
-        object.insert(
-            "last_refresh".to_string(),
-            serde_json::Value::String(now_rfc3339()),
-        )
-    });
-
-    let serialized =
-        serde_json::to_string_pretty(&auth).context("failed to serialize refreshed Codex auth")?;
-    write_auth_file(&path, &serialized)?;
-    debug!("Wrote refreshed Codex session");
-
-    let account_id = current
-        .account_id
-        .clone()
-        .or_else(|| chatgpt_account_id_from_jwt(&access_token));
-
-    Ok(Session {
-        access_token,
-        account_id,
-    })
-}
-
-fn write_auth_file(path: &PathBuf, contents: &str) -> Result<()> {
-    fs::write(path, contents).context("failed to write refreshed Codex auth.json")?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
+fn parse_auth_file(raw: &str, path: &std::path::Path) -> Result<AuthFile> {
+    serde_json::from_str(raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
 fn auth_path() -> Result<PathBuf> {
-    let home = dirs_next_home().ok_or_else(|| anyhow!("HOME is not set"))?;
+    if let Some(codex_home) = std::env::var_os("CODEX_HOME") {
+        return Ok(PathBuf::from(codex_home).join("auth.json"));
+    }
+    let home = user_home().ok_or_else(|| anyhow!("User home directory is not set"))?;
     Ok(home.join(".codex").join("auth.json"))
 }
 
-fn dirs_next_home() -> Option<PathBuf> {
+fn user_home() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
@@ -308,7 +194,7 @@ fn user_agent() -> String {
     } else {
         "x64"
     };
-    format!("Codex Desktop/26.818.32112 ({os}; {arch})")
+    format!("Murmur/{} ({os}; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
 fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
@@ -341,36 +227,33 @@ fn chatgpt_account_id_from_jwt(token: &str) -> Option<String> {
         .map(|value| value.to_string())
 }
 
-fn jwt_claim(token: &str, claim: &str) -> Option<String> {
-    jwt_payload(token)?
-        .get(claim)
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-}
-
 fn jwt_payload(token: &str) -> Option<serde_json::Value> {
     let payload = token.split('.').nth(1)?;
-    let decoded = b64url_decode(payload).ok()?;
+    let decoded = decode_base64url(payload)?;
     serde_json::from_slice(&decoded).ok()
 }
 
-fn b64url_decode(input: &str) -> Result<Vec<u8>> {
-    let mut padded = input.replace('-', "+").replace('_', "/");
-    while !padded.len().is_multiple_of(4) {
-        padded.push('=');
-    }
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD
-        .decode(padded.as_bytes())
-        .context("invalid base64url")
-}
+fn decode_base64url(input: &str) -> Option<Vec<u8>> {
+    let padding_start = input.find('=').unwrap_or(input.len());
+    let padding = &input[padding_start..];
+    let remainder = input.len() % 4;
 
-fn now_rfc3339() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0);
-    format!("{secs}")
+    if !padding.bytes().all(|byte| byte == b'=') || padding.len() > 2 {
+        return None;
+    }
+    if !padding.is_empty() && remainder != 0 {
+        return None;
+    }
+    if padding.is_empty() && remainder == 1 {
+        return None;
+    }
+
+    let mut normalized = input.to_string();
+    if padding.is_empty() {
+        normalized.extend(std::iter::repeat_n('=', (4 - remainder) % 4));
+    }
+
+    URL_SAFE.decode(normalized).ok()
 }
 
 #[cfg(test)]
@@ -391,6 +274,65 @@ mod tests {
             parse_transcript(r#"{"transcript":"Hello"}"#).unwrap(),
             "Hello"
         );
+    }
+
+    #[test]
+    fn parse_plain_text_response() {
+        assert_eq!(
+            parse_transcript("  Bonjour le monde  ").unwrap(),
+            "Bonjour le monde"
+        );
+    }
+
+    #[test]
+    fn reject_json_without_transcript() {
+        assert!(parse_transcript(r#"{"status":"ok"}"#).is_err());
+    }
+
+    #[test]
+    fn normalizes_regional_language_for_request() {
+        assert_eq!(api_language("fr-FR"), "fr");
+        assert_eq!(api_language("zh-Hant"), "zh");
+    }
+
+    #[test]
+    fn extracts_chatgpt_account_id_from_jwt() {
+        let token = "header.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0.signature";
+        assert_eq!(
+            chatgpt_account_id_from_jwt(token).as_deref(),
+            Some("acct_123")
+        );
+    }
+
+    #[test]
+    fn decodes_padded_and_unpadded_base64url() {
+        assert_eq!(decode_base64url("SGVsbG8"), Some(b"Hello".to_vec()));
+        assert_eq!(decode_base64url("SGVsbG8="), Some(b"Hello".to_vec()));
+        assert_eq!(decode_base64url("SGk="), Some(b"Hi".to_vec()));
+        assert_eq!(decode_base64url("SGk"), Some(b"Hi".to_vec()));
+    }
+
+    #[test]
+    fn rejects_malformed_base64url_padding() {
+        for malformed in [
+            "SG=VsbG8",
+            "SGVsbG8===",
+            "SGVsbG8=A",
+            "TQ=",
+            "TQ===",
+            "TQ==A",
+            "A",
+            "SGVsbG8==",
+        ] {
+            assert_eq!(decode_base64url(malformed), None, "accepted {malformed}");
+        }
+    }
+
+    #[test]
+    fn auth_parse_error_names_the_resolved_path() {
+        let path = std::path::Path::new("/custom/codex/auth.json");
+        let error = parse_auth_file("{", path).unwrap_err().to_string();
+        assert!(error.contains("/custom/codex/auth.json"));
     }
 
     #[test]

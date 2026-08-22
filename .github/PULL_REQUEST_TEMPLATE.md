@@ -1,73 +1,36 @@
-## Before Submitting This PR
-
-<!--
-HANDY IS UNDERGOING A FEATURE FREEZE. IF YOU ARE SUBMITTING A PR WHICH IS A NEW FEATURE THAT THE COMMUNITY HAS NOT ASKED FOR: PREPARE TO BE REJECTED. IF THE COMMUNITY HAS ASKED FOR IT, OR YOU HAVE EXPLICITLY GATHERED SUPPORT IT MAY STILL BE CONSIDERED.
-
-BUG FIXES ARE THE TOP PRIORITY. THERE ARE 60+ ISSUES TO FIX.
--->
-
-**Please submit only one fix or feature per pull request. Pull requests containing multiple fixes or features will likely be closed.**
-
-**Please confirm you have done the following:**
-
-- [ ] I have searched [existing issues](https://github.com/DailyXplorer/Murmur/issues) and [pull requests](https://github.com/DailyXplorer/Murmur/pulls) (including closed ones) to ensure this isn't a duplicate
-- [ ] I have read [CONTRIBUTING.md](https://github.com/DailyXplorer/Murmur/blob/main/CONTRIBUTING.md)
-
-**If this is a feature or change that was previously closed/rejected:**
-
-- [ ] I have explained in the description below why this should be reconsidered
-- [ ] I have gathered community feedback (link to discussion below)
-
 ## Human Written Description
 
-<!-- Describe your changes clearly and concisely
+<!-- Required: the contributor must write 2-3 sentences in their own words.
+AI assistants must leave this section as a TODO and must not imitate the
+contributor's voice. -->
 
-Please write 2-3 sentences in your own words explaining:
-- What problem you noticed or idea you had
-- Why you think this change matters
+TODO: contributor-written description
 
-This section should be YOUR thinking, not AI-generated text. Even if AI helped write the code, we want to hear from you directly. Your perspective as a human is what makes contributions meaningful. Your PR may be rejected if you do not
-include a human-written description.
--->
+## Summary
 
-## Related Issues/Discussions
-
-<!-- Link to related issues, discussions, or previous PRs -->
-<!-- If reopening something previously closed, explain why this should be reconsidered -->
-
-Fixes #
-Discussion:
-
-## Community Feedback
-
-<!--
-PRs with community support are much more likely to be merged.
-
-For features: Link to a discussion where community members have expressed interest.
-For bug fixes: Link to the issue where others have confirmed the bug.
-
-If you haven't gathered feedback yet, consider starting a discussion first:
-https://github.com/DailyXplorer/Murmur/discussions
-
-It is not explicitly required to gather feedback, but it certainly helps your PR get merged.
--->
+<!-- Explain the implementation and its boundaries. -->
 
 ## Testing
 
-<!-- Describe how you tested your changes and if you need help getting additional testing -->
+<!-- List the exact checks that were run and their results. -->
 
-## Screenshots/Videos (if applicable)
+## Screenshots or recordings
 
-<!-- Add screenshots or videos demonstrating the change -->
+<!-- Include evidence for visible changes, or write "Not applicable". -->
+
+## Checklist
+
+- [ ] User-facing strings use i18n
+- [ ] Rust and frontend formatting checks pass
+- [ ] Relevant tests pass
+- [ ] Documentation matches the behavior
 
 ## AI Assistance
 
-<!-- AI-assisted PRs are welcome! Just let us know so we can review appropriately. -->
+<!-- Required: select exactly one option. If AI was used, "Tools and scope"
+must name the tools and describe what they changed or reviewed. -->
 
-- [ ] No AI was used in this PR
-- [ ] AI was used (please describe below)
+- [ ] No AI was used
+- [ ] AI was used
 
-**If AI was used:**
-
-- Tools used:
-- How extensively:
+Tools and scope (required when AI was used):

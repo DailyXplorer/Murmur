@@ -75,8 +75,9 @@ pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
 }
 
+/// Returns whether `id` names the sole supported transcription shortcut.
 pub fn is_transcribe_binding(id: &str) -> bool {
-    id == "transcribe" || id == "transcribe_with_post_process"
+    id == "transcribe"
 }
 
 impl TranscriptionCoordinator {
@@ -332,7 +333,7 @@ mod tests {
                 Some("transcribe"),
                 true,
                 true,
-                "transcribe_with_post_process",
+                "different_binding",
                 Some("transcribe")
             ),
             PttAction::Passthrough

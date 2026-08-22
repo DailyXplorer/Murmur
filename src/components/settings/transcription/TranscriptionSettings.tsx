@@ -4,7 +4,7 @@ import { commands } from "@/bindings";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 
-export const ModelsSettings: React.FC = () => {
+export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
@@ -13,14 +13,10 @@ export const ModelsSettings: React.FC = () => {
     commands
       .getCodexAuthStatus()
       .then((status) => {
-        if (!cancelled) {
-          setSignedIn(status.signed_in);
-        }
+        if (!cancelled) setSignedIn(status.signed_in);
       })
       .catch(() => {
-        if (!cancelled) {
-          setSignedIn(false);
-        }
+        if (!cancelled) setSignedIn(false);
       });
     return () => {
       cancelled = true;
@@ -29,18 +25,18 @@ export const ModelsSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
-      <SettingsGroup title={t("settings.models.title")}>
+      <SettingsGroup title={t("settings.transcription.title")}>
         <SettingContainer
-          title={t("settings.models.codexTitle")}
-          description={t("settings.models.codexDescription")}
+          title={t("settings.transcription.sessionTitle")}
+          description={t("settings.transcription.sessionDescription")}
           grouped={true}
         >
           <span className="text-sm text-text/80">
             {signedIn === null
-              ? t("settings.models.codexChecking")
+              ? t("settings.transcription.checking")
               : signedIn
-                ? t("settings.models.codexReady")
-                : t("settings.models.codexMissing")}
+                ? t("settings.transcription.ready")
+                : t("settings.transcription.missing")}
           </span>
         </SettingContainer>
       </SettingsGroup>
