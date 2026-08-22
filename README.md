@@ -4,10 +4,9 @@ Murmur is a cross-platform desktop speech-to-text app for macOS, Windows, and
 Linux. Press a shortcut, speak, and Murmur pastes the transcription into the
 active application.
 
-Murmur has one transcription backend: the cloud transcription service used by
-Codex, authenticated with the ChatGPT session already present on the computer.
-It does not download or run speech-recognition models locally, and it does not
-support API keys, secondary AI providers, or prompt-based rewriting.
+Murmur sends audio to the cloud transcription service used by Codex and
+authenticates with the ChatGPT session already present on the computer. Setup
+requires no API key or local speech-recognition model.
 
 ## Requirements
 
