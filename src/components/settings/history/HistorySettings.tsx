@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { Check, Copy, FolderOpen, RotateCcw, Star, Trash2 } from "lucide-react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
+import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
+import { StarIcon } from "@phosphor-icons/react/dist/csr/Star";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -54,7 +59,7 @@ const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
     className="flex items-center gap-2"
     title={label}
   >
-    <FolderOpen className="w-4 h-4" />
+    <FolderOpenIcon size={15} />
     <span>{label}</span>
   </Button>
 );
@@ -365,11 +370,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             disabled={!hasTranscription || retrying}
             title={t("settings.history.copyToClipboard")}
           >
-            {showCopied ? (
-              <Check width={16} height={16} />
-            ) : (
-              <Copy width={16} height={16} />
-            )}
+            {showCopied ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
           </IconButton>
           <IconButton
             onClick={onToggleSaved}
@@ -381,20 +382,15 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 : t("settings.history.save")
             }
           >
-            <Star
-              width={16}
-              height={16}
-              fill={entry.saved ? "currentColor" : "none"}
-            />
+            <StarIcon size={15} weight={entry.saved ? "fill" : "light"} />
           </IconButton>
           <IconButton
             onClick={handleRetranscribe}
             disabled={retrying}
             title={t("settings.history.retranscribe")}
           >
-            <RotateCcw
-              width={16}
-              height={16}
+            <ArrowCounterClockwiseIcon
+              size={15}
               style={
                 retrying
                   ? { animation: "spin 1s linear infinite reverse" }
@@ -407,7 +403,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             disabled={retrying}
             title={t("settings.history.delete")}
           >
-            <Trash2 width={16} height={16} />
+            <TrashIcon size={15} />
           </IconButton>
         </div>
       </div>

@@ -1,6 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Cloud, Cog, FlaskConical, History, Info, Mic } from "lucide-react";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ClockCounterClockwise";
+import { CloudIcon } from "@phosphor-icons/react/dist/csr/Cloud";
+import { FlaskIcon } from "@phosphor-icons/react/dist/csr/Flask";
+import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
+import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
+import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
+import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -14,17 +20,9 @@ import {
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
-interface IconProps {
-  width?: number | string;
-  height?: number | string;
-  size?: number | string;
-  className?: string;
-  [key: string]: any;
-}
-
 interface SectionConfig {
   labelKey: string;
-  icon: React.ComponentType<IconProps>;
+  icon: Icon;
   component: React.ComponentType;
   enabled: (settings: any) => boolean;
 }
@@ -32,37 +30,37 @@ interface SectionConfig {
 export const SECTIONS_CONFIG = {
   general: {
     labelKey: "sidebar.general",
-    icon: Mic,
+    icon: MicrophoneIcon,
     component: GeneralSettings,
     enabled: () => true,
   },
   history: {
     labelKey: "sidebar.history",
-    icon: History,
+    icon: ClockCounterClockwiseIcon,
     component: HistorySettings,
     enabled: () => true,
   },
   transcription: {
     labelKey: "sidebar.transcription",
-    icon: Cloud,
+    icon: CloudIcon,
     component: TranscriptionSettings,
     enabled: () => true,
   },
   advanced: {
     labelKey: "sidebar.advanced",
-    icon: Cog,
+    icon: GearSixIcon,
     component: AdvancedSettings,
     enabled: () => true,
   },
   debug: {
     labelKey: "sidebar.debug",
-    icon: FlaskConical,
+    icon: FlaskIcon,
     component: DebugSettings,
     enabled: (settings) => settings?.debug_mode ?? false,
   },
   about: {
     labelKey: "sidebar.about",
-    icon: Info,
+    icon: InfoIcon,
     component: AboutSettings,
     enabled: () => true,
   },
@@ -102,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
               onClick={() => onSectionChange(section.id)}
             >
-              <Icon width={24} height={24} className="shrink-0" />
+              <Icon size={20} className="shrink-0" />
               <p
                 className="text-sm font-medium truncate"
                 title={t(section.labelKey)}
