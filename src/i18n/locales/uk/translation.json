@@ -3,8 +3,6 @@
     "settings": "Налаштування...",
     "checkUpdates": "Перевірити оновлення...",
     "copyLastTranscript": "Скопіювати останню транскрипцію",
-    "unloadModel": "Вивантажити модель",
-    "model": "Модель",
     "quit": "Вийти",
     "cancel": "Скасувати",
     "secureInputWarning": "⚠ Комбінації клавіш заблоковано Secure Input"
@@ -19,89 +17,9 @@
     "about": "Інфо"
   },
   "onboarding": {
-    "subtitle": "Для початку оберіть модель транскрипції",
-    "existingModelsTitle": "Сумісні моделі",
-    "downloadModelsTitle": "Доступні для завантаження",
-    "showAllModels": "Показати всі моделі ({{total}})",
-    "showFewerModels": "Показати менше моделей",
-    "recommended": "Рекомендовано",
-    "customModelDescription": "Офіційно не підтримується",
-    "modelCard": {
-      "accuracy": "точність",
-      "speed": "швидкість"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Швидка та досить точна"
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "Хороша точність, середня швидкість"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Збалансована точність та швидкість"
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "Хороша точність, але повільна"
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Лише англійська. Найкраща модель для англомовних"
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Швидка та точна"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Дуже швидкий, лише англійська. Добре справляється з акцентами."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Надшвидкий, лише англійська"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Швидкий, лише англійська. Добрий баланс швидкості та точності."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Лише англійська. Висока якість."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Оптимізовано для тайванської мандаринської. Підтримка перемикання мов."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Дуже швидкий. Китайська, англійська, японська, корейська, кантонська."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Розпізнавання російського мовлення. Швидко і точно."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Дуже швидка. Англійська, німецька, іспанська, французька. Підтримує переклад."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Точна багатомовна. 25 європейських мов. Підтримує переклад."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Велика, повільніша, але дуже точна багатомовна модель."
-      }
-    },
-    "errors": {
-      "selectModel": "Не вдалося вибрати модель"
-    },
     "permissions": {
       "title": "Потрібні дозволи",
-      "description": "Handy потребує деяких дозволів для коректної роботи.",
+      "description": "Murmur потребує деяких дозволів для коректної роботи.",
       "microphone": {
         "title": "Доступ до мікрофона",
         "description": "Потрібен для прослуховування вашого голосу для транскрипції."
@@ -119,40 +37,6 @@
         "requestFailed": "Не вдалося запросити дозвіл. Будь ласка, спробуйте ще раз."
       }
     }
-  },
-  "modelSelector": {
-    "custom": "Користувацька",
-    "streaming": "Потокове",
-    "active": "Активна",
-    "noModelsAvailable": "Немає доступних моделей",
-    "verifying": "Перевірка {{modelName}}...",
-    "verifyingGeneric": "Перевірка...",
-    "extracting": "Розпакування {{modelName}}...",
-    "extractingMultiple": "Розпакування {{count}} моделей...",
-    "extractingGeneric": "Розпакування...",
-    "downloading": "Завантаження {{percentage}}%",
-    "downloadingMultiple": "Завантаження {{count}} моделей...",
-    "modelReady": "Модель готова",
-    "loading": "Завантаження {{modelName}}...",
-    "loadingGeneric": "Завантаження...",
-    "modelError": "Помилка моделі",
-    "modelUnloaded": "Модель вивантажена",
-    "noModelDownloadRequired": "Немає моделі - потрібно завантажити",
-    "deleteModel": "Видалити {{modelName}}",
-    "switching": "Перемикання...",
-    "downloadSpeed": "{{speed}} MB/s",
-    "capabilities": {
-      "languageSelection": "Підтримує кілька мов введення",
-      "languageCount": "{{total}} мов",
-      "translation": "Може перекладати на англійську",
-      "translate": "Перекласти на англійську",
-      "singleLanguage": "Підтримує лише цю мову",
-      "languageOnly": "Лише {{language}}",
-      "streaming": "Показує транскрипцію в реальному часі під час мовлення"
-    },
-    "cancel": "Скасувати",
-    "cancelDownload": "Скасувати завантаження",
-    "legacy": "Застаріле"
   },
   "settings": {
     "modelSettings": {
@@ -202,22 +86,11 @@
     "models": {
       "title": "Моделі транскрипції",
       "description": "Виберіть модель транскрипції або завантажте додаткові моделі. Різні моделі пропонують різні рівні точності та швидкості.",
-      "deleteConfirm": "Ви впевнені, що хочете видалити {{modelName}}? Вам потрібно буде завантажити її знову, щоб використовувати.",
-      "deleteActiveConfirm": "{{modelName}} — ваша активна модель. Видалення зупинить транскрипцію, доки ви не оберете нову модель. Ви впевнені?",
-      "deleteTitle": "Видалити модель",
-      "filters": {
-        "allLanguages": "Усі мови",
-        "streaming": "Фільтрувати моделі з підтримкою транскрипції в реальному часі",
-        "translation": "Фільтрувати моделі з підтримкою перекладу англійською"
-      },
-      "noModelsMatch": "Жодна модель не відповідає цьому фільтру.",
-      "yourModels": "Завантажені моделі",
-      "availableModels": "Доступні для завантаження",
-      "searchPlaceholder": "Пошук моделей за назвою…",
-      "rescan": {
-        "label": "Пересканувати",
-        "tooltip": "Пересканувати моделі, додані до папки моделей або кешу Hugging Face поза межами Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Звук",
@@ -264,39 +137,25 @@
         "label": "Залишати мікрофон увімкненим між транскрипціями",
         "description": "Залишає потік мікрофона відкритим протягом 30 секунд після зупинки запису, зменшуючи затримку при послідовних транскрипціях. Може погіршити якість звуку Bluetooth."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "Прискорення Whisper",
-          "description": "Апаратне прискорення для моделей Whisper. Автоматичний режим використовує GPU за наявності (Metal на macOS, Vulkan на Windows/Linux)."
-        },
-        "ort": {
-          "title": "Прискорення ONNX",
-          "description": "Апаратне прискорення для моделей ONNX (Parakeet, Canary, Moonshine тощо). DirectML на Windows є експериментальним. Моделі можуть не виконувати транскрипцію."
-        },
-        "gpuDevice": {
-          "auto": "Авто"
-        }
-      },
       "startHidden": {
         "label": "Запуск у фоні",
         "description": "Запускати в системному треї без відкриття вікна"
       },
       "autostart": {
         "label": "Запуск при старті системи",
-        "description": "Автоматично запускати Handy при вході в систему"
+        "description": "Автоматично запускати Murmur при вході в систему"
       },
       "showTrayIcon": {
         "label": "Показати значок у треї",
-        "description": "Відображати значок Handy у системному треї."
+        "description": "Відображати значок Murmur у системному треї."
       },
       "overlay": {
         "style": {
           "title": "Накладка",
-          "description": "Виберіть накладку під час запису: «Немає» приховує її, «Мінімальна» показує компактний індикатор, «У реальному часі» показує транскрипцію під час мовлення (лише моделі з підтримкою потокової обробки — шукайте позначку «Потокове» у списку моделей). У Linux рекомендовано «Немає».",
+          "description": "Виберіть накладку запису: «Немає» ховає її, «Мінімальна» показує компактний індикатор. У Linux рекомендовано «Немає».",
           "options": {
             "none": "Немає",
-            "minimal": "Мінімальна",
-            "live": "У реальному часі"
+            "minimal": "Мінімальна"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Перекласти на англійську",
-        "description": "Автоматично перекладати мовлення з інших мов англійською під час транскрипції."
-      },
-      "modelUnload": {
-        "title": "Вивантаження моделі",
-        "description": "Автоматично звільняти пам'ять GPU/CPU, коли модель не використовується протягом вказаного часу",
-        "options": {
-          "never": "Ніколи",
-          "immediately": "Негайно",
-          "min2": "Через 2 хвилини",
-          "min5": "Через 5 хвилин",
-          "min10": "Через 10 хвилин",
-          "min15": "Через 15 хвилин",
-          "hour1": "Через 1 годину",
-          "sec15": "Через 15 секунд (Дебаг)"
-        }
-      },
       "customWords": {
         "title": "Власні слова",
         "description": "Допоможіть підтримуваним моделям розпізнавати імена та спеціалізовані терміни. Нечітке виправлення наразі обмежене словами, що містять літери A–Z і цифри.",
@@ -372,10 +213,6 @@
         "add": "Додати",
         "remove": "Видалити {{word}}",
         "duplicate": "\"{{word}}\" вже існує"
-      },
-      "voiceActivityDetection": {
-        "title": "Виявлення голосової активності",
-        "description": "Відфільтровує тишу із записів. Моделі з підтримкою потокової обробки використовують довший «хвіст» VAD; вимкнення VAD записує необроблений звук."
       },
       "fillerWordRemoval": {
         "title": "Видаляти слова-паразити",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Перевірка оновлень",
-        "description": "Автоматично перевіряти наявність нових версій Handy"
+        "description": "Автоматично перевіряти наявність нових версій Murmur"
       },
       "soundTheme": {
         "label": "Звукова тема",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Діагностика клавіатури",
-        "description": "Перевіряє, чи доходять події клавіатури до Handy. Записується лише кількість подій — ніколи те, які клавіші ви натискаєте.",
+        "description": "Перевіряє, чи доходять події клавіатури до Murmur. Записується лише кількість подій — ніколи те, які клавіші ви натискаєте.",
         "run": "Запустити 10-секундну діагностику",
         "running": "Прослуховування… натисніть свою комбінацію кілька разів (наприклад, Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Миша",
         "verdictBlocked": "Secure Input блокує події клавіш — комбінації зі звичайною клавішею не працюватимуть, доки це не буде усунуто.",
         "verdictSuspicious": "Події модифікаторів надходять, а події клавіш — ні: щось пригнічує клавіші, хоча Secure Input позначено як вимкнений. Будь ласка, повідомте про це на GitHub.",
-        "verdictOk": "Події клавіш надходять до Handy нормально.",
+        "verdictOk": "Події клавіш надходять до Murmur нормально.",
         "verdictNoEvents": "Подій не зафіксовано — ви натискали клавіші під час тесту?",
         "failed": "Не вдалося виконати діагностику: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "Інфо",
       "version": {
         "title": "Версія",
-        "description": "Поточна версія Handy"
+        "description": "Поточна версія Murmur"
       },
       "appDataDirectory": {
         "title": "Папка даних програми",
-        "description": "Розташування даних Handy"
+        "description": "Розташування даних Murmur"
       },
       "sourceCode": {
         "title": "Вихідний код",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Підтримати розробку",
-        "description": "Допоможіть нам продовжувати розвивати Handy",
+        "description": "Допоможіть нам продовжувати розвивати Murmur",
         "button": "Підтримати"
-      },
-      "acknowledgments": {
-        "title": "Подяки",
-        "ggml": {
-          "title": "ggml",
-          "description": "Високопродуктивний інференс моделі автоматичного розпізнавання мовлення Whisper від OpenAI",
-          "details": "Handy використовує ggml для швидкої локальної обробки мовлення в текст. Дякуємо за чудову роботу Георгію Герганову та контриб'юторам."
-        }
       },
       "whatsNewUpdates": {
         "label": "Показувати новини",
-        "description": "Показувати примітки до випуску після оновлень Handy"
+        "description": "Показувати примітки до випуску після оновлень Murmur"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Опцій не знайдено"
   },
   "accessibility": {
-    "permissionsDescription": "Handy потребує дозволи доступності для введення транскрибованого тексту.",
+    "permissionsDescription": "Murmur потребує дозволи доступності для введення транскрибованого тексту.",
     "openSettings": "Відкрити Системні налаштування"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Мова інтерфейсу",
-    "description": "Змінити мову інтерфейсу Handy"
+    "description": "Змінити мову інтерфейсу Murmur"
   },
   "theme": {
     "title": "Тема застосунку",
-    "description": "Виберіть, чи має Handy слідувати темі системи, чи залишатися світлою або темною",
+    "description": "Виберіть, чи має Murmur слідувати темі системи, чи залишатися світлою або темною",
     "options": {
       "system": "Системна",
       "light": "Світла",
@@ -671,7 +500,7 @@
     "processing": "Постобробка..."
   },
   "whatsNew": {
-    "title": "Нове в Handy v{{version}}"
+    "title": "Нове в Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} може блокувати 1 комбінацію клавіш",

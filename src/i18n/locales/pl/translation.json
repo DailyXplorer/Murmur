@@ -3,8 +3,6 @@
     "settings": "Ustawienia...",
     "checkUpdates": "Sprawdź aktualizacje...",
     "copyLastTranscript": "Kopiuj ostatnią transkrypcję",
-    "unloadModel": "Zwolnij model",
-    "model": "Model",
     "quit": "Zamknij",
     "cancel": "Anuluj",
     "secureInputWarning": "⚠ Skróty zablokowane przez Secure Input"
@@ -19,89 +17,9 @@
     "about": "O programie"
   },
   "onboarding": {
-    "subtitle": "Aby rozpocząć, wybierz model transkrypcji",
-    "existingModelsTitle": "Zgodne modele",
-    "downloadModelsTitle": "Dostępne do pobrania",
-    "showAllModels": "Pokaż wszystkie modele ({{total}})",
-    "showFewerModels": "Pokaż mniej modeli",
-    "recommended": "Polecane",
-    "customModelDescription": "Nieoficjalnie wspierane",
-    "modelCard": {
-      "accuracy": "dokładność",
-      "speed": "szybkość"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Szybki i dość dokładny."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "Dobra dokładność, średnia szybkość"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Zrównoważona dokładność i szybkość."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "Dobra dokładność, ale wolny."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Tylko angielski. Najlepszy model dla osób mówiących po angielsku."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Szybki i dokładny"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Bardzo szybki, tylko angielski. Dobrze radzi sobie z akcentami."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Ultraszybki, tylko angielski"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Szybki, tylko angielski. Dobra równowaga między szybkością a dokładnością."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Tylko angielski. Wysoka jakość."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Zoptymalizowany dla tajwańskiego mandaryńskiego. Obsługa przełączania języków."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Bardzo szybki. Chiński, angielski, japoński, koreański, kantoński."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Rozpoznawanie mowy rosyjskiej. Szybkie i dokładne."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Bardzo szybki. Angielski, niemiecki, hiszpański, francuski. Obsługuje tłumaczenie."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Dokładny wielojęzyczny. 25 języków europejskich. Obsługuje tłumaczenie."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Duży, wolniejszy, ale bardzo dokładny model wielojęzyczny."
-      }
-    },
-    "errors": {
-      "selectModel": "Nie udało się wybrać modelu"
-    },
     "permissions": {
       "title": "Wymagane uprawnienia",
-      "description": "Handy potrzebuje kilku uprawnień, aby działać poprawnie.",
+      "description": "Murmur potrzebuje kilku uprawnień, aby działać poprawnie.",
       "microphone": {
         "title": "Dostęp do mikrofonu",
         "description": "Wymagany do słyszenia Twojego głosu w celu transkrypcji."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Własny",
-    "streaming": "Streaming",
-    "active": "Aktywny",
-    "switching": "Przełączanie...",
-    "noModelsAvailable": "Brak dostępnych modeli",
-    "verifying": "Weryfikacja {{modelName}}...",
-    "verifyingGeneric": "Weryfikacja...",
-    "extracting": "Rozpakowywanie {{modelName}}...",
-    "extractingMultiple": "Rozpakowywanie {{count}} modeli...",
-    "extractingGeneric": "Rozpakowywanie...",
-    "downloading": "Pobieranie {{percentage}}%",
-    "downloadingMultiple": "Pobieranie {{count}} modeli...",
-    "modelReady": "Model gotowy",
-    "loading": "Wczytywanie {{modelName}}...",
-    "loadingGeneric": "Wczytywanie...",
-    "modelError": "Błąd modelu",
-    "modelUnloaded": "Model wyładowany",
-    "noModelDownloadRequired": "Brak modelu – wymagane pobranie",
-    "deleteModel": "Usuń {{modelName}}",
-    "downloadSpeed": "{{speed}} MB/s",
-    "capabilities": {
-      "languageSelection": "Obsługuje wiele języków wejściowych",
-      "languageCount": "{{total}} języków",
-      "translation": "Może tłumaczyć na angielski",
-      "translate": "Tłumacz na angielski",
-      "singleLanguage": "Obsługuje tylko ten język",
-      "languageOnly": "Tylko {{language}}",
-      "streaming": "Pokazuje transkrypcję na żywo podczas mówienia"
-    },
-    "cancel": "Anuluj",
-    "cancelDownload": "Anuluj pobieranie",
-    "legacy": "Przestarzałe"
-  },
   "settings": {
     "modelSettings": {
       "title": "Ustawienia {{model}}"
@@ -161,27 +45,16 @@
     "models": {
       "title": "Modele transkrypcji",
       "description": "Wybierz model transkrypcji lub pobierz dodatkowe modele. Różne modele oferują różne poziomy dokładności i szybkości.",
-      "deleteConfirm": "Czy na pewno chcesz usunąć {{modelName}}? Będziesz musiał pobrać go ponownie, aby go użyć.",
-      "deleteActiveConfirm": "{{modelName}} jest Twoim aktywnym modelem. Usunięcie go zatrzyma transkrypcje, dopóki nie wybierzesz nowego modelu. Czy na pewno chcesz kontynuować?",
-      "deleteTitle": "Usuń model",
-      "filters": {
-        "allLanguages": "Wszystkie języki",
-        "streaming": "Filtruj modele obsługujące transkrypcję na żywo",
-        "translation": "Filtruj modele obsługujące tłumaczenie na język angielski"
-      },
-      "noModelsMatch": "Żadne modele nie pasują do tego filtra.",
-      "yourModels": "Pobrane modele",
-      "availableModels": "Dostępne do pobrania",
-      "searchPlaceholder": "Szukaj modeli według nazwy…",
-      "rescan": {
-        "label": "Skanuj ponownie",
-        "tooltip": "Skanuj ponownie w poszukiwaniu modeli dodanych do folderu modeli lub pamięci podręcznej Hugging Face poza Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "general": {
       "title": "Ogólne",
       "shortcut": {
-        "title": "Skróty Handy",
+        "title": "Skróty Murmur",
         "description": "Skonfiguruj skróty klawiaturowe do uruchamiania nagrywania mowy",
         "loading": "Wczytywanie skrótów...",
         "none": "Brak skonfigurowanych skrótów",
@@ -264,39 +137,25 @@
         "label": "Pozostaw mikrofon otwarty między transkrypcjami",
         "description": "Utrzymuje strumień mikrofonu otwarty przez 30 sekund po zatrzymaniu nagrywania, zmniejszając opóźnienie przy kolejnych transkrypcjach. Może pogorszyć jakość dźwięku Bluetooth."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "Akceleracja Whisper",
-          "description": "Akceleracja sprzętowa dla modeli Whisper. Tryb automatyczny używa GPU, jeśli jest dostępny (Metal na macOS, Vulkan na Windows/Linux)."
-        },
-        "ort": {
-          "title": "Akceleracja ONNX",
-          "description": "Akceleracja sprzętowa dla modeli ONNX (Parakeet, Canary, Moonshine itp.). DirectML na Windows jest eksperymentalne. Modele mogą nie transkrybować poprawnie."
-        },
-        "gpuDevice": {
-          "auto": "Automatycznie"
-        }
-      },
       "startHidden": {
         "label": "Uruchom ukryty",
         "description": "Uruchom w zasobniku systemowym bez otwierania okna."
       },
       "autostart": {
         "label": "Uruchamiaj przy starcie",
-        "description": "Automatycznie uruchamiaj Handy po zalogowaniu."
+        "description": "Automatycznie uruchamiaj Murmur po zalogowaniu."
       },
       "showTrayIcon": {
         "label": "Pokaż ikonę w zasobniku",
-        "description": "Wyświetlaj ikonę Handy w zasobniku systemowym."
+        "description": "Wyświetlaj ikonę Murmur w zasobniku systemowym."
       },
       "overlay": {
         "style": {
           "title": "Nakładka",
-          "description": "Wybierz nakładkę nagrywania: „Brak“ ją ukrywa, „Minimalna“ pokazuje kompaktowy wskaźnik, „Na żywo“ wyświetla transkrypcję w czasie rzeczywistym podczas mówienia (tylko modele obsługujące streaming — poszukaj etykiety „Streaming“ w selektorze modeli). W systemie Linux zalecana jest opcja „Brak“.",
+          "description": "Wybierz nakładkę nagrywania: „Brak“ ją ukrywa, „Minimalna“ pokazuje kompaktowy wskaźnik. W systemie Linux zalecana jest opcja „Brak“.",
           "options": {
             "none": "Brak",
-            "minimal": "Minimalna",
-            "live": "Na żywo"
+            "minimal": "Minimalna"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Tłumacz na angielski",
-        "description": "Automatycznie tłumacz mowę z innych języków na angielski podczas transkrypcji."
-      },
-      "modelUnload": {
-        "title": "Wyładowanie modelu",
-        "description": "Automatycznie zwalnia pamięć GPU/CPU po określonym czasie nieużywania",
-        "options": {
-          "never": "Nigdy",
-          "immediately": "Natychmiast",
-          "min2": "Po 2 minutach",
-          "min5": "Po 5 minutach",
-          "min10": "Po 10 minutach",
-          "min15": "Po 15 minutach",
-          "hour1": "Po 1 godzinie",
-          "sec15": "Po 15 sekundach (Debug)"
-        }
-      },
       "customWords": {
         "title": "Własne słowa",
         "description": "Pomóż obsługiwanym modelom rozpoznawać nazwy i specjalistyczne terminy. Korekta przybliżona jest obecnie ograniczona do słów używających liter A–Z i cyfr.",
@@ -372,10 +213,6 @@
         "add": "Dodaj",
         "remove": "Usuń {{word}}",
         "duplicate": "\"{{word}}\" już istnieje"
-      },
-      "voiceActivityDetection": {
-        "title": "Wykrywanie aktywności głosowej",
-        "description": "Odfiltrowuje ciszę z nagrań. Modele obsługujące streaming używają dłuższego marginesu VAD; wyłączenie VAD nagrywa surowy dźwięk."
       },
       "fillerWordRemoval": {
         "title": "Usuń wyrazy wypełniające",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Sprawdzaj aktualizacje",
-        "description": "Automatycznie sprawdzaj nowe wersje Handy"
+        "description": "Automatycznie sprawdzaj nowe wersje Murmur"
       },
       "soundTheme": {
         "label": "Motyw dźwiękowy",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Diagnostyka klawiatury",
-        "description": "Sprawdza, czy zdarzenia klawiatury docierają do Handy. Zapisywana jest tylko liczba zdarzeń — nigdy to, które klawisze naciskasz.",
+        "description": "Sprawdza, czy zdarzenia klawiatury docierają do Murmur. Zapisywana jest tylko liczba zdarzeń — nigdy to, które klawisze naciskasz.",
         "run": "Uruchom 10-sekundową diagnostykę",
         "running": "Nasłuchiwanie… naciśnij swój skrót kilka razy (np. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Mysz",
         "verdictBlocked": "Secure Input blokuje zdarzenia klawiszy — skróty zawierające zwykły klawisz nie zadziałają, dopóki nie zostanie to rozwiązane.",
         "verdictSuspicious": "Dotarły zdarzenia modyfikatorów, ale żadnych zdarzeń klawiszy — coś tłumi klawisze, mimo że Secure Input jest zgłaszany jako wyłączony. Zgłoś to na GitHubie.",
-        "verdictOk": "Zdarzenia klawiszy docierają do Handy normalnie.",
+        "verdictOk": "Zdarzenia klawiszy docierają do Murmur normalnie.",
         "verdictNoEvents": "Nie przechwycono żadnych zdarzeń — czy w trakcie testu naciśnięto jakieś klawisze?",
         "failed": "Diagnostyka nie powiodła się: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "O programie",
       "version": {
         "title": "Wersja",
-        "description": "Aktualna wersja Handy"
+        "description": "Aktualna wersja Murmur"
       },
       "appDataDirectory": {
         "title": "Katalog danych aplikacji",
-        "description": "Miejsce, gdzie Handy przechowuje swoje dane"
+        "description": "Miejsce, gdzie Murmur przechowuje swoje dane"
       },
       "sourceCode": {
         "title": "Kod źródłowy",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Wspieraj rozwój",
-        "description": "Pomóż nam dalej rozwijać Handy",
+        "description": "Pomóż nam dalej rozwijać Murmur",
         "button": "Wesprzyj"
-      },
-      "acknowledgments": {
-        "title": "Podziękowania",
-        "ggml": {
-          "title": "ggml",
-          "description": "Wydajne wykonywanie modelu rozpoznawania mowy Whisper od OpenAI",
-          "details": "Handy używa ggml do szybkiego, lokalnego przetwarzania mowy na tekst. Dzięki niesamowitej pracy Georgi Gerganova i współtwórców."
-        }
       },
       "whatsNewUpdates": {
         "label": "Pokaż nowości",
-        "description": "Pokazuj informacje o wydaniu po aktualizacjach Handy"
+        "description": "Pokazuj informacje o wydaniu po aktualizacjach Murmur"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Nie znaleziono opcji"
   },
   "accessibility": {
-    "permissionsDescription": "Handy potrzebuje uprawnień dostępności, aby wpisywać transkrybowany tekst.",
+    "permissionsDescription": "Murmur potrzebuje uprawnień dostępności, aby wpisywać transkrybowany tekst.",
     "openSettings": "Otwórz ustawienia systemowe"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Język aplikacji",
-    "description": "Zmień język interfejsu Handy"
+    "description": "Zmień język interfejsu Murmur"
   },
   "theme": {
     "title": "Motyw aplikacji",
-    "description": "Wybierz, czy Handy ma podążać za motywem systemu, czy pozostać jasny lub ciemny",
+    "description": "Wybierz, czy Murmur ma podążać za motywem systemu, czy pozostać jasny lub ciemny",
     "options": {
       "system": "System",
       "light": "Jasny",
@@ -671,7 +500,7 @@
     "processing": "Przetwarzanie..."
   },
   "whatsNew": {
-    "title": "Nowości w Handy v{{version}}"
+    "title": "Nowości w Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} może blokować 1 skrót",

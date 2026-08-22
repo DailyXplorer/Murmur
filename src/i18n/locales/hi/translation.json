@@ -3,8 +3,6 @@
     "settings": "सेटिंग...",
     "checkUpdates": "अपडेट जांचें...",
     "copyLastTranscript": "पिछला ट्रांसक्रिप्ट कॉपी करें",
-    "unloadModel": "मॉडल अनलोड करें",
-    "model": "मॉडल",
     "quit": "बाहर निकलें",
     "cancel": "रद्द करें",
     "secureInputWarning": "⚠ Secure Input ने शॉर्टकट ब्लॉक किए हैं"
@@ -19,89 +17,9 @@
     "about": "के बारे में"
   },
   "onboarding": {
-    "subtitle": "शुरू करने के लिए, एक ट्रांसक्रिप्शन मॉडल चुनें",
-    "existingModelsTitle": "संगत मॉडल",
-    "downloadModelsTitle": "डाउनलोड के लिए उपलब्ध",
-    "showAllModels": "सभी {{total}} मॉडल दिखाएं",
-    "showFewerModels": "कम मॉडल दिखाएं",
-    "recommended": "सुझाया गया",
-    "customModelDescription": "आधिकारिक रूप से समर्थित नहीं",
-    "modelCard": {
-      "accuracy": "सटीकता",
-      "speed": "स्पीड"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "तेज़ और काफ़ी सटीक."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "अच्छी सटीकता, मध्यम स्पीड"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "सटीकता और स्पीड का संतुलन."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "अच्छी सटीकता, लेकिन धीमा."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "केवल अंग्रेज़ी. अंग्रेज़ी बोलने वालों के लिए सबसे अच्छा मॉडल."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "तेज़ और सटीक"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "बहुत तेज़, केवल अंग्रेज़ी. अलग-अलग लहजों को अच्छी तरह समझता है."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "बेहद तेज़, केवल अंग्रेज़ी"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "तेज़, केवल अंग्रेज़ी. स्पीड और सटीकता का अच्छा संतुलन."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "केवल अंग्रेज़ी. बेहतरीन क्वालिटी."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "ताइवानी मैंडरिन के लिए ऑप्टिमाइज़ किया गया. कोड-स्विचिंग की सुविधा."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "बहुत तेज़. चीनी, अंग्रेज़ी, जापानी, कोरियाई, कैंटोनीज़."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "रूसी बोली पहचानता है. तेज़ और सटीक."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "बहुत तेज़. अंग्रेज़ी, जर्मन, स्पेनिश, फ़्रेंच. अनुवाद भी कर सकता है."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "सटीक बहुभाषी मॉडल. 25 यूरोपीय भाषाएं. अनुवाद भी कर सकता है."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "बड़ा और थोड़ा धीमा, लेकिन बहुत सटीक बहुभाषी मॉडल."
-      }
-    },
-    "errors": {
-      "selectModel": "मॉडल चुना नहीं जा सका"
-    },
     "permissions": {
       "title": "अनुमतियों की ज़रूरत है",
-      "description": "Handy को ठीक से काम करने के लिए कुछ अनुमतियों की ज़रूरत है.",
+      "description": "Murmur को ठीक से काम करने के लिए कुछ अनुमतियों की ज़रूरत है.",
       "microphone": {
         "title": "माइक्रोफ़ोन ऐक्सेस",
         "description": "आपकी आवाज़ सुनकर ट्रांसक्रिप्शन करने के लिए ज़रूरी."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "कस्टम",
-    "legacy": "लीगेसी",
-    "streaming": "स्ट्रीमिंग",
-    "active": "इस्तेमाल में",
-    "switching": "बदला जा रहा है...",
-    "noModelsAvailable": "कोई मॉडल उपलब्ध नहीं है",
-    "verifying": "{{modelName}} की पुष्टि हो रही है...",
-    "verifyingGeneric": "पुष्टि हो रही है...",
-    "extracting": "{{modelName}} एक्सट्रैक्ट हो रहा है...",
-    "extractingMultiple": "{{count}} मॉडल एक्सट्रैक्ट हो रहे हैं...",
-    "extractingGeneric": "एक्सट्रैक्ट हो रहा है...",
-    "downloading": "{{percentage}}% डाउनलोड हो रहा है",
-    "downloadingMultiple": "{{count}} मॉडल डाउनलोड हो रहे हैं...",
-    "modelReady": "मॉडल तैयार है",
-    "loading": "{{modelName}} लोड हो रहा है...",
-    "loadingGeneric": "लोड हो रहा है...",
-    "modelError": "मॉडल में गड़बड़ी",
-    "modelUnloaded": "मॉडल अनलोड किया गया",
-    "noModelDownloadRequired": "कोई मॉडल नहीं - डाउनलोड करना ज़रूरी है",
-    "deleteModel": "{{modelName}} हटाएं",
-    "downloadSpeed": "{{speed}} MB/s",
-    "cancel": "रद्द करें",
-    "cancelDownload": "डाउनलोड रद्द करें",
-    "capabilities": {
-      "languageSelection": "कई इनपुट भाषाओं के साथ काम करता है",
-      "singleLanguage": "केवल इसी भाषा के साथ काम करता है",
-      "languageCount": "{{total}} भाषाएं",
-      "languageOnly": "केवल {{language}}",
-      "translation": "अंग्रेज़ी में अनुवाद कर सकता है",
-      "translate": "अनुवाद करें",
-      "streaming": "बोलते समय लाइव ट्रांसक्रिप्शन दिखाता है"
-    }
-  },
   "settings": {
     "modelSettings": {
       "title": "{{model}} सेटिंग"
@@ -161,7 +45,7 @@
     "general": {
       "title": "सामान्य",
       "shortcut": {
-        "title": "Handy शॉर्टकट",
+        "title": "Murmur शॉर्टकट",
         "description": "स्पीच-टू-टेक्स्ट रिकॉर्डिंग शुरू करने के लिए कीबोर्ड शॉर्टकट सेट करें",
         "loading": "शॉर्टकट लोड हो रहे हैं...",
         "none": "कोई शॉर्टकट सेट नहीं है",
@@ -202,22 +86,11 @@
     "models": {
       "title": "ट्रांसक्रिप्शन मॉडल",
       "description": "कोई ट्रांसक्रिप्शन मॉडल चुनें या दूसरे मॉडल डाउनलोड करें. अलग-अलग मॉडल की सटीकता और स्पीड अलग-अलग होती है.",
-      "searchPlaceholder": "नाम से मॉडल खोजें…",
-      "yourModels": "डाउनलोड किए गए मॉडल",
-      "availableModels": "डाउनलोड के लिए उपलब्ध",
-      "deleteConfirm": "क्या आप वाकई {{modelName}} को हटाना चाहते हैं? इसे फिर से इस्तेमाल करने के लिए आपको इसे दोबारा डाउनलोड करना होगा.",
-      "deleteActiveConfirm": "{{modelName}} अभी इस्तेमाल में है. इसे हटाने पर ट्रांसक्रिप्शन तब तक रुका रहेगा, जब तक आप कोई नया मॉडल नहीं चुन लेते. क्या आप वाकई हटाना चाहते हैं?",
-      "deleteTitle": "मॉडल हटाएं",
-      "filters": {
-        "allLanguages": "सभी भाषाएं",
-        "streaming": "लाइव ट्रांसक्रिप्शन का समर्थन करने वाले मॉडल फ़िल्टर करें",
-        "translation": "अंग्रेज़ी में अनुवाद का समर्थन करने वाले मॉडल फ़िल्टर करें"
-      },
-      "rescan": {
-        "label": "फिर से स्कैन करें",
-        "tooltip": "Handy के बाहर, मॉडल फ़ोल्डर या Hugging Face कैश में जोड़े गए मॉडल के लिए फिर से स्कैन करें"
-      },
-      "noModelsMatch": "इस फ़िल्टर से मेल खाने वाला कोई मॉडल नहीं है."
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "आवाज़",
@@ -264,39 +137,25 @@
         "label": "ट्रांसक्रिप्शन के बीच माइक खुला रखें",
         "description": "रिकॉर्डिंग रुकने के बाद माइक्रोफ़ोन स्ट्रीम को 30 सेकंड तक खुला रखता है, जिससे लगातार ट्रांसक्रिप्शन के बीच देरी कम होती है. चालू रहने के दौरान Bluetooth ऑडियो की क्वालिटी पर असर पड़ सकता है."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "transcribe.cpp एक्सेलेरेशन",
-          "description": "transcribe.cpp (Whisper-परिवार) मॉडल के लिए हार्डवेयर एक्सेलेरेशन. 'ऑटो' उपलब्ध होने पर GPU का इस्तेमाल करता है (macOS पर Metal, Windows/Linux पर Vulkan)."
-        },
-        "ort": {
-          "title": "ONNX एक्सेलेरेशन",
-          "description": "ONNX मॉडल (Parakeet, Canary, Moonshine वगैरह) के लिए हार्डवेयर एक्सेलेरेशन. Windows पर DirectML प्रायोगिक है. हो सकता है कि कुछ मॉडल ट्रांसक्राइब न कर पाएं."
-        },
-        "gpuDevice": {
-          "auto": "ऑटो"
-        }
-      },
       "startHidden": {
         "label": "छिपाकर शुरू करें",
         "description": "विंडो खोले बिना सिस्टम ट्रे में लॉन्च करें."
       },
       "autostart": {
         "label": "स्टार्टअप पर लॉन्च करें",
-        "description": "कंप्यूटर में लॉग इन करने पर Handy अपने आप शुरू हो जाए."
+        "description": "कंप्यूटर में लॉग इन करने पर Murmur अपने आप शुरू हो जाए."
       },
       "showTrayIcon": {
         "label": "ट्रे आइकन दिखाएं",
-        "description": "सिस्टम ट्रे में Handy का आइकन दिखाएं."
+        "description": "सिस्टम ट्रे में Murmur का आइकन दिखाएं."
       },
       "overlay": {
         "style": {
           "title": "ओवरले",
-          "description": "रिकॉर्डिंग ओवरले चुनें: 'कोई नहीं' इसे छिपा देता है, 'मिनिमल' एक छोटा इंडिकेटर दिखाता है, 'लाइव' बोलते समय रीयल टाइम में ट्रांसक्रिप्शन दिखाता है (केवल स्ट्रीमिंग वाले मॉडल — मॉडल पिकर में 'स्ट्रीमिंग' बैज देखें). Linux पर 'कोई नहीं' चुनने का सुझाव दिया जाता है.",
+          "description": "रिकॉर्डिंग ओवरले चुनें: 'कोई नहीं' इसे छुपाता है, 'न्यूनतम' एक कॉम्पैक्ट संकेतक दिखाता है। Linux पर 'कोई नहीं' अनुशंसित है।",
           "options": {
             "none": "कोई नहीं",
-            "minimal": "मिनिमल",
-            "live": "लाइव"
+            "minimal": "मिनिमल"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "अंग्रेज़ी में अनुवाद करें",
-        "description": "ट्रांसक्रिप्शन के दौरान, दूसरी भाषाओं में बोली गई बात का अंग्रेज़ी में अपने आप अनुवाद करें."
-      },
-      "modelUnload": {
-        "title": "मॉडल अनलोड करें",
-        "description": "तय समय तक मॉडल का इस्तेमाल न होने पर GPU/CPU मेमोरी अपने आप खाली करें",
-        "options": {
-          "never": "कभी नहीं",
-          "immediately": "तुरंत",
-          "min2": "2 मिनट बाद",
-          "min5": "5 मिनट बाद",
-          "min10": "10 मिनट बाद",
-          "min15": "15 मिनट बाद",
-          "hour1": "1 घंटे बाद",
-          "sec15": "15 सेकंड बाद (डिबग)"
-        }
-      },
       "customWords": {
         "title": "कस्टम शब्द",
         "description": "समर्थित मॉडल को नाम और विशेष शब्द पहचानने में मदद करें। फ़ज़ी सुधार फिलहाल A–Z अक्षरों और संख्याओं वाले शब्दों तक सीमित है।",
@@ -372,10 +213,6 @@
         "add": "जोड़ें",
         "remove": "{{word}} हटाएं",
         "duplicate": "\"{{word}}\" पहले से मौजूद है"
-      },
-      "voiceActivityDetection": {
-        "title": "वॉइस एक्टिविटी डिटेक्शन",
-        "description": "रिकॉर्डिंग से बिना आवाज़ वाले हिस्से हटाएं. स्ट्रीमिंग वाले मॉडल लंबी VAD टेल इस्तेमाल करते हैं; VAD बंद करने पर कच्चा ऑडियो रिकॉर्ड होता है."
       },
       "fillerWordRemoval": {
         "title": "फिलर शब्द हटाएं",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "अपडेट जांचें",
-        "description": "Handy के नए वर्शन की अपने आप जांच करें"
+        "description": "Murmur के नए वर्शन की अपने आप जांच करें"
       },
       "whatsNewPreview": {
         "title": "'नया क्या है' की झलक देखें",
@@ -554,7 +391,7 @@
       },
       "keyboardDiagnostic": {
         "title": "कीबोर्ड डायग्नोस्टिक",
-        "description": "जाँचता है कि कीबोर्ड इवेंट Handy तक पहुँच रहे हैं या नहीं. सिर्फ़ इवेंट की गिनती रिकॉर्ड होती है — कभी नहीं कि आपने कौन-सी कुंजियाँ दबाईं.",
+        "description": "जाँचता है कि कीबोर्ड इवेंट Murmur तक पहुँच रहे हैं या नहीं. सिर्फ़ इवेंट की गिनती रिकॉर्ड होती है — कभी नहीं कि आपने कौन-सी कुंजियाँ दबाईं.",
         "run": "10 सेकंड का डायग्नोस्टिक चलाएँ",
         "running": "सुन रहे हैं… अपना शॉर्टकट कुछ बार दबाएँ (जैसे Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -568,7 +405,7 @@
         "mouse": "माउस",
         "verdictBlocked": "Secure Input कुंजी इवेंट ब्लॉक कर रहा है — जब तक यह हल नहीं होता, सामान्य कुंजी वाले शॉर्टकट काम नहीं कर सकते.",
         "verdictSuspicious": "मॉडिफ़ायर इवेंट आए, लेकिन कोई कुंजी इवेंट नहीं — Secure Input के बंद दिखने के बावजूद कुछ कुंजियों को दबा रहा है. कृपया इसकी रिपोर्ट GitHub पर करें.",
-        "verdictOk": "कुंजी इवेंट Handy तक सामान्य रूप से पहुँच रहे हैं.",
+        "verdictOk": "कुंजी इवेंट Murmur तक सामान्य रूप से पहुँच रहे हैं.",
         "verdictNoEvents": "कोई इवेंट कैप्चर नहीं हुआ — क्या आपने टेस्ट के दौरान कोई कुंजी दबाई थी?",
         "failed": "डायग्नोस्टिक विफल: {{error}}"
       }
@@ -577,15 +414,15 @@
       "title": "के बारे में",
       "version": {
         "title": "वर्शन",
-        "description": "Handy का मौजूदा वर्शन"
+        "description": "Murmur का मौजूदा वर्शन"
       },
       "whatsNewUpdates": {
         "label": "'नया क्या है' दिखाएं",
-        "description": "Handy अपडेट होने के बाद रिलीज़ नोट दिखाएं"
+        "description": "Murmur अपडेट होने के बाद रिलीज़ नोट दिखाएं"
       },
       "appDataDirectory": {
         "title": "ऐप डेटा फ़ोल्डर",
-        "description": "वह जगह जहां Handy अपना डेटा सेव करता है"
+        "description": "वह जगह जहां Murmur अपना डेटा सेव करता है"
       },
       "sourceCode": {
         "title": "सोर्स कोड",
@@ -594,16 +431,8 @@
       },
       "supportDevelopment": {
         "title": "डेवलपमेंट में सहयोग करें",
-        "description": "Handy को आगे बढ़ाने में हमारी मदद करें",
+        "description": "Murmur को आगे बढ़ाने में हमारी मदद करें",
         "button": "दान करें"
-      },
-      "acknowledgments": {
-        "title": "आभार",
-        "ggml": {
-          "title": "ggml",
-          "description": "डिवाइस पर ही मशीन लर्निंग इन्फ़रेंस के लिए हाई-परफ़ॉर्मेंस टेंसर लाइब्रेरी",
-          "details": "Handy का लोकल स्पीच-टू-टेक्स्ट transcribe.cpp और ggml पर आधारित है. Georgi Gerganov और योगदान देने वालों के शानदार काम के लिए धन्यवाद."
-        }
       }
     }
   },
@@ -623,7 +452,7 @@
     "portableUpdateBrowseButton": "GitHub Releases खोलें"
   },
   "whatsNew": {
-    "title": "Handy v{{version}} में नया क्या है"
+    "title": "Murmur v{{version}} में नया क्या है"
   },
   "common": {
     "loading": "लोड हो रहा है...",
@@ -635,7 +464,7 @@
     "noOptionsFound": "कोई विकल्प नहीं मिला"
   },
   "accessibility": {
-    "permissionsDescription": "ट्रांसक्राइब किया गया टेक्स्ट टाइप करने के लिए, Handy को ऐक्सेसिबिलिटी अनुमतियों की ज़रूरत है.",
+    "permissionsDescription": "ट्रांसक्राइब किया गया टेक्स्ट टाइप करने के लिए, Murmur को ऐक्सेसिबिलिटी अनुमतियों की ज़रूरत है.",
     "openSettings": "सिस्टम सेटिंग खोलें"
   },
   "errors": {
@@ -658,11 +487,11 @@
   },
   "appLanguage": {
     "title": "ऐप्लिकेशन की भाषा",
-    "description": "Handy इंटरफ़ेस की भाषा बदलें"
+    "description": "Murmur इंटरफ़ेस की भाषा बदलें"
   },
   "theme": {
     "title": "ऐप्लिकेशन थीम",
-    "description": "चुनें कि Handy आपकी सिस्टम थीम के हिसाब से चले या हमेशा लाइट या डार्क रहे",
+    "description": "चुनें कि Murmur आपकी सिस्टम थीम के हिसाब से चले या हमेशा लाइट या डार्क रहे",
     "options": {
       "system": "सिस्टम",
       "light": "लाइट",

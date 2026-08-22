@@ -3,7 +3,7 @@ import { commands, type Theme } from "@/bindings";
 /**
  * Appearance theme handling.
  *
- * Handy already ships a full light palette and a full dark palette (see
+ * Murmur already ships a full light palette and a full dark palette (see
  * `App.css`). This module lets the user pick which one is used instead of
  * always following the OS:
  *  - `system` removes the override so the `prefers-color-scheme` media query

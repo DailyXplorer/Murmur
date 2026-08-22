@@ -1,10 +1,10 @@
-//! Portable mode support for Handy.
+//! Portable mode support for Murmur.
 //!
 //! When a file named `portable` exists next to the executable, all user data
 //! (settings, models, recordings, database, logs) is stored in a `Data/`
 //! directory alongside the executable instead of `%APPDATA%`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::Manager;
 
@@ -27,7 +27,7 @@ pub fn init() {
             // empty/invalid marker alongside an existing Data/ dir, this is a
             // real portable install — upgrade the marker in place.
             eprintln!("[portable] upgrading legacy empty marker to magic string");
-            let _ = std::fs::write(&marker_path, "Handy Portable Mode");
+            let _ = std::fs::write(&marker_path, "Murmur Portable Mode");
             true
         } else {
             false
@@ -37,21 +37,12 @@ pub fn init() {
             if !data_dir.exists() {
                 std::fs::create_dir_all(&data_dir).ok()?;
             }
-            let hf_home = hugging_face_home(&data_dir);
-            std::env::set_var("HF_HOME", &hf_home);
             eprintln!("[portable] data dir: {}", data_dir.display());
-            eprintln!("[portable] Hugging Face home: {}", hf_home.display());
             Some(data_dir)
         } else {
             None
         }
     });
-}
-
-/// Keep hf-hub downloads inside the portable data directory. hf-hub appends
-/// its own `hub` component to `HF_HOME` for model snapshots and blobs.
-fn hugging_face_home(data_dir: &Path) -> PathBuf {
-    data_dir.join("huggingface")
 }
 
 /// Returns `true` if running in portable mode.
@@ -104,7 +95,11 @@ pub fn store_path(relative: &str) -> PathBuf {
 /// Extracted for testability.
 fn is_valid_portable_marker(path: &std::path::Path) -> bool {
     std::fs::read_to_string(path)
-        .map(|s| s.trim().starts_with("Handy Portable Mode"))
+        .map(|s| {
+            let trimmed = s.trim();
+            trimmed.starts_with("Murmur Portable Mode")
+                || trimmed.starts_with("Handy Portable Mode")
+        })
         .unwrap_or(false)
 }
 
@@ -119,7 +114,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let marker = dir.join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
-        write!(f, "Handy Portable Mode").unwrap();
+        write!(f, "Murmur Portable Mode").unwrap();
         assert!(is_valid_portable_marker(&marker));
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -168,15 +163,19 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let marker = dir.join("portable");
         let mut f = std::fs::File::create(&marker).unwrap();
-        write!(f, "  Handy Portable Mode\n").unwrap();
+        write!(f, "  Murmur Portable Mode\n").unwrap();
         assert!(is_valid_portable_marker(&marker));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
-    fn test_hugging_face_home_is_inside_portable_data() {
-        let data_dir = Path::new("portable-root").join("Data");
-
-        assert_eq!(hugging_face_home(&data_dir), data_dir.join("huggingface"));
+    fn test_legacy_handy_magic_string_still_enables_portable() {
+        let dir = std::env::temp_dir().join("murmur_test_legacy_handy");
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("portable");
+        let mut f = std::fs::File::create(&marker).unwrap();
+        write!(f, "Handy Portable Mode").unwrap();
+        assert!(is_valid_portable_marker(&marker));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

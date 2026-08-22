@@ -111,33 +111,19 @@ export const LANGUAGES: Language[] = [
   { value: "su", label: "Sundanese" },
 ];
 
-const CHINESE_OUTPUT_INTENTS = new Set(["zh-Hans", "zh-Hant"]);
-
 const LANGUAGE_LABELS = new Map(
   LANGUAGES.map((language) => [language.value, language.label] as const),
 );
 
-export const MODEL_CAPABILITY_LANGUAGES: Language[] = LANGUAGES.filter(
-  (language) =>
-    language.value !== "auto" && !CHINESE_OUTPUT_INTENTS.has(language.value),
-);
-
-// Languages offered in the transcription-language picker. We surface the two
-// explicit Chinese *output* variants (Simplified / Traditional) and hide the
-// bare recognition code `zh` ("Chinese"): all three recognize identically, so
-// the plain option only adds ambiguity about which script you get. `zh` stays in
-// LANGUAGES — it's still a valid *effective* language (auto-detect and must-pick
-// fallback can resolve to it) and its label is needed to render that state — it
-// just isn't directly selectable.
 export const SELECTABLE_LANGUAGES: Language[] = LANGUAGES.filter(
   (language) => language.value !== CHINESE_LANGUAGE_CODE,
 );
 
-// Collapse a language tag to the base code Handy matches on, dropping any
+// Collapse a language tag to the base code Murmur matches on, dropping any
 // BCP-47 region or script subtag: "en-US" → "en", "zh-CN" → "zh", "zh-Hant" →
 // "zh". Bare and three-letter codes ("haw") pass through unchanged. This lets
 // the picker match a model's *real* codes — which may be full locales like
-// "en-US" (e.g. Nemotron Streaming) — against Handy's canonical bare-code
+// "en-US" — against Murmur's canonical bare-code
 // LANGUAGES list without the backend having to mangle the codes the engine needs.
 export const recognitionLanguage = (languageCode: string): string => {
   const separatorIndex = languageCode.indexOf("-");
@@ -155,17 +141,6 @@ export const supportsLanguageCode = (
     (supportedLanguage) =>
       recognitionLanguage(supportedLanguage) === recognitionCode,
   );
-};
-
-export const getUniqueCapabilityLanguages = (
-  supportedLanguages: string[],
-): string[] => {
-  const seen = new Set<string>();
-  return supportedLanguages.map(recognitionLanguage).filter((languageCode) => {
-    if (seen.has(languageCode)) return false;
-    seen.add(languageCode);
-    return true;
-  });
 };
 
 export const getLanguageLabel = (languageCode: string): string | undefined =>

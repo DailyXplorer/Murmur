@@ -55,12 +55,6 @@ fn iso639_1_for_whatlang(lang: Lang) -> Option<&'static str> {
 /// model can output. Returns an ISO 639-1 code only for a reliable,
 /// high-confidence detection; `None` otherwise.
 pub fn detect_output_language(text: &str, supported_languages: &[String]) -> Option<String> {
-    // Codes whatlang cannot represent (e.g. Maltese in Parakeet V3's list,
-    // Cantonese in SenseVoice's) are dropped rather than disabling detection
-    // for the whole model. Text in a dropped language only causes harm if it
-    // clears the confidence gate as en/de/fr — the only gated filler profiles —
-    // which is the same misdetection risk the gate already absorbs for in-list
-    // confusions like pt vs es.
     let allowlist: Vec<Lang> = supported_languages
         .iter()
         .filter_map(|code| whatlang_lang_for_model_code(code))
@@ -127,7 +121,7 @@ mod tests {
 
     #[test]
     fn unmappable_codes_are_dropped_not_fatal() {
-        // SenseVoice lists Cantonese (`yue`), which whatlang cannot represent;
+        // Cantonese (`yue`) is unrepresentable in whatlang;
         // detection must still work for the representable languages.
         let detected = detect_output_language(
             "um so the weather forecast said it would probably rain throughout the whole weekend",
@@ -137,16 +131,14 @@ mod tests {
     }
 
     #[test]
-    fn parakeet_v3_language_list_still_detects() {
-        // Parakeet V3's metadata includes Maltese (`mt`), unrepresentable in
-        // whatlang; the remaining 24 languages must stay detectable.
-        let parakeet_v3 = langs(&[
+    fn language_list_with_unmappable_code_still_detects() {
+        let languages = langs(&[
             "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv",
             "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
         ]);
         let detected = detect_output_language(
             "eu vi um carro na rua ontem de manhã quando fui ao mercado",
-            &parakeet_v3,
+            &languages,
         );
         assert_eq!(detected.as_deref(), Some("pt"));
     }

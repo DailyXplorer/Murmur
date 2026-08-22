@@ -1,24 +1,14 @@
-use crate::audio_toolkit::{
-    list_input_devices,
-    vad::{
-        SmoothedVad, VAD_OFFLINE_HANGOVER_FRAMES, VAD_ONSET_FRAMES, VAD_PREFILL_FRAMES,
-        VAD_STREAMING_HANGOVER_FRAMES,
-    },
-    AudioRecorder, SileroVad, VadPolicy,
-};
+use crate::audio_toolkit::{list_input_devices, AudioRecorder};
 use crate::helpers::clamshell;
-use crate::managers::transcription::StreamRouter;
 use crate::settings::{get_settings, write_settings, AppSettings};
 use crate::utils;
 use log::{debug, error, info, trace, warn};
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
-const VAD_THRESHOLD: f32 = 0.3;
 
 fn set_mute(mute: bool) {
     // Expected behavior:
@@ -230,7 +220,7 @@ fn restore_mute(prev_muted: Option<bool>) {
     }
 }
 
-const WHISPER_SAMPLE_RATE: usize = 16000;
+const TARGET_SAMPLE_RATE: usize = 16000;
 
 /* ──────────────────────────────────────────────────────────────── */
 
@@ -278,44 +268,16 @@ struct MicrophoneResolution {
 /* ──────────────────────────────────────────────────────────────── */
 
 fn create_audio_recorder(
-    vad_path: &Path,
     app_handle: &tauri::AppHandle,
     selected_channel: Option<u16>,
-    stream_router: Arc<StreamRouter>,
 ) -> Result<AudioRecorder, anyhow::Error> {
-    // A single Silero engine covers both the offline and streaming policies (never
-    // active at once within a recording), so the recorder reconfigures its
-    // hangover tail per session rather than keeping two ONNX sessions resident.
-    let silero = SileroVad::new(vad_path, VAD_THRESHOLD)
-        .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {}", e))?;
-    let smoothed_vad = SmoothedVad::new(
-        Box::new(silero),
-        VAD_PREFILL_FRAMES,
-        VAD_OFFLINE_HANGOVER_FRAMES,
-        VAD_ONSET_FRAMES,
-    );
-
-    // Recorder with VAD, a spectrum-level callback that forwards level updates to
-    // the frontend, and an audio-frame callback that feeds live streaming via a
-    // shared `StreamRouter` (captured directly, not via Tauri state — see its docs).
     let recorder = AudioRecorder::new()
         .map_err(|e| anyhow::anyhow!("Failed to create AudioRecorder: {}", e))?
-        .with_vad(
-            Box::new(smoothed_vad),
-            VAD_OFFLINE_HANGOVER_FRAMES,
-            VAD_STREAMING_HANGOVER_FRAMES,
-        )
         .with_selected_channel(selected_channel)
         .with_level_callback({
             let app_handle = app_handle.clone();
             move |levels| {
                 utils::emit_levels(&app_handle, &levels);
-            }
-        })
-        .with_audio_callback({
-            let router = stream_router;
-            move |frame| {
-                router.feed(frame);
             }
         });
 
@@ -355,12 +317,6 @@ pub struct AudioRecordingManager {
     mute_state: Arc<Mutex<MuteState>>,
     close_generation: Arc<AtomicU64>,
     cancel_generation: Arc<AtomicU64>,
-    stream_router: Arc<StreamRouter>,
-    /// Lock-free mirror of "is the state in {Recording, Stopping}",
-    /// maintained by `set_state()`. The hot-path `is_recording()` reads THIS
-    /// instead of the std `state` mutex, so a UI poll can no longer deadlock
-    /// the main/webview thread when a worker holds `state` across a slow
-    /// CoreAudio open/close.
     recording_active: Arc<AtomicBool>,
     /// Invalidates asynchronous first-sample UI/chime work when a recording is
     /// stopped or cancelled. This prevents a slow device from producing a late
@@ -378,10 +334,7 @@ pub struct AudioRecordingManager {
 impl AudioRecordingManager {
     /* ---------- construction ------------------------------------------------ */
 
-    pub fn new(
-        app: &tauri::AppHandle,
-        stream_router: Arc<StreamRouter>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn new(app: &tauri::AppHandle) -> Result<Self, anyhow::Error> {
         let settings = get_settings(app);
         let mode = if settings.always_on_microphone {
             MicrophoneMode::AlwaysOn
@@ -400,7 +353,6 @@ impl AudioRecordingManager {
             mute_state: Arc::new(Mutex::new(MuteState::default())),
             close_generation: Arc::new(AtomicU64::new(0)),
             cancel_generation: Arc::new(AtomicU64::new(0)),
-            stream_router,
             recording_active: Arc::new(AtomicBool::new(false)),
             capture_generation: Arc::new(AtomicU64::new(0)),
             cached_device: Arc::new(Mutex::new(None)),
@@ -591,23 +543,13 @@ impl AudioRecordingManager {
         }
     }
 
-    pub fn preload_vad(&self) -> Result<(), anyhow::Error> {
+    pub fn ensure_recorder(&self) -> Result<(), anyhow::Error> {
         let mut recorder_opt = self.recorder.lock().unwrap();
         if recorder_opt.is_none() {
-            let vad_path = self
-                .app_handle
-                .path()
-                .resolve(
-                    "resources/models/silero_vad_v4.onnx",
-                    tauri::path::BaseDirectory::Resource,
-                )
-                .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
             let settings = get_settings(&self.app_handle);
             *recorder_opt = Some(create_audio_recorder(
-                &vad_path,
                 &self.app_handle,
                 settings.selected_channel,
-                Arc::clone(&self.stream_router),
             )?);
         }
         Ok(())
@@ -680,10 +622,9 @@ impl AudioRecordingManager {
         let mut resolution = self.resolve_microphone_device(&settings);
         let resolve_elapsed = resolve_started.elapsed();
 
-        // Ensure VAD is loaded if it wasn't for whatever reason
-        let vad_started = Instant::now();
-        self.preload_vad()?;
-        let vad_elapsed = vad_started.elapsed();
+        let recorder_started = Instant::now();
+        self.ensure_recorder()?;
+        let recorder_elapsed = recorder_started.elapsed();
 
         let open_started = Instant::now();
         let mut recorder_opt = self.recorder.lock().unwrap();
@@ -700,9 +641,9 @@ impl AudioRecordingManager {
             }
         }
         debug!(
-            "mic stream breakdown: device_resolve={:?} vad_ensure={:?} open={:?}",
+            "mic stream breakdown: device_resolve={:?} recorder_ensure={:?} open={:?}",
             resolve_elapsed,
-            vad_elapsed,
+            recorder_elapsed,
             open_started.elapsed()
         );
         drop(recorder_opt);
@@ -792,11 +733,7 @@ impl AudioRecordingManager {
         );
     }
 
-    pub fn try_start_recording(
-        &self,
-        binding_id: &str,
-        vad_policy: VadPolicy,
-    ) -> Result<RecordingReadiness, String> {
+    pub fn try_start_recording(&self, binding_id: &str) -> Result<RecordingReadiness, String> {
         let mut state = self.state.lock().unwrap();
 
         if let RecordingState::Idle = *state {
@@ -815,7 +752,7 @@ impl AudioRecordingManager {
             }
 
             if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                match rec.start(vad_policy) {
+                match rec.start() {
                     Ok(receiver) => {
                         let generation = self.capture_generation.fetch_add(1, Ordering::AcqRel) + 1;
                         *self.is_recording.lock().unwrap() = true;
@@ -917,8 +854,6 @@ impl AudioRecordingManager {
                 drop(state);
 
                 // Optionally keep recording for a bit longer to capture trailing audio.
-                // This is only the explicit user setting; streaming VAD must not add
-                // hidden post-release capture time.
                 let settings = get_settings(&self.app_handle);
                 let buffer_ms = settings.extra_recording_buffer_ms;
                 if buffer_ms > 0 {
@@ -971,9 +906,9 @@ impl AudioRecordingManager {
                 // Pad if very short
                 let s_len = samples.len();
                 // debug!("Got {} samples", s_len);
-                if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
+                if s_len < TARGET_SAMPLE_RATE && s_len > 0 {
                     let mut padded = samples;
-                    padded.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
+                    padded.resize(TARGET_SAMPLE_RATE * 5 / 4, 0.0);
                     Some(padded)
                 } else {
                     Some(samples)

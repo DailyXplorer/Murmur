@@ -118,30 +118,12 @@ pub enum OverlayPosition {
     Bottom,
 }
 
-/// Which recording overlay to display. `Minimal` and `Live` share one base
-/// (the pill); `Live` grows into the panel that shows live transcription text.
-/// `None` hides the overlay entirely. Decoupled from whether the model runs in
-/// streaming mode (that is driven purely by model capability).
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayStyle {
     None,
     Minimal,
     Live,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum ModelUnloadTimeout {
-    Never,
-    Immediately,
-    Min2,
-    #[default]
-    Min5,
-    Min10,
-    Min15,
-    Hour1,
-    Sec15, // Debug mode only
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -208,30 +190,6 @@ impl Default for PasteMethod {
     }
 }
 
-impl ModelUnloadTimeout {
-    pub fn to_minutes(self) -> Option<u64> {
-        match self {
-            ModelUnloadTimeout::Never => None,
-            ModelUnloadTimeout::Immediately => Some(0), // Special case for immediate unloading
-            ModelUnloadTimeout::Min2 => Some(2),
-            ModelUnloadTimeout::Min5 => Some(5),
-            ModelUnloadTimeout::Min10 => Some(10),
-            ModelUnloadTimeout::Min15 => Some(15),
-            ModelUnloadTimeout::Hour1 => Some(60),
-            ModelUnloadTimeout::Sec15 => Some(0), // Special case for debug - handled separately
-        }
-    }
-
-    pub fn to_seconds(self) -> Option<u64> {
-        match self {
-            ModelUnloadTimeout::Never => None,
-            ModelUnloadTimeout::Immediately => Some(0), // Special case for immediate unloading
-            ModelUnloadTimeout::Sec15 => Some(15),
-            _ => self.to_minutes().map(|m| m * 60),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SoundTheme {
@@ -259,7 +217,7 @@ impl SoundTheme {
 }
 
 /// UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
-/// and `Dark` force one of the two palettes Handy already ships.
+/// and `Dark` force one of the two palettes Murmur already ships.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
@@ -278,27 +236,6 @@ pub enum TypingTool {
     Dotool,
     Ydotool,
     Xdotool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TranscribeAcceleratorSetting {
-    #[default]
-    Auto,
-    Cpu,
-    Gpu,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum OrtAcceleratorSetting {
-    #[default]
-    Auto,
-    Cpu,
-    Cuda,
-    #[serde(rename = "directml")]
-    DirectMl,
-    Rocm,
 }
 
 #[derive(Clone, Serialize, Deserialize, Type)]
@@ -385,8 +322,6 @@ pub struct AppSettings {
     pub clamshell_microphone: Option<String>,
     #[serde(default)]
     pub selected_output_device: Option<String>,
-    #[serde(default = "default_translate_to_english")]
-    pub translate_to_english: bool,
     #[serde(default = "default_selected_language")]
     pub selected_language: String,
     #[serde(default = "default_overlay_position")]
@@ -397,8 +332,6 @@ pub struct AppSettings {
     pub log_level: LogLevel,
     #[serde(default)]
     pub custom_words: Vec<String>,
-    #[serde(default)]
-    pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
     pub word_correction_threshold: f64,
     #[serde(default = "default_history_limit")]
@@ -461,24 +394,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub custom_filler_words: Option<Vec<String>>,
     #[serde(default)]
-    pub transcribe_accelerator: TranscribeAcceleratorSetting,
-    #[serde(default)]
-    pub ort_accelerator: OrtAcceleratorSetting,
-    /// Stable transcribe.cpp device selector. This is derived from the backend's
-    /// `device_id` when available (or its name for backends such as Metal),
-    /// never from the process-local device registry index.
-    #[serde(
-        default = "default_transcribe_gpu_device",
-        deserialize_with = "deserialize_transcribe_gpu_device"
-    )]
-    pub transcribe_gpu_device: Option<String>,
-    #[serde(default)]
     pub extra_recording_buffer_ms: u64,
-    #[serde(default = "default_vad_enabled")]
-    pub vad_enabled: bool,
-    /// Which recording overlay to show: None / Minimal / Live. Streaming mode is
-    /// not gated on this — that follows model capability. Migrated from the old
-    /// `overlay_position` (position `none` → style `None`).
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
 }
@@ -498,10 +414,6 @@ fn default_push_to_talk() -> bool {
 }
 
 fn default_always_on_microphone() -> bool {
-    false
-}
-
-fn default_translate_to_english() -> bool {
     false
 }
 
@@ -536,16 +448,10 @@ fn default_overlay_position() -> OverlayPosition {
 }
 
 fn default_overlay_style() -> OverlayStyle {
-    // Linux hides the overlay by default; other platforms show the live overlay.
-    // Position is independent and only selects top vs. bottom placement.
     #[cfg(target_os = "linux")]
     return OverlayStyle::None;
     #[cfg(not(target_os = "linux"))]
-    return OverlayStyle::Live;
-}
-
-fn default_vad_enabled() -> bool {
-    true
+    return OverlayStyle::Minimal;
 }
 
 fn default_filler_word_removal_enabled() -> bool {
@@ -739,27 +645,6 @@ fn default_post_process_prompts() -> Vec<LLMPrompt> {
     }]
 }
 
-fn default_transcribe_gpu_device() -> Option<String> {
-    None // automatic device selection
-}
-
-/// Accept the 0.1-era integer registry index long enough for the schema
-/// migration to clear it. Device indices are process-local in transcribe.cpp
-/// 0.2 and must never be carried across launches.
-fn deserialize_transcribe_gpu_device<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match Option::<serde_json::Value>::deserialize(deserializer)? {
-        None => Ok(None),
-        Some(serde_json::Value::String(value)) => Ok(Some(value)),
-        Some(serde_json::Value::Number(_)) => Ok(None),
-        Some(_) => Err(de::Error::custom(
-            "transcribe GPU device must be a string, integer, or null",
-        )),
-    }
-}
-
 fn default_typing_tool() -> TypingTool {
     TypingTool::Auto
 }
@@ -893,13 +778,11 @@ pub fn get_default_settings() -> AppSettings {
         selected_channel: None,
         clamshell_microphone: None,
         selected_output_device: None,
-        translate_to_english: false,
         selected_language: "auto".to_string(),
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),
         custom_words: Vec::new(),
-        model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
         recording_retention_period: default_recording_retention_period(),
@@ -929,11 +812,7 @@ pub fn get_default_settings() -> AppSettings {
         external_script_path: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
-        transcribe_accelerator: TranscribeAcceleratorSetting::default(),
-        ort_accelerator: OrtAcceleratorSetting::default(),
-        transcribe_gpu_device: default_transcribe_gpu_device(),
         extra_recording_buffer_ms: 0,
-        vad_enabled: default_vad_enabled(),
         overlay_style: default_overlay_style(),
     }
 }
@@ -1090,39 +969,11 @@ fn apply_settings_migrations(
         .get("settings_schema_version")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
-    if stored_schema_version < 1 {
-        // Before schema 1 this was a UI ordinal. Preserve the original safety
-        // migration: a positive selection was ambiguous even in 0.1.
-        let had_positive_legacy_selection = settings_value
-            .get("transcribe_gpu_device")
-            .and_then(|value| value.as_i64())
-            .is_some_and(|value| value > 0);
-        if had_positive_legacy_selection {
-            settings.transcribe_accelerator = TranscribeAcceleratorSetting::Auto;
-        }
-    }
-    if stored_schema_version < 2 {
-        // transcribe.cpp 0.2 replaced integer registry indices with opaque
-        // process-local handles. Clear every old index once.
-        settings.transcribe_gpu_device = default_transcribe_gpu_device();
+    if stored_schema_version < CURRENT_SETTINGS_SCHEMA_VERSION as u64 {
         settings.settings_schema_version = CURRENT_SETTINGS_SCHEMA_VERSION;
         updated = true;
     }
 
-    // The generic GPU choice was removed in favor of Auto or an exact device.
-    // Normalize settings created by builds that exposed that short-lived option.
-    if settings.transcribe_accelerator == TranscribeAcceleratorSetting::Gpu
-        && settings.transcribe_gpu_device.is_none()
-    {
-        settings.transcribe_accelerator = TranscribeAcceleratorSetting::Auto;
-        updated = true;
-    }
-
-    // One-time overlay migration (only while the new key is absent): the retired
-    // overlay_position `none` meant "hide the overlay" → OverlayStyle::None; any
-    // other position had it visible → Live. The position enum no longer has a
-    // `none` variant (legacy "none" deserializes to Bottom via a serde alias), so
-    // read the raw stored string to recover the old intent.
     if settings_value.get("overlay_style").is_none() {
         let was_hidden = settings_value
             .get("overlay_position")
@@ -1131,8 +982,13 @@ fn apply_settings_migrations(
         settings.overlay_style = if was_hidden {
             OverlayStyle::None
         } else {
-            OverlayStyle::Live
+            OverlayStyle::Minimal
         };
+        updated = true;
+    }
+
+    if settings.overlay_style == OverlayStyle::Live {
+        settings.overlay_style = OverlayStyle::Minimal;
         updated = true;
     }
 
@@ -1315,11 +1171,7 @@ mod tests {
             settings.settings_schema_version,
             CURRENT_SETTINGS_SCHEMA_VERSION
         );
-        assert_eq!(
-            settings.transcribe_accelerator,
-            TranscribeAcceleratorSetting::Auto
-        );
-        assert_eq!(settings.transcribe_gpu_device, None);
+        assert_eq!(settings.overlay_style, OverlayStyle::Minimal);
     }
 
     #[test]
@@ -1430,9 +1282,9 @@ mod tests {
 
     #[cfg(not(target_os = "linux"))]
     #[test]
-    fn default_overlay_style_is_live_when_overlay_defaults_on() {
+    fn default_overlay_style_is_minimal_when_overlay_defaults_on() {
         let settings = get_default_settings();
-        assert_eq!(settings.overlay_style, OverlayStyle::Live);
+        assert_eq!(settings.overlay_style, OverlayStyle::Minimal);
     }
 
     #[test]
@@ -1461,10 +1313,10 @@ mod tests {
     }
 
     #[test]
-    fn overlay_migration_promotes_enabled_overlay_to_live() {
+    fn overlay_migration_promotes_enabled_overlay_to_minimal() {
         let mut settings = get_default_settings();
         settings.overlay_position = OverlayPosition::Top;
-        settings.overlay_style = OverlayStyle::Minimal;
+        settings.overlay_style = OverlayStyle::None;
 
         let raw = serde_json::json!({
             "selected_model": "",
@@ -1472,89 +1324,8 @@ mod tests {
         });
 
         assert!(apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(settings.overlay_style, OverlayStyle::Live);
+        assert_eq!(settings.overlay_style, OverlayStyle::Minimal);
         assert_eq!(settings.overlay_position, OverlayPosition::Top);
-    }
-
-    #[test]
-    fn gpu_device_migration_resets_legacy_positive_selection_to_auto() {
-        let mut settings = get_default_settings();
-        settings.transcribe_accelerator = TranscribeAcceleratorSetting::Gpu;
-
-        let raw = serde_json::json!({
-            "transcribe_accelerator": "gpu",
-            "transcribe_gpu_device": 2
-        });
-
-        assert!(apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(
-            settings.transcribe_accelerator,
-            TranscribeAcceleratorSetting::Auto
-        );
-        assert_eq!(settings.transcribe_gpu_device, None);
-        assert_eq!(
-            settings.settings_schema_version,
-            CURRENT_SETTINGS_SCHEMA_VERSION
-        );
-    }
-
-    #[test]
-    fn gpu_device_migration_maps_v1_automatic_gpu_to_auto() {
-        let raw = serde_json::json!({
-            "settings_schema_version": 1,
-            "transcribe_accelerator": "gpu",
-            "transcribe_gpu_device": 2
-        });
-        let mut settings: AppSettings = serde_json::from_value(raw.clone()).unwrap();
-
-        assert!(apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(
-            settings.transcribe_accelerator,
-            TranscribeAcceleratorSetting::Auto
-        );
-        assert_eq!(settings.transcribe_gpu_device, None);
-    }
-
-    #[test]
-    fn gpu_device_migration_maps_current_automatic_gpu_to_auto() {
-        let raw = serde_json::json!({
-            "settings_schema_version": CURRENT_SETTINGS_SCHEMA_VERSION,
-            "onboarding_completed": false,
-            "whats_new_last_seen_version": default_whats_new_last_seen_version(),
-            "overlay_style": "live",
-            "transcribe_accelerator": "gpu",
-            "transcribe_gpu_device": null
-        });
-        let mut settings: AppSettings = serde_json::from_value(raw.clone()).unwrap();
-
-        assert!(apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(
-            settings.transcribe_accelerator,
-            TranscribeAcceleratorSetting::Auto
-        );
-        assert_eq!(settings.transcribe_gpu_device, None);
-    }
-
-    #[test]
-    fn gpu_device_migration_keeps_current_stable_selection() {
-        let mut settings = get_default_settings();
-        settings.transcribe_accelerator = TranscribeAcceleratorSetting::Gpu;
-        settings.transcribe_gpu_device = Some("[\"vulkan\",\"id\",\"0000:01:00.0\"]".into());
-
-        let raw = serde_json::json!({
-            "settings_schema_version": CURRENT_SETTINGS_SCHEMA_VERSION,
-            "onboarding_completed": false,
-            "whats_new_last_seen_version": default_whats_new_last_seen_version(),
-            "overlay_style": "live",
-            "transcribe_accelerator": "gpu",
-            "transcribe_gpu_device": settings.transcribe_gpu_device
-        });
-
-        assert!(!apply_settings_migrations(&mut settings, &raw));
-        assert_eq!(
-            settings.transcribe_gpu_device.as_deref(),
-            Some("[\"vulkan\",\"id\",\"0000:01:00.0\"]")
-        );
     }
 
     #[test]

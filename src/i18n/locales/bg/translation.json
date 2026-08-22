@@ -3,8 +3,6 @@
     "settings": "Настройки...",
     "checkUpdates": "Проверка за актуализации...",
     "copyLastTranscript": "Копиране на последния транскрипт",
-    "unloadModel": "Разтоварване на модела",
-    "model": "Модел",
     "quit": "Изход",
     "cancel": "Отказ",
     "secureInputWarning": "⚠ Бързите клавиши са блокирани от Secure Input"
@@ -19,89 +17,9 @@
     "about": "За приложението"
   },
   "onboarding": {
-    "subtitle": "За да започнете, изберете модел за транскрипция",
-    "existingModelsTitle": "Съвместими модели",
-    "downloadModelsTitle": "Достъпни за изтегляне",
-    "showAllModels": "Показване на всички {{total}} модела",
-    "showFewerModels": "Показване на по-малко модели",
-    "recommended": "Препоръчан",
-    "customModelDescription": "Не се поддържа официално",
-    "modelCard": {
-      "accuracy": "точност",
-      "speed": "скорост"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Бърз и доста точен."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "Добра точност, средна скорост."
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Баланс между точност и скорост."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "Добра точност, но по-бавен."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Само английски. Най-добрият модел за носители на английски."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Бърз и точен."
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Много бърз, само английски. Добре обработва акценти."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Ултрабърз, само английски."
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Бърз, само английски. Добър баланс между скорост и точност."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Само английски. Високо качество."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Оптимизиран за тайвански мандарин. Поддръжка на смесване на езици."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Много бърз. Китайски, английски, японски, корейски, кантонски."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Разпознаване на руска реч. Бърз и точен."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Много бърз. Английски, немски, испански, френски. Поддържа превод."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Точен многоезичен. 25 европейски езика. Поддържа превод."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Голям, по-бавен, но много точен многоезичен модел."
-      }
-    },
-    "errors": {
-      "selectModel": "Неуспешно избиране на модел"
-    },
     "permissions": {
       "title": "Необходими разрешения",
-      "description": "Handy се нуждае от няколко разрешения, за да работи правилно.",
+      "description": "Murmur се нуждае от няколко разрешения, за да работи правилно.",
       "microphone": {
         "title": "Достъп до микрофон",
         "description": "Необходим е, за да чуе гласа ви при транскрипция."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Персонализиран",
-    "streaming": "Стрийминг",
-    "active": "Активен",
-    "switching": "Превключване...",
-    "noModelsAvailable": "Няма налични модели",
-    "verifying": "Проверка на {{modelName}}...",
-    "verifyingGeneric": "Проверка...",
-    "extracting": "Разархивиране на {{modelName}}...",
-    "extractingMultiple": "Разархивиране на {{count}} модела...",
-    "extractingGeneric": "Разархивиране...",
-    "downloading": "Изтегляне {{percentage}}%",
-    "downloadingMultiple": "Изтегляне на {{count}} модела...",
-    "modelReady": "Моделът е готов",
-    "loading": "Зареждане на {{modelName}}...",
-    "loadingGeneric": "Зареждане...",
-    "modelError": "Грешка в модела",
-    "modelUnloaded": "Моделът е разтоварен",
-    "noModelDownloadRequired": "Няма модел – необходимо е изтегляне",
-    "deleteModel": "Изтриване на {{modelName}}",
-    "downloadSpeed": "{{speed}} MB/s",
-    "cancel": "Отказ",
-    "cancelDownload": "Отказ на изтеглянето",
-    "capabilities": {
-      "languageSelection": "Поддържа няколко входни езика",
-      "singleLanguage": "Поддържа само този език",
-      "languageCount": "{{total}} езика",
-      "languageOnly": "Само {{language}}",
-      "translation": "Може да превежда на английски",
-      "translate": "Превод на английски",
-      "streaming": "Показва транскрипция на живо, докато говорите"
-    },
-    "legacy": "Наследен"
-  },
   "settings": {
     "modelSettings": {
       "title": "Настройки на {{model}}"
@@ -161,7 +45,7 @@
     "general": {
       "title": "Общи",
       "shortcut": {
-        "title": "Бързи клавиши на Handy",
+        "title": "Бързи клавиши на Murmur",
         "description": "Настройте клавишни комбинации за стартиране на запис за реч към текст",
         "loading": "Зареждане на бързите клавиши...",
         "none": "Няма настроени бързи клавиши",
@@ -202,22 +86,11 @@
     "models": {
       "title": "Модели за транскрипция",
       "description": "Изберете модел за транскрипция или изтеглете допълнителни. Различните модели предлагат различна точност и скорост.",
-      "yourModels": "Изтеглени модели",
-      "availableModels": "Налични за изтегляне",
-      "deleteConfirm": "Сигурни ли сте, че искате да изтриете {{modelName}}? Ще трябва да го изтеглите отново, за да го използвате.",
-      "deleteActiveConfirm": "{{modelName}} е вашият активен модел. Изтриването му ще спре транскрипциите, докато не изберете нов модел. Сигурни ли сте?",
-      "deleteTitle": "Изтриване на модел",
-      "filters": {
-        "allLanguages": "Всички езици",
-        "streaming": "Филтриране на моделите, които поддържат транскрипция на живо",
-        "translation": "Филтриране на моделите, които поддържат превод на английски"
-      },
-      "noModelsMatch": "Няма модели, отговарящи на този филтър.",
-      "searchPlaceholder": "Търсене на модели по име…",
-      "rescan": {
-        "label": "Сканиране отново",
-        "tooltip": "Сканиране отново за модели, добавени в папката с модели или кеша на Hugging Face извън Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Звук",
@@ -264,39 +137,25 @@
         "label": "Държане на микрофона отворен между транскрипции",
         "description": "Държи потокът от микрофона отворен 30 секунди след спиране на записа, което намалява забавянето при поредни транскрипции. Може да влоши качеството на Bluetooth аудио, докато е активно."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "Ускорение за Whisper",
-          "description": "Хардуерно ускорение за моделите Whisper. „Автоматично“ използва GPU при наличност (Metal на macOS, Vulkan на Windows/Linux)."
-        },
-        "ort": {
-          "title": "Ускорение за ONNX",
-          "description": "Хардуерно ускорение за ONNX модели (Parakeet, Canary, Moonshine и др.). DirectML на Windows е експериментален. Моделите може да не транскрибират."
-        },
-        "gpuDevice": {
-          "auto": "Автоматично"
-        }
-      },
       "startHidden": {
         "label": "Стартиране скрито",
         "description": "Стартиране в системната област без отваряне на прозореца."
       },
       "autostart": {
         "label": "Стартиране със системата",
-        "description": "Автоматично стартиране на Handy при влизане в профила ви."
+        "description": "Автоматично стартиране на Murmur при влизане в профила ви."
       },
       "showTrayIcon": {
         "label": "Икона в системната област",
-        "description": "Показване на иконата на Handy в системната област."
+        "description": "Показване на иконата на Murmur в системната област."
       },
       "overlay": {
         "style": {
           "title": "Наслагване",
-          "description": "Изберете наслагването при запис: «Няма» го скрива, «Минимално» показва компактен индикатор, «На живо» показва транскрипцията в реално време, докато говорите (само модели с поддръжка на стрийминг — потърсете етикета «Стрийминг» в избора на модел). На Linux се препоръчва «Няма».",
+          "description": "Изберете наслагването при запис: „Няма“ го скрива, „Минимално“ показва компактен индикатор. В Linux се препоръчва „Няма“.",
           "options": {
             "none": "Няма",
-            "minimal": "Минимално",
-            "live": "На живо"
+            "minimal": "Минимално"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Превод на английски",
-        "description": "Автоматичен превод на реч от други езици на английски по време на транскрипция."
-      },
-      "modelUnload": {
-        "title": "Разтоварване на модела",
-        "description": "Автоматично освобождаване на памет на GPU/CPU, ако моделът не е използван за зададеното време",
-        "options": {
-          "never": "Никога",
-          "immediately": "Веднага",
-          "min2": "След 2 минути",
-          "min5": "След 5 минути",
-          "min10": "След 10 минути",
-          "min15": "След 15 минути",
-          "hour1": "След 1 час",
-          "sec15": "След 15 секунди (отстраняване)"
-        }
-      },
       "customWords": {
         "title": "Персонализирани думи",
         "description": "Помогнете на поддържаните модели да разпознават имена и специализирани термини. Приблизителната корекция в момента е ограничена до думи с букви A–Z и цифри.",
@@ -372,10 +213,6 @@
         "add": "Добавяне",
         "remove": "Премахване на {{word}}",
         "duplicate": "„{{word}}“ вече съществува"
-      },
-      "voiceActivityDetection": {
-        "title": "Откриване на гласова активност",
-        "description": "Филтрира тишината от записите. Моделите с поддръжка на стрийминг използват по-дълга опашка на VAD; изключването на VAD записва необработен звук."
       },
       "fillerWordRemoval": {
         "title": "Премахване на думи паразити",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Проверка за актуализации",
-        "description": "Автоматична проверка за нови версии на Handy"
+        "description": "Автоматична проверка за нови версии на Murmur"
       },
       "soundTheme": {
         "label": "Звукова тема",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Диагностика на клавиатурата",
-        "description": "Проверява дали клавиатурните събития достигат до Handy. Записва се само броят на събитията — никога кои клавиши натискате.",
+        "description": "Проверява дали клавиатурните събития достигат до Murmur. Записва се само броят на събитията — никога кои клавиши натискате.",
         "run": "Стартиране на 10-секундна диагностика",
         "running": "Слушане… натиснете бързия си клавиш няколко пъти (напр. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Мишка",
         "verdictBlocked": "Secure Input блокира клавишните събития — бързите клавиши с обикновен клавиш не могат да работят, докато това не бъде решено.",
         "verdictSuspicious": "Пристигнаха събития от модификатори, но нито едно клавишно събитие — нещо потиска клавишите, въпреки че Secure Input се отчита като изключен. Моля, съобщете за това в GitHub.",
-        "verdictOk": "Клавишните събития достигат до Handy нормално.",
+        "verdictOk": "Клавишните събития достигат до Murmur нормално.",
         "verdictNoEvents": "Не са уловени събития — натиснахте ли някакви клавиши по време на теста?",
         "failed": "Диагностиката е неуспешна: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "За приложението",
       "version": {
         "title": "Версия",
-        "description": "Текуща версия на Handy"
+        "description": "Текуща версия на Murmur"
       },
       "appDataDirectory": {
         "title": "Папка с данни на приложението",
-        "description": "Мястото, където Handy съхранява данните си"
+        "description": "Мястото, където Murmur съхранява данните си"
       },
       "sourceCode": {
         "title": "Изходен код",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Подкрепете разработката",
-        "description": "Помогнете ни да продължим да развиваме Handy",
+        "description": "Помогнете ни да продължим да развиваме Murmur",
         "button": "Дарение"
-      },
-      "acknowledgments": {
-        "title": "Благодарности",
-        "ggml": {
-          "title": "ggml",
-          "description": "Високопроизводително изпълнение на автоматичния модел за разпознаване на реч Whisper на OpenAI",
-          "details": "Handy използва ggml за бързо локално реч-към-текст. Благодарности на Georgi Gerganov и сътрудниците за отличната работа."
-        }
       },
       "whatsNewUpdates": {
         "label": "Показвай новостите",
-        "description": "Показвай бележки към изданието след актуализации на Handy"
+        "description": "Показвай бележки към изданието след актуализации на Murmur"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Няма намерени опции"
   },
   "accessibility": {
-    "permissionsDescription": "Handy се нуждае от разрешения за достъпност, за да въвежда транскрибирания текст.",
+    "permissionsDescription": "Murmur се нуждае от разрешения за достъпност, за да въвежда транскрибирания текст.",
     "openSettings": "Отваряне на системните настройки"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Език на приложението",
-    "description": "Промяна на езика на интерфейса на Handy"
+    "description": "Промяна на езика на интерфейса на Murmur"
   },
   "theme": {
     "title": "Тема на приложението",
-    "description": "Изберете дали Handy да следва системната тема, или да остане светла или тъмна",
+    "description": "Изберете дали Murmur да следва системната тема, или да остане светла или тъмна",
     "options": {
       "system": "Системна",
       "light": "Светла",
@@ -671,7 +500,7 @@
     "processing": "Обработка..."
   },
   "whatsNew": {
-    "title": "Ново в Handy v{{version}}"
+    "title": "Ново в Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} може да блокира 1 бърз клавиш",
