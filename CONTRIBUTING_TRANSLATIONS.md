@@ -1,6 +1,6 @@
-# Contributing Translations to Handy
+# Contributing Translations to Murmur
 
-Thank you for helping translate Handy! This guide explains how to add or improve translations.
+Thank you for helping translate Murmur! This guide explains how to add or improve translations.
 
 ## Quick Start
 
@@ -120,7 +120,7 @@ Found a typo or better translation?
 
 ### Don't:
 
-- Translate brand names (Handy, transcribe.cpp, ggml, OpenAI)
+- Translate brand names (Murmur, transcribe.cpp, ggml, OpenAI)
 - Change or remove `{{variables}}`
 - Modify JSON keys
 - Add extra spaces or formatting
@@ -171,4 +171,4 @@ We'd love help with:
 
 ---
 
-Thank you for making Handy accessible to more people around the world!
+Thank you for making Murmur accessible to more people around the world!

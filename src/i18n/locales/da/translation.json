@@ -3,8 +3,6 @@
     "settings": "Indstillinger...",
     "checkUpdates": "Tjek for opdateringer...",
     "copyLastTranscript": "Kopiér seneste transskription",
-    "unloadModel": "Frigør model",
-    "model": "Model",
     "quit": "Afslut",
     "cancel": "Annuller",
     "secureInputWarning": "⚠ Genveje blokeret af Secure Input"
@@ -19,89 +17,9 @@
     "about": "Om"
   },
   "onboarding": {
-    "subtitle": "For at komme i gang skal du vælge en transskriptionsmodel",
-    "existingModelsTitle": "Kompatible modeller",
-    "downloadModelsTitle": "Tilgængelig til download",
-    "showAllModels": "Vis alle {{total}} modeller",
-    "showFewerModels": "Vis færre modeller",
-    "recommended": "Anbefalet",
-    "customModelDescription": "Ikke officielt understøttet",
-    "modelCard": {
-      "accuracy": "nøjagtighed",
-      "speed": "hastighed"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Hurtig og ret nøjagtig."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "God nøjagtighed, middel hastighed"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Afbalanceret nøjagtighed og hastighed."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "God nøjagtighed, men langsom."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Kun engelsk. Den bedste model for engelsktalende."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Hurtig og nøjagtig"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Meget hurtig, kun engelsk. Håndterer accenter godt."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Ultrahurtig, kun engelsk"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Hurtig, kun engelsk. God balance mellem hastighed og nøjagtighed."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Kun engelsk. Høj kvalitet."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Optimeret til taiwansk mandarin. Understøtter kodeskift."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Meget hurtig. Kinesisk, engelsk, japansk, koreansk, kantonesisk."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Russisk talegenkendelse. Hurtig og nøjagtig."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Meget hurtig. Engelsk, tysk, spansk, fransk. Understøtter oversættelse."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Nøjagtig, flersproget. 25 europæiske sprog. Understøtter oversættelse."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "En stor, langsommere, men meget nøjagtig flersproget model."
-      }
-    },
-    "errors": {
-      "selectModel": "Kunne ikke vælge model"
-    },
     "permissions": {
       "title": "Tilladelser påkrævet",
-      "description": "Handy har brug for et par tilladelser for at fungere korrekt.",
+      "description": "Murmur har brug for et par tilladelser for at fungere korrekt.",
       "microphone": {
         "title": "Mikrofonadgang",
         "description": "Påkrævet for at høre din stemme til transskription."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Brugerdefineret",
-    "legacy": "Forældet",
-    "streaming": "Streaming",
-    "active": "Aktiv",
-    "switching": "Skifter...",
-    "noModelsAvailable": "Ingen modeller tilgængelige",
-    "verifying": "Verificerer {{modelName}}...",
-    "verifyingGeneric": "Verificerer...",
-    "extracting": "Udpakker {{modelName}}...",
-    "extractingMultiple": "Udpakker {{count}} modeller...",
-    "extractingGeneric": "Udpakker...",
-    "downloading": "Downloader {{percentage}}%",
-    "downloadingMultiple": "Downloader {{count}} modeller...",
-    "modelReady": "Model klar",
-    "loading": "Indlæser {{modelName}}...",
-    "loadingGeneric": "Indlæser...",
-    "modelError": "Modelfejl",
-    "modelUnloaded": "Model frigjort",
-    "noModelDownloadRequired": "Ingen model - download påkrævet",
-    "deleteModel": "Slet {{modelName}}",
-    "downloadSpeed": "{{speed}} MB/s",
-    "cancel": "Annuller",
-    "cancelDownload": "Annuller download",
-    "capabilities": {
-      "languageSelection": "Understøtter flere inputsprog",
-      "singleLanguage": "Understøtter kun dette sprog",
-      "languageCount": "{{total}} sprog",
-      "languageOnly": "Kun {{language}}",
-      "translation": "Kan oversætte til engelsk",
-      "translate": "Oversæt",
-      "streaming": "Viser live transskription, mens du taler"
-    }
-  },
   "settings": {
     "modelSettings": {
       "title": "{{model}}-indstillinger"
@@ -161,7 +45,7 @@
     "general": {
       "title": "Generelt",
       "shortcut": {
-        "title": "Handy-genveje",
+        "title": "Murmur-genveje",
         "description": "Konfigurer tastaturgenveje til at udløse tale-til-tekst-optagelse",
         "loading": "Indlæser genveje...",
         "none": "Ingen genveje konfigureret",
@@ -202,22 +86,11 @@
     "models": {
       "title": "Transskriptionsmodeller",
       "description": "Vælg en transskriptionsmodel, eller download flere modeller. Forskellige modeller tilbyder varierende niveauer af nøjagtighed og hastighed.",
-      "searchPlaceholder": "Søg efter modeller ved navn…",
-      "yourModels": "Downloadede modeller",
-      "availableModels": "Tilgængelig til download",
-      "deleteConfirm": "Er du sikker på, at du vil slette {{modelName}}? Du skal downloade den igen for at bruge den.",
-      "deleteActiveConfirm": "{{modelName}} er din aktive model. Sletning af den vil stoppe transskriptioner, indtil du vælger en ny model. Er du sikker?",
-      "deleteTitle": "Slet model",
-      "filters": {
-        "allLanguages": "Alle sprog",
-        "streaming": "Filtrer modeller, der understøtter live transskription",
-        "translation": "Filtrer modeller, der understøtter oversættelse til engelsk"
-      },
-      "rescan": {
-        "label": "Søg igen",
-        "tooltip": "Søg igen efter modeller, der er tilføjet til modelmappen eller Hugging Face-cachen uden for Handy"
-      },
-      "noModelsMatch": "Ingen modeller matcher dette filter."
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Lyd",
@@ -264,39 +137,25 @@
         "label": "Hold mikrofon åben mellem transskriptioner",
         "description": "Holder mikrofonstrømmen åben i 30 sekunder, efter at optagelsen stopper, hvilket reducerer ventetid ved transskriptioner lige efter hinanden. Kan forringe Bluetooth-lydkvaliteten, mens den er aktiv."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "transcribe.cpp-acceleration",
-          "description": "Hardwareacceleration til transcribe.cpp-modeller (Whisper-familien). Auto bruger GPU, hvis tilgængelig (Metal på macOS, Vulkan på Windows/Linux)."
-        },
-        "ort": {
-          "title": "ONNX-acceleration",
-          "description": "Hardwareacceleration til ONNX-modeller (Parakeet, Canary, Moonshine osv.). DirectML på Windows er eksperimentelt. Modeller kan fejle under transskription."
-        },
-        "gpuDevice": {
-          "auto": "Automatisk"
-        }
-      },
       "startHidden": {
         "label": "Start skjult",
         "description": "Vis på meddelelsesområdet uden at åbne vinduet."
       },
       "autostart": {
         "label": "Start ved opstart",
-        "description": "Start Handy automatisk, når du logger ind på din computer."
+        "description": "Start Murmur automatisk, når du logger ind på din computer."
       },
       "showTrayIcon": {
         "label": "Vis proceslinjeikon",
-        "description": "Vis Handy-ikonet i meddelelsesområdet."
+        "description": "Vis Murmur-ikonet i meddelelsesområdet."
       },
       "overlay": {
         "style": {
           "title": "Overlay",
-          "description": "Vælg optagelses-overlay: Ingen skjuler det, Minimal viser en kompakt pille, Live viser transskription i realtid, mens du taler (kun modeller med streaming-understøttelse — se efter Streaming-mærket i modelvælgeren). På Linux anbefales 'Ingen'.",
+          "description": "Vælg optagelses-overlay: Ingen skjuler det, Minimal viser en kompakt pille. På Linux anbefales 'Ingen'.",
           "options": {
             "none": "Ingen",
-            "minimal": "Minimal",
-            "live": "Live"
+            "minimal": "Minimal"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Oversæt til engelsk",
-        "description": "Oversæt automatisk tale fra andre sprog til engelsk under transskription."
-      },
-      "modelUnload": {
-        "title": "Frigør model",
-        "description": "Frigør automatisk GPU-/CPU-hukommelse, når modellen ikke har været brugt i den angivne tid",
-        "options": {
-          "never": "Aldrig",
-          "immediately": "Med det samme",
-          "min2": "Efter 2 minutter",
-          "min5": "Efter 5 minutter",
-          "min10": "Efter 10 minutter",
-          "min15": "Efter 15 minutter",
-          "hour1": "Efter 1 time",
-          "sec15": "Efter 15 sekunder (fejlfinding)"
-        }
-      },
       "customWords": {
         "title": "Brugerdefinerede ord",
         "description": "Hjælp understøttede modeller med at genkende navne og specialiserede udtryk. Fuzzy-korrektion er i øjeblikket begrænset til ord, der bruger A-Z og tal.",
@@ -372,10 +213,6 @@
         "add": "Tilføj",
         "remove": "Fjern {{word}}",
         "duplicate": "\"{{word}}\" findes allerede"
-      },
-      "voiceActivityDetection": {
-        "title": "Stemmeaktivitetsdetektion",
-        "description": "Filtrer stilhed fra optagelser. Streaming-modeller bruger en længere VAD-hale; deaktivering af VAD optager rå lyd."
       },
       "fillerWordRemoval": {
         "title": "Fjern fyldord",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Tjek for opdateringer",
-        "description": "Tjek automatisk for nye versioner af Handy"
+        "description": "Tjek automatisk for nye versioner af Murmur"
       },
       "whatsNewPreview": {
         "title": "Forhåndsvisning af nyheder",
@@ -554,7 +391,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Tastaturdiagnostik",
-        "description": "Kontrollerer, om tastaturhændelser når frem til Handy. Kun antallet af hændelser registreres — aldrig hvilke taster du trykker på.",
+        "description": "Kontrollerer, om tastaturhændelser når frem til Murmur. Kun antallet af hændelser registreres — aldrig hvilke taster du trykker på.",
         "run": "Kør 10 s diagnostik",
         "running": "Lytter… tryk på din genvej et par gange (f.eks. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -568,7 +405,7 @@
         "mouse": "Mus",
         "verdictBlocked": "Secure Input blokerer tastehændelser — genveje med en almindelig tast kan ikke fungere, før det er løst.",
         "verdictSuspicious": "Der kom modifikatorhændelser, men ingen tastehændelser — noget undertrykker taster, selvom Secure Input rapporteres som deaktiveret. Rapportér det gerne på GitHub.",
-        "verdictOk": "Tastehændelser når frem til Handy som normalt.",
+        "verdictOk": "Tastehændelser når frem til Murmur som normalt.",
         "verdictNoEvents": "Ingen hændelser registreret — trykkede du på nogen taster under testen?",
         "failed": "Diagnostik mislykkedes: {{error}}"
       }
@@ -577,15 +414,15 @@
       "title": "Om",
       "version": {
         "title": "Version",
-        "description": "Nuværende version af Handy"
+        "description": "Nuværende version af Murmur"
       },
       "whatsNewUpdates": {
         "label": "Vis nyheder",
-        "description": "Vis udgivelsesnoter, efter Handy opdateres"
+        "description": "Vis udgivelsesnoter, efter Murmur opdateres"
       },
       "appDataDirectory": {
         "title": "Appdatamappe",
-        "description": "Placering, hvor Handy gemmer sine data"
+        "description": "Placering, hvor Murmur gemmer sine data"
       },
       "sourceCode": {
         "title": "Kildekode",
@@ -594,16 +431,8 @@
       },
       "supportDevelopment": {
         "title": "Støt udviklingen",
-        "description": "Hjælp os med at fortsætte udviklingen af Handy",
+        "description": "Hjælp os med at fortsætte udviklingen af Murmur",
         "button": "Donér"
-      },
-      "acknowledgments": {
-        "title": "Anerkendelser",
-        "ggml": {
-          "title": "ggml",
-          "description": "Højtydende tensor-bibliotek til maskinlæringsinferens på enheden",
-          "details": "Handys lokale tale-til-tekst funktionalitet er bygget på transcribe.cpp og ggml. Tak for det fantastiske arbejde af Georgi Gerganov og bidragyderne."
-        }
       }
     }
   },
@@ -623,7 +452,7 @@
     "portableUpdateBrowseButton": "Åbn GitHub Releases"
   },
   "whatsNew": {
-    "title": "Nyt i Handy v{{version}}"
+    "title": "Nyt i Murmur v{{version}}"
   },
   "common": {
     "loading": "Indlæser...",
@@ -635,7 +464,7 @@
     "noOptionsFound": "Ingen muligheder fundet"
   },
   "accessibility": {
-    "permissionsDescription": "Handy har brug for tilgængelighedstilladelser for at skrive den transskriberede tekst.",
+    "permissionsDescription": "Murmur har brug for tilgængelighedstilladelser for at skrive den transskriberede tekst.",
     "openSettings": "Åbn systemindstillinger"
   },
   "errors": {
@@ -658,11 +487,11 @@
   },
   "appLanguage": {
     "title": "Applikationssprog",
-    "description": "Skift sproget for Handy-grænsefladen"
+    "description": "Skift sproget for Murmur-grænsefladen"
   },
   "theme": {
     "title": "Applikationstema",
-    "description": "Vælg om Handy skal følge dit systemtema eller forblive lyst eller mørkt",
+    "description": "Vælg om Murmur skal følge dit systemtema eller forblive lyst eller mørkt",
     "options": {
       "system": "System",
       "light": "Lys",

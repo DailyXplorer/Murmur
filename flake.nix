@@ -1,5 +1,5 @@
 {
-  description = "Handy - A free, open source, and extensible speech-to-text application that works completely offline";
+  description = "Murmur - speech-to-text using Codex cloud transcription";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -38,15 +38,11 @@
         glib
         libsoup_3
         alsa-lib
-        onnxruntime
         libayatana-appindicator
         libevdev
         libxtst
         gtk-layer-shell
         openssl
-        vulkan-loader
-        vulkan-headers
-        shaderc
       ];
 
       # GStreamer plugins for WebKitGTK audio/video
@@ -60,8 +56,6 @@
 
       # Shared environment variables for Rust/native builds
       commonEnv = pkgs: let lib = pkgs.lib; in {
-        ORT_LIB_LOCATION = "${pkgs.onnxruntime}/lib";
-        ORT_PREFER_DYNAMIC_LINK = "1";
         GST_PLUGIN_SYSTEM_PATH_1_0 = "${lib.makeSearchPathOutput "lib" "lib/gstreamer-1.0" (gstPlugins pkgs)}";
       };
 
@@ -86,8 +80,8 @@
           };
         in
         {
-          handy = pkgs.rustPlatform.buildRustPackage {
-            pname = "handy";
+          murmur = pkgs.rustPlatform.buildRustPackage {
+            pname = "murmur";
             inherit version;
             src = self;
 
@@ -149,11 +143,10 @@
               jq
               cmake
               rustPlatform.bindgenHook
-              shaderc
             ];
 
-            # Tests require runtime resources (audio devices, model files, GPU/Vulkan)
-            # not available in the Nix build sandbox
+            # Tests require runtime resources (audio devices) not available
+            # in the Nix build sandbox
             doCheck = false;
 
             buildInputs = commonNativeDeps pkgs ++ (with pkgs; [
@@ -173,15 +166,15 @@
             '';
 
             meta = {
-              description = "A free, open source, and extensible speech-to-text application that works completely offline";
-              homepage = "https://github.com/cjpais/Handy";
+              description = "A speech-to-text application using Codex cloud transcription";
+              homepage = "https://github.com/DailyXplorer/Murmur";
               license = lib.licenses.mit;
-              mainProgram = "handy";
+              mainProgram = "murmur";
               platforms = supportedSystems;
             };
           };
 
-          default = self.packages.${system}.handy;
+          default = self.packages.${system}.murmur;
         }
       );
 
@@ -190,7 +183,7 @@
         { lib, pkgs, ... }:
         {
           imports = [ ./nix/module.nix ];
-          programs.handy.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.handy;
+          programs.murmur.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.murmur;
         };
 
       # Home-manager module for per-user service
@@ -198,7 +191,7 @@
         { lib, pkgs, ... }:
         {
           imports = [ ./nix/hm-module.nix ];
-          services.handy.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.handy;
+          services.murmur.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.murmur;
         };
 
       # Development shell for building from source
@@ -228,17 +221,15 @@
             ]);
 
             inherit (commonEnv pkgs)
-              ORT_LIB_LOCATION
-              ORT_PREFER_DYNAMIC_LINK
               GST_PLUGIN_SYSTEM_PATH_1_0;
 
-            LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [ pkgs.libayatana-appindicator pkgs.onnxruntime pkgs.vulkan-loader ]}";
+            LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [ pkgs.libayatana-appindicator ]}";
 
             # Same as wrapGAppsHook4
             XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.hicolor-icon-theme}/share";
 
             shellHook = ''
-              echo "Handy development environment"
+              echo "Murmur development environment"
               bun install
               echo "Run 'bun run tauri dev' to start"
             '';

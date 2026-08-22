@@ -3,8 +3,6 @@
     "settings": "Einstellungen...",
     "checkUpdates": "Nach Updates suchen...",
     "copyLastTranscript": "Letzte Transkription kopieren",
-    "unloadModel": "Modell entladen",
-    "model": "Modell",
     "quit": "Beenden",
     "cancel": "Abbrechen",
     "secureInputWarning": "⚠ Tastenkürzel durch Secure Input blockiert"
@@ -19,89 +17,9 @@
     "about": "Info"
   },
   "onboarding": {
-    "subtitle": "Wähle ein Transkriptionsmodell, um loszulegen",
-    "existingModelsTitle": "Kompatible Modelle",
-    "downloadModelsTitle": "Verfügbar zum Download",
-    "showAllModels": "Alle {{total}} Modelle anzeigen",
-    "showFewerModels": "Weniger Modelle anzeigen",
-    "recommended": "Empfohlen",
-    "customModelDescription": "Nicht offiziell unterstützt",
-    "modelCard": {
-      "accuracy": "Genauigkeit",
-      "speed": "Geschwindigkeit"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Schnell und recht genau."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "Gute Genauigkeit, mittlere Geschwindigkeit"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Ausgewogene Genauigkeit und Geschwindigkeit."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "Gute Genauigkeit, aber langsam."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Nur Englisch. Das beste Modell für englischsprachige Nutzer."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Schnell und genau"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Sehr schnell, nur Englisch. Verarbeitet Akzente gut."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Ultraschnell, nur Englisch"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Schnell, nur Englisch. Gute Balance zwischen Geschwindigkeit und Genauigkeit."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Nur Englisch. Hohe Qualität."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Optimiert für taiwanesisches Mandarin. Unterstützung für Code-Switching."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Sehr schnell. Chinesisch, Englisch, Japanisch, Koreanisch, Kantonesisch."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Russische Spracherkennung. Schnell und präzise."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Sehr schnell. Englisch, Deutsch, Spanisch, Französisch. Unterstützt Übersetzung."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Genaue mehrsprachige Erkennung. 25 europäische Sprachen. Unterstützt Übersetzung."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Ein großes, langsameres, aber sehr genaues mehrsprachiges Modell."
-      }
-    },
-    "errors": {
-      "selectModel": "Modellauswahl fehlgeschlagen"
-    },
     "permissions": {
       "title": "Berechtigungen erforderlich",
-      "description": "Handy benötigt einige Berechtigungen, um richtig zu funktionieren.",
+      "description": "Murmur benötigt einige Berechtigungen, um richtig zu funktionieren.",
       "microphone": {
         "title": "Mikrofonzugriff",
         "description": "Erforderlich, um deine Stimme für die Transkription zu hören."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Benutzerdefiniert",
-    "streaming": "Streaming",
-    "active": "Aktiv",
-    "switching": "Wechseln...",
-    "noModelsAvailable": "Keine Modelle verfügbar",
-    "verifying": "Überprüfung von {{modelName}}...",
-    "verifyingGeneric": "Überprüfung...",
-    "extracting": "Entpacke {{modelName}}...",
-    "extractingMultiple": "Entpacke {{count}} Modelle...",
-    "extractingGeneric": "Wird entpackt...",
-    "downloading": "Herunterladen {{percentage}}%",
-    "downloadingMultiple": "Lade {{count}} Modelle herunter...",
-    "modelReady": "Modell bereit",
-    "loading": "Lade {{modelName}}...",
-    "loadingGeneric": "Wird geladen...",
-    "modelError": "Modellfehler",
-    "modelUnloaded": "Modell entladen",
-    "noModelDownloadRequired": "Kein Modell - Download erforderlich",
-    "deleteModel": "{{modelName}} löschen",
-    "downloadSpeed": "{{speed}} MB/s",
-    "capabilities": {
-      "languageSelection": "Unterstützt mehrere Eingabesprachen",
-      "languageCount": "{{total}} Sprachen",
-      "translation": "Kann ins Englische übersetzen",
-      "translate": "Ins Englische übersetzen",
-      "singleLanguage": "Unterstützt nur diese Sprache",
-      "languageOnly": "Nur {{language}}",
-      "streaming": "Zeigt die Transkription live während des Sprechens an"
-    },
-    "cancel": "Abbrechen",
-    "cancelDownload": "Download abbrechen",
-    "legacy": "Veraltet"
-  },
   "settings": {
     "modelSettings": {
       "title": "{{model}}-Einstellungen"
@@ -161,27 +45,16 @@
     "models": {
       "title": "Transkriptionsmodelle",
       "description": "Wähle ein Transkriptionsmodell aus oder lade zusätzliche Modelle herunter. Verschiedene Modelle bieten unterschiedliche Genauigkeits- und Geschwindigkeitsstufen.",
-      "deleteConfirm": "Bist du sicher, dass du {{modelName}} löschen möchtest? Du musst es erneut herunterladen, um es zu verwenden.",
-      "deleteActiveConfirm": "{{modelName}} ist dein aktives Modell. Das Löschen stoppt Transkriptionen, bis du ein neues Modell auswählst. Bist du sicher?",
-      "deleteTitle": "Modell löschen",
-      "filters": {
-        "allLanguages": "Alle Sprachen",
-        "streaming": "Modelle filtern, die Live-Transkription unterstützen",
-        "translation": "Modelle filtern, die Übersetzungen ins Englische unterstützen"
-      },
-      "noModelsMatch": "Keine Modelle entsprechen diesem Filter.",
-      "yourModels": "Heruntergeladene Modelle",
-      "availableModels": "Zum Download verfügbar",
-      "searchPlaceholder": "Modelle nach Namen suchen…",
-      "rescan": {
-        "label": "Neu scannen",
-        "tooltip": "Erneut nach Modellen scannen, die außerhalb von Handy zum Modellordner oder Hugging-Face-Cache hinzugefügt wurden"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "general": {
       "title": "Allgemein",
       "shortcut": {
-        "title": "Handy-Tastenkürzel",
+        "title": "Murmur-Tastenkürzel",
         "description": "Tastenkürzel für die Sprachaufnahme konfigurieren",
         "loading": "Tastenkürzel werden geladen...",
         "none": "Keine Tastenkürzel konfiguriert",
@@ -264,39 +137,25 @@
         "label": "Mikrofon zwischen Transkriptionen offen halten",
         "description": "Hält den Mikrofon-Stream nach dem Aufnahmestopp 30 Sekunden lang offen, um die Latenz bei aufeinanderfolgenden Transkriptionen zu verringern. Kann die Bluetooth-Audioqualität beeinträchtigen."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "Whisper-Beschleunigung",
-          "description": "Hardwarebeschleunigung für Whisper-Modelle. Automatisch nutzt GPU falls verfügbar (Metal auf macOS, Vulkan auf Windows/Linux)."
-        },
-        "ort": {
-          "title": "ONNX-Beschleunigung",
-          "description": "Hardwarebeschleunigung für ONNX-Modelle (Parakeet, Canary, Moonshine usw.). DirectML unter Windows ist experimentell. Modelle können bei der Transkription fehlschlagen."
-        },
-        "gpuDevice": {
-          "auto": "Automatisch"
-        }
-      },
       "startHidden": {
         "label": "Versteckt starten",
         "description": "In den Systembereich starten, ohne das Fenster zu öffnen."
       },
       "autostart": {
         "label": "Beim Start ausführen",
-        "description": "Handy automatisch beim Anmelden starten."
+        "description": "Murmur automatisch beim Anmelden starten."
       },
       "showTrayIcon": {
         "label": "Taskleistensymbol anzeigen",
-        "description": "Das Handy-Symbol in der Taskleiste anzeigen."
+        "description": "Das Murmur-Symbol in der Taskleiste anzeigen."
       },
       "overlay": {
         "style": {
           "title": "Overlay",
-          "description": "Wähle das Aufnahme-Overlay: „Keine“ blendet es aus, „Minimal“ zeigt ein kompaktes Element, „Live“ zeigt die Transkription in Echtzeit während des Sprechens an (nur für streamingfähige Modelle – suche nach dem Streaming-Badge in der Modellauswahl). Unter Linux wird „Keine“ empfohlen.",
+          "description": "Wähle das Aufnahme-Overlay: „Keine“ blendet es aus, „Minimal“ zeigt ein kompaktes Element. Unter Linux wird „Keine“ empfohlen.",
           "options": {
             "none": "Keine",
-            "minimal": "Minimal",
-            "live": "Live"
+            "minimal": "Minimal"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Ins Englische übersetzen",
-        "description": "Sprache aus anderen Sprachen automatisch während der Transkription ins Englische übersetzen."
-      },
-      "modelUnload": {
-        "title": "Modell entladen",
-        "description": "GPU/CPU-Speicher automatisch freigeben, wenn das Modell für die angegebene Zeit nicht verwendet wurde",
-        "options": {
-          "never": "Nie",
-          "immediately": "Sofort",
-          "min2": "Nach 2 Minuten",
-          "min5": "Nach 5 Minuten",
-          "min10": "Nach 10 Minuten",
-          "min15": "Nach 15 Minuten",
-          "hour1": "Nach 1 Stunde",
-          "sec15": "Nach 15 Sekunden (Debug)"
-        }
-      },
       "customWords": {
         "title": "Benutzerdefinierte Wörter",
         "description": "Hilf unterstützten Modellen, Namen und Fachbegriffe zu erkennen. Die unscharfe Korrektur ist derzeit auf Wörter mit den Buchstaben A–Z und Zahlen beschränkt.",
@@ -372,10 +213,6 @@
         "add": "Hinzufügen",
         "remove": "{{word}} entfernen",
         "duplicate": "\"{{word}}\" existiert bereits"
-      },
-      "voiceActivityDetection": {
-        "title": "Sprachaktivitätserkennung (VAD)",
-        "description": "Filtert Stille aus Aufnahmen. Streamingfähige Modelle verwenden ein längeres VAD-Ende; das Deaktivieren von VAD nimmt Rohaudio auf."
       },
       "fillerWordRemoval": {
         "title": "Füllwörter entfernen",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Nach Updates suchen",
-        "description": "Automatisch nach neuen Versionen von Handy suchen"
+        "description": "Automatisch nach neuen Versionen von Murmur suchen"
       },
       "soundTheme": {
         "label": "Sound-Thema",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Tastatur-Diagnose",
-        "description": "Prüft, ob Tastaturereignisse Handy erreichen. Es wird nur die Anzahl der Ereignisse erfasst — niemals, welche Tasten du drückst.",
+        "description": "Prüft, ob Tastaturereignisse Murmur erreichen. Es wird nur die Anzahl der Ereignisse erfasst — niemals, welche Tasten du drückst.",
         "run": "10-Sekunden-Diagnose starten",
         "running": "Lauscht… drücke dein Tastenkürzel ein paar Mal (z. B. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Maus",
         "verdictBlocked": "Secure Input blockiert Tastenereignisse — Tastenkürzel mit einer normalen Taste können erst wieder funktionieren, wenn das behoben ist.",
         "verdictSuspicious": "Es kamen Modifikator-Ereignisse an, aber keine Tastenereignisse — irgendetwas unterdrückt Tasten, obwohl Secure Input als deaktiviert gemeldet wird. Bitte melde das auf GitHub.",
-        "verdictOk": "Tastenereignisse erreichen Handy normal.",
+        "verdictOk": "Tastenereignisse erreichen Murmur normal.",
         "verdictNoEvents": "Keine Ereignisse erfasst — hast du während des Tests Tasten gedrückt?",
         "failed": "Diagnose fehlgeschlagen: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "Info",
       "version": {
         "title": "Version",
-        "description": "Aktuelle Version von Handy"
+        "description": "Aktuelle Version von Murmur"
       },
       "appDataDirectory": {
         "title": "App-Datenverzeichnis",
-        "description": "Speicherort der Handy-Daten"
+        "description": "Speicherort der Murmur-Daten"
       },
       "sourceCode": {
         "title": "Quellcode",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Entwicklung unterstützen",
-        "description": "Hilf uns, Handy weiterzuentwickeln",
+        "description": "Hilf uns, Murmur weiterzuentwickeln",
         "button": "Spenden"
-      },
-      "acknowledgments": {
-        "title": "Danksagungen",
-        "ggml": {
-          "title": "ggml",
-          "description": "Hochleistungs-Inferenz des Whisper-Spracherkennungsmodells von OpenAI",
-          "details": "Handy verwendet ggml für schnelle, lokale Sprach-zu-Text-Verarbeitung. Dank an Georgi Gerganov und die Mitwirkenden für ihre großartige Arbeit."
-        }
       },
       "whatsNewUpdates": {
         "label": "Neuerungen anzeigen",
-        "description": "Versionshinweise nach Handy-Updates anzeigen"
+        "description": "Versionshinweise nach Murmur-Updates anzeigen"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Keine Optionen gefunden"
   },
   "accessibility": {
-    "permissionsDescription": "Handy benötigt Bedienungshilfen-Berechtigungen, um transkribierten Text einzugeben.",
+    "permissionsDescription": "Murmur benötigt Bedienungshilfen-Berechtigungen, um transkribierten Text einzugeben.",
     "openSettings": "Systemeinstellungen öffnen"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Anwendungssprache",
-    "description": "Sprache der Handy-Oberfläche ändern"
+    "description": "Sprache der Murmur-Oberfläche ändern"
   },
   "theme": {
     "title": "Anwendungsdesign",
-    "description": "Wählen Sie, ob Handy dem Systemthema folgt oder hell bzw. dunkel bleibt",
+    "description": "Wählen Sie, ob Murmur dem Systemthema folgt oder hell bzw. dunkel bleibt",
     "options": {
       "system": "System",
       "light": "Hell",
@@ -671,7 +500,7 @@
     "processing": "Verarbeite..."
   },
   "whatsNew": {
-    "title": "Neu in Handy v{{version}}"
+    "title": "Neu in Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blockiert möglicherweise 1 Tastenkürzel",

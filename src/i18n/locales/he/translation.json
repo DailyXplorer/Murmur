@@ -3,8 +3,6 @@
     "settings": "הגדרות...",
     "checkUpdates": "בדוק עדכונים...",
     "copyLastTranscript": "העתק את התמלול האחרון",
-    "unloadModel": "פרוק מודל",
-    "model": "מודל",
     "quit": "יציאה",
     "cancel": "ביטול",
     "secureInputWarning": "⚠ קיצורי המקשים חסומים על ידי Secure Input"
@@ -19,89 +17,9 @@
     "about": "אודות"
   },
   "onboarding": {
-    "subtitle": "כדי להתחיל, בחר מודל תמלול",
-    "existingModelsTitle": "מודלים תואמים",
-    "downloadModelsTitle": "זמינים להורדה",
-    "showAllModels": "הצג את כל {{total}} המודלים",
-    "showFewerModels": "הצג פחות מודלים",
-    "recommended": "מומלץ",
-    "customModelDescription": "לא נתמך באופן רשמי",
-    "modelCard": {
-      "accuracy": "דיוק",
-      "speed": "מהירות"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "מהיר ודי מדויק."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "דיוק טוב, מהירות בינונית"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "איזון טוב בין דיוק למהירות."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "דיוק טוב, אבל איטי."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "אנגלית בלבד. המודל הטוב ביותר לדוברי אנגלית."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "מהיר ומדויק"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "מהיר מאוד, אנגלית בלבד. מתמודד היטב עם מבטאים."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "מהיר במיוחד, אנגלית בלבד"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "מהיר, אנגלית בלבד. איזון טוב בין מהירות לדיוק."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "אנגלית בלבד. איכות גבוהה."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "מותאם למנדרינית טאיוואנית. תמיכה במעבר בין שפות."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "מהיר מאוד. סינית, אנגלית, יפנית, קוריאנית וקנטונזית."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "זיהוי דיבור ברוסית. מהיר ומדויק."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "מהיר מאוד. אנגלית, גרמנית, ספרדית וצרפתית. תומך בתרגום."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "רב-לשוני ומדויק. 25 שפות אירופיות. תומך בתרגום."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "מודל גדול, איטי יותר, אך מדויק מאוד ורב-לשוני."
-      }
-    },
-    "errors": {
-      "selectModel": "בחירת המודל נכשלה"
-    },
     "permissions": {
       "title": "נדרשות הרשאות",
-      "description": "Handy צריך כמה הרשאות כדי לעבוד כמו שצריך.",
+      "description": "Murmur צריך כמה הרשאות כדי לעבוד כמו שצריך.",
       "microphone": {
         "title": "גישה למיקרופון",
         "description": "נדרש כדי לשמוע את הקול שלך לצורך תמלול."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "מותאם אישית",
-    "streaming": "סטרימינג",
-    "active": "פעיל",
-    "switching": "מחליף...",
-    "noModelsAvailable": "אין מודלים זמינים",
-    "verifying": "מאמת את {{modelName}}...",
-    "verifyingGeneric": "מאמת...",
-    "extracting": "מחלץ את {{modelName}}...",
-    "extractingMultiple": "מחלץ {{count}} מודלים...",
-    "extractingGeneric": "מחלץ...",
-    "downloading": "מוריד {{percentage}}%",
-    "downloadingMultiple": "מוריד {{count}} מודלים...",
-    "modelReady": "המודל מוכן",
-    "loading": "טוען את {{modelName}}...",
-    "loadingGeneric": "טוען...",
-    "modelError": "שגיאת מודל",
-    "modelUnloaded": "המודל נפרק",
-    "noModelDownloadRequired": "אין מודל, נדרשת הורדה",
-    "deleteModel": "מחק את {{modelName}}",
-    "downloadSpeed": "{{speed}} MB/s",
-    "cancel": "ביטול",
-    "cancelDownload": "בטל הורדה",
-    "capabilities": {
-      "languageSelection": "תומך בכמה שפות קלט",
-      "singleLanguage": "תומך רק בשפה הזו",
-      "languageCount": "{{total}} שפות",
-      "languageOnly": "{{language}} בלבד",
-      "translation": "יכול לתרגם לאנגלית",
-      "translate": "תרגם לאנגלית",
-      "streaming": "מציג תמלול חי תוך כדי דיבור"
-    },
-    "legacy": "מדור קודם"
-  },
   "settings": {
     "modelSettings": {
       "title": "הגדרות עבור {{model}}"
@@ -161,7 +45,7 @@
     "general": {
       "title": "כללי",
       "shortcut": {
-        "title": "קיצורי מקשים של Handy",
+        "title": "קיצורי מקשים של Murmur",
         "description": "הגדר קיצורי מקשים כדי להפעיל הקלטה ותמלול דיבור",
         "loading": "טוען קיצורי מקשים...",
         "none": "לא הוגדרו קיצורי מקשים",
@@ -202,22 +86,11 @@
     "models": {
       "title": "מודלי תמלול",
       "description": "בחר מודל תמלול או הורד מודלים נוספים. מודלים שונים מציעים רמות שונות של דיוק ומהירות.",
-      "yourModels": "מודלים שהורדו",
-      "availableModels": "זמינים להורדה",
-      "deleteConfirm": "האם למחוק את {{modelName}}? יהיה צורך להוריד אותו שוב כדי להשתמש בו.",
-      "deleteActiveConfirm": "{{modelName}} הוא המודל הפעיל שלך כרגע. מחיקה שלו תעצור את התמלול עד שתבחר מודל חדש. להמשיך?",
-      "deleteTitle": "מחיקת מודל",
-      "filters": {
-        "allLanguages": "כל השפות",
-        "streaming": "סינון דגמים התומכים בתמלול חי",
-        "translation": "סינון דגמים התומכים בתרגום לאנגלית"
-      },
-      "noModelsMatch": "אין מודלים שמתאימים לסינון הזה.",
-      "searchPlaceholder": "חיפוש מודלים לפי שם…",
-      "rescan": {
-        "label": "סריקה מחדש",
-        "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "שמע",
@@ -264,39 +137,25 @@
         "label": "השאר את המיקרופון פתוח בין תמלולים",
         "description": "משאיר את זרם המיקרופון פתוח למשך 30 שניות אחרי סיום ההקלטה, וכך מפחית השהיה בתמלולים רצופים. עשוי לפגוע באיכות שמע Bluetooth בזמן שהאפשרות פעילה."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "האצת Whisper",
-          "description": "האצת חומרה למודלי Whisper. מצב אוטומטי משתמש ב-GPU אם זמין (Metal ב-macOS, Vulkan ב-Windows/Linux)."
-        },
-        "ort": {
-          "title": "האצת ONNX",
-          "description": "האצת חומרה למודלי ONNX (Parakeet, Canary, Moonshine ועוד). DirectML ב-Windows הוא ניסיוני. ייתכן שמודלים ייכשלו בתמלול."
-        },
-        "gpuDevice": {
-          "auto": "אוטומטי"
-        }
-      },
       "startHidden": {
         "label": "התחל מוסתר",
         "description": "הפעל לתוך מגש המערכת בלי לפתוח את החלון."
       },
       "autostart": {
         "label": "הפעל עם עליית המערכת",
-        "description": "הפעל את Handy אוטומטית כשאתה מתחבר למחשב."
+        "description": "הפעל את Murmur אוטומטית כשאתה מתחבר למחשב."
       },
       "showTrayIcon": {
         "label": "הצג אייקון במגש",
-        "description": "הצג את האייקון של Handy במגש המערכת."
+        "description": "הצג את האייקון של Murmur במגש המערכת."
       },
       "overlay": {
         "style": {
           "title": "שכבת-על",
-          "description": "בחר את שכבת-העל בהקלטה: 'ללא' מסתירה אותה, 'מינימלי' מציג סמן קומפקטי, 'בזמן אמת' מציג תמלול בזמן אמת בזמן הדיבור (מודלים התומכים בסטרימינג בלבד — חפש את התווית 'סטרימינג' בבורר המודלים). ב-Linux מומלץ לבחור 'ללא'.",
+          "description": "בחרו את שכבת ההקלטה: 'ללא' מסתיר אותה, 'מינימלי' מציג מחוון קומפקטי. ב-Linux מומלץ 'ללא'.",
           "options": {
             "none": "ללא",
-            "minimal": "מינימלי",
-            "live": "בזמן אמת"
+            "minimal": "מינימלי"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "תרגם לאנגלית",
-        "description": "תרגם אוטומטית דיבור משפות אחרות לאנגלית בזמן התמלול."
-      },
-      "modelUnload": {
-        "title": "פרוק מודל",
-        "description": "שחרר אוטומטית זיכרון GPU/CPU כשהמודל לא היה בשימוש במשך הזמן שנבחר",
-        "options": {
-          "never": "אף פעם",
-          "immediately": "מיידית",
-          "min2": "אחרי 2 דקות",
-          "min5": "אחרי 5 דקות",
-          "min10": "אחרי 10 דקות",
-          "min15": "אחרי 15 דקות",
-          "hour1": "אחרי שעה",
-          "sec15": "אחרי 15 שניות (דיבאג)"
-        }
-      },
       "customWords": {
         "title": "מילים מותאמות אישית",
         "description": "עזרו למודלים נתמכים לזהות שמות ומונחים מקצועיים. תיקון בקירוב מוגבל כרגע למילים המשתמשות באותיות A–Z ובמספרים.",
@@ -372,10 +213,6 @@
         "add": "הוסף",
         "remove": "הסר את {{word}}",
         "duplicate": "\"{{word}}\" כבר קיימת"
-      },
-      "voiceActivityDetection": {
-        "title": "זיהוי פעילות קולית",
-        "description": "סינון שקט מההקלטות. מודלים התומכים בסטרימינג משתמשים בזנב VAD ארוך יותר; ביטול VAD מקליט אודיו גולמי."
       },
       "fillerWordRemoval": {
         "title": "הסרת מילות מילוי",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "בדוק עדכונים",
-        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של Handy"
+        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של Murmur"
       },
       "soundTheme": {
         "label": "ערכת צלילים",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "אבחון מקלדת",
-        "description": "בודק אם אירועי מקלדת מגיעים ל-Handy. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
+        "description": "בודק אם אירועי מקלדת מגיעים ל-Murmur. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
         "run": "הרצת אבחון של 10 שניות",
         "running": "מאזין… הקש על קיצור המקשים שלך כמה פעמים (למשל Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "עכבר",
         "verdictBlocked": "Secure Input חוסם אירועי מקשים — קיצורים הכוללים מקש רגיל לא יוכלו לפעול עד שהבעיה תיפתר.",
         "verdictSuspicious": "הגיעו אירועים של מקשי החלפה אך לא אירועי מקשים — משהו מדכא מקשים למרות ש-Secure Input מדווח כמושבת. אנא דווח על כך ב-GitHub.",
-        "verdictOk": "אירועי מקשים מגיעים ל-Handy כרגיל.",
+        "verdictOk": "אירועי מקשים מגיעים ל-Murmur כרגיל.",
         "verdictNoEvents": "לא נקלטו אירועים — האם הקשת על מקשים במהלך הבדיקה?",
         "failed": "האבחון נכשל: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "אודות",
       "version": {
         "title": "גרסה",
-        "description": "הגרסה הנוכחית של Handy"
+        "description": "הגרסה הנוכחית של Murmur"
       },
       "appDataDirectory": {
         "title": "תיקיית נתוני אפליקציה",
-        "description": "המיקום שבו Handy שומר את הנתונים שלו"
+        "description": "המיקום שבו Murmur שומר את הנתונים שלו"
       },
       "sourceCode": {
         "title": "קוד מקור",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "תמיכה בפיתוח",
-        "description": "עזור לנו להמשיך לבנות את Handy",
+        "description": "עזור לנו להמשיך לבנות את Murmur",
         "button": "תרומה"
-      },
-      "acknowledgments": {
-        "title": "תודות",
-        "ggml": {
-          "title": "ggml",
-          "description": "הסקה מהירה לביצועים גבוהים עבור מודל זיהוי הדיבור Whisper של OpenAI",
-          "details": "Handy משתמש ב-ggml לתמלול מהיר ומקומי. תודה לעבודה המדהימה של Georgi Gerganov וכל התורמים."
-        }
       },
       "whatsNewUpdates": {
         "label": "הצג מה חדש",
-        "description": "הצג הערות גרסה לאחר עדכוני Handy"
+        "description": "הצג הערות גרסה לאחר עדכוני Murmur"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "לא נמצאו אפשרויות"
   },
   "accessibility": {
-    "permissionsDescription": "Handy צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
+    "permissionsDescription": "Murmur צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
     "openSettings": "פתח את הגדרות המערכת"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "שפת האפליקציה",
-    "description": "שנה את שפת הממשק של Handy"
+    "description": "שנה את שפת הממשק של Murmur"
   },
   "theme": {
     "title": "ערכת נושא של האפליקציה",
-    "description": "בחר אם Handy יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
+    "description": "בחר אם Murmur יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
     "options": {
       "system": "מערכת",
       "light": "בהיר",
@@ -671,7 +500,7 @@
     "processing": "מעבד..."
   },
   "whatsNew": {
-    "title": "חדש ב-Handy v{{version}}"
+    "title": "חדש ב-Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "ייתכן ש-{{name}} חוסם קיצור דרך אחד",

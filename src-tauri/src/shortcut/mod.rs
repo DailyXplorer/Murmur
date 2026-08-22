@@ -617,15 +617,6 @@ pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_translate_to_english_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.translate_to_english = enabled;
-    settings::write_settings(&app, settings);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_selected_language_setting(app: AppHandle, language: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.selected_language = language;
@@ -664,8 +655,7 @@ pub fn change_overlay_style_setting(app: AppHandle, style: String) -> Result<(),
     let mut settings = settings::get_settings(&app);
     let parsed = match style.as_str() {
         "none" => OverlayStyle::None,
-        "minimal" => OverlayStyle::Minimal,
-        "live" => OverlayStyle::Live,
+        "minimal" | "live" => OverlayStyle::Minimal,
         other => {
             warn!("Invalid overlay style '{}', defaulting to minimal", other);
             OverlayStyle::Minimal
@@ -1260,15 +1250,6 @@ pub fn change_lazy_stream_close_setting(app: AppHandle, enabled: bool) -> Result
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_vad_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.vad_enabled = enabled;
-    settings::write_settings(&app, settings);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_filler_word_removal_enabled_setting(
     app: AppHandle,
     enabled: bool,
@@ -1303,60 +1284,4 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
     tray::set_tray_visibility(&app, enabled);
 
     Ok(())
-}
-
-/// Save accelerator settings and make the next model use reload with them.
-/// The currently running transcription, if any, keeps its existing engine.
-fn save_accelerator_and_reload_next_use(app: &AppHandle, s: settings::AppSettings) {
-    settings::write_settings(app, s);
-
-    let tm = app.state::<std::sync::Arc<crate::managers::transcription::TranscriptionManager>>();
-    tm.reload_model_on_next_use();
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_transcribe_accelerator_setting(
-    app: AppHandle,
-    accelerator: settings::TranscribeAcceleratorSetting,
-) -> Result<(), String> {
-    let mut s = settings::get_settings(&app);
-    s.transcribe_accelerator = accelerator;
-    save_accelerator_and_reload_next_use(&app, s);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_ort_accelerator_setting(
-    app: AppHandle,
-    accelerator: settings::OrtAcceleratorSetting,
-) -> Result<(), String> {
-    let mut s = settings::get_settings(&app);
-    s.ort_accelerator = accelerator;
-    save_accelerator_and_reload_next_use(&app, s);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_transcribe_gpu_device(app: AppHandle, device: Option<String>) -> Result<(), String> {
-    let mut s = settings::get_settings(&app);
-    s.transcribe_gpu_device = device;
-    save_accelerator_and_reload_next_use(&app, s);
-    Ok(())
-}
-
-/// Return which accelerators and GPU devices are available for this build.
-///
-/// First-call cost is dominated by enumerating GPU devices through the
-/// transcribe.cpp Metal/Vulkan backend, which loads dynamic libraries and
-/// probes hardware. Run it on the blocking pool so the webview thread
-/// stays responsive — see also the startup pre-warm in `lib.rs`.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_available_accelerators() -> crate::managers::transcription::AvailableAccelerators {
-    tauri::async_runtime::spawn_blocking(crate::managers::transcription::get_available_accelerators)
-        .await
-        .expect("get_available_accelerators panicked")
 }

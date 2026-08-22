@@ -2,7 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone, Default)]
-#[command(name = "handy", about = "Handy - Speech to Text")]
+#[command(name = "murmur", about = "Murmur - Speech to Text")]
 pub struct CliArgs {
     /// Start with the main window hidden
     #[arg(long)]
@@ -29,22 +29,17 @@ pub struct CliArgs {
     pub debug: bool,
 
     /// Transcribe this WAV (16 kHz mono) headlessly and exit. Runs the same
-    /// batch transcription path as the app — no mic, no VAD, no download
-    /// (the model must already be installed).
+    /// batch transcription path as the app — no mic, no download.
     #[arg(short = 'f', long, value_name = "WAV")]
     pub transcribe_file: Option<PathBuf>,
 
-    /// Model id to load for --transcribe-file (default: the selected model).
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub model: Option<String>,
 
-    /// Hard-select the compute device for --transcribe-file by its registry
-    /// index (see --list-devices). Omit to use the persisted accelerator
-    /// setting. transcribe-cpp (whisper-family) models only.
-    #[arg(long, value_name = "N")]
+    #[arg(long, value_name = "N", hide = true)]
     pub device_index: Option<usize>,
 
-    /// List the transcribe-cpp compute devices (with indices) and exit.
+    /// Print the transcription backend and exit.
     #[arg(long)]
     pub list_devices: bool,
 

@@ -46,19 +46,6 @@ tauri_panel! {
 const OVERLAY_WIDTH: f64 = 256.0;
 const OVERLAY_HEIGHT: f64 = 46.0;
 
-// Actual is 394x118, just a little extra
-const OVERLAY_STREAM_WIDTH: f64 = 400.0;
-const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
-
-/// Overlay window size (logical) for a given UI state.
-fn overlay_dimensions(state: &str) -> (f64, f64) {
-    if state == "streaming" {
-        (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
-    } else {
-        (OVERLAY_WIDTH, OVERLAY_HEIGHT)
-    }
-}
-
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
@@ -131,8 +118,8 @@ fn env_flag_enabled(name: &str) -> bool {
 /// Returns true if layer shell was successfully initialized, false otherwise
 #[cfg(target_os = "linux")]
 fn init_gtk_layer_shell(overlay_window: &tauri::webview::WebviewWindow) -> bool {
-    if env_flag_enabled("HANDY_NO_GTK_LAYER_SHELL") {
-        debug!("Skipping GTK layer shell init (HANDY_NO_GTK_LAYER_SHELL is enabled)");
+    if env_flag_enabled("MURMUR_NO_GTK_LAYER_SHELL") {
+        debug!("Skipping GTK layer shell init (MURMUR_NO_GTK_LAYER_SHELL is enabled)");
         return false;
     }
 
@@ -289,17 +276,12 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
-/// Current overlay window size in logical units (points), for repositioning
-/// without assuming a fixed size (compact vs. streaming).
 #[cfg(not(target_os = "windows"))]
 fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Option<(f64, f64)> {
     let size = window.inner_size().ok()?;
     let scale = window.scale_factor().ok()?;
     Some((size.width as f64 / scale, size.height as f64 / scale))
 }
-
-#[cfg(target_os = "windows")]
-static WINDOWS_OVERLAY_IS_STREAMING: AtomicBool = AtomicBool::new(false);
 
 /// Overlay rectangle in the destination monitor's physical pixels, so nothing
 /// is converted through the window's previous-monitor DPI.
@@ -501,8 +483,7 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 }
 
 fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
-    // Size the overlay for this state (compact vs. streaming), then position it.
-    let (width, height) = overlay_dimensions(state);
+    let (width, height) = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         #[cfg(target_os = "linux")]
         let shown_with_layer_shell = if LAYER_SHELL_ACTIVE.load(Ordering::SeqCst) {
@@ -526,8 +507,6 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
             #[cfg(not(target_os = "windows"))]
             let _ =
                 overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
-            #[cfg(target_os = "windows")]
-            WINDOWS_OVERLAY_IS_STREAMING.store(state == "streaming", Ordering::Relaxed);
             let size_elapsed = size_started.elapsed();
 
             let pos_started = std::time::Instant::now();
@@ -604,11 +583,6 @@ pub fn show_recording_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "recording");
 }
 
-/// Shows the larger streaming overlay that displays live transcription text
-pub fn show_streaming_overlay(app_handle: &AppHandle) {
-    show_overlay_state(app_handle, "streaming");
-}
-
 /// Shows the transcribing overlay window
 pub fn show_transcribing_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "transcribing");
@@ -641,21 +615,15 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 
         #[cfg(target_os = "windows")]
         {
-            let state = if WINDOWS_OVERLAY_IS_STREAMING.load(Ordering::Relaxed) {
-                "streaming"
-            } else {
-                "recording"
-            };
-            let (width, height) = overlay_dimensions(state);
-            if let Err(error) = place_windows_overlay(app_handle, &overlay_window, width, height) {
+            if let Err(error) =
+                place_windows_overlay(app_handle, &overlay_window, OVERLAY_WIDTH, OVERLAY_HEIGHT)
+            {
                 log::error!("Failed to update recording overlay position: {error}");
             }
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            // Use the window's current size so centering stays correct whether the
-            // overlay is in compact or streaming layout.
             let (width, height) = current_overlay_logical_size(&overlay_window)
                 .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));
             if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
@@ -819,11 +787,11 @@ mod tests {
                 PhysicalPosition::new(-2560, -200),
                 PhysicalSize::new(2560, 1440),
                 1.25,
-                OVERLAY_STREAM_WIDTH,
-                OVERLAY_STREAM_HEIGHT,
+                OVERLAY_WIDTH,
+                OVERLAY_HEIGHT,
                 OverlayPosition::Bottom,
             ),
-            (-1530, 1040, 500, 150)
+            (-1440, 1132, 320, 58)
         );
     }
 }

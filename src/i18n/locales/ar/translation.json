@@ -3,8 +3,6 @@
     "settings": "...الإعدادات",
     "checkUpdates": "...التحقق من وجود تحديثات",
     "copyLastTranscript": "نسخ آخر نص تم تفريغه",
-    "unloadModel": "تفريغ النموذج",
-    "model": "النموذج",
     "quit": "إنهاء",
     "cancel": "إلغاء",
     "secureInputWarning": "⚠ الاختصارات محجوبة بواسطة Secure Input"
@@ -19,89 +17,9 @@
     "models": "النماذج"
   },
   "onboarding": {
-    "subtitle": "للبدء، اختر نموذج التفريغ الصوتي",
-    "existingModelsTitle": "النماذج المتوافقة",
-    "downloadModelsTitle": "متاح للتنزيل",
-    "showAllModels": "عرض كل النماذج ({{total}})",
-    "showFewerModels": "عرض عدد أقل من النماذج",
-    "recommended": "موصى به",
-    "customModelDescription": "غير مدعوم رسميًا",
-    "modelCard": {
-      "accuracy": "الدقة",
-      "speed": "السرعة"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": ".سريع ودقيق إلى حد ما"
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": ".دقة جيدة، سرعة متوسطة"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": ".توازن بين الدقة والسرعة"
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": ".دقة جيدة، لكنه بطيء"
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": ".الإنجليزية فقط. أفضل نموذج للمتحدثين بالإنجليزية"
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": ".سريع ودقيق"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": ".سريع جداً، الإنجليزية فقط. يتعامل جيداً مع اللهجات"
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "سريع للغاية، الإنجليزية فقط"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "سريع، الإنجليزية فقط. توازن جيد بين السرعة والدقة."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "الإنجليزية فقط. جودة عالية."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "محسّن للماندرين التايوانية. دعم التبديل بين اللغات."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "سريع جداً. الصينية، الإنجليزية، اليابانية، الكورية، الكانتونية."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "التعرف على الكلام الروسي. سريع ودقيق."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "سريع جداً. الإنجليزية، الألمانية، الإسبانية، الفرنسية. يدعم الترجمة."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "متعدد اللغات ودقيق. 25 لغة أوروبية. يدعم الترجمة."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "نموذج كبير وأبطأ، لكنه دقيق جداً ومتعدد اللغات."
-      }
-    },
-    "errors": {
-      "selectModel": "فشل تحديد النموذج"
-    },
     "permissions": {
       "title": "الأذونات المطلوبة",
-      "description": ".يحتاج Handy إلى بعض الأذونات ليعمل بشكل صحيح",
+      "description": ".يحتاج Murmur إلى بعض الأذونات ليعمل بشكل صحيح",
       "microphone": {
         "title": "الوصول إلى الميكروفون",
         "description": ".مطلوب لسماع صوتك من أجل التفريغ الصوتي"
@@ -120,45 +38,11 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "مخصص",
-    "streaming": "البث",
-    "active": "نشط",
-    "noModelsAvailable": "لا توجد نماذج متاحة",
-    "verifying": "جارٍ التحقق من {{modelName}}...",
-    "verifyingGeneric": "جارٍ التحقق...",
-    "extracting": "...جاري استخراج {{modelName}}",
-    "extractingMultiple": "...جاري استخراج {{count}} من النماذج",
-    "extractingGeneric": "...جاري الاستخراج",
-    "downloading": "جاري التنزيل {{percentage}}%",
-    "downloadingMultiple": "جاري تنزيل {{count}} من النماذج...",
-    "modelReady": "النموذج جاهز",
-    "loading": "...جاري تحميل {{modelName}}",
-    "loadingGeneric": "...جاري التحميل",
-    "modelError": "خطأ في النموذج",
-    "modelUnloaded": "تم إلغاء تحميل النموذج",
-    "noModelDownloadRequired": "لا يوجد نموذج - التنزيل مطلوب",
-    "deleteModel": "حذف {{modelName}}",
-    "switching": "جارٍ التبديل...",
-    "downloadSpeed": "{{speed}} ميجابايت/ث",
-    "cancel": "إلغاء",
-    "cancelDownload": "إلغاء التنزيل",
-    "capabilities": {
-      "languageSelection": "يدعم اختيار اللغة",
-      "singleLanguage": "يدعم هذه اللغة فقط",
-      "languageCount": "{{total}} لغة",
-      "languageOnly": "{{language}} فقط",
-      "translation": "يدعم الترجمة",
-      "translate": "ترجمة",
-      "streaming": "يعرض النسخ المباشر أثناء التحدث"
-    },
-    "legacy": "قديم"
-  },
   "settings": {
     "general": {
       "title": "عام",
       "shortcut": {
-        "title": "اختصارات Handy",
+        "title": "اختصارات Murmur",
         "description": "إعداد اختصارات لوحة المفاتيح لبدء تسجيل التفريغ الصوتي",
         "loading": "...جاري تحميل الاختصارات",
         "none": "لا توجد اختصارات مجهزة",
@@ -241,39 +125,25 @@
         "label": "إبقاء الميكروفون مفتوحًا بين عمليات النسخ",
         "description": "يبقي بث الميكروفون مفتوحًا لمدة 30 ثانية بعد توقف التسجيل، مما يقلل التأخير عند النسخ المتتالي. قد يؤثر على جودة صوت البلوتوث أثناء التفعيل."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "تسريع Whisper",
-          "description": "تسريع الأجهزة لنماذج Whisper. الوضع التلقائي يستخدم GPU إن توفر (Metal على macOS، Vulkan على Windows/Linux)."
-        },
-        "ort": {
-          "title": "تسريع ONNX",
-          "description": "تسريع الأجهزة لنماذج ONNX (Parakeet، Canary، Moonshine، إلخ). DirectML على Windows تجريبي. قد تفشل النماذج في النسخ."
-        },
-        "gpuDevice": {
-          "auto": "تلقائي"
-        }
-      },
       "startHidden": {
         "label": "بدء مخفي",
         "description": ".التشغيل في صينية النظام دون فتح النافذة"
       },
       "autostart": {
         "label": "التشغيل عند بدء التشغيل",
-        "description": ".بدء تشغيل Handy تلقائياً عند تسجيل الدخول إلى جهاز الكمبيوتر الخاص بك"
+        "description": ".بدء تشغيل Murmur تلقائياً عند تسجيل الدخول إلى جهاز الكمبيوتر الخاص بك"
       },
       "showTrayIcon": {
         "label": "إظهار أيقونة شريط النظام",
-        "description": ".عرض أيقونة Handy في شريط النظام"
+        "description": ".عرض أيقونة Murmur في شريط النظام"
       },
       "overlay": {
         "style": {
           "title": "التراكب",
-          "description": "اختر تراكب التسجيل: «بلا» يخفيه، و«مبسط» يعرض شارة صغيرة، و«مباشر» يعرض النص المكتوب فوريًا أثناء التحدث (النماذج التي تدعم البث فقط — ابحث عن شارة «البث» في منتقي النماذج). على Linux يُنصح باختيار «بلا».",
+          "description": "اختر تراكب التسجيل: «بلا» يخفيه، و«مبسط» يعرض شارة صغيرة. على Linux يُنصح باختيار «بلا».",
           "options": {
             "none": "بلا",
-            "minimal": "مبسط",
-            "live": "مباشر"
+            "minimal": "مبسط"
           }
         },
         "position": {
@@ -324,24 +194,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "الترجمة إلى الإنجليزية",
-        "description": ".ترجمة الكلام من اللغات الأخرى تلقائياً إلى الإنجليزية أثناء التفريغ"
-      },
-      "modelUnload": {
-        "title": "إلغاء تحميل النموذج",
-        "description": "تحرير ذاكرة GPU/CPU تلقائياً عندما لا يتم استخدام النموذج للوقت المحدد",
-        "options": {
-          "never": "أبداً",
-          "immediately": "فوراً",
-          "min2": "بعد دقيقتين",
-          "min5": "بعد 5 دقائق",
-          "min10": "بعد 10 دقائق",
-          "min15": "بعد 15 دقيقة",
-          "hour1": "بعد ساعة واحدة",
-          "sec15": "بعد 15 ثوانٍ (تصحيح أخطاء)"
-        }
-      },
       "customWords": {
         "title": "كلمات مخصصة",
         "description": "ساعد النماذج المدعومة على التعرّف على الأسماء والمصطلحات المتخصصة. يقتصر التصحيح التقريبي حاليًا على الكلمات التي تستخدم الأحرف A–Z والأرقام.",
@@ -349,10 +201,6 @@
         "add": "إضافة",
         "remove": "إزالة {{word}}",
         "duplicate": "\"{{word}}\" موجود بالفعل"
-      },
-      "voiceActivityDetection": {
-        "title": "كشف النشاط الصوتي",
-        "description": "تصفية الصمت من التسجيلات. النماذج التي تدعم البث تستخدم فترة VAD أطول؛ وتعطيل VAD يسجّل الصوت الخام."
       },
       "fillerWordRemoval": {
         "title": "إزالة كلمات الحشو",
@@ -451,7 +299,7 @@
       },
       "updateChecks": {
         "label": "التحقق من وجود تحديثات",
-        "description": "التحقق تلقائياً من وجود إصدارات جديدة من Handy"
+        "description": "التحقق تلقائياً من وجود إصدارات جديدة من Murmur"
       },
       "soundTheme": {
         "label": "سمة الصوت",
@@ -524,7 +372,7 @@
       },
       "keyboardDiagnostic": {
         "title": "تشخيص لوحة المفاتيح",
-        "description": "يتحقق مما إذا كانت أحداث لوحة المفاتيح تصل إلى Handy. يُسجَّل عدد الأحداث فقط — ولا تُسجَّل أبدًا المفاتيح التي تضغط عليها.",
+        "description": "يتحقق مما إذا كانت أحداث لوحة المفاتيح تصل إلى Murmur. يُسجَّل عدد الأحداث فقط — ولا تُسجَّل أبدًا المفاتيح التي تضغط عليها.",
         "run": "تشغيل تشخيص لمدة 10 ثوانٍ",
         "running": "جارٍ الاستماع… اضغط اختصارك عدة مرات (مثل Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -538,7 +386,7 @@
         "mouse": "الماوس",
         "verdictBlocked": "يحجب Secure Input أحداث المفاتيح — لا يمكن للاختصارات التي تتضمن مفتاحًا عاديًا أن تعمل حتى تُحلّ المشكلة.",
         "verdictSuspicious": "وصلت أحداث مفاتيح التعديل لكن لم يصل أي حدث مفتاح — هناك شيء يمنع المفاتيح رغم أن Secure Input يظهر معطلاً. يُرجى الإبلاغ عن ذلك على GitHub.",
-        "verdictOk": "أحداث المفاتيح تصل إلى Handy بشكل طبيعي.",
+        "verdictOk": "أحداث المفاتيح تصل إلى Murmur بشكل طبيعي.",
         "verdictNoEvents": "لم يُسجَّل أي حدث — هل ضغطت أي مفاتيح أثناء الاختبار؟",
         "failed": "فشل التشخيص: {{error}}"
       },
@@ -554,11 +402,11 @@
       "title": "حول",
       "version": {
         "title": "الإصدار",
-        "description": "الإصدار الحالي من Handy"
+        "description": "الإصدار الحالي من Murmur"
       },
       "appDataDirectory": {
         "title": "مجلد بيانات التطبيق",
-        "description": "الموقع الذي يخزن فيه Handy بياناته"
+        "description": "الموقع الذي يخزن فيه Murmur بياناته"
       },
       "sourceCode": {
         "title": "كود المصدر",
@@ -567,20 +415,12 @@
       },
       "supportDevelopment": {
         "title": "دعم التطوير",
-        "description": "ساعدنا في مواصلة بناء Handy",
+        "description": "ساعدنا في مواصلة بناء Murmur",
         "button": "تبرع"
-      },
-      "acknowledgments": {
-        "title": "شكر وتقدير",
-        "ggml": {
-          "title": "ggml",
-          "description": "استنتاج عالي الأداء لنموذج التعرف التلقائي على الكلام Whisper من OpenAI",
-          "details": ".يستخدم Handy برنامج ggml لمعالجة سريعة ومحلية لتحويل الكلام إلى نص. شكراً للعمل الرائع الذي قام به Georgi Gerganov والمساهمون"
-        }
       },
       "whatsNewUpdates": {
         "label": "إظهار الجديد",
-        "description": "إظهار ملاحظات الإصدار بعد تحديثات Handy"
+        "description": "إظهار ملاحظات الإصدار بعد تحديثات Murmur"
       }
     },
     "modelSettings": {
@@ -589,22 +429,11 @@
     "models": {
       "title": "نماذج النسخ",
       "description": "اختر نموذج نسخ أو قم بتنزيل نماذج إضافية. تقدم النماذج المختلفة مستويات متفاوتة من الدقة والسرعة.",
-      "yourModels": "النماذج المحمّلة",
-      "availableModels": "متاح للتنزيل",
-      "deleteConfirm": "هل أنت متأكد أنك تريد حذف {{modelName}}؟ ستحتاج إلى تنزيله مرة أخرى لاستخدامه.",
-      "deleteActiveConfirm": "{{modelName}} هو النموذج النشط حاليًا. حذفه سيوقف النسخ حتى تختار نموذجًا جديدًا. هل أنت متأكد؟",
-      "deleteTitle": "حذف النموذج",
-      "filters": {
-        "allLanguages": "جميع اللغات",
-        "streaming": "تصفية النماذج التي تدعم النسخ المباشر",
-        "translation": "تصفية النماذج التي تدعم الترجمة إلى الإنجليزية"
-      },
-      "noModelsMatch": "لا توجد نماذج مطابقة لهذا الفلتر.",
-      "searchPlaceholder": "ابحث عن النماذج بالاسم…",
-      "rescan": {
-        "label": "إعادة الفحص",
-        "tooltip": "إعادة الفحص بحثًا عن النماذج المضافة إلى مجلد النماذج أو ذاكرة Hugging Face التخزينية المؤقتة خارج Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     }
   },
   "footer": {
@@ -632,7 +461,7 @@
     "noOptionsFound": "لم يتم العثور على خيارات"
   },
   "accessibility": {
-    "permissionsDescription": ".يحتاج Handy إلى أذونات إمكانية الوصول لكتابة النص المفرغ",
+    "permissionsDescription": ".يحتاج Murmur إلى أذونات إمكانية الوصول لكتابة النص المفرغ",
     "openSettings": "فتح إعدادات النظام"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "لغة التطبيق",
-    "description": "تغيير لغة واجهة Handy"
+    "description": "تغيير لغة واجهة Murmur"
   },
   "theme": {
     "title": "سمة التطبيق",
-    "description": "اختر ما إذا كان Handy يتبع مظهر النظام أو يبقى فاتحًا أو داكنًا",
+    "description": "اختر ما إذا كان Murmur يتبع مظهر النظام أو يبقى فاتحًا أو داكنًا",
     "options": {
       "system": "النظام",
       "light": "فاتح",
@@ -671,7 +500,7 @@
     "processing": "...جاري المعالجة"
   },
   "whatsNew": {
-    "title": "الجديد في Handy v{{version}}"
+    "title": "الجديد في Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "قد يحظر {{name}} اختصارًا واحدًا",

@@ -3,8 +3,6 @@
     "settings": "Cài đặt...",
     "checkUpdates": "Kiểm tra cập nhật...",
     "copyLastTranscript": "Sao chép bản chép lời mới nhất",
-    "unloadModel": "Dỡ mô hình",
-    "model": "Mô hình",
     "quit": "Thoát",
     "cancel": "Hủy",
     "secureInputWarning": "⚠ Phím tắt bị Secure Input chặn"
@@ -19,89 +17,9 @@
     "about": "Giới thiệu"
   },
   "onboarding": {
-    "subtitle": "Để bắt đầu, hãy chọn một mô hình chuyển đổi giọng nói",
-    "existingModelsTitle": "Mô hình tương thích",
-    "downloadModelsTitle": "Có sẵn để tải xuống",
-    "showAllModels": "Hiển thị tất cả {{total}} mô hình",
-    "showFewerModels": "Hiển thị ít mô hình hơn",
-    "recommended": "Đề xuất",
-    "customModelDescription": "Không được hỗ trợ chính thức",
-    "modelCard": {
-      "accuracy": "độ chính xác",
-      "speed": "tốc độ"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Nhanh và khá chính xác."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "Độ chính xác tốt, tốc độ trung bình"
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Cân bằng giữa độ chính xác và tốc độ."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "Độ chính xác tốt, nhưng chậm."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Chỉ tiếng Anh. Mô hình tốt nhất cho người nói tiếng Anh."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Nhanh và chính xác"
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Rất nhanh, chỉ tiếng Anh. Xử lý tốt các giọng nói."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Cực nhanh, chỉ tiếng Anh"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Nhanh, chỉ tiếng Anh. Cân bằng tốt giữa tốc độ và độ chính xác."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Chỉ tiếng Anh. Chất lượng cao."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Tối ưu hóa cho tiếng Quan Thoại Đài Loan. Hỗ trợ chuyển đổi ngôn ngữ."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Rất nhanh. Tiếng Trung, tiếng Anh, tiếng Nhật, tiếng Hàn, tiếng Quảng Đông."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Nhận dạng giọng nói tiếng Nga. Nhanh và chính xác."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Rất nhanh. Tiếng Anh, tiếng Đức, tiếng Tây Ban Nha, tiếng Pháp. Hỗ trợ dịch thuật."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Đa ngôn ngữ chính xác. 25 ngôn ngữ châu Âu. Hỗ trợ dịch thuật."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Mô hình lớn, chậm hơn, nhưng rất chính xác và đa ngôn ngữ."
-      }
-    },
-    "errors": {
-      "selectModel": "Không thể chọn mô hình"
-    },
     "permissions": {
       "title": "Cần cấp quyền",
-      "description": "Handy cần một số quyền để hoạt động bình thường.",
+      "description": "Murmur cần một số quyền để hoạt động bình thường.",
       "microphone": {
         "title": "Quyền truy cập Micrô",
         "description": "Cần thiết để nghe giọng nói của bạn để chuyển đổi."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Tùy chỉnh",
-    "streaming": "Truyền trực tiếp",
-    "active": "Đang hoạt động",
-    "switching": "Đang chuyển...",
-    "noModelsAvailable": "Không có mô hình nào",
-    "verifying": "Đang xác minh {{modelName}}...",
-    "verifyingGeneric": "Đang xác minh...",
-    "extracting": "Đang giải nén {{modelName}}...",
-    "extractingMultiple": "Đang giải nén {{count}} mô hình...",
-    "extractingGeneric": "Đang giải nén...",
-    "downloading": "Đang tải xuống {{percentage}}%",
-    "downloadingMultiple": "Đang tải xuống {{count}} mô hình...",
-    "modelReady": "Mô Hình Sẵn Sàng",
-    "loading": "Đang tải {{modelName}}...",
-    "loadingGeneric": "Đang tải...",
-    "modelError": "Lỗi Mô Hình",
-    "modelUnloaded": "Mô Hình Đã Gỡ",
-    "noModelDownloadRequired": "Chưa Có Mô Hình - Cần Tải Xuống",
-    "deleteModel": "Xóa {{modelName}}",
-    "downloadSpeed": "{{speed}} MB/s",
-    "capabilities": {
-      "languageSelection": "Hỗ trợ nhiều ngôn ngữ đầu vào",
-      "languageCount": "{{total}} ngôn ngữ",
-      "translation": "Có thể dịch sang tiếng Anh",
-      "translate": "Dịch sang tiếng Anh",
-      "singleLanguage": "Chỉ hỗ trợ ngôn ngữ này",
-      "languageOnly": "Chỉ {{language}}",
-      "streaming": "Hiển thị phiên âm trực tiếp khi bạn nói"
-    },
-    "cancel": "Hủy",
-    "cancelDownload": "Hủy tải xuống",
-    "legacy": "Cũ"
-  },
   "settings": {
     "modelSettings": {
       "title": "Cài đặt {{model}}"
@@ -161,27 +45,16 @@
     "models": {
       "title": "Mô hình chuyển đổi",
       "description": "Chọn mô hình chuyển đổi hoặc tải thêm mô hình. Các mô hình khác nhau có mức độ chính xác và tốc độ khác nhau.",
-      "deleteConfirm": "Bạn có chắc chắn muốn xóa {{modelName}}? Bạn sẽ cần tải lại để sử dụng.",
-      "deleteActiveConfirm": "{{modelName}} là mô hình đang hoạt động của bạn. Xóa nó sẽ dừng phiên âm cho đến khi bạn chọn một mô hình mới. Bạn có chắc không?",
-      "deleteTitle": "Xóa mô hình",
-      "filters": {
-        "allLanguages": "Tất cả ngôn ngữ",
-        "streaming": "Lọc các mô hình hỗ trợ phiên âm trực tiếp",
-        "translation": "Lọc các mô hình hỗ trợ dịch sang tiếng Anh"
-      },
-      "noModelsMatch": "Không có mô hình nào khớp với bộ lọc này.",
-      "yourModels": "Mô hình đã tải",
-      "availableModels": "Có sẵn để tải xuống",
-      "searchPlaceholder": "Tìm mô hình theo tên…",
-      "rescan": {
-        "label": "Quét lại",
-        "tooltip": "Quét lại các mô hình được thêm vào thư mục mô hình hoặc bộ nhớ đệm Hugging Face bên ngoài Handy"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "general": {
       "title": "Chung",
       "shortcut": {
-        "title": "Phím tắt Handy",
+        "title": "Phím tắt Murmur",
         "description": "Cấu hình phím tắt để kích hoạt ghi âm chuyển đổi giọng nói thành văn bản",
         "loading": "Đang tải phím tắt...",
         "none": "Chưa cấu hình phím tắt",
@@ -264,39 +137,25 @@
         "label": "Giữ micro mở giữa các lần phiên âm",
         "description": "Giữ luồng micro mở trong 30 giây sau khi dừng ghi âm, giảm độ trễ khi phiên âm liên tiếp. Có thể làm giảm chất lượng âm thanh Bluetooth khi đang hoạt động."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "Tăng tốc Whisper",
-          "description": "Tăng tốc phần cứng cho các mô hình Whisper. Chế độ tự động sử dụng GPU nếu có (Metal trên macOS, Vulkan trên Windows/Linux)."
-        },
-        "ort": {
-          "title": "Tăng tốc ONNX",
-          "description": "Tăng tốc phần cứng cho các mô hình ONNX (Parakeet, Canary, Moonshine, v.v.). DirectML trên Windows là thử nghiệm. Các mô hình có thể không chuyển đổi giọng nói được."
-        },
-        "gpuDevice": {
-          "auto": "Tự động"
-        }
-      },
       "startHidden": {
         "label": "Khởi động ẩn",
         "description": "Khởi động vào khay hệ thống mà không mở cửa sổ."
       },
       "autostart": {
         "label": "Khởi động cùng hệ thống",
-        "description": "Tự động khởi động Handy khi bạn đăng nhập vào máy tính."
+        "description": "Tự động khởi động Murmur khi bạn đăng nhập vào máy tính."
       },
       "showTrayIcon": {
         "label": "Hiển thị biểu tượng khay",
-        "description": "Hiển thị biểu tượng Handy trong khay hệ thống."
+        "description": "Hiển thị biểu tượng Murmur trong khay hệ thống."
       },
       "overlay": {
         "style": {
           "title": "Lớp phủ",
-          "description": "Chọn lớp phủ khi ghi âm: 'Không có' sẽ ẩn nó, 'Tối giản' hiển thị một chỉ báo nhỏ gọn, 'Trực tiếp' hiển thị bản chép lời theo thời gian thực khi bạn nói (chỉ với các mô hình hỗ trợ truyền trực tiếp — hãy tìm huy hiệu 'Truyền trực tiếp' trong bộ chọn mô hình). Trên Linux, khuyến nghị chọn 'Không có'.",
+          "description": "Chọn lớp phủ ghi âm: 'Không' sẽ ẩn nó, 'Tối giản' hiển thị một chỉ báo nhỏ. Trên Linux nên chọn 'Không'.",
           "options": {
             "none": "Không có",
-            "minimal": "Tối giản",
-            "live": "Trực tiếp"
+            "minimal": "Tối giản"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "Dịch sang tiếng Anh",
-        "description": "Tự động dịch giọng nói từ các ngôn ngữ khác sang tiếng Anh trong quá trình chuyển đổi."
-      },
-      "modelUnload": {
-        "title": "Giải phóng mô hình",
-        "description": "Tự động giải phóng bộ nhớ GPU/CPU khi mô hình không được sử dụng trong thời gian quy định",
-        "options": {
-          "never": "Không bao giờ",
-          "immediately": "Ngay lập tức",
-          "min2": "Sau 2 phút",
-          "min5": "Sau 5 phút",
-          "min10": "Sau 10 phút",
-          "min15": "Sau 15 phút",
-          "hour1": "Sau 1 giờ",
-          "sec15": "Sau 15 giây (Gỡ lỗi)"
-        }
-      },
       "customWords": {
         "title": "Từ tùy chỉnh",
         "description": "Giúp các mô hình được hỗ trợ nhận dạng tên và thuật ngữ chuyên ngành. Tính năng sửa gần đúng hiện chỉ áp dụng cho các từ sử dụng chữ cái A–Z và chữ số.",
@@ -372,10 +213,6 @@
         "add": "Thêm",
         "remove": "Xóa {{word}}",
         "duplicate": "\"{{word}}\" đã tồn tại"
-      },
-      "voiceActivityDetection": {
-        "title": "Phát hiện hoạt động giọng nói",
-        "description": "Lọc bỏ khoảng lặng khỏi bản ghi. Các mô hình hỗ trợ truyền trực tiếp dùng đuôi VAD dài hơn; tắt VAD sẽ ghi âm thanh thô."
       },
       "fillerWordRemoval": {
         "title": "Loại bỏ từ đệm",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Kiểm tra cập nhật",
-        "description": "Tự động kiểm tra phiên bản mới của Handy"
+        "description": "Tự động kiểm tra phiên bản mới của Murmur"
       },
       "soundTheme": {
         "label": "Chủ đề âm thanh",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Chẩn đoán bàn phím",
-        "description": "Kiểm tra xem các sự kiện bàn phím có đến được Handy hay không. Chỉ số lượng sự kiện được ghi lại — không bao giờ ghi lại bạn bấm phím nào.",
+        "description": "Kiểm tra xem các sự kiện bàn phím có đến được Murmur hay không. Chỉ số lượng sự kiện được ghi lại — không bao giờ ghi lại bạn bấm phím nào.",
         "run": "Chạy chẩn đoán 10 giây",
         "running": "Đang lắng nghe… hãy bấm phím tắt của bạn vài lần (ví dụ: Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Chuột",
         "verdictBlocked": "Secure Input đang chặn các sự kiện phím — phím tắt có chứa phím thường không thể hoạt động cho đến khi vấn đề này được xử lý.",
         "verdictSuspicious": "Có sự kiện phím bổ trợ nhưng không có sự kiện phím nào — thứ gì đó đang chặn phím dù Secure Input báo là đang tắt. Vui lòng báo cáo việc này trên GitHub.",
-        "verdictOk": "Các sự kiện phím đang đến Handy bình thường.",
+        "verdictOk": "Các sự kiện phím đang đến Murmur bình thường.",
         "verdictNoEvents": "Không ghi nhận sự kiện nào — bạn có bấm phím nào trong lúc kiểm tra không?",
         "failed": "Chẩn đoán thất bại: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "Giới thiệu",
       "version": {
         "title": "Phiên bản",
-        "description": "Phiên bản hiện tại của Handy"
+        "description": "Phiên bản hiện tại của Murmur"
       },
       "appDataDirectory": {
         "title": "Thư mục dữ liệu ứng dụng",
-        "description": "Vị trí Handy lưu trữ dữ liệu"
+        "description": "Vị trí Murmur lưu trữ dữ liệu"
       },
       "sourceCode": {
         "title": "Mã nguồn",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Hỗ trợ phát triển",
-        "description": "Giúp chúng tôi tiếp tục xây dựng Handy",
+        "description": "Giúp chúng tôi tiếp tục xây dựng Murmur",
         "button": "Quyên góp"
-      },
-      "acknowledgments": {
-        "title": "Lời cảm ơn",
-        "ggml": {
-          "title": "ggml",
-          "description": "Suy luận hiệu suất cao của mô hình nhận dạng giọng nói tự động Whisper của OpenAI",
-          "details": "Handy sử dụng ggml để xử lý chuyển đổi giọng nói thành văn bản nhanh, cục bộ. Cảm ơn công việc tuyệt vời của Georgi Gerganov và các cộng tác viên."
-        }
       },
       "whatsNewUpdates": {
         "label": "Hiển thị điểm mới",
-        "description": "Hiển thị ghi chú phát hành sau khi Handy cập nhật"
+        "description": "Hiển thị ghi chú phát hành sau khi Murmur cập nhật"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Không tìm thấy tùy chọn"
   },
   "accessibility": {
-    "permissionsDescription": "Handy cần quyền truy cập để gõ văn bản đã chuyển đổi.",
+    "permissionsDescription": "Murmur cần quyền truy cập để gõ văn bản đã chuyển đổi.",
     "openSettings": "Mở Cài đặt Hệ thống"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Ngôn ngữ ứng dụng",
-    "description": "Thay đổi ngôn ngữ giao diện của Handy"
+    "description": "Thay đổi ngôn ngữ giao diện của Murmur"
   },
   "theme": {
     "title": "Giao diện ứng dụng",
-    "description": "Chọn xem Handy theo chủ đề hệ thống hay giữ ở chế độ sáng hoặc tối",
+    "description": "Chọn xem Murmur theo chủ đề hệ thống hay giữ ở chế độ sáng hoặc tối",
     "options": {
       "system": "Hệ thống",
       "light": "Sáng",
@@ -671,7 +500,7 @@
     "processing": "Đang xử lý..."
   },
   "whatsNew": {
-    "title": "Điểm mới trong Handy v{{version}}"
+    "title": "Điểm mới trong Murmur v{{version}}"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} có thể đang chặn 1 phím tắt",

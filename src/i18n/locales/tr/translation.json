@@ -3,8 +3,6 @@
     "settings": "Ayarlar...",
     "checkUpdates": "Güncellemeleri Kontrol Et...",
     "copyLastTranscript": "Son Transkripti Kopyala",
-    "unloadModel": "Modeli Boşalt",
-    "model": "Model",
     "quit": "Çıkış",
     "cancel": "İptal",
     "secureInputWarning": "⚠ Kısayollar Secure Input tarafından engelleniyor"
@@ -19,89 +17,9 @@
     "about": "Hakkında"
   },
   "onboarding": {
-    "subtitle": "Başlamak için bir transkripsiyon modeli seçin",
-    "existingModelsTitle": "Uyumlu Modeller",
-    "downloadModelsTitle": "İndirilebilir",
-    "showAllModels": "{{total}} modelin tümünü göster",
-    "showFewerModels": "Daha az model göster",
-    "recommended": "Önerilen",
-    "customModelDescription": "Resmi olarak desteklenmiyor",
-    "modelCard": {
-      "accuracy": "doğruluk",
-      "speed": "hız"
-    },
-    "models": {
-      "small": {
-        "name": "Whisper Small",
-        "description": "Hızlı ve oldukça doğru."
-      },
-      "medium": {
-        "name": "Whisper Medium",
-        "description": "İyi doğruluk, orta hız."
-      },
-      "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Dengeli doğruluk ve hız."
-      },
-      "large": {
-        "name": "Whisper Large",
-        "description": "İyi doğruluk, ancak yavaş."
-      },
-      "parakeet-tdt-0.6b-v2": {
-        "name": "Parakeet V2",
-        "description": "Yalnızca İngilizce. İngilizce konuşanlar için en iyi model."
-      },
-      "parakeet-tdt-0.6b-v3": {
-        "name": "Parakeet V3",
-        "description": "Hızlı ve doğru."
-      },
-      "moonshine-base": {
-        "name": "Moonshine Base",
-        "description": "Çok hızlı, yalnızca İngilizce. Aksanları iyi işler."
-      },
-      "moonshine-tiny-streaming-en": {
-        "name": "Moonshine V2 Tiny",
-        "description": "Ultra hızlı, yalnızca İngilizce"
-      },
-      "moonshine-small-streaming-en": {
-        "name": "Moonshine V2 Small",
-        "description": "Hızlı, yalnızca İngilizce. Hız ve doğruluk arasında iyi denge."
-      },
-      "moonshine-medium-streaming-en": {
-        "name": "Moonshine V2 Medium",
-        "description": "Yalnızca İngilizce. Yüksek kalite."
-      },
-      "breeze-asr": {
-        "name": "Breeze ASR",
-        "description": "Tayvan Mandarin Çincesi için optimize edilmiş. Dil değiştirme desteği."
-      },
-      "sense-voice-int8": {
-        "name": "SenseVoice",
-        "description": "Çok hızlı. Çince, İngilizce, Japonca, Korece, Kantonca."
-      },
-      "gigaam-v3-e2e-ctc": {
-        "name": "GigaAM v3",
-        "description": "Rusça konuşma tanıma. Hızlı ve doğru."
-      },
-      "canary-180m-flash": {
-        "name": "Canary 180M Flash",
-        "description": "Çok hızlı. İngilizce, Almanca, İspanyolca, Fransızca. Çeviri desteği."
-      },
-      "canary-1b-v2": {
-        "name": "Canary 1B v2",
-        "description": "Doğru çok dilli. 25 Avrupa dili. Çeviri desteği."
-      },
-      "cohere-int8": {
-        "name": "Cohere",
-        "description": "Büyük, daha yavaş, ancak çok doğru çok dilli bir model."
-      }
-    },
-    "errors": {
-      "selectModel": "Model seçilemedi"
-    },
     "permissions": {
       "title": "İzinler Gerekli",
-      "description": "Handy'nin düzgün çalışabilmesi için birkaç izne ihtiyacı var.",
+      "description": "Murmur'nin düzgün çalışabilmesi için birkaç izne ihtiyacı var.",
       "microphone": {
         "title": "Mikrofon Erişimi",
         "description": "Sesinizi transkripsiyon için alabilmek için gereklidir."
@@ -120,40 +38,6 @@
       }
     }
   },
-  "modelSelector": {
-    "custom": "Özel",
-    "streaming": "Akış",
-    "active": "Aktif",
-    "noModelsAvailable": "Kullanılabilir model yok",
-    "verifying": "{{modelName}} doğrulanıyor...",
-    "verifyingGeneric": "Doğrulanıyor...",
-    "extracting": "{{modelName}} çıkarılıyor...",
-    "extractingMultiple": "{{count}} model çıkarılıyor...",
-    "extractingGeneric": "Çıkarılıyor...",
-    "downloading": "%{{percentage}} indiriliyor",
-    "downloadingMultiple": "{{count}} model indiriliyor...",
-    "modelReady": "Model Hazır",
-    "loading": "{{modelName}} yükleniyor...",
-    "loadingGeneric": "Yükleniyor...",
-    "modelError": "Model Hatası",
-    "modelUnloaded": "Model Boşaltıldı",
-    "noModelDownloadRequired": "Model Yok – İndirme Gerekli",
-    "deleteModel": "{{modelName}} Sil",
-    "switching": "Değiştiriliyor...",
-    "downloadSpeed": "{{speed}} MB/s",
-    "capabilities": {
-      "languageSelection": "Birden fazla giriş dilini destekler",
-      "languageCount": "{{total}} dil",
-      "translation": "İngilizce'ye çevirebilir",
-      "translate": "İngilizce'ye çevir",
-      "singleLanguage": "Yalnızca bu dili destekler",
-      "languageOnly": "Yalnızca {{language}}",
-      "streaming": "Konuşurken canlı transkripsiyon gösterir"
-    },
-    "cancel": "İptal",
-    "cancelDownload": "İndirmeyi iptal et",
-    "legacy": "Eski"
-  },
   "settings": {
     "modelSettings": {
       "title": "{{model}} Ayarları"
@@ -161,27 +45,16 @@
     "models": {
       "title": "Transkripsiyon Modelleri",
       "description": "Bir transkripsiyon modeli seçin veya ek modeller indirin. Farklı modeller değişen doğruluk ve hız seviyeleri sunar.",
-      "deleteConfirm": "{{modelName}} modelini silmek istediğinizden emin misiniz? Kullanmak için tekrar indirmeniz gerekecek.",
-      "deleteActiveConfirm": "{{modelName}} aktif modelinizdir. Silmek, yeni bir model seçene kadar transkripsiyonları durduracaktır. Emin misiniz?",
-      "deleteTitle": "Modeli Sil",
-      "filters": {
-        "allLanguages": "Tüm Diller",
-        "streaming": "Canlı transkripsiyonu destekleyen modelleri filtrele",
-        "translation": "İngilizce'ye çeviriyi destekleyen modelleri filtrele"
-      },
-      "noModelsMatch": "Bu filtreyle eşleşen model yok.",
-      "yourModels": "İndirilen Modeller",
-      "availableModels": "İndirilebilir",
-      "searchPlaceholder": "Modelleri ada göre ara…",
-      "rescan": {
-        "label": "Yeniden Tara",
-        "tooltip": "Handy dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
-      }
+      "codexTitle": "Codex",
+      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "codexChecking": "Checking session…",
+      "codexReady": "Connected",
+      "codexMissing": "Not signed in"
     },
     "general": {
       "title": "Genel",
       "shortcut": {
-        "title": "Handy Kısayolları",
+        "title": "Murmur Kısayolları",
         "description": "Sesle yazma kaydını başlatmak için klavye kısayollarını yapılandırın",
         "loading": "Kısayollar yükleniyor...",
         "none": "Kısayol yapılandırılmadı",
@@ -264,39 +137,25 @@
         "label": "Transkripsiyonlar Arasında Mikrofonu Açık Tut",
         "description": "Kayıt durdurulduktan sonra mikrofon akışını 30 saniye açık tutar, ardışık transkripsiyonlarda gecikmeyi azaltır. Etkinken Bluetooth ses kalitesini düşürebilir."
       },
-      "acceleration": {
-        "transcribe": {
-          "title": "transcribe.cpp Hızlandırması",
-          "description": "transcribe.cpp (Whisper ailesi) modelleri için donanım hızlandırması. Otomatik mod, mevcutsa GPU kullanır (macOS'ta Metal, Windows/Linux'ta Vulkan)."
-        },
-        "ort": {
-          "title": "ONNX Hızlandırma",
-          "description": "ONNX modelleri için donanım hızlandırma (Parakeet, Canary, Moonshine vb.). Windows'ta DirectML deneyseldir. Modeller transkripsiyon yapamayabilir."
-        },
-        "gpuDevice": {
-          "auto": "Otomatik"
-        }
-      },
       "startHidden": {
         "label": "Gizli Başlat",
         "description": "Pencereyi açmadan sistem tepsisinde başlatır."
       },
       "autostart": {
         "label": "Başlangıçta Çalıştır",
-        "description": "Bilgisayara giriş yaptığınızda Handy otomatik olarak başlatılır."
+        "description": "Bilgisayara giriş yaptığınızda Murmur otomatik olarak başlatılır."
       },
       "showTrayIcon": {
         "label": "Tepsi Simgesini Göster",
-        "description": "Handy simgesini sistem tepsisinde göster."
+        "description": "Murmur simgesini sistem tepsisinde göster."
       },
       "overlay": {
         "style": {
           "title": "Ekran Katmanı",
-          "description": "Kayıt sırasında gösterilecek ekran katmanını seçin: 'Yok' katmanı gizler, 'Sade' küçük bir gösterge gösterir, 'Canlı' siz konuşurken transkripsiyonu gerçek zamanlı gösterir (yalnızca akış destekli modeller — model seçicide 'Akış' rozetini arayın). Linux'ta 'Yok' önerilir.",
+          "description": "Kayıt katmanını seçin: 'Yok' gizler, 'Minimal' kompakt bir gösterge gösterir. Linux'ta 'Yok' önerilir.",
           "options": {
             "none": "Yok",
-            "minimal": "Sade",
-            "live": "Canlı"
+            "minimal": "Sade"
           }
         },
         "position": {
@@ -347,24 +206,6 @@
           "ctrlEnter": "Ctrl+Enter"
         }
       },
-      "translateToEnglish": {
-        "label": "İngilizce'ye Çevir",
-        "description": "Transkripsiyon sırasında diğer dillerden İngilizce'ye otomatik olarak çevirir."
-      },
-      "modelUnload": {
-        "title": "Modeli Boşalt",
-        "description": "Belirtilen süre boyunca kullanılmadığında modelin GPU/CPU belleğini otomatik olarak serbest bırakır.",
-        "options": {
-          "never": "Asla",
-          "immediately": "Hemen",
-          "min2": "2 dakika sonra",
-          "min5": "5 dakika sonra",
-          "min10": "10 dakika sonra",
-          "min15": "15 dakika sonra",
-          "hour1": "1 saat sonra",
-          "sec15": "15 saniye sonra (Debug)"
-        }
-      },
       "customWords": {
         "title": "Özel Kelimeler",
         "description": "Desteklenen modellerin adları ve özel terimleri tanımasına yardımcı olun. Bulanık düzeltme şu anda A–Z harflerini ve rakamları kullanan sözcüklerle sınırlıdır.",
@@ -372,10 +213,6 @@
         "add": "Ekle",
         "remove": "{{word}} Kaldır",
         "duplicate": "\"{{word}}\" zaten mevcut"
-      },
-      "voiceActivityDetection": {
-        "title": "Ses Etkinliği Algılama",
-        "description": "Kayıtlardaki sessizliği filtreler. Akış destekli modeller daha uzun bir VAD kuyruğu kullanır; VAD devre dışı bırakıldığında ham ses kaydedilir."
       },
       "fillerWordRemoval": {
         "title": "Dolgu Sözcüklerini Kaldır",
@@ -474,7 +311,7 @@
       },
       "updateChecks": {
         "label": "Güncellemeleri Kontrol Et",
-        "description": "Handy için yeni sürümleri otomatik olarak kontrol eder"
+        "description": "Murmur için yeni sürümleri otomatik olarak kontrol eder"
       },
       "soundTheme": {
         "label": "Ses Teması",
@@ -547,7 +384,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Klavye Tanılaması",
-        "description": "Klavye olaylarının Handy'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
+        "description": "Klavye olaylarının Murmur'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
         "run": "10 sn'lik tanılamayı çalıştır",
         "running": "Dinleniyor… kısayolunuza birkaç kez basın (ör. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -561,7 +398,7 @@
         "mouse": "Fare",
         "verdictBlocked": "Secure Input tuş olaylarını engelliyor — normal tuş içeren kısayollar bu sorun çözülene kadar çalışamaz.",
         "verdictSuspicious": "Değiştirici olayları geldi ancak hiç tuş olayı gelmedi — Secure Input devre dışı görünmesine rağmen bir şey tuşları bastırıyor. Lütfen bunu GitHub'da bildirin.",
-        "verdictOk": "Tuş olayları Handy'ye normal şekilde ulaşıyor.",
+        "verdictOk": "Tuş olayları Murmur'ye normal şekilde ulaşıyor.",
         "verdictNoEvents": "Hiç olay yakalanmadı — test sırasında herhangi bir tuşa bastınız mı?",
         "failed": "Tanılama başarısız: {{error}}"
       },
@@ -577,11 +414,11 @@
       "title": "Hakkında",
       "version": {
         "title": "Sürüm",
-        "description": "Handy'nin mevcut sürümü"
+        "description": "Murmur'nin mevcut sürümü"
       },
       "appDataDirectory": {
         "title": "Uygulama Veri Dizini",
-        "description": "Handy'nin verilerini sakladığı konum"
+        "description": "Murmur'nin verilerini sakladığı konum"
       },
       "sourceCode": {
         "title": "Kaynak Kodu",
@@ -590,20 +427,12 @@
       },
       "supportDevelopment": {
         "title": "Geliştirmeyi Destekle",
-        "description": "Handy'yi geliştirmeye devam etmemize yardımcı olun",
+        "description": "Murmur'yi geliştirmeye devam etmemize yardımcı olun",
         "button": "Bağış Yap"
-      },
-      "acknowledgments": {
-        "title": "Teşekkürler",
-        "ggml": {
-          "title": "ggml",
-          "description": "Cihaz üzerinde makine öğrenmesi çıkarımı için yüksek performanslı tensör kütüphanesi",
-          "details": "Handy'nin yerel konuşmadan metne dönüştürme özelliği transcribe.cpp ve ggml üzerine kuruludur. Georgi Gerganov'a ve katkıda bulunanlara harika çalışmaları için teşekkür ederiz."
-        }
       },
       "whatsNewUpdates": {
         "label": "Yenilikleri Göster",
-        "description": "Handy güncellemelerinden sonra sürüm notlarını göster"
+        "description": "Murmur güncellemelerinden sonra sürüm notlarını göster"
       }
     }
   },
@@ -632,7 +461,7 @@
     "noOptionsFound": "Seçenek bulunamadı"
   },
   "accessibility": {
-    "permissionsDescription": "Handy, transkribe edilen metni yazabilmek için erişilebilirlik izinlerine ihtiyaç duyar.",
+    "permissionsDescription": "Murmur, transkribe edilen metni yazabilmek için erişilebilirlik izinlerine ihtiyaç duyar.",
     "openSettings": "Sistem Ayarlarını Aç"
   },
   "errors": {
@@ -655,11 +484,11 @@
   },
   "appLanguage": {
     "title": "Uygulama Dili",
-    "description": "Handy arayüzünün dilini değiştirin"
+    "description": "Murmur arayüzünün dilini değiştirin"
   },
   "theme": {
     "title": "Uygulama Teması",
-    "description": "Handy'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
+    "description": "Murmur'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
     "options": {
       "system": "Sistem",
       "light": "Açık",
@@ -671,7 +500,7 @@
     "processing": "İşleniyor..."
   },
   "whatsNew": {
-    "title": "Handy v{{version}} yenilikleri"
+    "title": "Murmur v{{version}} yenilikleri"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} 1 kısayolu engelliyor olabilir",
