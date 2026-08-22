@@ -23,10 +23,6 @@ pub fn init_shortcuts(app: &AppHandle) {
         if id == "cancel" {
             continue; // Skip cancel shortcut, it will be registered dynamically
         }
-        // Skip post-processing shortcut when the feature is disabled
-        if id == "transcribe_with_post_process" && !user_settings.post_process_enabled {
-            continue;
-        }
         let binding = user_settings
             .bindings
             .get(&id)
@@ -108,9 +104,6 @@ pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<()
             if scut == &shortcut {
                 let shortcut_string = scut.into_string();
                 let is_pressed = event.state == ShortcutState::Pressed;
-                // Mirrors the handy-keys event log line; the distinct prefix
-                // makes it possible to tell which backend fired a shortcut
-                // (e.g. when diagnosing the Secure Input fallback)
                 debug!(
                     "tauri global-shortcut event: binding={}, shortcut={}, state={:?}",
                     binding_id_for_closure, shortcut_string, event.state

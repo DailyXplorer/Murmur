@@ -1,310 +1,93 @@
 fn main() {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    build_apple_intelligence_bridge();
-
     generate_tray_translations();
-
-    tauri_build::build()
+    tauri_build::build();
 }
 
-/// Generate tray menu translations from frontend locale files.
-///
-/// Source of truth: src/i18n/locales/*/translation.json
-/// The English "tray" section defines the struct fields.
 fn generate_tray_translations() {
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;
 
-    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo");
     let locales_dir = Path::new("../src/i18n/locales");
-
     println!("cargo:rerun-if-changed=../src/i18n/locales");
 
-    // Collect all locale translations
     let mut translations: BTreeMap<String, serde_json::Value> = BTreeMap::new();
-
-    for entry in fs::read_dir(locales_dir).unwrap().flatten() {
+    for entry_result in fs::read_dir(locales_dir).expect("locale directory is readable") {
+        let entry = entry_result.expect("locale directory entry is readable");
         let path = entry.path();
         if !path.is_dir() {
             continue;
         }
-
-        let lang = path.file_name().unwrap().to_str().unwrap().to_string();
+        let Some(language) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
         let json_path = path.join("translation.json");
-
         println!("cargo:rerun-if-changed={}", json_path.display());
-
-        let content = fs::read_to_string(&json_path).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-
+        let content = fs::read_to_string(&json_path).expect("locale file is readable");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("locale file contains valid JSON");
         if let Some(tray) = parsed.get("tray").cloned() {
-            translations.insert(lang, tray);
+            translations.insert(language.to_string(), tray);
         }
     }
 
-    // English defines the schema
-    let english = translations.get("en").unwrap().as_object().unwrap();
-    let fields: Vec<_> = english
+    let english = translations
+        .get("en")
+        .and_then(serde_json::Value::as_object)
+        .expect("English tray translations define the schema");
+    let fields = english
         .keys()
-        .map(|k| (camel_to_snake(k), k.clone()))
-        .collect();
+        .map(|key| (camel_to_snake(key), key.clone()))
+        .collect::<Vec<_>>();
 
-    // Generate code
-    let mut out = String::from(
-        "// Auto-generated from src/i18n/locales/*/translation.json - do not edit\n\n",
-    );
-
-    // Struct
-    out.push_str("#[derive(Debug, Clone)]\npub struct TrayStrings {\n");
-    for (rust_field, _) in &fields {
-        out.push_str(&format!("    pub {rust_field}: String,\n"));
+    let mut output = String::from("// Auto-generated from locale files. Do not edit.\n\n");
+    output.push_str("#[derive(Debug, Clone)]\npub struct TrayStrings {\n");
+    for (field, _) in &fields {
+        output.push_str(&format!("    pub {field}: String,\n"));
     }
-    out.push_str("}\n\n");
-
-    // Static map
-    out.push_str(
-        "pub static TRANSLATIONS: Lazy<HashMap<&'static str, TrayStrings>> = Lazy::new(|| {\n",
+    output.push_str("}\n\n");
+    output.push_str(
+        "pub static TRANSLATIONS: Lazy<HashMap<&'static str, TrayStrings>> = Lazy::new(|| {\n    let mut map = HashMap::new();\n",
     );
-    out.push_str("    let mut m = HashMap::new();\n");
-
-    for (lang, tray) in &translations {
-        out.push_str(&format!("    m.insert(\"{lang}\", TrayStrings {{\n"));
-        for (rust_field, json_key) in &fields {
-            let val = tray.get(json_key).and_then(|v| v.as_str()).unwrap_or("");
-            out.push_str(&format!(
-                "        {rust_field}: \"{}\".to_string(),\n",
-                escape_string(val)
+    for (language, tray) in &translations {
+        output.push_str(&format!("    map.insert(\"{language}\", TrayStrings {{\n"));
+        for (field, json_key) in &fields {
+            let value = tray
+                .get(json_key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_else(|| panic!("{language} tray.{json_key} must be a string"));
+            output.push_str(&format!(
+                "        {field}: \"{}\".to_string(),\n",
+                escape_string(value)
             ));
         }
-        out.push_str("    });\n");
+        output.push_str("    });\n");
     }
+    output.push_str("    map\n});\n");
 
-    out.push_str("    m\n});\n");
-
-    fs::write(Path::new(&out_dir).join("tray_translations.rs"), out).unwrap();
-
-    println!(
-        "cargo:warning=Generated tray translations: {} languages, {} fields",
-        translations.len(),
-        fields.len()
-    );
+    fs::write(Path::new(&out_dir).join("tray_translations.rs"), output)
+        .expect("generated tray translations are writable");
 }
 
-fn camel_to_snake(s: &str) -> String {
-    s.chars()
+fn camel_to_snake(value: &str) -> String {
+    value
+        .chars()
         .enumerate()
-        .fold(String::new(), |mut acc, (i, c)| {
-            if c.is_uppercase() && i > 0 {
-                acc.push('_');
+        .fold(String::new(), |mut output, (index, character)| {
+            if character.is_uppercase() && index > 0 {
+                output.push('_');
             }
-            acc.push(c.to_lowercase().next().unwrap());
-            acc
+            output.extend(character.to_lowercase());
+            output
         })
 }
 
-fn escape_string(s: &str) -> String {
-    s.replace('\\', "\\\\")
+fn escape_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
-}
-
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn build_apple_intelligence_bridge() {
-    use std::env;
-    use std::path::{Path, PathBuf};
-    use std::process::Command;
-
-    const REAL_SWIFT_FILE: &str = "swift/apple_intelligence.swift";
-    const STUB_SWIFT_FILE: &str = "swift/apple_intelligence_stub.swift";
-    const BRIDGE_HEADER: &str = "swift/apple_intelligence_bridge.h";
-
-    println!("cargo:rerun-if-changed={REAL_SWIFT_FILE}");
-    println!("cargo:rerun-if-changed={STUB_SWIFT_FILE}");
-    println!("cargo:rerun-if-changed={BRIDGE_HEADER}");
-
-    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
-    let object_path = out_dir.join("apple_intelligence.o");
-    let static_lib_path = out_dir.join("libapple_intelligence.a");
-
-    // SDKROOT/SWIFTC env-var overrides let non-Xcode toolchains (e.g. nixpkgs
-    // with apple-sdk_* + standalone swift) bypass xcrun, which is Xcode-only.
-    let sdk_path = env::var("SDKROOT").unwrap_or_else(|_| {
-        String::from_utf8(
-            Command::new("xcrun")
-                .args(["--sdk", "macosx", "--show-sdk-path"])
-                .output()
-                .expect("Failed to locate macOS SDK")
-                .stdout,
-        )
-        .expect("SDK path is not valid UTF-8")
-        .trim()
-        .to_string()
-    });
-
-    // Check if the SDK supports FoundationModels (required for Apple Intelligence)
-    let framework_path =
-        Path::new(&sdk_path).join("System/Library/Frameworks/FoundationModels.framework");
-    // HANDY_FORCE_AI_STUB=1 is an explicit escape hatch: force the stub even when
-    // the active toolchain could build the real path (e.g. to skip the Swift
-    // compile, or if the auto-detection below misfires). The common CLT-only case
-    // is detected automatically just below, so this flag is rarely needed.
-    let force_stub = env::var("HANDY_FORCE_AI_STUB").as_deref() == Ok("1");
-
-    // Auto-detect a Command-Line-Tools-only toolchain. The CLT SDK contains
-    // FoundationModels.framework, so the `framework_path.exists()` check alone
-    // wrongly selects the real Swift path, which then fails to compile because
-    // the CLT `swiftc` has no FoundationModelsMacros plugin (full Xcode only).
-    // Detecting this lets a plain `cargo build` / `tauri dev` succeed without the
-    // manual flag. Skipped when SWIFTC is overridden: that signals a custom
-    // toolchain (e.g. the nixpkgs standalone-swift path supported above) whose
-    // capabilities can't be inferred from `xcode-select`.
-    let command_line_tools_only = env::var("SWIFTC").is_err() && is_command_line_tools_only();
-    if command_line_tools_only && !force_stub {
-        println!(
-            "cargo:warning=Command Line Tools-only toolchain detected; Apple Intelligence \
-             (FoundationModels) needs full Xcode. Falling back to stubs. Install Xcode and run \
-             `sudo xcode-select -s /Applications/Xcode.app`, or set HANDY_FORCE_AI_STUB=1 to \
-             silence this message."
-        );
-    }
-
-    let has_foundation_models = framework_path.exists() && !force_stub && !command_line_tools_only;
-
-    let source_file = if has_foundation_models {
-        println!("cargo:warning=Building with Apple Intelligence support.");
-        REAL_SWIFT_FILE
-    } else {
-        // The SDK genuinely lacking FoundationModels is only one reason we build
-        // stubs — CLT-only detection and HANDY_FORCE_AI_STUB (each warned about
-        // above) also land here, and for those the framework does exist. Only
-        // claim it's "not found" when that's actually true.
-        if framework_path.exists() {
-            println!("cargo:warning=Building Apple Intelligence with stubs.");
-        } else {
-            println!("cargo:warning=Apple Intelligence SDK not found. Building with stubs.");
-        }
-        STUB_SWIFT_FILE
-    };
-
-    if !Path::new(source_file).exists() {
-        panic!("Source file {} is missing!", source_file);
-    }
-
-    // See SDKROOT note above — same env-override pattern for non-Xcode toolchains.
-    let swiftc_path = env::var("SWIFTC").unwrap_or_else(|_| {
-        String::from_utf8(
-            Command::new("xcrun")
-                .args(["--find", "swiftc"])
-                .output()
-                .expect("Failed to locate swiftc")
-                .stdout,
-        )
-        .expect("swiftc path is not valid UTF-8")
-        .trim()
-        .to_string()
-    });
-
-    let toolchain_swift_lib = Path::new(&swiftc_path)
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|root| root.join("lib/swift/macosx"))
-        .expect("Unable to determine Swift toolchain lib directory");
-    let sdk_swift_lib = Path::new(&sdk_path).join("usr/lib/swift");
-
-    // Use macOS 11.0 as deployment target for compatibility
-    // The @available(macOS 26.0, *) checks in Swift handle runtime availability
-    // Weak linking for FoundationModels is handled via cargo:rustc-link-arg below
-    let status = Command::new(&swiftc_path)
-        .args([
-            // Without this flag swiftc treats single-file input as script
-            // mode and emits its own `_main` symbol into the .o, which can
-            // win the link against Rust's main under some linkers (e.g.
-            // open-source ld64 used in nixpkgs' Darwin stdenv), producing a
-            // binary whose main() is a 5-instruction no-op that returns 0.
-            // `-parse-as-library` keeps the compilation in library mode so
-            // no `_main` is emitted. See:
-            //   https://forums.swift.org/t/main-in-a-single-swift-file/63079
-            "-parse-as-library",
-            "-target",
-            "arm64-apple-macosx11.0",
-            "-sdk",
-            &sdk_path,
-            "-O",
-            "-import-objc-header",
-            BRIDGE_HEADER,
-            "-c",
-            source_file,
-            "-o",
-            object_path
-                .to_str()
-                .expect("Failed to convert object path to string"),
-        ])
-        .status()
-        .expect("Failed to invoke swiftc for Apple Intelligence bridge");
-
-    if !status.success() {
-        panic!("swiftc failed to compile {source_file}");
-    }
-
-    let status = Command::new("libtool")
-        .args([
-            "-static",
-            "-o",
-            static_lib_path
-                .to_str()
-                .expect("Failed to convert static lib path to string"),
-            object_path
-                .to_str()
-                .expect("Failed to convert object path to string"),
-        ])
-        .status()
-        .expect("Failed to create static library for Apple Intelligence bridge");
-
-    if !status.success() {
-        panic!("libtool failed for Apple Intelligence bridge");
-    }
-
-    println!("cargo:rustc-link-search=native={}", out_dir.display());
-    println!("cargo:rustc-link-lib=static=apple_intelligence");
-    println!(
-        "cargo:rustc-link-search=native={}",
-        toolchain_swift_lib.display()
-    );
-    println!("cargo:rustc-link-search=native={}", sdk_swift_lib.display());
-    println!("cargo:rustc-link-lib=framework=Foundation");
-
-    if has_foundation_models {
-        // Use weak linking so the app can launch on systems without FoundationModels
-        println!("cargo:rustc-link-arg=-weak_framework");
-        println!("cargo:rustc-link-arg=FoundationModels");
-    }
-
-    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
-}
-
-/// Returns true when the active developer directory is the standalone Command
-/// Line Tools rather than a full Xcode install.
-///
-/// `xcode-select -p` prints the active developer dir; the CLT install resolves
-/// to a path ending in `CommandLineTools` (e.g. `/Library/Developer/CommandLineTools`),
-/// whereas full Xcode resolves under `Xcode.app`. A CLT-only toolchain ships
-/// FoundationModels.framework in its SDK but a `swiftc` without the
-/// FoundationModelsMacros plugin, so the Apple Intelligence Swift path cannot
-/// compile (issue #1448). On any error we conservatively return false so the
-/// existing SDK-presence check decides.
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn is_command_line_tools_only() -> bool {
-    use std::process::Command;
-
-    Command::new("xcode-select")
-        .arg("-p")
-        .output()
-        .ok()
-        .filter(|out| out.status.success())
-        .and_then(|out| String::from_utf8(out.stdout).ok())
-        .map(|path| path.trim().ends_with("CommandLineTools"))
-        .unwrap_or(false)
 }

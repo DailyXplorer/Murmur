@@ -4,17 +4,15 @@
     "checkUpdates": "업데이트 확인...",
     "copyLastTranscript": "마지막 녹음 내용 복사",
     "quit": "종료",
-    "cancel": "취소",
-    "secureInputWarning": "⚠ Secure Input으로 단축키가 차단됨"
+    "cancel": "취소"
   },
   "sidebar": {
     "general": "일반",
-    "models": "모델",
     "advanced": "고급",
-    "postProcessing": "후처리",
     "history": "히스토리",
     "debug": "디버그",
-    "about": "정보"
+    "about": "정보",
+    "transcription": "받아쓰기"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}} 설정"
-    },
     "general": {
       "title": "일반",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "취소 단축키",
             "description": "현재 녹음을 취소하는 키보드 단축키입니다."
-          },
-          "transcribe_with_post_process": {
-            "name": "후처리 단축키",
-            "description": "선택 사항: 항상 AI 후처리를 적용하는 전용 단축키입니다."
           }
         },
         "errors": {
@@ -111,15 +102,6 @@
         "title": "볼륨",
         "description": "오디오 피드백 사운드의 볼륨 조절"
       }
-    },
-    "models": {
-      "title": "음성 인식 모델",
-      "description": "음성 인식 모델을 선택하거나 추가 모델을 다운로드하세요. 모델마다 정확도와 속도가 다릅니다.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "advanced": {
       "groups": {
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "사용자 정의 단어",
-        "description": "지원되는 모델이 이름과 전문 용어를 인식하도록 도와줍니다. 퍼지 교정은 현재 A–Z 문자와 숫자를 사용하는 단어로 제한됩니다.",
+        "description": "퍼지 교정은 현재 A–Z 문자와 숫자를 사용하는 단어로 제한됩니다.",
         "placeholder": "단어 추가",
         "add": "추가",
         "remove": "{{word}} 제거",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "군더더기 표현 제거",
         "description": "전사에서 흔한 머뭇거림 표현을 제거합니다. 그대로 두려면 이 옵션을 끄세요."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "단축키"
-      },
-      "api": {
-        "title": "API (OpenAI 호환)",
-        "provider": {
-          "title": "제공자",
-          "description": "OpenAI 호환 제공자를 선택하세요."
-        },
-        "appleIntelligence": {
-          "unavailable": "이 기기에서는 Apple Intelligence를 사용할 수 없습니다. macOS Tahoe (26.0) 이상을 실행하고 시스템 설정에서 Apple Intelligence가 활성화된 Apple Silicon Mac이 필요합니다."
-        },
-        "baseUrl": {
-          "title": "기본 URL",
-          "description": "선택한 제공자의 API 기본 URL입니다. 사용자 정의 제공자만 편집할 수 있습니다.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API 키",
-          "description": "선택한 제공자의 API 키입니다.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "모델",
-          "descriptionCustom": "사용자 정의 엔드포인트에서 예상하는 모델 식별자를 제공하세요.",
-          "descriptionDefault": "선택한 제공자가 제공하는 모델을 선택하세요.",
-          "placeholderWithOptions": "모델 검색 또는 선택",
-          "placeholderNoOptions": "모델 이름 입력",
-          "refreshModels": "모델 새로고침"
-        }
-      },
-      "prompts": {
-        "title": "프롬프트",
-        "selectedPrompt": {
-          "title": "선택된 프롬프트",
-          "description": "텍스트 변환을 개선하기 위한 템플릿을 선택하거나 새로 만드세요. 프롬프트 텍스트 내에서 ${output}를 사용하여 캡처된 텍스트를 참조하세요."
-        },
-        "noPrompts": "사용 가능한 프롬프트 없음",
-        "selectPrompt": "프롬프트 선택",
-        "createNew": "새 프롬프트 만들기",
-        "promptLabel": "프롬프트 레이블",
-        "promptLabelPlaceholder": "프롬프트 이름 입력",
-        "promptInstructions": "프롬프트 지시사항",
-        "promptInstructionsPlaceholder": "텍스트 변환 후 실행할 지시사항을 작성하세요. 예: 다음 텍스트의 문법과 명확성을 개선하세요: ${output}",
-        "promptTip": "팁: 프롬프트에서 변환된 텍스트를 삽입하려면 <code>${output}</code>을 사용하세요.",
-        "updatePrompt": "프롬프트 업데이트",
-        "deletePrompt": "프롬프트 삭제",
-        "createPrompt": "프롬프트 만들기",
-        "cancel": "취소",
-        "selectToEdit": "세부 정보를 보고 편집하려면 위에서 프롬프트를 선택하세요.",
-        "createFirst": "첫 번째 후처리 프롬프트를 만들려면 위의 '새 프롬프트 만들기'를 클릭하세요."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "클램셸 마이크",
         "description": "노트북 덮개가 닫혀 있을 때 사용할 마이크"
       },
-      "postProcessingToggle": {
-        "label": "후처리",
-        "description": "텍스트 변환 후 AI 기반 텍스트 개선 활성화"
-      },
       "muteWhileRecording": {
         "label": "녹음 중 음소거",
         "description": "녹음 중 시스템 오디오 음소거"
@@ -355,11 +279,6 @@
       "appendTrailingSpace": {
         "label": "끝 공백 추가",
         "description": "붙여넣은 텍스트 끝에 공백 추가"
-      },
-      "keyboardImplementation": {
-        "title": "키보드 구현",
-        "description": "키보드 단축키 백엔드를 선택하세요.",
-        "bindingsReset": "키보드 단축키가 호환되지 않아 기본값으로 재설정되었습니다"
       },
       "pasteDelay": {
         "title": "붙여넣기 지연 (이전)",
@@ -376,31 +295,6 @@
       "recordingBuffer": {
         "title": "추가 녹음 버퍼",
         "description": "키를 놓은 후 추가로 녹음을 계속하는 시간(밀리초). 후행 오디오를 캡처하기 위함. 0 = 추가 버퍼 없음."
-      },
-      "keyboardDiagnostic": {
-        "title": "키보드 진단",
-        "description": "키보드 이벤트가 Murmur에 도달하는지 확인합니다. 이벤트 개수만 기록되며, 어떤 키를 눌렀는지는 절대 기록되지 않습니다.",
-        "run": "10초 진단 실행",
-        "running": "수신 중… 단축키를 몇 번 눌러 보세요 (예: Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "사용 중",
-        "disabled": "사용 안 함",
-        "holder": "{{name}}(pid {{pid}})이(가) 점유 중",
-        "holderUnknown": "점유 중인 앱을 확인할 수 없음",
-        "keyDown": "키 누름",
-        "keyUp": "키 뗌",
-        "flagsChanged": "조합 키",
-        "mouse": "마우스",
-        "verdictBlocked": "Secure Input이 키 이벤트를 차단하고 있습니다. 해결될 때까지 일반 키가 포함된 단축키는 작동할 수 없습니다.",
-        "verdictSuspicious": "조합 키 이벤트는 도착했지만 키 이벤트는 없습니다. Secure Input은 꺼져 있다고 보고되지만 무언가가 키를 가로막고 있습니다. GitHub에 신고해 주세요.",
-        "verdictOk": "키 이벤트가 Murmur에 정상적으로 도달하고 있습니다.",
-        "verdictNoEvents": "이벤트가 감지되지 않았습니다. 테스트 중에 키를 누르셨나요?",
-        "failed": "진단 실패: {{error}}"
-      },
-      "paths": {
-        "appData": "앱 데이터:",
-        "models": "모델:",
-        "settings": "설정:"
       },
       "whatsNewPreview": {
         "title": "새 소식 미리보기",
@@ -434,6 +328,14 @@
         "label": "새 소식 표시",
         "description": "Murmur 업데이트 후 릴리스 노트를 표시합니다"
       }
+    },
+    "transcription": {
+      "title": "받아쓰기",
+      "sessionTitle": "Codex",
+      "sessionDescription": "오디오는 Codex가 사용하는 것과 동일한 클라우드 전사 서비스로 전송됩니다. 여기에 연결되지 않음으로 표시되면 Codex 앱에 로그인하세요.",
+      "checking": "세션 확인 중…",
+      "ready": "연결됨",
+      "missing": "로그인하지 않음"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "준비 중...",
     "checkForUpdates": "업데이트 확인",
     "portableUpdateTitle": "수동 업데이트 필요",
-    "portableUpdateMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. 아래에서 사용 중인 시스템에 맞는 설치 프로그램을 다운로드해 실행하고 같은 폴더에 설치하세요. Data/ 폴더(설정, 모델, 녹음)는 그대로 유지됩니다.",
+    "portableUpdateMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. 아래에서 사용 중인 시스템에 맞는 설치 프로그램을 다운로드해 실행하고 같은 폴더에 설치하세요. Data/ 폴더는 그대로 유지됩니다.",
     "portableUpdateButton": "설치 프로그램 다운로드",
-    "portableUpdateBrowseMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. GitHub Releases에서 사용 중인 시스템에 맞는 최신 버전을 다운로드해 같은 폴더에 설치하세요. Data/ 폴더(설정, 모델, 녹음)는 그대로 유지됩니다.",
+    "portableUpdateBrowseMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. GitHub Releases에서 사용 중인 시스템에 맞는 최신 버전을 다운로드해 같은 폴더에 설치하세요. Data/ 폴더는 그대로 유지됩니다.",
     "portableUpdateBrowseButton": "GitHub Releases 열기"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "마이크를 찾을 수 없음",
     "noInputDevice": "오디오 입력 장치가 감지되지 않았습니다. 마이크 또는 헤드셋을 연결한 후 다시 시도해 주세요.",
     "recordingFailed": "녹음을 시작하지 못했습니다: {{error}}",
-    "modelLoadFailed": "모델을 불러오지 못했습니다: {{model}}",
-    "modelLoadFailedUnknown": "알 수 없는 모델",
     "pasteFailedTitle": "텍스트 붙여넣기 실패",
     "pasteFailed": "활성 애플리케이션에 텍스트를 붙여넣을 수 없습니다.",
     "transcriptionFailedTitle": "음성 인식 실패"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "텍스트로 변환 중...",
-    "processing": "처리 중..."
+    "transcribing": "텍스트로 변환 중..."
   },
   "whatsNew": {
     "title": "Murmur v{{version}}의 새 소식"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}}이(가) 단축키 1개를 차단하고 있을 수 있습니다",
-    "blockedWithCulprit_other": "{{name}}이(가) 단축키 {{count}}개를 차단하고 있을 수 있습니다",
-    "blockedNoCulprit_one": "macOS가 단축키 1개를 일시적으로 차단하고 있습니다",
-    "blockedNoCulprit_other": "macOS가 단축키 {{count}}개를 일시적으로 차단하고 있습니다",
-    "recorderBlockedWithCulprit": "{{name}}이(가) 단축키 변경을 차단하고 있을 수 있습니다",
-    "recorderBlockedNoCulprit": "macOS가 단축키 변경을 일시적으로 차단하고 있습니다",
-    "learnMore": "해결 방법",
-    "recorderBlocked": "지금은 단축키를 등록할 수 없습니다. macOS Secure Input이 키 이벤트를 차단하고 있습니다. Secure Input 경고를 먼저 해결하세요.",
-    "dismiss": "닫기"
   }
 }

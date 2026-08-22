@@ -4,17 +4,15 @@
     "checkUpdates": "Check for Updates...",
     "copyLastTranscript": "Copy Last Transcript",
     "quit": "Quit",
-    "cancel": "Cancel",
-    "secureInputWarning": "⚠ Shortcuts blocked by Secure Input"
+    "cancel": "Cancel"
   },
   "sidebar": {
     "general": "General",
-    "models": "Transcription",
     "advanced": "Advanced",
-    "postProcessing": "Post Process",
     "history": "History",
     "debug": "Debug",
-    "about": "About"
+    "about": "About",
+    "transcription": "Transcription"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}} Settings"
-    },
     "general": {
       "title": "General",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "Cancel Shortcut",
             "description": "The keyboard shortcut to cancel the current recording."
-          },
-          "transcribe_with_post_process": {
-            "name": "Post-Processing Hotkey",
-            "description": "Optional: A dedicated hotkey that always applies AI post-processing to your transcription."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "Push To Talk",
         "description": "Hold to record, release to stop"
       }
-    },
-    "models": {
-      "title": "Transcription",
-      "description": "Murmur transcribes through your Codex / ChatGPT session. No local model is downloaded.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Sound",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Custom Words",
-        "description": "Help supported models recognize names and specialized terms. Fuzzy correction is currently limited to words using A–Z and numbers.",
+        "description": "Fuzzy correction is currently limited to words using A–Z and numbers.",
         "placeholder": "Add a word",
         "add": "Add",
         "remove": "Remove {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Remove Filler Words",
         "description": "Removes common hesitation words from transcriptions. Turn off to keep them."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Hotkey"
-      },
-      "api": {
-        "title": "API (OpenAI Compatible)",
-        "provider": {
-          "title": "Provider",
-          "description": "Select an OpenAI-compatible provider."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence is not available on this device. Requires an Apple Silicon Mac running macOS Tahoe (26.0) or later with Apple Intelligence enabled in System Settings."
-        },
-        "baseUrl": {
-          "title": "Base URL",
-          "description": "API base URL for the selected provider. Only the custom provider can be edited.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API Key",
-          "description": "API key for the selected provider.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Model",
-          "descriptionCustom": "Provide the model identifier expected by your custom endpoint.",
-          "descriptionDefault": "Choose a model exposed by the selected provider.",
-          "placeholderWithOptions": "Search or select a model",
-          "placeholderNoOptions": "Type a model name",
-          "refreshModels": "Refresh models"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Selected Prompt",
-          "description": "Select a template for refining transcriptions or create a new one. Use ${output} inside the prompt text to reference the captured transcript."
-        },
-        "noPrompts": "No prompts available",
-        "selectPrompt": "Select a prompt",
-        "createNew": "Create New Prompt",
-        "promptLabel": "Prompt Label",
-        "promptLabelPlaceholder": "Enter prompt name",
-        "promptInstructions": "Prompt Instructions",
-        "promptInstructionsPlaceholder": "Write the instructions to run after transcription. Example: Improve grammar and clarity for the following text: ${output}",
-        "promptTip": "Tip: Use <code>${output}</code> to insert the transcribed text in your prompt.",
-        "updatePrompt": "Update Prompt",
-        "deletePrompt": "Delete Prompt",
-        "createPrompt": "Create Prompt",
-        "cancel": "Cancel",
-        "selectToEdit": "Select a prompt above to view and edit its details.",
-        "createFirst": "Click 'Create New Prompt' above to create your first post-processing prompt."
       }
     },
     "history": {
@@ -351,10 +279,6 @@
         "title": "Clamshell Microphone",
         "description": "Microphone to use when laptop lid is closed"
       },
-      "postProcessingToggle": {
-        "label": "Post Processing",
-        "description": "Enable AI-powered text refinement after transcription"
-      },
       "muteWhileRecording": {
         "label": "Mute While Recording",
         "description": "Mute system audio during recording"
@@ -362,16 +286,6 @@
       "appendTrailingSpace": {
         "label": "Append Trailing Space",
         "description": "Add a space after pasted transcription"
-      },
-      "keyboardImplementation": {
-        "title": "Keyboard Implementation",
-        "description": "Choose the keyboard shortcut backend.",
-        "bindingsReset": "Keyboard shortcuts were incompatible and reset to defaults"
-      },
-      "paths": {
-        "appData": "App Data:",
-        "models": "Models:",
-        "settings": "Settings:"
       },
       "pasteDelay": {
         "title": "Paste Delay (Before)",
@@ -388,26 +302,6 @@
       "recordingBuffer": {
         "title": "Extra Recording Buffer",
         "description": "Extra time (in milliseconds) to keep recording after you release the key, to capture trailing audio. 0 = no extra buffer."
-      },
-      "keyboardDiagnostic": {
-        "title": "Keyboard Diagnostic",
-        "description": "Checks whether keyboard events reach Murmur. Only event counts are recorded — never which keys you press.",
-        "run": "Run 10s diagnostic",
-        "running": "Listening… press your shortcut a few times (e.g. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "enabled",
-        "disabled": "disabled",
-        "holder": "held by {{name}} (pid {{pid}})",
-        "holderUnknown": "no visible holder",
-        "keyDown": "Key down",
-        "keyUp": "Key up",
-        "flagsChanged": "Modifiers",
-        "mouse": "Mouse",
-        "verdictBlocked": "Secure Input is blocking key events — keyed shortcuts cannot work until it is resolved.",
-        "verdictSuspicious": "Modifier events arrived but no key events — something is suppressing keys even though Secure Input reports disabled. Please report this on GitHub.",
-        "verdictOk": "Key events are reaching Murmur normally.",
-        "verdictNoEvents": "No events captured — did you press any keys during the test?",
-        "failed": "Diagnostic failed: {{error}}"
       }
     },
     "about": {
@@ -434,6 +328,14 @@
         "description": "Help us continue building Murmur",
         "button": "Donate"
       }
+    },
+    "transcription": {
+      "title": "Transcription",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
+      "checking": "Checking session…",
+      "ready": "Connected",
+      "missing": "Not signed in"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Preparing...",
     "checkForUpdates": "Check for updates",
     "portableUpdateTitle": "Manual update required",
-    "portableUpdateMessage": "Portable installs cannot be updated automatically. Download the installer for your system below, run it, and install to the same folder — your Data/ folder (settings, models, recordings) is kept in place.",
+    "portableUpdateMessage": "Portable installs cannot be updated automatically. Download the installer for your system below, run it, and install to the same folder — your Data/ folder is kept in place.",
     "portableUpdateButton": "Download installer",
-    "portableUpdateBrowseMessage": "Portable installs cannot be updated automatically. Download the latest version for your system from GitHub Releases and install it to the same folder — your Data/ folder (settings, models, recordings) is kept in place.",
+    "portableUpdateBrowseMessage": "Portable installs cannot be updated automatically. Download the latest version for your system from GitHub Releases and install it to the same folder — your Data/ folder is kept in place.",
     "portableUpdateBrowseButton": "Open GitHub Releases"
   },
   "whatsNew": {
@@ -479,8 +381,6 @@
     "noInputDeviceTitle": "No Microphone Found",
     "noInputDevice": "No audio input device was detected. Please connect a microphone or headset and try again.",
     "recordingFailed": "Failed to start recording: {{error}}",
-    "modelLoadFailed": "Failed to load model: {{model}}",
-    "modelLoadFailedUnknown": "unknown model",
     "pasteFailedTitle": "Failed to Paste Text",
     "pasteFailed": "Text could not be pasted into the active application.",
     "transcriptionFailedTitle": "Transcription Failed"
@@ -499,18 +399,6 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribing...",
-    "processing": "Processing..."
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} may be blocking 1 shortcut",
-    "blockedWithCulprit_other": "{{name}} may be blocking {{count}} shortcuts",
-    "blockedNoCulprit_one": "macOS is temporarily blocking 1 shortcut",
-    "blockedNoCulprit_other": "macOS is temporarily blocking {{count}} shortcuts",
-    "recorderBlockedWithCulprit": "{{name}} may be blocking shortcut changes",
-    "recorderBlockedNoCulprit": "macOS is temporarily blocking shortcut changes",
-    "learnMore": "How to fix",
-    "recorderBlocked": "Can't record shortcuts right now — macOS Secure Input is blocking key events. Resolve the Secure Input warning first.",
-    "dismiss": "Dismiss"
+    "transcribing": "Transcribing..."
   }
 }

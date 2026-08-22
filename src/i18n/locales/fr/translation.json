@@ -4,17 +4,15 @@
     "checkUpdates": "Rechercher des mises à jour...",
     "copyLastTranscript": "Copier la dernière transcription",
     "quit": "Quitter",
-    "cancel": "Annuler",
-    "secureInputWarning": "⚠ Raccourcis bloqués par Secure Input"
+    "cancel": "Annuler"
   },
   "sidebar": {
     "general": "Général",
-    "models": "Transcription",
     "advanced": "Avancé",
-    "postProcessing": "Post-traitement",
     "history": "Historique",
     "debug": "Débogage",
-    "about": "À propos"
+    "about": "À propos",
+    "transcription": "Transcription"
   },
   "onboarding": {
     "permissions": {
@@ -39,18 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "Paramètres de {{model}}"
-    },
-    "models": {
-      "title": "Transcription",
-      "description": "Murmur transcrit via ta session Codex / ChatGPT. Aucun modèle local n'est téléchargé.",
-      "codexTitle": "Codex",
-      "codexDescription": "L'audio est envoyé à la même transcription cloud que Codex. Connecte-toi à l'app Codex si ça apparaît déconnecté.",
-      "codexChecking": "Vérification de la session…",
-      "codexReady": "Connecté",
-      "codexMissing": "Non connecté"
-    },
     "general": {
       "title": "Général",
       "shortcut": {
@@ -68,10 +54,6 @@
           "cancel": {
             "name": "Raccourci d'Annulation",
             "description": "Le raccourci clavier pour annuler l'enregistrement en cours."
-          },
-          "transcribe_with_post_process": {
-            "name": "Raccourci de post-traitement",
-            "description": "Facultatif : Un raccourci dédié qui applique toujours le post-traitement IA à votre transcription."
           }
         },
         "errors": {
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Mots personnalisés",
-        "description": "Aidez les modèles compatibles à reconnaître les noms et les termes spécialisés. La correction approximative est actuellement limitée aux mots utilisant les lettres A à Z et des chiffres.",
+        "description": "La correction approximative est actuellement limitée aux mots utilisant les lettres A à Z et des chiffres.",
         "placeholder": "Ajouter un mot",
         "add": "Ajouter",
         "remove": "Supprimer {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Supprimer les mots de remplissage",
         "description": "Supprime les hésitations courantes des transcriptions. Désactivez cette option pour les conserver."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Raccourci clavier"
-      },
-      "api": {
-        "title": "API (Compatible OpenAI)",
-        "provider": {
-          "title": "Fournisseur",
-          "description": "Sélectionnez un fournisseur compatible OpenAI."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence n'est pas disponible sur cet appareil. Nécessite un Mac Apple Silicon exécutant macOS Tahoe (26.0) ou une version ultérieure avec Apple Intelligence activé dans les Préférences Système."
-        },
-        "baseUrl": {
-          "title": "URL de base",
-          "description": "URL de base de l'API pour le fournisseur sélectionné. Seul le fournisseur personnalisé peut être modifié.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "Clé API",
-          "description": "Clé API pour le fournisseur sélectionné.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Modèle",
-          "descriptionCustom": "Fournissez l'identifiant du modèle attendu par votre point de terminaison personnalisé.",
-          "descriptionDefault": "Choisissez un modèle exposé par le fournisseur sélectionné.",
-          "placeholderWithOptions": "Rechercher ou sélectionner un modèle",
-          "placeholderNoOptions": "Tapez un nom de modèle",
-          "refreshModels": "Actualiser les modèles"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Prompt sélectionné",
-          "description": "Sélectionnez un modèle pour affiner les transcriptions ou créez-en un nouveau. Utilisez ${output} dans le texte du prompt pour référencer la transcription capturée."
-        },
-        "noPrompts": "Aucun prompt disponible",
-        "selectPrompt": "Sélectionner un prompt",
-        "createNew": "Créer un nouveau prompt",
-        "promptLabel": "Libellé du prompt",
-        "promptLabelPlaceholder": "Entrez le nom du prompt",
-        "promptInstructions": "Instructions du prompt",
-        "promptInstructionsPlaceholder": "Écrivez les instructions à exécuter après la transcription. Exemple : Améliorer la grammaire et la clarté du texte suivant : ${output}",
-        "promptTip": "Astuce : Utilisez <code>${output}</code> pour insérer le texte transcrit dans votre prompt.",
-        "updatePrompt": "Mettre à jour le prompt",
-        "deletePrompt": "Supprimer le prompt",
-        "createPrompt": "Créer le prompt",
-        "cancel": "Annuler",
-        "selectToEdit": "Sélectionnez un prompt ci-dessus pour voir et modifier ses détails.",
-        "createFirst": "Cliquez sur 'Créer un nouveau prompt' ci-dessus pour créer votre premier prompt de post-traitement."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Microphone en mode fermé",
         "description": "Microphone à utiliser lorsque le couvercle du portable est fermé"
       },
-      "postProcessingToggle": {
-        "label": "Post-traitement",
-        "description": "Activer l'affinage du texte par IA après la transcription"
-      },
       "muteWhileRecording": {
         "label": "Muet pendant l'enregistrement",
         "description": "Couper le son du système pendant l'enregistrement"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Ajouter une espace final",
         "description": "Ajouter une espace après la transcription collée"
-      },
-      "keyboardImplementation": {
-        "title": "Gestion du clavier",
-        "description": "Choisissez le système des raccourcis clavier.",
-        "bindingsReset": "Raccourcis clavier étaient incompatibles et ont été réinitialisés aux valeurs par défaut"
-      },
-      "paths": {
-        "appData": "Données de l'application :",
-        "models": "Modèles :",
-        "settings": "Paramètres :"
       },
       "pasteDelay": {
         "title": "Délai de collage (avant)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Tampon d'enregistrement supplémentaire",
         "description": "Temps supplémentaire (en millisecondes) pour continuer l'enregistrement après avoir relâché la touche, pour capturer l'audio restant. 0 = pas de tampon supplémentaire."
-      },
-      "keyboardDiagnostic": {
-        "title": "Diagnostic du clavier",
-        "description": "Vérifie si les événements clavier atteignent Murmur. Seul le nombre d'événements est enregistré, jamais les touches sur lesquelles vous appuyez.",
-        "run": "Lancer un diagnostic de 10 s",
-        "running": "Écoute en cours… appuyez plusieurs fois sur votre raccourci (par ex. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "activé",
-        "disabled": "désactivé",
-        "holder": "détenu par {{name}} (pid {{pid}})",
-        "holderUnknown": "aucun détenteur visible",
-        "keyDown": "Touche enfoncée",
-        "keyUp": "Touche relâchée",
-        "flagsChanged": "Modificateurs",
-        "mouse": "Souris",
-        "verdictBlocked": "Secure Input bloque les événements clavier : les raccourcis contenant une touche normale ne peuvent pas fonctionner tant que ce n'est pas résolu.",
-        "verdictSuspicious": "Des événements de modificateurs sont arrivés, mais aucun événement de touche : quelque chose supprime les touches alors que Secure Input est signalé comme désactivé. Merci de le signaler sur GitHub.",
-        "verdictOk": "Les événements clavier atteignent Murmur normalement.",
-        "verdictNoEvents": "Aucun événement capturé : avez-vous appuyé sur des touches pendant le test ?",
-        "failed": "Échec du diagnostic : {{error}}"
       },
       "whatsNewPreview": {
         "title": "Aperçu des nouveautés",
@@ -434,6 +328,14 @@
         "label": "Afficher les nouveautés",
         "description": "Afficher les notes de version après les mises à jour de Murmur"
       }
+    },
+    "transcription": {
+      "title": "Transcription",
+      "sessionTitle": "Codex",
+      "sessionDescription": "L'audio est envoyé à la même transcription cloud que Codex. Connecte-toi à l'app Codex si ça apparaît déconnecté.",
+      "checking": "Vérification de la session…",
+      "ready": "Connecté",
+      "missing": "Non connecté"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Préparation...",
     "checkForUpdates": "Rechercher des mises à jour",
     "portableUpdateTitle": "Mise à jour manuelle requise",
-    "portableUpdateMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez ci-dessous l’installateur correspondant à votre système, exécutez-le et installez-le dans le même dossier : votre dossier Data/ (paramètres, modèles, enregistrements) est conservé.",
+    "portableUpdateMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez ci-dessous l’installateur correspondant à votre système, exécutez-le et installez-le dans le même dossier : votre dossier Data/ est conservé.",
     "portableUpdateButton": "Télécharger l’installateur",
-    "portableUpdateBrowseMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez la dernière version correspondant à votre système depuis GitHub Releases et installez-la dans le même dossier : votre dossier Data/ (paramètres, modèles, enregistrements) est conservé.",
+    "portableUpdateBrowseMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez la dernière version correspondant à votre système depuis GitHub Releases et installez-la dans le même dossier : votre dossier Data/ est conservé.",
     "portableUpdateBrowseButton": "Ouvrir GitHub Releases"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Aucun microphone trouvé",
     "noInputDevice": "Aucun périphérique d'entrée audio n'a été détecté. Veuillez connecter un microphone ou un casque et réessayer.",
     "recordingFailed": "Échec du démarrage de l'enregistrement : {{error}}",
-    "modelLoadFailed": "Échec du chargement du modèle : {{model}}",
-    "modelLoadFailedUnknown": "modèle inconnu",
     "pasteFailedTitle": "Échec du collage du texte",
     "pasteFailed": "Le texte n'a pas pu être collé dans l'application active.",
     "transcriptionFailedTitle": "Échec de la transcription"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcription...",
-    "processing": "Traitement..."
+    "transcribing": "Transcription..."
   },
   "whatsNew": {
     "title": "Nouveautés de Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} bloque peut-être 1 raccourci",
-    "blockedWithCulprit_other": "{{name}} bloque peut-être {{count}} raccourcis",
-    "blockedNoCulprit_one": "macOS bloque temporairement 1 raccourci",
-    "blockedNoCulprit_other": "macOS bloque temporairement {{count}} raccourcis",
-    "recorderBlockedWithCulprit": "{{name}} bloque peut-être la modification des raccourcis",
-    "recorderBlockedNoCulprit": "macOS bloque temporairement la modification des raccourcis",
-    "learnMore": "Comment résoudre ce problème",
-    "recorderBlocked": "Impossible d'enregistrer un raccourci pour le moment : Secure Input de macOS bloque les événements clavier. Résolvez d'abord l'avertissement Secure Input.",
-    "dismiss": "Ignorer"
   }
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Murmur",
-  "version": "0.9.6",
-  "identifier": "com.pais.murmur",
+  "version": "1.0.0",
+  "identifier": "com.dailyxplorer.murmur",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",

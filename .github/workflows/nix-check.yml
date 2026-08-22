@@ -4,8 +4,6 @@
 #    so compilation-breaking edits are caught by flake eval.
 # 2. Full nix build (~25 min) only runs when nix packaging files change.
 #
-# Build artifacts are pushed to Cachix so Nix users can skip local compilation.
-
 name: "nix build check"
 on:
   workflow_dispatch:
@@ -47,11 +45,6 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: handy-computer
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       # Regenerate .nix/bun.nix from bun.lock and check if it matches
       # what's committed. A diff means the developer forgot to run
@@ -124,7 +117,7 @@ jobs:
       # sandbox issues, compilation failures) that flake eval alone misses.
       # On PRs: only runs when nix packaging files change (~25 min with cold cache).
       # On push to main and workflow_dispatch: always runs so every commit on
-      # main has a verified nix build. cachix-action auto-pushes artifacts.
+      # main has a verified nix build.
       - name: Build murmur
         if: steps.bun-check.outputs.outdated != 'true' && steps.eval.outputs.failed != 'true' && (steps.nix-files.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
         run: nix build .#murmur -L --show-trace

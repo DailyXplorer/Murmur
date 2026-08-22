@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Cog, FlaskConical, History, Info, Sparkles, Cpu, Mic } from "lucide-react";
+import { Cloud, Cog, FlaskConical, History, Info, Mic } from "lucide-react";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -9,8 +9,7 @@ import {
   HistorySettings,
   DebugSettings,
   AboutSettings,
-  PostProcessingSettings,
-  ModelsSettings,
+  TranscriptionSettings,
 } from "./settings";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
@@ -43,10 +42,10 @@ export const SECTIONS_CONFIG = {
     component: HistorySettings,
     enabled: () => true,
   },
-  models: {
-    labelKey: "sidebar.models",
-    icon: Cpu,
-    component: ModelsSettings,
+  transcription: {
+    labelKey: "sidebar.transcription",
+    icon: Cloud,
+    component: TranscriptionSettings,
     enabled: () => true,
   },
   advanced: {
@@ -54,12 +53,6 @@ export const SECTIONS_CONFIG = {
     icon: Cog,
     component: AdvancedSettings,
     enabled: () => true,
-  },
-  postprocessing: {
-    labelKey: "sidebar.postProcessing",
-    icon: Sparkles,
-    component: PostProcessingSettings,
-    enabled: (settings) => settings?.post_process_enabled ?? false,
   },
   debug: {
     labelKey: "sidebar.debug",

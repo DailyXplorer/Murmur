@@ -14,17 +14,12 @@ interface LanguageSelectorProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   supportedLanguages?: string[];
-  // Whether the model can auto-detect language. Gates the "Auto" option:
-  // must-pick models (no detection) omit it and force a concrete choice.
+  // Whether the transcription service can auto-detect language.
   supportsLanguageDetection?: boolean;
 }
 
-// Mirrors the matching logic of `effective_language` in
-// src-tauri/src/managers/model.rs. The Rust function is authoritative for the
-// *concrete* code the engine receives (e.g. "en-US"); this resolves the
-// canonical *base* code ("en") so the highlighted picker item matches an entry
-// in the LANGUAGES list. Matching is base-aware (`supportsLanguageCode` strips
-// region/script subtags), so a model advertising full locales still resolves.
+// Resolve the canonical base code shown by the picker when the service exposes
+// a restricted language list.
 const effectiveLanguage = (
   intent: string,
   supported: string[],
@@ -52,7 +47,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // The persisted *intent* (auto | code). What's actually used/shown is the
-  // effective value resolved against the current model's capabilities.
+  // effective value resolved against the transcription service capabilities.
   const intent = getSetting("selected_language") || "auto";
   const selectedLanguage = effectiveLanguage(
     intent,

@@ -1,4 +1,4 @@
-/* Handy Colors */
+/* Murmur colors */
 
 :root {
   /* Palette source of truth. Each themed color is defined once as a
@@ -14,9 +14,7 @@
   --dark-color-logo-primary: #f28cbb;
   --dark-color-logo-stroke: #fad1ed;
 
-  /* Semantic status colors. First used by SecureInputWarning; intended to
-     replace the ad-hoc yellow-500/red-500 usages (e.g. ui/Alert.tsx) over
-     time so status styling is themeable from one place. */
+  /* Semantic status colors owned by the shared palette. */
   --light-color-warning: #d97706;
   --light-color-error: #dc2626;
   --dark-color-warning: #fbbf24;
@@ -52,7 +50,7 @@
  * Explicit theme override, driven by the `theme` setting via
  * `document.documentElement.dataset.theme`. When set, the higher-specificity
  * attribute selectors win over the `prefers-color-scheme` media query above,
- * so a user can keep Handy light or dark regardless of the OS setting.
+ * so a user can keep Murmur light or dark regardless of the OS setting.
  * `system` (or no attribute) leaves the OS in charge.
  *
  * Lives here (not in App.css) so every window that imports the shared palette —

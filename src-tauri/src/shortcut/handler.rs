@@ -1,7 +1,4 @@
-//! Shared shortcut event handling logic
-//!
-//! This module contains the common logic for handling shortcut events,
-//! used by both the Tauri and handy-keys implementations.
+//! Shared shortcut event handling logic.
 
 use log::warn;
 use std::sync::Arc;
@@ -13,7 +10,7 @@ use crate::settings::get_settings;
 use crate::transcription_coordinator::is_transcribe_binding;
 use crate::TranscriptionCoordinator;
 
-/// Handle a shortcut event from either implementation.
+/// Handle a shortcut event from the global-shortcut implementation.
 ///
 /// This function contains the shared logic for:
 /// - Looking up the action in ACTION_MAP

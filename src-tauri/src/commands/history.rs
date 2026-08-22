@@ -81,8 +81,6 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording has no audio samples".to_string());
     }
 
-    transcription_manager.initiate_model_load();
-
     let tm = Arc::clone(&transcription_manager);
     let transcription = tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
         .await
@@ -93,15 +91,9 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording contains no speech".to_string());
     }
 
-    let processed =
-        process_transcription_output(&app, &transcription, entry.post_process_requested).await;
+    let processed = process_transcription_output(&app, &transcription).await;
     history_manager
-        .update_transcription(
-            id,
-            transcription,
-            processed.post_processed_text,
-            processed.post_process_prompt,
-        )
+        .update_transcription(id, processed)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }

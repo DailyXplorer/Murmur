@@ -4,17 +4,15 @@
     "checkUpdates": "Tjek for opdateringer...",
     "copyLastTranscript": "Kopiér seneste transskription",
     "quit": "Afslut",
-    "cancel": "Annuller",
-    "secureInputWarning": "⚠ Genveje blokeret af Secure Input"
+    "cancel": "Annuller"
   },
   "sidebar": {
     "general": "Generelt",
-    "models": "Modeller",
     "advanced": "Avanceret",
-    "postProcessing": "Efterbehandling",
     "history": "Historik",
     "debug": "Fejlfinding",
-    "about": "Om"
+    "about": "Om",
+    "transcription": "Transskription"
   },
   "onboarding": {
     "permissions": {
@@ -39,9 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}}-indstillinger"
-    },
     "general": {
       "title": "Generelt",
       "shortcut": {
@@ -59,10 +54,6 @@
           "cancel": {
             "name": "Annulleringsgenvej",
             "description": "Tastaturgenvejen til at annullere den aktuelle optagelse."
-          },
-          "transcribe_with_post_process": {
-            "name": "Genvej til efterbehandling",
-            "description": "Valgfrit: En dedikeret genvej, der altid anvender AI-efterbehandling på din transskription."
           }
         },
         "errors": {
@@ -82,15 +73,6 @@
         "label": "Tryk-for-at-tale",
         "description": "Hold nede for at optage, slip for at stoppe"
       }
-    },
-    "models": {
-      "title": "Transskriptionsmodeller",
-      "description": "Vælg en transskriptionsmodel, eller download flere modeller. Forskellige modeller tilbyder varierende niveauer af nøjagtighed og hastighed.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
     },
     "sound": {
       "title": "Lyd",
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Brugerdefinerede ord",
-        "description": "Hjælp understøttede modeller med at genkende navne og specialiserede udtryk. Fuzzy-korrektion er i øjeblikket begrænset til ord, der bruger A-Z og tal.",
+        "description": "Fuzzy-korrektion er i øjeblikket begrænset til ord, der bruger A-Z og tal.",
         "placeholder": "Tilføj et ord",
         "add": "Tilføj",
         "remove": "Fjern {{word}}",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Fjern fyldord",
         "description": "Fjerner almindelige tøveord fra transskriptioner. Slå fra for at beholde dem."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Genvejstast"
-      },
-      "api": {
-        "title": "API (OpenAI-kompatibel)",
-        "provider": {
-          "title": "Udbyder",
-          "description": "Vælg en OpenAI-kompatibel udbyder."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence er ikke tilgængelig på denne enhed. Kræver en Apple Silicon Mac med macOS Tahoe (26.0) eller nyere med Apple Intelligence aktiveret i Systemindstillinger."
-        },
-        "baseUrl": {
-          "title": "Basis-URL",
-          "description": "API-basis-URL for den valgte udbyder. Kun den brugerdefinerede udbyder kan redigeres.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API-nøgle",
-          "description": "API-nøgle til den valgte udbyder.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Model",
-          "descriptionCustom": "Angiv den modelidentifikator, som det brugerdefinerede endpoint forventer.",
-          "descriptionDefault": "Vælg en model, der udbydes af den valgte udbyder.",
-          "placeholderWithOptions": "Søg eller vælg en model",
-          "placeholderNoOptions": "Skriv et modelnavn",
-          "refreshModels": "Opdater modeller"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Valgt prompt",
-          "description": "Vælg en skabelon til at forfine transskriptioner, eller opret en ny. Brug ${output} i promptteksten for at referere til den fangede transskription."
-        },
-        "noPrompts": "Ingen prompts tilgængelige",
-        "selectPrompt": "Vælg en prompt",
-        "createNew": "Opret ny prompt",
-        "promptLabel": "Promptnavn",
-        "promptLabelPlaceholder": "Indtast promptnavn",
-        "promptInstructions": "Promptinstruktioner",
-        "promptInstructionsPlaceholder": "Skriv de instruktioner, der skal køres efter transskription. Eksempel: Forbedr grammatik og klarhed for følgende tekst: ${output}",
-        "promptTip": "Tip: Brug <code>${output}</code> til at indsætte den transskriberede tekst i din prompt.",
-        "updatePrompt": "Opdater prompt",
-        "deletePrompt": "Slet prompt",
-        "createPrompt": "Opret prompt",
-        "cancel": "Annuller",
-        "selectToEdit": "Vælg en prompt ovenfor for at se og redigere dens detaljer.",
-        "createFirst": "Klik på 'Opret ny prompt' ovenfor for at oprette din første efterbehandlingsprompt."
       }
     },
     "history": {
@@ -351,10 +279,6 @@
         "title": "Clamshell-mikrofon",
         "description": "Mikrofon, der skal bruges, når den bærbares låg er lukket"
       },
-      "postProcessingToggle": {
-        "label": "Efterbehandling",
-        "description": "Aktivér AI-drevet tekstforbedring efter transskription"
-      },
       "muteWhileRecording": {
         "label": "Mute under optagelse",
         "description": "Sluk for systemlyd under optagelse"
@@ -362,16 +286,6 @@
       "appendTrailingSpace": {
         "label": "Tilføj efterfølgende mellemrum",
         "description": "Tilføj et mellemrum efter indsat transskription"
-      },
-      "keyboardImplementation": {
-        "title": "Tastaturimplementering",
-        "description": "Vælg backend til tastaturgenveje.",
-        "bindingsReset": "Tastaturgenveje var inkompatible og blev nulstillet til standard"
-      },
-      "paths": {
-        "appData": "Appdata:",
-        "models": "Modeller:",
-        "settings": "Indstillinger:"
       },
       "pasteDelay": {
         "title": "Forsinkelse af indsættelse (før)",
@@ -388,26 +302,6 @@
       "recordingBuffer": {
         "title": "Ekstra optagelsesbuffer",
         "description": "Ekstra tid (i millisekunder) til at fortsætte optagelsen, efter du slipper tasten, for at fange efterfølgende lyd. 0 = ingen ekstra buffer."
-      },
-      "keyboardDiagnostic": {
-        "title": "Tastaturdiagnostik",
-        "description": "Kontrollerer, om tastaturhændelser når frem til Murmur. Kun antallet af hændelser registreres — aldrig hvilke taster du trykker på.",
-        "run": "Kør 10 s diagnostik",
-        "running": "Lytter… tryk på din genvej et par gange (f.eks. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "aktiveret",
-        "disabled": "deaktiveret",
-        "holder": "holdes af {{name}} (pid {{pid}})",
-        "holderUnknown": "ingen synlig indehaver",
-        "keyDown": "Tast ned",
-        "keyUp": "Tast op",
-        "flagsChanged": "Modifikatorer",
-        "mouse": "Mus",
-        "verdictBlocked": "Secure Input blokerer tastehændelser — genveje med en almindelig tast kan ikke fungere, før det er løst.",
-        "verdictSuspicious": "Der kom modifikatorhændelser, men ingen tastehændelser — noget undertrykker taster, selvom Secure Input rapporteres som deaktiveret. Rapportér det gerne på GitHub.",
-        "verdictOk": "Tastehændelser når frem til Murmur som normalt.",
-        "verdictNoEvents": "Ingen hændelser registreret — trykkede du på nogen taster under testen?",
-        "failed": "Diagnostik mislykkedes: {{error}}"
       }
     },
     "about": {
@@ -434,6 +328,14 @@
         "description": "Hjælp os med at fortsætte udviklingen af Murmur",
         "button": "Donér"
       }
+    },
+    "transcription": {
+      "title": "Transskription",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Lyden sendes til den samme skybaserede transskriptionstjeneste, som Codex bruger. Log ind i Codex-appen, hvis dette vises som afbrudt.",
+      "checking": "Kontrollerer session…",
+      "ready": "Forbundet",
+      "missing": "Ikke logget ind"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Forbereder...",
     "checkForUpdates": "Tjek for opdateringer",
     "portableUpdateTitle": "Manuel opdatering påkrævet",
-    "portableUpdateMessage": "Flytbare installationer kan ikke opdateres automatisk. Download installeren til dit system nedenfor, kør den, og installer i den samme mappe — din Data/-mappe (indstillinger, modeller, optagelser) bliver bevaret.",
+    "portableUpdateMessage": "Flytbare installationer kan ikke opdateres automatisk. Download installeren til dit system nedenfor, kør den, og installer i den samme mappe — din Data/-mappe bliver bevaret.",
     "portableUpdateButton": "Download installer",
-    "portableUpdateBrowseMessage": "Flytbare installationer kan ikke opdateres automatisk. Download den nyeste version til dit system fra GitHub Releases, og installer den i den samme mappe — din Data/-mappe (indstillinger, modeller, optagelser) bliver bevaret.",
+    "portableUpdateBrowseMessage": "Flytbare installationer kan ikke opdateres automatisk. Download den nyeste version til dit system fra GitHub Releases, og installer den i den samme mappe — din Data/-mappe bliver bevaret.",
     "portableUpdateBrowseButton": "Åbn GitHub Releases"
   },
   "whatsNew": {
@@ -479,8 +381,6 @@
     "noInputDeviceTitle": "Ingen mikrofon fundet",
     "noInputDevice": "Ingen lydinputenhed blev registreret. Tilslut en mikrofon eller et headset, og prøv igen.",
     "recordingFailed": "Kunne ikke starte optagelse: {{error}}",
-    "modelLoadFailed": "Kunne ikke indlæse model: {{model}}",
-    "modelLoadFailedUnknown": "ukendt model",
     "pasteFailedTitle": "Kunne ikke indsætte tekst",
     "pasteFailed": "Teksten kunne ikke indsættes i det aktive program.",
     "transcriptionFailedTitle": "Transskription mislykkedes"
@@ -499,18 +399,6 @@
     }
   },
   "overlay": {
-    "transcribing": "Transskriberer...",
-    "processing": "Behandler..."
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} blokerer muligvis 1 genvej",
-    "blockedWithCulprit_other": "{{name}} blokerer muligvis {{count}} genveje",
-    "blockedNoCulprit_one": "macOS blokerer midlertidigt 1 genvej",
-    "blockedNoCulprit_other": "macOS blokerer midlertidigt {{count}} genveje",
-    "recorderBlockedWithCulprit": "{{name}} blokerer muligvis ændringer af genveje",
-    "recorderBlockedNoCulprit": "macOS blokerer midlertidigt ændringer af genveje",
-    "learnMore": "Sådan løser du det",
-    "recorderBlocked": "Genveje kan ikke optages lige nu — macOS Secure Input blokerer tastehændelser. Løs advarslen om Secure Input først.",
-    "dismiss": "Afvis"
+    "transcribing": "Transskriberer..."
   }
 }

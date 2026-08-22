@@ -6,7 +6,7 @@ import { commands } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 
-type OverlayState = "recording" | "transcribing" | "processing";
+type OverlayState = "recording" | "transcribing";
 
 const WAVE_BARS = 9;
 
@@ -127,11 +127,8 @@ const RecordingOverlay: React.FC = () => {
     </div>
   );
 
-  const working = state === "transcribing" || state === "processing";
-  const workLabel =
-    state === "processing"
-      ? t("overlay.processing")
-      : t("overlay.transcribing");
+  const working = state === "transcribing";
+  const workLabel = t("overlay.transcribing");
 
   return (
     <div

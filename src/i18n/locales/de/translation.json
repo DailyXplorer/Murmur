@@ -4,17 +4,15 @@
     "checkUpdates": "Nach Updates suchen...",
     "copyLastTranscript": "Letzte Transkription kopieren",
     "quit": "Beenden",
-    "cancel": "Abbrechen",
-    "secureInputWarning": "⚠ Tastenkürzel durch Secure Input blockiert"
+    "cancel": "Abbrechen"
   },
   "sidebar": {
     "general": "Allgemein",
-    "models": "Modelle",
     "advanced": "Erweitert",
-    "postProcessing": "Nachbearbeitung",
     "history": "Verlauf",
     "debug": "Debug",
-    "about": "Info"
+    "about": "Info",
+    "transcription": "Transkription"
   },
   "onboarding": {
     "permissions": {
@@ -39,18 +37,6 @@
     }
   },
   "settings": {
-    "modelSettings": {
-      "title": "{{model}}-Einstellungen"
-    },
-    "models": {
-      "title": "Transkriptionsmodelle",
-      "description": "Wähle ein Transkriptionsmodell aus oder lade zusätzliche Modelle herunter. Verschiedene Modelle bieten unterschiedliche Genauigkeits- und Geschwindigkeitsstufen.",
-      "codexTitle": "Codex",
-      "codexDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "codexChecking": "Checking session…",
-      "codexReady": "Connected",
-      "codexMissing": "Not signed in"
-    },
     "general": {
       "title": "Allgemein",
       "shortcut": {
@@ -68,10 +54,6 @@
           "cancel": {
             "name": "Abbrechen-Tastenkürzel",
             "description": "Das Tastenkürzel zum Abbrechen der aktuellen Aufnahme."
-          },
-          "transcribe_with_post_process": {
-            "name": "Nachbearbeitungs-Tastenkürzel",
-            "description": "Optional: Ein dediziertes Tastenkürzel, das immer die KI-Nachbearbeitung auf deine Transkription anwendet."
           }
         },
         "errors": {
@@ -208,7 +190,7 @@
       },
       "customWords": {
         "title": "Benutzerdefinierte Wörter",
-        "description": "Hilf unterstützten Modellen, Namen und Fachbegriffe zu erkennen. Die unscharfe Korrektur ist derzeit auf Wörter mit den Buchstaben A–Z und Zahlen beschränkt.",
+        "description": "Die unscharfe Korrektur ist derzeit auf Wörter mit den Buchstaben A–Z und Zahlen beschränkt.",
         "placeholder": "Wort hinzufügen",
         "add": "Hinzufügen",
         "remove": "{{word}} entfernen",
@@ -217,60 +199,6 @@
       "fillerWordRemoval": {
         "title": "Füllwörter entfernen",
         "description": "Entfernt häufige Verzögerungslaute aus Transkriptionen. Deaktivieren Sie diese Option, um sie beizubehalten."
-      }
-    },
-    "postProcessing": {
-      "hotkey": {
-        "title": "Tastenkürzel"
-      },
-      "api": {
-        "title": "API (OpenAI-kompatibel)",
-        "provider": {
-          "title": "Anbieter",
-          "description": "Wähle einen OpenAI-kompatiblen Anbieter."
-        },
-        "appleIntelligence": {
-          "unavailable": "Apple Intelligence ist auf diesem Gerät nicht verfügbar. Erfordert einen Apple Silicon Mac mit macOS Tahoe (26.0) oder neuer und aktiviertem Apple Intelligence in den Systemeinstellungen."
-        },
-        "baseUrl": {
-          "title": "Basis-URL",
-          "description": "API-Basis-URL für den ausgewählten Anbieter. Nur der benutzerdefinierte Anbieter kann bearbeitet werden.",
-          "placeholder": "https://api.openai.com/v1"
-        },
-        "apiKey": {
-          "title": "API-Schlüssel",
-          "description": "API-Schlüssel für den ausgewählten Anbieter.",
-          "placeholder": "sk-..."
-        },
-        "model": {
-          "title": "Modell",
-          "descriptionCustom": "Gib die Modellkennung an, die von deinem benutzerdefinierten Endpunkt erwartet wird.",
-          "descriptionDefault": "Wähle ein Modell des ausgewählten Anbieters.",
-          "placeholderWithOptions": "Modell suchen oder auswählen",
-          "placeholderNoOptions": "Modellnamen eingeben",
-          "refreshModels": "Modelle aktualisieren"
-        }
-      },
-      "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Ausgewählter Prompt",
-          "description": "Wähle eine Vorlage zur Verfeinerung von Transkriptionen oder erstelle eine neue. Verwende ${output} im Prompt-Text, um auf das erfasste Transkript zu verweisen."
-        },
-        "noPrompts": "Keine Prompts verfügbar",
-        "selectPrompt": "Prompt auswählen",
-        "createNew": "Neuen Prompt erstellen",
-        "promptLabel": "Prompt-Name",
-        "promptLabelPlaceholder": "Prompt-Namen eingeben",
-        "promptInstructions": "Prompt-Anweisungen",
-        "promptInstructionsPlaceholder": "Schreibe die Anweisungen, die nach der Transkription ausgeführt werden sollen. Beispiel: Verbessere Grammatik und Klarheit für folgenden Text: ${output}",
-        "promptTip": "Tipp: Verwende <code>${output}</code>, um den transkribierten Text in deinen Prompt einzufügen.",
-        "updatePrompt": "Prompt aktualisieren",
-        "deletePrompt": "Prompt löschen",
-        "createPrompt": "Prompt erstellen",
-        "cancel": "Abbrechen",
-        "selectToEdit": "Wähle oben einen Prompt aus, um dessen Details anzuzeigen und zu bearbeiten.",
-        "createFirst": "Klicke oben auf 'Neuen Prompt erstellen', um deinen ersten Nachbearbeitungs-Prompt zu erstellen."
       }
     },
     "history": {
@@ -344,10 +272,6 @@
         "title": "Clamshell-Mikrofon",
         "description": "Mikrofon bei geschlossenem Laptop-Deckel"
       },
-      "postProcessingToggle": {
-        "label": "Nachbearbeitung",
-        "description": "KI-gestützte Textverfeinerung nach der Transkription aktivieren"
-      },
       "muteWhileRecording": {
         "label": "Während Aufnahme stummschalten",
         "description": "Systemaudio während der Aufnahme stummschalten"
@@ -355,16 +279,6 @@
       "appendTrailingSpace": {
         "label": "Leerzeichen anhängen",
         "description": "Leerzeichen nach eingefügter Transkription hinzufügen"
-      },
-      "keyboardImplementation": {
-        "title": "Tastatur-Implementierung",
-        "description": "Wähle das Backend für Tastaturkürzel.",
-        "bindingsReset": "Tastaturkürzel waren inkompatibel und wurden auf die Standardwerte zurückgesetzt"
-      },
-      "paths": {
-        "appData": "App-Daten:",
-        "models": "Modelle:",
-        "settings": "Einstellungen:"
       },
       "pasteDelay": {
         "title": "Einfügeverzögerung (vorher)",
@@ -381,26 +295,6 @@
       "recordingBuffer": {
         "title": "Zusätzlicher Aufnahmepuffer",
         "description": "Zusätzliche Zeit (in Millisekunden), um nach dem Loslassen der Taste weiter aufzunehmen, um nachlaufendes Audio zu erfassen. 0 = kein zusätzlicher Puffer."
-      },
-      "keyboardDiagnostic": {
-        "title": "Tastatur-Diagnose",
-        "description": "Prüft, ob Tastaturereignisse Murmur erreichen. Es wird nur die Anzahl der Ereignisse erfasst — niemals, welche Tasten du drückst.",
-        "run": "10-Sekunden-Diagnose starten",
-        "running": "Lauscht… drücke dein Tastenkürzel ein paar Mal (z. B. Option+Space)",
-        "secureInputLabel": "Secure Input",
-        "enabled": "aktiviert",
-        "disabled": "deaktiviert",
-        "holder": "gehalten von {{name}} (pid {{pid}})",
-        "holderUnknown": "kein sichtbarer Verursacher",
-        "keyDown": "Taste gedrückt",
-        "keyUp": "Taste losgelassen",
-        "flagsChanged": "Modifikatoren",
-        "mouse": "Maus",
-        "verdictBlocked": "Secure Input blockiert Tastenereignisse — Tastenkürzel mit einer normalen Taste können erst wieder funktionieren, wenn das behoben ist.",
-        "verdictSuspicious": "Es kamen Modifikator-Ereignisse an, aber keine Tastenereignisse — irgendetwas unterdrückt Tasten, obwohl Secure Input als deaktiviert gemeldet wird. Bitte melde das auf GitHub.",
-        "verdictOk": "Tastenereignisse erreichen Murmur normal.",
-        "verdictNoEvents": "Keine Ereignisse erfasst — hast du während des Tests Tasten gedrückt?",
-        "failed": "Diagnose fehlgeschlagen: {{error}}"
       },
       "whatsNewPreview": {
         "title": "Vorschau der Neuerungen",
@@ -434,6 +328,14 @@
         "label": "Neuerungen anzeigen",
         "description": "Versionshinweise nach Murmur-Updates anzeigen"
       }
+    },
+    "transcription": {
+      "title": "Transkription",
+      "sessionTitle": "Codex",
+      "sessionDescription": "Audio wird an dieselbe Cloud-Transkription gesendet, die Codex verwendet. Melde dich in der Codex-App an, wenn hier „Nicht verbunden“ angezeigt wird.",
+      "checking": "Sitzung wird überprüft…",
+      "ready": "Verbunden",
+      "missing": "Nicht angemeldet"
     }
   },
   "footer": {
@@ -446,9 +348,9 @@
     "preparing": "Wird vorbereitet...",
     "checkForUpdates": "Nach Updates suchen",
     "portableUpdateTitle": "Manuelles Update erforderlich",
-    "portableUpdateMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade unten den Installer für dein System herunter, führe ihn aus und installiere in denselben Ordner — dein Data/-Ordner (Einstellungen, Modelle, Aufnahmen) bleibt erhalten.",
+    "portableUpdateMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade unten den Installer für dein System herunter, führe ihn aus und installiere in denselben Ordner — dein Data/-Ordner bleibt erhalten.",
     "portableUpdateButton": "Installer herunterladen",
-    "portableUpdateBrowseMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade die neueste Version für dein System von GitHub Releases herunter und installiere sie in denselben Ordner — dein Data/-Ordner (Einstellungen, Modelle, Aufnahmen) bleibt erhalten.",
+    "portableUpdateBrowseMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade die neueste Version für dein System von GitHub Releases herunter und installiere sie in denselben Ordner — dein Data/-Ordner bleibt erhalten.",
     "portableUpdateBrowseButton": "GitHub Releases öffnen"
   },
   "common": {
@@ -476,8 +378,6 @@
     "noInputDeviceTitle": "Kein Mikrofon gefunden",
     "noInputDevice": "Es wurde kein Audio-Eingabegerät erkannt. Bitte schließe ein Mikrofon oder Headset an und versuche es erneut.",
     "recordingFailed": "Aufnahme konnte nicht gestartet werden: {{error}}",
-    "modelLoadFailed": "Modell konnte nicht geladen werden: {{model}}",
-    "modelLoadFailedUnknown": "unbekanntes Modell",
     "pasteFailedTitle": "Text konnte nicht eingefügt werden",
     "pasteFailed": "Der Text konnte nicht in die aktive Anwendung eingefügt werden.",
     "transcriptionFailedTitle": "Transkription fehlgeschlagen"
@@ -496,21 +396,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribiere...",
-    "processing": "Verarbeite..."
+    "transcribing": "Transkribiere..."
   },
   "whatsNew": {
     "title": "Neu in Murmur v{{version}}"
-  },
-  "secureInput": {
-    "blockedWithCulprit_one": "{{name}} blockiert möglicherweise 1 Tastenkürzel",
-    "blockedWithCulprit_other": "{{name}} blockiert möglicherweise {{count}} Tastenkürzel",
-    "blockedNoCulprit_one": "macOS blockiert vorübergehend 1 Tastenkürzel",
-    "blockedNoCulprit_other": "macOS blockiert vorübergehend {{count}} Tastenkürzel",
-    "recorderBlockedWithCulprit": "{{name}} blockiert möglicherweise Änderungen an Tastenkürzeln",
-    "recorderBlockedNoCulprit": "macOS blockiert vorübergehend Änderungen an Tastenkürzeln",
-    "learnMore": "So behebst du das",
-    "recorderBlocked": "Tastenkürzel können gerade nicht aufgezeichnet werden — macOS Secure Input blockiert Tastenereignisse. Behebe zuerst die Secure-Input-Warnung.",
-    "dismiss": "Ausblenden"
   }
 }

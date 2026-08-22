@@ -374,9 +374,10 @@ jobs:
             local label="$2"
             MURMUR_NO_GTK_LAYER_SHELL=1 \
             LD_LIBRARY_PATH="${root}/usr/lib/Murmur:${root}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-              xvfb-run -a "${root}/usr/bin/murmur" --list-devices \
+              xvfb-run -a "${root}/usr/bin/murmur" --help \
                 >/tmp/murmur-package-smoke.log 2>&1
-            echo "${label} --list-devices smoke passed"
+            grep -q -- '--transcribe-file' /tmp/murmur-package-smoke.log
+            echo "${label} --help smoke passed"
           }
 
           if compgen -G "${BUNDLE_DIR}/deb/*.deb" > /dev/null; then
@@ -480,10 +481,13 @@ jobs:
               throw "$Label package is missing murmur.exe"
             }
 
-            $deviceOutput = (& $murmur.FullName --list-devices | Out-String)
-            $deviceOutput | Write-Host
+            $helpOutput = (& $murmur.FullName --help | Out-String)
+            $helpOutput | Write-Host
             if ($LASTEXITCODE -ne 0) {
-              throw "$Label murmur.exe --list-devices failed"
+              throw "$Label murmur.exe --help failed"
+            }
+            if ($helpOutput -notmatch "--transcribe-file") {
+              throw "$Label murmur.exe --help omitted --transcribe-file"
             }
           }
 
