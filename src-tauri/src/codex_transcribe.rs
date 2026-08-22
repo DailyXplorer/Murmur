@@ -236,20 +236,21 @@ fn jwt_payload(token: &str) -> Option<serde_json::Value> {
 fn decode_base64url(input: &str) -> Option<Vec<u8>> {
     let padding_start = input.find('=').unwrap_or(input.len());
     let padding = &input[padding_start..];
+    let remainder = input.len() % 4;
 
     if !padding.bytes().all(|byte| byte == b'=') || padding.len() > 2 {
         return None;
     }
-    if !padding.is_empty() && !input.len().is_multiple_of(4) {
+    if !padding.is_empty() && remainder != 0 {
         return None;
     }
-    if padding.is_empty() && input.len() % 4 == 1 {
+    if padding.is_empty() && remainder == 1 {
         return None;
     }
 
     let mut normalized = input.to_string();
     if padding.is_empty() {
-        normalized.extend(std::iter::repeat_n('=', (4 - input.len() % 4) % 4));
+        normalized.extend(std::iter::repeat_n('=', (4 - remainder) % 4));
     }
 
     URL_SAFE.decode(normalized).ok()

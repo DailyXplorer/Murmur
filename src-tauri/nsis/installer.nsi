@@ -587,7 +587,8 @@ Function .onInit
 
 
   ; --- PORTABLE MODE --- Auto-detect portable mode during updates.
-  ; Preserve portable installs that use the Murmur magic-string marker.
+  ; Preserve current portable installs and migrate pre-1.0 marker formats only
+  ; when an existing Data directory proves this is a portable installation.
   ${If} $PortableMode <> 1
   ${AndIf} $UpdateMode = 1
   ${AndIf} ${FileExists} "$INSTDIR\portable"
@@ -596,6 +597,19 @@ Function .onInit
     FileClose $1
     ${If} $2 == "Murmur Portable Mode"
       StrCpy $PortableMode 1
+    ${ElseIf} ${FileExists} "$INSTDIR\Data"
+      ${If} $2 == ""
+        StrCpy $PortableMode 1
+      ${Else}
+        ; The pre-1.0 branded marker had a five-character product prefix and
+        ; this exact suffix. Match its shape without restoring that branding.
+        StrLen $3 $2
+        StrCpy $4 $2 14 5
+        ${If} $3 == 19
+        ${AndIf} $4 == " Portable Mode"
+          StrCpy $PortableMode 1
+        ${EndIf}
+      ${EndIf}
     ${EndIf}
   ${EndIf}
 

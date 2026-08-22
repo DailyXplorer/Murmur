@@ -43,15 +43,30 @@ use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKi
 use crate::settings::get_settings;
 
 #[cfg(debug_assertions)]
-fn normalize_generated_bindings(path: &std::path::Path) -> std::io::Result<()> {
-    let generated = std::fs::read_to_string(path)?;
-    let normalized = normalize_generated_bindings_source(&generated);
-    std::fs::write(path, normalized)
-}
+fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<String> {
+    let pattern = regex::Regex::new(r"error:\s*e\s+as\s+any")
+        .expect("generated-binding error pattern is valid");
+    let normalized = pattern
+        .replace_all(generated, "error: String(e)")
+        .into_owned();
 
-#[cfg(debug_assertions)]
-fn normalize_generated_bindings_source(generated: &str) -> String {
-    generated.replace("error: e  as any", "error: String(e)")
+    let result_pattern = regex::Regex::new(r"Promise\s*<\s*Result\s*<")
+        .expect("generated-binding Result pattern is valid");
+    let string_error_pattern = regex::Regex::new(r"error:\s*String\s*\(\s*e\s*\)")
+        .expect("generated-binding string-error pattern is valid");
+    let result_count = result_pattern.find_iter(&normalized).count();
+    let normalized_error_count = string_error_pattern.find_iter(&normalized).count();
+
+    if result_count != normalized_error_count {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "generated {result_count} Result bindings but normalized {normalized_error_count} string-error wrappers"
+            ),
+        ));
+    }
+
+    Ok(normalized)
 }
 
 // Global atomic to store the file log level filter
@@ -492,14 +507,15 @@ pub fn run(cli_args: CliArgs) {
         .events(collect_events![managers::history::HistoryUpdatePayload]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
-    specta_builder
-        .export(
-            Typescript::default()
-                .bigint(BigIntExportBehavior::Number)
-                .formatter(normalize_generated_bindings),
-            "../src/bindings.ts",
-        )
-        .expect("Failed to export typescript bindings");
+    {
+        let generated = specta_builder
+            .export_str(Typescript::default().bigint(BigIntExportBehavior::Number))
+            .expect("Failed to generate typescript bindings");
+        let normalized = normalize_generated_bindings_source(&generated)
+            .expect("Failed to normalize typescript binding errors");
+        std::fs::write("../src/bindings.ts", normalized)
+            .expect("Failed to export typescript bindings");
+    }
 
     let invoke_handler = specta_builder.invoke_handler();
 
@@ -750,11 +766,32 @@ mod headless_guard_tests {
 
     #[test]
     fn generated_result_errors_are_normalized_to_strings() {
-        let generated = r#"else return { status: "error", error: e  as any };"#;
-        let normalized = normalize_generated_bindings_source(generated);
+        let generated = concat!(
+            "async command(): Promise<Result<null, string>> { ",
+            "else return { status: \"error\", error: e\t as   any }; }",
+        );
+        let normalized = normalize_generated_bindings_source(generated).unwrap();
         assert_eq!(
             normalized,
-            r#"else return { status: "error", error: String(e) };"#
+            concat!(
+                "async command(): Promise<Result<null, string>> { ",
+                r#"else return { status: "error", error: String(e) }; }"#,
+            )
         );
+    }
+
+    #[test]
+    fn unrecognized_generated_result_wrapper_fails_loudly() {
+        let generated = "async command(): Promise<Result<null, string>> { error: e as unknown }";
+        assert!(normalize_generated_bindings_source(generated).is_err());
+    }
+
+    #[test]
+    fn mixed_generated_result_wrappers_fail_loudly() {
+        let generated = concat!(
+            "async first(): Promise<Result<null, string>> { error: e as any }",
+            "async second(): Promise<Result<null, string>> { error: e as unknown }",
+        );
+        assert!(normalize_generated_bindings_source(generated).is_err());
     }
 }

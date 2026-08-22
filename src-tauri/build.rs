@@ -56,7 +56,7 @@ fn generate_tray_translations() {
             let value = tray
                 .get(json_key)
                 .and_then(serde_json::Value::as_str)
-                .unwrap_or_default();
+                .unwrap_or_else(|| panic!("{language} tray.{json_key} must be a string"));
             output.push_str(&format!(
                 "        {field}: \"{}\".to_string(),\n",
                 escape_string(value)
