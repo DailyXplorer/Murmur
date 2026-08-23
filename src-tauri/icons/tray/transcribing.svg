@@ -16,8 +16,8 @@
     stroke-width="2.25"
   />
   <g fill="#000">
-    <circle cx="17.75" cy="19" r="0.85" />
-    <circle cx="20.25" cy="19" r="0.85" />
-    <circle cx="22.75" cy="19" r="0.85" />
+    <circle cx="16.25" cy="19" r="1" />
+    <circle cx="19" cy="19" r="1" />
+    <circle cx="21.75" cy="19" r="1" />
   </g>
 </svg>
