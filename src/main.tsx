@@ -9,6 +9,11 @@ import {
   getStoredTheme,
   syncThemeFromSettings,
 } from "./lib/utils/theme";
+import {
+  applyAccentColor,
+  getStoredAccentColor,
+  syncAccentColorFromSettings,
+} from "./lib/utils/accentColor";
 
 installCompatShims();
 
@@ -19,6 +24,8 @@ document.documentElement.dataset.platform = platform();
 // the wrong palette, then reconcile with the persisted setting once it loads.
 applyTheme(getStoredTheme());
 syncThemeFromSettings();
+applyAccentColor(getStoredAccentColor());
+syncAccentColorFromSettings();
 
 // Initialize i18n
 import "./i18n";

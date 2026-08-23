@@ -395,6 +395,18 @@
       "dark": "深色"
     }
   },
+  "accentColor": {
+    "title": "強調色",
+    "description": "選擇 Murmur 的主色與標誌顏色",
+    "options": {
+      "pink": "粉紅",
+      "blue": "藍",
+      "green": "綠",
+      "yellow": "黃",
+      "orange": "橙",
+      "red": "紅"
+    }
+  },
   "overlay": {
     "transcribing": "正在轉錄..."
   },

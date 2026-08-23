@@ -395,6 +395,18 @@
       "dark": "Tối"
     }
   },
+  "accentColor": {
+    "title": "Màu nhấn",
+    "description": "Chọn màu chủ đạo và màu logo của Murmur",
+    "options": {
+      "pink": "Hồng",
+      "blue": "Xanh dương",
+      "green": "Xanh lá",
+      "yellow": "Vàng",
+      "orange": "Cam",
+      "red": "Đỏ"
+    }
+  },
   "overlay": {
     "transcribing": "Đang chuyển đổi..."
   },

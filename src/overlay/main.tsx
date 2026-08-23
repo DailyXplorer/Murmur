@@ -9,6 +9,11 @@ import {
   syncThemeFromSettings,
 } from "@/lib/utils/theme";
 import type { Theme } from "@/bindings";
+import {
+  applyAccentColor,
+  getStoredAccentColor,
+  syncAccentColorFromSettings,
+} from "@/lib/utils/accentColor";
 import "@/i18n";
 
 // A separate webview from the settings window, so the overlay has to set
@@ -18,6 +23,8 @@ import "@/i18n";
 applyTheme(getStoredTheme());
 syncThemeFromSettings();
 listen<Theme>("theme-changed", (event) => applyTheme(event.payload));
+applyAccentColor(getStoredAccentColor());
+syncAccentColorFromSettings();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

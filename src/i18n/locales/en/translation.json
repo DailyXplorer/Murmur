@@ -398,6 +398,18 @@
       "dark": "Dark"
     }
   },
+  "accentColor": {
+    "title": "Accent Color",
+    "description": "Choose Murmur's primary color and logo",
+    "options": {
+      "pink": "Pink",
+      "blue": "Blue",
+      "green": "Green",
+      "yellow": "Yellow",
+      "orange": "Orange",
+      "red": "Red"
+    }
+  },
   "overlay": {
     "transcribing": "Transcribing..."
   }

@@ -395,6 +395,18 @@
       "dark": "Scuro"
     }
   },
+  "accentColor": {
+    "title": "Colore principale",
+    "description": "Scegli il colore principale e il logo di Murmur",
+    "options": {
+      "pink": "Rosa",
+      "blue": "Blu",
+      "green": "Verde",
+      "yellow": "Giallo",
+      "orange": "Arancione",
+      "red": "Rosso"
+    }
+  },
   "overlay": {
     "transcribing": "Trascrizione..."
   },

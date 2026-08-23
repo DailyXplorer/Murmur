@@ -395,6 +395,18 @@
       "dark": "Mörkt"
     }
   },
+  "accentColor": {
+    "title": "Accentfärg",
+    "description": "Välj Murmurs huvudfärg och logotypfärg",
+    "options": {
+      "pink": "Rosa",
+      "blue": "Blå",
+      "green": "Grön",
+      "yellow": "Gul",
+      "orange": "Orange",
+      "red": "Röd"
+    }
+  },
   "overlay": {
     "transcribing": "Transkriberar..."
   },

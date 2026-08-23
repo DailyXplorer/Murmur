@@ -395,6 +395,18 @@
       "dark": "Tmavý"
     }
   },
+  "accentColor": {
+    "title": "Barva zvýraznění",
+    "description": "Vyberte hlavní barvu a logo Murmur",
+    "options": {
+      "pink": "Růžová",
+      "blue": "Modrá",
+      "green": "Zelená",
+      "yellow": "Žlutá",
+      "orange": "Oranžová",
+      "red": "Červená"
+    }
+  },
   "overlay": {
     "transcribing": "Přepisuji..."
   },

@@ -395,6 +395,18 @@
       "dark": "Тъмна"
     }
   },
+  "accentColor": {
+    "title": "Акцентен цвят",
+    "description": "Изберете основния цвят и логото на Murmur",
+    "options": {
+      "pink": "Розово",
+      "blue": "Синьо",
+      "green": "Зелено",
+      "yellow": "Жълто",
+      "orange": "Оранжево",
+      "red": "Червено"
+    }
+  },
   "overlay": {
     "transcribing": "Транскрибиране..."
   },

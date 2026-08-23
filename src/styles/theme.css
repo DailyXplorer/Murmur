@@ -6,13 +6,8 @@
      in App.css reference these, so a hex value lives in exactly one place. */
   --light-color-text: #0f0f0f;
   --light-color-background: #fbfbfb;
-  --light-color-logo-primary: #faa2ca;
-  --light-color-logo-stroke: #382731;
-
   --dark-color-text: #fbfbfb;
   --dark-color-background: #2c2b29;
-  --dark-color-logo-primary: #f28cbb;
-  --dark-color-logo-stroke: #fad1ed;
 
   /* Semantic status colors owned by the shared palette. */
   --light-color-warning: #d97706;
@@ -20,8 +15,18 @@
   --dark-color-warning: #fbbf24;
   --dark-color-error: #f87171;
 
-  /* Tokens that do not change between light and dark */
+  /* Pink is the original and fallback accent. `data-accent-color` overrides
+     this brand palette without touching the neutral or semantic colors. */
+  --light-color-logo-primary: #faa2ca;
+  --light-color-logo-stroke: #382731;
+  --dark-color-logo-primary: #f28cbb;
+  --dark-color-logo-stroke: #fad1ed;
   --color-background-ui: #da5893;
+  --color-background-ui-hover: #e071a3;
+  --color-on-accent: #0f0f0f;
+  --accent-image-filter: none;
+
+  /* Tokens that do not change between light and dark */
   --color-text-stroke: #f6f6f6;
   --color-mid-gray: #808080;
 
@@ -33,6 +38,61 @@
   --color-logo-stroke: var(--light-color-logo-stroke);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
+}
+
+:root[data-accent-color="blue"] {
+  --light-color-logo-primary: #9cc7ff;
+  --light-color-logo-stroke: #27303a;
+  --dark-color-logo-primary: #80b4f4;
+  --dark-color-logo-stroke: #d1e4fa;
+  --color-background-ui: #2f73c7;
+  --color-background-ui-hover: #2862a9;
+  --color-on-accent: #ffffff;
+  --accent-image-filter: hue-rotate(-120deg);
+}
+
+:root[data-accent-color="green"] {
+  --light-color-logo-primary: #99e8b7;
+  --light-color-logo-stroke: #27382e;
+  --dark-color-logo-primary: #78d99c;
+  --dark-color-logo-stroke: #d1fae2;
+  --color-background-ui: #247a48;
+  --color-background-ui-hover: #1f683d;
+  --color-on-accent: #ffffff;
+  --accent-image-filter: hue-rotate(173deg);
+}
+
+:root[data-accent-color="yellow"] {
+  --light-color-logo-primary: #f2d66b;
+  --light-color-logo-stroke: #383427;
+  --dark-color-logo-primary: #e4c54f;
+  --dark-color-logo-stroke: #faf1d1;
+  --color-background-ui: #8a6a00;
+  --color-background-ui-hover: #755a00;
+  --color-on-accent: #ffffff;
+  --accent-image-filter: hue-rotate(75deg);
+}
+
+:root[data-accent-color="orange"] {
+  --light-color-logo-primary: #f9bc82;
+  --light-color-logo-stroke: #382e27;
+  --dark-color-logo-primary: #f4a964;
+  --dark-color-logo-stroke: #fae2d1;
+  --color-background-ui: #b85a16;
+  --color-background-ui-hover: #9c4d13;
+  --color-on-accent: #ffffff;
+  --accent-image-filter: hue-rotate(53deg);
+}
+
+:root[data-accent-color="red"] {
+  --light-color-logo-primary: #f6a0a3;
+  --light-color-logo-stroke: #382827;
+  --dark-color-logo-primary: #f28c91;
+  --dark-color-logo-stroke: #fad2d1;
+  --color-background-ui: #b83f4a;
+  --color-background-ui-hover: #9c363f;
+  --color-on-accent: #ffffff;
+  --accent-image-filter: hue-rotate(30deg);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -189,6 +189,19 @@ pub enum Theme {
     Dark,
 }
 
+/// Brand accent used by the webviews and native application icons.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AccentColor {
+    #[default]
+    Pink,
+    Blue,
+    Green,
+    Yellow,
+    Orange,
+    Red,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TypingTool {
@@ -278,6 +291,8 @@ pub struct AppSettings {
     pub app_language: String,
     #[serde(default = "default_theme")]
     pub theme: Theme,
+    #[serde(default)]
+    pub accent_color: AccentColor,
     #[serde(default)]
     pub experimental_enabled: bool,
     #[serde(default)]
@@ -481,6 +496,7 @@ pub fn get_default_settings() -> AppSettings {
         append_trailing_space: false,
         app_language: default_app_language(),
         theme: default_theme(),
+        accent_color: AccentColor::default(),
         experimental_enabled: false,
         lazy_stream_close: false,
         show_tray_icon: default_show_tray_icon(),
@@ -624,6 +640,7 @@ mod tests {
         assert!(settings.push_to_talk);
         assert!(!settings.audio_feedback);
         assert!(settings.filler_word_removal_enabled);
+        assert_eq!(settings.accent_color, AccentColor::Pink);
         // Bindings default to empty; the load path merges the real defaults in.
         assert!(settings.bindings.is_empty());
     }
@@ -678,6 +695,17 @@ mod tests {
         assert!(salvaged.onboarding_completed);
         assert_eq!(salvaged.bindings["transcribe"].current_binding, "f13");
         assert_eq!(salvaged.sound_theme, default_sound_theme());
+    }
+
+    #[test]
+    fn salvage_defaults_only_an_invalid_accent_color() {
+        let mut stored = default_settings_json();
+        stored["accent_color"] = serde_json::json!("ultraviolet");
+        stored["selected_language"] = serde_json::json!("fr");
+
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(salvaged.accent_color, AccentColor::Pink);
+        assert_eq!(salvaged.selected_language, "fr");
     }
 
     #[test]
