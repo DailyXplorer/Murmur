@@ -2,8 +2,9 @@
 
 reviews:
   path_filters:
-    - "src-tauri/icons/tray/**"
-    - "src-tauri/resources/tray_*.png"
+    - "**/*"
+    - "**/*.svg"
+    - "**/*.png"
   path_instructions:
     - path: "src-tauri/icons/tray/**"
       instructions: |
