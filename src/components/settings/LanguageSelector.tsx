@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { useTranslation } from "react-i18next";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ResetButton } from "../ui/ResetButton";
@@ -148,21 +149,12 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             disabled={isUpdating("selected_language")}
           >
             <span className="truncate">{selectedLanguageName}</span>
-            <svg
-              className={`w-4 h-4 ms-2 transition-transform duration-200 ${
+            <CaretDownIcon
+              size={14}
+              className={`ms-2 transition-transform duration-200 ${
                 isOpen ? "transform rotate-180" : ""
               }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+            />
           </button>
 
           {isOpen && !isUpdating("selected_language") && (
