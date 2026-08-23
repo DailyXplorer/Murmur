@@ -395,6 +395,18 @@
       "dark": "Ciemny"
     }
   },
+  "accentColor": {
+    "title": "Kolor akcentu",
+    "description": "Wybierz główny kolor i kolor logo Murmur",
+    "options": {
+      "pink": "Różowy",
+      "blue": "Niebieski",
+      "green": "Zielony",
+      "yellow": "Żółty",
+      "orange": "Pomarańczowy",
+      "red": "Czerwony"
+    }
+  },
   "overlay": {
     "transcribing": "Transkrypcja..."
   },

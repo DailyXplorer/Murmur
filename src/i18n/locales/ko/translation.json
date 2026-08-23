@@ -395,6 +395,18 @@
       "dark": "어둡게"
     }
   },
+  "accentColor": {
+    "title": "강조 색상",
+    "description": "Murmur의 기본 색상과 로고 색상을 선택하세요",
+    "options": {
+      "pink": "분홍",
+      "blue": "파랑",
+      "green": "초록",
+      "yellow": "노랑",
+      "orange": "주황",
+      "red": "빨강"
+    }
+  },
   "overlay": {
     "transcribing": "텍스트로 변환 중..."
   },

@@ -395,6 +395,18 @@
       "dark": "כהה"
     }
   },
+  "accentColor": {
+    "title": "צבע הדגשה",
+    "description": "בחרו את הצבע הראשי והלוגו של Murmur",
+    "options": {
+      "pink": "ורוד",
+      "blue": "כחול",
+      "green": "ירוק",
+      "yellow": "צהוב",
+      "orange": "כתום",
+      "red": "אדום"
+    }
+  },
   "overlay": {
     "transcribing": "מתמלל..."
   },

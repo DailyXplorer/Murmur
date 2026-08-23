@@ -395,6 +395,18 @@
       "dark": "Koyu"
     }
   },
+  "accentColor": {
+    "title": "Vurgu rengi",
+    "description": "Murmur'un ana rengini ve logo rengini seçin",
+    "options": {
+      "pink": "Pembe",
+      "blue": "Mavi",
+      "green": "Yeşil",
+      "yellow": "Sarı",
+      "orange": "Turuncu",
+      "red": "Kırmızı"
+    }
+  },
   "overlay": {
     "transcribing": "Transkribe ediliyor..."
   },

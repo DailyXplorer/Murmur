@@ -1,3 +1,4 @@
+mod accent;
 mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
@@ -32,7 +33,6 @@ use managers::history::HistoryManager;
 use managers::transcription::TranscriptionManager;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
-use tauri::image::Image;
 pub use transcription_coordinator::TranscriptionCoordinator;
 
 use tauri::tray::TrayIconBuilder;
@@ -197,24 +197,14 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
         }
     }
-    // Get the current theme to set the appropriate initial icon
-    let initial_theme = tray::get_current_theme(app_handle);
-
-    // Choose the appropriate initial icon based on theme
-    let initial_icon_path = tray::get_icon_path(initial_theme, tray::TrayIconState::Idle);
+    let settings = settings::get_settings(app_handle);
+    let initial_icon = accent::tray_icon(settings.accent_color, accent::NativeIconState::Idle)
+        .expect("failed to build initial tray icon");
 
     let mut tray_builder = TrayIconBuilder::new()
-        .icon(
-            Image::from_path(
-                app_handle
-                    .path()
-                    .resolve(initial_icon_path, tauri::path::BaseDirectory::Resource)
-                    .unwrap(),
-            )
-            .unwrap(),
-        )
+        .icon(initial_icon)
         .tooltip(tray::tray_tooltip())
-        .icon_as_template(true);
+        .icon_as_template(false);
 
     // Windows notification-area convention: left click opens the app, right click
     // shows the menu. Elsewhere (macOS menu bar, Linux) the menu stays on left click.
@@ -431,6 +421,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,
             shortcut::change_theme_setting,
+            shortcut::change_accent_color_setting,
             shortcut::change_start_hidden_setting,
             shortcut::change_autostart_setting,
             shortcut::change_selected_language_setting,
@@ -662,6 +653,10 @@ pub fn run(cli_args: CliArgs) {
             // platform.
             #[cfg(any(target_os = "windows", target_os = "macos"))]
             shortcut::apply_window_theme(app.handle(), settings.theme);
+
+            if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
+                log::warn!("Failed to apply native accent icon: {error}");
+            }
 
             // CLI --debug flag overrides debug_mode and log level (runtime-only, not persisted)
             if cli_args.debug {

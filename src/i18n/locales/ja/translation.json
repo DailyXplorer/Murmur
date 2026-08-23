@@ -395,6 +395,18 @@
       "dark": "ダーク"
     }
   },
+  "accentColor": {
+    "title": "アクセントカラー",
+    "description": "Murmur のメインカラーとロゴの色を選択します",
+    "options": {
+      "pink": "ピンク",
+      "blue": "青",
+      "green": "緑",
+      "yellow": "黄",
+      "orange": "オレンジ",
+      "red": "赤"
+    }
+  },
   "overlay": {
     "transcribing": "文字起こし中…"
   },

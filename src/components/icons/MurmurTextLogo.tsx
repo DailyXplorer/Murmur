@@ -16,7 +16,7 @@ const MurmurTextLogo = ({
       alt="Murmur"
       width={width}
       height={height}
-      className={className}
+      className={`accent-logo ${className ?? ""}`}
       draggable={false}
     />
   );

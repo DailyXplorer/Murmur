@@ -1,13 +1,12 @@
+use crate::accent::{self, NativeIconState};
 use crate::managers::history::{HistoryEntry, HistoryManager};
 use crate::settings;
 use crate::tray_i18n::get_tray_translations;
 use log::{debug, error, info, warn};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIcon;
-use tauri::{AppHandle, Manager, Theme};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -34,98 +33,26 @@ impl CurrentTrayIconState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum AppTheme {
-    Dark,
-    Light,
-    Colored, // Pink/colored theme for Linux
-}
-
-/// Gets the current app theme, with Linux defaulting to Colored theme
-pub fn get_current_theme(app: &AppHandle) -> AppTheme {
-    if cfg!(target_os = "linux") {
-        // On Linux, always use the colored theme
-        AppTheme::Colored
-    } else {
-        // On Windows the tray icon sits on the taskbar, which follows the
-        // *system* theme (SystemUsesLightTheme), not the app theme. With the
-        // "Custom" personalization mode the two can differ (e.g. dark taskbar
-        // + light apps), and the window theme would pick an icon that is
-        // invisible against the taskbar.
-        #[cfg(target_os = "windows")]
-        if let Some(theme) = windows_taskbar_theme() {
-            return theme;
-        }
-
-        // On other platforms, map system theme to our app theme
-        if let Some(main_window) = app.get_webview_window("main") {
-            match main_window.theme().unwrap_or(Theme::Dark) {
-                Theme::Light => AppTheme::Light,
-                Theme::Dark => AppTheme::Dark,
-                _ => AppTheme::Dark, // Default fallback
-            }
-        } else {
-            AppTheme::Dark
-        }
-    }
-}
-
-/// Reads the Windows taskbar theme from the registry.
-///
-/// Returns None if the value is missing (older Windows 10 builds default to a
-/// dark taskbar there, but falling back to the window theme is safer than
-/// guessing).
-#[cfg(target_os = "windows")]
-fn windows_taskbar_theme() -> Option<AppTheme> {
-    use winreg::enums::HKEY_CURRENT_USER;
-    use winreg::RegKey;
-
-    let personalize = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
-        .ok()?;
-    let system_uses_light: u32 = personalize.get_value("SystemUsesLightTheme").ok()?;
-    Some(if system_uses_light == 1 {
-        AppTheme::Light
-    } else {
-        AppTheme::Dark
-    })
-}
-
-/// Selects the bundled tray icon for the requested appearance and lifecycle state.
-pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
-    match (theme, state) {
-        // Dark theme uses light icons
-        (AppTheme::Dark, TrayIconState::Idle) => "resources/tray_idle.png",
-        (AppTheme::Dark, TrayIconState::Recording) => "resources/tray_recording.png",
-        (AppTheme::Dark, TrayIconState::Transcribing) => "resources/tray_transcribing.png",
-        // Light theme uses dark icons
-        (AppTheme::Light, TrayIconState::Idle) => "resources/tray_idle_dark.png",
-        (AppTheme::Light, TrayIconState::Recording) => "resources/tray_recording_dark.png",
-        (AppTheme::Light, TrayIconState::Transcribing) => "resources/tray_transcribing_dark.png",
-        // Colored theme uses pink icons (for Linux)
-        (AppTheme::Colored, TrayIconState::Idle) => "resources/murmur.png",
-        (AppTheme::Colored, TrayIconState::Recording) => "resources/recording.png",
-        (AppTheme::Colored, TrayIconState::Transcribing) => "resources/transcribing.png",
-    }
-}
-
 pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     let tray = app.state::<TrayIcon>();
-    let theme = get_current_theme(app);
+    let accent_color = settings::get_settings(app).accent_color;
 
     // Store current state
     app.state::<CurrentTrayIconState>().set(icon);
 
-    let icon_path = get_icon_path(theme, icon);
-
     let icon_started = std::time::Instant::now();
-    if let Err(err) = load_tray_icon(
-        app.path()
-            .resolve(icon_path, tauri::path::BaseDirectory::Resource),
-    )
-    .and_then(|image| tray.set_icon_with_as_template(Some(image), true))
-    {
-        error!("Failed to update tray icon '{icon_path}': {err}");
+    let native_state = match icon {
+        TrayIconState::Idle => NativeIconState::Idle,
+        TrayIconState::Recording => NativeIconState::Recording,
+        TrayIconState::Transcribing => NativeIconState::Transcribing,
+    };
+    match accent::tray_icon(accent_color, native_state) {
+        Ok(image) => {
+            if let Err(error) = tray.set_icon_with_as_template(Some(image), false) {
+                error!("Failed to update tray icon: {error}");
+            }
+        }
+        Err(error) => error!("Failed to build tray icon: {error}"),
     }
     let icon_elapsed = icon_started.elapsed();
 
@@ -133,9 +60,9 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     let menu_started = std::time::Instant::now();
     update_tray_menu(app, None);
     debug!(
-        "tray icon change ({:?}): icon={} set_icon={:?} menu={:?}",
+        "tray icon change ({:?}): accent={:?} set_icon={:?} menu={:?}",
         icon,
-        icon_path,
+        accent_color,
         icon_elapsed,
         menu_started.elapsed()
     );
@@ -146,11 +73,6 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
 pub fn refresh_tray_icon(app: &AppHandle) {
     let icon = app.state::<CurrentTrayIconState>().get();
     change_tray_icon(app, icon);
-}
-
-fn load_tray_icon(resolved_icon_path: tauri::Result<PathBuf>) -> tauri::Result<Image<'static>> {
-    let resolved_icon_path = resolved_icon_path?;
-    Image::from_path(&resolved_icon_path).map(Image::to_owned)
 }
 
 pub fn tray_tooltip() -> String {
@@ -298,7 +220,7 @@ pub fn copy_last_transcript(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{last_transcript_text, load_tray_icon};
+    use super::last_transcript_text;
     use crate::managers::history::HistoryEntry;
 
     fn build_entry(transcription: &str) -> HistoryEntry {
@@ -316,17 +238,5 @@ mod tests {
     fn uses_transcription_text() {
         let entry = build_entry("raw");
         assert_eq!(last_transcript_text(&entry), "raw");
-    }
-
-    #[test]
-    fn tray_icon_resolution_failure_is_returned_instead_of_panicking() {
-        assert!(load_tray_icon(Err(tauri::Error::UnknownPath)).is_err());
-    }
-
-    #[test]
-    fn tray_icon_returns_err_when_file_does_not_exist() {
-        let dir = tempfile::tempdir().expect("failed to create tempdir");
-        let missing = dir.path().join("does_not_exist.png");
-        assert!(load_tray_icon(Ok(missing)).is_err());
     }
 }
