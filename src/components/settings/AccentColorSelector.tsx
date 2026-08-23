@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Check } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { useTranslation } from "react-i18next";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "@/hooks/useSettings";
@@ -83,9 +83,9 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
                   }}
                 >
                   {selected && (
-                    <Check
+                    <CheckIcon
                       className="size-4 text-[#0f0f0f]"
-                      strokeWidth={3}
+                      weight="bold"
                       aria-hidden="true"
                     />
                   )}
