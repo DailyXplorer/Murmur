@@ -397,7 +397,7 @@
   },
   "accentColor": {
     "title": "Cor de destaque",
-    "description": "Escolha a cor principal e o logotipo do Murmur",
+    "description": "Escolha a cor principal e a cor do logotipo do Murmur",
     "options": {
       "pink": "Rosa",
       "blue": "Azul",

@@ -7,6 +7,7 @@ import {
   ACCENT_COLOR_OPTIONS,
   ACCENT_COLOR_PREVIEWS,
   applyAccentColor,
+  getStoredAccentColor,
 } from "@/lib/utils/accentColor";
 import type { AccentColor } from "@/bindings";
 
@@ -19,11 +20,15 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
   React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
     const { settings, updateSetting, isUpdating } = useSettings();
-    const currentAccent: AccentColor = settings?.accent_color ?? "pink";
+    const settingsLoaded = settings !== null;
+    const currentAccent: AccentColor = settings
+      ? (settings.accent_color ?? "pink")
+      : getStoredAccentColor();
 
     useEffect(() => {
+      if (!settingsLoaded) return;
       applyAccentColor(currentAccent);
-    }, [currentAccent]);
+    }, [currentAccent, settingsLoaded]);
 
     const handleAccentChange = (accentColor: AccentColor) => {
       applyAccentColor(accentColor);
@@ -45,25 +50,34 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
           {ACCENT_COLOR_OPTIONS.map((accentColor) => {
             const selected = accentColor === currentAccent;
             const label = t(`accentColor.options.${accentColor}`);
+            const disabled = !settingsLoaded || isUpdating("accent_color");
 
             return (
-              <button
+              <label
                 key={accentColor}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-label={label}
                 title={label}
-                disabled={isUpdating("accent_color")}
-                onClick={() => handleAccentChange(accentColor)}
-                className={`flex size-10 shrink-0 items-center justify-center rounded-full transition-[transform,box-shadow] duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-wait disabled:opacity-60 ${
+                className={`relative flex size-10 shrink-0 items-center justify-center rounded-full transition-[transform,box-shadow] duration-150 ${
+                  disabled
+                    ? "cursor-wait opacity-60"
+                    : "cursor-pointer active:scale-[0.96]"
+                } ${
                   selected
                     ? "shadow-[0_0_0_2px_var(--color-background),0_0_0_4px_var(--color-text)]"
                     : "hover:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-text)_14%,transparent)]"
                 }`}
               >
+                <input
+                  type="radio"
+                  name="accent-color"
+                  value={accentColor}
+                  checked={selected}
+                  aria-label={label}
+                  disabled={disabled}
+                  onChange={() => handleAccentChange(accentColor)}
+                  className="peer absolute inset-0 m-0 size-full cursor-inherit opacity-0"
+                />
                 <span
-                  className="flex size-7 items-center justify-center rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+                  className="pointer-events-none flex size-7 items-center justify-center rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-text peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
                   style={{
                     backgroundColor: ACCENT_COLOR_PREVIEWS[accentColor],
                   }}
@@ -76,7 +90,7 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
                     />
                   )}
                 </span>
-              </button>
+              </label>
             );
           })}
         </div>

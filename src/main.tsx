@@ -13,8 +13,6 @@ import {
   getStoredAccentColor,
   syncAccentColorFromSettings,
 } from "./lib/utils/accentColor";
-import { listen } from "@tauri-apps/api/event";
-import type { AccentColor } from "@/bindings";
 
 installCompatShims();
 
@@ -27,9 +25,6 @@ applyTheme(getStoredTheme());
 syncThemeFromSettings();
 applyAccentColor(getStoredAccentColor());
 syncAccentColorFromSettings();
-listen<AccentColor>("accent-color-changed", (event) =>
-  applyAccentColor(event.payload),
-);
 
 // Initialize i18n
 import "./i18n";

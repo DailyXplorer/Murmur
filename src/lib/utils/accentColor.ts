@@ -1,4 +1,5 @@
 import { commands, type AccentColor } from "@/bindings";
+import { listen } from "@tauri-apps/api/event";
 
 export const ACCENT_COLOR_STORAGE_KEY = "murmur.accent-color";
 
@@ -44,9 +45,21 @@ export const getStoredAccentColor = (): AccentColor => {
 };
 
 export const syncAccentColorFromSettings = async (): Promise<void> => {
+  let eventRevision = 0;
+
   try {
+    await listen<AccentColor>("accent-color-changed", (event) => {
+      eventRevision += 1;
+      applyAccentColor(event.payload);
+    });
+  } catch (error) {
+    console.warn("Failed to listen for accent color changes:", error);
+  }
+
+  try {
+    const requestRevision = eventRevision;
     const result = await commands.getAppSettings();
-    if (result.status === "ok") {
+    if (result.status === "ok" && eventRevision === requestRevision) {
       applyAccentColor(result.data.accent_color ?? "pink");
     }
   } catch (error) {

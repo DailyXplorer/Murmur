@@ -8,7 +8,6 @@ import {
   syncThemeFromSettings,
 } from "@/lib/utils/theme";
 import type { Theme } from "@/bindings";
-import type { AccentColor } from "@/bindings";
 import {
   applyAccentColor,
   getStoredAccentColor,
@@ -25,9 +24,6 @@ syncThemeFromSettings();
 listen<Theme>("theme-changed", (event) => applyTheme(event.payload));
 applyAccentColor(getStoredAccentColor());
 syncAccentColorFromSettings();
-listen<AccentColor>("accent-color-changed", (event) =>
-  applyAccentColor(event.payload),
-);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
