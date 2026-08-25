@@ -5,6 +5,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { arch, platform } from "@tauri-apps/plugin-os";
+import { toast } from "sonner";
 import { ProgressBar } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 import { commands } from "../../bindings";
@@ -100,6 +101,11 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       }
     } catch (error) {
       console.error("Failed to check for updates:", error);
+      if (isManualCheckRef.current) {
+        toast.error(t("footer.checkForUpdates"), {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
     } finally {
       setIsChecking(false);
       isManualCheckRef.current = false;
@@ -155,6 +161,9 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       await relaunch();
     } catch (error) {
       console.error("Failed to install update:", error);
+      toast.error(t("footer.updateAvailableShort"), {
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsInstalling(false);
       setDownloadProgress(0);
