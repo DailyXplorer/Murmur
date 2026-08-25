@@ -48,7 +48,9 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     };
     match accent::tray_icon(accent_color, native_state) {
         Ok(image) => {
-            if let Err(error) = tray.set_icon_with_as_template(Some(image), false) {
+            if let Err(error) =
+                tray.set_icon_with_as_template(Some(image), accent::tray_icon_is_template())
+            {
                 error!("Failed to update tray icon: {error}");
             }
         }
