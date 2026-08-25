@@ -24,6 +24,8 @@
   --color-background-ui: #da5893;
   --color-background-ui-hover: #e071a3;
   --color-on-accent: #0f0f0f;
+  /* The raster wordmark needs saturation and luminance correction as well as
+     hue rotation. The browser test samples its fill against this palette. */
   --accent-image-filter: none;
 
   /* Tokens that do not change between light and dark */
@@ -48,7 +50,8 @@
   --color-background-ui: #2f73c7;
   --color-background-ui-hover: #2862a9;
   --color-on-accent: #ffffff;
-  --accent-image-filter: hue-rotate(-120deg);
+  --accent-image-filter: hue-rotate(-105deg) saturate(104%) brightness(100.3%)
+    contrast(102.4%);
 }
 
 :root[data-accent-color="green"] {
@@ -59,7 +62,8 @@
   --color-background-ui: #247a48;
   --color-background-ui-hover: #1f683d;
   --color-on-accent: #ffffff;
-  --accent-image-filter: hue-rotate(173deg);
+  --accent-image-filter: hue-rotate(172deg) saturate(93%) brightness(111.3%)
+    contrast(95.3%);
 }
 
 :root[data-accent-color="yellow"] {
@@ -70,7 +74,8 @@
   --color-background-ui: #8a6a00;
   --color-background-ui-hover: #755a00;
   --color-on-accent: #ffffff;
-  --accent-image-filter: hue-rotate(75deg);
+  --accent-image-filter: hue-rotate(92deg) saturate(154%) brightness(112%)
+    contrast(94%);
 }
 
 :root[data-accent-color="orange"] {
@@ -81,7 +86,8 @@
   --color-background-ui: #b85a16;
   --color-background-ui-hover: #9c4d13;
   --color-on-accent: #ffffff;
-  --accent-image-filter: hue-rotate(53deg);
+  --accent-image-filter: hue-rotate(70deg) saturate(125%) brightness(102.5%)
+    contrast(99%);
 }
 
 :root[data-accent-color="red"] {
@@ -92,7 +98,8 @@
   --color-background-ui: #b83f4a;
   --color-background-ui-hover: #9c363f;
   --color-on-accent: #ffffff;
-  --accent-image-filter: hue-rotate(30deg);
+  --accent-image-filter: hue-rotate(35deg) saturate(102%) brightness(93.7%)
+    contrast(106.4%);
 }
 
 @media (prefers-color-scheme: dark) {
