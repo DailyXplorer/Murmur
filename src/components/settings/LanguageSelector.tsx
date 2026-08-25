@@ -140,7 +140,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
-            className={`px-2 py-1 text-sm font-semibold bg-mid-gray/10 border border-mid-gray/80 rounded min-w-[200px] text-start flex items-center justify-between transition-all duration-150 ${
+            className={`px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded min-w-[200px] text-start flex items-center justify-between transition-all duration-150 ${
               isUpdating("selected_language")
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
@@ -182,9 +182,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     <button
                       key={language.value}
                       type="button"
-                      className={`w-full px-2 py-1 text-sm text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
+                      className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                         selectedLanguage === language.value
-                          ? "bg-logo-primary/20 text-logo-primary font-semibold"
+                          ? "bg-logo-primary/20 text-logo-primary"
                           : ""
                       }`}
                       onClick={() => handleLanguageSelect(language.value)}
