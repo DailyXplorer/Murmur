@@ -5,8 +5,17 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+#[cfg(target_os = "macos")]
+const TRAY_IDLE_PNG: &[u8] = include_bytes!("../resources/tray_idle_dark.png");
+#[cfg(target_os = "macos")]
+const TRAY_RECORDING_PNG: &[u8] = include_bytes!("../resources/tray_recording_dark.png");
+#[cfg(target_os = "macos")]
+const TRAY_TRANSCRIBING_PNG: &[u8] = include_bytes!("../resources/tray_transcribing_dark.png");
+#[cfg(not(target_os = "macos"))]
 const TRAY_IDLE_PNG: &[u8] = include_bytes!("../resources/murmur.png");
+#[cfg(not(target_os = "macos"))]
 const TRAY_RECORDING_PNG: &[u8] = include_bytes!("../resources/recording.png");
+#[cfg(not(target_os = "macos"))]
 const TRAY_TRANSCRIBING_PNG: &[u8] = include_bytes!("../resources/transcribing.png");
 const SOURCE_PINK_HUE: f32 = 332.0;
 
@@ -57,12 +66,21 @@ pub fn tray_icon(
     }
     .map_err(|error| error.to_string())?;
 
+    if tray_icon_is_template() {
+        return Ok(source.to_owned());
+    }
+
     Ok(match state {
         NativeIconState::Idle => recolor_brand_image(source, accent_color),
         NativeIconState::Recording | NativeIconState::Transcribing => {
             tint_monochrome_image(source, accent_color.native_rgb())
         }
     })
+}
+
+/// Returns whether the platform should render tray icons as adaptive templates.
+pub const fn tray_icon_is_template() -> bool {
+    cfg!(target_os = "macos")
 }
 
 /// Updates the icon shown for the running app. The installed bundle keeps its
@@ -230,6 +248,12 @@ mod tests {
 
     #[test]
     fn every_accent_produces_native_icons() {
+        let expected_tray_size = if tray_icon_is_template() {
+            (64, 64)
+        } else {
+            (32, 32)
+        };
+
         for accent in [
             AccentColor::Pink,
             AccentColor::Blue,
@@ -241,7 +265,28 @@ mod tests {
             let app = app_icon(accent).expect("app icon should decode");
             let tray = tray_icon(accent, NativeIconState::Idle).expect("tray icon should decode");
             assert_eq!((app.width(), app.height()), (1024, 1024));
-            assert_eq!((tray.width(), tray.height()), (32, 32));
+            assert_eq!((tray.width(), tray.height()), expected_tray_size);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_tray_icons_are_monochrome_and_ignore_the_accent() {
+        for state in [
+            NativeIconState::Idle,
+            NativeIconState::Recording,
+            NativeIconState::Transcribing,
+        ] {
+            let pink = tray_icon(AccentColor::Pink, state).expect("tray icon should decode");
+            let blue = tray_icon(AccentColor::Blue, state).expect("tray icon should decode");
+
+            assert_eq!(pink.rgba(), blue.rgba());
+            assert!(pink.rgba().chunks_exact(4).any(|pixel| pixel[3] == 0));
+            assert!(pink
+                .rgba()
+                .chunks_exact(4)
+                .filter(|pixel| pixel[3] > 0)
+                .all(|pixel| pixel[0] == pixel[1] && pixel[1] == pixel[2]));
         }
     }
 }
