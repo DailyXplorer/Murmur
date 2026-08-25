@@ -332,7 +332,12 @@ jobs:
         run: |
           APP=$(find src-tauri/target -name "*.app" -type d | head -1)
           echo "=== Checking all @rpath deps are satisfied ==="
-          otool -L "$APP/Contents/MacOS/murmur" | grep '@rpath/' | awk '{print $1}' | while read dep; do
+          RPATH_DEPS=$(otool -L "$APP/Contents/MacOS/murmur" | awk '$1 ~ /^@rpath\// {print $1}')
+          if [ -z "$RPATH_DEPS" ]; then
+            echo "No @rpath dependencies to verify."
+            exit 0
+          fi
+          while read -r dep; do
             libname=$(basename "$dep")
             if [ ! -f "$APP/Contents/Frameworks/$libname" ]; then
               echo "MISSING: $libname not found in Frameworks/"
@@ -340,7 +345,7 @@ jobs:
             else
               echo "OK: $libname"
             fi
-          done
+          done <<< "$RPATH_DEPS"
 
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts && contains(inputs.platform, 'macos')
