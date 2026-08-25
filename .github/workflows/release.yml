@@ -81,3 +81,53 @@ jobs:
       # stale cached native lib can never be linked into a shipped artifact.
       no-cache: true
     secrets: inherit
+
+  publish-release:
+    permissions:
+      contents: write
+    needs: [create-release, publish-tauri]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Build and upload updater manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: node .github/scripts/publish-updater-manifest.mjs
+
+      - name: Publish release
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number('${{ needs.create-release.outputs.release-id }}'),
+              draft: false,
+              prerelease: false,
+              make_latest: 'true'
+            })
+
+      - name: Verify public updater manifest
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json"
+          for attempt in 1 2 3 4 5; do
+            if manifest="$(curl --fail --silent --show-error --location "$url")" &&
+              VERSION="$VERSION" MANIFEST="$manifest" node -e '
+                const manifest = JSON.parse(process.env.MANIFEST);
+                if (manifest.version !== process.env.VERSION) process.exit(1);
+                if (Object.keys(manifest.platforms ?? {}).length < 12) process.exit(1);
+              '; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Updater manifest did not become publicly available" >&2
+          exit 1
