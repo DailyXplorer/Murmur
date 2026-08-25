@@ -204,7 +204,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let mut tray_builder = TrayIconBuilder::new()
         .icon(initial_icon)
         .tooltip(tray::tray_tooltip())
-        .icon_as_template(false);
+        .icon_as_template(accent::tray_icon_is_template());
 
     // Windows notification-area convention: left click opens the app, right click
     // shows the menu. Elsewhere (macOS menu bar, Linux) the menu stays on left click.
