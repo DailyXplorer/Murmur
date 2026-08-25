@@ -58,6 +58,7 @@ jobs:
     runs-on: ${{ inputs.platform }}
     env:
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
     steps:
       - name: Enable long paths (Windows)
         if: runner.os == 'Windows'
@@ -191,6 +192,24 @@ jobs:
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Certificate imported."
 
+      - name: Configure Apple notarization
+        if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
+        env:
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD_SECRET: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          echo "APPLE_ID=$APPLE_ID_SECRET" >> "$GITHUB_ENV"
+          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET" >> "$GITHUB_ENV"
+          if [ -n "$APPLE_ID_PASSWORD_SECRET" ]; then
+            echo "APPLE_ID_PASSWORD=$APPLE_ID_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APPLE_PASSWORD_SECRET" ]; then
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          fi
+
       - name: Patch asset name pattern
         id: patch-release-name
         shell: bash
@@ -247,10 +266,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ inputs.sign-binaries && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.sign-binaries && secrets.APPLE_TEAM_ID || '' }}
           # The certificate import step above owns APPLE_CERTIFICATE. Passing an
           # empty value here makes Tauri try (and fail) to import it again.
           APPLE_SIGNING_IDENTITY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || '-' }}
