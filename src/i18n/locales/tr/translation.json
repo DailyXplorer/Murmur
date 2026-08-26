@@ -335,7 +335,16 @@
       "sessionDescription": "Ses, Codex'in kullandığı aynı bulut transkripsiyon hizmetine gönderilir. Burada bağlantı kesildi olarak görünüyorsa Codex uygulamasında oturum açın.",
       "checking": "Oturum kontrol ediliyor…",
       "ready": "Bağlı",
-      "missing": "Oturum açılmadı"
+      "missing": "Oturum açılmadı",
+      "providerTitle": "Transkripsiyon hizmeti",
+      "providerDescription": "Yeni dikte işlemleri için bulut hizmetini seçin.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini bu Mac'teki yerel Antigravity oturumunu kullanır. Deneyseldir; Antigravity güncellemeleri Murmur güncellemesi gerektirebilir.",
+      "notInstalled": "Antigravity yüklü değil",
+      "installAntigravity": "Yükle",
+      "openAntigravity": "Antigravity'yi aç",
+      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın."
     }
   },
   "footer": {

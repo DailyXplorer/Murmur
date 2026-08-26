@@ -335,7 +335,16 @@
       "sessionDescription": "يُرسل الصوت إلى خدمة النسخ السحابي نفسها التي يستخدمها Codex. سجّل الدخول إلى تطبيق Codex إذا ظهر هنا أنه غير متصل.",
       "checking": "جارٍ التحقق من الجلسة…",
       "ready": "متصل",
-      "missing": "غير مسجّل الدخول"
+      "missing": "غير مسجّل الدخول",
+      "providerTitle": "خدمة النسخ",
+      "providerDescription": "اختر الخدمة السحابية المستخدمة للإملاءات الجديدة.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "يستخدم Gemini جلسة Antigravity المحلية على هذا الـ Mac. ميزة تجريبية؛ قد تتطلب تحديثات Antigravity تحديث Murmur.",
+      "notInstalled": "Antigravity غير مثبت",
+      "installAntigravity": "تثبيت",
+      "openAntigravity": "فتح Antigravity",
+      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة."
     }
   },
   "footer": {

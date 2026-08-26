@@ -335,7 +335,16 @@
       "sessionDescription": "Lyden sendes til den samme skybaserede transskriptionstjeneste, som Codex bruger. Log ind i Codex-appen, hvis dette vises som afbrudt.",
       "checking": "Kontrollerer session…",
       "ready": "Forbundet",
-      "missing": "Ikke logget ind"
+      "missing": "Ikke logget ind",
+      "providerTitle": "Transskriptionstjeneste",
+      "providerDescription": "Vælg cloudtjenesten til nye dikteringer.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini bruger den lokale Antigravity-session på denne Mac. Eksperimentel; Antigravity-opdateringer kan kræve en Murmur-opdatering.",
+      "notInstalled": "Antigravity er ikke installeret",
+      "installAntigravity": "Installer",
+      "openAntigravity": "Åbn Antigravity",
+      "onboardingDescription": "Log ind på Codex eller Antigravity, før du fortsætter."
     }
   },
   "footer": {

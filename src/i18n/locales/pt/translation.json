@@ -335,7 +335,16 @@
       "sessionDescription": "O áudio é enviado para o mesmo serviço de transcrição na nuvem usado pelo Codex. Inicie sessão na aplicação Codex se aqui aparecer como desligado.",
       "checking": "Verificando a sessão…",
       "ready": "Conectado",
-      "missing": "Sem sessão iniciada"
+      "missing": "Sem sessão iniciada",
+      "providerTitle": "Serviço de transcrição",
+      "providerDescription": "Escolha o serviço de nuvem para novos ditados.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "O Gemini usa a sessão local do Antigravity neste Mac. Recurso experimental; atualizações do Antigravity podem exigir uma atualização do Murmur.",
+      "notInstalled": "Antigravity não está instalado",
+      "installAntigravity": "Instalar",
+      "openAntigravity": "Abrir Antigravity",
+      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar."
     }
   },
   "footer": {

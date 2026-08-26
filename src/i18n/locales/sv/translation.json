@@ -335,7 +335,16 @@
       "sessionDescription": "Ljudet skickas till samma molnbaserade transkriberingstjänst som Codex använder. Logga in i Codex-appen om det visas som frånkopplat här.",
       "checking": "Kontrollerar sessionen…",
       "ready": "Ansluten",
-      "missing": "Inte inloggad"
+      "missing": "Inte inloggad",
+      "providerTitle": "Transkriberingstjänst",
+      "providerDescription": "Välj molntjänst för nya dikteringar.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini använder den lokala Antigravity-sessionen på denna Mac. Experimentell; Antigravity-uppdateringar kan kräva en Murmur-uppdatering.",
+      "notInstalled": "Antigravity är inte installerat",
+      "installAntigravity": "Installera",
+      "openAntigravity": "Öppna Antigravity",
+      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter."
     }
   },
   "footer": {

@@ -335,7 +335,16 @@
       "sessionDescription": "Аудіо надсилається до тієї самої хмарної служби транскрибування, яку використовує Codex. Увійдіть у застосунок Codex, якщо тут показано, що з’єднання відсутнє.",
       "checking": "Перевірка сеансу…",
       "ready": "Підключено",
-      "missing": "Не виконано вхід"
+      "missing": "Не виконано вхід",
+      "providerTitle": "Сервіс транскрибування",
+      "providerDescription": "Виберіть хмарний сервіс для нових диктувань.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini використовує локальний сеанс Antigravity на цьому Mac. Експериментальна функція; оновлення Antigravity можуть вимагати оновлення Murmur.",
+      "notInstalled": "Antigravity не встановлено",
+      "installAntigravity": "Встановити",
+      "openAntigravity": "Відкрити Antigravity",
+      "onboardingDescription": "Перед продовженням увійдіть у Codex або Antigravity."
     }
   },
   "footer": {

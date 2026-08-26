@@ -335,7 +335,16 @@
       "sessionDescription": "השמע נשלח לאותו שירות תמלול בענן שבו Codex משתמש. יש להתחבר לאפליקציית Codex אם כאן מוצג שהחיבור נותק.",
       "checking": "בודק את ההתחברות…",
       "ready": "מחובר",
-      "missing": "לא מחובר"
+      "missing": "לא מחובר",
+      "providerTitle": "שירות תמלול",
+      "providerDescription": "בחרו את שירות הענן להכתבות חדשות.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini משתמש בהפעלה המקומית של Antigravity ב-Mac הזה. תכונה ניסיונית; עדכוני Antigravity עשויים לדרוש עדכון של Murmur.",
+      "notInstalled": "Antigravity אינו מותקן",
+      "installAntigravity": "התקנה",
+      "openAntigravity": "פתיחת Antigravity",
+      "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים."
     }
   },
   "footer": {

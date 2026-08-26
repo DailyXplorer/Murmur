@@ -335,7 +335,16 @@
       "sessionDescription": "音频会发送到 Codex 使用的同一云端转录服务。如果此处显示未连接，请登录 Codex 应用。",
       "checking": "正在检查会话…",
       "ready": "已连接",
-      "missing": "未登录"
+      "missing": "未登录",
+      "providerTitle": "转录服务",
+      "providerDescription": "选择新语音输入使用的云服务。",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini 使用这台 Mac 上的本地 Antigravity 会话。此功能仍处于实验阶段；Antigravity 更新后可能需要更新 Murmur。",
+      "notInstalled": "未安装 Antigravity",
+      "installAntigravity": "安装",
+      "openAntigravity": "打开 Antigravity",
+      "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。"
     }
   },
   "footer": {

@@ -335,7 +335,16 @@
       "sessionDescription": "Звукът се изпраща към същата облачна услуга за транскрипция, която използва Codex. Влезте в приложението Codex, ако тук се показва, че не сте свързани.",
       "checking": "Проверка на сесията…",
       "ready": "Свързано",
-      "missing": "Не сте влезли в профила си"
+      "missing": "Не сте влезли в профила си",
+      "providerTitle": "Услуга за транскрипция",
+      "providerDescription": "Изберете облачната услуга за новите диктовки.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini използва локалната сесия на Antigravity на този Mac. Експериментално; актуализациите на Antigravity може да изискват актуализация на Murmur.",
+      "notInstalled": "Antigravity не е инсталиран",
+      "installAntigravity": "Инсталиране",
+      "openAntigravity": "Отвори Antigravity",
+      "onboardingDescription": "Влезте в Codex или Antigravity, преди да продължите."
     }
   },
   "footer": {

@@ -335,7 +335,16 @@
       "sessionDescription": "音声は、Codex が使用するものと同じクラウド文字起こしサービスに送信されます。ここで接続されていないと表示される場合は、Codex アプリにサインインしてください。",
       "checking": "セッションを確認中…",
       "ready": "接続済み",
-      "missing": "サインインしていません"
+      "missing": "サインインしていません",
+      "providerTitle": "文字起こしサービス",
+      "providerDescription": "新しい音声入力に使うクラウドサービスを選択します。",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini はこの Mac のローカル Antigravity セッションを使います。試験的機能のため、Antigravity の更新後に Murmur の更新が必要になる場合があります。",
+      "notInstalled": "Antigravity がインストールされていません",
+      "installAntigravity": "インストール",
+      "openAntigravity": "Antigravity を開く",
+      "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。"
     }
   },
   "footer": {

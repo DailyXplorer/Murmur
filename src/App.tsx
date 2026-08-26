@@ -197,10 +197,15 @@ function App() {
 
   const handleAccessibilityComplete = async () => {
     try {
-      const auth = await commands.getCodexAuthStatus();
-      if (!auth.signed_in) {
+      const [codex, gemini] = await Promise.all([
+        commands.getCodexAuthStatus(),
+        commands.getGeminiStatus(),
+      ]);
+      const hasUsableGeminiSession =
+        gemini.available_on_platform && gemini.installed && gemini.signed_in;
+      if (!codex.signed_in && !hasUsableGeminiSession) {
         toast.error(t("settings.transcription.missing"), {
-          description: t("settings.transcription.sessionDescription"),
+          description: t("settings.transcription.onboardingDescription"),
         });
         return;
       }

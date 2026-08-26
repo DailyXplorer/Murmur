@@ -214,6 +214,14 @@ pub enum TypingTool {
     Xdotool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TranscriptionProvider {
+    #[default]
+    Codex,
+    Gemini,
+}
+
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
 /// its `get_default_settings()` value when missing from a stored settings
@@ -261,6 +269,8 @@ pub struct AppSettings {
     pub selected_output_device: Option<String>,
     #[serde(default = "default_selected_language")]
     pub selected_language: String,
+    #[serde(default)]
+    pub transcription_provider: TranscriptionProvider,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -481,6 +491,7 @@ pub fn get_default_settings() -> AppSettings {
         clamshell_microphone: None,
         selected_output_device: None,
         selected_language: "auto".to_string(),
+        transcription_provider: TranscriptionProvider::default(),
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),
@@ -641,6 +652,10 @@ mod tests {
         assert!(!settings.audio_feedback);
         assert!(settings.filler_word_removal_enabled);
         assert_eq!(settings.accent_color, AccentColor::Pink);
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Codex
+        );
         // Bindings default to empty; the load path merges the real defaults in.
         assert!(settings.bindings.is_empty());
     }
@@ -695,6 +710,19 @@ mod tests {
         assert!(salvaged.onboarding_completed);
         assert_eq!(salvaged.bindings["transcribe"].current_binding, "f13");
         assert_eq!(salvaged.sound_theme, default_sound_theme());
+    }
+
+    #[test]
+    fn transcription_provider_round_trips_and_defaults_to_codex() {
+        assert_eq!(
+            serde_json::to_value(TranscriptionProvider::Gemini).unwrap(),
+            "gemini"
+        );
+        let settings: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Codex
+        );
     }
 
     #[test]

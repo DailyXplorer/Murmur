@@ -335,7 +335,16 @@
       "sessionDescription": "Audio wird an dieselbe Cloud-Transkription gesendet, die Codex verwendet. Melde dich in der Codex-App an, wenn hier „Nicht verbunden“ angezeigt wird.",
       "checking": "Sitzung wird überprüft…",
       "ready": "Verbunden",
-      "missing": "Nicht angemeldet"
+      "missing": "Nicht angemeldet",
+      "providerTitle": "Transkriptionsdienst",
+      "providerDescription": "Wähle den Cloud-Dienst für neue Diktate.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini verwendet die lokale Antigravity-Sitzung auf diesem Mac. Experimentell; nach Antigravity-Updates kann ein Murmur-Update nötig sein.",
+      "notInstalled": "Antigravity ist nicht installiert",
+      "installAntigravity": "Installieren",
+      "openAntigravity": "Antigravity öffnen",
+      "onboardingDescription": "Melde dich bei Codex oder Antigravity an, bevor du fortfährst."
     }
   },
   "footer": {

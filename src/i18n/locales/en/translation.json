@@ -335,7 +335,16 @@
       "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
       "checking": "Checking session…",
       "ready": "Connected",
-      "missing": "Not signed in"
+      "missing": "Not signed in",
+      "providerTitle": "Transcription service",
+      "providerDescription": "Choose the cloud service used for new dictations.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini uses the local Antigravity session on this Mac. Experimental; Antigravity updates may require a Murmur update.",
+      "notInstalled": "Antigravity not installed",
+      "installAntigravity": "Install",
+      "openAntigravity": "Open Antigravity",
+      "onboardingDescription": "Sign in to Codex or Antigravity before continuing."
     }
   },
   "footer": {
