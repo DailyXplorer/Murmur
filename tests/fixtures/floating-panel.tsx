@@ -16,6 +16,7 @@ const options = Array.from({ length: optionCount }, (_, index) => ({
 
 const SearchPanelFixture: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [lastInputKey, setLastInputKey] = useState("");
   const [searchValue, setSearchValue] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const handleDismiss = useCallback(() => setIsOpen(false), []);
@@ -25,6 +26,7 @@ const SearchPanelFixture: React.FC = () => {
       <button ref={triggerRef} type="button" onClick={() => setIsOpen(true)}>
         Open searchable panel
       </button>
+      <output>Last input key: {lastInputKey}</output>
       <FloatingPanel
         open={isOpen}
         anchorRef={triggerRef}
@@ -35,10 +37,45 @@ const SearchPanelFixture: React.FC = () => {
           autoFocus
           value={searchValue}
           onChange={(event) => setSearchValue(event.target.value)}
+          onKeyDown={(event) => setLastInputKey(event.key)}
         />
         <button type="button" role="option">
           Search result
         </button>
+      </FloatingPanel>
+    </div>
+  );
+};
+
+const MultiplePanelsFixture: React.FC = () => {
+  const [isFirstOpen, setIsFirstOpen] = useState(true);
+  const [isSecondOpen, setIsSecondOpen] = useState(true);
+  const firstTriggerRef = useRef<HTMLButtonElement>(null);
+  const secondTriggerRef = useRef<HTMLButtonElement>(null);
+  const dismissFirst = useCallback(() => setIsFirstOpen(false), []);
+  const dismissSecond = useCallback(() => setIsSecondOpen(false), []);
+
+  return (
+    <div className="flex h-screen items-center justify-center gap-4 bg-background text-text">
+      <button ref={firstTriggerRef} type="button">
+        First trigger
+      </button>
+      <button ref={secondTriggerRef} type="button">
+        Second trigger
+      </button>
+      <FloatingPanel
+        open={isFirstOpen}
+        anchorRef={firstTriggerRef}
+        onDismiss={dismissFirst}
+      >
+        First panel
+      </FloatingPanel>
+      <FloatingPanel
+        open={isSecondOpen}
+        anchorRef={secondTriggerRef}
+        onDismiss={dismissSecond}
+      >
+        Second panel
       </FloatingPanel>
     </div>
   );
@@ -71,10 +108,14 @@ const FloatingPanelFixture: React.FC = () => {
   );
 };
 
+const fixture = searchParams.has("multiple") ? (
+  <MultiplePanelsFixture />
+) : searchParams.has("search") ? (
+  <SearchPanelFixture />
+) : (
+  <FloatingPanelFixture />
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  searchParams.has("search") ? (
-    <SearchPanelFixture />
-  ) : (
-    <FloatingPanelFixture />
-  ),
+  fixture,
 );

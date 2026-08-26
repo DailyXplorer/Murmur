@@ -150,9 +150,18 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
           '[role="option"]:not([disabled])',
         ) ?? [],
       );
+    const isTopmostPanel = () => {
+      const floatingPanels = document.querySelectorAll<HTMLElement>(
+        "[data-floating-panel-root]",
+      );
+      return (
+        floatingPanels.item(floatingPanels.length - 1) === panelRef.current
+      );
+    };
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
+        isTopmostPanel() &&
         !anchorRef.current?.contains(target) &&
         !panelRef.current?.contains(target)
       ) {
@@ -166,6 +175,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         shouldRestoreFocusRef.current = true;
       } else if (!anchorRef.current?.contains(target)) {
         shouldRestoreFocusRef.current = false;
+        if (isTopmostPanel()) onDismiss();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -204,9 +214,12 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         return;
       }
 
-      if (event.key === "Escape") {
+      if (
+        event.key === "Escape" &&
+        !event.defaultPrevented &&
+        isTopmostPanel()
+      ) {
         event.preventDefault();
-        event.stopPropagation();
         shouldRestoreFocusRef.current = false;
         onDismiss();
         anchorRef.current?.focus();
@@ -219,12 +232,12 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
     document.addEventListener("mousedown", handleMouseDown);
     document.addEventListener("focusin", handleFocusIn);
-    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       if (focusFrame !== null) cancelAnimationFrame(focusFrame);
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("focusin", handleFocusIn);
-      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
       const shouldRestoreFocus = shouldRestoreFocusRef.current;
       shouldRestoreFocusRef.current = false;
       if (shouldRestoreFocus) {
@@ -243,6 +256,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   return createPortal(
     <div
       ref={panelRef}
+      data-floating-panel-root
       data-placement={position?.placement}
       style={{
         position: "fixed",

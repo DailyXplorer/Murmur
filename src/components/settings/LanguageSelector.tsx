@@ -54,6 +54,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const languageListRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const isLanguageUpdating = isUpdating("selected_language");
   const isLanguageMenuOpen = isOpen && !isLanguageUpdating;
@@ -123,9 +124,16 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     if (event.key === "Enter" && filteredLanguages.length > 0) {
       // Select first filtered language on Enter
       handleLanguageSelect(filteredLanguages[0].value);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      languageListRef.current
+        ?.querySelector<HTMLElement>('[role="option"]:not([disabled])')
+        ?.focus();
     } else if (event.key === "Escape") {
-      setIsOpen(false);
-      setSearchQuery("");
+      event.preventDefault();
+      event.stopPropagation();
+      handleDismiss();
+      dropdownRef.current?.focus();
     }
   };
 
@@ -181,6 +189,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             </div>
 
             <div
+              ref={languageListRef}
               id={menuId}
               role="listbox"
               className="min-h-0 flex-1 overflow-y-auto"

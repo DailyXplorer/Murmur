@@ -155,4 +155,43 @@ test.describe("floating settings panels", () => {
     await searchInput.press("ArrowDown");
     await expect(searchInput).toBeFocused();
   });
+
+  test("lets panel content handle Escape before dismissing", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?search=1");
+    await page.getByRole("button", { name: "Open searchable panel" }).click();
+
+    const searchInput = page.getByRole("textbox", { name: "Search options" });
+    await searchInput.press("Escape");
+    await expect(page.getByText("Last input key: Escape")).toBeVisible();
+    await expect(page.locator("[data-floating-panel-root]")).toHaveCount(0);
+  });
+
+  test("dismisses only the topmost panel with Escape", async ({ page }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?multiple=1");
+    await expect(page.getByText("First panel", { exact: true })).toBeVisible();
+    await expect(page.getByText("Second panel", { exact: true })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Second panel", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("First panel", { exact: true })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("First panel", { exact: true })).toHaveCount(0);
+  });
+
+  test("dismisses when keyboard focus leaves the panel", async ({ page }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?options=3");
+    await page.getByRole("button", { name: "Select an option..." }).click();
+    await expect(
+      page.getByRole("option", { name: "Option 1", exact: true }),
+    ).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByTestId("outside-control")).toBeFocused();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
 });
