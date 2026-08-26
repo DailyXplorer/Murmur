@@ -56,6 +56,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   focusFirstOptionOnOpen = false,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
+  const shouldRestoreFocusRef = useRef(false);
+  const restoreFocusFrameRef = useRef<number | null>(null);
   const [position, setPosition] = useState<FloatingPanelPosition | null>(null);
 
   const updatePosition = useCallback(() => {
@@ -70,6 +72,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       anchorRect.right <= viewportPadding ||
       anchorRect.left >= window.innerWidth - viewportPadding;
     if (anchorIsOutsideViewport) {
+      shouldRestoreFocusRef.current = false;
       onDismiss();
       return;
     }
@@ -134,6 +137,13 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   useEffect(() => {
     if (!open) return;
 
+    if (restoreFocusFrameRef.current !== null) {
+      cancelAnimationFrame(restoreFocusFrameRef.current);
+      restoreFocusFrameRef.current = null;
+    }
+    shouldRestoreFocusRef.current =
+      panelRef.current?.contains(document.activeElement) ?? false;
+
     const focusableOptions = () =>
       Array.from(
         panelRef.current?.querySelectorAll<HTMLElement>(
@@ -146,7 +156,16 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         !anchorRef.current?.contains(target) &&
         !panelRef.current?.contains(target)
       ) {
+        shouldRestoreFocusRef.current = false;
         onDismiss();
+      }
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target as Node;
+      if (panelRef.current?.contains(target)) {
+        shouldRestoreFocusRef.current = true;
+      } else if (!anchorRef.current?.contains(target)) {
+        shouldRestoreFocusRef.current = false;
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -183,6 +202,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        shouldRestoreFocusRef.current = false;
         onDismiss();
         anchorRef.current?.focus();
       }
@@ -193,11 +213,23 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       : null;
 
     document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       if (focusFrame !== null) cancelAnimationFrame(focusFrame);
       document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown, true);
+      const shouldRestoreFocus = shouldRestoreFocusRef.current;
+      shouldRestoreFocusRef.current = false;
+      if (shouldRestoreFocus) {
+        restoreFocusFrameRef.current = requestAnimationFrame(() => {
+          restoreFocusFrameRef.current = null;
+          if (document.activeElement === document.body) {
+            anchorRef.current?.focus();
+          }
+        });
+      }
     };
   }, [anchorRef, focusFirstOptionOnOpen, onDismiss, open]);
 

@@ -32,7 +32,11 @@ const FloatingPanelFixture: React.FC = () => {
       <footer
         data-testid="footer"
         className="relative z-[1050] h-24 border-t border-mid-gray/20 bg-background"
-      />
+      >
+        <button data-testid="outside-control" type="button">
+          Outside control
+        </button>
+      </footer>
     </div>
   );
 };

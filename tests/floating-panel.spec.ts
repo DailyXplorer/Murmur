@@ -76,9 +76,35 @@ test.describe("floating settings panels", () => {
     ]);
     expect(panelBox).not.toBeNull();
     expect(footerBox).not.toBeNull();
-    expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0)).toBeGreaterThan(
-      footerBox?.y ?? 400,
+    if (!panelBox || !footerBox) throw new Error("Expected visible elements");
+
+    const overlapLeft = Math.max(panelBox.x, footerBox.x);
+    const overlapRight = Math.min(
+      panelBox.x + panelBox.width,
+      footerBox.x + footerBox.width,
     );
+    const overlapTop = Math.max(panelBox.y, footerBox.y);
+    const overlapBottom = Math.min(
+      panelBox.y + panelBox.height,
+      footerBox.y + footerBox.height,
+    );
+    expect(overlapRight).toBeGreaterThan(overlapLeft);
+    expect(overlapBottom).toBeGreaterThan(overlapTop);
+
+    const panelPaintsOnTop = await panel.evaluate(
+      (element, point) => {
+        const paintedElement = document.elementFromPoint(point.x, point.y);
+        return (
+          paintedElement !== null &&
+          (paintedElement === element || element.contains(paintedElement))
+        );
+      },
+      {
+        x: (overlapLeft + overlapRight) / 2,
+        y: (overlapTop + overlapBottom) / 2,
+      },
+    );
+    expect(panelPaintsOnTop).toBe(true);
 
     await page.getByRole("option", { name: "Option 2", exact: true }).click();
     await expect(page.getByRole("button", { name: "Option 2" })).toBeVisible();
@@ -91,6 +117,7 @@ test.describe("floating settings panels", () => {
     await trigger.click();
     await page.getByRole("option", { name: "Option 3", exact: true }).click();
     await expect(page.getByRole("button", { name: "Option 3" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Option 3" })).toBeFocused();
     await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Option 3" }).click();
@@ -99,7 +126,9 @@ test.describe("floating settings panels", () => {
     await expect(page.getByRole("button", { name: "Option 3" })).toBeFocused();
 
     await page.getByRole("button", { name: "Option 3" }).click();
-    await page.getByTestId("footer").click();
+    const outsideControl = page.getByTestId("outside-control");
+    await outsideControl.click();
     await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(outsideControl).toBeFocused();
   });
 });

@@ -32,6 +32,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const isDropdownOpen = isOpen && !disabled;
 
   useEffect(() => {
     if (disabled) setIsOpen(false);
@@ -67,17 +68,17 @@ export const Dropdown: React.FC<DropdownProps> = ({
         onClick={handleToggle}
         disabled={disabled}
         aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
+        aria-expanded={isDropdownOpen}
+        aria-controls={isDropdownOpen ? menuId : undefined}
       >
         <span className="truncate">{selectedOption?.label || placeholder}</span>
         <CaretDownIcon
           size={14}
-          className={`transition-transform duration-200 ${isOpen ? "transform rotate-180" : ""}`}
+          className={`transition-transform duration-200 ${isDropdownOpen ? "transform rotate-180" : ""}`}
         />
       </button>
       <FloatingPanel
-        open={isOpen && !disabled}
+        open={isDropdownOpen}
         anchorRef={dropdownRef}
         onDismiss={handleDismiss}
         focusFirstOptionOnOpen={true}

@@ -55,6 +55,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const dropdownRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const menuId = useId();
+  const isLanguageUpdating = isUpdating("selected_language");
+  const isLanguageMenuOpen = isOpen && !isLanguageUpdating;
 
   // The persisted *intent* (auto | code). What's actually used/shown is the
   // effective value resolved against the transcription service capabilities.
@@ -66,10 +68,10 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
+    if (isLanguageMenuOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [isLanguageMenuOpen]);
 
   const availableLanguages = useMemo(() => {
     if (!supportedLanguages || supportedLanguages.length === 0)
@@ -96,6 +98,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     await updateSetting("selected_language", languageCode);
     setIsOpen(false);
     setSearchQuery("");
+    requestAnimationFrame(() => dropdownRef.current?.focus());
   };
 
   const handleReset = async () => {
@@ -103,7 +106,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   };
 
   const handleToggle = () => {
-    if (isUpdating("selected_language")) return;
+    if (isLanguageUpdating) return;
     setIsOpen(!isOpen);
   };
 
@@ -139,27 +142,27 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             ref={dropdownRef}
             type="button"
             className={`px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded min-w-[200px] text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
-              isUpdating("selected_language")
+              isLanguageUpdating
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
             }`}
             onClick={handleToggle}
-            disabled={isUpdating("selected_language")}
+            disabled={isLanguageUpdating}
             aria-haspopup="listbox"
-            aria-expanded={isOpen}
-            aria-controls={isOpen ? menuId : undefined}
+            aria-expanded={isLanguageMenuOpen}
+            aria-controls={isLanguageMenuOpen ? menuId : undefined}
           >
             <span className="truncate">{selectedLanguageName}</span>
             <CaretDownIcon
               size={14}
               className={`ms-2 transition-transform duration-200 ${
-                isOpen ? "transform rotate-180" : ""
+                isLanguageMenuOpen ? "transform rotate-180" : ""
               }`}
             />
           </button>
 
           <FloatingPanel
-            open={isOpen && !isUpdating("selected_language")}
+            open={isLanguageMenuOpen}
             anchorRef={dropdownRef}
             onDismiss={handleDismiss}
             className="flex flex-col overflow-hidden rounded border border-mid-gray/80 bg-background shadow-lg"
@@ -209,12 +212,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             </div>
           </FloatingPanel>
         </div>
-        <ResetButton
-          onClick={handleReset}
-          disabled={isUpdating("selected_language")}
-        />
+        <ResetButton onClick={handleReset} disabled={isLanguageUpdating} />
       </div>
-      {isUpdating("selected_language") && (
+      {isLanguageUpdating && (
         <div className="absolute inset-0 bg-mid-gray/10 rounded flex items-center justify-center">
           <div className="w-4 h-4 border-2 border-logo-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
