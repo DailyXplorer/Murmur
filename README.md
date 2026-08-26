@@ -85,6 +85,14 @@ The Codex authentication cache is sensitive. Murmur reads only the access token
 and account identifier needed for a request, does not log them, and does not
 persist a copy.
 
+## Origin
+
+Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
+Pais. It keeps parts of Handy's cross-platform Tauri foundation, but most of
+Handy's original transcription engine and local-model stack have been removed.
+Murmur now transcribes through the cloud service used by Codex, using the
+ChatGPT session already present on the computer.
+
 ## License
 
 MIT. See [LICENSE](LICENSE). The original copyright notice is preserved as
