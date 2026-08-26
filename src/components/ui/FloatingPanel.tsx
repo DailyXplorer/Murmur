@@ -169,8 +169,13 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      const eventTarget = event.target;
+      const isEnabledOption =
+        eventTarget instanceof HTMLElement &&
+        panelRef.current?.contains(eventTarget) &&
+        eventTarget.matches('[role="option"]:not([disabled])');
       if (
-        panelRef.current?.contains(event.target as Node) &&
+        isEnabledOption &&
         ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
       ) {
         const options = focusableOptions();

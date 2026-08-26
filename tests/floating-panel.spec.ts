@@ -131,4 +131,28 @@ test.describe("floating settings panels", () => {
     await expect(page.getByRole("listbox")).toHaveCount(0);
     await expect(outsideControl).toBeFocused();
   });
+
+  test("preserves editing keys in embedded search inputs", async ({ page }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?search=1");
+    await page.getByRole("button", { name: "Open searchable panel" }).click();
+
+    const searchInput = page.getByRole("textbox", { name: "Search options" });
+    await searchInput.fill("search text");
+    await searchInput.press("Home");
+    await expect(searchInput).toBeFocused();
+    await expect
+      .poll(() => searchInput.evaluate((input) => input.selectionStart))
+      .toBe(0);
+
+    await searchInput.press("End");
+    await expect(searchInput).toBeFocused();
+    await expect
+      .poll(() => searchInput.evaluate((input) => input.selectionStart))
+      .toBe("search text".length);
+
+    await searchInput.press("ArrowUp");
+    await expect(searchInput).toBeFocused();
+    await searchInput.press("ArrowDown");
+    await expect(searchInput).toBeFocused();
+  });
 });
