@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Lyden sendes til den samme skybaserede transskriptionstjeneste, som Codex bruger. Log ind i Codex-appen, hvis dette vises som afbrudt.",
       "checking": "Kontrollerer session…",
+      "statusUnavailable": "Status er ikke tilgængelig",
       "ready": "Forbundet",
       "missing": "Ikke logget ind",
       "providerTitle": "Transskriptionstjeneste",

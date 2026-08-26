@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "音訊會傳送至 Codex 使用的同一個雲端轉錄服務。如果此處顯示未連線，請登入 Codex 應用程式。",
       "checking": "正在檢查工作階段…",
+      "statusUnavailable": "無法取得狀態",
       "ready": "已連線",
       "missing": "尚未登入",
       "providerTitle": "轉錄服務",

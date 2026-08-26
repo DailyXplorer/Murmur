@@ -252,11 +252,20 @@ pub fn change_transcription_provider_setting(
         return Err("Gemini transcription is currently available on macOS only.".to_string());
 
         #[cfg(target_os = "macos")]
-        if !crate::gemini_transcribe::status().installed {
-            return Err(
-                "Antigravity is not installed. Install it before selecting Gemini transcription."
-                    .to_string(),
-            );
+        {
+            let status = crate::gemini_transcribe::status();
+            if !status.installed {
+                return Err(
+                    "Antigravity is not installed. Install it before selecting Gemini transcription."
+                        .to_string(),
+                );
+            }
+            if !status.signed_in {
+                return Err(
+                    "No Antigravity session was found. Open Antigravity, sign in, and retry."
+                        .to_string(),
+                );
+            }
         }
     }
 

@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "השמע נשלח לאותו שירות תמלול בענן שבו Codex משתמש. יש להתחבר לאפליקציית Codex אם כאן מוצג שהחיבור נותק.",
       "checking": "בודק את ההתחברות…",
+      "statusUnavailable": "הסטטוס אינו זמין",
       "ready": "מחובר",
       "missing": "לא מחובר",
       "providerTitle": "שירות תמלול",

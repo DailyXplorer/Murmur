@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Ses, Codex'in kullandığı aynı bulut transkripsiyon hizmetine gönderilir. Burada bağlantı kesildi olarak görünüyorsa Codex uygulamasında oturum açın.",
       "checking": "Oturum kontrol ediliyor…",
+      "statusUnavailable": "Durum kullanılamıyor",
       "ready": "Bağlı",
       "missing": "Oturum açılmadı",
       "providerTitle": "Transkripsiyon hizmeti",

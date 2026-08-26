@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use prost::Message;
 use std::collections::BTreeSet;
-use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, Weak};
@@ -192,7 +191,6 @@ struct OwnedServer {
 
 impl OwnedServer {
     fn start(binary: &Path, runtime: &tokio::runtime::Runtime) -> Result<Self> {
-        let port = reserve_loopback_port()?;
         let csrf = generate_csrf_token()?;
         let version = antigravity_version(binary);
         let mut command = Command::new(binary);
@@ -209,9 +207,9 @@ impl OwnedServer {
                 "--cloud_code_endpoint=https://daily-cloudcode-pa.googleapis.com",
                 "--use_ls_chrome_devtools_mcp=false",
                 "--https_server_port=0",
+                "--http_server_port=0",
             ])
             .arg(format!("--override_ide_version={version}"))
-            .arg(format!("--http_server_port={port}"))
             .arg(format!("--csrf_token={csrf}"))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -220,7 +218,7 @@ impl OwnedServer {
         let child = command
             .spawn()
             .with_context(|| format!("failed to start {}", binary.display()))?;
-        let connection = ConnectionInfo { port, csrf };
+        let connection = ConnectionInfo { port: 0, csrf };
         let mut owned = Self {
             child,
             connection,
@@ -234,9 +232,16 @@ impl OwnedServer {
                     "Antigravity transcription service exited during startup. Open Antigravity, sign in again, and retry."
                 ));
             }
-            if runtime.block_on(probe_connection(&owned.connection)) {
-                log::debug!("Started a headless Antigravity transcription service");
-                return Ok(owned);
+            for port in owned_loopback_ports(owned.child.id())? {
+                let candidate = ConnectionInfo {
+                    port,
+                    csrf: owned.connection.csrf.clone(),
+                };
+                if runtime.block_on(probe_connection(&candidate)) {
+                    owned.connection = candidate;
+                    log::debug!("Started a headless Antigravity transcription service");
+                    return Ok(owned);
+                }
             }
             thread::sleep(Duration::from_millis(150));
         }
@@ -344,17 +349,6 @@ fn user_home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
 
-fn reserve_loopback_port() -> Result<u16> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .context("failed to reserve a loopback port for Gemini transcription")?;
-    let port = listener
-        .local_addr()
-        .context("failed to read reserved Gemini transcription port")?
-        .port();
-    drop(listener);
-    Ok(port)
-}
-
 fn generate_csrf_token() -> Result<String> {
     let output = Command::new("/usr/bin/uuidgen")
         .output()
@@ -448,6 +442,23 @@ fn has_flag_value(args: &[&str], flag: &str, expected: &str) -> bool {
 }
 
 fn listening_ports(pid: u32) -> Result<Vec<u16>> {
+    Ok(listening_tcp_endpoints(pid)?
+        .into_iter()
+        .filter_map(|(host, port)| is_loopback_host(&host).then_some(port))
+        .collect())
+}
+
+fn owned_loopback_ports(pid: u32) -> Result<Vec<u16>> {
+    let endpoints = listening_tcp_endpoints(pid)?;
+    if endpoints.iter().any(|(host, _)| !is_loopback_host(host)) {
+        return Err(anyhow!(
+            "Antigravity transcription service attempted to listen outside loopback"
+        ));
+    }
+    Ok(endpoints.into_iter().map(|(_, port)| port).collect())
+}
+
+fn listening_tcp_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     let output = Command::new("/usr/sbin/lsof")
         .args([
             "-nP",
@@ -465,21 +476,20 @@ fn listening_ports(pid: u32) -> Result<Vec<u16>> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut ports = BTreeSet::new();
+    let mut endpoints = BTreeSet::new();
     for line in stdout.lines().filter(|line| line.starts_with('n')) {
         let address = &line[1..];
-        if !(address.starts_with("127.0.0.1:") || address.starts_with("localhost:")) {
-            continue;
-        }
-        if let Some(port) = address
-            .rsplit(':')
-            .next()
-            .and_then(|value| value.parse::<u16>().ok())
-        {
-            ports.insert(port);
+        if let Some((host, port)) = address.rsplit_once(':') {
+            if let Ok(port) = port.parse::<u16>() {
+                endpoints.insert((host.to_string(), port));
+            }
         }
     }
-    Ok(ports.into_iter().collect())
+    Ok(endpoints.into_iter().collect())
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
 }
 
 async fn connect(connection: &ConnectionInfo) -> Result<Channel> {
@@ -846,6 +856,16 @@ mod tests {
             false
         ));
         assert!(should_stop_owned(last_used, last_used, true));
+    }
+
+    #[test]
+    fn accepts_only_loopback_listener_hosts() {
+        assert!(is_loopback_host("127.0.0.1"));
+        assert!(is_loopback_host("localhost"));
+        assert!(is_loopback_host("[::1]"));
+        assert!(!is_loopback_host("*"));
+        assert!(!is_loopback_host("0.0.0.0"));
+        assert!(!is_loopback_host("192.168.1.10"));
     }
 
     #[test]

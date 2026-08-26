@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "El audio se envía al mismo servicio de transcripción en la nube que usa Codex. Inicia sesión en la aplicación Codex si aquí aparece como desconectado.",
       "checking": "Comprobando la sesión…",
+      "statusUnavailable": "Estado no disponible",
       "ready": "Conectado",
       "missing": "Sin iniciar sesión",
       "providerTitle": "Servicio de transcripción",

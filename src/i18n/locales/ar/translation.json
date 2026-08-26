@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "يُرسل الصوت إلى خدمة النسخ السحابي نفسها التي يستخدمها Codex. سجّل الدخول إلى تطبيق Codex إذا ظهر هنا أنه غير متصل.",
       "checking": "جارٍ التحقق من الجلسة…",
+      "statusUnavailable": "الحالة غير متاحة",
       "ready": "متصل",
       "missing": "غير مسجّل الدخول",
       "providerTitle": "خدمة النسخ",

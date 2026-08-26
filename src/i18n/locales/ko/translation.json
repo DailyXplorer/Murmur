@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "오디오는 Codex가 사용하는 것과 동일한 클라우드 전사 서비스로 전송됩니다. 여기에 연결되지 않음으로 표시되면 Codex 앱에 로그인하세요.",
       "checking": "세션 확인 중…",
+      "statusUnavailable": "상태를 확인할 수 없음",
       "ready": "연결됨",
       "missing": "로그인하지 않음",
       "providerTitle": "받아쓰기 서비스",

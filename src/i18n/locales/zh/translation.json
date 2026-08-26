@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "音频会发送到 Codex 使用的同一云端转录服务。如果此处显示未连接，请登录 Codex 应用。",
       "checking": "正在检查会话…",
+      "statusUnavailable": "无法获取状态",
       "ready": "已连接",
       "missing": "未登录",
       "providerTitle": "转录服务",

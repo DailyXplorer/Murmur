@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "L'audio est envoyé à la même transcription cloud que Codex. Connecte-toi à l'app Codex si ça apparaît déconnecté.",
       "checking": "Vérification de la session…",
+      "statusUnavailable": "Statut indisponible",
       "ready": "Connecté",
       "missing": "Non connecté",
       "providerTitle": "Service de transcription",

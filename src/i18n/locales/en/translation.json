@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
       "checking": "Checking session…",
+      "statusUnavailable": "Status unavailable",
       "ready": "Connected",
       "missing": "Not signed in",
       "providerTitle": "Transcription service",

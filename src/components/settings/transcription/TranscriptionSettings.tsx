@@ -15,18 +15,13 @@ import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 
 const EMPTY_CODEX_STATUS: CodexAuthStatus = { signed_in: false };
-const EMPTY_GEMINI_STATUS: GeminiStatus = {
-  available_on_platform: false,
-  installed: false,
-  signed_in: false,
-};
-
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
   const isMacOS = osType() === "macos";
   const [codexStatus, setCodexStatus] = useState<CodexAuthStatus | null>(null);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null);
+  const [geminiStatusError, setGeminiStatusError] = useState(false);
 
   const refreshStatuses = useCallback(async () => {
     const [codex, gemini] = await Promise.allSettled([
@@ -36,9 +31,12 @@ export const TranscriptionSettings: React.FC = () => {
     setCodexStatus(
       codex.status === "fulfilled" ? codex.value : EMPTY_CODEX_STATUS,
     );
-    setGeminiStatus(
-      gemini.status === "fulfilled" ? gemini.value : EMPTY_GEMINI_STATUS,
-    );
+    if (gemini.status === "fulfilled") {
+      setGeminiStatus(gemini.value);
+      setGeminiStatusError(false);
+    } else {
+      setGeminiStatusError(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -55,10 +53,12 @@ export const TranscriptionSettings: React.FC = () => {
       {
         value: "gemini",
         label: t("settings.transcription.gemini"),
-        disabled: !geminiStatus?.installed,
+        disabled:
+          geminiStatusError ||
+          !(geminiStatus?.installed && geminiStatus.signed_in),
       },
     ],
-    [geminiStatus?.installed, t],
+    [geminiStatus?.installed, geminiStatus?.signed_in, geminiStatusError, t],
   );
 
   const sessionLabel = (signedIn: boolean | null | undefined) => {
@@ -114,30 +114,36 @@ export const TranscriptionSettings: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <span className="text-sm text-text/80">
-                {geminiStatus == null
-                  ? t("settings.transcription.checking")
-                  : !geminiStatus.installed
-                    ? t("settings.transcription.notInstalled")
-                    : sessionLabel(geminiStatus.signed_in)}
+                {geminiStatusError
+                  ? t("settings.transcription.statusUnavailable")
+                  : geminiStatus == null
+                    ? t("settings.transcription.checking")
+                    : !geminiStatus.installed
+                      ? t("settings.transcription.notInstalled")
+                      : sessionLabel(geminiStatus.signed_in)}
               </span>
-              {geminiStatus && !geminiStatus.installed && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void openUrl("https://antigravity.google/")}
-                >
-                  {t("settings.transcription.installAntigravity")}
-                </Button>
-              )}
-              {geminiStatus?.installed && !geminiStatus.signed_in && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void openAntigravity()}
-                >
-                  {t("settings.transcription.openAntigravity")}
-                </Button>
-              )}
+              {!geminiStatusError &&
+                geminiStatus &&
+                !geminiStatus.installed && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void openUrl("https://antigravity.google/")}
+                  >
+                    {t("settings.transcription.installAntigravity")}
+                  </Button>
+                )}
+              {!geminiStatusError &&
+                geminiStatus?.installed &&
+                !geminiStatus.signed_in && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void openAntigravity()}
+                  >
+                    {t("settings.transcription.openAntigravity")}
+                  </Button>
+                )}
             </div>
           </SettingContainer>
         )}

@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Audio wordt verzonden naar dezelfde cloudtranscriptieservice die Codex gebruikt. Meld je aan bij de Codex-app als hier 'niet verbonden' staat.",
       "checking": "Sessie controleren…",
+      "statusUnavailable": "Status niet beschikbaar",
       "ready": "Verbonden",
       "missing": "Niet aangemeld",
       "providerTitle": "Transcriptiedienst",

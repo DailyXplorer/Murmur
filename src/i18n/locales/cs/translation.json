@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Zvuk se odesílá do stejné cloudové služby pro přepis, kterou používá Codex. Pokud se zde zobrazuje odpojeno, přihlaste se do aplikace Codex.",
       "checking": "Kontrola relace…",
+      "statusUnavailable": "Stav není k dispozici",
       "ready": "Připojeno",
       "missing": "Nejste přihlášeni",
       "providerTitle": "Služba přepisu",

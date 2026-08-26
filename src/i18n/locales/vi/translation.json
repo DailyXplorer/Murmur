@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Âm thanh được gửi đến cùng dịch vụ chép lời trên đám mây mà Codex sử dụng. Hãy đăng nhập vào ứng dụng Codex nếu ở đây hiển thị là đã ngắt kết nối.",
       "checking": "Đang kiểm tra phiên…",
+      "statusUnavailable": "Không thể lấy trạng thái",
       "ready": "Đã kết nối",
       "missing": "Chưa đăng nhập",
       "providerTitle": "Dịch vụ phiên âm",

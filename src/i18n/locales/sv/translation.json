@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Ljudet skickas till samma molnbaserade transkriberingstjänst som Codex använder. Logga in i Codex-appen om det visas som frånkopplat här.",
       "checking": "Kontrollerar sessionen…",
+      "statusUnavailable": "Status ej tillgänglig",
       "ready": "Ansluten",
       "missing": "Inte inloggad",
       "providerTitle": "Transkriberingstjänst",

@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "音声は、Codex が使用するものと同じクラウド文字起こしサービスに送信されます。ここで接続されていないと表示される場合は、Codex アプリにサインインしてください。",
       "checking": "セッションを確認中…",
+      "statusUnavailable": "ステータスを取得できません",
       "ready": "接続済み",
       "missing": "サインインしていません",
       "providerTitle": "文字起こしサービス",

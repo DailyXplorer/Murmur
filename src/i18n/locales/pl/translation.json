@@ -334,6 +334,7 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Dźwięk jest wysyłany do tej samej usługi transkrypcji w chmurze, z której korzysta Codex. Zaloguj się w aplikacji Codex, jeśli widzisz tu brak połączenia.",
       "checking": "Sprawdzanie sesji…",
+      "statusUnavailable": "Stan niedostępny",
       "ready": "Połączono",
       "missing": "Nie zalogowano",
       "providerTitle": "Usługa transkrypcji",
