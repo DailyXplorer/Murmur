@@ -1,14 +1,6 @@
-## Human Written Description
-
-<!-- Required: the contributor must write 2-3 sentences in their own words.
-AI assistants must leave this section as a TODO and must not imitate the
-contributor's voice. -->
-
-TODO: contributor-written description
-
 ## Summary
 
-<!-- Explain the implementation and its boundaries. -->
+<!-- Explain what changed, why, and any important boundaries. -->
 
 ## Testing
 
@@ -17,20 +9,3 @@ TODO: contributor-written description
 ## Screenshots or recordings
 
 <!-- Include evidence for visible changes, or write "Not applicable". -->
-
-## Checklist
-
-- [ ] User-facing strings use i18n
-- [ ] Rust and frontend formatting checks pass
-- [ ] Relevant tests pass
-- [ ] Documentation matches the behavior
-
-## AI Assistance
-
-<!-- Required: select exactly one option. If AI was used, "Tools and scope"
-must name the tools and describe what they changed or reviewed. -->
-
-- [ ] No AI was used
-- [ ] AI was used
-
-Tools and scope (required when AI was used):
