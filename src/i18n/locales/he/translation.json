@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "הסרת מילות מילוי",
-        "description": "מסיר מילות היסוס נפוצות מתמלולים. השבת כדי להשאיר אותן."
+        "description": "מסיר מילות היסוס נפוצות מתמלולי Codex. Gemini מטפל במילות מילוי בעצמו."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "מחובר",
       "missing": "לא מחובר",
       "providerTitle": "שירות תמלול",
-      "providerDescription": "בחרו את שירות הענן להכתבות חדשות.",
+      "providerDescription": "בחרו את שירות התמלול להכתבות חדשות.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini משתמש בהפעלה המקומית של Antigravity ב-Mac הזה. תכונה ניסיונית; עדכוני Antigravity עשויים לדרוש עדכון של Murmur.",

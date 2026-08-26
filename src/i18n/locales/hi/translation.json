@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "फिलर शब्द हटाएं",
-        "description": "ट्रांसक्रिप्शन से आम हिचकिचाहट वाले शब्द हटाता है। उन्हें बनाए रखने के लिए इसे बंद करें।"
+        "description": "Codex ट्रांसक्रिप्शन से आम हिचकिचाहट वाले शब्द हटाता है। Gemini भराव शब्दों को स्वयं संभालता है।"
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "कनेक्टेड",
       "missing": "साइन इन नहीं है",
       "providerTitle": "ट्रांसक्रिप्शन सेवा",
-      "providerDescription": "नई डिक्टेशन के लिए क्लाउड सेवा चुनें।",
+      "providerDescription": "नई डिक्टेशन के लिए ट्रांसक्रिप्शन सेवा चुनें।",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini इस Mac की स्थानीय Antigravity session का उपयोग करता है। यह प्रायोगिक है; Antigravity अपडेट के बाद Murmur अपडेट की आवश्यकता हो सकती है।",

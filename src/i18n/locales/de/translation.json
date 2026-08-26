@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Füllwörter entfernen",
-        "description": "Entfernt häufige Verzögerungslaute aus Transkriptionen. Deaktivieren Sie diese Option, um sie beizubehalten."
+        "description": "Entfernt häufige Verzögerungslaute aus Codex-Transkriptionen. Gemini verarbeitet Füllwörter selbst."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Verbunden",
       "missing": "Nicht angemeldet",
       "providerTitle": "Transkriptionsdienst",
-      "providerDescription": "Wähle den Cloud-Dienst für neue Diktate.",
+      "providerDescription": "Wähle den Transkriptionsdienst für neue Diktate.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini verwendet die lokale Antigravity-Sitzung auf diesem Mac. Experimentell; nach Antigravity-Updates kann ein Murmur-Update nötig sein.",

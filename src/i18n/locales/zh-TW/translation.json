@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "移除語助詞",
-        "description": "從轉錄中移除常見的語助詞。關閉此選項即可保留這些詞。"
+        "description": "從 Codex 轉錄中移除常見的語助詞。Gemini 會自行處理填充詞。"
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "已連線",
       "missing": "尚未登入",
       "providerTitle": "轉錄服務",
-      "providerDescription": "選擇新語音輸入使用的雲端服務。",
+      "providerDescription": "選擇新語音輸入使用的轉錄服務。",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini 會使用這台 Mac 上的本機 Antigravity 工作階段。此功能仍在實驗階段；Antigravity 更新後可能需要更新 Murmur。",

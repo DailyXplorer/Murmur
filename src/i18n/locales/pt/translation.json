@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Remover palavras de preenchimento",
-        "description": "Remove hesitações comuns das transcrições. Desative para mantê-las."
+        "description": "Remove hesitações comuns das transcrições do Codex. O Gemini trata as palavras de preenchimento por conta própria."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Conectado",
       "missing": "Sem sessão iniciada",
       "providerTitle": "Serviço de transcrição",
-      "providerDescription": "Escolha o serviço de nuvem para novos ditados.",
+      "providerDescription": "Escolha o serviço de transcrição para novos ditados.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "O Gemini usa a sessão local do Antigravity neste Mac. Recurso experimental; atualizações do Antigravity podem exigir uma atualização do Murmur.",

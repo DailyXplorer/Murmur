@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Fjern fyldord",
-        "description": "Fjerner almindelige tøveord fra transskriptioner. Slå fra for at beholde dem."
+        "description": "Fjerner almindelige tøveord fra Codex-transskriptioner. Gemini håndterer selv fyldord."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Forbundet",
       "missing": "Ikke logget ind",
       "providerTitle": "Transskriptionstjeneste",
-      "providerDescription": "Vælg cloudtjenesten til nye dikteringer.",
+      "providerDescription": "Vælg transskriptionstjenesten til nye dikteringer.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini bruger den lokale Antigravity-session på denne Mac. Eksperimentel; Antigravity-opdateringer kan kræve en Murmur-opdatering.",

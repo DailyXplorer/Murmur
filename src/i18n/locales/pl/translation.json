@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Usuń wyrazy wypełniające",
-        "description": "Usuwa typowe słowa wyrażające wahanie z transkrypcji. Wyłącz, aby je zachować."
+        "description": "Usuwa typowe słowa wyrażające wahanie z transkrypcji Codex. Gemini sam obsługuje wypełniacze."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Połączono",
       "missing": "Nie zalogowano",
       "providerTitle": "Usługa transkrypcji",
-      "providerDescription": "Wybierz usługę chmurową dla nowych dyktowań.",
+      "providerDescription": "Wybierz usługę transkrypcji dla nowych dyktowań.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini używa lokalnej sesji Antigravity na tym Macu. Funkcja eksperymentalna; aktualizacje Antigravity mogą wymagać aktualizacji Murmur.",

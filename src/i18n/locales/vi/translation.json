@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Loại bỏ từ đệm",
-        "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời. Tắt để giữ lại các từ này."
+        "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời của Codex. Gemini tự xử lý các từ đệm."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Đã kết nối",
       "missing": "Chưa đăng nhập",
       "providerTitle": "Dịch vụ phiên âm",
-      "providerDescription": "Chọn dịch vụ đám mây cho các bản đọc mới.",
+      "providerDescription": "Chọn dịch vụ chép lời cho các bản đọc mới.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini dùng phiên Antigravity cục bộ trên máy Mac này. Đây là tính năng thử nghiệm; bản cập nhật Antigravity có thể yêu cầu cập nhật Murmur.",

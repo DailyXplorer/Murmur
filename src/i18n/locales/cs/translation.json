@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Odstranit výplňová slova",
-        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů. Vypnutím je zachováte."
+        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů Codexu. Gemini zpracovává výplňová slova sám."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Připojeno",
       "missing": "Nejste přihlášeni",
       "providerTitle": "Služba přepisu",
-      "providerDescription": "Vyberte cloudovou službu pro nové diktáty.",
+      "providerDescription": "Vyberte službu přepisu pro nové diktáty.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini používá místní relaci Antigravity na tomto Macu. Experimentální funkce; aktualizace Antigravity mohou vyžadovat aktualizaci Murmur.",

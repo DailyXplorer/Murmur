@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Dolgu Sözcüklerini Kaldır",
-        "description": "Transkripsiyonlardaki yaygın duraksama sözcüklerini kaldırır. Bunları korumak için kapatın."
+        "description": "Codex transkripsiyonlarındaki yaygın duraksama sözcüklerini kaldırır. Gemini dolgu sözcüklerini kendisi işler."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Bağlı",
       "missing": "Oturum açılmadı",
       "providerTitle": "Transkripsiyon hizmeti",
-      "providerDescription": "Yeni dikte işlemleri için bulut hizmetini seçin.",
+      "providerDescription": "Yeni dikte işlemleri için transkripsiyon hizmetini seçin.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini bu Mac'teki yerel Antigravity oturumunu kullanır. Deneyseldir; Antigravity güncellemeleri Murmur güncellemesi gerektirebilir.",

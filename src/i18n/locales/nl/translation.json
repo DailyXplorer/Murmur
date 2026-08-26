@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Opvulwoorden verwijderen",
-        "description": "Verwijdert veelvoorkomende aarzelwoorden uit transcripties. Schakel dit uit om ze te behouden."
+        "description": "Verwijdert veelvoorkomende aarzelwoorden uit Codex-transcripties. Gemini verwerkt opvulwoorden zelf."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Verbonden",
       "missing": "Niet aangemeld",
       "providerTitle": "Transcriptiedienst",
-      "providerDescription": "Kies de clouddienst voor nieuwe dicteeropnamen.",
+      "providerDescription": "Kies de transcriptieservice voor nieuwe dicteeropnamen.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini gebruikt de lokale Antigravity-sessie op deze Mac. Experimenteel; updates van Antigravity kunnen een update van Murmur vereisen.",

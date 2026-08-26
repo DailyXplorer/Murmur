@@ -43,6 +43,9 @@ export const TranscriptionSettings: React.FC = () => {
 
   useEffect(() => {
     void refreshStatuses();
+    const handleFocus = () => void refreshStatuses();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [refreshStatuses]);
 
   const provider = settings?.transcription_provider ?? "codex";

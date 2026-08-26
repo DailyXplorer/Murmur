@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Eliminar muletillas",
-        "description": "Elimina las muletillas más comunes de las transcripciones. Desactívalo para conservarlas."
+        "description": "Elimina las muletillas más comunes de las transcripciones de Codex. Gemini gestiona las muletillas por sí mismo."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Conectado",
       "missing": "Sin iniciar sesión",
       "providerTitle": "Servicio de transcripción",
-      "providerDescription": "Elige el servicio en la nube para los nuevos dictados.",
+      "providerDescription": "Elige el servicio de transcripción para los nuevos dictados.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini usa la sesión local de Antigravity en este Mac. Es experimental; las actualizaciones de Antigravity pueden requerir una actualización de Murmur.",

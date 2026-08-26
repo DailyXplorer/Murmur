@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "إزالة كلمات الحشو",
-        "description": "يزيل كلمات التردد الشائعة من النصوص. عطّل هذا الخيار للاحتفاظ بها."
+        "description": "يزيل كلمات التردد الشائعة من نصوص Codex. يتولى Gemini معالجة كلمات الحشو بنفسه."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "متصل",
       "missing": "غير مسجّل الدخول",
       "providerTitle": "خدمة النسخ",
-      "providerDescription": "اختر الخدمة السحابية المستخدمة للإملاءات الجديدة.",
+      "providerDescription": "اختر خدمة النسخ المستخدمة للإملاءات الجديدة.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "يستخدم Gemini جلسة Antigravity المحلية على هذا الـ Mac. ميزة تجريبية؛ قد تتطلب تحديثات Antigravity تحديث Murmur.",

@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Supprimer les mots de remplissage",
-        "description": "Supprime les hésitations courantes des transcriptions. Désactivez cette option pour les conserver."
+        "description": "Supprime les hésitations courantes des transcriptions Codex. Gemini gère lui-même les mots de remplissage."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Connecté",
       "missing": "Non connecté",
       "providerTitle": "Service de transcription",
-      "providerDescription": "Choisis le service cloud utilisé pour les nouvelles dictées.",
+      "providerDescription": "Choisis le service de transcription utilisé pour les nouvelles dictées.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini utilise la session Antigravity locale de ce Mac. Fonction expérimentale ; une mise à jour d’Antigravity peut nécessiter une mise à jour de Murmur.",

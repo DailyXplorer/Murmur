@@ -13,14 +13,16 @@ export const FillerWordRemoval: React.FC<FillerWordRemovalProps> = React.memo(
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const enabled = getSetting("filler_word_removal_enabled") ?? true;
+    const isGemini = getSetting("transcription_provider") === "gemini";
 
     return (
       <ToggleSwitch
-        checked={enabled}
+        checked={!isGemini && enabled}
         onChange={(nextEnabled) =>
           updateSetting("filler_word_removal_enabled", nextEnabled)
         }
         isUpdating={isUpdating("filler_word_removal_enabled")}
+        disabled={isGemini}
         label={t("settings.advanced.fillerWordRemoval.title")}
         description={t("settings.advanced.fillerWordRemoval.description")}
         descriptionMode={descriptionMode}

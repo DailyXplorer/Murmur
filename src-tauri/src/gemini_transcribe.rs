@@ -149,8 +149,9 @@ impl RuntimeState {
                 return Ok(owned.connection.clone());
             }
 
-            let mut stale = self.owned.take().expect("owned server was present");
-            stale.stop();
+            if let Some(mut stale) = self.owned.take() {
+                stale.stop();
+            }
         }
 
         let owned = OwnedServer::start(binary, runtime)?;

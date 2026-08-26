@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Rimuovi le parole riempitive",
-        "description": "Rimuove le parole di esitazione più comuni dalle trascrizioni. Disattiva per mantenerle."
+        "description": "Rimuove le parole di esitazione più comuni dalle trascrizioni Codex. Gemini gestisce autonomamente i riempitivi."
       }
     },
     "history": {
@@ -337,7 +337,7 @@
       "ready": "Connesso",
       "missing": "Non hai effettuato l'accesso",
       "providerTitle": "Servizio di trascrizione",
-      "providerDescription": "Scegli il servizio cloud per le nuove dettature.",
+      "providerDescription": "Scegli il servizio di trascrizione per le nuove dettature.",
       "codex": "Codex",
       "gemini": "Gemini",
       "geminiDescription": "Gemini usa la sessione locale di Antigravity su questo Mac. Funzione sperimentale; gli aggiornamenti di Antigravity possono richiedere un aggiornamento di Murmur.",
