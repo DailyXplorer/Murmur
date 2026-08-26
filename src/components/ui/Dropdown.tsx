@@ -31,6 +31,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLButtonElement>(null);
+  const triggerId = useId();
   const menuId = useId();
   const isDropdownOpen = isOpen && !disabled;
 
@@ -59,6 +60,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     <div className={`relative ${className}`}>
       <button
         ref={dropdownRef}
+        id={triggerId}
         type="button"
         className={`px-2 py-[5px] text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded-md min-w-[200px] w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-[background-color,border-color] duration-150 ${
           disabled
@@ -84,7 +86,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         focusFirstOptionOnOpen={true}
         className="overflow-y-auto rounded-md border border-mid-gray/80 bg-background shadow-lg"
       >
-        <div id={menuId} role="listbox">
+        <div id={menuId} role="listbox" aria-labelledby={triggerId}>
           {options.length === 0 ? (
             <div className="px-2 py-1 text-sm text-mid-gray">
               {t("common.noOptionsFound")}

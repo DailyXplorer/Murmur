@@ -7,7 +7,7 @@ import type {
   SingleValue,
   StylesConfig,
 } from "react-select";
-import { LAYER_Z_INDEX } from "@/lib/constants/layers";
+import { useFloatingLayers } from "./FloatingLayerContext";
 
 export type SelectOption = {
   value: string;
@@ -49,7 +49,9 @@ const focusBackground =
 const neutralBorder =
   "color-mix(in srgb, var(--color-mid-gray) 80%, transparent)";
 
-const selectStyles: StylesConfig<SelectOption, false> = {
+const createSelectStyles = (
+  menuPortalZIndex: number,
+): StylesConfig<SelectOption, false> => ({
   control: (base, state) => ({
     ...base,
     minHeight: 40,
@@ -104,7 +106,7 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   }),
   menuPortal: (base) => ({
     ...base,
-    zIndex: LAYER_Z_INDEX.floatingContent,
+    zIndex: menuPortalZIndex,
   }),
   option: (base, state) => ({
     ...base,
@@ -121,7 +123,7 @@ const selectStyles: StylesConfig<SelectOption, false> = {
     ...base,
     color: "color-mix(in srgb, var(--color-mid-gray) 65%, transparent)",
   }),
-};
+});
 
 export const Select: React.FC<SelectProps> = React.memo(
   ({
@@ -138,6 +140,11 @@ export const Select: React.FC<SelectProps> = React.memo(
     formatCreateLabel,
     onCreateOption,
   }) => {
+    const { floatingContent: floatingContentZIndex } = useFloatingLayers();
+    const selectStyles = React.useMemo(
+      () => createSelectStyles(floatingContentZIndex),
+      [floatingContentZIndex],
+    );
     const selectValue = React.useMemo(() => {
       if (!value) return null;
       const existing = options.find((option) => option.value === value);

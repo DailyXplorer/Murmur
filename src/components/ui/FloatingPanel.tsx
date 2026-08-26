@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { LAYER_Z_INDEX } from "@/lib/constants/layers";
+import { useFloatingLayers } from "./FloatingLayerContext";
 
 type Placement = "top" | "bottom";
 
@@ -55,6 +55,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   viewportPadding = DEFAULT_VIEWPORT_PADDING,
   focusFirstOptionOnOpen = false,
 }) => {
+  const { floatingContent: floatingContentZIndex } = useFloatingLayers();
   const panelRef = useRef<HTMLDivElement>(null);
   const shouldRestoreFocusRef = useRef(false);
   const restoreFocusFrameRef = useRef<number | null>(null);
@@ -264,7 +265,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         left: position?.left ?? -9999,
         width: position?.width,
         maxHeight: Math.min(position?.maxHeight ?? maxHeight, maxHeight),
-        zIndex: LAYER_Z_INDEX.floatingContent,
+        zIndex: floatingContentZIndex,
         visibility: position ? "visible" : "hidden",
       }}
       className={className}

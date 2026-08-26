@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { Dialog } from "../../src/components/ui/Dialog";
 import { Dropdown } from "../../src/components/ui/Dropdown";
 import { FloatingPanel } from "../../src/components/ui/FloatingPanel";
 import "../../src/App.css";
@@ -81,6 +82,52 @@ const MultiplePanelsFixture: React.FC = () => {
   );
 };
 
+const DialogLayeringFixture: React.FC = () => {
+  const outsideTriggerRef = useRef<HTMLButtonElement>(null);
+  const nestedTriggerRef = useRef<HTMLButtonElement>(null);
+  const ignoreDismiss = useCallback(() => undefined, []);
+  const ignoreOpenChange = useCallback(() => undefined, []);
+
+  return (
+    <div className="h-screen bg-background text-text">
+      <button
+        ref={outsideTriggerRef}
+        type="button"
+        className="fixed left-4 top-4"
+      >
+        Outside trigger
+      </button>
+      <FloatingPanel
+        open={true}
+        anchorRef={outsideTriggerRef}
+        onDismiss={ignoreDismiss}
+        className="bg-background"
+      >
+        <div data-testid="outside-dialog-panel">Outside dialog panel</div>
+      </FloatingPanel>
+      <Dialog
+        open={true}
+        title="Layering dialog"
+        closeLabel="Close dialog"
+        onOpenChange={ignoreOpenChange}
+        contentFades={false}
+      >
+        <button ref={nestedTriggerRef} type="button">
+          Nested trigger
+        </button>
+        <FloatingPanel
+          open={true}
+          anchorRef={nestedTriggerRef}
+          onDismiss={ignoreDismiss}
+          className="bg-background"
+        >
+          <div data-testid="nested-dialog-panel">Nested dialog panel</div>
+        </FloatingPanel>
+      </Dialog>
+    </div>
+  );
+};
+
 const FloatingPanelFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
 
@@ -110,6 +157,8 @@ const FloatingPanelFixture: React.FC = () => {
 
 const fixture = searchParams.has("multiple") ? (
   <MultiplePanelsFixture />
+) : searchParams.has("dialog-layers") ? (
+  <DialogLayeringFixture />
 ) : searchParams.has("search") ? (
   <SearchPanelFixture />
 ) : (

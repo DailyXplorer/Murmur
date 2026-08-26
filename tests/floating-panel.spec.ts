@@ -15,6 +15,7 @@ test.describe("floating settings panels", () => {
     const panel = page.locator("[data-placement]");
     const trigger = page.getByRole("button", { name: "Select an option..." });
     await expect(menu).toBeVisible();
+    await expect(menu).toHaveAccessibleName("Select an option...");
     await expect(
       page.getByRole("option", { name: "Option 1", exact: true }),
     ).toBeFocused();
@@ -193,5 +194,55 @@ test.describe("floating settings panels", () => {
     await page.keyboard.press("Shift+Tab");
     await expect(page.getByTestId("outside-control")).toBeFocused();
     await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
+
+  test("keeps dialogs above unrelated panels and nested panels above dialogs", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?dialog-layers=1");
+
+    const outsidePanel = page
+      .locator("[data-floating-panel-root]")
+      .filter({ has: page.getByTestId("outside-dialog-panel") });
+    const nestedPanel = page
+      .locator("[data-floating-panel-root]")
+      .filter({ has: page.getByTestId("nested-dialog-panel") });
+    const dialog = page.getByRole("dialog", { name: "Layering dialog" });
+    await expect(outsidePanel).toBeVisible();
+    await expect(nestedPanel).toBeVisible();
+    await expect(dialog).toBeVisible();
+
+    const [outsideZIndex, dialogZIndex, nestedZIndex] = await Promise.all([
+      outsidePanel.evaluate((element) =>
+        Number(getComputedStyle(element).zIndex),
+      ),
+      dialog.evaluate((element) =>
+        Number(getComputedStyle(element.parentElement as HTMLElement).zIndex),
+      ),
+      nestedPanel.evaluate((element) =>
+        Number(getComputedStyle(element).zIndex),
+      ),
+    ]);
+    expect(outsideZIndex).toBeLessThan(dialogZIndex);
+    expect(nestedZIndex).toBeGreaterThan(dialogZIndex);
+
+    const outsidePanelPaintsOnTop = await outsidePanel.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const paintedElement = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      return paintedElement === element || element.contains(paintedElement);
+    });
+    const nestedPanelPaintsOnTop = await nestedPanel.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const paintedElement = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      return paintedElement === element || element.contains(paintedElement);
+    });
+    expect(outsidePanelPaintsOnTop).toBe(false);
+    expect(nestedPanelPaintsOnTop).toBe(true);
   });
 });

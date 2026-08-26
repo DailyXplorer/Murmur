@@ -55,6 +55,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const dropdownRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const languageListRef = useRef<HTMLDivElement>(null);
+  const triggerId = useId();
   const menuId = useId();
   const isLanguageUpdating = isUpdating("selected_language");
   const isLanguageMenuOpen = isOpen && !isLanguageUpdating;
@@ -148,6 +149,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <div className="relative">
           <button
             ref={dropdownRef}
+            id={triggerId}
             type="button"
             className={`px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded min-w-[200px] text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
               isLanguageUpdating
@@ -192,6 +194,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
               ref={languageListRef}
               id={menuId}
               role="listbox"
+              aria-labelledby={triggerId}
               className="min-h-0 flex-1 overflow-y-auto"
             >
               {filteredLanguages.length === 0 ? (
