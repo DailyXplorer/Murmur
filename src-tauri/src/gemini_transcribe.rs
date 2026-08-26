@@ -28,6 +28,10 @@ const SEND_PATH: &str = "/exa.language_server_pb.LanguageServerService/SendAudio
 const END_PATH: &str = "/exa.language_server_pb.LanguageServerService/EndAudioSession";
 const CAPABILITIES_PATH: &str = "/exa.language_server_pb.LanguageServerService/GetCapabilities";
 
+/// Reports whether Antigravity and its local session marker are available.
+///
+/// The marker is inspected through filesystem metadata only; Murmur never
+/// opens or copies the Antigravity token.
 pub fn status() -> crate::commands::transcription::GeminiStatus {
     crate::commands::transcription::GeminiStatus {
         available_on_platform: true,
@@ -43,6 +47,7 @@ pub fn status() -> crate::commands::transcription::GeminiStatus {
     }
 }
 
+/// Opens the installed Antigravity app so the user can sign in explicitly.
 pub fn open_antigravity() -> Result<()> {
     if antigravity_binary().is_none() {
         return Err(anyhow!(
@@ -57,17 +62,21 @@ pub fn open_antigravity() -> Result<()> {
     Ok(())
 }
 
+/// Streams dictation audio through a local Antigravity language server.
 pub struct GeminiTranscriber {
     state: Arc<Mutex<RuntimeState>>,
 }
 
 impl GeminiTranscriber {
+    /// Creates a transcriber with an idle lifecycle supervisor.
     pub fn new() -> Self {
         let state = Arc::new(Mutex::new(RuntimeState::default()));
         spawn_supervisor(Arc::downgrade(&state));
         Self { state }
     }
 
+    /// Transcribes normalized mono PCM samples with the active Antigravity
+    /// session, borrowing an existing server or starting a managed one.
     pub fn transcribe(&self, samples: &[f32]) -> Result<String> {
         if samples.is_empty() {
             return Ok(String::new());
@@ -92,6 +101,12 @@ impl GeminiTranscriber {
         let result = runtime.block_on(transcribe_over_grpc(&connection, samples));
         state.mark_used();
         result.map_err(friendly_transcription_error)
+    }
+}
+
+impl Default for GeminiTranscriber {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -151,6 +166,10 @@ impl RuntimeState {
     }
 
     fn stop_owned_if_idle_or_superseded(&mut self, binary: Option<&Path>) {
+        if self.owned.is_none() {
+            return;
+        }
+
         let external_server_exists = binary.is_some_and(external_server_process_exists);
         let should_stop = self.owned.as_ref().is_some_and(|owned| {
             should_stop_owned(owned.last_used, Instant::now(), external_server_exists)
@@ -270,8 +289,11 @@ fn spawn_supervisor(state: Weak<Mutex<RuntimeState>>) {
         let Some(state) = state.upgrade() else {
             break;
         };
-        let binary = antigravity_binary();
         if let Ok(mut state) = state.try_lock() {
+            if state.owned.is_none() {
+                continue;
+            }
+            let binary = antigravity_binary();
             state.stop_owned_if_idle_or_superseded(binary.as_deref());
         };
     });
