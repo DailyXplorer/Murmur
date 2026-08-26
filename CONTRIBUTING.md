@@ -12,6 +12,8 @@ Keep each change focused. Explain why it is needed and test the behavior it affe
 
 Install the latest stable Rust toolchain, [Bun](https://bun.sh/), and the platform-specific dependencies from [BUILD.md](BUILD.md).
 
+Clone your fork after replacing `YOUR_USERNAME` with your GitHub username:
+
 ```bash
 git clone git@github.com:YOUR_USERNAME/Murmur.git
 cd Murmur
