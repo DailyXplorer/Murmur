@@ -6,32 +6,35 @@ labels: ["bug"]
 assignees: ""
 ---
 
-## Before You Submit
+## Before you submit
 
-**Please search [existing issues](https://github.com/DailyXplorer/Murmur/issues) to avoid duplicates.** Your bug may already be reported! Right now it's just me maintaining this project so many issues can be overwhelming! Help me out by checking first.
+Search [existing issues](https://github.com/DailyXplorer/Murmur/issues) to avoid duplicates.
 
-## Bug Description
+## Description
 
-A clear and concise description of what the bug is.
+<!-- Describe the problem and when it occurs. -->
 
-## System Information
+## Steps to reproduce
 
-**App Version:**
+1.
+2.
+3.
 
-<!-- You can find this in the app settings or about section -->
+## Expected behavior
 
-**Operating System:**
+<!-- What should have happened? -->
 
-<!-- e.g., macOS 14.1, Windows 11, Ubuntu 22.04 -->
+## Actual behavior
 
-**CPU:**
+<!-- What happened instead? -->
 
-<!-- e.g., Apple M2, Intel i7-12700K, AMD Ryzen 7 5800X -->
+## Environment
 
-**GPU:**
+- Murmur version:
+- Operating system:
+- CPU:
+- GPU:
 
-<!-- e.g., Apple M2 GPU, NVIDIA RTX 4080, AMD RX 6800 XT, Intel UHD Graphics -->
+## Logs or screenshots
 
-## Logs
-
-<!-- Please attach relevant logs to help us diagnose the issue. You can find the log directory by going to Settings > About in the app. -->
+<!-- Attach anything that helps reproduce or diagnose the issue. The log directory is available in Settings > About. -->

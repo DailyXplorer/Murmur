@@ -3,15 +3,3 @@
 reviews:
   path_filters:
     - "**/*"
-    - "**/*.svg"
-    - "**/*.png"
-  path_instructions:
-    - path: "src-tauri/icons/tray/**"
-      instructions: |
-        Review the SVG geometry for legibility at the 18-point macOS menu-bar size.
-        Check optical centering, consistent stroke treatment, canvas clipping, and
-        clear differentiation between idle, recording, and transcribing states.
-    - path: "src-tauri/resources/tray_*.png"
-      instructions: |
-        Check that generated light and dark PNG pairs remain 64 by 64 pixels,
-        preserve identical alpha masks, and match their corresponding SVG source.
