@@ -115,21 +115,89 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
+#[cfg(target_os = "macos")]
+fn settings_window_collection_behavior(
+    mut behavior: objc2_app_kit::NSWindowCollectionBehavior,
+) -> objc2_app_kit::NSWindowCollectionBehavior {
+    use objc2_app_kit::NSWindowCollectionBehavior;
+
+    behavior.remove(NSWindowCollectionBehavior::CanJoinAllSpaces);
+    behavior.insert(NSWindowCollectionBehavior::MoveToActiveSpace);
+    behavior
+}
+
+#[cfg(target_os = "macos")]
+fn settings_window_needs_order_out(is_visible: bool, is_on_active_space: bool) -> bool {
+    is_visible && !is_on_active_space
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_settings_window_for_active_space(
+    main_window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    use objc2_app_kit::NSWindow;
+
+    let native_window = main_window.ns_window()?.cast::<NSWindow>();
+
+    // Callers run this on the main thread, as AppKit requires. The pointer
+    // belongs to the live WebviewWindow and is only borrowed here.
+    unsafe {
+        let native_window = &*native_window;
+        let behavior = settings_window_collection_behavior(native_window.collectionBehavior());
+        native_window.setCollectionBehavior(behavior);
+
+        // MoveToActiveSpace only takes effect while AppKit orders a window in.
+        // If the settings are already visible on another Space, show() is a
+        // no-op and focusing them switches Spaces instead. Order them out first
+        // so the normal show/focus path attaches them to the current Space.
+        if settings_window_needs_order_out(
+            native_window.isVisible(),
+            native_window.isOnActiveSpace(),
+        ) {
+            native_window.orderOut(None);
+        }
+    }
+
+    Ok(())
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
-        if let Err(e) = main_window.unminimize() {
-            log::error!("Failed to unminimize webview window: {}", e);
-        }
-        if let Err(e) = main_window.show() {
-            log::error!("Failed to show webview window: {}", e);
-        }
-        if let Err(e) = main_window.set_focus() {
-            log::error!("Failed to focus webview window: {}", e);
-        }
         #[cfg(target_os = "macos")]
         {
-            if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
-                log::error!("Failed to set activation policy to Regular: {}", e);
+            let app = app.clone();
+            let window = main_window.clone();
+            if let Err(e) = main_window.run_on_main_thread(move || {
+                if let Err(e) = prepare_settings_window_for_active_space(&window) {
+                    log::error!("Failed to prepare settings window for active Space: {}", e);
+                }
+                if let Err(e) = window.unminimize() {
+                    log::error!("Failed to unminimize webview window: {}", e);
+                }
+                if let Err(e) = window.show() {
+                    log::error!("Failed to show webview window: {}", e);
+                }
+                if let Err(e) = window.set_focus() {
+                    log::error!("Failed to focus webview window: {}", e);
+                }
+                if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
+                    log::error!("Failed to set activation policy to Regular: {}", e);
+                }
+            }) {
+                log::error!("Failed to schedule settings window presentation: {}", e);
+            }
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            if let Err(e) = main_window.unminimize() {
+                log::error!("Failed to unminimize webview window: {}", e);
+            }
+            if let Err(e) = main_window.show() {
+                log::error!("Failed to show webview window: {}", e);
+            }
+            if let Err(e) = main_window.set_focus() {
+                log::error!("Failed to focus webview window: {}", e);
             }
         }
         return;
@@ -643,7 +711,10 @@ pub fn run(cli_args: CliArgs) {
                 win_builder = win_builder.data_directory(data_dir.join("webview"));
             }
 
-            win_builder.build()?;
+            let main_window = win_builder.build()?;
+
+            #[cfg(target_os = "macos")]
+            prepare_settings_window_for_active_space(&main_window)?;
 
             let mut settings = get_settings(app.handle());
 
@@ -748,6 +819,32 @@ pub fn run(cli_args: CliArgs) {
 #[cfg(test)]
 mod headless_guard_tests {
     use super::{normalize_generated_bindings_source, run_headless_guarded};
+
+    #[cfg(target_os = "macos")]
+    use super::{settings_window_collection_behavior, settings_window_needs_order_out};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn settings_window_moves_to_active_space_without_joining_every_space() {
+        use objc2_app_kit::NSWindowCollectionBehavior;
+
+        let current =
+            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
+        let configured = settings_window_collection_behavior(current);
+
+        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
+        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
+        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn settings_window_is_reordered_only_when_visible_on_another_space() {
+        assert!(settings_window_needs_order_out(true, false));
+        assert!(!settings_window_needs_order_out(false, false));
+        assert!(!settings_window_needs_order_out(true, true));
+        assert!(!settings_window_needs_order_out(false, true));
+    }
 
     #[test]
     fn preserves_normal_exit_codes() {
