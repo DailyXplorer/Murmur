@@ -7,6 +7,7 @@ import type {
   SingleValue,
   StylesConfig,
 } from "react-select";
+import { LAYER_Z_INDEX } from "@/lib/constants/layers";
 
 export type SelectOption = {
   value: string;
@@ -95,12 +96,15 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   }),
   menu: (provided) => ({
     ...provided,
-    zIndex: 30,
     backgroundColor: "var(--color-background)",
     color: "var(--color-text)",
     border:
       "1px solid color-mix(in srgb, var(--color-mid-gray) 30%, transparent)",
     boxShadow: "0 10px 30px rgba(15, 15, 15, 0.2)",
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: LAYER_Z_INDEX.floatingContent,
   }),
   option: (base, state) => ({
     ...base,
@@ -160,6 +164,11 @@ export const Select: React.FC<SelectProps> = React.memo(
       onBlur,
       isClearable,
       styles: selectStyles,
+      menuPlacement: "auto",
+      menuPosition: "fixed",
+      menuPortalTarget:
+        typeof document === "undefined" ? undefined : document.body,
+      menuShouldScrollIntoView: false,
     };
 
     if (isCreatable) {

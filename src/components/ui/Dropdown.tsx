@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
+import { FloatingPanel } from "./FloatingPanel";
 
 export interface DropdownOption {
   value: string;
@@ -29,20 +30,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (disabled) setIsOpen(false);
+  }, [disabled]);
 
   const selectedOption = options.find(
     (option) => option.value === selectedValue,
@@ -59,17 +52,23 @@ export const Dropdown: React.FC<DropdownProps> = ({
     setIsOpen(!isOpen);
   };
 
+  const handleDismiss = useCallback(() => setIsOpen(false), []);
+
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={`relative ${className}`}>
       <button
+        ref={dropdownRef}
         type="button"
-        className={`px-2 py-[5px] text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded-md min-w-[200px] w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-all duration-150 ${
+        className={`px-2 py-[5px] text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded-md min-w-[200px] w-full text-start grid grid-cols-[1fr_auto] gap-2 items-center transition-[background-color,border-color] duration-150 ${
           disabled
             ? "opacity-50 cursor-not-allowed"
             : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
         }`}
         onClick={handleToggle}
         disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? menuId : undefined}
       >
         <span className="truncate">{selectedOption?.label || placeholder}</span>
         <CaretDownIcon
@@ -77,8 +76,14 @@ export const Dropdown: React.FC<DropdownProps> = ({
           className={`transition-transform duration-200 ${isOpen ? "transform rotate-180" : ""}`}
         />
       </button>
-      {isOpen && !disabled && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-mid-gray/80 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+      <FloatingPanel
+        open={isOpen && !disabled}
+        anchorRef={dropdownRef}
+        onDismiss={handleDismiss}
+        focusFirstOptionOnOpen={true}
+        className="overflow-y-auto rounded-md border border-mid-gray/80 bg-background shadow-lg"
+      >
+        <div id={menuId} role="listbox">
           {options.length === 0 ? (
             <div className="px-2 py-1 text-sm text-mid-gray">
               {t("common.noOptionsFound")}
@@ -88,6 +93,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
               <button
                 key={option.value}
                 type="button"
+                role="option"
+                aria-selected={selectedValue === option.value}
                 className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                   selectedValue === option.value ? "bg-logo-primary/20" : ""
                 } ${option.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -101,7 +108,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
             ))
           )}
         </div>
-      )}
+      </FloatingPanel>
     </div>
   );
 };

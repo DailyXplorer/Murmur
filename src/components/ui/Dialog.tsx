@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { LAYER_Z_INDEX } from "@/lib/constants/layers";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -158,7 +159,8 @@ export const Dialog: React.FC<DialogProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6"
+      className="fixed inset-0 flex items-center justify-center bg-black/50 p-4 sm:p-6"
+      style={{ zIndex: LAYER_Z_INDEX.dialog }}
       onMouseDown={handleBackdropMouseDown}
     >
       <div
