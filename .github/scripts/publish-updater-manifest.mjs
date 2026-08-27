@@ -1,10 +1,23 @@
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
+/**
+ * Canonical darwin updater platform keys that must exist in `latest.json`.
+ * @type {readonly string[]}
+ */
 export const REQUIRED_TARGETS = ["darwin-aarch64-app", "darwin-x86_64-app"];
 
+/**
+ * Darwin architectures that also receive alias keys without the `-app` suffix.
+ * @type {readonly string[]}
+ */
 export const DARWIN_ALIAS_ARCHES = ["aarch64", "x86_64"];
 
+/**
+ * Maps a GitHub release asset name to a darwin updater target, or `null` if ignored.
+ * @param {string} assetName Release asset filename.
+ * @returns {{os: "darwin", arch: string, bundle: "app"} | null}
+ */
 export function updaterTarget(assetName) {
   const name = assetName.toLowerCase();
   if (!name.endsWith(".app.tar.gz.sig")) {
@@ -19,6 +32,11 @@ export function updaterTarget(assetName) {
   return { os: "darwin", arch, bundle: "app" };
 }
 
+/**
+ * Copies `darwin-{arch}-app` entries onto alias keys and asserts required targets.
+ * @param {Record<string, {url: string, signature: string}>} platforms
+ * @returns {Record<string, {url: string, signature: string}>}
+ */
 export function finalizeDarwinPlatforms(platforms) {
   for (const arch of DARWIN_ALIAS_ARCHES) {
     const entry = platforms[`darwin-${arch}-app`];
@@ -33,6 +51,12 @@ export function finalizeDarwinPlatforms(platforms) {
   return platforms;
 }
 
+/**
+ * Asserts a public updater manifest is darwin-only and has signed ARM and Intel entries.
+ * @param {{version?: string, platforms?: Record<string, {url?: string, signature?: string}>}} manifest
+ * @param {string} version Expected `latest.json` version.
+ * @returns {void}
+ */
 export function assertPublicDarwinManifest(manifest, version) {
   if (!manifest || manifest.version !== version) {
     throw new Error("Updater manifest version mismatch");
@@ -61,6 +85,13 @@ export function assertPublicDarwinManifest(manifest, version) {
   }
 }
 
+/**
+ * Authenticated GitHub REST helper.
+ * @param {string} path API path beginning with `/`.
+ * @param {RequestInit} [options]
+ * @param {string} token GitHub token.
+ * @returns {Promise<Response>}
+ */
 async function github(path, options = {}, token) {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -80,6 +111,14 @@ async function github(path, options = {}, token) {
   return response;
 }
 
+/**
+ * Lists all assets on a GitHub release, following pagination.
+ * @param {string} owner
+ * @param {string} repo
+ * @param {number} releaseId
+ * @param {string} token
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
 async function listAssets(owner, repo, releaseId, token) {
   const assets = [];
   for (let page = 1; ; page += 1) {
@@ -94,6 +133,14 @@ async function listAssets(owner, repo, releaseId, token) {
   }
 }
 
+/**
+ * Downloads the minisign payload for a `.sig` release asset.
+ * @param {{id: number}} asset
+ * @param {string} owner
+ * @param {string} repo
+ * @param {string} token
+ * @returns {Promise<string>}
+ */
 async function signatureFor(asset, owner, repo, token) {
   const response = await github(
     `/repos/${owner}/${repo}/releases/assets/${asset.id}`,
@@ -103,6 +150,10 @@ async function signatureFor(asset, owner, repo, token) {
   return (await response.text()).trim();
 }
 
+/**
+ * Builds `latest.json` from darwin `.app.tar.gz.sig` assets and uploads it to the release.
+ * @returns {Promise<void>}
+ */
 async function publishUpdaterManifest() {
   const token = process.env.GITHUB_TOKEN;
   const repository = process.env.GITHUB_REPOSITORY;
@@ -205,14 +256,22 @@ const isMain =
   Boolean(process.argv[1]) &&
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
+/**
+ * CLI `--verify-public` path: assert VERSION and MANIFEST form a darwin-only `latest.json`.
+ * @returns {void}
+ */
+function verifyPublicManifest() {
+  const version = process.env.VERSION;
+  const raw = process.env.MANIFEST;
+  if (!version || !raw) {
+    throw new Error("VERSION and MANIFEST are required");
+  }
+  assertPublicDarwinManifest(JSON.parse(raw), version);
+}
+
 if (isMain) {
   if (process.argv.includes("--verify-public")) {
-    const version = process.env.VERSION;
-    const raw = process.env.MANIFEST;
-    if (!version || !raw) {
-      throw new Error("VERSION and MANIFEST are required");
-    }
-    assertPublicDarwinManifest(JSON.parse(raw), version);
+    verifyPublicManifest();
   } else {
     await publishUpdaterManifest();
   }

@@ -1,4 +1,9 @@
+/**
+ * @fileoverview Dry-run coverage for darwin-only updater mapping, aliasing, and public manifest checks.
+ */
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   assertPublicDarwinManifest,
   finalizeDarwinPlatforms,
@@ -190,5 +195,55 @@ assert.match(
   /Murmur_aarch64\.app\.tar\.gz$/,
 );
 assert.match(fromRelease["darwin-x86_64"].url, /Murmur_x64\.app\.tar\.gz$/);
+
+/**
+ * Runs the `--verify-public` CLI against a JSON payload via VERSION and MANIFEST.
+ * @param {string | undefined} version
+ * @param {object | undefined} manifest
+ * @returns {{status: number | null, stderr: string}}
+ */
+function runVerifyPublic(version, manifest) {
+  const env = { ...process.env };
+  if (version === undefined) delete env.VERSION;
+  else env.VERSION = version;
+  if (manifest === undefined) delete env.MANIFEST;
+  else env.MANIFEST = JSON.stringify(manifest);
+  const result = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL("./publish-updater-manifest.mjs", import.meta.url)),
+      "--verify-public",
+    ],
+    { env, encoding: "utf8" },
+  );
+  return { status: result.status, stderr: result.stderr };
+}
+
+assert.equal(
+  runVerifyPublic("1.0.3", { version: "1.0.3", platforms: fromRelease }).status,
+  0,
+);
+assert.notEqual(
+  runVerifyPublic(undefined, { version: "1.0.3", platforms: fromRelease })
+    .status,
+  0,
+);
+assert.notEqual(
+  runVerifyPublic("1.0.3", {
+    version: "1.0.3",
+    platforms: { ...fromRelease, "linux-x86_64-appimage": intel },
+  }).status,
+  0,
+);
+assert.notEqual(
+  runVerifyPublic("1.0.3", {
+    version: "1.0.3",
+    platforms: {
+      "darwin-x86_64": intel,
+      "darwin-x86_64-app": intel,
+    },
+  }).status,
+  0,
+);
 
 console.log("publish-updater-manifest: all assertions passed");
