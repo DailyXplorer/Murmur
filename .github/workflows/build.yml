@@ -48,9 +48,6 @@ on:
         type: boolean
         default: false
 
-env:
-  TSC_VERSION: "0.9.0"
-
 jobs:
   build:
     permissions:
@@ -60,14 +57,6 @@ jobs:
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
       HAS_APPLE_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
     steps:
-      - name: Enable long paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
-            -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
-          git config --system core.longpaths true
-
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
@@ -101,7 +90,8 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          # Apple rustc targets are only installed on macos-* runners.
+          # Never add aarch64-apple-darwin / x86_64-apple-darwin on ubuntu.
           targets: ${{ contains(inputs.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
@@ -114,58 +104,11 @@ jobs:
           workspaces: "./src-tauri -> target"
           key: ${{ inputs.platform }}-${{ inputs.target }}
 
-      - name: install dependencies (ubuntu 24.04 x64)
-        if: contains(inputs.platform, 'ubuntu-24.04') && !contains(inputs.platform, 'arm')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libappindicator3-dev librsvg2-dev patchelf libasound2-dev libx11-dev libxtst-dev libxrandr-dev libgtk-layer-shell0 libgtk-layer-shell-dev \
-            libwebkit2gtk-4.1-0=2.44.0-2 \
-            libwebkit2gtk-4.1-dev=2.44.0-2 \
-            libjavascriptcoregtk-4.1-0=2.44.0-2 \
-            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
-            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
-            gir1.2-webkit2-4.1=2.44.0-2
-
-      - name: install dependencies (ubuntu 24.04 arm64)
-        if: contains(inputs.platform, 'ubuntu-24.04-arm')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libx11-dev libxtst-dev libxrandr-dev libgtk-layer-shell0 libgtk-layer-shell-dev xdg-utils
-
-      - name: install dependencies (ubuntu 22.04)
-        if: contains(inputs.platform, 'ubuntu-22.04') && !contains(inputs.platform, 'arm')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libx11-dev libxtst-dev libxrandr-dev libgtk-layer-shell0 libgtk-layer-shell-dev
-
-      - name: Verify gtk-layer-shell runtime dependency (Ubuntu)
-        if: contains(inputs.platform, 'ubuntu')
-        run: |
-          dpkg-query -W -f='${Status}\n' libgtk-layer-shell0 | grep -q "install ok installed"
-          ldconfig -p | grep -q "libgtk-layer-shell.so.0"
-
-      - name: Cache trusted-signing-cli
-        if: contains(inputs.platform, 'windows') && inputs.sign-binaries
-        id: cache-tsc
-        uses: actions/cache@v5
-        with:
-          path: ~/.cargo/bin/trusted-signing-cli*
-          key: trusted-signing-cli-${{ env.TSC_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Install trusted-signing-cli
-        if: contains(inputs.platform, 'windows') && inputs.sign-binaries && steps.cache-tsc.outputs.cache-hit != 'true'
-        run: cargo install trusted-signing-cli@${{ env.TSC_VERSION }}
-
       - name: install frontend dependencies
-        if: ${{ !(contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')) }}
         run: bun install
 
-      - name: install frontend dependencies (Windows ARM64)
-        if: ${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') }}
-        run: bun install --cpu=arm64
-
       - name: rustup install target
-        if: ${{ inputs.target != '' && !contains(inputs.target, 'x86_64-unknown-linux-gnu') && !contains(inputs.target, 'aarch64-unknown-linux-gnu') && !contains(inputs.target, 'x86_64-pc-windows-msvc') }}
+        if: ${{ inputs.target != '' && contains(inputs.target, 'apple-darwin') }}
         run: rustup target add ${{ inputs.target }}
 
       - name: import Apple Developer Certificate
@@ -223,45 +166,6 @@ jobs:
           fi
           echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
 
-      - name: Point tauri-bundler at signtool.exe (Windows ARM64)
-        if: contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $bin = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
-          $candidates = @(
-            Get-ChildItem "$bin\10.0.*\arm64\signtool.exe" -ErrorAction SilentlyContinue
-            Get-ChildItem "$bin\10.0.*\x64\signtool.exe" -ErrorAction SilentlyContinue
-          ) | Where-Object { $_ }
-          if (-not $candidates) {
-            throw "signtool.exe not found under $bin (is a Windows SDK installed on this runner?)"
-          }
-          # Prefer native arm64 (x64 works too, under emulation); within an
-          # arch, the newest SDK version wins.
-          $signtool = $candidates |
-            Sort-Object { $_.FullName -match '\\arm64\\' }, FullName |
-            Select-Object -Last 1
-          Write-Host "TAURI_WINDOWS_SIGNTOOL_PATH=$($signtool.FullName)"
-          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_WINDOWS_SIGNTOOL_PATH=$($signtool.FullName)"
-
-      - name: Install linuxdeploy with library exclusion support
-        if: contains(inputs.platform, 'ubuntu') && contains(inputs.build-args, 'appimage')
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "$(uname -m)" in
-            x86_64) arch="x86_64" ;;
-            aarch64|arm64) arch="aarch64" ;;
-            *) echo "Unsupported linuxdeploy architecture: $(uname -m)" >&2; exit 1 ;;
-          esac
-          tools_dir="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
-          mkdir -p "$tools_dir"
-          curl -L --fail --show-error --retry 3 \
-            -o "$tools_dir/linuxdeploy-${arch}.AppImage" \
-            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${arch}.AppImage"
-          chmod +x "$tools_dir/linuxdeploy-${arch}.AppImage"
-          "$tools_dir/linuxdeploy-${arch}.AppImage" --appimage-extract-and-run --version
-
       - name: Build with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -269,21 +173,8 @@ jobs:
           # The certificate import step above owns APPLE_CERTIFICATE. Passing an
           # empty value here makes Tauri try (and fail) to import it again.
           APPLE_SIGNING_IDENTITY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || '-' }}
-          AZURE_CLIENT_ID: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_ID || '' }}
-          AZURE_CLIENT_SECRET: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_SECRET || '' }}
-          AZURE_TENANT_ID: ${{ inputs.sign-binaries && secrets.AZURE_TENANT_ID || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
-          # The Vulkan loader and Wayland client library must come from the host
-          # graphics stack. Bundling Ubuntu's copies ahead of the system libraries can
-          # prevent a newer distro's Vulkan ICD or Mesa stack from loading.
-          # linuxdeploy reads this semicolon-separated glob list before it creates
-          # (and Tauri signs and uploads) the AppImage, so the published artifact
-          # is already clean.
-          LINUXDEPLOY_EXCLUDED_LIBRARIES: ${{ contains(inputs.platform, 'ubuntu') && 'libvulkan.so*;libwayland-client.so*' || '' }}
-          # linuxdeploy passes this to appimagetool, which writes it as
-          # X-AppImage-Version for desktop integration tools such as Gear Lever.
-          LINUXDEPLOY_OUTPUT_VERSION: ${{ contains(inputs.platform, 'ubuntu') && steps.get-version.outputs.version || '' }}
         with:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
@@ -291,40 +182,6 @@ jobs:
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           includeUpdaterJson: false
           args: ${{ inputs.build-args }}
-
-      # tauri-action uploads release assets before returning. All AppImage
-      # filtering therefore happens inside linuxdeploy above; this verifies the
-      # exact artifact Tauri signed and uploaded.
-      - name: Verify AppImage version metadata
-        if: contains(inputs.platform, 'ubuntu')
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="${{ steps.build-profile.outputs.profile }}"
-          APPIMAGE_PATH="$(find "src-tauri/target/${PROFILE}/bundle/appimage" -name '*.AppImage' -print -quit 2>/dev/null || true)"
-          if [ -z "$APPIMAGE_PATH" ]; then
-            echo "No AppImage produced by this Linux build; skipping metadata verification"
-            exit 0
-          fi
-          APPIMAGE_PATH="$(readlink -f "$APPIMAGE_PATH")"
-          WORKDIR="$(mktemp -d)"
-          trap 'rm -rf "$WORKDIR"' EXIT
-          (
-            cd "$WORKDIR"
-            # AppImage integration tools read the root desktop entry. appimagetool
-            # adds X-AppImage-Version there, not to the source copy under usr/share.
-            "$APPIMAGE_PATH" --appimage-extract '*.desktop' >/dev/null
-            DESKTOP_FILE="$(find squashfs-root -maxdepth 1 -type f -name '*.desktop' -print -quit)"
-            if [ -z "$DESKTOP_FILE" ]; then
-              echo "ERROR: AppImage desktop metadata is missing" >&2
-              exit 1
-            fi
-            if ! grep -Fqx 'X-AppImage-Version=${{ steps.get-version.outputs.version }}' "$DESKTOP_FILE"; then
-              echo "ERROR: AppImage version metadata is missing or incorrect:" >&2
-              grep -E '^X-AppImage-Version=' "$DESKTOP_FILE" >&2 || true
-              exit 1
-            fi
-          )
 
       - name: Verify macOS dylib bundling
         if: inputs.target == 'x86_64-apple-darwin'
@@ -355,208 +212,4 @@ jobs:
           path: |
             src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/dmg/*.dmg
             src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos/*.app
-          retention-days: 30
-
-      - name: Audit Linux package runtime contents
-        if: contains(inputs.platform, 'ubuntu')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if ! command -v xvfb-run >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y xvfb
-          fi
-
-          PROFILE="${{ steps.build-profile.outputs.profile }}"
-          BUNDLE_DIR="src-tauri/target/${PROFILE}/bundle"
-
-          require_pattern() {
-            local listing="$1"
-            local pattern="$2"
-            local label="$3"
-            if ! grep -Eq "$pattern" "$listing"; then
-              echo "ERROR: missing ${label} (${pattern}) in ${listing}" >&2
-              cat "$listing" >&2
-              exit 1
-            fi
-          }
-
-          require_path() {
-            local path="$1"
-            local label="$2"
-            if [ ! -e "$path" ]; then
-              echo "ERROR: missing ${label}: ${path}" >&2
-              find "$(dirname "$path")" -maxdepth 2 -type f 2>/dev/null >&2 || true
-              exit 1
-            fi
-          }
-
-          smoke_binary() {
-            local root="$1"
-            local label="$2"
-            MURMUR_NO_GTK_LAYER_SHELL=1 \
-            LD_LIBRARY_PATH="${root}/usr/lib/Murmur:${root}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-              xvfb-run -a "${root}/usr/bin/murmur" --help \
-                >/tmp/murmur-package-smoke.log 2>&1
-            grep -q -- '--transcribe-file' /tmp/murmur-package-smoke.log
-            echo "${label} --help smoke passed"
-          }
-
-          if compgen -G "${BUNDLE_DIR}/deb/*.deb" > /dev/null; then
-            for deb in "${BUNDLE_DIR}"/deb/*.deb; do
-              echo "Auditing deb package: ${deb}"
-              listing="$(mktemp)"
-              dpkg-deb -c "$deb" > "$listing"
-              require_pattern "$listing" 'usr/bin/murmur$' "murmur binary"
-              if grep -Eq 'usr/lib/[^/]+\.so' "$listing"; then
-                echo "ERROR: libraries installed directly into /usr/lib (issue #1639):" >&2
-                grep -E 'usr/lib/[^/]+\.so' "$listing" >&2
-                exit 1
-              fi
-              root="$(mktemp -d)"
-              dpkg-deb -x "$deb" "$root"
-              smoke_binary "$root" "deb"
-              rm -rf "$root" "$listing"
-            done
-          fi
-
-          if compgen -G "${BUNDLE_DIR}/rpm/*.rpm" > /dev/null; then
-            if ! command -v rpm >/dev/null 2>&1; then
-              sudo apt-get update
-              sudo apt-get install -y rpm
-            fi
-            for rpm_pkg in "${BUNDLE_DIR}"/rpm/*.rpm; do
-              echo "Auditing rpm package: ${rpm_pkg}"
-              listing="$(mktemp)"
-              rpm -qpl "$rpm_pkg" > "$listing"
-              require_pattern "$listing" '/usr/bin/murmur$' "murmur binary"
-              if grep -Eq 'usr/lib/[^/]+\.so' "$listing"; then
-                echo "ERROR: libraries installed directly into /usr/lib (issue #1639):" >&2
-                grep -E 'usr/lib/[^/]+\.so' "$listing" >&2
-                exit 1
-              fi
-              rm -f "$listing"
-            done
-          fi
-
-          if compgen -G "${BUNDLE_DIR}/appimage/*.AppImage" > /dev/null; then
-            for appimage in "${BUNDLE_DIR}"/appimage/*.AppImage; do
-              echo "Auditing AppImage package: ${appimage}"
-              workdir="$(mktemp -d)"
-              cp "$appimage" "${workdir}/Murmur.AppImage"
-              chmod +x "${workdir}/Murmur.AppImage"
-              (
-                cd "$workdir"
-                ./Murmur.AppImage --appimage-extract >/dev/null
-                require_path "squashfs-root/usr/bin/murmur" "AppImage murmur binary"
-                desktop_file="$(find squashfs-root -maxdepth 1 -type f -name '*.desktop' -print -quit)"
-                require_path "$desktop_file" "AppImage desktop metadata"
-                if ! grep -Fqx 'X-AppImage-Version=${{ steps.get-version.outputs.version }}' "$desktop_file"; then
-                  echo "ERROR: AppImage version metadata is missing or incorrect:" >&2
-                  grep -E '^X-AppImage-Version=' "$desktop_file" >&2 || true
-                  exit 1
-                fi
-                for pattern in \
-                  'libvulkan.so*' \
-                  'libwayland-client.so*'; do
-                  forbidden="$(find squashfs-root/usr -name "$pattern" -print -quit)"
-                  if [ -n "$forbidden" ]; then
-                    echo "ERROR: AppImage bundles host graphics loader: $forbidden" >&2
-                    exit 1
-                  fi
-                done
-                smoke_binary "$(pwd)/squashfs-root" "AppImage"
-              )
-              rm -rf "$workdir"
-            done
-          fi
-
-      - name: Upload artifacts (Linux)
-        if: inputs.upload-artifacts && contains(inputs.platform, 'ubuntu')
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ inputs.asset-prefix }}-${{ inputs.platform }}-${{ inputs.target }}
-          path: |
-            src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/deb/*.deb
-            src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/appimage/*.AppImage
-            src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/rpm/*.rpm
-          retention-days: 30
-
-      - name: Audit Windows package runtime contents
-        if: contains(inputs.platform, 'windows')
-        shell: pwsh
-        run: |
-          $profile = "${{ steps.build-profile.outputs.profile }}"
-          $target = "${{ inputs.target }}"
-          $base = "src-tauri/target"
-          if ($target -and $target -ne "x86_64-pc-windows-msvc") {
-            $bundleBase = Join-Path $base (Join-Path $target (Join-Path $profile "bundle"))
-          } else {
-            $bundleBase = Join-Path $base (Join-Path $profile "bundle")
-          }
-
-          function Assert-PackageContents {
-            param([string]$Root, [string]$Label)
-
-            $murmur = Get-ChildItem $Root -Filter "murmur.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if (-not $murmur) {
-              throw "$Label package is missing murmur.exe"
-            }
-
-            $helpOutput = (& $murmur.FullName --help | Out-String)
-            $helpOutput | Write-Host
-            if ($LASTEXITCODE -ne 0) {
-              throw "$Label murmur.exe --help failed"
-            }
-            if ($helpOutput -notmatch "--transcribe-file") {
-              throw "$Label murmur.exe --help omitted --transcribe-file"
-            }
-          }
-
-          $nsisPackages = Get-ChildItem (Join-Path $bundleBase "nsis") -Filter "*.exe" -ErrorAction SilentlyContinue
-          if (-not $nsisPackages) {
-            throw "No NSIS packages found under $bundleBase for runtime audit"
-          }
-
-          foreach ($pkg in $nsisPackages) {
-            Write-Host "Auditing NSIS package: $($pkg.FullName)"
-            $installDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
-            New-Item -ItemType Directory -Path $installDir | Out-Null
-            $proc = Start-Process -FilePath $pkg.FullName -ArgumentList @("/S", "/PORTABLE", "/D=$installDir") -Wait -PassThru
-            if ($proc.ExitCode -ne 0) {
-              throw "Silent portable install failed for $($pkg.FullName) with exit code $($proc.ExitCode)"
-            }
-            Assert-PackageContents -Root $installDir -Label "Installed NSIS"
-            Remove-Item -Recurse -Force $installDir
-          }
-
-          $msiPackages = Get-ChildItem (Join-Path $bundleBase "msi") -Filter "*.msi" -ErrorAction SilentlyContinue
-          if (-not $msiPackages) {
-            throw "No MSI packages found under $bundleBase for runtime audit"
-          }
-
-          foreach ($pkg in $msiPackages) {
-            Write-Host "Auditing MSI package: $($pkg.FullName)"
-            $installDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
-            New-Item -ItemType Directory -Path $installDir | Out-Null
-            $logFile = Join-Path $installDir "msi-admin-install.log"
-            $msiArgs = "/a `"$($pkg.FullName)`" /qn /L*v `"$logFile`" TARGETDIR=`"$installDir`""
-            $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru
-            if ($proc.ExitCode -ne 0) {
-              if (Test-Path $logFile) { Get-Content $logFile | Out-Host }
-              throw "Administrative install failed for $($pkg.FullName) with exit code $($proc.ExitCode)"
-            }
-            Assert-PackageContents -Root $installDir -Label "Installed MSI"
-            Remove-Item -Recurse -Force $installDir
-          }
-
-      - name: Upload artifacts (Windows)
-        if: inputs.upload-artifacts && contains(inputs.platform, 'windows')
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
-          path: |
-            src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/msi/*.msi
-            src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/nsis/*.exe
           retention-days: 30
