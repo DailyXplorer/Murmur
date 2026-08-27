@@ -6,6 +6,7 @@ import {
   DIALOG_FLOATING_LAYERS,
   FloatingLayerContext,
 } from "./FloatingLayerContext";
+import { useDismissableLayer } from "./DismissableLayer";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -33,11 +34,13 @@ interface DialogProps {
   contentFades?: boolean;
 }
 
+/** True when the element is not hidden by CSS visibility or display. */
 const isVisible = (element: HTMLElement) => {
   const style = window.getComputedStyle(element);
   return style.visibility !== "hidden" && style.display !== "none";
 };
 
+/** Returns enabled, visible focusable descendants of a dialog container. */
 const getFocusableElements = (container: HTMLElement) =>
   Array.from(
     container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
@@ -48,6 +51,7 @@ const getFocusableElements = (container: HTMLElement) =>
       isVisible(element),
   );
 
+/** Modal dialog that traps Tab and coordinates Escape with stacked layers. */
 export const Dialog: React.FC<DialogProps> = ({
   open,
   title,
@@ -68,6 +72,19 @@ export const Dialog: React.FC<DialogProps> = ({
   const descriptionId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const handleEscape = React.useCallback(
+    (event: KeyboardEvent) => {
+      if (!dismissible) return;
+      event.preventDefault();
+      onOpenChange(false);
+    },
+    [dismissible, onOpenChange],
+  );
+  const isTopmostLayer = useDismissableLayer(
+    open,
+    LAYER_Z_INDEX.dialog,
+    dismissible ? handleEscape : undefined,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -100,13 +117,9 @@ export const Dialog: React.FC<DialogProps> = ({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && dismissible && !event.defaultPrevented) {
-        event.preventDefault();
-        onOpenChange(false);
+      if (event.key !== "Tab" || !contentRef.current || !isTopmostLayer()) {
         return;
       }
-
-      if (event.key !== "Tab" || !contentRef.current) return;
 
       const focusableElements = getFocusableElements(contentRef.current);
       if (focusableElements.length === 0) {
@@ -139,7 +152,7 @@ export const Dialog: React.FC<DialogProps> = ({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [dismissible, onOpenChange, open]);
+  }, [isTopmostLayer, open]);
 
   if (!open) return null;
 
@@ -147,6 +160,7 @@ export const Dialog: React.FC<DialogProps> = ({
     if (
       dismissible &&
       closeOnBackdrop &&
+      isTopmostLayer() &&
       event.target === event.currentTarget
     ) {
       onOpenChange(false);

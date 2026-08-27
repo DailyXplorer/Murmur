@@ -436,6 +436,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Starts the Tauri application and shuts down transcription on process exit.
 pub fn run(cli_args: CliArgs) {
     memory::init_allocator();
 
@@ -782,6 +783,11 @@ pub fn run(cli_args: CliArgs) {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            tauri::RunEvent::Exit => {
+                if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
+                    manager.shutdown();
+                }
             }
             _ => {}
         });

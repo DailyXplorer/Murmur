@@ -19,6 +19,7 @@ interface DropdownProps {
   onRefresh?: () => void;
 }
 
+/** Listbox trigger that opens a portaled option list with a single tab stop. */
 export const Dropdown: React.FC<DropdownProps> = ({
   options,
   selectedValue,
@@ -42,6 +43,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const selectedOption = options.find(
     (option) => option.value === selectedValue,
   );
+  const initialTabStopValue =
+    options.find((option) => option.value === selectedValue && !option.disabled)
+      ?.value ?? options.find((option) => !option.disabled)?.value;
 
   const handleSelect = (value: string) => {
     onSelect(value);
@@ -98,6 +102,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 type="button"
                 role="option"
                 aria-selected={selectedValue === option.value}
+                tabIndex={option.value === initialTabStopValue ? 0 : -1}
                 className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                   selectedValue === option.value ? "bg-logo-primary/20" : ""
                 } ${option.disabled ? "opacity-50 cursor-not-allowed" : ""}`}

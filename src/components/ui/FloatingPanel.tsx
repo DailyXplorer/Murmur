@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingLayers } from "./FloatingLayerContext";
+import { useDismissableLayer } from "./DismissableLayer";
 
 type Placement = "top" | "bottom";
 
@@ -33,7 +34,88 @@ interface FloatingPanelProps {
 const DEFAULT_MAX_HEIGHT = 240;
 const DEFAULT_GAP = 4;
 const DEFAULT_VIEWPORT_PADDING = 8;
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[contenteditable='true']",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
+const CLIPPING_OVERFLOW_VALUES = new Set(["auto", "clip", "hidden", "scroll"]);
+const DIALOG_BOUNDARY_SELECTOR = '[role="dialog"], [aria-modal="true"]';
+
+/** Reports whether an element is painted and large enough to receive focus. */
+const isVisible = (element: HTMLElement) => {
+  const style = window.getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+  return (
+    style.visibility !== "hidden" &&
+    style.display !== "none" &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
+};
+
+/** Returns the dialog or modal that owns the anchor, or the document. */
+const getTabStopRoot = (anchor: HTMLElement | null): ParentNode =>
+  anchor?.closest(DIALOG_BOUNDARY_SELECTOR) ?? document;
+
+/**
+ * Lists enabled form tab stops under `root`, skipping portaled panel contents.
+ */
+const getFormTabStops = (root: ParentNode) =>
+  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) =>
+      element.tabIndex >= 0 &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      !element.closest("[data-floating-panel-root]") &&
+      isVisible(element),
+  );
+
+/** True when a clipping ancestor or the viewport no longer contains the anchor. */
+const anchorIsOutsideClippingBounds = (
+  anchor: HTMLElement,
+  viewportPadding: number,
+) => {
+  const anchorRect = anchor.getBoundingClientRect();
+  let top = viewportPadding;
+  let right = window.innerWidth - viewportPadding;
+  let bottom = window.innerHeight - viewportPadding;
+  let left = viewportPadding;
+
+  for (
+    let ancestor = anchor.parentElement;
+    ancestor;
+    ancestor = ancestor.parentElement
+  ) {
+    if (ancestor === document.body || ancestor === document.documentElement) {
+      continue;
+    }
+
+    const style = window.getComputedStyle(ancestor);
+    const rect = ancestor.getBoundingClientRect();
+    if (CLIPPING_OVERFLOW_VALUES.has(style.overflowX)) {
+      left = Math.max(left, rect.left);
+      right = Math.min(right, rect.right);
+    }
+    if (CLIPPING_OVERFLOW_VALUES.has(style.overflowY)) {
+      top = Math.max(top, rect.top);
+      bottom = Math.min(bottom, rect.bottom);
+    }
+  }
+
+  return (
+    anchorRect.bottom <= top ||
+    anchorRect.top >= bottom ||
+    anchorRect.right <= left ||
+    anchorRect.left >= right
+  );
+};
+
+/** True when two measured panel positions are identical. */
 const positionsMatch = (
   current: FloatingPanelPosition | null,
   next: FloatingPanelPosition,
@@ -44,6 +126,7 @@ const positionsMatch = (
   current.maxHeight === next.maxHeight &&
   current.placement === next.placement;
 
+/** Portaled panel that restores focus and keeps Tab inside the owning dialog. */
 export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   open,
   anchorRef,
@@ -58,8 +141,23 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   const { floatingContent: floatingContentZIndex } = useFloatingLayers();
   const panelRef = useRef<HTMLDivElement>(null);
   const shouldRestoreFocusRef = useRef(false);
-  const restoreFocusFrameRef = useRef<number | null>(null);
+  const cancelPendingRestoreRef = useRef<() => void>(() => undefined);
   const [position, setPosition] = useState<FloatingPanelPosition | null>(null);
+
+  const handleEscape = useCallback(
+    (event: KeyboardEvent) => {
+      event.preventDefault();
+      shouldRestoreFocusRef.current = false;
+      onDismiss();
+      anchorRef.current?.focus();
+    },
+    [anchorRef, onDismiss],
+  );
+  const isTopmostLayer = useDismissableLayer(
+    open,
+    floatingContentZIndex,
+    handleEscape,
+  );
 
   const updatePosition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -67,12 +165,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     if (!anchor || !panel) return;
 
     const anchorRect = anchor.getBoundingClientRect();
-    const anchorIsOutsideViewport =
-      anchorRect.bottom <= viewportPadding ||
-      anchorRect.top >= window.innerHeight - viewportPadding ||
-      anchorRect.right <= viewportPadding ||
-      anchorRect.left >= window.innerWidth - viewportPadding;
-    if (anchorIsOutsideViewport) {
+    if (anchorIsOutsideClippingBounds(anchor, viewportPadding)) {
       shouldRestoreFocusRef.current = false;
       onDismiss();
       return;
@@ -138,10 +231,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   useEffect(() => {
     if (!open) return;
 
-    if (restoreFocusFrameRef.current !== null) {
-      cancelAnimationFrame(restoreFocusFrameRef.current);
-      restoreFocusFrameRef.current = null;
-    }
+    cancelPendingRestoreRef.current();
+    cancelPendingRestoreRef.current = () => undefined;
     shouldRestoreFocusRef.current =
       panelRef.current?.contains(document.activeElement) ?? false;
 
@@ -151,18 +242,15 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
           '[role="option"]:not([disabled])',
         ) ?? [],
       );
-    const isTopmostPanel = () => {
-      const floatingPanels = document.querySelectorAll<HTMLElement>(
-        "[data-floating-panel-root]",
-      );
-      return (
-        floatingPanels.item(floatingPanels.length - 1) === panelRef.current
-      );
+    const setRovingOption = (activeOption: HTMLElement) => {
+      for (const option of focusableOptions()) {
+        option.tabIndex = option === activeOption ? 0 : -1;
+      }
     };
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
-        isTopmostPanel() &&
+        isTopmostLayer() &&
         !anchorRef.current?.contains(target) &&
         !panelRef.current?.contains(target)
       ) {
@@ -174,9 +262,15 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       const target = event.target as Node;
       if (panelRef.current?.contains(target)) {
         shouldRestoreFocusRef.current = true;
+        if (
+          target instanceof HTMLElement &&
+          target.matches('[role="option"]:not([disabled])')
+        ) {
+          setRovingOption(target);
+        }
       } else if (!anchorRef.current?.contains(target)) {
         shouldRestoreFocusRef.current = false;
-        if (isTopmostPanel()) onDismiss();
+        if (isTopmostLayer()) onDismiss();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -211,24 +305,45 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
         event.preventDefault();
         event.stopPropagation();
-        options[nextIndex]?.focus();
+        const nextOption = options[nextIndex];
+        if (nextOption) {
+          setRovingOption(nextOption);
+          nextOption.focus();
+        }
         return;
       }
 
       if (
-        event.key === "Escape" &&
-        !event.defaultPrevented &&
-        isTopmostPanel()
+        event.key === "Tab" &&
+        panelRef.current?.contains(eventTarget as Node) &&
+        isTopmostLayer()
       ) {
+        const anchor = anchorRef.current;
+        const tabStops = getFormTabStops(getTabStopRoot(anchor));
+        const anchorIndex = anchor ? tabStops.indexOf(anchor) : -1;
+        if (anchorIndex < 0 || tabStops.length < 2) return;
+
+        const offset = event.shiftKey ? -1 : 1;
+        const nextIndex =
+          (anchorIndex + offset + tabStops.length) % tabStops.length;
         event.preventDefault();
+        event.stopPropagation();
         shouldRestoreFocusRef.current = false;
         onDismiss();
-        anchorRef.current?.focus();
+        tabStops[nextIndex]?.focus();
       }
     };
 
     const focusFrame = focusFirstOptionOnOpen
-      ? requestAnimationFrame(() => focusableOptions()[0]?.focus())
+      ? requestAnimationFrame(() => {
+          const options = focusableOptions();
+          const initialOption =
+            options.find((option) => option.tabIndex === 0) ?? options[0];
+          if (initialOption) {
+            setRovingOption(initialOption);
+            initialOption.focus();
+          }
+        })
       : null;
 
     document.addEventListener("mousedown", handleMouseDown);
@@ -242,15 +357,60 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
       const shouldRestoreFocus = shouldRestoreFocusRef.current;
       shouldRestoreFocusRef.current = false;
       if (shouldRestoreFocus) {
-        restoreFocusFrameRef.current = requestAnimationFrame(() => {
-          restoreFocusFrameRef.current = null;
-          if (document.activeElement === document.body) {
-            anchorRef.current?.focus();
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+
+        let observer: MutationObserver | null = null;
+        let timeout: number | null = null;
+        const isAnchorDisabled = () =>
+          anchor.matches(":disabled") ||
+          anchor.getAttribute("aria-disabled") === "true";
+        const stopWaiting = () => {
+          observer?.disconnect();
+          if (timeout !== null) window.clearTimeout(timeout);
+          observer = null;
+          timeout = null;
+        };
+        const tryRestore = () => {
+          if (!anchor.isConnected || document.activeElement !== document.body) {
+            stopWaiting();
+            return;
+          }
+          if (!isAnchorDisabled()) {
+            anchor.focus();
+            stopWaiting();
+          }
+        };
+        const restoreFrame = requestAnimationFrame(() => {
+          tryRestore();
+          if (
+            anchor.isConnected &&
+            document.activeElement === document.body &&
+            isAnchorDisabled()
+          ) {
+            observer = new MutationObserver(tryRestore);
+            observer.observe(anchor, {
+              attributes: true,
+              attributeFilter: ["disabled", "aria-disabled"],
+            });
+            timeout = window.setTimeout(stopWaiting, 5000);
+            tryRestore();
           }
         });
+        cancelPendingRestoreRef.current = () => {
+          cancelAnimationFrame(restoreFrame);
+          stopWaiting();
+        };
       }
     };
-  }, [anchorRef, focusFirstOptionOnOpen, onDismiss, open]);
+  }, [anchorRef, focusFirstOptionOnOpen, isTopmostLayer, onDismiss, open]);
+
+  useEffect(
+    () => () => {
+      cancelPendingRestoreRef.current();
+    },
+    [],
+  );
 
   if (!open) return null;
 
