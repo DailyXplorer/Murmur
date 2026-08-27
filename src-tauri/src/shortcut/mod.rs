@@ -187,7 +187,7 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
     };
     value.theme = parsed;
     settings::write_settings(&app, value);
-    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     apply_window_theme(&app, parsed);
     let _ = app.emit("theme-changed", parsed);
     Ok(())
@@ -218,7 +218,7 @@ pub fn change_accent_color_setting(app: AppHandle, accent_color: String) -> Resu
     Ok(())
 }
 
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
     let theme = match theme {
         Theme::System => None,

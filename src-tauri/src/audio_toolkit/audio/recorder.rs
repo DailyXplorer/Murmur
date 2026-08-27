@@ -467,9 +467,7 @@ impl AudioRecorder {
 
 pub fn is_microphone_access_denied(error_message: &str) -> bool {
     let normalized = error_message.to_lowercase();
-    normalized.contains("access is denied")
-        || normalized.contains("permission denied")
-        || normalized.contains("0x80070005")
+    normalized.contains("access is denied") || normalized.contains("permission denied")
 }
 
 pub fn is_no_input_device_error(error_message: &str) -> bool {
@@ -544,11 +542,6 @@ mod tests {
     #[test]
     fn detects_permission_denied() {
         assert!(is_microphone_access_denied("permission denied"));
-    }
-
-    #[test]
-    fn detects_windows_error_code() {
-        assert!(is_microphone_access_denied("WASAPI error: 0x80070005"));
     }
 
     #[test]

@@ -212,22 +212,6 @@ fn show_main_window(app: &AppHandle) {
     );
 }
 
-#[allow(unused_variables)]
-fn should_force_show_permissions_window(app: &AppHandle) -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        let status = commands::audio::get_windows_microphone_permission_status();
-        if status.supported && status.overall_access == commands::audio::PermissionAccess::Denied {
-            log::info!(
-                "Windows microphone permissions are denied; forcing main window visible for onboarding"
-            );
-            return true;
-        }
-    }
-
-    false
-}
-
 fn initialize_core_logic(app_handle: &AppHandle) {
     // Note: Enigo (keyboard/mouse simulation) is NOT initialized here.
     // The frontend is responsible for calling the `initialize_enigo` command
@@ -276,31 +260,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         .tooltip(tray::tray_tooltip())
         .icon_as_template(accent::tray_icon_is_template());
 
-    // Windows notification-area convention: left click opens the app, right click
-    // shows the menu. Elsewhere (macOS menu bar, Linux) the menu stays on left click.
-    #[cfg(target_os = "windows")]
-    {
-        tray_builder = tray_builder
-            .show_menu_on_left_click(false)
-            .on_tray_icon_event(|tray, event| {
-                use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
-                let opens_window = matches!(
-                    event,
-                    TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } | TrayIconEvent::DoubleClick {
-                        button: MouseButton::Left,
-                        ..
-                    }
-                );
-                if opens_window {
-                    show_main_window(tray.app_handle());
-                }
-            });
-    }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         tray_builder = tray_builder.show_menu_on_left_click(true);
     }
@@ -347,7 +307,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // tauri-plugin-autostart elsewhere)
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
-    // Create the recording overlay window (hidden by default)
+    #[cfg(target_os = "macos")]
     utils::create_recording_overlay(app_handle);
 }
 
@@ -735,7 +695,7 @@ pub fn run(cli_args: CliArgs) {
             // the window is shown, so it matches the in-app palette without a flash
             // of the wrong theme. See `apply_window_theme` for what this does per
             // platform.
-            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            #[cfg(target_os = "macos")]
             shortcut::apply_window_theme(app.handle(), settings.theme);
 
             if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
@@ -775,14 +735,12 @@ pub fn run(cli_args: CliArgs) {
 
             // Show main window only if not starting hidden.
             // CLI --start-hidden flag overrides the setting.
-            // But if permission onboarding is required, always show the window.
             let should_hide = settings.start_hidden || cli_args.start_hidden;
-            let should_force_show = should_force_show_permissions_window(&app_handle);
 
             // If start_hidden but tray is disabled, we must show the window
             // anyway. Without a tray icon, the dock is the only way back in.
             let tray_available = settings.show_tray_icon && !cli_args.no_tray;
-            if should_force_show || !should_hide || !tray_available {
+            if !should_hide || !tray_available {
                 show_main_window(&app_handle);
             }
 

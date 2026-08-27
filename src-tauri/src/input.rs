@@ -179,7 +179,7 @@ pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> 
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
     #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
+    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
 
     // Press modifier + V
     enigo
@@ -203,7 +203,7 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
     #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
+    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
 
     // Press Ctrl/Cmd + Shift + V
     enigo
@@ -230,10 +230,7 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
 
 /// Sends a Shift+Insert paste command.
 pub fn send_paste_shift_insert(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let insert_key_code = Key::Other(0x2D); // VK_INSERT
-    #[cfg(not(target_os = "windows"))]
-    let insert_key_code = Key::Other(0x76); // XK_Insert (keycode 118 / 0x76, also used as fallback)
+    let insert_key_code = Key::Insert;
 
     // Press Shift + Insert
     enigo
