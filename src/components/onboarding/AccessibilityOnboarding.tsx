@@ -26,6 +26,20 @@ interface PermissionsState {
   microphone: PermissionStatus;
 }
 
+const initializeKeyboardAutomation = async () => {
+  const [enigoResult, shortcutsResult] = await Promise.all([
+    commands.initializeEnigo(),
+    commands.initializeShortcuts(),
+  ]);
+
+  if (enigoResult.status === "error") {
+    throw new Error(enigoResult.error);
+  }
+  if (shortcutsResult.status === "error") {
+    throw new Error(shortcutsResult.error);
+  }
+};
+
 const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   onComplete,
 }) => {
@@ -63,14 +77,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
         ]);
 
         if (accessibilityGranted) {
-          try {
-            await Promise.all([
-              commands.initializeEnigo(),
-              commands.initializeShortcuts(),
-            ]);
-          } catch (e) {
-            console.warn("Failed to initialize after permission grant:", e);
-          }
+          await initializeKeyboardAutomation();
         }
 
         const newState: PermissionsState = {
@@ -106,17 +113,15 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
           checkMicrophonePermission(),
         ]);
 
+        if (accessibilityGranted) {
+          await initializeKeyboardAutomation();
+        }
+
         setPermissions((prev) => {
           const newState = { ...prev };
 
           if (accessibilityGranted && prev.accessibility !== "granted") {
             newState.accessibility = "granted";
-            Promise.all([
-              commands.initializeEnigo(),
-              commands.initializeShortcuts(),
-            ]).catch((e) => {
-              console.warn("Failed to initialize after permission grant:", e);
-            });
           }
 
           if (microphoneGranted && prev.microphone !== "granted") {
@@ -145,6 +150,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
             pollingRef.current = null;
           }
           toast.error(t("onboarding.permissions.errors.checkFailed"));
+          setPermissions({
+            accessibility: "needed",
+            microphone: "needed",
+          });
         }
       }
     }, 1000);
