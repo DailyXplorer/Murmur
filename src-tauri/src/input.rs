@@ -230,7 +230,7 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
 
 /// Sends a Shift+Insert paste command.
 pub fn send_paste_shift_insert(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    let insert_key_code = Key::Insert;
+    let insert_key_code = Key::Other(0x76);
 
     // Press Shift + Insert
     enigo
