@@ -96,7 +96,7 @@ Murmur is a cross-platform desktop speech-to-text application built with Tauri 2
 
 - Codex cloud transcription via the local ChatGPT/Codex session
 - `cpal` - Cross-platform audio I/O
-- `rdev` - Global keyboard shortcuts
+- `tauri-plugin-global-shortcut` - Global keyboard shortcuts
 - `rubato` - Audio resampling
 - `rodio` - Audio playback for feedback sounds
 
