@@ -42,6 +42,7 @@ const effectiveLanguage = (
   return recognitionLanguage(supported[0]);
 };
 
+/** Settings control for choosing a recognition language from a portaled list. */
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
@@ -92,6 +93,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       ),
     [searchQuery, availableLanguages],
   );
+  const initialTabStopValue =
+    filteredLanguages.find((language) => language.value === selectedLanguage)
+      ?.value ?? filteredLanguages[0]?.value;
 
   const selectedLanguageName =
     getLanguageLabel(selectedLanguage) || t("settings.general.language.auto");
@@ -208,6 +212,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     type="button"
                     role="option"
                     aria-selected={selectedLanguage === language.value}
+                    tabIndex={language.value === initialTabStopValue ? 0 : -1}
                     className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                       selectedLanguage === language.value
                         ? "bg-logo-primary/20 text-logo-primary"
