@@ -85,6 +85,7 @@ export const TranscriptionSettings: React.FC = () => {
             <Dropdown
               options={providerOptions}
               selectedValue={provider}
+              className="w-[260px]"
               onSelect={(value) =>
                 void updateSetting(
                   "transcription_provider",
