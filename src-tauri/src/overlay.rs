@@ -272,12 +272,6 @@ fn place_windows_overlay(
 /// Creates the recording overlay window and keeps it hidden by default
 #[cfg(not(target_os = "macos"))]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
-    let position = calculate_overlay_position(app_handle, OVERLAY_WIDTH, OVERLAY_HEIGHT);
-    if position.is_none() {
-        debug!("Failed to determine overlay position, not creating overlay window");
-        return;
-    }
-
     let mut builder = WebviewWindowBuilder::new(
         app_handle,
         "recording_overlay",
@@ -316,37 +310,32 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 /// Creates the recording overlay panel and keeps it hidden by default (macOS)
 #[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
-    if let Some((x, y)) = calculate_overlay_position(app_handle, OVERLAY_WIDTH, OVERLAY_HEIGHT) {
-        // PanelBuilder creates a Tauri window then converts it to NSPanel.
-        // The window remains registered, so get_webview_window() still works.
-        match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
-            .url(WebviewUrl::App("src/overlay/index.html".into()))
-            .title("Recording")
-            .position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
-            .level(PanelLevel::Status)
-            .size(tauri::Size::Logical(tauri::LogicalSize {
-                width: OVERLAY_WIDTH,
-                height: OVERLAY_HEIGHT,
-            }))
-            .has_shadow(false)
-            .transparent(true)
-            .no_activate(true)
-            .corner_radius(0.0)
-            .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-            .with_window(|w| w.decorations(false).transparent(true).focusable(false))
-            .collection_behavior(
-                CollectionBehavior::new()
-                    .can_join_all_spaces()
-                    .full_screen_auxiliary(),
-            )
-            .build()
-        {
-            Ok(panel) => {
-                panel.hide();
-            }
-            Err(e) => {
-                log::error!("Failed to create recording overlay panel: {}", e);
-            }
+    match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
+        .url(WebviewUrl::App("src/overlay/index.html".into()))
+        .title("Recording")
+        .level(PanelLevel::Status)
+        .size(tauri::Size::Logical(tauri::LogicalSize {
+            width: OVERLAY_WIDTH,
+            height: OVERLAY_HEIGHT,
+        }))
+        .has_shadow(false)
+        .transparent(true)
+        .no_activate(true)
+        .corner_radius(0.0)
+        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        .with_window(|w| w.decorations(false).transparent(true).focusable(false))
+        .collection_behavior(
+            CollectionBehavior::new()
+                .can_join_all_spaces()
+                .full_screen_auxiliary(),
+        )
+        .build()
+    {
+        Ok(panel) => {
+            panel.hide();
+        }
+        Err(e) => {
+            log::error!("Failed to create recording overlay panel: {}", e);
         }
     }
 }
