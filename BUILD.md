@@ -58,11 +58,25 @@ Local development builds use the ad-hoc `signingIdentity: "-"` in
 `src-tauri/tauri.conf.json`. That is enough to run the app on the Mac that
 built it.
 
-Official GitHub Actions releases import an Apple Developer ID certificate,
+Official GitHub Actions releases require an Apple Developer ID certificate,
 codesign the app with the hardened runtime and `Entitlements.plist`, and
-notarize the bundle with Apple when the corresponding secrets are present.
-Updater artifacts are signed with the Tauri updater key so the in-app updater
-can verify downloads.
+notarize the bundle with Apple. The release workflow stops before creating a
+draft if any of these repository secrets are missing:
+
+- `APPLE_CERTIFICATE`
+- `APPLE_CERTIFICATE_PASSWORD`
+- `KEYCHAIN_PASSWORD`
+- `APPLE_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_ID_PASSWORD` or `APPLE_PASSWORD`
+
+The workflow also rejects any finished release bundle that is ad-hoc signed,
+has no Apple Team ID, or has a build-specific `cdhash` designated requirement.
+It never falls back to ad-hoc signing for a distributed macOS release.
+
+Updater artifacts use the separate Tauri updater key so the in-app updater can
+verify downloads. That archive signature does not give the macOS app a stable
+code identity and cannot preserve Accessibility or Microphone grants.
 
 Install official builds from [GitHub Releases](https://github.com/DailyXplorer/Murmur/releases)
 so Gatekeeper accepts them. Ad-hoc local rebuilds are not notarized.
@@ -85,7 +99,9 @@ open /Applications/Murmur.app
 ```
 
 Grant Accessibility again when prompted. This does not reset Microphone or other TCC
-services, and official releases normally do not need it.
+services. Moving from an ad-hoc build to the first Developer ID-signed release requires
+one final grant. Later releases signed with the same Developer ID team and bundle
+identifier preserve that app identity across updates.
 
 For optional diagnosis, compare the designated requirements of the previous and rebuilt
 bundles:

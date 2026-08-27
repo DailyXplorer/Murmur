@@ -32,6 +32,11 @@ on:
         required: false
         type: boolean
         default: false
+      require-stable-macos-identity:
+        description: "Fail instead of using ad-hoc signing for a distributed macOS build"
+        required: false
+        type: boolean
+        default: false
       repository:
         required: false
         type: string
@@ -54,7 +59,7 @@ jobs:
       contents: write
     runs-on: ${{ inputs.platform }}
     env:
-      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
       HAS_APPLE_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
     steps:
       - name: Checkout repository
@@ -63,6 +68,29 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+
+      - name: Require stable macOS distribution identity
+        if: contains(inputs.platform, 'macos') && inputs.require-stable-macos-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.sign-binaries }}" != "true" ]]; then
+            echo "::error::require-stable-macos-identity requires sign-binaries=true."
+            exit 1
+          fi
+
+          if [[ "$HAS_APPLE_CERTIFICATE" != "true" ]]; then
+            echo "::error::A distributed macOS build requires APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, and KEYCHAIN_PASSWORD. Ad-hoc signing changes the app identity on every update."
+            exit 1
+          fi
+
+          if [[ "$HAS_APPLE_NOTARIZATION" != "true" ]]; then
+            echo "::error::A distributed macOS build requires APPLE_ID, APPLE_TEAM_ID, and either APPLE_ID_PASSWORD or APPLE_PASSWORD for notarization."
+            exit 1
+          fi
+
+          echo "Stable Developer ID signing and notarization are configured."
 
       - name: Get version from tauri.conf.json
         id: get-version
@@ -129,11 +157,16 @@ jobs:
 
       - name: verify certificate
         if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'
+        shell: bash
         run: |
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
-          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
-          echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
-          echo "Certificate imported."
+          set -euo pipefail
+          CERT_ID=$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application/{print $2; exit}')
+          if [[ -z "$CERT_ID" ]]; then
+            echo "::error::APPLE_CERTIFICATE does not contain a valid Developer ID Application identity."
+            exit 1
+          fi
+          echo "CERT_ID=$CERT_ID" >> "$GITHUB_ENV"
+          echo "Developer ID Application certificate imported."
 
       - name: Configure Apple notarization
         if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
@@ -182,6 +215,50 @@ jobs:
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           includeUpdaterJson: false
           args: ${{ inputs.build-args }}
+
+      - name: Verify stable macOS app identity
+        if: contains(inputs.platform, 'macos') && inputs.require-stable-macos-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos/Murmur.app"
+          if [[ ! -d "$APP" ]]; then
+            echo "::error::Expected macOS app bundle not found at $APP."
+            exit 1
+          fi
+
+          SIGNATURE_INFO=$(codesign -dv --verbose=4 "$APP" 2>&1)
+          DESIGNATED_REQUIREMENT=$(codesign -d -r- "$APP" 2>&1)
+
+          if grep -q '^Signature=adhoc$' <<< "$SIGNATURE_INFO"; then
+            echo "::error::Murmur.app is ad-hoc signed. This would invalidate its macOS permission grants on update."
+            exit 1
+          fi
+
+          TEAM_ID=$(awk -F= '/^TeamIdentifier=/{print $2; exit}' <<< "$SIGNATURE_INFO")
+          if [[ -z "$TEAM_ID" || "$TEAM_ID" == "not set" ]]; then
+            echo "::error::Murmur.app has no stable Apple TeamIdentifier."
+            exit 1
+          fi
+
+          if ! grep -q '^Authority=Developer ID Application:' <<< "$SIGNATURE_INFO"; then
+            echo "::error::Murmur.app is not signed with a Developer ID Application certificate."
+            exit 1
+          fi
+
+          if grep -q 'designated => cdhash' <<< "$DESIGNATED_REQUIREMENT"; then
+            echo "::error::Murmur.app uses a build-specific cdhash designated requirement."
+            exit 1
+          fi
+
+          if ! grep -q 'identifier "com.dailyxplorer.murmur"' <<< "$DESIGNATED_REQUIREMENT"; then
+            echo "::error::Murmur.app designated requirement does not contain the production bundle identifier."
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo "Verified stable macOS code identity for team $TEAM_ID."
 
       - name: Verify macOS dylib bundling
         if: inputs.target == 'x86_64-apple-darwin'

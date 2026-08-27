@@ -7,10 +7,30 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    env:
+      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
+      HAS_APPLE_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
     outputs:
       release-id: ${{ steps.create-release.outputs.result }}
       version: ${{ steps.get-version.outputs.version }}
     steps:
+      - name: Require stable macOS distribution identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$HAS_APPLE_CERTIFICATE" != "true" ]]; then
+            echo "::error::Release blocked: configure APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, and KEYCHAIN_PASSWORD. Ad-hoc macOS updates do not preserve permission grants."
+            exit 1
+          fi
+
+          if [[ "$HAS_APPLE_NOTARIZATION" != "true" ]]; then
+            echo "::error::Release blocked: configure APPLE_ID, APPLE_TEAM_ID, and either APPLE_ID_PASSWORD or APPLE_PASSWORD for notarization."
+            exit 1
+          fi
+
+          echo "Stable Developer ID signing and notarization are configured."
+
       - name: Checkout repository
         uses: actions/checkout@v5
 
@@ -59,6 +79,7 @@ jobs:
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
       sign-binaries: true
+      require-stable-macos-identity: true
       asset-prefix: "murmur"
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}
