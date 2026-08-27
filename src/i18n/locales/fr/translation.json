@@ -134,15 +134,15 @@
       "overlay": {
         "style": {
           "title": "Overlay",
-          "description": "Choisissez l'overlay d'enregistrement : « Aucun » le masque, « Minimal » affiche une pilule compacte. Sur Linux, « Aucun » est recommandé.",
+          "description": "Choisissez l'overlay d'enregistrement : « Aucun » le masque, « Minimal » affiche une pilule compacte.",
           "options": {
             "none": "Aucune",
             "minimal": "Minimal"
           }
         },
         "position": {
-          "title": "Position de la fenêtre d'enregistrement",
-          "description": "Afficher un retour visuel pendant l'enregistrement et la transcription. Sur Linux, 'Aucune' est recommandé.",
+          "title": "Position de l'overlay",
+          "description": "Emplacement de l'overlay à l'écran pendant l'enregistrement et la transcription.",
           "options": {
             "bottom": "Bas",
             "top": "Haut"
@@ -154,19 +154,8 @@
         "description": "Choisissez comment le texte est inséré. Direct : simule la frappe via l'entrée système. Aucun : ignore le collage, met uniquement à jour l'historique/presse-papiers.",
         "options": {
           "clipboard": "Presse-papiers ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "Presse-papiers (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "Presse-papiers (Shift+Insert)",
           "direct": "Direct",
-          "none": "Aucun",
-          "externalScript": "Script externe"
-        },
-        "externalScriptPlaceholder": "/chemin/vers/votre/script.sh"
-      },
-      "typingTool": {
-        "title": "Outil de frappe",
-        "description": "Choisissez quel outil de frappe Linux utiliser pour la méthode de collage direct. Auto détectera et utilisera automatiquement le meilleur outil disponible pour votre système.",
-        "options": {
-          "auto": "Auto (Recommandé)"
+          "none": "Aucun"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "Envoi automatique",
-        "description": "Envoie automatiquement la combinaison de touches sélectionnée après l'insertion du texte. Cmd+Enter s'applique sur macOS, tandis que Windows/Linux utilisent Super+Enter.",
+        "description": "Envoie automatiquement la combinaison de touches sélectionnée après l'insertion du texte.",
         "options": {
           "off": "Désactivé",
           "enter": "Entrée",
           "cmdEnter": "Cmd+Entrée",
-          "superEnter": "Super+Entrée",
           "ctrlEnter": "Ctrl+Entrée"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "Collage fiable (Beta)",
-        "description": "Restaure le presse-papiers uniquement après que l'application cible a réellement lu la transcription, au lieu d'attendre un délai fixe. Vise à corriger le collage de l'ancien contenu du presse-papiers lorsque le système est chargé. Nécessite une méthode de collage par presse-papiers ; macOS et Windows uniquement."
+        "description": "Restaure le presse-papiers uniquement après que l'application cible a réellement lu la transcription, au lieu d'attendre un délai fixe. Vise à corriger le collage de l'ancien contenu du presse-papiers lorsque le système est chargé. Nécessite une méthode de collage par presse-papiers."
       },
       "recordingBuffer": {
         "title": "Tampon d'enregistrement supplémentaire",
@@ -357,12 +345,7 @@
     "downloading": "Téléchargement... {{progress}}%",
     "installing": "Installation...",
     "preparing": "Préparation...",
-    "checkForUpdates": "Rechercher des mises à jour",
-    "portableUpdateTitle": "Mise à jour manuelle requise",
-    "portableUpdateMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez ci-dessous l’installateur correspondant à votre système, exécutez-le et installez-le dans le même dossier : votre dossier Data/ est conservé.",
-    "portableUpdateButton": "Télécharger l’installateur",
-    "portableUpdateBrowseMessage": "Les installations portables ne peuvent pas être mises à jour automatiquement. Téléchargez la dernière version correspondant à votre système depuis GitHub Releases et installez-la dans le même dossier : votre dossier Data/ est conservé.",
-    "portableUpdateBrowseButton": "Ouvrir GitHub Releases"
+    "checkForUpdates": "Rechercher des mises à jour"
   },
   "common": {
     "loading": "Chargement...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "Accès au microphone refusé",
     "micPermissionDenied": {
       "generic": "L'accès au microphone a été refusé par le système d'exploitation. Veuillez accorder l'autorisation du microphone dans les paramètres système.",
-      "windows": "Activez l'accès au microphone dans Paramètres → Confidentialité et sécurité → Microphone (y compris l'accès des applications de bureau).",
-      "macos": "Accordez l'accès au microphone dans Réglages du système → Confidentialité et sécurité → Microphone.",
-      "linux": "Accordez l'accès au microphone dans les paramètres de son ou de confidentialité de votre système."
+      "macos": "Accordez l'accès au microphone dans Réglages du système → Confidentialité et sécurité → Microphone."
     },
     "noInputDeviceTitle": "Aucun microphone trouvé",
     "noInputDevice": "Aucun périphérique d'entrée audio n'a été détecté. Veuillez connecter un microphone ou un casque et réessayer.",

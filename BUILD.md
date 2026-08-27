@@ -1,49 +1,20 @@
 # Build Instructions
 
-This guide covers how to set up the development environment and build Murmur from source across different platforms.
+This guide covers how to set up the development environment and build Murmur
+from source on macOS.
 
 ## Prerequisites
-
-### All Platforms
 
 - [Rust](https://rustup.rs/) (latest stable)
 - [Bun](https://bun.sh/) package manager
 - [Tauri Prerequisites](https://tauri.app/start/prerequisites/)
-
-### Platform-Specific Requirements
-
-#### macOS
-
 - Xcode Command Line Tools
-- Install with: `xcode-select --install`
 
-#### Windows
+Install the Command Line Tools with:
 
-- Microsoft C++ Build Tools: Visual Studio 2019/2022 with C++ development
-  tools, or Visual Studio Build Tools 2019/2022
-
-#### Linux
-
-- Build essentials
-- ALSA development libraries
-- Install with:
-
-  ```bash
-  # Ubuntu/Debian
-  sudo apt update
-  sudo apt install build-essential libevdev-dev libasound2-dev pkg-config libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell0 libgtk-layer-shell-dev patchelf
-
-  # Fedora/RHEL
-  sudo dnf groupinstall "Development Tools"
-  sudo dnf install alsa-lib-devel pkgconf openssl-devel \
-    libevdev-devel \
-    gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel \
-    gtk-layer-shell gtk-layer-shell-devel
-
-  # Arch Linux
-  sudo pacman -S base-devel libevdev alsa-lib pkgconf openssl \
-    gtk3 webkit2gtk-4.1 libappindicator-gtk3 librsvg gtk-layer-shell
-  ```
+```bash
+xcode-select --install
+```
 
 ## Setup Instructions
 
@@ -66,39 +37,35 @@ bun install
 bun tauri dev
 ```
 
+If CMake rejects an old dependency policy:
+
+```bash
+CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri dev
+```
+
 ### 4. Build for Production
 
 ```bash
 bun run tauri build
 ```
 
-This compiles a release binary and generates platform-specific bundles (deb, rpm, AppImage on Linux; dmg on macOS; msi on Windows).
+This compiles a release binary and generates a macOS app bundle and DMG under
+`src-tauri/target/release/bundle/`.
 
-## Linux Install (from source)
+## Code signing and notarization
 
-The raw binary (`src-tauri/target/release/murmur`) cannot run standalone — it needs Tauri resource files (tray icons, sounds) to be co-located at the expected path.
+Local development builds use the ad-hoc `signingIdentity: "-"` in
+`src-tauri/tauri.conf.json`. That is enough to run the app on the Mac that
+built it.
 
-**Install from the deb bundle** (works on any Linux distro):
+Official GitHub Actions releases import an Apple Developer ID certificate,
+codesign the app with the hardened runtime and `Entitlements.plist`, and
+notarize the bundle with Apple when the corresponding secrets are present.
+Updater artifacts are signed with the Tauri updater key so the in-app updater
+can verify downloads.
 
-```bash
-cd /tmp
-ar x /path/to/Murmur/src-tauri/target/release/bundle/deb/Murmur_*_amd64.deb data.tar.gz
-tar xzf data.tar.gz
-sudo cp usr/bin/murmur /usr/bin/
-sudo cp -a usr/lib/. /usr/lib/
-sudo cp -r usr/share/icons/hicolor/* /usr/share/icons/hicolor/
-sudo cp usr/share/applications/Murmur.desktop /usr/share/applications/
-```
-
-The runtime libraries live in the app-private `/usr/lib/Murmur/` (on the binary's rpath), so no `ldconfig` step is needed.
-
-After subsequent rebuilds, copy the binary:
-
-```bash
-sudo cp src-tauri/target/release/murmur /usr/bin/
-```
-
-Resources only need re-copying if they change upstream (new icons, sounds, etc.).
+Install official builds from [GitHub Releases](https://github.com/DailyXplorer/Murmur/releases)
+so Gatekeeper accepts them. Ad-hoc local rebuilds are not notarized.
 
 ## Troubleshooting
 
@@ -133,52 +100,3 @@ not covered by the old grant. The reset procedure does not require this check.
 
 See [issue #1618](https://github.com/DailyXplorer/Murmur/issues/1618) for the related onboarding
 and stale-permission report.
-
-### AppImage build fails on Arch / rolling-release distros
-
-`linuxdeploy` bundles its own `strip` binary which is too old to process system libraries built with newer toolchains on rolling-release distros (Arch, CachyOS, Manjaro, EndeavourOS).
-
-The error from Tauri:
-
-```
-Bundling Murmur_*_amd64.AppImage
-failed to bundle project `failed to run linuxdeploy`
-```
-
-Tauri swallows the real linuxdeploy error. To see it, run linuxdeploy manually:
-
-```bash
-cd src-tauri/target/release/bundle/appimage
-~/.cache/tauri/linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
-  --appdir Murmur.AppDir --plugin gtk --output appimage
-```
-
-**Workaround:** The binary, deb, and rpm bundles all build fine — only the AppImage step fails. To skip it:
-
-```bash
-bun run tauri build -- --bundles deb
-```
-
-Then install using the deb extraction method above.
-
-### Windows `tauri build` fails at bundling with `program not found`
-
-If the build compiles all the way to `Built application at: ...\murmur.exe` and
-then fails with:
-
-```
-Signing C:\...\murmur.exe with a custom signing command
-failed to bundle project `program not found`
-```
-
-that's the code-signing step: `tauri.conf.json` configures a custom
-`signCommand` (`trusted-signing-cli`, Azure Trusted Signing) that only exists
-in the release CI environment. Local development doesn't need it:
-
-```powershell
-# Development (no bundling/signing at all):
-bun run tauri dev
-
-# Or compile a release binary without the installer/signing step:
-bun run tauri build --no-bundle
-```

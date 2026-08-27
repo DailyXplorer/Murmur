@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "Overlay",
-          "description": "Wähle das Aufnahme-Overlay: „Keine“ blendet es aus, „Minimal“ zeigt ein kompaktes Element. Unter Linux wird „Keine“ empfohlen.",
+          "description": "Wähle das Aufnahme-Overlay: „Keine“ blendet es aus, „Minimal“ zeigt ein kompaktes Element.",
           "options": {
             "none": "Keine",
             "minimal": "Minimal"
@@ -142,7 +142,7 @@
         },
         "position": {
           "title": "Overlay-Position",
-          "description": "Visuelles Feedback-Overlay während Aufnahme und Transkription anzeigen. Unter Linux wird 'Keine' empfohlen.",
+          "description": "Wo das Overlay während Aufnahme und Transkription auf dem Bildschirm erscheint.",
           "options": {
             "bottom": "Unten",
             "top": "Oben"
@@ -154,19 +154,8 @@
         "description": "Wähle, wie Text eingefügt wird. Direkt: simuliert Tippen über Systemeingabe. Keine: überspringt Einfügen, aktualisiert nur Verlauf/Zwischenablage.",
         "options": {
           "clipboard": "Zwischenablage ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "Zwischenablage (Strg+Umschalt+V)",
-          "clipboardShiftInsert": "Zwischenablage (Umschalt+Einfg)",
           "direct": "Direkt",
-          "none": "Keine",
-          "externalScript": "Externes Skript"
-        },
-        "externalScriptPlaceholder": "/pfad/zu/ihrem/skript.sh"
-      },
-      "typingTool": {
-        "title": "Eingabetool",
-        "description": "Wähle, welches Linux-Eingabetool für die Direkt-Einfügen-Methode verwendet werden soll. Auto erkennt und verwendet automatisch das beste verfügbare Tool für dein System.",
-        "options": {
-          "auto": "Auto (Empfohlen)"
+          "none": "Keine"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "Automatisch absenden",
-        "description": "Sendet nach dem Einfügen von Text automatisch die ausgewählte Tastenkombination. Cmd+Enter gilt für macOS, während Windows/Linux Super+Enter verwenden.",
+        "description": "Sendet nach dem Einfügen von Text automatisch die ausgewählte Tastenkombination.",
         "options": {
           "off": "Aus",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "Zuverlässiges Einfügen (Beta)",
-        "description": "Die Zwischenablage erst wiederherstellen, wenn die Ziel-App die Transkription tatsächlich gelesen hat, statt nach einer festen Verzögerung. Soll verhindern, dass bei Systemlast der alte Inhalt der Zwischenablage eingefügt wird. Erfordert eine Einfügemethode über die Zwischenablage; nur macOS und Windows."
+        "description": "Die Zwischenablage erst wiederherstellen, wenn die Ziel-App die Transkription tatsächlich gelesen hat, statt nach einer festen Verzögerung. Soll verhindern, dass bei Systemlast der alte Inhalt der Zwischenablage eingefügt wird. Erfordert eine Einfügemethode über die Zwischenablage."
       },
       "recordingBuffer": {
         "title": "Zusätzlicher Aufnahmepuffer",
@@ -357,12 +345,7 @@
     "downloading": "Wird heruntergeladen... {{progress}}%",
     "installing": "Wird installiert...",
     "preparing": "Wird vorbereitet...",
-    "checkForUpdates": "Nach Updates suchen",
-    "portableUpdateTitle": "Manuelles Update erforderlich",
-    "portableUpdateMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade unten den Installer für dein System herunter, führe ihn aus und installiere in denselben Ordner — dein Data/-Ordner bleibt erhalten.",
-    "portableUpdateButton": "Installer herunterladen",
-    "portableUpdateBrowseMessage": "Portable Installationen können nicht automatisch aktualisiert werden. Lade die neueste Version für dein System von GitHub Releases herunter und installiere sie in denselben Ordner — dein Data/-Ordner bleibt erhalten.",
-    "portableUpdateBrowseButton": "GitHub Releases öffnen"
+    "checkForUpdates": "Nach Updates suchen"
   },
   "common": {
     "loading": "Wird geladen...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "Mikrofonzugriff verweigert",
     "micPermissionDenied": {
       "generic": "Der Mikrofonzugriff wurde vom Betriebssystem verweigert. Bitte erteile die Mikrofonberechtigung in deinen Systemeinstellungen.",
-      "windows": "Aktiviere den Mikrofonzugriff unter Einstellungen → Datenschutz und Sicherheit → Mikrofon (einschließlich Desktop-App-Zugriff).",
-      "macos": "Erteile den Mikrofonzugriff in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
-      "linux": "Erteile den Mikrofonzugriff in den Sound- oder Datenschutzeinstellungen deines Systems."
+      "macos": "Erteile den Mikrofonzugriff in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon."
     },
     "noInputDeviceTitle": "Kein Mikrofon gefunden",
     "noInputDevice": "Es wurde kein Audio-Eingabegerät erkannt. Bitte schließe ein Mikrofon oder Headset an und versuche es erneut.",
