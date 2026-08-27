@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "Ekran Katmanı",
-          "description": "Kayıt katmanını seçin: 'Yok' gizler, 'Minimal' kompakt bir gösterge gösterir. Linux'ta 'Yok' önerilir.",
+          "description": "Kayıt katmanını seçin: 'Yok' gizler, 'Minimal' kompakt bir gösterge gösterir.",
           "options": {
             "none": "Yok",
             "minimal": "Sade"
@@ -154,19 +154,8 @@
         "description": "Metnin nasıl ekleneceğini seçin. Doğrudan: sistem girişiyle yazmayı simüle eder. Yok: yapıştırmayı atlar, sadece geçmişi/panoyu günceller.",
         "options": {
           "clipboard": "Pano ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "Pano (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "Pano (Shift+Insert)",
           "direct": "Doğrudan",
-          "none": "Yok",
-          "externalScript": "Harici Betik"
-        },
-        "externalScriptPlaceholder": "/dosya/yolu/betik.sh"
-      },
-      "typingTool": {
-        "title": "Yazma Aracı",
-        "description": "Doğrudan yapıştırma yöntemi için hangi Linux yazma aracının kullanılacağını seçin. Otomatik seçeneği, sisteminiz için mevcut en iyi aracı algılar ve kullanır.",
-        "options": {
-          "auto": "Otomatik (Önerilen)"
+          "none": "Yok"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "Otomatik Gönder",
-        "description": "Metin eklendikten sonra seçilen tuş kombinasyonunu otomatik olarak gönderir. macOS'ta Cmd+Enter, Windows/Linux'ta Super+Enter geçerlidir.",
+        "description": "Metin eklendikten sonra seçilen tuş kombinasyonunu otomatik olarak gönderir.",
         "options": {
           "off": "Kapalı",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "Güvenilir Yapıştırma (Beta)",
-        "description": "Panoyu sabit bir gecikmenin ardından değil, hedef uygulama transkripsiyonu gerçekten okuduktan sonra geri yükler. Sistem yükü altında eski pano içeriğinin yapıştırılması sorununu gidermeyi amaçlar. Pano üzerinden çalışan bir yapıştırma yöntemi gerektirir; yalnızca macOS ve Windows."
+        "description": "Panoyu sabit bir gecikmenin ardından değil, hedef uygulama transkripsiyonu gerçekten okuduktan sonra geri yükler. Sistem yükü altında eski pano içeriğinin yapıştırılması sorununu gidermeyi amaçlar. Pano üzerinden çalışan bir yapıştırma yöntemi gerektirir."
       },
       "recordingBuffer": {
         "title": "Ekstra Kayıt Tamponu",
@@ -357,12 +345,7 @@
     "downloading": "İndiriliyor... %{{progress}}",
     "installing": "Yükleniyor...",
     "preparing": "Hazırlanıyor...",
-    "checkForUpdates": "Güncellemeleri kontrol et",
-    "portableUpdateTitle": "Manuel güncelleme gerekli",
-    "portableUpdateMessage": "Taşınabilir kurulumlar otomatik olarak güncellenemez. Aşağıdan sisteminize uygun yükleyiciyi indirin, çalıştırın ve aynı klasöre kurun — Data/ klasörünüz yerinde kalır.",
-    "portableUpdateButton": "Yükleyiciyi indir",
-    "portableUpdateBrowseMessage": "Taşınabilir kurulumlar otomatik olarak güncellenemez. Sisteminize uygun en son sürümü GitHub Releases’ten indirin ve aynı klasöre kurun — Data/ klasörünüz yerinde kalır.",
-    "portableUpdateBrowseButton": "GitHub Releases’i aç"
+    "checkForUpdates": "Güncellemeleri kontrol et"
   },
   "common": {
     "loading": "Yükleniyor...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "Mikrofon erişimi reddedildi",
     "micPermissionDenied": {
       "generic": "Mikrofon erişimi işletim sistemi tarafından reddedildi. Lütfen sistem ayarlarından mikrofon iznini verin.",
-      "windows": "Ayarlar → Gizlilik ve güvenlik → Mikrofon (masaüstü uygulama erişimi dahil) bölümünden mikrofon erişimini etkinleştirin.",
-      "macos": "Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden mikrofon erişimini verin.",
-      "linux": "Sisteminizin ses veya gizlilik ayarlarından mikrofon erişimini verin."
+      "macos": "Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden mikrofon erişimini verin."
     },
     "noInputDeviceTitle": "Mikrofon bulunamadı",
     "noInputDevice": "Ses giriş aygıtı algılanamadı. Lütfen bir mikrofon veya kulaklık bağlayın ve tekrar deneyin.",

@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "Overlay",
-          "description": "Kies de opname-overlay: 'Geen' verbergt deze, 'Minimaal' toont een compacte balk. Op Linux wordt 'Geen' aanbevolen.",
+          "description": "Kies de opname-overlay: 'Geen' verbergt deze, 'Minimaal' toont een compacte balk.",
           "options": {
             "none": "Geen",
             "minimal": "Minimaal"
@@ -154,19 +154,8 @@
         "description": "Kies hoe tekst wordt ingevoegd. 'Direct' simuleert typen via het systeem. 'Geen' slaat het plakken over en werkt alleen de geschiedenis en het klembord bij.",
         "options": {
           "clipboard": "Klembord ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "Klembord (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "Klembord (Shift+Insert)",
           "direct": "Direct",
-          "none": "Geen",
-          "externalScript": "Extern script"
-        },
-        "externalScriptPlaceholder": "/pad/naar/je/script.sh"
-      },
-      "typingTool": {
-        "title": "Typgereedschap",
-        "description": "Kies welke Linux-typtool gebruikt moet worden voor de 'Directe' plakmethode. 'Automatisch' detecteert zelf de beste optie voor jouw systeem.",
-        "options": {
-          "auto": "Automatisch (Aanbevolen)"
+          "none": "Geen"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "Automatisch verzenden",
-        "description": "Verzend automatisch de geselecteerde toetsencombinatie na het invoegen van de tekst. Cmd+Enter geldt voor macOS, Windows/Linux gebruiken Super+Enter.",
+        "description": "Verzend automatisch de geselecteerde toetsencombinatie na het invoegen van de tekst.",
         "options": {
           "off": "Uit",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -297,7 +285,7 @@
       },
       "reliablePaste": {
         "title": "Betrouwbaar plakken (Beta)",
-        "description": "Herstel het klembord pas nadat de doelapp de transcriptie daadwerkelijk heeft gelezen, in plaats van na een vaste vertraging. Bedoeld om te verhelpen dat bij systeembelasting de oude klembordinhoud wordt geplakt. Vereist een plakmethode via het klembord; alleen macOS en Windows."
+        "description": "Herstel het klembord pas nadat de doelapp de transcriptie daadwerkelijk heeft gelezen, in plaats van na een vaste vertraging. Bedoeld om te verhelpen dat bij systeembelasting de oude klembordinhoud wordt geplakt. Vereist een plakmethode via het klembord."
       },
       "recordingBuffer": {
         "title": "Extra opnamebuffer",
@@ -357,12 +345,7 @@
     "downloading": "Downloaden... {{progress}}%",
     "installing": "Installeren...",
     "preparing": "Voorbereiden...",
-    "checkForUpdates": "Controleren op updates",
-    "portableUpdateTitle": "Handmatige update vereist",
-    "portableUpdateMessage": "Draagbare installaties kunnen niet automatisch worden bijgewerkt. Download hieronder het installatiebestand voor je systeem, voer het uit en installeer in dezelfde map — je Data/-map blijft behouden.",
-    "portableUpdateButton": "Installatiebestand downloaden",
-    "portableUpdateBrowseMessage": "Draagbare installaties kunnen niet automatisch worden bijgewerkt. Download de nieuwste versie voor je systeem van GitHub Releases en installeer die in dezelfde map — je Data/-map blijft behouden.",
-    "portableUpdateBrowseButton": "GitHub Releases openen"
+    "checkForUpdates": "Controleren op updates"
   },
   "whatsNew": {
     "title": "Nieuw in Murmur v{{version}}"
@@ -385,9 +368,7 @@
     "micPermissionDeniedTitle": "Microfoontoegang geweigerd",
     "micPermissionDenied": {
       "generic": "Microfoontoegang is geweigerd door het besturingssysteem. Verleen microfoonmachtiging in je systeeminstellingen.",
-      "windows": "Schakel microfoontoegang in via Instellingen → Privacy & beveiliging → Microfoon (inclusief toegang voor desktop-apps).",
-      "macos": "Verleen microfoontoegang via Systeeminstellingen → Privacy & Beveiliging → Microfoon.",
-      "linux": "Verleen microfoontoegang in de geluids- of privacyinstellingen van je systeem."
+      "macos": "Verleen microfoontoegang via Systeeminstellingen → Privacy & Beveiliging → Microfoon."
     },
     "noInputDeviceTitle": "Geen microfoon gevonden",
     "noInputDevice": "Er is geen audio-invoerapparaat gedetecteerd. Sluit een microfoon of headset aan en probeer het opnieuw.",

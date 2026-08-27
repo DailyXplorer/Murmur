@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "悬浮窗",
-          "description": "选择录音悬浮窗：「无」会隐藏悬浮窗，「精简」显示小巧的胶囊状指示。在 Linux 上建议选择「无」。",
+          "description": "选择录音悬浮窗：「无」会隐藏悬浮窗，「精简」显示小巧的胶囊状指示。",
           "options": {
             "none": "无",
             "minimal": "精简"
@@ -142,7 +142,7 @@
         },
         "position": {
           "title": "悬浮窗位置",
-          "description": "在录制和转录期间显示可视反馈悬浮窗。在 Linux 上建议选择「无」。",
+          "description": "录音和转录期间悬浮窗在屏幕上出现的位置。",
           "options": {
             "bottom": "底部",
             "top": "顶部"
@@ -154,19 +154,8 @@
         "description": "选择文字插入方式。直接：通过系统输入模拟打字。无：跳过粘贴，仅更新历史记录/剪贴板。",
         "options": {
           "clipboard": "剪贴板 ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "剪贴板 (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "剪贴板 (Shift+Insert)",
           "direct": "直接",
-          "none": "无",
-          "externalScript": "外部脚本"
-        },
-        "externalScriptPlaceholder": "/path/to/your/script.sh"
-      },
-      "typingTool": {
-        "title": "输入工具",
-        "description": "选择在直接粘贴方式下使用的 Linux 输入工具。Auto 会自动检测并使用系统中可用的最佳工具。",
-        "options": {
-          "auto": "Auto（推荐）"
+          "none": "无"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "自动提交",
-        "description": "在文本插入后自动发送所选的按键组合。macOS 上使用 Cmd+Enter，Windows/Linux 上使用 Super+Enter。",
+        "description": "在文本插入后自动发送所选的按键组合。",
         "options": {
           "off": "关闭",
           "enter": "回车",
           "cmdEnter": "Cmd+回车",
-          "superEnter": "Super+回车",
           "ctrlEnter": "Ctrl+回车"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "可靠粘贴（Beta）",
-        "description": "在目标应用程序真正读取转录文本之后再恢复剪贴板，而不是等待固定延迟。用于解决系统负载较高时粘贴旧剪贴板内容的问题。需要使用剪贴板类的粘贴方式；仅支持 macOS 和 Windows。"
+        "description": "在目标应用程序真正读取转录文本之后再恢复剪贴板，而不是等待固定延迟。用于解决系统负载较高时粘贴旧剪贴板内容的问题。需要使用剪贴板类的粘贴方式。"
       },
       "recordingBuffer": {
         "title": "额外录音缓冲",
@@ -357,12 +345,7 @@
     "downloading": "下载中... {{progress}}%",
     "installing": "安装中...",
     "preparing": "准备中...",
-    "checkForUpdates": "检查更新",
-    "portableUpdateTitle": "需要手动更新",
-    "portableUpdateMessage": "便携版无法自动更新。请通过下方按钮下载适用于你的系统的安装程序，运行后安装到同一文件夹，你的 Data/ 文件夹会保留在原处。",
-    "portableUpdateButton": "下载安装程序",
-    "portableUpdateBrowseMessage": "便携版无法自动更新。请从 GitHub Releases 下载适用于你的系统的最新版本，并安装到同一文件夹，你的 Data/ 文件夹会保留在原处。",
-    "portableUpdateBrowseButton": "打开 GitHub Releases"
+    "checkForUpdates": "检查更新"
   },
   "common": {
     "loading": "加载中...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "麦克风访问被拒绝",
     "micPermissionDenied": {
       "generic": "操作系统拒绝了麦克风访问。请在系统设置中授予麦克风权限。",
-      "windows": "在设置 → 隐私和安全性 → 麦克风（包括桌面应用访问）中启用麦克风访问。",
-      "macos": "在系统设置 → 隐私与安全性 → 麦克风中授予麦克风访问权限。",
-      "linux": "在系统的声音或隐私设置中授予麦克风访问权限。"
+      "macos": "在系统设置 → 隐私与安全性 → 麦克风中授予麦克风访问权限。"
     },
     "noInputDeviceTitle": "未找到麦克风",
     "noInputDevice": "未检测到音频输入设备。请连接麦克风或耳机后重试。",

@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "Nakładka",
-          "description": "Wybierz nakładkę nagrywania: „Brak“ ją ukrywa, „Minimalna“ pokazuje kompaktowy wskaźnik. W systemie Linux zalecana jest opcja „Brak“.",
+          "description": "Wybierz nakładkę nagrywania: „Brak“ ją ukrywa, „Minimalna“ pokazuje kompaktowy wskaźnik.",
           "options": {
             "none": "Brak",
             "minimal": "Minimalna"
@@ -142,7 +142,7 @@
         },
         "position": {
           "title": "Pozycja nakładki",
-          "description": "Wyświetlaj wizualną nakładkę podczas nagrywania i transkrypcji. Na Linuxie zalecane 'Brak'.",
+          "description": "Miejsce, w którym nakładka pojawia się na ekranie podczas nagrywania i transkrypcji.",
           "options": {
             "bottom": "Dół",
             "top": "Góra"
@@ -154,19 +154,8 @@
         "description": "Wybierz sposób wstawiania tekstu. Direct: symuluje wpisywanie. None: pomija wklejanie, tylko aktualizuje historię/clipboard.",
         "options": {
           "clipboard": "Schowek ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "Schowek (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "Schowek (Shift+Insert)",
           "direct": "Bezpośrednio",
-          "none": "Brak",
-          "externalScript": "Skrypt zewnętrzny"
-        },
-        "externalScriptPlaceholder": "/sciezka/do/twojego/skryptu.sh"
-      },
-      "typingTool": {
-        "title": "Narzędzie do wpisywania",
-        "description": "Wybierz, którego narzędzia do wpisywania w Linuxie użyć dla metody bezpośredniego wklejania. Auto automatycznie wykryje i użyje najlepszego dostępnego narzędzia dla Twojego systemu.",
-        "options": {
-          "auto": "Auto (Zalecane)"
+          "none": "Brak"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "Automatyczne wysyłanie",
-        "description": "Automatycznie wysyła wybraną kombinację klawiszy po wstawieniu tekstu. Cmd+Enter dotyczy macOS, natomiast Windows/Linux używają Super+Enter.",
+        "description": "Automatycznie wysyła wybraną kombinację klawiszy po wstawieniu tekstu.",
         "options": {
           "off": "Wyłączone",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "Niezawodne wklejanie (Beta)",
-        "description": "Przywracaj schowek dopiero po tym, jak docelowa aplikacja faktycznie odczyta transkrypcję, a nie po ustalonym opóźnieniu. Ma naprawić wklejanie starej zawartości schowka przy obciążeniu systemu. Wymaga metody wklejania przez schowek; tylko macOS i Windows."
+        "description": "Przywracaj schowek dopiero po tym, jak docelowa aplikacja faktycznie odczyta transkrypcję, a nie po ustalonym opóźnieniu. Ma naprawić wklejanie starej zawartości schowka przy obciążeniu systemu. Wymaga metody wklejania przez schowek."
       },
       "recordingBuffer": {
         "title": "Dodatkowy bufor nagrywania",
@@ -357,12 +345,7 @@
     "downloading": "Pobieranie... {{progress}}%",
     "installing": "Instalowanie...",
     "preparing": "Przygotowywanie...",
-    "checkForUpdates": "Sprawdź aktualizacje",
-    "portableUpdateTitle": "Wymagana ręczna aktualizacja",
-    "portableUpdateMessage": "Instalacji przenośnych nie można aktualizować automatycznie. Pobierz poniżej instalator dla swojego systemu, uruchom go i zainstaluj w tym samym folderze — Twój folder Data/ pozostaje na miejscu.",
-    "portableUpdateButton": "Pobierz instalator",
-    "portableUpdateBrowseMessage": "Instalacji przenośnych nie można aktualizować automatycznie. Pobierz najnowszą wersję dla swojego systemu z GitHub Releases i zainstaluj ją w tym samym folderze — Twój folder Data/ pozostaje na miejscu.",
-    "portableUpdateBrowseButton": "Otwórz GitHub Releases"
+    "checkForUpdates": "Sprawdź aktualizacje"
   },
   "common": {
     "loading": "Wczytywanie...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "Odmowa dostępu do mikrofonu",
     "micPermissionDenied": {
       "generic": "System operacyjny odmówił dostępu do mikrofonu. Przyznaj uprawnienia do mikrofonu w ustawieniach systemowych.",
-      "windows": "Włącz dostęp do mikrofonu w Ustawienia → Prywatność i zabezpieczenia → Mikrofon (w tym dostęp aplikacji klasycznych).",
-      "macos": "Przyznaj dostęp do mikrofonu w Ustawienia systemowe → Prywatność i ochrona → Mikrofon.",
-      "linux": "Przyznaj dostęp do mikrofonu w ustawieniach dźwięku lub prywatności systemu."
+      "macos": "Przyznaj dostęp do mikrofonu w Ustawienia systemowe → Prywatność i ochrona → Mikrofon."
     },
     "noInputDeviceTitle": "Nie znaleziono mikrofonu",
     "noInputDevice": "Nie wykryto żadnego urządzenia wejściowego audio. Podłącz mikrofon lub słuchawki i spróbuj ponownie.",

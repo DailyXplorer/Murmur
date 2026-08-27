@@ -42,11 +42,11 @@ bun run format:backend    # cargo fmt only
 
 **Model Setup:** Transcription uses the Codex / ChatGPT session already on the machine (`~/.codex/auth.json`). No local model download is required.
 
-For detailed platform-specific build setup, see [BUILD.md](BUILD.md).
+For macOS build setup, code signing, and notarization, see [BUILD.md](BUILD.md).
 
 ## Architecture Overview
 
-Murmur is a cross-platform desktop speech-to-text application built with Tauri 2.x (Rust backend + React/TypeScript frontend).
+Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust backend + React/TypeScript frontend).
 
 ### Backend Structure (src-tauri/src/)
 
@@ -160,7 +160,7 @@ For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONT
 
 ## CLI Parameters
 
-Murmur supports command-line parameters on all platforms for integration with scripts, window managers, and autostart configurations.
+Murmur supports command-line parameters for integration with scripts and autostart configurations.
 
 **Implementation:** `cli.rs` (definitions), `main.rs` (parsing), `lib.rs` (applying), `signal_handle.rs` (shared logic)
 
@@ -180,17 +180,15 @@ Murmur supports command-line parameters on all platforms for integration with sc
 
 ## Debug Mode
 
-Access debug features: `Cmd+Shift+D` (macOS) or `Ctrl+Shift+D` (Windows/Linux)
+Access debug features with `Cmd+Shift+D`.
 
 ## Platform Notes
 
-- **macOS**: Accessibility permissions required for keyboard shortcuts
-- **Windows**: Code signing
-- **Linux**: Limited Wayland support, overlay uses GTK layer shell (disable with `MURMUR_NO_GTK_LAYER_SHELL=1`)
+- Accessibility permission is required for keyboard shortcuts and text insertion
 
 ## Troubleshooting
 
-See the [Troubleshooting](README.md#troubleshooting) section in README.md.
+See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
 ## Contributor workflow
 
