@@ -3,7 +3,9 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::codex_transcribe;
-use crate::settings::get_settings;
+#[cfg(target_os = "macos")]
+use crate::gemini_transcribe::GeminiTranscriber;
+use crate::settings::{get_settings, TranscriptionProvider};
 use anyhow::Result;
 use log::{debug, error, info};
 use tauri::AppHandle;
@@ -13,10 +15,11 @@ const SUPPORTED_LANGUAGES: &[&str] = &[
     "da", "fi", "no", "cs", "ro", "hu", "el", "uk", "vi", "th", "id", "ms", "he", "ca",
 ];
 
-#[derive(Clone)]
-/// Runs Murmur's single ChatGPT-session transcription pipeline.
+/// Routes audio through the selected cloud transcription provider.
 pub struct TranscriptionManager {
     app_handle: AppHandle,
+    #[cfg(target_os = "macos")]
+    gemini: GeminiTranscriber,
 }
 
 impl TranscriptionManager {
@@ -24,6 +27,8 @@ impl TranscriptionManager {
     pub fn new(app_handle: &AppHandle) -> Self {
         Self {
             app_handle: app_handle.clone(),
+            #[cfg(target_os = "macos")]
+            gemini: GeminiTranscriber::new(),
         }
     }
 
@@ -45,14 +50,33 @@ impl TranscriptionManager {
         let language =
             (settings.selected_language != "auto").then(|| settings.selected_language.clone());
 
+        let provider = settings.transcription_provider;
         debug!(
-            "Sending {} samples to Codex transcription (language={:?})",
+            "Sending {} samples to {:?} transcription (language={:?})",
             audio.len(),
+            provider,
             language
         );
 
-        let text = codex_transcribe::transcribe(&audio, language.as_deref()).map_err(|err| {
-            error!("Codex transcription failed: {err}");
+        let text = match provider {
+            TranscriptionProvider::Codex => {
+                codex_transcribe::transcribe(&audio, language.as_deref())
+            }
+            TranscriptionProvider::Gemini => {
+                #[cfg(target_os = "macos")]
+                {
+                    self.gemini.transcribe(&audio)
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    Err(anyhow::anyhow!(
+                        "Gemini transcription is currently available on macOS only."
+                    ))
+                }
+            }
+        }
+        .map_err(|err| {
+            error!("{provider:?} transcription failed: {err}");
             err
         })?;
 
@@ -63,29 +87,36 @@ impl TranscriptionManager {
             settings.word_correction_threshold,
         );
 
-        let language_evidence = if settings.selected_language == "auto" {
-            let supported_languages = SUPPORTED_LANGUAGES
-                .iter()
-                .map(|language| language.to_string())
-                .collect::<Vec<_>>();
-            detect_output_language(&processed, &supported_languages)
-                .map(OutputLanguageEvidence::TextDetected)
-                .unwrap_or(OutputLanguageEvidence::Unknown)
-        } else {
-            OutputLanguageEvidence::UserSelected(settings.selected_language.clone())
-        };
-
-        processed = remove_filler_words(
-            &processed,
-            &language_evidence,
-            &settings.custom_filler_words,
-            settings.filler_word_removal_enabled,
-        );
+        if provider == TranscriptionProvider::Codex {
+            let language_evidence = if settings.selected_language == "auto" {
+                let supported_languages = SUPPORTED_LANGUAGES
+                    .iter()
+                    .map(|language| language.to_string())
+                    .collect::<Vec<_>>();
+                detect_output_language(&processed, &supported_languages)
+                    .map(OutputLanguageEvidence::TextDetected)
+                    .unwrap_or(OutputLanguageEvidence::Unknown)
+            } else {
+                OutputLanguageEvidence::UserSelected(settings.selected_language.clone())
+            };
+            processed = remove_filler_words(
+                &processed,
+                &language_evidence,
+                &settings.custom_filler_words,
+                settings.filler_word_removal_enabled,
+            );
+        }
 
         info!(
-            "Codex transcription produced {} characters",
+            "{provider:?} transcription produced {} characters",
             processed.len()
         );
         Ok(processed)
+    }
+
+    /// Releases provider resources before a headless process exits.
+    pub fn shutdown(&self) {
+        #[cfg(target_os = "macos")]
+        self.gemini.shutdown();
     }
 }

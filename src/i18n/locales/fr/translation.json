@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Supprimer les mots de remplissage",
-        "description": "Supprime les hésitations courantes des transcriptions. Désactivez cette option pour les conserver."
+        "description": "Supprime les hésitations courantes des transcriptions Codex. Gemini gère lui-même les mots de remplissage."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "L'audio est envoyé à la même transcription cloud que Codex. Connecte-toi à l'app Codex si ça apparaît déconnecté.",
       "checking": "Vérification de la session…",
+      "statusUnavailable": "Statut indisponible",
       "ready": "Connecté",
-      "missing": "Non connecté"
+      "missing": "Non connecté",
+      "providerTitle": "Service de transcription",
+      "providerDescription": "Choisis le service de transcription utilisé pour les nouvelles dictées.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini utilise la session Antigravity locale de ce Mac. Fonction expérimentale ; une mise à jour d’Antigravity peut nécessiter une mise à jour de Murmur.",
+      "notInstalled": "Antigravity n’est pas installé",
+      "installAntigravity": "Installer",
+      "openAntigravity": "Ouvrir Antigravity",
+      "onboardingDescription": "Connecte-toi à Codex ou à Antigravity avant de continuer.",
+      "onboardingDescriptionCodex": "Connecte-toi à Codex avant de continuer."
     }
   },
   "footer": {

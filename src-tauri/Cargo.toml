@@ -104,6 +104,8 @@ winreg = "0.55"
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
+prost = "0.13"
+tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
 # Used by the receipt-sequenced ("reliable") paste path for lazy NSPasteboard
 # promises. Versions track what Tauri already pulls in.
 objc2 = "0.6"

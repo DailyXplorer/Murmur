@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Odstranit výplňová slova",
-        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů. Vypnutím je zachováte."
+        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů Codexu. Gemini zpracovává výplňová slova sám."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Zvuk se odesílá do stejné cloudové služby pro přepis, kterou používá Codex. Pokud se zde zobrazuje odpojeno, přihlaste se do aplikace Codex.",
       "checking": "Kontrola relace…",
+      "statusUnavailable": "Stav není k dispozici",
       "ready": "Připojeno",
-      "missing": "Nejste přihlášeni"
+      "missing": "Nejste přihlášeni",
+      "providerTitle": "Služba přepisu",
+      "providerDescription": "Vyberte službu přepisu pro nové diktáty.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini používá místní relaci Antigravity na tomto Macu. Experimentální funkce; aktualizace Antigravity mohou vyžadovat aktualizaci Murmur.",
+      "notInstalled": "Antigravity není nainstalován",
+      "installAntigravity": "Nainstalovat",
+      "openAntigravity": "Otevřít Antigravity",
+      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity.",
+      "onboardingDescriptionCodex": "Než budete pokračovat, přihlaste se do Codexu."
     }
   },
   "footer": {

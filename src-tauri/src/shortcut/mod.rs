@@ -6,7 +6,7 @@ pub mod tauri_impl;
 use crate::accent;
 use crate::settings::{
     self, AccentColor, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle,
-    PasteMethod, ShortcutBinding, SoundTheme, Theme, TypingTool,
+    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider, TypingTool,
 };
 use crate::tray;
 use log::{debug, warn};
@@ -238,6 +238,44 @@ pub fn change_selected_language_setting(app: AppHandle, language: String) -> Res
     let mut value = settings::get_settings(&app);
     value.selected_language = language;
     settings::write_settings(&app, value);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_transcription_provider_setting(
+    app: AppHandle,
+    provider: TranscriptionProvider,
+) -> Result<(), String> {
+    if provider == TranscriptionProvider::Gemini {
+        #[cfg(not(target_os = "macos"))]
+        return Err("Gemini transcription is currently available on macOS only.".to_string());
+
+        #[cfg(target_os = "macos")]
+        {
+            let status = crate::gemini_transcribe::status();
+            if !status.installed {
+                return Err(
+                    "Antigravity is not installed. Install it before selecting Gemini transcription."
+                        .to_string(),
+                );
+            }
+            if !status.signed_in {
+                return Err(
+                    "No Antigravity session was found. Open Antigravity, sign in, and retry."
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    let mut value = settings::get_settings(&app);
+    value.transcription_provider = provider;
+    settings::write_settings(&app, value);
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({"setting": "transcription_provider"}),
+    );
     Ok(())
 }
 

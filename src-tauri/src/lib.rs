@@ -7,6 +7,8 @@ pub mod cli;
 mod clipboard;
 mod codex_transcribe;
 mod commands;
+#[cfg(target_os = "macos")]
+mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
@@ -433,6 +435,10 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         }
     };
     let audio_secs = samples.len() as f64 / 16_000.0;
+    let backend = match get_settings(app).transcription_provider {
+        settings::TranscriptionProvider::Codex => "chatgpt-session",
+        settings::TranscriptionProvider::Gemini => "antigravity-session",
+    };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
     let text = match tm.transcribe(samples) {
@@ -453,7 +459,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         println!(
             "{}",
             serde_json::json!({
-                "backend": "chatgpt-session",
+                "backend": backend,
                 "audio_secs": audio_secs,
                 "transcribe_ms": elapsed_ms,
                 "rtf": rtf,
@@ -462,7 +468,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         );
     } else {
         println!(
-            "backend=chatgpt-session audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
+            "backend={backend} audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
         );
         println!("text: {}", text);
     }
@@ -493,6 +499,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_start_hidden_setting,
             shortcut::change_autostart_setting,
             shortcut::change_selected_language_setting,
+            shortcut::change_transcription_provider_setting,
             shortcut::change_overlay_position_setting,
             shortcut::change_overlay_style_setting,
             shortcut::change_debug_mode_setting,
@@ -553,6 +560,8 @@ pub fn run(cli_args: CliArgs) {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
+            commands::transcription::get_gemini_status,
+            commands::transcription::open_antigravity,
             commands::transcription::complete_onboarding,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
@@ -688,6 +697,10 @@ pub fn run(cli_args: CliArgs) {
                 let args = cli_args.clone();
                 std::thread::spawn(move || {
                     let code = run_headless_guarded(|| run_headless_transcription(&handle, &args));
+                    handle
+                        .state::<Arc<TranscriptionManager>>()
+                        .inner()
+                        .shutdown();
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();

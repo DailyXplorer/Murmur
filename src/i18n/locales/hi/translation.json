@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "फिलर शब्द हटाएं",
-        "description": "ट्रांसक्रिप्शन से आम हिचकिचाहट वाले शब्द हटाता है। उन्हें बनाए रखने के लिए इसे बंद करें।"
+        "description": "Codex ट्रांसक्रिप्शन से आम हिचकिचाहट वाले शब्द हटाता है। Gemini भराव शब्दों को स्वयं संभालता है।"
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "ऑडियो उसी क्लाउड ट्रांसक्रिप्शन सेवा को भेजा जाता है जिसका उपयोग Codex करता है। अगर यहाँ डिस्कनेक्टेड दिखे, तो Codex ऐप में साइन इन करें।",
       "checking": "सेशन की जाँच हो रही है…",
+      "statusUnavailable": "स्थिति उपलब्ध नहीं है",
       "ready": "कनेक्टेड",
-      "missing": "साइन इन नहीं है"
+      "missing": "साइन इन नहीं है",
+      "providerTitle": "ट्रांसक्रिप्शन सेवा",
+      "providerDescription": "नई डिक्टेशन के लिए ट्रांसक्रिप्शन सेवा चुनें।",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini इस Mac की स्थानीय Antigravity session का उपयोग करता है। यह प्रायोगिक है; Antigravity अपडेट के बाद Murmur अपडेट की आवश्यकता हो सकती है।",
+      "notInstalled": "Antigravity इंस्टॉल नहीं है",
+      "installAntigravity": "इंस्टॉल करें",
+      "openAntigravity": "Antigravity खोलें",
+      "onboardingDescription": "आगे बढ़ने से पहले Codex या Antigravity में साइन इन करें।",
+      "onboardingDescriptionCodex": "आगे बढ़ने से पहले Codex में साइन इन करें।"
     }
   },
   "footer": {

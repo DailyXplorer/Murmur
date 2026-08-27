@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Rimuovi le parole riempitive",
-        "description": "Rimuove le parole di esitazione più comuni dalle trascrizioni. Disattiva per mantenerle."
+        "description": "Rimuove le parole di esitazione più comuni dalle trascrizioni Codex. Gemini gestisce autonomamente i riempitivi."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "L'audio viene inviato allo stesso servizio di trascrizione cloud usato da Codex. Accedi all'app Codex se qui risulta disconnesso.",
       "checking": "Verifica della sessione…",
+      "statusUnavailable": "Stato non disponibile",
       "ready": "Connesso",
-      "missing": "Non hai effettuato l'accesso"
+      "missing": "Non hai effettuato l'accesso",
+      "providerTitle": "Servizio di trascrizione",
+      "providerDescription": "Scegli il servizio di trascrizione per le nuove dettature.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini usa la sessione locale di Antigravity su questo Mac. Funzione sperimentale; gli aggiornamenti di Antigravity possono richiedere un aggiornamento di Murmur.",
+      "notInstalled": "Antigravity non è installato",
+      "installAntigravity": "Installa",
+      "openAntigravity": "Apri Antigravity",
+      "onboardingDescription": "Accedi a Codex o Antigravity prima di continuare.",
+      "onboardingDescriptionCodex": "Accedi a Codex prima di continuare."
     }
   },
   "footer": {

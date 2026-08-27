@@ -197,8 +197,8 @@
         "duplicate": "「{{word}}」已存在"
       },
       "fillerWordRemoval": {
-        "title": "移除語助詞",
-        "description": "從轉錄中移除常見的語助詞。關閉此選項即可保留這些詞。"
+        "title": "移除填充詞",
+        "description": "從 Codex 轉錄中移除常見的填充詞。Gemini 會自行處理填充詞。"
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "音訊會傳送至 Codex 使用的同一個雲端轉錄服務。如果此處顯示未連線，請登入 Codex 應用程式。",
       "checking": "正在檢查工作階段…",
+      "statusUnavailable": "無法取得狀態",
       "ready": "已連線",
-      "missing": "尚未登入"
+      "missing": "尚未登入",
+      "providerTitle": "轉錄服務",
+      "providerDescription": "選擇新語音輸入使用的轉錄服務。",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini 會使用這台 Mac 上的本機 Antigravity 工作階段。此功能仍在實驗階段；Antigravity 更新後可能需要更新 Murmur。",
+      "notInstalled": "尚未安裝 Antigravity",
+      "installAntigravity": "安裝",
+      "openAntigravity": "開啟 Antigravity",
+      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。",
+      "onboardingDescriptionCodex": "請先登入 Codex，再繼續操作。"
     }
   },
   "footer": {
