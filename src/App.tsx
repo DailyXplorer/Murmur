@@ -22,6 +22,28 @@ import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 type OnboardingStep = "accessibility" | "done";
 
+const initializeKeyboardAutomation = async () => {
+  const [enigoResult, shortcutsResult] = await Promise.all([
+    commands.initializeEnigo(),
+    commands.initializeShortcuts(),
+  ]);
+
+  if (enigoResult.status === "error") {
+    throw new Error(enigoResult.error);
+  }
+  if (shortcutsResult.status === "error") {
+    throw new Error(shortcutsResult.error);
+  }
+};
+
+const revealMainWindowForPermissions = async () => {
+  try {
+    await commands.showMainWindowCommand();
+  } catch (e) {
+    console.warn("Failed to show main window for permission onboarding:", e);
+  }
+};
+
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
     SECTIONS_CONFIG[section]?.component || SECTIONS_CONFIG.general.component;
@@ -54,17 +76,36 @@ function App() {
   }, [i18n.language]);
 
   useEffect(() => {
-    if (onboardingStep === "done" && !hasCompletedPostOnboardingInit.current) {
-      hasCompletedPostOnboardingInit.current = true;
-      Promise.all([
-        commands.initializeEnigo(),
-        commands.initializeShortcuts(),
-      ]).catch((e) => {
-        console.warn("Failed to initialize:", e);
-      });
-      refreshAudioDevices();
-      refreshOutputDevices();
+    if (onboardingStep !== "done" || hasCompletedPostOnboardingInit.current) {
+      return;
     }
+
+    let cancelled = false;
+
+    const initializeAfterOnboarding = async () => {
+      try {
+        await initializeKeyboardAutomation();
+        if (cancelled) {
+          return;
+        }
+        hasCompletedPostOnboardingInit.current = true;
+        refreshAudioDevices();
+        refreshOutputDevices();
+      } catch (e) {
+        console.warn("Failed to initialize:", e);
+        if (cancelled) {
+          return;
+        }
+        await revealMainWindowForPermissions();
+        setOnboardingStep("accessibility");
+      }
+    };
+
+    void initializeAfterOnboarding();
+
+    return () => {
+      cancelled = true;
+    };
   }, [onboardingStep, refreshAudioDevices, refreshOutputDevices]);
 
   useEffect(() => {
@@ -92,12 +133,9 @@ function App() {
       const { error_type, detail } = event.payload;
 
       if (error_type === "microphone_permission_denied") {
-        const currentPlatform = platform();
-        const platformKey = `errors.micPermissionDenied.${currentPlatform}`;
-        const description = t(platformKey, {
-          defaultValue: t("errors.micPermissionDenied.generic"),
+        toast.error(t("errors.micPermissionDeniedTitle"), {
+          description: t("errors.micPermissionDenied.macos"),
         });
-        toast.error(t("errors.micPermissionDeniedTitle"), { description });
       } else if (error_type === "no_input_device") {
         toast.error(t("errors.noInputDeviceTitle"), {
           description: t("errors.noInputDevice"),
@@ -135,14 +173,6 @@ function App() {
     };
   }, [t]);
 
-  const revealMainWindowForPermissions = async () => {
-    try {
-      await commands.showMainWindowCommand();
-    } catch (e) {
-      console.warn("Failed to show main window for permission onboarding:", e);
-    }
-  };
-
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
@@ -168,23 +198,18 @@ function App() {
           }
         }
 
-        if (currentPlatform === "windows") {
-          try {
-            const microphoneStatus =
-              await commands.getWindowsMicrophonePermissionStatus();
-            if (
-              microphoneStatus.supported &&
-              microphoneStatus.overall_access === "denied"
-            ) {
-              await revealMainWindowForPermissions();
-              setOnboardingStep("accessibility");
-              return;
-            }
-          } catch (e) {
-            console.warn("Failed to check Windows microphone permissions:", e);
-          }
+        try {
+          await initializeKeyboardAutomation();
+        } catch (e) {
+          console.warn("Failed to initialize:", e);
+          await revealMainWindowForPermissions();
+          setOnboardingStep("accessibility");
+          return;
         }
 
+        hasCompletedPostOnboardingInit.current = true;
+        refreshAudioDevices();
+        refreshOutputDevices();
         setOnboardingStep("done");
       } else {
         setOnboardingStep("accessibility");
