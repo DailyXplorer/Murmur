@@ -1,6 +1,11 @@
 import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { LAYER_Z_INDEX } from "@/lib/constants/layers";
+import {
+  DIALOG_FLOATING_LAYERS,
+  FloatingLayerContext,
+} from "./FloatingLayerContext";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -95,7 +100,7 @@ export const Dialog: React.FC<DialogProps> = ({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && dismissible) {
+      if (event.key === "Escape" && dismissible && !event.defaultPrevented) {
         event.preventDefault();
         onOpenChange(false);
         return;
@@ -157,54 +162,57 @@ export const Dialog: React.FC<DialogProps> = ({
     : undefined;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6"
-      onMouseDown={handleBackdropMouseDown}
-    >
+    <FloatingLayerContext.Provider value={DIALOG_FLOATING_LAYERS}>
       <div
-        ref={contentRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
-        className={`flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-mid-gray/20 bg-background shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)] ${className}`}
+        className="fixed inset-0 flex items-center justify-center bg-black/50 p-4 sm:p-6"
+        style={{ zIndex: LAYER_Z_INDEX.dialog }}
+        onMouseDown={handleBackdropMouseDown}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-mid-gray/20 px-4 py-2.5">
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-base font-semibold text-text">
-              {title}
-            </h2>
-            {description && (
-              <p id={descriptionId} className="mt-1 text-sm text-mid-gray">
-                {description}
-              </p>
+        <div
+          ref={contentRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          tabIndex={-1}
+          className={`flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-mid-gray/20 bg-background shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)] ${className}`}
+        >
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-mid-gray/20 px-4 py-2.5">
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-base font-semibold text-text">
+                {title}
+              </h2>
+              {description && (
+                <p id={descriptionId} className="mt-1 text-sm text-mid-gray">
+                  {description}
+                </p>
+              )}
+            </div>
+            {dismissible && showCloseButton && (
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                aria-label={closeLabel}
+                className="shrink-0 cursor-pointer rounded-md border border-transparent p-1 text-mid-gray transition-colors hover:border-mid-gray/20 hover:bg-mid-gray/10 hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
+              >
+                <XIcon size={15} aria-hidden="true" />
+              </button>
             )}
           </div>
-          {dismissible && showCloseButton && (
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              aria-label={closeLabel}
-              className="shrink-0 cursor-pointer rounded-md border border-transparent p-1 text-mid-gray transition-colors hover:border-mid-gray/20 hover:bg-mid-gray/10 hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
-            >
-              <XIcon size={15} aria-hidden="true" />
-            </button>
+          <div
+            className={`min-h-0 overflow-y-auto px-4 pb-4 pt-3 ${contentClassName}`}
+            style={contentStyle}
+          >
+            {children}
+          </div>
+          {footer && (
+            <div className="flex shrink-0 justify-end gap-2 border-t border-mid-gray/20 px-4 py-3">
+              {footer}
+            </div>
           )}
         </div>
-        <div
-          className={`min-h-0 overflow-y-auto px-4 pb-4 pt-3 ${contentClassName}`}
-          style={contentStyle}
-        >
-          {children}
-        </div>
-        {footer && (
-          <div className="flex shrink-0 justify-end gap-2 border-t border-mid-gray/20 px-4 py-3">
-            {footer}
-          </div>
-        )}
       </div>
-    </div>,
+    </FloatingLayerContext.Provider>,
     document.body,
   );
 };

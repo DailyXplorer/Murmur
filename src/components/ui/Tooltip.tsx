@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFloatingLayers } from "./FloatingLayerContext";
 
 type TooltipPosition = "top" | "bottom";
 
@@ -27,6 +28,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   position = "top",
   children,
 }) => {
+  const { tooltip: tooltipZIndex } = useFloatingLayers();
   const [coords, setCoords] = useState<TooltipCoords | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +100,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         top: coords?.top ?? -9999,
         left: coords?.left ?? -9999,
         width: TOOLTIP_WIDTH,
-        zIndex: 9999,
+        zIndex: tooltipZIndex,
         opacity: coords ? 1 : 0,
       }}
       className="px-3 py-2 bg-background border border-mid-gray/80 rounded-lg shadow-lg whitespace-normal transition-opacity duration-150"
