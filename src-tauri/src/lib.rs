@@ -436,6 +436,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Starts the Tauri application and shuts down transcription on process exit.
 pub fn run(cli_args: CliArgs) {
     memory::init_allocator();
 

@@ -15,6 +15,7 @@ const options = Array.from({ length: optionCount }, (_, index) => ({
   label: `Option ${index + 1}`,
 }));
 
+/** Fixture with a search field that can swallow Escape before the panel dismisses. */
 const SearchPanelFixture: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [lastInputKey, setLastInputKey] = useState("");
@@ -51,6 +52,7 @@ const SearchPanelFixture: React.FC = () => {
   );
 };
 
+/** Fixture with two stacked panels used to assert topmost Escape dismissal. */
 const MultiplePanelsFixture: React.FC = () => {
   const [isFirstOpen, setIsFirstOpen] = useState(true);
   const [isSecondOpen, setIsSecondOpen] = useState(true);
@@ -85,6 +87,7 @@ const MultiplePanelsFixture: React.FC = () => {
   );
 };
 
+/** Dialog with a nested portaled panel plus outside controls for Tab trapping. */
 const DialogLayeringFixture: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(true);
   const [isOutsidePanelOpen, setIsOutsidePanelOpen] = useState(true);
@@ -106,6 +109,13 @@ const DialogLayeringFixture: React.FC = () => {
       >
         Outside trigger
       </button>
+      <button
+        data-testid="outside-dialog-control"
+        type="button"
+        className="fixed left-4 top-16"
+      >
+        Outside dialog control
+      </button>
       <FloatingPanel
         open={isOutsidePanelOpen}
         anchorRef={outsideTriggerRef}
@@ -122,6 +132,9 @@ const DialogLayeringFixture: React.FC = () => {
         initialFocusRef={nestedTriggerRef}
         contentFades={false}
       >
+        <button data-testid="inside-dialog-before" type="button">
+          Inside before
+        </button>
         <button
           ref={nestedTriggerRef}
           type="button"
@@ -129,23 +142,33 @@ const DialogLayeringFixture: React.FC = () => {
         >
           Nested trigger
         </button>
+        <button data-testid="inside-dialog-after" type="button">
+          Inside after
+        </button>
         <FloatingPanel
           open={isNestedPanelOpen}
           anchorRef={nestedTriggerRef}
           onDismiss={dismissNestedPanel}
           className="bg-background"
+          focusFirstOptionOnOpen
         >
-          <div data-testid="nested-dialog-panel">Nested dialog panel</div>
+          <div data-testid="nested-dialog-panel">
+            <button type="button" role="option">
+              Nested option
+            </button>
+          </div>
         </FloatingPanel>
       </Dialog>
     </div>
   );
 };
 
+/** Dropdown whose trigger disables after selection until a timer re-enables it. */
 const DisabledTriggerFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  /** Selects a value then briefly disables the trigger to test delayed restore. */
   const handleSelect = (value: string) => {
     setSelectedValue(value);
     setIsUpdating(true);
@@ -165,6 +188,7 @@ const DisabledTriggerFixture: React.FC = () => {
   );
 };
 
+/** Dropdown inside a scrollable ancestor used to assert clip-based dismissal. */
 const ScrollContainerFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
 
@@ -188,6 +212,7 @@ const ScrollContainerFixture: React.FC = () => {
   );
 };
 
+/** Default clipped dropdown with neighboring form controls for Tab order. */
 const FloatingPanelFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
 

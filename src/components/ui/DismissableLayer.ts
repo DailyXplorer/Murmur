@@ -13,6 +13,7 @@ const layers = new Map<symbol, LayerRegistration>();
 let nextSequence = 0;
 let isListening = false;
 
+/** Selects the registered layer with the highest z-index, then latest sequence. */
 const topmostLayer = () =>
   Array.from(layers.values()).reduce<LayerRegistration | null>(
     (topmost, layer) => {
@@ -28,11 +29,13 @@ const topmostLayer = () =>
     null,
   );
 
+/** Dispatches Escape to the topmost layer when the event is still unhandled. */
 const handleDocumentKeyDown = (event: KeyboardEvent) => {
   if (event.key !== "Escape" || event.defaultPrevented) return;
   topmostLayer()?.onEscape?.(event);
 };
 
+/** Attaches or removes the shared document Escape listener as layers change. */
 const syncDocumentListener = () => {
   if (layers.size > 0 && !isListening) {
     document.addEventListener("keydown", handleDocumentKeyDown);

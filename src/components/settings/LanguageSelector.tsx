@@ -42,6 +42,7 @@ const effectiveLanguage = (
   return recognitionLanguage(supported[0]);
 };
 
+/** Settings control for choosing a recognition language from a portaled list. */
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   descriptionMode = "tooltip",
   grouped = false,

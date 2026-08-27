@@ -34,11 +34,13 @@ interface DialogProps {
   contentFades?: boolean;
 }
 
+/** True when the element is not hidden by CSS visibility or display. */
 const isVisible = (element: HTMLElement) => {
   const style = window.getComputedStyle(element);
   return style.visibility !== "hidden" && style.display !== "none";
 };
 
+/** Returns enabled, visible focusable descendants of a dialog container. */
 const getFocusableElements = (container: HTMLElement) =>
   Array.from(
     container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
@@ -49,6 +51,7 @@ const getFocusableElements = (container: HTMLElement) =>
       isVisible(element),
   );
 
+/** Modal dialog that traps Tab and coordinates Escape with stacked layers. */
 export const Dialog: React.FC<DialogProps> = ({
   open,
   title,

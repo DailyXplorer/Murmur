@@ -19,6 +19,7 @@ interface DropdownProps {
   onRefresh?: () => void;
 }
 
+/** Listbox trigger that opens a portaled option list with a single tab stop. */
 export const Dropdown: React.FC<DropdownProps> = ({
   options,
   selectedValue,

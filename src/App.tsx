@@ -50,6 +50,7 @@ const renderSettingsContent = (section: SidebarSection) => {
   return <ActiveComponent />;
 };
 
+/** Settings window shell, including first-run onboarding. */
 function App() {
   const { t, i18n } = useTranslation();
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep | null>(
@@ -220,6 +221,7 @@ function App() {
     }
   };
 
+  /** Completes onboarding after a usable transcription session is confirmed. */
   const handleAccessibilityComplete = async () => {
     try {
       const isMacOS = platform() === "macos";

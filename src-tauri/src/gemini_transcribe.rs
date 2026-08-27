@@ -127,6 +127,8 @@ struct RuntimeState {
 }
 
 impl RuntimeState {
+    /// Returns a probed Antigravity connection, falling back to a Murmur-owned
+    /// language server when the external service is missing or unreachable.
     fn connection(
         &mut self,
         runtime: &tokio::runtime::Runtime,
@@ -192,6 +194,7 @@ impl RuntimeState {
         }
     }
 
+    /// Stops a Murmur-owned language server after `IDLE_TIMEOUT` without use.
     fn stop_owned_if_idle(&mut self) {
         if self.owned.is_none() {
             return;
@@ -215,6 +218,9 @@ struct OwnedServer {
 }
 
 impl OwnedServer {
+    /// Starts a headless Antigravity language server and waits until it accepts
+    /// transcription probes. Omits `--override_ide_version` when the bundle
+    /// version cannot be read, instead of substituting Murmur's version.
     fn start(binary: &Path, runtime: &tokio::runtime::Runtime) -> Result<Self> {
         let csrf = generate_csrf_token()?;
         let mut command = Command::new(binary);
@@ -321,6 +327,7 @@ struct ConnectionInfo {
     csrf: String,
 }
 
+/// Periodically stops idle Murmur-owned language servers.
 fn spawn_supervisor(state: Weak<Mutex<RuntimeState>>) {
     thread::spawn(move || loop {
         thread::sleep(SUPERVISOR_INTERVAL);
@@ -351,6 +358,8 @@ fn antigravity_token_path() -> Option<PathBuf> {
     user_home().map(|home| home.join(".gemini/jetski-standalone-oauth-token"))
 }
 
+/// Reads Antigravity's bundle version from Info.plist. Missing or unreadable
+/// versions yield `None` so Murmur does not impersonate the IDE version.
 fn antigravity_version(binary: &Path) -> Option<String> {
     let contents = binary
         .parent()
@@ -368,6 +377,7 @@ fn antigravity_version(binary: &Path) -> Option<String> {
         .filter(|version| !version.is_empty())
 }
 
+/// True when a Murmur-owned server has been unused for `IDLE_TIMEOUT`.
 fn should_stop_owned(last_used: Instant, now: Instant) -> bool {
     now.saturating_duration_since(last_used) >= IDLE_TIMEOUT
 }
@@ -522,6 +532,7 @@ fn listening_tcp_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     Ok(endpoints.into_iter().collect())
 }
 
+/// Maps recognized loopback listener hosts to a gRPC endpoint hostname.
 fn normalize_loopback_host(host: &str) -> Option<String> {
     match host {
         "127.0.0.1" | "localhost" | "[::1]" => Some(host.to_string()),
@@ -579,6 +590,7 @@ async fn probe_connection_inner(connection: &ConnectionInfo) -> bool {
     response.is_ok()
 }
 
+/// Bounds a full Gemini transcription attempt with `TRANSCRIPTION_TIMEOUT`.
 async fn transcribe_over_grpc(connection: &ConnectionInfo, samples: &[f32]) -> Result<String> {
     tokio::time::timeout(
         TRANSCRIPTION_TIMEOUT,
@@ -588,6 +600,7 @@ async fn transcribe_over_grpc(connection: &ConnectionInfo, samples: &[f32]) -> R
     .map_err(|_| anyhow!("Gemini transcription timed out"))?
 }
 
+/// Sends audio, ends the session, and reads the completed transcript.
 async fn transcribe_over_grpc_inner(
     connection: &ConnectionInfo,
     samples: &[f32],
@@ -650,8 +663,19 @@ async fn transcribe_over_grpc_inner(
     }
     .await;
     if let Err(error) = send_result {
-        if let Err(end_error) = end_audio_session(channel, connection, &session_id).await {
-            log::warn!("Failed to end Gemini audio session after an audio send error: {end_error}");
+        match tokio::time::timeout(
+            PROBE_TIMEOUT,
+            end_audio_session(channel, connection, &session_id),
+        )
+        .await
+        {
+            Ok(Ok(())) => {}
+            Ok(Err(end_error)) => log::warn!(
+                "Failed to end Gemini audio session after an audio send error: {end_error}"
+            ),
+            Err(_) => {
+                log::warn!("Timed out while ending Gemini audio session after an audio send error")
+            }
         }
         return Err(error);
     }
@@ -686,6 +710,7 @@ async fn transcribe_over_grpc_inner(
     Ok(transcript.trim().to_string())
 }
 
+/// Sends one sequenced PCM chunk to the active Gemini audio session.
 async fn send_audio_chunk(
     channel: Channel,
     connection: &ConnectionInfo,
@@ -728,6 +753,7 @@ fn pcm_le_bytes(samples: &[f32]) -> Vec<u8> {
     data
 }
 
+/// Closes the Gemini audio session so the service can emit the final transcript.
 async fn end_audio_session(
     channel: Channel,
     connection: &ConnectionInfo,
@@ -892,6 +918,7 @@ mod tests {
         assert_eq!(bytes, vec![1, 128, 1, 128, 0, 0, 255, 127, 255, 127]);
     }
 
+    /// Stops a Murmur-owned server only after the idle deadline elapses.
     #[test]
     fn owned_server_stops_at_idle_deadline() {
         let last_used = Instant::now();
@@ -902,6 +929,7 @@ mod tests {
         assert!(should_stop_owned(last_used, last_used + IDLE_TIMEOUT));
     }
 
+    /// Accepts IPv4, IPv6, and IPv4-mapped loopback hosts for gRPC endpoints.
     #[test]
     fn accepts_only_loopback_listener_hosts() {
         assert_eq!(
@@ -927,6 +955,7 @@ mod tests {
         assert_eq!(normalize_loopback_host("192.168.1.10"), None);
     }
 
+    /// Leaves the IDE version unset when the Antigravity bundle cannot be read.
     #[test]
     fn missing_antigravity_bundle_version_has_no_murmur_fallback() {
         assert_eq!(antigravity_version(Path::new("language_server")), None);

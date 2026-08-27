@@ -81,6 +81,8 @@ pub fn complete_onboarding(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Keeps `selected` when that provider has a usable session, otherwise prefers
+/// Codex, then Gemini. Returns `None` when neither session is usable.
 fn select_onboarding_provider(
     selected: TranscriptionProvider,
     codex_signed_in: bool,
@@ -99,6 +101,7 @@ fn select_onboarding_provider(
 mod tests {
     use super::*;
 
+    /// Keeps Codex or Gemini when that provider already has a usable session.
     #[test]
     fn onboarding_keeps_a_usable_selected_provider() {
         assert_eq!(
@@ -111,6 +114,7 @@ mod tests {
         );
     }
 
+    /// Falls back to the other provider when the selected session is missing.
     #[test]
     fn onboarding_selects_the_only_usable_provider() {
         assert_eq!(
@@ -123,6 +127,7 @@ mod tests {
         );
     }
 
+    /// Rejects onboarding when neither Codex nor Gemini has a usable session.
     #[test]
     fn onboarding_rejects_missing_sessions() {
         assert_eq!(

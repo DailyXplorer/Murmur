@@ -45,7 +45,9 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 
 const CLIPPING_OVERFLOW_VALUES = new Set(["auto", "clip", "hidden", "scroll"]);
+const DIALOG_BOUNDARY_SELECTOR = '[role="dialog"], [aria-modal="true"]';
 
+/** Reports whether an element is painted and large enough to receive focus. */
 const isVisible = (element: HTMLElement) => {
   const style = window.getComputedStyle(element);
   const rect = element.getBoundingClientRect();
@@ -57,8 +59,15 @@ const isVisible = (element: HTMLElement) => {
   );
 };
 
-const getFormTabStops = () =>
-  Array.from(document.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+/** Returns the dialog or modal that owns the anchor, or the document. */
+const getTabStopRoot = (anchor: HTMLElement | null): ParentNode =>
+  anchor?.closest(DIALOG_BOUNDARY_SELECTOR) ?? document;
+
+/**
+ * Lists enabled form tab stops under `root`, skipping portaled panel contents.
+ */
+const getFormTabStops = (root: ParentNode) =>
+  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (element) =>
       element.tabIndex >= 0 &&
       element.getAttribute("aria-hidden") !== "true" &&
@@ -66,6 +75,7 @@ const getFormTabStops = () =>
       isVisible(element),
   );
 
+/** True when a clipping ancestor or the viewport no longer contains the anchor. */
 const anchorIsOutsideClippingBounds = (
   anchor: HTMLElement,
   viewportPadding: number,
@@ -105,6 +115,7 @@ const anchorIsOutsideClippingBounds = (
   );
 };
 
+/** True when two measured panel positions are identical. */
 const positionsMatch = (
   current: FloatingPanelPosition | null,
   next: FloatingPanelPosition,
@@ -115,6 +126,7 @@ const positionsMatch = (
   current.maxHeight === next.maxHeight &&
   current.placement === next.placement;
 
+/** Portaled panel that restores focus and keeps Tab inside the owning dialog. */
 export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   open,
   anchorRef,
@@ -306,8 +318,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         panelRef.current?.contains(eventTarget as Node) &&
         isTopmostLayer()
       ) {
-        const tabStops = getFormTabStops();
         const anchor = anchorRef.current;
+        const tabStops = getFormTabStops(getTabStopRoot(anchor));
         const anchorIndex = anchor ? tabStops.indexOf(anchor) : -1;
         if (anchorIndex < 0 || tabStops.length < 2) return;
 

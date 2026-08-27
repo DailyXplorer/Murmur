@@ -530,6 +530,8 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     settings
 }
 
+/// Loads persisted settings, repairing invalid fields and platform-unsupported
+/// transcription providers before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(crate::portable::store_path(SETTINGS_STORE_PATH))
@@ -576,6 +578,8 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
     }
 }
 
+/// Resets Gemini to Codex when the current platform cannot run Antigravity.
+/// Returns whether the stored provider value changed.
 fn normalize_transcription_provider(
     settings: &mut AppSettings,
     gemini_available_on_platform: bool,
@@ -743,6 +747,7 @@ mod tests {
         );
     }
 
+    /// Resets Gemini to Codex when the platform cannot run Antigravity.
     #[test]
     fn unsupported_platform_normalizes_gemini_to_codex() {
         let mut settings = get_default_settings();

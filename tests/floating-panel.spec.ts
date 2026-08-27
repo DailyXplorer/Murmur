@@ -305,4 +305,50 @@ test.describe("floating settings panels", () => {
     await page.keyboard.press("Escape");
     await expect(outsidePanel).toHaveCount(0);
   });
+
+  test("keeps Tab inside a dialog that hosts a nested portaled panel", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?dialog-layers=1");
+
+    await page.getByRole("button", { name: "Nested trigger" }).click();
+    await expect(
+      page.getByRole("option", { name: "Nested option" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("inside-dialog-after")).toBeFocused();
+    await expect(
+      page
+        .locator("[data-floating-panel-root]")
+        .filter({ has: page.getByTestId("nested-dialog-panel") }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("outside-dialog-control")).not.toBeFocused();
+    await expect(
+      page.getByRole("button", { name: "Outside trigger" }),
+    ).not.toBeFocused();
+    await expect(
+      page.getByRole("dialog", { name: "Layering dialog" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Nested trigger" }).click();
+    await expect(
+      page.getByRole("option", { name: "Nested option" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByTestId("inside-dialog-before")).toBeFocused();
+    await expect(
+      page
+        .locator("[data-floating-panel-root]")
+        .filter({ has: page.getByTestId("nested-dialog-panel") }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("outside-dialog-control")).not.toBeFocused();
+    await expect(
+      page.getByRole("button", { name: "Outside trigger" }),
+    ).not.toBeFocused();
+    await expect(
+      page.getByRole("dialog", { name: "Layering dialog" }),
+    ).toBeVisible();
+  });
 });
