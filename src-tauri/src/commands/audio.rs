@@ -71,7 +71,7 @@ pub fn get_windows_microphone_permission_status() -> WindowsMicrophonePermission
 #[tauri::command]
 #[specta::specta]
 pub fn open_microphone_privacy_settings() -> Result<(), String> {
-    Err("Opening microphone privacy settings is only supported on Windows".to_string())
+    Err("Opening microphone privacy settings is not supported on this platform".to_string())
 }
 
 #[tauri::command]

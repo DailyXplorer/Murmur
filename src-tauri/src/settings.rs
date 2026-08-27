@@ -149,6 +149,16 @@ impl Default for PasteMethod {
     }
 }
 
+impl PasteMethod {
+    /// Shift+Insert has no macOS equivalent, so stored values become Cmd+V.
+    pub(crate) fn supported_on_macos(self) -> Self {
+        match self {
+            PasteMethod::ShiftInsert => PasteMethod::CtrlV,
+            other => other,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SoundTheme {
@@ -544,6 +554,12 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
             }
         }
 
+        let paste_method = settings.paste_method.supported_on_macos();
+        if settings.paste_method != paste_method {
+            settings.paste_method = paste_method;
+            updated = true;
+        }
+
         if updated {
             store.set("settings", serde_json::to_value(&settings).unwrap());
         }
@@ -811,5 +827,23 @@ mod tests {
             settings.bindings["transcribe"].current_binding,
             "option+space"
         );
+    }
+
+    #[test]
+    fn shift_insert_paste_method_maps_to_ctrl_v_on_macos() {
+        assert_eq!(
+            PasteMethod::ShiftInsert.supported_on_macos(),
+            PasteMethod::CtrlV
+        );
+        assert_eq!(PasteMethod::CtrlV.supported_on_macos(), PasteMethod::CtrlV);
+        assert_eq!(
+            PasteMethod::CtrlShiftV.supported_on_macos(),
+            PasteMethod::CtrlShiftV
+        );
+        assert_eq!(
+            PasteMethod::Direct.supported_on_macos(),
+            PasteMethod::Direct
+        );
+        assert_eq!(PasteMethod::None.supported_on_macos(), PasteMethod::None);
     }
 }
