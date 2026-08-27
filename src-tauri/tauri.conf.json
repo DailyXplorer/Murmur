@@ -26,15 +26,14 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
     "resources": ["resources/**/*"],
     "license": "MIT",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.icns"
     ],
     "macOS": {
       "files": {},
@@ -42,28 +41,6 @@
       "minimumSystemVersion": "10.15",
       "signingIdentity": "-",
       "entitlements": "Entitlements.plist"
-    },
-    "linux": {
-      "deb": {
-        "depends": ["libgtk-layer-shell0"],
-        "files": {}
-      },
-      "rpm": {
-        "depends": ["libgtk-layer-shell.so.0()(64bit)"],
-        "compression": {
-          "type": "none"
-        },
-        "files": {}
-      },
-      "appimage": {
-        "bundleMediaFramework": true,
-        "files": {}
-      }
-    },
-    "windows": {
-      "nsis": {
-        "template": "nsis/installer.nsi"
-      }
     }
   },
   "plugins": {
