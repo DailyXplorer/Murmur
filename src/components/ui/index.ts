@@ -1,4 +1,5 @@
 export { Dropdown } from "./Dropdown";
+export { FloatingPanel } from "./FloatingPanel";
 export { Dialog } from "./Dialog";
 export { Slider } from "./Slider";
 export { ToggleSwitch } from "./ToggleSwitch";

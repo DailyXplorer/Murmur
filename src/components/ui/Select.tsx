@@ -7,6 +7,7 @@ import type {
   SingleValue,
   StylesConfig,
 } from "react-select";
+import { useFloatingLayers } from "./FloatingLayerContext";
 
 export type SelectOption = {
   value: string;
@@ -48,7 +49,9 @@ const focusBackground =
 const neutralBorder =
   "color-mix(in srgb, var(--color-mid-gray) 80%, transparent)";
 
-const selectStyles: StylesConfig<SelectOption, false> = {
+const createSelectStyles = (
+  menuPortalZIndex: number,
+): StylesConfig<SelectOption, false> => ({
   control: (base, state) => ({
     ...base,
     minHeight: 40,
@@ -95,12 +98,15 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   }),
   menu: (provided) => ({
     ...provided,
-    zIndex: 30,
     backgroundColor: "var(--color-background)",
     color: "var(--color-text)",
     border:
       "1px solid color-mix(in srgb, var(--color-mid-gray) 30%, transparent)",
     boxShadow: "0 10px 30px rgba(15, 15, 15, 0.2)",
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: menuPortalZIndex,
   }),
   option: (base, state) => ({
     ...base,
@@ -117,7 +123,7 @@ const selectStyles: StylesConfig<SelectOption, false> = {
     ...base,
     color: "color-mix(in srgb, var(--color-mid-gray) 65%, transparent)",
   }),
-};
+});
 
 export const Select: React.FC<SelectProps> = React.memo(
   ({
@@ -134,6 +140,11 @@ export const Select: React.FC<SelectProps> = React.memo(
     formatCreateLabel,
     onCreateOption,
   }) => {
+    const { floatingContent: floatingContentZIndex } = useFloatingLayers();
+    const selectStyles = React.useMemo(
+      () => createSelectStyles(floatingContentZIndex),
+      [floatingContentZIndex],
+    );
     const selectValue = React.useMemo(() => {
       if (!value) return null;
       const existing = options.find((option) => option.value === value);
@@ -160,6 +171,11 @@ export const Select: React.FC<SelectProps> = React.memo(
       onBlur,
       isClearable,
       styles: selectStyles,
+      menuPlacement: "auto",
+      menuPosition: "fixed",
+      menuPortalTarget:
+        typeof document === "undefined" ? undefined : document.body,
+      menuShouldScrollIntoView: false,
     };
 
     if (isCreatable) {
