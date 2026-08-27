@@ -100,7 +100,7 @@ export const Dialog: React.FC<DialogProps> = ({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && dismissible) {
+      if (event.key === "Escape" && dismissible && !event.defaultPrevented) {
         event.preventDefault();
         onOpenChange(false);
         return;

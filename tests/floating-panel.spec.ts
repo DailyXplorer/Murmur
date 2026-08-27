@@ -166,7 +166,7 @@ test.describe("floating settings panels", () => {
     const searchInput = page.getByRole("textbox", { name: "Search options" });
     await searchInput.press("Escape");
     await expect(page.getByText("Last input key: Escape")).toBeVisible();
-    await expect(page.locator("[data-floating-panel-root]")).toHaveCount(0);
+    await expect(page.locator("[data-floating-panel-root]")).toHaveCount(1);
   });
 
   test("dismisses only the topmost panel with Escape", async ({ page }) => {
@@ -244,5 +244,16 @@ test.describe("floating settings panels", () => {
     });
     expect(outsidePanelPaintsOnTop).toBe(false);
     expect(nestedPanelPaintsOnTop).toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(nestedPanel).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(outsidePanel).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
   });
 });

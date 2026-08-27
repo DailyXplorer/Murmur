@@ -38,7 +38,10 @@ const SearchPanelFixture: React.FC = () => {
           autoFocus
           value={searchValue}
           onChange={(event) => setSearchValue(event.target.value)}
-          onKeyDown={(event) => setLastInputKey(event.key)}
+          onKeyDown={(event) => {
+            setLastInputKey(event.key);
+            if (event.key === "Escape") event.preventDefault();
+          }}
         />
         <button type="button" role="option">
           Search result
@@ -83,10 +86,16 @@ const MultiplePanelsFixture: React.FC = () => {
 };
 
 const DialogLayeringFixture: React.FC = () => {
+  const [isDialogOpen, setIsDialogOpen] = useState(true);
+  const [isOutsidePanelOpen, setIsOutsidePanelOpen] = useState(true);
+  const [isNestedPanelOpen, setIsNestedPanelOpen] = useState(true);
   const outsideTriggerRef = useRef<HTMLButtonElement>(null);
   const nestedTriggerRef = useRef<HTMLButtonElement>(null);
-  const ignoreDismiss = useCallback(() => undefined, []);
-  const ignoreOpenChange = useCallback(() => undefined, []);
+  const dismissOutsidePanel = useCallback(
+    () => setIsOutsidePanelOpen(false),
+    [],
+  );
+  const dismissNestedPanel = useCallback(() => setIsNestedPanelOpen(false), []);
 
   return (
     <div className="h-screen bg-background text-text">
@@ -98,27 +107,28 @@ const DialogLayeringFixture: React.FC = () => {
         Outside trigger
       </button>
       <FloatingPanel
-        open={true}
+        open={isOutsidePanelOpen}
         anchorRef={outsideTriggerRef}
-        onDismiss={ignoreDismiss}
+        onDismiss={dismissOutsidePanel}
         className="bg-background"
       >
         <div data-testid="outside-dialog-panel">Outside dialog panel</div>
       </FloatingPanel>
       <Dialog
-        open={true}
+        open={isDialogOpen}
         title="Layering dialog"
         closeLabel="Close dialog"
-        onOpenChange={ignoreOpenChange}
+        onOpenChange={setIsDialogOpen}
+        initialFocusRef={nestedTriggerRef}
         contentFades={false}
       >
         <button ref={nestedTriggerRef} type="button">
           Nested trigger
         </button>
         <FloatingPanel
-          open={true}
+          open={isNestedPanelOpen}
           anchorRef={nestedTriggerRef}
-          onDismiss={ignoreDismiss}
+          onDismiss={dismissNestedPanel}
           className="bg-background"
         >
           <div data-testid="nested-dialog-panel">Nested dialog panel</div>
