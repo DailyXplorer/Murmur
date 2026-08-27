@@ -19,8 +19,20 @@ test.describe("floating settings panels", () => {
     await expect(
       page.getByRole("option", { name: "Option 1", exact: true }),
     ).toBeFocused();
+    await expect(
+      page.getByRole("option", { name: "Option 1", exact: true }),
+    ).toHaveAttribute("tabindex", "0");
+    await expect(
+      page.getByRole("option", { name: "Option 2", exact: true }),
+    ).toHaveAttribute("tabindex", "-1");
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("option", { name: "Option 2" })).toBeFocused();
+    await expect(
+      page.getByRole("option", { name: "Option 1", exact: true }),
+    ).toHaveAttribute("tabindex", "-1");
+    await expect(
+      page.getByRole("option", { name: "Option 2", exact: true }),
+    ).toHaveAttribute("tabindex", "0");
     await page.keyboard.press("End");
     await expect(page.getByRole("option", { name: "Option 12" })).toBeFocused();
     await page.keyboard.press("Home");
@@ -184,15 +196,49 @@ test.describe("floating settings panels", () => {
     await expect(page.getByText("First panel", { exact: true })).toHaveCount(0);
   });
 
-  test("dismisses when keyboard focus leaves the panel", async ({ page }) => {
+  test("follows form order when Tab leaves a portaled panel", async ({
+    page,
+  }) => {
     await page.goto("/tests/fixtures/floating-panel.html?options=3");
-    await page.getByRole("button", { name: "Select an option..." }).click();
+    const trigger = page.getByRole("button", { name: "Select an option..." });
+    await trigger.click();
     await expect(
       page.getByRole("option", { name: "Option 1", exact: true }),
     ).toBeFocused();
 
     await page.keyboard.press("Shift+Tab");
+    await expect(page.getByTestId("before-control")).toBeFocused();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+
+    await trigger.click();
+    await page.keyboard.press("Tab");
     await expect(page.getByTestId("outside-control")).toBeFocused();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
+
+  test("restores focus after a selecting trigger is re-enabled", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?disabled-trigger=1");
+    await page.getByRole("button", { name: "Select an option..." }).click();
+    await page.getByRole("option", { name: "Option 2", exact: true }).click();
+
+    const trigger = page.getByRole("button", { name: "Option 2" });
+    await expect(trigger).toBeEnabled();
+    await expect(trigger).toBeFocused();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  });
+
+  test("dismisses when an overflow scroll clips the anchor", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?scroll-container=1");
+    await page.getByRole("button", { name: "Select an option..." }).click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+
+    await page
+      .getByTestId("scroll-container")
+      .evaluate((element) => element.scrollTo({ top: 250 }));
     await expect(page.getByRole("listbox")).toHaveCount(0);
   });
 
@@ -209,8 +255,11 @@ test.describe("floating settings panels", () => {
       .filter({ has: page.getByTestId("nested-dialog-panel") });
     const dialog = page.getByRole("dialog", { name: "Layering dialog" });
     await expect(outsidePanel).toBeVisible();
-    await expect(nestedPanel).toBeVisible();
     await expect(dialog).toBeVisible();
+    await expect(nestedPanel).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Nested trigger" }).click();
+    await expect(nestedPanel).toBeVisible();
 
     const [outsideZIndex, dialogZIndex, nestedZIndex] = await Promise.all([
       outsidePanel.evaluate((element) =>
@@ -250,10 +299,10 @@ test.describe("floating settings panels", () => {
     await expect(dialog).toBeVisible();
 
     await page.keyboard.press("Escape");
-    await expect(outsidePanel).toHaveCount(0);
-    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    await expect(outsidePanel).toBeVisible();
 
     await page.keyboard.press("Escape");
-    await expect(dialog).toHaveCount(0);
+    await expect(outsidePanel).toHaveCount(0);
   });
 });

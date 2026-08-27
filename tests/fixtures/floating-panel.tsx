@@ -88,7 +88,7 @@ const MultiplePanelsFixture: React.FC = () => {
 const DialogLayeringFixture: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(true);
   const [isOutsidePanelOpen, setIsOutsidePanelOpen] = useState(true);
-  const [isNestedPanelOpen, setIsNestedPanelOpen] = useState(true);
+  const [isNestedPanelOpen, setIsNestedPanelOpen] = useState(false);
   const outsideTriggerRef = useRef<HTMLButtonElement>(null);
   const nestedTriggerRef = useRef<HTMLButtonElement>(null);
   const dismissOutsidePanel = useCallback(
@@ -122,7 +122,11 @@ const DialogLayeringFixture: React.FC = () => {
         initialFocusRef={nestedTriggerRef}
         contentFades={false}
       >
-        <button ref={nestedTriggerRef} type="button">
+        <button
+          ref={nestedTriggerRef}
+          type="button"
+          onClick={() => setIsNestedPanelOpen(true)}
+        >
           Nested trigger
         </button>
         <FloatingPanel
@@ -138,13 +142,62 @@ const DialogLayeringFixture: React.FC = () => {
   );
 };
 
+const DisabledTriggerFixture: React.FC = () => {
+  const [selectedValue, setSelectedValue] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleSelect = (value: string) => {
+    setSelectedValue(value);
+    setIsUpdating(true);
+    window.setTimeout(() => setIsUpdating(false), 120);
+  };
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-background text-text">
+      <Dropdown
+        className="w-64"
+        options={options.slice(0, 3)}
+        selectedValue={selectedValue}
+        onSelect={handleSelect}
+        disabled={isUpdating}
+      />
+    </div>
+  );
+};
+
+const ScrollContainerFixture: React.FC = () => {
+  const [selectedValue, setSelectedValue] = useState<string | null>(null);
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-background text-text">
+      <div
+        data-testid="scroll-container"
+        className="h-32 w-80 overflow-y-auto border border-mid-gray/20"
+      >
+        <div className="p-2">
+          <Dropdown
+            className="w-64"
+            options={options.slice(0, 3)}
+            selectedValue={selectedValue}
+            onSelect={setSelectedValue}
+          />
+        </div>
+        <div className="h-80" />
+      </div>
+    </div>
+  );
+};
+
 const FloatingPanelFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
 
   return (
     <div className="h-screen bg-background text-text">
       <div data-testid="clipping-container" className="h-72 overflow-hidden">
-        <div className="flex h-full items-end justify-center pb-2">
+        <div className="flex h-full items-end justify-center gap-2 pb-2">
+          <button data-testid="before-control" type="button">
+            Before control
+          </button>
           <Dropdown
             className="w-64"
             options={options}
@@ -169,6 +222,10 @@ const fixture = searchParams.has("multiple") ? (
   <MultiplePanelsFixture />
 ) : searchParams.has("dialog-layers") ? (
   <DialogLayeringFixture />
+) : searchParams.has("disabled-trigger") ? (
+  <DisabledTriggerFixture />
+) : searchParams.has("scroll-container") ? (
+  <ScrollContainerFixture />
 ) : searchParams.has("search") ? (
   <SearchPanelFixture />
 ) : (

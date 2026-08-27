@@ -54,10 +54,13 @@ pub fn open_antigravity() -> Result<()> {
         ));
     }
 
-    Command::new("/usr/bin/open")
+    let status = Command::new("/usr/bin/open")
         .args(["-a", "Antigravity"])
-        .spawn()
+        .status()
         .context("failed to open Antigravity")?;
+    if !status.success() {
+        return Err(anyhow!("Antigravity could not be opened."));
+    }
     Ok(())
 }
 
@@ -133,7 +136,16 @@ impl RuntimeState {
         if external_process {
             let started = Instant::now();
             while started.elapsed() < STARTUP_TIMEOUT {
-                for candidate in discover_external_connections(binary)? {
+                let candidates = match discover_external_connections(binary) {
+                    Ok(candidates) => candidates,
+                    Err(error) => {
+                        log::warn!(
+                            "Failed to inspect the external Antigravity service; falling back to a Murmur-owned service: {error}"
+                        );
+                        break;
+                    }
+                };
+                for candidate in candidates {
                     if runtime.block_on(probe_connection(&candidate)) {
                         if let Some(mut owned) = self.owned.take() {
                             owned.stop();
@@ -147,9 +159,9 @@ impl RuntimeState {
                 thread::sleep(Duration::from_millis(150));
             }
 
-            return Err(anyhow!(
-                "Antigravity is running, but its transcription service is not ready. Wait a moment and retry."
-            ));
+            log::warn!(
+                "Antigravity is running without a reachable transcription service; starting a Murmur-owned service"
+            );
         }
 
         if let Some(owned) = self.owned.as_mut() {
@@ -180,15 +192,15 @@ impl RuntimeState {
         }
     }
 
-    fn stop_owned_if_idle_or_superseded(&mut self, binary: Option<&Path>) {
+    fn stop_owned_if_idle(&mut self) {
         if self.owned.is_none() {
             return;
         }
 
-        let external_server_exists = binary.is_some_and(external_server_process_exists);
-        let should_stop = self.owned.as_ref().is_some_and(|owned| {
-            should_stop_owned(owned.last_used, Instant::now(), external_server_exists)
-        });
+        let should_stop = self
+            .owned
+            .as_ref()
+            .is_some_and(|owned| should_stop_owned(owned.last_used, Instant::now()));
 
         if should_stop {
             self.stop_owned();
@@ -205,24 +217,25 @@ struct OwnedServer {
 impl OwnedServer {
     fn start(binary: &Path, runtime: &tokio::runtime::Runtime) -> Result<Self> {
         let csrf = generate_csrf_token()?;
-        let version = antigravity_version(binary);
         let mut command = Command::new(binary);
+        command.args([
+            "--headless",
+            "--standalone",
+            "--disable_telemetry",
+            "--override_ide_name=antigravity",
+            "--subclient_type=hub",
+            "--override_user_agent_name=antigravity",
+            "--app_data_dir=antigravity",
+            "--api_server_url=https://generativelanguage.googleapis.com",
+            "--cloud_code_endpoint=https://daily-cloudcode-pa.googleapis.com",
+            "--use_ls_chrome_devtools_mcp=false",
+            "--https_server_port=0",
+            "--http_server_port=0",
+        ]);
+        if let Some(version) = antigravity_version(binary) {
+            command.arg(format!("--override_ide_version={version}"));
+        }
         command
-            .args([
-                "--headless",
-                "--standalone",
-                "--disable_telemetry",
-                "--override_ide_name=antigravity",
-                "--subclient_type=hub",
-                "--override_user_agent_name=antigravity",
-                "--app_data_dir=antigravity",
-                "--api_server_url=https://generativelanguage.googleapis.com",
-                "--cloud_code_endpoint=https://daily-cloudcode-pa.googleapis.com",
-                "--use_ls_chrome_devtools_mcp=false",
-                "--https_server_port=0",
-                "--http_server_port=0",
-            ])
-            .arg(format!("--override_ide_version={version}"))
             .arg(format!("--csrf_token={csrf}"))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -318,8 +331,7 @@ fn spawn_supervisor(state: Weak<Mutex<RuntimeState>>) {
             if state.owned.is_none() {
                 continue;
             }
-            let binary = antigravity_binary();
-            state.stop_owned_if_idle_or_superseded(binary.as_deref());
+            state.stop_owned_if_idle();
         };
     });
 }
@@ -339,14 +351,11 @@ fn antigravity_token_path() -> Option<PathBuf> {
     user_home().map(|home| home.join(".gemini/jetski-standalone-oauth-token"))
 }
 
-fn antigravity_version(binary: &Path) -> String {
-    let Some(contents) = binary
+fn antigravity_version(binary: &Path) -> Option<String> {
+    let contents = binary
         .parent()
         .and_then(Path::parent)
-        .and_then(Path::parent)
-    else {
-        return env!("CARGO_PKG_VERSION").to_string();
-    };
+        .and_then(Path::parent)?;
     let plist = contents.join("Info.plist");
     Command::new("/usr/libexec/PlistBuddy")
         .args(["-c", "Print :CFBundleShortVersionString"])
@@ -357,11 +366,10 @@ fn antigravity_version(binary: &Path) -> String {
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(|version| version.trim().to_string())
         .filter(|version| !version.is_empty())
-        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
 }
 
-fn should_stop_owned(last_used: Instant, now: Instant, external_server_exists: bool) -> bool {
-    external_server_exists || now.saturating_duration_since(last_used) >= IDLE_TIMEOUT
+fn should_stop_owned(last_used: Instant, now: Instant) -> bool {
+    now.saturating_duration_since(last_used) >= IDLE_TIMEOUT
 }
 
 fn user_home() -> Option<PathBuf> {
@@ -518,6 +526,8 @@ fn normalize_loopback_host(host: &str) -> Option<String> {
     match host {
         "127.0.0.1" | "localhost" | "[::1]" => Some(host.to_string()),
         "::1" => Some("[::1]".to_string()),
+        "::ffff:127.0.0.1" => Some("[::ffff:127.0.0.1]".to_string()),
+        "[::ffff:127.0.0.1]" => Some(host.to_string()),
         _ => None,
     }
 }
@@ -623,17 +633,27 @@ async fn transcribe_over_grpc_inner(
         }
     };
 
-    for (sequence, chunk) in samples.chunks(AUDIO_CHUNK_SAMPLES).enumerate() {
-        let sequence_number = i32::try_from(sequence)
-            .context("Gemini transcription audio is too long to sequence")?;
-        send_audio_chunk(
-            channel.clone(),
-            connection,
-            &session_id,
-            sequence_number,
-            chunk,
-        )
-        .await?;
+    let send_result: Result<()> = async {
+        for (sequence, chunk) in samples.chunks(AUDIO_CHUNK_SAMPLES).enumerate() {
+            let sequence_number = i32::try_from(sequence)
+                .context("Gemini transcription audio is too long to sequence")?;
+            send_audio_chunk(
+                channel.clone(),
+                connection,
+                &session_id,
+                sequence_number,
+                chunk,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+    .await;
+    if let Err(error) = send_result {
+        if let Err(end_error) = end_audio_session(channel, connection, &session_id).await {
+            log::warn!("Failed to end Gemini audio session after an audio send error: {end_error}");
+        }
+        return Err(error);
     }
     end_audio_session(channel, connection, &session_id).await?;
 
@@ -873,19 +893,13 @@ mod tests {
     }
 
     #[test]
-    fn owned_server_stops_at_idle_deadline_or_when_antigravity_opens() {
+    fn owned_server_stops_at_idle_deadline() {
         let last_used = Instant::now();
         assert!(!should_stop_owned(
             last_used,
-            last_used + IDLE_TIMEOUT - Duration::from_millis(1),
-            false
+            last_used + IDLE_TIMEOUT - Duration::from_millis(1)
         ));
-        assert!(should_stop_owned(
-            last_used,
-            last_used + IDLE_TIMEOUT,
-            false
-        ));
-        assert!(should_stop_owned(last_used, last_used, true));
+        assert!(should_stop_owned(last_used, last_used + IDLE_TIMEOUT));
     }
 
     #[test]
@@ -900,9 +914,22 @@ mod tests {
         );
         assert_eq!(normalize_loopback_host("[::1]").as_deref(), Some("[::1]"));
         assert_eq!(normalize_loopback_host("::1").as_deref(), Some("[::1]"));
+        assert_eq!(
+            normalize_loopback_host("::ffff:127.0.0.1").as_deref(),
+            Some("[::ffff:127.0.0.1]")
+        );
+        assert_eq!(
+            normalize_loopback_host("[::ffff:127.0.0.1]").as_deref(),
+            Some("[::ffff:127.0.0.1]")
+        );
         assert_eq!(normalize_loopback_host("*"), None);
         assert_eq!(normalize_loopback_host("0.0.0.0"), None);
         assert_eq!(normalize_loopback_host("192.168.1.10"), None);
+    }
+
+    #[test]
+    fn missing_antigravity_bundle_version_has_no_murmur_fallback() {
+        assert_eq!(antigravity_version(Path::new("language_server")), None);
     }
 
     #[test]

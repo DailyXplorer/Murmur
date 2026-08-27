@@ -57,7 +57,7 @@ function App() {
   );
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, refreshSettings } = useSettings();
   const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
     (state) => state.refreshAudioDevices,
@@ -246,6 +246,7 @@ function App() {
         });
         return;
       }
+      await refreshSettings();
     } catch (e) {
       console.warn("Failed to complete onboarding:", e);
       return;

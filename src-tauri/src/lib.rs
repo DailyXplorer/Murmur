@@ -783,6 +783,11 @@ pub fn run(cli_args: CliArgs) {
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
             }
+            tauri::RunEvent::Exit => {
+                if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
+                    manager.shutdown();
+                }
+            }
             _ => {}
         });
 }
