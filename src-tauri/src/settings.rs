@@ -145,11 +145,7 @@ pub enum RecordingRetentionPeriod {
 
 impl Default for PasteMethod {
     fn default() -> Self {
-        // Default to CtrlV for macOS and Windows, Direct for Linux
-        #[cfg(target_os = "linux")]
-        return PasteMethod::Direct;
-        #[cfg(not(target_os = "linux"))]
-        return PasteMethod::CtrlV;
+        PasteMethod::CtrlV
     }
 }
 
@@ -365,16 +361,11 @@ fn default_selected_language() -> String {
 }
 
 fn default_overlay_position() -> OverlayPosition {
-    // Position only matters when the overlay is shown; whether it shows at all is
-    // `overlay_style` (Linux defaults that to None). So a single default suffices.
     OverlayPosition::Bottom
 }
 
 fn default_overlay_style() -> OverlayStyle {
-    #[cfg(target_os = "linux")]
-    return OverlayStyle::None;
-    #[cfg(not(target_os = "linux"))]
-    return OverlayStyle::Minimal;
+    OverlayStyle::Minimal
 }
 
 fn default_filler_word_removal_enabled() -> bool {
@@ -446,9 +437,7 @@ pub fn get_default_settings() -> AppSettings {
     let default_shortcut = "ctrl+space";
     #[cfg(target_os = "macos")]
     let default_shortcut = "option+space";
-    #[cfg(target_os = "linux")]
-    let default_shortcut = "ctrl+space";
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     let default_shortcut = "alt+space";
 
     let mut bindings = HashMap::new();
@@ -814,10 +803,10 @@ mod tests {
         assert!(settings.whats_new_last_seen_version.is_empty());
     }
 
-    #[cfg(not(target_os = "linux"))]
     #[test]
     fn default_overlay_style_is_minimal_when_overlay_defaults_on() {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Minimal);
+        assert_eq!(settings.paste_method, PasteMethod::CtrlV);
     }
 }
