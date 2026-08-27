@@ -3064,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "murmur"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -8321,4 +8321,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow 0.7.14",
 ]
-
