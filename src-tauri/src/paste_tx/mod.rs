@@ -10,8 +10,6 @@
 //! for the operating system to tell us that a consumer actually read the
 //! clipboard — a "receipt" — before restoring:
 //!
-//! - Windows: delayed rendering (`SetClipboardData(CF_UNICODETEXT, NULL)`),
-//!   the owner window receives `WM_RENDERFORMAT` on read.
 //! - macOS: `declareTypes:owner:` with an owner object, the pasteboard calls
 //!   `pasteboard:provideDataForType:` on read.
 //!
@@ -31,21 +29,15 @@
 //! transcript stays on the clipboard a bit longer", never "stale content gets
 //! pasted".
 
-// The shared transaction state is compiled on all platforms (for the unit
-// tests), but only the macOS/Windows platform modules consume all of it.
-#![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use std::time::{Duration, Instant};
 
 #[cfg(target_os = "macos")]
 mod macos;
-#[cfg(target_os = "windows")]
-mod windows;
 
 #[cfg(target_os = "macos")]
 use macos as platform;
-#[cfg(target_os = "windows")]
-use windows as platform;
 
 /// How long after the *last* observed read the transcript stays on the
 /// clipboard before restoring. Covers applications that read the clipboard
@@ -81,7 +73,7 @@ pub(crate) struct TxState {
     /// the platform modules).
     pub cancelled: bool,
     /// The post-paste Enter (auto-submit) has been sent for this transaction.
-    /// (Read on Windows; the macOS path settles via `MacPending::settled`.)
+    /// (The macOS path settles via `MacPending::settled`.)
     #[allow(dead_code)]
     pub auto_submit_sent: bool,
     /// First post-injection receipt has been logged.
@@ -190,7 +182,7 @@ pub(crate) fn send_chord(
 /// the caller should fall back to the legacy paste path. On `Ok`, publishing
 /// and chord injection have completed and the guarded restore (plus
 /// auto-submit) finishes asynchronously.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 pub(crate) fn try_reliable_paste(
     text: &str,
     app_handle: &tauri::AppHandle,

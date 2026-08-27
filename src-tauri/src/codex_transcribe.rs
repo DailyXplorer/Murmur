@@ -176,16 +176,12 @@ fn auth_path() -> Result<PathBuf> {
 }
 
 fn user_home() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
+    std::env::var_os("HOME").map(PathBuf::from)
 }
 
 fn user_agent() -> String {
     let os = if cfg!(target_os = "macos") {
         "Mac OS"
-    } else if cfg!(target_os = "windows") {
-        "Windows"
     } else {
         "Linux"
     };

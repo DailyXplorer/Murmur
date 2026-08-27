@@ -179,7 +179,7 @@ pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> 
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
     #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
+    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
 
     // Press modifier + V
     enigo
@@ -203,7 +203,7 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
     #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
+    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
 
     // Press Ctrl/Cmd + Shift + V
     enigo
@@ -228,28 +228,12 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
     Ok(())
 }
 
-/// Sends a Shift+Insert paste command.
+/// Shift+Insert is not a macOS paste chord. `enigo::Key::Insert` is not a
+/// macOS variant, and `Key::Other(0x76)` is F4 (`kVK_F4`), so emitting that
+/// chord would type Shift+F4. Existing `paste_method=shift_insert` settings
+/// therefore use the native Cmd+V paste instead.
 pub fn send_paste_shift_insert(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let insert_key_code = Key::Other(0x2D); // VK_INSERT
-    #[cfg(not(target_os = "windows"))]
-    let insert_key_code = Key::Other(0x76); // XK_Insert (keycode 118 / 0x76, also used as fallback)
-
-    // Press Shift + Insert
-    enigo
-        .key(Key::Shift, enigo::Direction::Press)
-        .map_err(|e| format!("Failed to press Shift key: {}", e))?;
-    enigo
-        .key(insert_key_code, enigo::Direction::Click)
-        .map_err(|e| format!("Failed to click Insert key: {}", e))?;
-
-    std::thread::sleep(std::time::Duration::from_millis(hold_ms));
-
-    enigo
-        .key(Key::Shift, enigo::Direction::Release)
-        .map_err(|e| format!("Failed to release Shift key: {}", e))?;
-
-    Ok(())
+    send_paste_ctrl_v(enigo, hold_ms)
 }
 
 /// Pastes text directly using the enigo text method.

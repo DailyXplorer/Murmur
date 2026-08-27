@@ -11,42 +11,6 @@ use tauri::{Emitter, Manager};
 const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn set_mute(mute: bool) {
-    #[cfg(target_os = "windows")]
-    {
-        unsafe {
-            use windows::Win32::{
-                Media::Audio::{
-                    eMultimedia, eRender, Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator,
-                    MMDeviceEnumerator,
-                },
-                System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
-            };
-
-            macro_rules! unwrap_or_return {
-                ($expr:expr) => {
-                    match $expr {
-                        Ok(val) => val,
-                        Err(_) => return,
-                    }
-                };
-            }
-
-            // Initialize the COM library for this thread.
-            // If already initialized (e.g., by another library like Tauri), this does nothing.
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-
-            let all_devices: IMMDeviceEnumerator =
-                unwrap_or_return!(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL));
-            let default_device =
-                unwrap_or_return!(all_devices.GetDefaultAudioEndpoint(eRender, eMultimedia));
-            let volume_interface = unwrap_or_return!(
-                default_device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None)
-            );
-
-            let _ = volume_interface.SetMute(mute, std::ptr::null());
-        }
-    }
-
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
@@ -56,6 +20,8 @@ fn set_mute(mute: bool) {
         );
         let _ = Command::new("osascript").args(["-e", &script]).output();
     }
+    #[cfg(not(target_os = "macos"))]
+    let _ = mute;
 }
 
 /// Reads the current system output mute state, mirroring `set_mute`'s backends.
@@ -64,33 +30,6 @@ fn set_mute(mute: bool) {
 /// `None` when it couldn't (unsupported platform, missing CLI tools, or an
 /// error). Callers treat `None` as "unknown" and fall back to unmuting on stop,
 /// so we never strand the user's audio muted.
-#[cfg(target_os = "windows")]
-fn get_mute() -> Option<bool> {
-    unsafe {
-        use windows::Win32::{
-            Media::Audio::{
-                eMultimedia, eRender, Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator,
-                MMDeviceEnumerator,
-            },
-            System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
-        };
-
-        // Matches set_mute: no-op if COM is already initialized on this thread.
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-
-        let all_devices: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
-        let default_device = all_devices
-            .GetDefaultAudioEndpoint(eRender, eMultimedia)
-            .ok()?;
-        let volume_interface = default_device
-            .Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None)
-            .ok()?;
-
-        Some(volume_interface.GetMute().ok()?.as_bool())
-    }
-}
-
 #[cfg(target_os = "macos")]
 fn get_mute() -> Option<bool> {
     use std::process::Command;
@@ -109,7 +48,7 @@ fn get_mute() -> Option<bool> {
     }
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 fn get_mute() -> Option<bool> {
     None
 }

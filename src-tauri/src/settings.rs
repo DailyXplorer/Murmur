@@ -149,6 +149,16 @@ impl Default for PasteMethod {
     }
 }
 
+impl PasteMethod {
+    /// Shift+Insert has no macOS equivalent, so stored values become Cmd+V.
+    pub(crate) fn supported_on_macos(self) -> Self {
+        match self {
+            PasteMethod::ShiftInsert => PasteMethod::CtrlV,
+            other => other,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SoundTheme {
@@ -311,7 +321,7 @@ pub struct AppSettings {
     pub paste_delay_after_ms: u64,
     /// Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
     /// after the target app actually reads the transcript, instead of after a
-    /// fixed delay. See `paste_tx`. macOS and Windows only.
+    /// fixed delay. See `paste_tx`. macOS only.
     #[serde(default)]
     pub reliable_paste: bool,
     #[serde(default = "default_typing_tool")]
@@ -433,12 +443,7 @@ fn default_typing_tool() -> TypingTool {
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 
 pub fn get_default_settings() -> AppSettings {
-    #[cfg(target_os = "windows")]
-    let default_shortcut = "ctrl+space";
-    #[cfg(target_os = "macos")]
     let default_shortcut = "option+space";
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let default_shortcut = "alt+space";
 
     let mut bindings = HashMap::new();
     bindings.insert(
@@ -547,6 +552,12 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
                 entry.insert(value);
                 updated = true;
             }
+        }
+
+        let paste_method = settings.paste_method.supported_on_macos();
+        if settings.paste_method != paste_method {
+            settings.paste_method = paste_method;
+            updated = true;
         }
 
         if updated {
@@ -808,5 +819,31 @@ mod tests {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Minimal);
         assert_eq!(settings.paste_method, PasteMethod::CtrlV);
+        assert_eq!(
+            settings.bindings["transcribe"].default_binding,
+            "option+space"
+        );
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "option+space"
+        );
+    }
+
+    #[test]
+    fn shift_insert_paste_method_maps_to_ctrl_v_on_macos() {
+        assert_eq!(
+            PasteMethod::ShiftInsert.supported_on_macos(),
+            PasteMethod::CtrlV
+        );
+        assert_eq!(PasteMethod::CtrlV.supported_on_macos(), PasteMethod::CtrlV);
+        assert_eq!(
+            PasteMethod::CtrlShiftV.supported_on_macos(),
+            PasteMethod::CtrlShiftV
+        );
+        assert_eq!(
+            PasteMethod::Direct.supported_on_macos(),
+            PasteMethod::Direct
+        );
+        assert_eq!(PasteMethod::None.supported_on_macos(), PasteMethod::None);
     }
 }

@@ -8,12 +8,6 @@ use specta::Type;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-#[cfg(target_os = "windows")]
-use winreg::{
-    enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE},
-    RegKey, HKEY,
-};
-
 #[derive(Serialize, Type)]
 pub struct CustomSounds {
     start: bool,
@@ -58,100 +52,26 @@ pub struct WindowsMicrophonePermissionStatus {
     pub desktop_app_access: PermissionAccess,
 }
 
-#[cfg(target_os = "windows")]
-fn read_registry_permission_access(root_hkey: HKEY, path: &str) -> PermissionAccess {
-    let root = RegKey::predef(root_hkey);
-    let Ok(key) = root.open_subkey(path) else {
-        return PermissionAccess::Unknown;
-    };
-
-    let Ok(value) = key.get_value::<String, _>("Value") else {
-        return PermissionAccess::Unknown;
-    };
-
-    match value.to_ascii_lowercase().as_str() {
-        "allow" => PermissionAccess::Allowed,
-        "deny" => PermissionAccess::Denied,
-        _ => PermissionAccess::Unknown,
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn get_windows_microphone_permission_status_impl() -> WindowsMicrophonePermissionStatus {
-    const MICROPHONE_PATH: &str =
-        "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone";
-    const DESKTOP_APPS_PATH: &str =
-        "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged";
-
-    let device_access = read_registry_permission_access(HKEY_LOCAL_MACHINE, MICROPHONE_PATH);
-    let app_access = read_registry_permission_access(HKEY_CURRENT_USER, MICROPHONE_PATH);
-    let desktop_app_access = read_registry_permission_access(HKEY_CURRENT_USER, DESKTOP_APPS_PATH);
-
-    // Murmur is a desktop app, so the NonPackaged key (desktop_app_access) is
-    // the relevant permission scope. The UWP master key (app_access) can be
-    // "deny" on systems with debloaters (e.g. O&O ShutUp10) without actually
-    // blocking desktop app microphone access.
-    let overall_access = if device_access == PermissionAccess::Denied {
-        PermissionAccess::Denied
-    } else if desktop_app_access == PermissionAccess::Denied {
-        PermissionAccess::Denied
-    } else if desktop_app_access == PermissionAccess::Allowed {
-        PermissionAccess::Allowed
-    } else if app_access == PermissionAccess::Denied {
-        PermissionAccess::Denied
-    } else if device_access == PermissionAccess::Allowed && app_access == PermissionAccess::Allowed
-    {
-        PermissionAccess::Allowed
-    } else {
-        PermissionAccess::Unknown
-    };
-
-    WindowsMicrophonePermissionStatus {
-        supported: true,
-        overall_access,
-        device_access,
-        app_access,
-        desktop_app_access,
-    }
-}
-
+/// Kept as a macOS stub so generated frontend bindings stay valid until the
+/// Windows onboarding path is removed.
 #[tauri::command]
 #[specta::specta]
 pub fn get_windows_microphone_permission_status() -> WindowsMicrophonePermissionStatus {
-    #[cfg(target_os = "windows")]
-    {
-        get_windows_microphone_permission_status_impl()
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        WindowsMicrophonePermissionStatus {
-            supported: false,
-            overall_access: PermissionAccess::Unknown,
-            device_access: PermissionAccess::Unknown,
-            app_access: PermissionAccess::Unknown,
-            desktop_app_access: PermissionAccess::Unknown,
-        }
+    WindowsMicrophonePermissionStatus {
+        supported: false,
+        overall_access: PermissionAccess::Unknown,
+        device_access: PermissionAccess::Unknown,
+        app_access: PermissionAccess::Unknown,
+        desktop_app_access: PermissionAccess::Unknown,
     }
 }
 
+/// Kept as a macOS stub so generated frontend bindings stay valid until the
+/// Windows onboarding path is removed.
 #[tauri::command]
 #[specta::specta]
 pub fn open_microphone_privacy_settings() -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        Command::new("cmd")
-            .args(["/C", "start", "", "ms-settings:privacy-microphone"])
-            .spawn()
-            .map_err(|e| format!("Failed to open Windows microphone privacy settings: {}", e))?;
-        return Ok(());
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err("Opening microphone privacy settings is only supported on Windows".to_string())
-    }
+    Err("Opening microphone privacy settings is not supported on this platform".to_string())
 }
 
 #[tauri::command]
