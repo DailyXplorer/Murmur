@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "إزالة كلمات الحشو",
-        "description": "يزيل كلمات التردد الشائعة من النصوص. عطّل هذا الخيار للاحتفاظ بها."
+        "description": "يزيل كلمات التردد الشائعة من نصوص Codex. يتولى Gemini معالجة كلمات الحشو بنفسه."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "يُرسل الصوت إلى خدمة النسخ السحابي نفسها التي يستخدمها Codex. سجّل الدخول إلى تطبيق Codex إذا ظهر هنا أنه غير متصل.",
       "checking": "جارٍ التحقق من الجلسة…",
+      "statusUnavailable": "الحالة غير متاحة",
       "ready": "متصل",
-      "missing": "غير مسجّل الدخول"
+      "missing": "غير مسجّل الدخول",
+      "providerTitle": "خدمة النسخ",
+      "providerDescription": "اختر خدمة النسخ المستخدمة للإملاءات الجديدة.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "يستخدم Gemini جلسة Antigravity المحلية على هذا الـ Mac. ميزة تجريبية؛ قد تتطلب تحديثات Antigravity تحديث Murmur.",
+      "notInstalled": "Antigravity غير مثبت",
+      "installAntigravity": "تثبيت",
+      "openAntigravity": "فتح Antigravity",
+      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
+      "onboardingDescriptionCodex": "سجّل الدخول إلى Codex قبل المتابعة."
     }
   },
   "footer": {

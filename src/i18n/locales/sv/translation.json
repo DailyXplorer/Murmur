@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Ta bort utfyllnadsord",
-        "description": "Tar bort vanliga tvekljud från transkriberingar. Stäng av för att behålla dem."
+        "description": "Tar bort vanliga tvekljud från Codex-transkriberingar. Gemini hanterar utfyllnadsord själv."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Ljudet skickas till samma molnbaserade transkriberingstjänst som Codex använder. Logga in i Codex-appen om det visas som frånkopplat här.",
       "checking": "Kontrollerar sessionen…",
+      "statusUnavailable": "Status ej tillgänglig",
       "ready": "Ansluten",
-      "missing": "Inte inloggad"
+      "missing": "Inte inloggad",
+      "providerTitle": "Transkriberingstjänst",
+      "providerDescription": "Välj transkriberingstjänst för nya dikteringar.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini använder den lokala Antigravity-sessionen på denna Mac. Experimentell; Antigravity-uppdateringar kan kräva en Murmur-uppdatering.",
+      "notInstalled": "Antigravity är inte installerat",
+      "installAntigravity": "Installera",
+      "openAntigravity": "Öppna Antigravity",
+      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter.",
+      "onboardingDescriptionCodex": "Logga in på Codex innan du fortsätter."
     }
   },
   "footer": {

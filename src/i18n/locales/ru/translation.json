@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Удалять слова-паразиты",
-        "description": "Удаляет распространённые слова-заминки из расшифровок. Отключите, чтобы сохранить их."
+        "description": "Удаляет распространённые слова-заминки из расшифровок Codex. Gemini обрабатывает слова-паразиты самостоятельно."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Аудио отправляется в тот же облачный сервис транскрибации, который использует Codex. Войдите в приложение Codex, если здесь отображается отсутствие подключения.",
       "checking": "Проверка сеанса…",
+      "statusUnavailable": "Статус недоступен",
       "ready": "Подключено",
-      "missing": "Вы не вошли в систему"
+      "missing": "Вы не вошли в систему",
+      "providerTitle": "Сервис транскрибации",
+      "providerDescription": "Выберите сервис транскрибации для новых диктовок.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini использует локальный сеанс Antigravity на этом Mac. Экспериментальная функция; после обновления Antigravity может потребоваться обновление Murmur.",
+      "notInstalled": "Antigravity не установлен",
+      "installAntigravity": "Установить",
+      "openAntigravity": "Открыть Antigravity",
+      "onboardingDescription": "Перед продолжением войдите в Codex или Antigravity.",
+      "onboardingDescriptionCodex": "Перед продолжением войдите в Codex."
     }
   },
   "footer": {

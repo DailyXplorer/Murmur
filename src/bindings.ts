@@ -93,6 +93,14 @@ async changeSelectedLanguageSetting(language: string) : Promise<Result<null, str
     else return { status: "error", error: String(e) };
 }
 },
+async changeTranscriptionProviderSetting(provider: TranscriptionProvider) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_transcription_provider_setting", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeOverlayPositionSetting(position: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_overlay_position_setting", { position }) };
@@ -547,8 +555,26 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
+ * Reports whether Gemini transcription can use the local Antigravity install.
+ * This check never starts Antigravity or reads the session token.
+ */
+async getGeminiStatus() : Promise<GeminiStatus> {
+    return await TAURI_INVOKE("get_gemini_status");
+},
+/**
+ * Opens Antigravity after an explicit user action so the user can sign in.
+ */
+async openAntigravity() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_antigravity") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * Marks onboarding as complete in Murmur's settings store.
- *
+ * 
  * Returns an error string only if the command contract changes to expose a
  * persistence failure; the current store API completes synchronously.
  */
@@ -672,7 +698,7 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number;
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
  * Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
  * after the target app actually reads the transcript, instead of after a
@@ -685,6 +711,7 @@ export type BindingResponse = { success: boolean; binding: ShortcutBinding | nul
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CodexAuthStatus = { signed_in: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+export type GeminiStatus = { available_on_platform: boolean; installed: boolean; signed_in: boolean }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
@@ -701,6 +728,7 @@ export type SoundTheme = "marimba" | "pop" | "custom"
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
+export type TranscriptionProvider = "codex" | "gemini"
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
 

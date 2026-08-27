@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Usuń wyrazy wypełniające",
-        "description": "Usuwa typowe słowa wyrażające wahanie z transkrypcji. Wyłącz, aby je zachować."
+        "description": "Usuwa typowe słowa wyrażające wahanie z transkrypcji Codex. Gemini sam obsługuje wypełniacze."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "Dźwięk jest wysyłany do tej samej usługi transkrypcji w chmurze, z której korzysta Codex. Zaloguj się w aplikacji Codex, jeśli widzisz tu brak połączenia.",
       "checking": "Sprawdzanie sesji…",
+      "statusUnavailable": "Stan niedostępny",
       "ready": "Połączono",
-      "missing": "Nie zalogowano"
+      "missing": "Nie zalogowano",
+      "providerTitle": "Usługa transkrypcji",
+      "providerDescription": "Wybierz usługę transkrypcji dla nowych dyktowań.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini używa lokalnej sesji Antigravity na tym Macu. Funkcja eksperymentalna; aktualizacje Antigravity mogą wymagać aktualizacji Murmur.",
+      "notInstalled": "Antigravity nie jest zainstalowany",
+      "installAntigravity": "Zainstaluj",
+      "openAntigravity": "Otwórz Antigravity",
+      "onboardingDescription": "Przed kontynuowaniem zaloguj się do Codex lub Antigravity.",
+      "onboardingDescriptionCodex": "Przed kontynuowaniem zaloguj się do Codex."
     }
   },
   "footer": {

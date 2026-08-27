@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "Remover palavras de preenchimento",
-        "description": "Remove hesitações comuns das transcrições. Desative para mantê-las."
+        "description": "Remove hesitações comuns das transcrições do Codex. O Gemini trata as palavras de preenchimento por conta própria."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "O áudio é enviado para o mesmo serviço de transcrição na nuvem usado pelo Codex. Inicie sessão na aplicação Codex se aqui aparecer como desligado.",
       "checking": "Verificando a sessão…",
+      "statusUnavailable": "Estado indisponível",
       "ready": "Conectado",
-      "missing": "Sem sessão iniciada"
+      "missing": "Sem sessão iniciada",
+      "providerTitle": "Serviço de transcrição",
+      "providerDescription": "Escolha o serviço de transcrição para novos ditados.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "O Gemini usa a sessão local do Antigravity neste Mac. Recurso experimental; atualizações do Antigravity podem exigir uma atualização do Murmur.",
+      "notInstalled": "Antigravity não está instalado",
+      "installAntigravity": "Instalar",
+      "openAntigravity": "Abrir Antigravity",
+      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar.",
+      "onboardingDescriptionCodex": "Entre no Codex antes de continuar."
     }
   },
   "footer": {

@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { listen } from "@tauri-apps/api/event";
-import type { AppSettings as Settings, AudioDevice } from "@/bindings";
+import type {
+  AppSettings as Settings,
+  AudioDevice,
+  TranscriptionProvider,
+} from "@/bindings";
 import { commands } from "@/bindings";
 
 interface SettingsStore {
@@ -98,6 +102,12 @@ const settingUpdaters: {
     commands.updateRecordingRetentionPeriod(value as string),
   selected_language: (value) =>
     commands.changeSelectedLanguageSetting(value as string),
+  transcription_provider: async (value) => {
+    const result = await commands.changeTranscriptionProviderSetting(
+      value as TranscriptionProvider,
+    );
+    if (result.status === "error") throw new Error(result.error);
+  },
   overlay_position: (value) =>
     commands.changeOverlayPositionSetting(value as string),
   debug_mode: (value) => commands.changeDebugModeSetting(value as boolean),

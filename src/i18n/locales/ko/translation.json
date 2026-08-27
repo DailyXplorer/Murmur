@@ -198,7 +198,7 @@
       },
       "fillerWordRemoval": {
         "title": "군더더기 표현 제거",
-        "description": "전사에서 흔한 머뭇거림 표현을 제거합니다. 그대로 두려면 이 옵션을 끄세요."
+        "description": "Codex 전사에서 흔한 머뭇거림 표현을 제거합니다. Gemini는 군더더기 표현을 자체적으로 처리합니다."
       }
     },
     "history": {
@@ -334,8 +334,19 @@
       "sessionTitle": "Codex",
       "sessionDescription": "오디오는 Codex가 사용하는 것과 동일한 클라우드 전사 서비스로 전송됩니다. 여기에 연결되지 않음으로 표시되면 Codex 앱에 로그인하세요.",
       "checking": "세션 확인 중…",
+      "statusUnavailable": "상태를 확인할 수 없음",
       "ready": "연결됨",
-      "missing": "로그인하지 않음"
+      "missing": "로그인하지 않음",
+      "providerTitle": "받아쓰기 서비스",
+      "providerDescription": "새 받아쓰기에 사용할 전사 서비스를 선택하세요.",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "geminiDescription": "Gemini는 이 Mac의 로컬 Antigravity 세션을 사용합니다. 실험적 기능이며 Antigravity 업데이트 후 Murmur 업데이트가 필요할 수 있습니다.",
+      "notInstalled": "Antigravity가 설치되지 않음",
+      "installAntigravity": "설치",
+      "openAntigravity": "Antigravity 열기",
+      "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하세요.",
+      "onboardingDescriptionCodex": "계속하기 전에 Codex에 로그인하세요."
     }
   },
   "footer": {
