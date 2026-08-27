@@ -168,7 +168,6 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
 
 /// Sends a Ctrl+V or Cmd+V paste command using platform-specific virtual key codes.
 /// This ensures the paste works regardless of keyboard layout (e.g., Russian, AZERTY, DVORAK).
-/// Note: On Wayland, this may not work - callers should check for Wayland and use alternative methods.
 ///
 /// `hold_ms` is how long the modifier stays held after the V click before being
 /// released. Most applications read the modifier from the V event's flags and
@@ -177,13 +176,10 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
 /// against those. Callers that can detect a failed chord (e.g. the
 /// receipt-sequenced paste path) may use a much shorter hold.
 pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    // Platform-specific key definitions
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
-    #[cfg(target_os = "windows")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56)); // VK_V
-    #[cfg(target_os = "linux")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
+    #[cfg(not(target_os = "macos"))]
+    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
 
     // Press modifier + V
     enigo
@@ -203,16 +199,11 @@ pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> 
 }
 
 /// Sends a Ctrl+Shift+V paste command.
-/// This is commonly used in terminal applications on Linux to paste without formatting.
-/// Note: On Wayland, this may not work - callers should check for Wayland and use alternative methods.
 pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    // Platform-specific key definitions
     #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
-    #[cfg(target_os = "windows")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56)); // VK_V
-    #[cfg(target_os = "linux")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
+    #[cfg(not(target_os = "macos"))]
+    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56));
 
     // Press Ctrl/Cmd + Shift + V
     enigo
@@ -237,9 +228,7 @@ pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), St
     Ok(())
 }
 
-/// Sends a Shift+Insert paste command (Windows and Linux only).
-/// This is more universal for terminal applications and legacy software.
-/// Note: On Wayland, this may not work - callers should check for Wayland and use alternative methods.
+/// Sends a Shift+Insert paste command.
 pub fn send_paste_shift_insert(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let insert_key_code = Key::Other(0x2D); // VK_INSERT
