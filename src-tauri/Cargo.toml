@@ -113,11 +113,6 @@ objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
-gtk = "0.18"
-libc = "0.2"
-
 # TEMPORARY: tao pinned past 0.35.3 for the Wayland client-side-decorations fix
 # (tao #1218, fixes tauri #11856 — dead titlebar buttons after visible(false) →
 # show()). Drop this once a tao release containing it lands in tauri.
