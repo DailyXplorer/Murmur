@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "Nakładka",
-          "description": "Wybierz nakładkę nagrywania: „Brak“ ją ukrywa, „Minimalna“ pokazuje kompaktowy wskaźnik.",
+          "description": "Wybierz nakładkę nagrywania: „Brak” ją ukrywa, „Minimalna” pokazuje kompaktowy wskaźnik.",
           "options": {
             "none": "Brak",
             "minimal": "Minimalna"

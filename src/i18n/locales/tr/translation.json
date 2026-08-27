@@ -137,7 +137,7 @@
           "description": "Kayıt katmanını seçin: 'Yok' gizler, 'Minimal' kompakt bir gösterge gösterir.",
           "options": {
             "none": "Yok",
-            "minimal": "Sade"
+            "minimal": "Minimal"
           }
         },
         "position": {

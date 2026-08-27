@@ -141,7 +141,7 @@
           }
         },
         "position": {
-          "title": "Position de la fenêtre d'enregistrement",
+          "title": "Position de l'overlay",
           "description": "Emplacement de l'overlay à l'écran pendant l'enregistrement et la transcription.",
           "options": {
             "bottom": "Bas",

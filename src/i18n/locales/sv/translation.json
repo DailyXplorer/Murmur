@@ -278,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "Tillförlitlig inklistring (Beta)",
-        "description": "Återställ urklipp först när målappen faktiskt har läst transkriptionen, i stället för efter en fast fördröjning. Avsett att åtgärda att det gamla urklippsinnehållet klistras in när systemet är belastet. Kräver en klistra-in-metod via urklipp."
+        "description": "Återställ urklipp först när målappen faktiskt har läst transkriptionen, i stället för efter en fast fördröjning. Avsett att åtgärda att det gamla urklippsinnehållet klistras in när systemet är belastat. Kräver en klistra-in-metod via urklipp."
       },
       "recordingBuffer": {
         "title": "Extra inspelningsbuffert",
