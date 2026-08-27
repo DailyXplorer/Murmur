@@ -197,8 +197,8 @@
         "duplicate": "「{{word}}」已存在"
       },
       "fillerWordRemoval": {
-        "title": "移除語助詞",
-        "description": "從 Codex 轉錄中移除常見的語助詞。Gemini 會自行處理填充詞。"
+        "title": "移除填充詞",
+        "description": "從 Codex 轉錄中移除常見的填充詞。Gemini 會自行處理填充詞。"
       }
     },
     "history": {
@@ -345,7 +345,8 @@
       "notInstalled": "尚未安裝 Antigravity",
       "installAntigravity": "安裝",
       "openAntigravity": "開啟 Antigravity",
-      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。"
+      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。",
+      "onboardingDescriptionCodex": "請先登入 Codex，再繼續操作。"
     }
   },
   "footer": {

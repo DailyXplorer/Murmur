@@ -697,6 +697,10 @@ pub fn run(cli_args: CliArgs) {
                 let args = cli_args.clone();
                 std::thread::spawn(move || {
                     let code = run_headless_guarded(|| run_headless_transcription(&handle, &args));
+                    handle
+                        .state::<Arc<TranscriptionManager>>()
+                        .inner()
+                        .shutdown();
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();

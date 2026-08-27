@@ -197,15 +197,20 @@ function App() {
 
   const handleAccessibilityComplete = async () => {
     try {
+      const isMacOS = platform() === "macos";
       const [codex, gemini] = await Promise.all([
         commands.getCodexAuthStatus(),
-        commands.getGeminiStatus().catch(() => null),
+        isMacOS ? commands.getGeminiStatus().catch(() => null) : null,
       ]);
       const hasUsableGeminiSession =
         gemini?.available_on_platform && gemini.installed && gemini.signed_in;
       if (!codex.signed_in && !hasUsableGeminiSession) {
         toast.error(t("settings.transcription.missing"), {
-          description: t("settings.transcription.onboardingDescription"),
+          description: t(
+            isMacOS
+              ? "settings.transcription.onboardingDescription"
+              : "settings.transcription.onboardingDescriptionCodex",
+          ),
         });
         return;
       }

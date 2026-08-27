@@ -113,4 +113,10 @@ impl TranscriptionManager {
         );
         Ok(processed)
     }
+
+    /// Releases provider resources before a headless process exits.
+    pub fn shutdown(&self) {
+        #[cfg(target_os = "macos")]
+        self.gemini.shutdown();
+    }
 }

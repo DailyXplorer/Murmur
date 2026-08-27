@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity не встановлено",
       "installAntigravity": "Встановити",
       "openAntigravity": "Відкрити Antigravity",
-      "onboardingDescription": "Перед продовженням увійдіть у Codex або Antigravity."
+      "onboardingDescription": "Перед продовженням увійдіть у Codex або Antigravity.",
+      "onboardingDescriptionCodex": "Перед продовженням увійдіть у Codex."
     }
   },
   "footer": {

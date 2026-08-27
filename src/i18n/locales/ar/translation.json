@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity غير مثبت",
       "installAntigravity": "تثبيت",
       "openAntigravity": "فتح Antigravity",
-      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة."
+      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
+      "onboardingDescriptionCodex": "سجّل الدخول إلى Codex قبل المتابعة."
     }
   },
   "footer": {

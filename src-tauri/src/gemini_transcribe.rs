@@ -17,7 +17,7 @@ const SAMPLE_RATE: usize = 16_000;
 const AUDIO_CHUNK_SAMPLES: usize = SAMPLE_RATE;
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(600);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const TRANSCRIPTION_TIMEOUT: Duration = Duration::from_secs(90);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const SUPERVISOR_INTERVAL: Duration = Duration::from_secs(5);
@@ -101,6 +101,15 @@ impl GeminiTranscriber {
         state.mark_used();
         result.map_err(friendly_transcription_error)
     }
+
+    /// Stops the language server started by this transcriber, if any.
+    pub fn shutdown(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.stop_owned();
+    }
 }
 
 impl Default for GeminiTranscriber {
@@ -165,6 +174,12 @@ impl RuntimeState {
         }
     }
 
+    fn stop_owned(&mut self) {
+        if let Some(mut owned) = self.owned.take() {
+            owned.stop();
+        }
+    }
+
     fn stop_owned_if_idle_or_superseded(&mut self, binary: Option<&Path>) {
         if self.owned.is_none() {
             return;
@@ -176,9 +191,7 @@ impl RuntimeState {
         });
 
         if should_stop {
-            if let Some(mut owned) = self.owned.take() {
-                owned.stop();
-            }
+            self.stop_owned();
         }
     }
 }
@@ -218,7 +231,11 @@ impl OwnedServer {
         let child = command
             .spawn()
             .with_context(|| format!("failed to start {}", binary.display()))?;
-        let connection = ConnectionInfo { port: 0, csrf };
+        let connection = ConnectionInfo {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            csrf,
+        };
         let mut owned = Self {
             child,
             connection,
@@ -232,8 +249,9 @@ impl OwnedServer {
                     "Antigravity transcription service exited during startup. Open Antigravity, sign in again, and retry."
                 ));
             }
-            for port in owned_loopback_ports(owned.child.id())? {
+            for (host, port) in owned_loopback_endpoints(owned.child.id())? {
                 let candidate = ConnectionInfo {
+                    host,
                     port,
                     csrf: owned.connection.csrf.clone(),
                 };
@@ -285,6 +303,7 @@ impl Drop for OwnedServer {
 
 #[derive(Clone)]
 struct ConnectionInfo {
+    host: String,
     port: u16,
     csrf: String,
 }
@@ -379,8 +398,9 @@ fn external_server_process_exists(binary: &Path) -> bool {
 fn discover_external_connections(binary: &Path) -> Result<Vec<ConnectionInfo>> {
     let mut connections = Vec::new();
     for process in language_server_processes(binary)? {
-        for port in listening_ports(process.pid)? {
+        for (host, port) in listening_loopback_endpoints(process.pid)? {
             connections.push(ConnectionInfo {
+                host,
                 port,
                 csrf: process.csrf.clone(),
             });
@@ -441,21 +461,27 @@ fn has_flag_value(args: &[&str], flag: &str, expected: &str) -> bool {
     flag_value(args, flag).as_deref() == Some(expected)
 }
 
-fn listening_ports(pid: u32) -> Result<Vec<u16>> {
+fn listening_loopback_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     Ok(listening_tcp_endpoints(pid)?
         .into_iter()
-        .filter_map(|(host, port)| is_loopback_host(&host).then_some(port))
+        .filter_map(|(host, port)| normalize_loopback_host(&host).map(|host| (host, port)))
         .collect())
 }
 
-fn owned_loopback_ports(pid: u32) -> Result<Vec<u16>> {
+fn owned_loopback_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     let endpoints = listening_tcp_endpoints(pid)?;
-    if endpoints.iter().any(|(host, _)| !is_loopback_host(host)) {
+    if endpoints
+        .iter()
+        .any(|(host, _)| normalize_loopback_host(host).is_none())
+    {
         return Err(anyhow!(
             "Antigravity transcription service attempted to listen outside loopback"
         ));
     }
-    Ok(endpoints.into_iter().map(|(_, port)| port).collect())
+    Ok(endpoints
+        .into_iter()
+        .filter_map(|(host, port)| normalize_loopback_host(&host).map(|host| (host, port)))
+        .collect())
 }
 
 fn listening_tcp_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
@@ -488,12 +514,16 @@ fn listening_tcp_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     Ok(endpoints.into_iter().collect())
 }
 
-fn is_loopback_host(host: &str) -> bool {
-    matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
+fn normalize_loopback_host(host: &str) -> Option<String> {
+    match host {
+        "127.0.0.1" | "localhost" | "[::1]" => Some(host.to_string()),
+        "::1" => Some("[::1]".to_string()),
+        _ => None,
+    }
 }
 
 async fn connect(connection: &ConnectionInfo) -> Result<Channel> {
-    Endpoint::from_shared(format!("http://127.0.0.1:{}", connection.port))
+    Endpoint::from_shared(format!("http://{}:{}", connection.host, connection.port))
         .context("invalid local Antigravity endpoint")?
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(TRANSCRIPTION_TIMEOUT)
@@ -643,11 +673,7 @@ async fn send_audio_chunk(
     sequence_number: i32,
     samples: &[f32],
 ) -> Result<()> {
-    let mut data = Vec::with_capacity(samples.len() * 2);
-    for sample in samples {
-        let value = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-        data.extend_from_slice(&value.to_le_bytes());
-    }
+    let data = pcm_le_bytes(samples);
 
     let request = authenticated_request(
         SendAudioChunkRequest {
@@ -671,6 +697,15 @@ async fn send_audio_chunk(
         .await
         .context("failed to send audio to Gemini transcription")?;
     Ok(())
+}
+
+fn pcm_le_bytes(samples: &[f32]) -> Vec<u8> {
+    let mut data = Vec::with_capacity(samples.len() * 2);
+    for sample in samples {
+        let value = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+    data
 }
 
 async fn end_audio_session(
@@ -833,13 +868,8 @@ mod tests {
 
     #[test]
     fn pcm_chunk_uses_little_endian_i16() {
-        let samples = [-1.0_f32, 0.0, 1.0];
-        let mut bytes = Vec::new();
-        for sample in samples {
-            let value = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        assert_eq!(bytes, vec![1, 128, 0, 0, 255, 127]);
+        let bytes = pcm_le_bytes(&[-2.0_f32, -1.0, 0.0, 1.0, 2.0]);
+        assert_eq!(bytes, vec![1, 128, 1, 128, 0, 0, 255, 127, 255, 127]);
     }
 
     #[test]
@@ -860,12 +890,19 @@ mod tests {
 
     #[test]
     fn accepts_only_loopback_listener_hosts() {
-        assert!(is_loopback_host("127.0.0.1"));
-        assert!(is_loopback_host("localhost"));
-        assert!(is_loopback_host("[::1]"));
-        assert!(!is_loopback_host("*"));
-        assert!(!is_loopback_host("0.0.0.0"));
-        assert!(!is_loopback_host("192.168.1.10"));
+        assert_eq!(
+            normalize_loopback_host("127.0.0.1").as_deref(),
+            Some("127.0.0.1")
+        );
+        assert_eq!(
+            normalize_loopback_host("localhost").as_deref(),
+            Some("localhost")
+        );
+        assert_eq!(normalize_loopback_host("[::1]").as_deref(), Some("[::1]"));
+        assert_eq!(normalize_loopback_host("::1").as_deref(), Some("[::1]"));
+        assert_eq!(normalize_loopback_host("*"), None);
+        assert_eq!(normalize_loopback_host("0.0.0.0"), None);
+        assert_eq!(normalize_loopback_host("192.168.1.10"), None);
     }
 
     #[test]
@@ -883,9 +920,20 @@ mod tests {
             .map(|sample| sample.expect("test WAV sample should decode") as f32 / i16::MAX as f32)
             .collect::<Vec<_>>();
 
-        let transcript = GeminiTranscriber::new()
+        let transcriber = GeminiTranscriber::new();
+        let transcript = transcriber
             .transcribe(&samples)
             .expect("live Gemini transcription should succeed");
+        transcriber.shutdown();
+        assert!(
+            transcriber
+                .state
+                .lock()
+                .expect("live test state should remain available")
+                .owned
+                .is_none(),
+            "shutdown should release the owned server before a headless exit"
+        );
         assert!(!transcript.is_empty());
         println!("Gemini transcript: {transcript}");
     }

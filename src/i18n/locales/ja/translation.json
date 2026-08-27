@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity がインストールされていません",
       "installAntigravity": "インストール",
       "openAntigravity": "Antigravity を開く",
-      "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。"
+      "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。",
+      "onboardingDescriptionCodex": "続行する前に Codex にログインしてください。"
     }
   },
   "footer": {

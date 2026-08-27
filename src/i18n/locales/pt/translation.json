@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity não está instalado",
       "installAntigravity": "Instalar",
       "openAntigravity": "Abrir Antigravity",
-      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar."
+      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar.",
+      "onboardingDescriptionCodex": "Entre no Codex antes de continuar."
     }
   },
   "footer": {

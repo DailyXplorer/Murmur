@@ -197,8 +197,8 @@
         "duplicate": "\"{{word}}\" 已存在"
       },
       "fillerWordRemoval": {
-        "title": "移除语气词",
-        "description": "从 Codex 转录中移除常见的语气词。Gemini 会自行处理填充词。"
+        "title": "移除填充词",
+        "description": "从 Codex 转录中移除常见的填充词。Gemini 会自行处理填充词。"
       }
     },
     "history": {
@@ -345,7 +345,8 @@
       "notInstalled": "未安装 Antigravity",
       "installAntigravity": "安装",
       "openAntigravity": "打开 Antigravity",
-      "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。"
+      "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。",
+      "onboardingDescriptionCodex": "请先登录 Codex，然后再继续。"
     }
   },
   "footer": {

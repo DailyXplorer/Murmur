@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity इंस्टॉल नहीं है",
       "installAntigravity": "इंस्टॉल करें",
       "openAntigravity": "Antigravity खोलें",
-      "onboardingDescription": "आगे बढ़ने से पहले Codex या Antigravity में साइन इन करें।"
+      "onboardingDescription": "आगे बढ़ने से पहले Codex या Antigravity में साइन इन करें।",
+      "onboardingDescriptionCodex": "आगे बढ़ने से पहले Codex में साइन इन करें।"
     }
   },
   "footer": {

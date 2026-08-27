@@ -345,7 +345,8 @@
       "notInstalled": "Antigravity אינו מותקן",
       "installAntigravity": "התקנה",
       "openAntigravity": "פתיחת Antigravity",
-      "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים."
+      "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים.",
+      "onboardingDescriptionCodex": "יש להתחבר ל-Codex לפני שממשיכים."
     }
   },
   "footer": {
