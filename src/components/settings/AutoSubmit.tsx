@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
-import { useOsType } from "../../hooks/useOsType";
 import type { AutoSubmitKey } from "@/bindings";
 
 interface AutoSubmitProps {
@@ -16,17 +15,12 @@ type AutoSubmitOptionValue = AutoSubmitKey | "off";
 export const AutoSubmit: React.FC<AutoSubmitProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
-    const osType = useOsType();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
     const enabled = getSetting("auto_submit") ?? false;
     const selectedKey = (getSetting("auto_submit_key") ||
       "enter") as AutoSubmitKey;
     const selectedValue: AutoSubmitOptionValue = enabled ? selectedKey : "off";
-    const submitWithMetaLabel =
-      osType === "macos"
-        ? t("settings.advanced.autoSubmit.options.cmdEnter")
-        : t("settings.advanced.autoSubmit.options.superEnter");
 
     const autoSubmitOptions = [
       {
@@ -43,7 +37,7 @@ export const AutoSubmit: React.FC<AutoSubmitProps> = React.memo(
       },
       {
         value: "cmd_enter",
-        label: submitWithMetaLabel,
+        label: t("settings.advanced.autoSubmit.options.cmdEnter"),
       },
     ];
 
