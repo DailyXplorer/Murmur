@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "오버레이",
-          "description": "녹음 오버레이를 선택하세요. '없음'은 숨기고, '최소'는 작은 표시를 보여줍니다. Linux에서는 '없음'을 권장합니다.",
+          "description": "녹음 오버레이를 선택하세요. '없음'은 숨기고, '최소'는 작은 표시를 보여줍니다.",
           "options": {
             "none": "없음",
             "minimal": "간단"
@@ -142,7 +142,7 @@
         },
         "position": {
           "title": "오버레이 위치",
-          "description": "녹음 및 전사 중 시각적 피드백 오버레이를 표시합니다. Linux에서는 '없음'을 권장합니다.",
+          "description": "녹음 및 전사 중 오버레이가 화면에 나타나는 위치입니다.",
           "options": {
             "bottom": "하단",
             "top": "상단"
@@ -154,19 +154,8 @@
         "description": "텍스트 삽입 방법을 선택하세요. 직접: 시스템 입력을 통해 타이핑 시뮬레이션. 없음: 붙여넣기를 건너뛰고 히스토리/클립보드만 업데이트합니다.",
         "options": {
           "clipboard": "클립보드 ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "클립보드 (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "클립보드 (Shift+Insert)",
           "direct": "직접",
-          "none": "없음",
-          "externalScript": "외부 스크립트"
-        },
-        "externalScriptPlaceholder": "/path/to/your/script.sh"
-      },
-      "typingTool": {
-        "title": "타이핑 도구",
-        "description": "직접 붙여넣기 방식에 사용할 Linux 타이핑 도구를 선택하세요. Auto는 시스템에서 사용 가능한 최적의 도구를 자동으로 감지해 사용합니다.",
-        "options": {
-          "auto": "Auto (권장)"
+          "none": "없음"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "자동 제출",
-        "description": "텍스트 삽입 후 선택한 키 조합을 자동으로 전송합니다. macOS에서는 Cmd+Enter가, Windows/Linux에서는 Super+Enter가 적용됩니다.",
+        "description": "텍스트 삽입 후 선택한 키 조합을 자동으로 전송합니다.",
         "options": {
           "off": "끄기",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "안정적인 붙여넣기 (Beta)",
-        "description": "고정된 지연 시간이 아니라 대상 앱이 실제로 전사된 텍스트를 읽은 뒤에만 클립보드를 복원합니다. 시스템 부하가 높을 때 이전 클립보드 내용이 붙여넣어지는 문제를 해결하기 위한 옵션입니다. 클립보드를 사용하는 붙여넣기 방법이 필요하며 macOS와 Windows에서만 지원됩니다."
+        "description": "고정된 지연 시간이 아니라 대상 앱이 실제로 전사된 텍스트를 읽은 뒤에만 클립보드를 복원합니다. 시스템 부하가 높을 때 이전 클립보드 내용이 붙여넣어지는 문제를 해결하기 위한 옵션입니다. 클립보드를 사용하는 붙여넣기 방법이 필요합니다."
       },
       "recordingBuffer": {
         "title": "추가 녹음 버퍼",
@@ -357,12 +345,7 @@
     "downloading": "다운로드 중... {{progress}}%",
     "installing": "설치 중...",
     "preparing": "준비 중...",
-    "checkForUpdates": "업데이트 확인",
-    "portableUpdateTitle": "수동 업데이트 필요",
-    "portableUpdateMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. 아래에서 사용 중인 시스템에 맞는 설치 프로그램을 다운로드해 실행하고 같은 폴더에 설치하세요. Data/ 폴더는 그대로 유지됩니다.",
-    "portableUpdateButton": "설치 프로그램 다운로드",
-    "portableUpdateBrowseMessage": "포터블 설치는 자동으로 업데이트할 수 없습니다. GitHub Releases에서 사용 중인 시스템에 맞는 최신 버전을 다운로드해 같은 폴더에 설치하세요. Data/ 폴더는 그대로 유지됩니다.",
-    "portableUpdateBrowseButton": "GitHub Releases 열기"
+    "checkForUpdates": "업데이트 확인"
   },
   "common": {
     "loading": "로딩 중...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "마이크 접근이 거부되었습니다",
     "micPermissionDenied": {
       "generic": "운영 체제에서 마이크 접근을 거부했습니다. 시스템 설정에서 마이크 권한을 허용해 주세요.",
-      "windows": "설정 → 개인 정보 및 보안 → 마이크(데스크톱 앱 접근 포함)에서 마이크 접근을 활성화하세요.",
-      "macos": "시스템 설정 → 개인 정보 보호 및 보안 → 마이크에서 마이크 접근을 허용하세요.",
-      "linux": "시스템의 소리 또는 개인 정보 설정에서 마이크 접근을 허용하세요."
+      "macos": "시스템 설정 → 개인 정보 보호 및 보안 → 마이크에서 마이크 접근을 허용하세요."
     },
     "noInputDeviceTitle": "마이크를 찾을 수 없음",
     "noInputDevice": "오디오 입력 장치가 감지되지 않았습니다. 마이크 또는 헤드셋을 연결한 후 다시 시도해 주세요.",

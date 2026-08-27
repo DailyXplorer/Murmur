@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "שכבת-על",
-          "description": "בחרו את שכבת ההקלטה: 'ללא' מסתיר אותה, 'מינימלי' מציג מחוון קומפקטי. ב-Linux מומלץ 'ללא'.",
+          "description": "בחרו את שכבת ההקלטה: 'ללא' מסתיר אותה, 'מינימלי' מציג מחוון קומפקטי.",
           "options": {
             "none": "ללא",
             "minimal": "מינימלי"
@@ -142,7 +142,7 @@
         },
         "position": {
           "title": "מיקום שכבת המשוב",
-          "description": "הצג שכבת משוב חזותית בזמן הקלטה ותמלול. בלינוקס מומלץ לבחור 'ללא'.",
+          "description": "המיקום על המסך שבו מופיעה שכבת ההקלטה במהלך הקלטה ותמלול.",
           "options": {
             "bottom": "למטה",
             "top": "למעלה"
@@ -154,19 +154,8 @@
         "description": "בחר איך הטקסט יוכנס. ישיר: מדמה הקלדה דרך קלט המערכת. ללא: מדלג על הדבקה ומעדכן רק היסטוריה/לוח.",
         "options": {
           "clipboard": "לוח ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "לוח (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "לוח (Shift+Insert)",
           "direct": "ישיר",
-          "none": "ללא",
-          "externalScript": "סקריפט חיצוני"
-        },
-        "externalScriptPlaceholder": "/path/to/your/script.sh"
-      },
-      "typingTool": {
-        "title": "כלי הקלדה",
-        "description": "בחר איזה כלי הקלדה בלינוקס ישמש עבור הדבקה ישירה. מצב אוטומטי יזהה וישתמש בכלי המתאים ביותר למערכת שלך.",
-        "options": {
-          "auto": "אוטומטי (מומלץ)"
+          "none": "ללא"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "שליחה אוטומטית",
-        "description": "שלח אוטומטית את צירוף המקשים שנבחר אחרי הכנסת הטקסט. ב-macOS יופעל Cmd+Enter, וב-Windows/Linux יופעל Super+Enter.",
+        "description": "שלח אוטומטית את צירוף המקשים שנבחר אחרי הכנסת הטקסט.",
         "options": {
           "off": "כבוי",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "הדבקה אמינה (Beta)",
-        "description": "שחזור הלוח רק אחרי שאפליקציית היעד קוראת בפועל את התמלול, במקום אחרי השהיה קבועה. נועד לתקן הדבקה של תוכן לוח ישן כשהמערכת עמוסה. דורש שיטת הדבקה דרך הלוח; ב-macOS וב-Windows בלבד."
+        "description": "שחזור הלוח רק אחרי שאפליקציית היעד קוראת בפועל את התמלול, במקום אחרי השהיה קבועה. נועד לתקן הדבקה של תוכן לוח ישן כשהמערכת עמוסה. דורש שיטת הדבקה דרך הלוח."
       },
       "recordingBuffer": {
         "title": "באפר הקלטה נוסף",
@@ -357,12 +345,7 @@
     "downloading": "מוריד... {{progress}}%",
     "installing": "מתקין...",
     "preparing": "מכין...",
-    "checkForUpdates": "בדוק עדכונים",
-    "portableUpdateTitle": "נדרש עדכון ידני",
-    "portableUpdateMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד למטה את המתקין המתאים למערכת שלך, הפעל אותו והתקן לאותה תיקייה — תיקיית Data/ נשמרת במקומה.",
-    "portableUpdateButton": "הורדת המתקין",
-    "portableUpdateBrowseMessage": "התקנות ניידות אינן מתעדכנות אוטומטית. הורד את הגרסה האחרונה המתאימה למערכת שלך מ-GitHub Releases והתקן אותה לאותה תיקייה — תיקיית Data/ נשמרת במקומה.",
-    "portableUpdateBrowseButton": "פתח את GitHub Releases"
+    "checkForUpdates": "בדוק עדכונים"
   },
   "common": {
     "loading": "טוען...",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "הגישה למיקרופון נדחתה",
     "micPermissionDenied": {
       "generic": "מערכת ההפעלה חסמה את הגישה למיקרופון. תן הרשאת מיקרופון בהגדרות המערכת.",
-      "windows": "הפעל גישה למיקרופון ב-Settings > Privacy & security > Microphone, כולל גישה לאפליקציות שולחן עבודה.",
-      "macos": "תן גישה למיקרופון ב-System Settings > Privacy & Security > Microphone.",
-      "linux": "תן גישה למיקרופון דרך הגדרות השמע או הפרטיות במערכת שלך."
+      "macos": "תן גישה למיקרופון ב-System Settings > Privacy & Security > Microphone."
     },
     "noInputDeviceTitle": "לא נמצא מיקרופון",
     "noInputDevice": "לא זוהה התקן קלט שמע. חבר מיקרופון או אוזנייה ונסה שוב.",

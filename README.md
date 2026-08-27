@@ -1,8 +1,7 @@
 # Murmur
 
-Murmur is a cross-platform desktop speech-to-text app for macOS, Windows, and
-Linux. Press a shortcut, speak, and Murmur pastes the transcription into the
-active application.
+Murmur is a macOS desktop speech-to-text app. Press a shortcut, speak, and
+Murmur pastes the transcription into the active application.
 
 Murmur sends audio to a cloud transcription service using a session already on
 the computer. Codex with ChatGPT is the default. On macOS, Gemini through the
@@ -13,8 +12,7 @@ option requires an API key or local speech-recognition model.
 
 - A working microphone
 - Codex signed in with a ChatGPT account, or Antigravity signed in on macOS
-- Accessibility permission when the operating system requires it for global
-  shortcuts or text insertion
+- Accessibility permission for global shortcuts and text insertion
 - Network access while transcribing
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
@@ -33,7 +31,6 @@ ChatGPT, or Antigravity update may require a Murmur update.
 - Optional filler-word removal for Codex and custom-word correction for both services
 - Transcription history with saved recordings
 - Recording overlay, audio feedback, tray controls, and automatic updates
-- Portable mode on Windows
 
 ## CLI
 
@@ -65,7 +62,8 @@ bun run format:check
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-See [BUILD.md](BUILD.md) for platform-specific dependencies and packaging.
+See [BUILD.md](BUILD.md) for macOS dependencies, packaging, code signing, and
+notarization.
 
 ## Architecture
 
@@ -98,10 +96,10 @@ an Antigravity process it did not start.
 ## Origin
 
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
-Pais. It keeps parts of Handy's cross-platform Tauri foundation, but most of
-Handy's original transcription engine and local-model stack have been removed.
-Murmur now transcribes through cloud services using sessions already present on
-the computer.
+Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
+transcription engine and local-model stack have been removed. Murmur now
+transcribes through cloud services using sessions already present on the
+computer.
 
 ## License
 

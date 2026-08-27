@@ -134,7 +134,7 @@
       "overlay": {
         "style": {
           "title": "オーバーレイ",
-          "description": "録音オーバーレイを選択します。「なし」は非表示、「ミニマル」はコンパクトな表示です。Linux では「なし」を推奨します。",
+          "description": "録音オーバーレイを選択します。「なし」は非表示、「ミニマル」はコンパクトな表示です。",
           "options": {
             "none": "なし",
             "minimal": "ミニマル"
@@ -154,19 +154,8 @@
         "description": "テキストの挿入方法を選択。「直接」はシステム入力でタイピングをシミュレート。「なし」は貼り付けをスキップし、履歴/クリップボードのみ更新。",
         "options": {
           "clipboard": "クリップボード ({{modifier}}+V)",
-          "clipboardCtrlShiftV": "クリップボード (Ctrl+Shift+V)",
-          "clipboardShiftInsert": "クリップボード (Shift+Insert)",
           "direct": "直接",
-          "none": "なし",
-          "externalScript": "外部スクリプト"
-        },
-        "externalScriptPlaceholder": "/path/to/your/script.sh"
-      },
-      "typingTool": {
-        "title": "タイピングツール",
-        "description": "直接貼り付け方式で使用する Linux のタイピングツールを選択します。Auto は自動的に最適なツールを検出して使用します。",
-        "options": {
-          "auto": "自動 (推奨)"
+          "none": "なし"
         }
       },
       "clipboardHandling": {
@@ -179,12 +168,11 @@
       },
       "autoSubmit": {
         "title": "自動送信",
-        "description": "テキスト挿入後に選択したキーの組み合わせを自動的に送信します。macOS では Cmd+Enter、Windows/Linux では Super+Enter が適用されます。",
+        "description": "テキスト挿入後に選択したキーの組み合わせを自動的に送信します。",
         "options": {
           "off": "オフ",
           "enter": "Enter",
           "cmdEnter": "Cmd+Enter",
-          "superEnter": "Super+Enter",
           "ctrlEnter": "Ctrl+Enter"
         }
       },
@@ -290,7 +278,7 @@
       },
       "reliablePaste": {
         "title": "確実な貼り付け(Beta)",
-        "description": "固定の遅延ではなく、対象アプリが実際に文字起こしを読み取った後にのみクリップボードを復元します。システム負荷が高いときに古いクリップボードの内容が貼り付けられる問題を解決するための設定です。クリップボードを使う貼り付け方法が必要です。macOS と Windows のみ。"
+        "description": "固定の遅延ではなく、対象アプリが実際に文字起こしを読み取った後にのみクリップボードを復元します。システム負荷が高いときに古いクリップボードの内容が貼り付けられる問題を解決するための設定です。クリップボードを使う貼り付け方法が必要です。"
       },
       "recordingBuffer": {
         "title": "追加録音バッファ",
@@ -357,12 +345,7 @@
     "downloading": "ダウンロード中… {{progress}}%",
     "installing": "インストール中…",
     "preparing": "準備中…",
-    "checkForUpdates": "アップデートを確認",
-    "portableUpdateTitle": "手動での更新が必要です",
-    "portableUpdateMessage": "ポータブル版は自動的に更新できません。下のボタンからお使いのシステム向けのインストーラーをダウンロードし、実行して同じフォルダーにインストールしてください。Data フォルダーはそのまま残ります。",
-    "portableUpdateButton": "インストーラーをダウンロード",
-    "portableUpdateBrowseMessage": "ポータブル版は自動的に更新できません。GitHub Releases からお使いのシステム向けの最新版をダウンロードし、同じフォルダーにインストールしてください。Data フォルダーはそのまま残ります。",
-    "portableUpdateBrowseButton": "GitHub Releases を開く"
+    "checkForUpdates": "アップデートを確認"
   },
   "common": {
     "loading": "読み込み中…",
@@ -382,9 +365,7 @@
     "micPermissionDeniedTitle": "マイクへのアクセスが拒否されました",
     "micPermissionDenied": {
       "generic": "オペレーティングシステムによりマイクへのアクセスが拒否されました。システム設定でマイクの許可を付与してください。",
-      "windows": "設定 → プライバシーとセキュリティ → マイク(デスクトップアプリのアクセスを含む)でマイクへのアクセスを有効にしてください。",
-      "macos": "システム設定 → プライバシーとセキュリティ → マイクでマイクへのアクセスを許可してください。",
-      "linux": "システムのサウンドまたはプライバシー設定でマイクへのアクセスを許可してください。"
+      "macos": "システム設定 → プライバシーとセキュリティ → マイクでマイクへのアクセスを許可してください。"
     },
     "noInputDeviceTitle": "マイクが見つかりません",
     "noInputDevice": "オーディオ入力デバイスが検出されませんでした。マイクまたはヘッドセットを接続してから再試行してください。",
