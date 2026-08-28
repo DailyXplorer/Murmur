@@ -105,9 +105,10 @@ pub enum OverlayStyle {
     Minimal,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum PasteMethod {
+    #[default]
     CtrlV,
     Direct,
     None,
@@ -141,12 +142,6 @@ pub enum RecordingRetentionPeriod {
     Days3,
     Weeks2,
     Months3,
-}
-
-impl Default for PasteMethod {
-    fn default() -> Self {
-        PasteMethod::CtrlV
-    }
 }
 
 impl PasteMethod {
