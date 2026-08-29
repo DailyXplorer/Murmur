@@ -1,7 +1,7 @@
 import { commands, type AccentColor } from "@/bindings";
 import { listen } from "@tauri-apps/api/event";
 
-export const ACCENT_COLOR_STORAGE_KEY = "murmur.accent-color";
+const ACCENT_COLOR_STORAGE_KEY = "murmur.accent-color";
 
 export const ACCENT_COLOR_OPTIONS: AccentColor[] = [
   "pink",
