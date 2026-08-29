@@ -24,7 +24,7 @@
       },
       "accessibility": {
         "title": "접근성 권한",
-        "description": "녹음된 텍스트를 애플리케이션에 입력하기 위해 필요합니다.",
+        "description": "음성 인식 결과를 애플리케이션에 입력하기 위해 필요합니다.",
         "action": "접근 허용",
         "waiting": "시스템 설정에서 Murmur를 켜세요."
       },
@@ -359,7 +359,7 @@
     "noOptionsFound": "옵션을 찾을 수 없습니다"
   },
   "accessibility": {
-    "permissionsDescription": "Murmur는 녹음된 텍스트를 입력하기 위해 접근성 권한이 필요합니다.",
+    "permissionsDescription": "Murmur는 음성 인식 결과를 입력하기 위해 접근성 권한이 필요합니다.",
     "openSettings": "시스템 설정 열기"
   },
   "errors": {

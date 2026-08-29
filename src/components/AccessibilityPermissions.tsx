@@ -45,8 +45,10 @@ const AccessibilityPermissions: React.FC = () => {
 
     const initialSetup = async (): Promise<void> => {
       const hasPermissions: boolean = await checkAccessibilityPermission();
-      setHasAccessibility(hasPermissions);
-      setPermissionState(hasPermissions ? "granted" : "request");
+      if (hasPermissions) {
+        setHasAccessibility(true);
+        setPermissionState("granted");
+      }
     };
 
     initialSetup();
