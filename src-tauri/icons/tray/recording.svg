@@ -1,19 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24">
-  <path
-    d="M6 8.5C6 4.91 8.91 2 12.5 2S19 4.91 19 8.5c0 6-6 6-6 10 0 1.93-1.57 3.5-3.5 3.5S6 20.43 6 18.5"
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Monochrome adaptation of the Murmur website mark, optically thickened
+       for macOS's 18-point menu-bar rendering. -->
+  <polyline
+    points="20,5 44,5 57,18 57,34 45,46 45,54 40,60 33,60 27,54 27,16"
     fill="none"
     stroke="#000"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="2.25"
+    stroke-linecap="butt"
+    stroke-linejoin="miter"
+    stroke-width="7"
   />
-  <path
-    d="M15 8.5C15 7.12 13.88 6 12.5 6S10 7.12 10 8.5v1c1.1 0 2 .9 2 2s-.9 2-2 2"
-    fill="none"
-    stroke="#000"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="2.25"
-  />
-  <circle cx="19.25" cy="18.5" r="2.25" fill="#000" />
+  <path d="M4 32H11V39H4ZM14 23H21V46H14ZM35 27H42V43H35Z" fill="#000" />
 </svg>
