@@ -105,10 +105,7 @@ test.describe("settings control widths", () => {
         clientWidth: element.clientWidth,
         scrollWidth: element.scrollWidth,
       })),
-      page
-        .getByTestId("history-limit")
-        .getByText("entries")
-        .boundingBox(),
+      page.getByTestId("history-limit").getByText("entries").boundingBox(),
       page.getByTestId("history-limit").boundingBox(),
       page.getByTestId("long-custom-word").boundingBox(),
       page

@@ -106,7 +106,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
         >
           <div
             data-testid="history-limit"
-            className="ml-auto flex items-center gap-2"
+            className="flex items-center justify-end gap-2"
           >
             <Input className="w-20" type="number" value="50" readOnly />
             <span className="text-sm">entries</span>
@@ -143,13 +143,13 @@ const SettingsControlWidthsFixture: React.FC = () => {
               Long custom transcription term
             </Button>
             <Button
-              className="inline-flex cursor-pointer items-center gap-1"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
               data-testid="long-custom-word"
               size="sm"
               variant="secondary"
             >
-              <span>{LONG_CUSTOM_WORD}</span>
-              <XIcon size={12} />
+              <span className="min-w-0 truncate">{LONG_CUSTOM_WORD}</span>
+              <XIcon className="shrink-0" size={12} />
             </Button>
           </div>
         </div>

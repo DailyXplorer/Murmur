@@ -101,13 +101,14 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                   disabled={isUpdating("custom_words")}
                   variant="secondary"
                   size="sm"
-                  className="inline-flex items-center gap-1 cursor-pointer"
+                  className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
                   aria-label={t("settings.advanced.customWords.remove", {
                     word,
                   })}
+                  title={word}
                 >
-                  <span>{word}</span>
-                  <XIcon size={12} />
+                  <span className="min-w-0 truncate">{word}</span>
+                  <XIcon className="shrink-0" size={12} />
                 </Button>
               ))}
             </div>

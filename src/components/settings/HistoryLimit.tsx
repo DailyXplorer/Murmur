@@ -33,7 +33,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
       grouped={grouped}
       layout="horizontal"
     >
-      <div className="ml-auto flex items-center space-x-2">
+      <div className="flex items-center justify-end space-x-2">
         <Input
           type="number"
           min="0"
