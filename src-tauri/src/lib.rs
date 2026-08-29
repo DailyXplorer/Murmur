@@ -251,14 +251,12 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
         }
     }
-    let settings = settings::get_settings(app_handle);
-    let initial_icon = accent::tray_icon(settings.accent_color, accent::NativeIconState::Idle)
-        .expect("failed to build initial tray icon");
+    let initial_icon = accent::tray_icon().expect("failed to build initial tray icon");
 
     let mut tray_builder = TrayIconBuilder::new()
         .icon(initial_icon)
         .tooltip(tray::tray_tooltip())
-        .icon_as_template(accent::tray_icon_is_template());
+        .icon_as_template(accent::TRAY_ICON_IS_TEMPLATE);
 
     #[cfg(target_os = "macos")]
     {
