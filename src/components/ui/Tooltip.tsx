@@ -12,7 +12,8 @@ interface TooltipCoords {
 }
 
 interface TooltipProps {
-  targetRef: React.RefObject<HTMLElement>;
+  id?: string;
+  targetRef: React.RefObject<HTMLElement | null>;
   position?: TooltipPosition;
   children: React.ReactNode;
 }
@@ -24,6 +25,7 @@ const ARROW_MARGIN = 12;
 const DEFAULT_HEIGHT = 60;
 
 export const Tooltip: React.FC<TooltipProps> = ({
+  id,
   targetRef,
   position = "top",
   children,
@@ -94,7 +96,9 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   return createPortal(
     <div
+      id={id}
       ref={tooltipRef}
+      role="tooltip"
       style={{
         position: "fixed",
         top: coords?.top ?? -9999,

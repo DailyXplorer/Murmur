@@ -3,16 +3,19 @@ import { useTranslation } from "react-i18next";
 import { type as osType } from "@tauri-apps/plugin-os";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { commands } from "@/bindings";
-import type {
-  CodexAuthStatus,
-  GeminiStatus,
-  TranscriptionProvider,
-} from "@/bindings";
+import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import { Button } from "../../ui/Button";
 import { Dropdown } from "../../ui/Dropdown";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
+import { SettingsPage } from "../../ui/SettingsPage";
+import { FillerWordRemoval } from "../FillerWordRemoval";
+import { CustomWords } from "../CustomWords";
+import { AppendTrailingSpace } from "../AppendTrailingSpace";
+import { PasteMethodSetting } from "../PasteMethod";
+import { ClipboardHandlingSetting } from "../ClipboardHandling";
+import { AutoSubmit } from "../AutoSubmit";
 
 const EMPTY_CODEX_STATUS: CodexAuthStatus = { signed_in: false };
 export const TranscriptionSettings: React.FC = () => {
@@ -74,8 +77,8 @@ export const TranscriptionSettings: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <SettingsGroup title={t("settings.transcription.title")}>
+    <SettingsPage label={t("sidebar.transcription")}>
+      <SettingsGroup title={t("settings.transcription.groups.service")}>
         {isMacOS && (
           <SettingContainer
             title={t("settings.transcription.providerTitle")}
@@ -86,12 +89,10 @@ export const TranscriptionSettings: React.FC = () => {
               options={providerOptions}
               selectedValue={provider}
               className="w-[260px]"
-              onSelect={(value) =>
-                void updateSetting(
-                  "transcription_provider",
-                  value as TranscriptionProvider,
-                )
-              }
+              onSelect={(value) => {
+                if (value !== "codex" && value !== "gemini") return;
+                void updateSetting("transcription_provider", value);
+              }}
               disabled={isUpdating("transcription_provider")}
             />
           </SettingContainer>
@@ -149,6 +150,18 @@ export const TranscriptionSettings: React.FC = () => {
           </SettingContainer>
         )}
       </SettingsGroup>
-    </div>
+
+      <SettingsGroup title={t("settings.transcription.groups.processing")}>
+        <FillerWordRemoval descriptionMode="tooltip" grouped={true} />
+        <CustomWords descriptionMode="tooltip" grouped={true} />
+        <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+
+      <SettingsGroup title={t("settings.transcription.groups.output")}>
+        <PasteMethodSetting descriptionMode="tooltip" grouped={true} />
+        <ClipboardHandlingSetting descriptionMode="tooltip" grouped={true} />
+        <AutoSubmit descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+    </SettingsPage>
   );
 };

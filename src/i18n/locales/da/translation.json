@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Tryk-for-at-tale",
         "description": "Hold nede for at optage, slip for at stoppe"
+      },
+      "groups": {
+        "appearance": "Udseende"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Output",
         "transcription": "Transskription",
         "history": "Historik",
-        "experimental": "Eksperimentel"
+        "experimental": "Eksperimentel",
+        "updates": "Opdateringer",
+        "storage": "Lagring"
       },
       "experimentalToggle": {
         "label": "Eksperimentelle funktioner",
@@ -204,7 +209,8 @@
       "retranscribe": "Transskribér igen",
       "retranscribeError": "Kunne ikke transskribere igen. Prøv igen.",
       "transcribing": "Transskriberer...",
-      "transcriptionFailed": "Transskription mislykkedes. Du kan transskribere igen ved hjælp af genforsøgsikonet."
+      "transcriptionFailed": "Transskription mislykkedes. Du kan transskribere igen ved hjælp af genforsøgsikonet.",
+      "preferences": "Indstillinger"
     },
     "debug": {
       "title": "Fejlfinding",
@@ -336,7 +342,12 @@
       "installAntigravity": "Installer",
       "openAntigravity": "Åbn Antigravity",
       "onboardingDescription": "Log ind på Codex eller Antigravity, før du fortsætter.",
-      "onboardingDescriptionCodex": "Log ind på Codex, før du fortsætter."
+      "onboardingDescriptionCodex": "Log ind på Codex, før du fortsætter.",
+      "groups": {
+        "service": "Tjeneste",
+        "processing": "Tekstbehandling",
+        "output": "Output"
+      }
     }
   },
   "footer": {
