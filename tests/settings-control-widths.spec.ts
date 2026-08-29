@@ -76,6 +76,10 @@ test.describe("settings control widths", () => {
       toggleBox,
       chipBox,
       chipLaneBox,
+      chipLaneOverflow,
+      historyLimitLabelBox,
+      historyLimitBox,
+      longChipBox,
       shortcutSurfaceBox,
       shortcutResetBox,
       stackedBox,
@@ -97,6 +101,16 @@ test.describe("settings control widths", () => {
         .getByRole("button", { name: "Acme" })
         .boundingBox(),
       page.getByTestId("custom-word-chips").boundingBox(),
+      page.getByTestId("custom-word-chips").evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      })),
+      page
+        .getByTestId("history-limit")
+        .getByText("entries")
+        .boundingBox(),
+      page.getByTestId("history-limit").boundingBox(),
+      page.getByTestId("long-custom-word").boundingBox(),
       page
         .getByTestId("shortcut-control")
         .getByRole("button", { name: "Command Shift Option K" })
@@ -114,6 +128,19 @@ test.describe("settings control widths", () => {
     }
     expect(chipLaneBox).not.toBeNull();
     expectWidth(chipLaneBox?.width ?? 0, RAIL_WIDTH);
+    expect(historyLimitBox).not.toBeNull();
+    expect(
+      (historyLimitBox?.x ?? 0) + (historyLimitBox?.width ?? 0),
+    ).toBeCloseTo(slotMeasurements[4].right, 1);
+    expect(historyLimitLabelBox).not.toBeNull();
+    expect(
+      (historyLimitLabelBox?.x ?? 0) + (historyLimitLabelBox?.width ?? 0),
+    ).toBeCloseTo(slotMeasurements[4].right, 1);
+    expect(chipLaneOverflow.scrollWidth).toBeLessThanOrEqual(
+      chipLaneOverflow.clientWidth,
+    );
+    expect(longChipBox).not.toBeNull();
+    expect(longChipBox?.width ?? 0).toBeLessThanOrEqual(RAIL_WIDTH);
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
     expect(

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { Button } from "../../src/components/ui/Button";
 import { Dropdown } from "../../src/components/ui/Dropdown";
 import { Input } from "../../src/components/ui/Input";
@@ -12,6 +13,8 @@ const OPTIONS = [
   { value: "first", label: "First option" },
   { value: "second", label: "Second option" },
 ];
+
+const LONG_CUSTOM_WORD = "W".repeat(50);
 
 const SettingsControlWidthsFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>("first");
@@ -101,7 +104,10 @@ const SettingsControlWidthsFixture: React.FC = () => {
           title="History limit"
           description="Compact number input and label"
         >
-          <div data-testid="history-limit" className="flex items-center gap-2">
+          <div
+            data-testid="history-limit"
+            className="ml-auto flex items-center gap-2"
+          >
             <Input className="w-20" type="number" value="50" readOnly />
             <span className="text-sm">entries</span>
           </div>
@@ -135,6 +141,15 @@ const SettingsControlWidthsFixture: React.FC = () => {
             </Button>
             <Button size="sm" variant="secondary">
               Long custom transcription term
+            </Button>
+            <Button
+              className="inline-flex cursor-pointer items-center gap-1"
+              data-testid="long-custom-word"
+              size="sm"
+              variant="secondary"
+            >
+              <span>{LONG_CUSTOM_WORD}</span>
+              <XIcon size={12} />
             </Button>
           </div>
         </div>
