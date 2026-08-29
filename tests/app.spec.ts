@@ -102,6 +102,8 @@ test.describe("Murmur App", () => {
         "--color-background-ui",
         "--color-background-ui-hover",
         "--color-background-ui-active",
+        "--color-background-ui-hover-fallback",
+        "--color-background-ui-active-fallback",
         "--color-on-accent",
       ];
       const canvas = document.createElement("canvas");
@@ -144,6 +146,8 @@ test.describe("Murmur App", () => {
       const resting = colors["--color-background-ui"];
       const hover = colors["--color-background-ui-hover"];
       const active = colors["--color-background-ui-active"];
+      const fallbackHover = colors["--color-background-ui-hover-fallback"];
+      const fallbackActive = colors["--color-background-ui-active-fallback"];
       const foreground = colors["--color-on-accent"];
       const label = `${accent} in ${theme} mode`;
       const hoverDifference = largestChannelDifference(resting, hover);
@@ -172,6 +176,23 @@ test.describe("Murmur App", () => {
         activeDifference,
         `${label} keeps the pressed state close to the selected color`,
       ).toBeLessThanOrEqual(32);
+      expect(
+        largestChannelDifference(hover, fallbackHover),
+        `${label} keeps the legacy hover fallback aligned with color-mix`,
+      ).toBeLessThanOrEqual(1);
+      expect(
+        largestChannelDifference(active, fallbackActive),
+        `${label} keeps the legacy pressed fallback aligned with color-mix`,
+      ).toBeLessThanOrEqual(1);
+      for (const [state, background] of [
+        ["fallback hover", fallbackHover],
+        ["fallback pressed", fallbackActive],
+      ] as const) {
+        expect(
+          contrastRatio(background, foreground),
+          `${label} keeps ${state} text contrast above 4.5:1`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 
@@ -305,6 +326,79 @@ test.describe("Murmur App", () => {
         contrastRatio(pageBackground, focusRing),
         `${label} keeps focus contrast above 3:1`,
       ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test("range fills stay distinct from their unfilled tracks", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/accent-controls.html");
+
+    const samples = await page.evaluate(() => {
+      const ranges = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="range"]'),
+      );
+      const accents = ["pink", "blue", "green", "yellow", "orange", "red"];
+      const themes = ["light", "dark"];
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const probe = document.createElement("div");
+      document.body.appendChild(probe);
+
+      if (ranges.length !== 2)
+        throw new Error("Range fixtures are unavailable");
+      if (!context) throw new Error("Canvas 2D context is unavailable");
+
+      const resolveColor = (property: string): number[] => {
+        probe.style.backgroundColor = `var(${property})`;
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = "#000000";
+        context.fillStyle = getComputedStyle(probe).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      };
+
+      const results = themes.flatMap((theme) => {
+        document.documentElement.dataset.theme = theme;
+
+        return accents.map((accent) => {
+          document.documentElement.dataset.accentColor = accent;
+
+          return {
+            accent,
+            theme,
+            fill: resolveColor("--color-background-ui"),
+            track: resolveColor("--color-slider-track"),
+            backgrounds: ranges.map(
+              (range) => getComputedStyle(range).backgroundImage,
+            ),
+          };
+        });
+      });
+
+      probe.remove();
+      return results;
+    });
+
+    for (const { accent, theme, fill, track, backgrounds } of samples) {
+      const label = `${accent} in ${theme} mode`;
+      const fillColor = `rgb(${fill.join(", ")})`;
+      const trackColor = `rgb(${track.join(", ")})`;
+
+      expect(
+        contrastRatio(fill, track),
+        `${label} keeps filled and unfilled ranges above 3:1`,
+      ).toBeGreaterThanOrEqual(3);
+      for (const background of backgrounds) {
+        expect(background, `${label} range uses the selected fill`).toContain(
+          fillColor,
+        );
+        expect(background, `${label} range uses the neutral track`).toContain(
+          trackColor,
+        );
+      }
     }
   });
 });
