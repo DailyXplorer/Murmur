@@ -4,7 +4,7 @@ use tauri::AppHandle;
 
 const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../resources/tray.png");
-const SOURCE_PINK_HUE: f32 = 332.0;
+const SOURCE_PINK_HUE: f32 = 325.0;
 pub const TRAY_ICON_IS_TEMPLATE: bool = true;
 
 impl AccentColor {
@@ -160,6 +160,34 @@ mod tests {
         rgba_at(image, x, y)[3]
     }
 
+    fn circular_hue_distance(first: f32, second: f32) -> f32 {
+        (first - second + 180.0).rem_euclid(360.0) - 180.0
+    }
+
+    fn visible_bounds(image: &Image<'_>) -> (u32, u32, u32, u32) {
+        let mut min_x = image.width();
+        let mut min_y = image.height();
+        let mut max_x = 0;
+        let mut max_y = 0;
+        let mut found_visible_pixel = false;
+
+        for y in 0..image.height() {
+            for x in 0..image.width() {
+                if alpha_at(image, x, y) == 0 {
+                    continue;
+                }
+                found_visible_pixel = true;
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+        }
+
+        assert!(found_visible_pixel, "image should contain visible pixels");
+        (min_x, min_y, max_x, max_y)
+    }
+
     #[test]
     fn recoloring_preserves_transparent_and_neutral_pixels() {
         let source = Image::new_owned(
@@ -175,60 +203,43 @@ mod tests {
     }
 
     #[test]
-    fn every_accent_produces_native_icons() {
-        for accent in [
-            AccentColor::Pink,
-            AccentColor::Blue,
-            AccentColor::Green,
-            AccentColor::Yellow,
-            AccentColor::Orange,
-            AccentColor::Red,
+    fn every_accent_keeps_the_app_icon_invariants() {
+        for (accent, expected_hue) in [
+            (AccentColor::Pink, 325.0),
+            (AccentColor::Blue, 212.0),
+            (AccentColor::Green, 145.0),
+            (AccentColor::Yellow, 47.0),
+            (AccentColor::Orange, 25.0),
+            (AccentColor::Red, 2.0),
         ] {
             let app = app_icon(accent).expect("app icon should decode");
             assert_eq!((app.width(), app.height()), (1024, 1024));
+            assert_eq!(alpha_at(&app, 0, 0), 0);
+            assert_eq!(rgba_at(&app, 512, 80), [255, 255, 255, 255]);
+            assert_eq!(rgba_at(&app, 512, 940), [255, 255, 255, 255]);
+
+            let pixel = rgba_at(&app, 300, 350);
+            let (hue, saturation, _) = rgb_to_hsl(pixel[0], pixel[1], pixel[2]);
+            assert!(saturation > 0.7, "mark pixel should remain saturated");
+            assert!(
+                circular_hue_distance(hue, expected_hue).abs() <= 5.0,
+                "expected hue {expected_hue}, got {hue} for {accent:?}"
+            );
         }
-
-        let tray = tray_icon().expect("tray icon should decode");
-        assert_eq!((tray.width(), tray.height()), (64, 64));
-    }
-
-    #[test]
-    fn app_icon_uses_the_website_mark_geometry() {
-        let icon = app_icon(AccentColor::Pink).expect("app icon should decode");
-
-        assert_eq!(alpha_at(&icon, 0, 0), 0);
-        for (x, y) in [(512, 120), (170, 550), (320, 550), (470, 350), (615, 550)] {
-            assert_eq!(alpha_at(&icon, x, y), 255);
-        }
-        assert_eq!(alpha_at(&icon, 750, 450), 0);
-    }
-
-    #[test]
-    fn website_mark_changes_with_the_selected_accent() {
-        let pink = app_icon(AccentColor::Pink).expect("pink app icon should decode");
-        let blue = app_icon(AccentColor::Blue).expect("blue app icon should decode");
-        let pink_pixel = rgba_at(&pink, 512, 120);
-        let blue_pixel = rgba_at(&blue, 512, 120);
-
-        assert_ne!(&pink_pixel[..3], &blue_pixel[..3]);
-        assert!(blue_pixel[2] > blue_pixel[0]);
-        assert_eq!(pink_pixel[3], blue_pixel[3]);
     }
 
     #[test]
     fn macos_tray_icon_is_a_monochrome_template() {
         let tray = tray_icon().expect("tray icon should decode");
 
+        assert_eq!((tray.width(), tray.height()), (64, 64));
         assert_eq!(alpha_at(&tray, 0, 0), 0);
-        for (x, y) in [(30, 5), (7, 35), (17, 35), (38, 35)] {
-            assert_eq!(alpha_at(&tray, x, y), 255);
-        }
-        assert_eq!(alpha_at(&tray, 49, 25), 0);
+        assert_eq!(visible_bounds(&tray), (9, 13, 54, 50));
         assert!(tray.rgba().chunks_exact(4).any(|pixel| pixel[3] == 0));
         assert!(tray
             .rgba()
             .chunks_exact(4)
             .filter(|pixel| pixel[3] > 0)
-            .all(|pixel| pixel[0] == pixel[1] && pixel[1] == pixel[2]));
+            .all(|pixel| pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0));
     }
 }
