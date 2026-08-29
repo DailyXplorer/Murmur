@@ -91,7 +91,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
             className="flex min-w-0 items-center gap-1"
           >
             <div
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
+              className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
               data-testid="shortcut-surface"
             >
               Command Shift Option K
