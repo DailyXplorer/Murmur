@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "按住說話",
         "description": "按住錄製，放開停止"
+      },
+      "groups": {
+        "appearance": "外觀"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "輸出",
         "transcription": "轉錄",
         "history": "歷史",
-        "experimental": "實驗性"
+        "experimental": "實驗性",
+        "updates": "更新",
+        "storage": "儲存空間"
       },
       "experimentalToggle": {
         "label": "實驗性功能",
@@ -204,7 +209,8 @@
       "retranscribe": "重新轉錄",
       "retranscribeError": "重新轉錄失敗，請重試。",
       "transcribing": "轉錄中...",
-      "transcriptionFailed": "轉錄失敗。您可以使用重試圖示重新轉錄。"
+      "transcriptionFailed": "轉錄失敗。您可以使用重試圖示重新轉錄。",
+      "preferences": "偏好設定"
     },
     "debug": {
       "title": "偵錯",
@@ -335,7 +341,12 @@
       "notInstalled": "尚未安裝 Antigravity",
       "installAntigravity": "安裝",
       "openAntigravity": "開啟 Antigravity",
-      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。"
+      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。",
+      "groups": {
+        "service": "服務",
+        "processing": "文字處理",
+        "output": "輸出"
+      }
     }
   },
   "footer": {

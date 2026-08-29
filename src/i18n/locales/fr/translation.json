@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Appuyer pour parler",
         "description": "Maintenez pour enregistrer, relâchez pour arrêter"
+      },
+      "groups": {
+        "appearance": "Apparence"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Sortie",
         "transcription": "Transcription",
         "history": "Historique",
-        "experimental": "Expérimental"
+        "experimental": "Expérimental",
+        "updates": "Mises à jour",
+        "storage": "Stockage"
       },
       "experimentalToggle": {
         "label": "Fonctionnalités Expérimentales",
@@ -204,7 +209,8 @@
       "retranscribe": "Re-transcrire",
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
-      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai."
+      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
+      "preferences": "Préférences"
     },
     "debug": {
       "title": "Débogage",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity n’est pas installé",
       "installAntigravity": "Installer",
       "openAntigravity": "Ouvrir Antigravity",
-      "onboardingDescription": "Connecte-toi à Codex ou à Antigravity avant de continuer."
+      "onboardingDescription": "Connecte-toi à Codex ou à Antigravity avant de continuer.",
+      "groups": {
+        "service": "Service",
+        "processing": "Traitement du texte",
+        "output": "Sortie"
+      }
     }
   },
   "footer": {

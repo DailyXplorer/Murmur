@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Nhấn để nói",
         "description": "Giữ để ghi âm, thả để dừng"
+      },
+      "groups": {
+        "appearance": "Giao diện"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Đầu ra",
         "transcription": "Chuyển đổi",
         "history": "Lịch sử",
-        "experimental": "Thử nghiệm"
+        "experimental": "Thử nghiệm",
+        "updates": "Bản cập nhật",
+        "storage": "Lưu trữ"
       },
       "experimentalToggle": {
         "label": "Tính năng thử nghiệm",
@@ -204,7 +209,8 @@
       "retranscribe": "Phiên âm lại",
       "retranscribeError": "Không thể phiên âm lại. Vui lòng thử lại.",
       "transcribing": "Đang phiên âm...",
-      "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại."
+      "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại.",
+      "preferences": "Tùy chọn"
     },
     "debug": {
       "title": "Gỡ lỗi",
@@ -335,7 +341,12 @@
       "notInstalled": "Chưa cài đặt Antigravity",
       "installAntigravity": "Cài đặt",
       "openAntigravity": "Mở Antigravity",
-      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity trước khi tiếp tục."
+      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity trước khi tiếp tục.",
+      "groups": {
+        "service": "Dịch vụ",
+        "processing": "Xử lý văn bản",
+        "output": "Đầu ra"
+      }
     }
   },
   "footer": {

@@ -12,9 +12,12 @@ interface TooltipCoords {
 }
 
 interface TooltipProps {
-  targetRef: React.RefObject<HTMLElement>;
+  id?: string;
+  targetRef: React.RefObject<HTMLElement | null>;
   position?: TooltipPosition;
   children: React.ReactNode;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 const TOOLTIP_WIDTH = 200;
@@ -24,9 +27,12 @@ const ARROW_MARGIN = 12;
 const DEFAULT_HEIGHT = 60;
 
 export const Tooltip: React.FC<TooltipProps> = ({
+  id,
   targetRef,
   position = "top",
   children,
+  onMouseEnter,
+  onMouseLeave,
 }) => {
   const { tooltip: tooltipZIndex } = useFloatingLayers();
   const [coords, setCoords] = useState<TooltipCoords | null>(null);
@@ -94,7 +100,9 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   return createPortal(
     <div
+      id={id}
       ref={tooltipRef}
+      role="tooltip"
       style={{
         position: "fixed",
         top: coords?.top ?? -9999,
@@ -104,6 +112,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
         opacity: coords ? 1 : 0,
       }}
       className="px-3 py-2 bg-background border border-mid-gray/80 rounded-lg shadow-lg whitespace-normal transition-opacity duration-150"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {children}
       <div

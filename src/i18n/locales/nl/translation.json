@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Push-to-talk",
         "description": "Ingedrukt houden om op te nemen, loslaten om te stoppen"
+      },
+      "groups": {
+        "appearance": "Weergave"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Uitvoer",
         "transcription": "Transcriptie",
         "history": "Geschiedenis",
-        "experimental": "Experimenteel"
+        "experimental": "Experimenteel",
+        "updates": "Updates",
+        "storage": "Opslag"
       },
       "experimentalToggle": {
         "label": "Experimentele functies",
@@ -204,7 +209,8 @@
       "retranscribe": "Opnieuw transcriberen",
       "retranscribeError": "Opnieuw transcriberen mislukt. Probeer het opnieuw.",
       "transcribing": "Transcriberen...",
-      "transcriptionFailed": "Transcriptie mislukt. Je kunt het opnieuw proberen via het herlaad-pictogram."
+      "transcriptionFailed": "Transcriptie mislukt. Je kunt het opnieuw proberen via het herlaad-pictogram.",
+      "preferences": "Voorkeuren"
     },
     "debug": {
       "title": "Probleemoplossing",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity is niet geïnstalleerd",
       "installAntigravity": "Installeren",
       "openAntigravity": "Antigravity openen",
-      "onboardingDescription": "Meld je aan bij Codex of Antigravity voordat je doorgaat."
+      "onboardingDescription": "Meld je aan bij Codex of Antigravity voordat je doorgaat.",
+      "groups": {
+        "service": "Service",
+        "processing": "Tekstverwerking",
+        "output": "Uitvoer"
+      }
     }
   },
   "footer": {

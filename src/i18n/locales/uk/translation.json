@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Утримувати для запису (Push To Talk)",
         "description": "Утримуйте для запису, відпустіть для зупинки"
+      },
+      "groups": {
+        "appearance": "Вигляд"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Вивід",
         "transcription": "Транскрипція",
         "history": "Історія",
-        "experimental": "Експериментальне"
+        "experimental": "Експериментальне",
+        "updates": "Оновлення",
+        "storage": "Сховище"
       },
       "experimentalToggle": {
         "label": "Експериментальні функції",
@@ -204,7 +209,8 @@
       "retranscribe": "Перетранскрибувати",
       "retranscribeError": "Не вдалося перетранскрибувати. Будь ласка, спробуйте ще раз.",
       "transcribing": "Транскрибування...",
-      "transcriptionFailed": "Транскрипція не вдалася. Ви можете перетранскрибувати за допомогою іконки повтору."
+      "transcriptionFailed": "Транскрипція не вдалася. Ви можете перетранскрибувати за допомогою іконки повтору.",
+      "preferences": "Налаштування"
     },
     "debug": {
       "title": "Дебаг",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity не встановлено",
       "installAntigravity": "Встановити",
       "openAntigravity": "Відкрити Antigravity",
-      "onboardingDescription": "Перед продовженням увійдіть у Codex або Antigravity."
+      "onboardingDescription": "Перед продовженням увійдіть у Codex або Antigravity.",
+      "groups": {
+        "service": "Сервіс",
+        "processing": "Обробка тексту",
+        "output": "Вивід"
+      }
     }
   },
   "footer": {

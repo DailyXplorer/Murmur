@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Натискане за говорене",
         "description": "Задръжте за запис, пуснете за спиране"
+      },
+      "groups": {
+        "appearance": "Външен вид"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Изход",
         "transcription": "Транскрипция",
         "history": "История",
-        "experimental": "Експериментални"
+        "experimental": "Експериментални",
+        "updates": "Актуализации",
+        "storage": "Съхранение"
       },
       "experimentalToggle": {
         "label": "Експериментални функции",
@@ -204,7 +209,8 @@
       "retranscribe": "Повторна транскрипция",
       "retranscribeError": "Повторната транскрипция не бе успешна. Опитайте отново.",
       "transcribing": "Транскрибиране...",
-      "transcriptionFailed": "Транскрипцията не бе успешна. Можете да опитате отново с иконата за повторен опит."
+      "transcriptionFailed": "Транскрипцията не бе успешна. Можете да опитате отново с иконата за повторен опит.",
+      "preferences": "Предпочитания"
     },
     "debug": {
       "title": "Отстраняване",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity не е инсталиран",
       "installAntigravity": "Инсталиране",
       "openAntigravity": "Отвори Antigravity",
-      "onboardingDescription": "Влезте в Codex или Antigravity, преди да продължите."
+      "onboardingDescription": "Влезте в Codex или Antigravity, преди да продължите.",
+      "groups": {
+        "service": "Услуга",
+        "processing": "Обработка на текста",
+        "output": "Изход"
+      }
     }
   },
   "footer": {

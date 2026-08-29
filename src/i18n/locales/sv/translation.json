@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Tryck för att tala",
         "description": "Håll ned för att spela in, släpp för att stoppa"
+      },
+      "groups": {
+        "appearance": "Utseende"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Utmatning",
         "transcription": "Transkription",
         "history": "Historik",
-        "experimental": "Experimentellt"
+        "experimental": "Experimentellt",
+        "updates": "Uppdateringar",
+        "storage": "Lagring"
       },
       "experimentalToggle": {
         "label": "Experimentella funktioner",
@@ -204,7 +209,8 @@
       "retranscribe": "Transkribera igen",
       "retranscribeError": "Misslyckades med att transkribera igen. Försök igen.",
       "transcribing": "Transkriberar...",
-      "transcriptionFailed": "Transkribering misslyckades. Du kan transkribera igen med hjälp av ikonen för nytt försök."
+      "transcriptionFailed": "Transkribering misslyckades. Du kan transkribera igen med hjälp av ikonen för nytt försök.",
+      "preferences": "Inställningar"
     },
     "debug": {
       "title": "Felsökning",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity är inte installerat",
       "installAntigravity": "Installera",
       "openAntigravity": "Öppna Antigravity",
-      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter."
+      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter.",
+      "groups": {
+        "service": "Tjänst",
+        "processing": "Textbearbetning",
+        "output": "Utdata"
+      }
     }
   },
   "footer": {

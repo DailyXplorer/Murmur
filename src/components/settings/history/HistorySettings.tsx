@@ -17,6 +17,10 @@ import {
 import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { SettingsGroup } from "../../ui/SettingsGroup";
+import { SettingsPage } from "../../ui/SettingsPage";
+import { HistoryLimit } from "../HistoryLimit";
+import { RecordingRetentionPeriodSelector } from "../RecordingRetentionPeriod";
 
 const IconButton: React.FC<{
   onClick: () => void;
@@ -26,12 +30,14 @@ const IconButton: React.FC<{
   children: React.ReactNode;
 }> = ({ onClick, title, disabled, active, children }) => (
   <button
+    type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`p-1.5 rounded-md flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed disabled:text-text/20 ${
+    aria-label={title}
+    className={`flex size-10 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:text-text/20 disabled:active:scale-100 ${
       active
-        ? "text-logo-primary hover:text-logo-primary/80"
-        : "text-text/50 hover:text-logo-primary"
+        ? "bg-logo-primary/10 text-logo-primary hover:bg-logo-primary/20 hover:text-logo-primary/80"
+        : "text-text/50 hover:bg-mid-gray/10 hover:text-logo-primary"
     }`}
     title={title}
   >
@@ -57,7 +63,7 @@ const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
     className="flex items-center gap-2"
     title={label}
   >
-    <FolderOpenIcon size={15} />
+    <FolderOpenIcon size={15} aria-hidden="true" />
     <span>{label}</span>
   </Button>
 );
@@ -260,31 +266,36 @@ export const HistorySettings: React.FC = () => {
             ))}
           </div>
         </AudioPlayerGroup>
-        {/* Sentinel for infinite scroll */}
-        <div ref={sentinelRef} className="h-1" />
       </>
     );
   }
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
-      <div className="space-y-2">
-        <div className="px-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xs font-medium text-mid-gray uppercase tracking-wide">
-              {t("settings.history.title")}
-            </h2>
-          </div>
+    <SettingsPage label={t("sidebar.history")}>
+      <SettingsGroup title={t("settings.history.preferences")}>
+        <HistoryLimit descriptionMode="tooltip" grouped={true} />
+        <RecordingRetentionPeriodSelector
+          descriptionMode="tooltip"
+          grouped={true}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={t("settings.history.title")}
+        action={
           <OpenRecordingsButton
             onClick={openRecordingsFolder}
             label={t("settings.history.openFolder")}
           />
-        </div>
-        <div className="bg-background border border-mid-gray/20 rounded-lg overflow-visible">
-          {content}
-        </div>
-      </div>
-    </div>
+        }
+      >
+        {content}
+      </SettingsGroup>
+
+      {!loading && hasMore && entries.length > 0 && (
+        <div ref={sentinelRef} className="h-1" />
+      )}
+    </SettingsPage>
   );
 };
 
@@ -359,7 +370,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             disabled={!hasTranscription || retrying}
             title={t("settings.history.copyToClipboard")}
           >
-            {showCopied ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
+            {showCopied ? (
+              <CheckIcon size={15} aria-hidden="true" />
+            ) : (
+              <CopyIcon size={15} aria-hidden="true" />
+            )}
           </IconButton>
           <IconButton
             onClick={onToggleSaved}
@@ -371,7 +386,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 : t("settings.history.save")
             }
           >
-            <StarIcon size={15} weight={entry.saved ? "fill" : "light"} />
+            <StarIcon
+              size={15}
+              weight={entry.saved ? "fill" : "light"}
+              aria-hidden="true"
+            />
           </IconButton>
           <IconButton
             onClick={handleRetranscribe}
@@ -380,6 +399,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           >
             <ArrowCounterClockwiseIcon
               size={15}
+              aria-hidden="true"
               style={
                 retrying
                   ? { animation: "spin 1s linear infinite reverse" }
@@ -392,7 +412,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             disabled={retrying}
             title={t("settings.history.delete")}
           >
-            <TrashIcon size={15} />
+            <TrashIcon size={15} aria-hidden="true" />
           </IconButton>
         </div>
       </div>

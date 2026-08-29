@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Bas Konuş",
         "description": "Kaydetmek için basılı tutun, durdurmak için bırakın"
+      },
+      "groups": {
+        "appearance": "Görünüm"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Çıktı",
         "transcription": "Transkripsiyon",
         "history": "Geçmiş",
-        "experimental": "Deneysel"
+        "experimental": "Deneysel",
+        "updates": "Güncellemeler",
+        "storage": "Depolama"
       },
       "experimentalToggle": {
         "label": "Deneysel Özellikler",
@@ -204,7 +209,8 @@
       "retranscribe": "Yeniden transkribe et",
       "retranscribeError": "Yeniden transkripsiyon başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Transkribe ediliyor...",
-      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz."
+      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz.",
+      "preferences": "Tercihler"
     },
     "debug": {
       "title": "Hata Ayıklama",
@@ -335,7 +341,12 @@
       "notInstalled": "Antigravity yüklü değil",
       "installAntigravity": "Yükle",
       "openAntigravity": "Antigravity'yi aç",
-      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın."
+      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın.",
+      "groups": {
+        "service": "Hizmet",
+        "processing": "Metin işleme",
+        "output": "Çıktı"
+      }
     }
   },
   "footer": {
