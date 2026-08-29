@@ -174,7 +174,9 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
           </p>
         )}
       </div>
-      <div className="relative shrink-0">{children}</div>
+      <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">
+        {children}
+      </div>
     </div>
   );
 };

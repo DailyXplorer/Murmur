@@ -43,8 +43,9 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
       grouped
       layout="horizontal"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <Dropdown
+          className="min-w-0 flex-1"
           selectedValue={selectedTheme}
           onSelect={(value) =>
             updateSetting("sound_theme", value as "marimba" | "pop" | "custom")
@@ -54,6 +55,7 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
         <Button
           variant="ghost"
           size="sm"
+          className="shrink-0"
           onClick={handlePlayBothSounds}
           title="Preview sound theme (plays start then stop)"
         >

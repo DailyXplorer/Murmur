@@ -52,8 +52,9 @@ export const OutputDeviceSelector: React.FC<OutputDeviceSelectorProps> =
           grouped={grouped}
           disabled={disabled}
         >
-          <div className="flex items-center space-x-1">
+          <div className="flex min-w-0 items-center space-x-1">
             <Dropdown
+              className="min-w-0 flex-1"
               options={outputDeviceOptions}
               selectedValue={selectedOutputDevice}
               onSelect={handleOutputDeviceSelect}
@@ -71,6 +72,7 @@ export const OutputDeviceSelector: React.FC<OutputDeviceSelectorProps> =
               onRefresh={refreshOutputDevices}
             />
             <ResetButton
+              className="shrink-0"
               onClick={handleReset}
               disabled={
                 disabled || isUpdating("selected_output_device") || isLoading
