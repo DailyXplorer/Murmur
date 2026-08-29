@@ -267,7 +267,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               ) : (
                 <button
                   onClick={handleGrantMicrophone}
-                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
+                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
                 >
                   {t("onboarding.permissions.grant")}
                 </button>
@@ -314,7 +314,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               ) : (
                 <button
                   onClick={handleGrantAccessibility}
-                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
+                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
                 >
                   {t("onboarding.permissions.accessibility.action")}
                 </button>

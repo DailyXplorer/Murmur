@@ -62,7 +62,7 @@ export const Slider: React.FC<SliderProps> = ({
             style={{
               background: `linear-gradient(to right, var(--color-background-ui) ${
                 ((value - min) / (max - min)) * 100
-              }%, rgba(128, 128, 128, 0.2) ${
+              }%, var(--color-slider-track) ${
                 ((value - min) / (max - min)) * 100
               }%)`,
             }}

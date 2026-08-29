@@ -13,7 +13,9 @@
   --color-background: var(--color-background);
   --color-background-ui: var(--color-background-ui);
   --color-background-ui-hover: var(--color-background-ui-hover);
+  --color-background-ui-active: var(--color-background-ui-active);
   --color-on-accent: var(--color-on-accent);
+  --color-slider-track: var(--color-slider-track);
   --color-logo-primary: var(--color-logo-primary);
   --color-logo-stroke: var(--color-logo-stroke);
   --color-text-stroke: var(--color-text-stroke);
