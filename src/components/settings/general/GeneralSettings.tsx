@@ -4,6 +4,7 @@ import { MicrophoneSelector } from "../MicrophoneSelector";
 import { ChannelSelector } from "../ChannelSelector";
 import { ShortcutInput } from "../ShortcutInput";
 import { SettingsGroup } from "../../ui/SettingsGroup";
+import { SettingsPage } from "../../ui/SettingsPage";
 import { OutputDeviceSelector } from "../OutputDeviceSelector";
 import { PushToTalk } from "../PushToTalk";
 import { AudioFeedback } from "../AudioFeedback";
@@ -11,13 +12,21 @@ import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
 import { LanguageSelector } from "../LanguageSelector";
+import { AppLanguageSelector } from "../AppLanguageSelector";
+import { ThemeSelector } from "../ThemeSelector";
+import { AccentColorSelector } from "../AccentColorSelector";
 
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
   const { audioFeedbackEnabled, getSetting } = useSettings();
   const pushToTalk = getSetting("push_to_talk");
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <SettingsPage label={t("sidebar.general")}>
+      <SettingsGroup title={t("settings.general.groups.appearance")}>
+        <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
+        <ThemeSelector descriptionMode="tooltip" grouped={true} />
+        <AccentColorSelector descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
       <SettingsGroup title={t("settings.general.title")}>
         <ShortcutInput shortcutId="transcribe" grouped={true} />
         <PushToTalk descriptionMode="tooltip" grouped={true} />
@@ -40,6 +49,6 @@ export const GeneralSettings: React.FC = () => {
         />
         <VolumeSlider disabled={!audioFeedbackEnabled} />
       </SettingsGroup>
-    </div>
+    </SettingsPage>
   );
 };

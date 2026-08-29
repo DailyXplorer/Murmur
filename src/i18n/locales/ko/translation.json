@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "녹음 중 단축키 홀딩",
         "description": "누르고 있으면 녹음, 놓으면 정지"
+      },
+      "groups": {
+        "appearance": "모양"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "출력",
         "transcription": "전사",
         "history": "히스토리",
-        "experimental": "실험적"
+        "experimental": "실험적",
+        "updates": "업데이트",
+        "storage": "저장 공간"
       },
       "experimentalToggle": {
         "label": "실험적 기능",
@@ -204,7 +209,8 @@
       "retranscribe": "다시 전사",
       "retranscribeError": "다시 전사에 실패했습니다. 다시 시도해주세요.",
       "transcribing": "전사 중...",
-      "transcriptionFailed": "전사에 실패했습니다. 재시도 아이콘을 사용하여 다시 전사할 수 있습니다."
+      "transcriptionFailed": "전사에 실패했습니다. 재시도 아이콘을 사용하여 다시 전사할 수 있습니다.",
+      "preferences": "환경설정"
     },
     "debug": {
       "title": "디버그",
@@ -336,7 +342,12 @@
       "installAntigravity": "설치",
       "openAntigravity": "Antigravity 열기",
       "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하세요.",
-      "onboardingDescriptionCodex": "계속하기 전에 Codex에 로그인하세요."
+      "onboardingDescriptionCodex": "계속하기 전에 Codex에 로그인하세요.",
+      "groups": {
+        "service": "서비스",
+        "processing": "텍스트 처리",
+        "output": "출력"
+      }
     }
   },
   "footer": {

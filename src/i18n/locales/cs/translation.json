@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Stisk a mluv",
         "description": "Podržte pro nahrávání, uvolněte pro zastavení"
+      },
+      "groups": {
+        "appearance": "Vzhled"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Výstup",
         "transcription": "Přepis",
         "history": "Historie",
-        "experimental": "Experimentální"
+        "experimental": "Experimentální",
+        "updates": "Aktualizace",
+        "storage": "Úložiště"
       },
       "experimentalToggle": {
         "label": "Experimentální funkce",
@@ -204,7 +209,8 @@
       "retranscribe": "Přepsat znovu",
       "retranscribeError": "Opětovný přepis se nezdařil. Zkuste to prosím znovu.",
       "transcribing": "Přepisuji...",
-      "transcriptionFailed": "Přepis selhal. Můžete zkusit přepis znovu pomocí ikony opakování."
+      "transcriptionFailed": "Přepis selhal. Můžete zkusit přepis znovu pomocí ikony opakování.",
+      "preferences": "Předvolby"
     },
     "debug": {
       "title": "Ladění",
@@ -336,7 +342,12 @@
       "installAntigravity": "Nainstalovat",
       "openAntigravity": "Otevřít Antigravity",
       "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity.",
-      "onboardingDescriptionCodex": "Než budete pokračovat, přihlaste se do Codexu."
+      "onboardingDescriptionCodex": "Než budete pokračovat, přihlaste se do Codexu.",
+      "groups": {
+        "service": "Služba",
+        "processing": "Zpracování textu",
+        "output": "Výstup"
+      }
     }
   },
   "footer": {

@@ -59,13 +59,17 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
       layout="stacked"
     >
       {loading ? (
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-100 rounded" />
-        </div>
+        <div
+          className="h-10 animate-pulse rounded-md bg-mid-gray/10"
+          aria-hidden="true"
+        />
       ) : error ? (
-        <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error/10 p-3 text-sm text-error"
+        >
           {t("errors.loadDirectory", { error })}
-        </div>
+        </p>
       ) : (
         <PathDisplay path={logDir} onOpen={handleOpen} disabled={!logDir} />
       )}
