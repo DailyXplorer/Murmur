@@ -225,6 +225,17 @@ fn set_macos_application_icon(app: &AppHandle, icon: Image<'static>) -> Result<(
 mod tests {
     use super::*;
 
+    fn rgba_at(image: &Image<'_>, x: u32, y: u32) -> [u8; 4] {
+        let offset = ((y * image.width() + x) * 4) as usize;
+        image.rgba()[offset..offset + 4]
+            .try_into()
+            .expect("pixel should contain four channels")
+    }
+
+    fn alpha_at(image: &Image<'_>, x: u32, y: u32) -> u8 {
+        rgba_at(image, x, y)[3]
+    }
+
     #[test]
     fn recoloring_preserves_transparent_and_neutral_pixels() {
         let source = Image::new_owned(
@@ -269,6 +280,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn app_icon_uses_the_website_mark_geometry() {
+        let icon = app_icon(AccentColor::Pink).expect("app icon should decode");
+
+        assert_eq!(alpha_at(&icon, 0, 0), 0);
+        for (x, y) in [(512, 120), (170, 550), (320, 550), (470, 350), (615, 550)] {
+            assert_eq!(alpha_at(&icon, x, y), 255);
+        }
+        assert_eq!(alpha_at(&icon, 750, 450), 0);
+    }
+
+    #[test]
+    fn website_mark_changes_with_the_selected_accent() {
+        let pink = app_icon(AccentColor::Pink).expect("pink app icon should decode");
+        let blue = app_icon(AccentColor::Blue).expect("blue app icon should decode");
+        let pink_pixel = rgba_at(&pink, 512, 120);
+        let blue_pixel = rgba_at(&blue, 512, 120);
+
+        assert_ne!(&pink_pixel[..3], &blue_pixel[..3]);
+        assert!(blue_pixel[2] > blue_pixel[0]);
+        assert_eq!(pink_pixel[3], blue_pixel[3]);
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_tray_icons_are_monochrome_and_ignore_the_accent() {
@@ -288,5 +322,24 @@ mod tests {
                 .filter(|pixel| pixel[3] > 0)
                 .all(|pixel| pixel[0] == pixel[1] && pixel[1] == pixel[2]));
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_tray_icon_stays_the_same_for_every_state() {
+        let idle = tray_icon(AccentColor::Pink, NativeIconState::Idle)
+            .expect("idle tray icon should decode");
+        let recording = tray_icon(AccentColor::Pink, NativeIconState::Recording)
+            .expect("recording tray icon should decode");
+        let transcribing = tray_icon(AccentColor::Pink, NativeIconState::Transcribing)
+            .expect("transcribing tray icon should decode");
+
+        assert_eq!(alpha_at(&idle, 0, 0), 0);
+        for (x, y) in [(30, 5), (7, 35), (17, 35), (38, 35)] {
+            assert_eq!(alpha_at(&idle, x, y), 255);
+        }
+        assert_eq!(alpha_at(&idle, 49, 25), 0);
+        assert_eq!(idle.rgba(), recording.rgba());
+        assert_eq!(idle.rgba(), transcribing.rgba());
     }
 }
