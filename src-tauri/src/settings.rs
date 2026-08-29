@@ -112,9 +112,6 @@ pub enum PasteMethod {
     CtrlV,
     Direct,
     None,
-    ShiftInsert,
-    CtrlShiftV,
-    ExternalScript,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
@@ -142,16 +139,6 @@ pub enum RecordingRetentionPeriod {
     Days3,
     Weeks2,
     Months3,
-}
-
-impl PasteMethod {
-    /// Shift+Insert has no macOS equivalent, so stored values become Cmd+V.
-    pub(crate) fn supported_on_macos(self) -> Self {
-        match self {
-            PasteMethod::ShiftInsert => PasteMethod::CtrlV,
-            other => other,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -201,18 +188,6 @@ pub enum AccentColor {
     Yellow,
     Orange,
     Red,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TypingTool {
-    #[default]
-    Auto,
-    Wtype,
-    Kwtype,
-    Dotool,
-    Ydotool,
-    Xdotool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
@@ -319,10 +294,6 @@ pub struct AppSettings {
     /// fixed delay. See `paste_tx`. macOS only.
     #[serde(default)]
     pub reliable_paste: bool,
-    #[serde(default = "default_typing_tool")]
-    pub typing_tool: TypingTool,
-    #[serde(default)]
-    pub external_script_path: Option<String>,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
     #[serde(default)]
@@ -431,10 +402,6 @@ fn default_show_tray_icon() -> bool {
     true
 }
 
-fn default_typing_tool() -> TypingTool {
-    TypingTool::Auto
-}
-
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 
 pub fn get_default_settings() -> AppSettings {
@@ -503,8 +470,6 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_ms: default_paste_delay_ms(),
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: false,
-        typing_tool: default_typing_tool(),
-        external_script_path: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
         extra_recording_buffer_ms: 0,
@@ -551,16 +516,6 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
             }
         }
 
-        let paste_method = settings.paste_method.supported_on_macos();
-        if settings.paste_method != paste_method {
-            settings.paste_method = paste_method;
-            updated = true;
-        }
-
-        if normalize_transcription_provider(&mut settings, cfg!(target_os = "macos")) {
-            updated = true;
-        }
-
         if updated {
             store.set("settings", serde_json::to_value(&settings).unwrap());
         }
@@ -571,22 +526,6 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
         store.set("settings", serde_json::to_value(&default_settings).unwrap());
         default_settings
     }
-}
-
-/// Resets Gemini to Codex when the current platform cannot run Antigravity.
-/// Returns whether the stored provider value changed.
-fn normalize_transcription_provider(
-    settings: &mut AppSettings,
-    gemini_available_on_platform: bool,
-) -> bool {
-    if !gemini_available_on_platform
-        && settings.transcription_provider == TranscriptionProvider::Gemini
-    {
-        warn!("Resetting unsupported Gemini transcription provider to Codex");
-        settings.transcription_provider = TranscriptionProvider::Codex;
-        return true;
-    }
-    false
 }
 
 /// Rebuilds settings from a store value that failed to deserialize as a whole.
@@ -742,20 +681,6 @@ mod tests {
         );
     }
 
-    /// Resets Gemini to Codex when the platform cannot run Antigravity.
-    #[test]
-    fn unsupported_platform_normalizes_gemini_to_codex() {
-        let mut settings = get_default_settings();
-        settings.transcription_provider = TranscriptionProvider::Gemini;
-
-        assert!(normalize_transcription_provider(&mut settings, false));
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
-        assert!(!normalize_transcription_provider(&mut settings, false));
-    }
-
     #[test]
     fn salvage_defaults_only_an_invalid_accent_color() {
         let mut stored = default_settings_json();
@@ -861,20 +786,28 @@ mod tests {
     }
 
     #[test]
-    fn shift_insert_paste_method_maps_to_ctrl_v_on_macos() {
-        assert_eq!(
-            PasteMethod::ShiftInsert.supported_on_macos(),
-            PasteMethod::CtrlV
-        );
-        assert_eq!(PasteMethod::CtrlV.supported_on_macos(), PasteMethod::CtrlV);
-        assert_eq!(
-            PasteMethod::CtrlShiftV.supported_on_macos(),
-            PasteMethod::CtrlShiftV
-        );
-        assert_eq!(
-            PasteMethod::Direct.supported_on_macos(),
-            PasteMethod::Direct
-        );
-        assert_eq!(PasteMethod::None.supported_on_macos(), PasteMethod::None);
+    fn legacy_platform_settings_fall_back_without_resetting_other_fields() {
+        for legacy_paste_method in ["shift_insert", "ctrl_shift_v", "external_script"] {
+            let mut stored = default_settings_json();
+            let stored = stored.as_object_mut().unwrap();
+            stored.insert("selected_language".into(), serde_json::json!("de"));
+            stored.insert(
+                "paste_method".into(),
+                serde_json::json!(legacy_paste_method),
+            );
+            stored.insert("typing_tool".into(), serde_json::json!("wtype"));
+            stored.insert(
+                "external_script_path".into(),
+                serde_json::json!("/tmp/paste"),
+            );
+
+            let settings = salvage_settings(&serde_json::Value::Object(stored.clone()));
+            assert_eq!(settings.selected_language, "de");
+            assert_eq!(settings.paste_method, PasteMethod::CtrlV);
+
+            let repaired = serde_json::to_value(settings).unwrap();
+            assert!(repaired.get("typing_tool").is_none());
+            assert!(repaired.get("external_script_path").is_none());
+        }
     }
 }

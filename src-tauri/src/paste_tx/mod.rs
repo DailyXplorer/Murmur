@@ -29,14 +29,10 @@
 //! transcript stays on the clipboard a bit longer", never "stale content gets
 //! pasted".
 
-#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
-
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
 mod macos;
 
-#[cfg(target_os = "macos")]
 use macos as platform;
 
 /// How long after the *last* observed read the transcript stays on the
@@ -160,21 +156,8 @@ pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
 /// ~110ms to ~20ms) can be tried as its own experiment later.
 const CHORD_HOLD_MS: u64 = 100;
 
-/// Sends the platform paste chord for the configured method.
-pub(crate) fn send_chord(
-    enigo: &mut enigo::Enigo,
-    paste_method: &crate::settings::PasteMethod,
-) -> Result<(), String> {
-    use crate::settings::PasteMethod;
-    match paste_method {
-        PasteMethod::CtrlV => crate::input::send_paste_ctrl_v(enigo, CHORD_HOLD_MS),
-        PasteMethod::CtrlShiftV => crate::input::send_paste_ctrl_shift_v(enigo, CHORD_HOLD_MS),
-        PasteMethod::ShiftInsert => crate::input::send_paste_shift_insert(enigo, CHORD_HOLD_MS),
-        other => Err(format!(
-            "Invalid paste method for clipboard paste: {:?}",
-            other
-        )),
-    }
+pub(crate) fn send_chord(enigo: &mut enigo::Enigo) -> Result<(), String> {
+    crate::input::send_paste_ctrl_v(enigo, CHORD_HOLD_MS)
 }
 
 /// Attempts the receipt-sequenced paste. Returns `Err` before anything has
@@ -182,11 +165,9 @@ pub(crate) fn send_chord(
 /// the caller should fall back to the legacy paste path. On `Ok`, publishing
 /// and chord injection have completed and the guarded restore (plus
 /// auto-submit) finishes asynchronously.
-#[cfg(target_os = "macos")]
 pub(crate) fn try_reliable_paste(
     text: &str,
     app_handle: &tauri::AppHandle,
-    paste_method: &crate::settings::PasteMethod,
     enigo: &mut enigo::Enigo,
     auto_submit: bool,
     auto_submit_key: crate::settings::AutoSubmitKey,
@@ -195,7 +176,6 @@ pub(crate) fn try_reliable_paste(
     platform::run(
         text,
         app_handle,
-        paste_method,
         enigo,
         auto_submit,
         auto_submit_key,

@@ -6,7 +6,7 @@ pub mod tauri_impl;
 use crate::accent;
 use crate::settings::{
     self, AccentColor, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle,
-    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider, TypingTool,
+    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider,
 };
 use crate::tray;
 use log::{debug, warn};
@@ -440,46 +440,8 @@ pub fn change_paste_method_setting(app: AppHandle, method: String) -> Result<(),
         "ctrl_v" => PasteMethod::CtrlV,
         "direct" => PasteMethod::Direct,
         "none" => PasteMethod::None,
-        "shift_insert" => PasteMethod::ShiftInsert.supported_on_macos(),
-        "ctrl_shift_v" => PasteMethod::CtrlShiftV,
-        "external_script" => PasteMethod::ExternalScript,
         _ => return Err(format!("Invalid paste method: {method}")),
     };
-    settings::write_settings(&app, value);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn get_available_typing_tools() -> Vec<String> {
-    vec!["auto".to_string()]
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_typing_tool_setting(app: AppHandle, tool: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.typing_tool = match tool.as_str() {
-        "auto" => TypingTool::Auto,
-        "wtype" => TypingTool::Wtype,
-        "kwtype" => TypingTool::Kwtype,
-        "dotool" => TypingTool::Dotool,
-        "ydotool" => TypingTool::Ydotool,
-        "xdotool" => TypingTool::Xdotool,
-        _ => return Err(format!("Invalid typing tool: {tool}")),
-    };
-    settings::write_settings(&app, value);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_external_script_path_setting(
-    app: AppHandle,
-    path: Option<String>,
-) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.external_script_path = path;
     settings::write_settings(&app, value);
     Ok(())
 }

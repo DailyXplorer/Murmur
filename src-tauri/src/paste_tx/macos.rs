@@ -27,7 +27,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use super::{evaluate, send_chord, TxState, WaitDecision};
 use crate::clipboard::send_return_key;
 use crate::input::EnigoState;
-use crate::settings::{AutoSubmitKey, ClipboardHandling, PasteMethod};
+use crate::settings::{AutoSubmitKey, ClipboardHandling};
 
 /// Concealment marker types declared alongside the text so that well-behaved
 /// third-party clipboard managers (Maccy, Paste, ...) skip the transcript.
@@ -256,7 +256,6 @@ fn spawn_waiter(pending: Arc<Mutex<MacPending>>, app_handle: AppHandle) {
 pub(super) fn run(
     text: &str,
     app_handle: &AppHandle,
-    paste_method: &PasteMethod,
     enigo: &mut enigo::Enigo,
     auto_submit: bool,
     auto_submit_key: AutoSubmitKey,
@@ -301,9 +300,9 @@ pub(super) fn run(
     if let Ok(mut st) = state.lock() {
         st.injected_at = Some(Instant::now());
     }
-    match send_chord(enigo, paste_method) {
+    match send_chord(enigo) {
         Ok(()) => {
-            info!("[reliable-paste] paste chord sent ({paste_method:?})");
+            info!("[reliable-paste] Cmd+V sent");
         }
         Err(e) => {
             // Keep the transaction alive: the waiter restores the clipboard
