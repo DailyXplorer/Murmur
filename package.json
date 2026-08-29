@@ -16,7 +16,8 @@
     "format:backend": "cd src-tauri && cargo fmt",
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
-    "check:translations": "bun scripts/check-translations.ts"
+    "check:translations": "bun scripts/check-translations.ts",
+    "check:macos-only": "bun scripts/check-macos-only.ts"
   },
   "dependencies": {
     "@fontsource-variable/instrument-sans": "^5.3.0",
