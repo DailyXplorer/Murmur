@@ -88,10 +88,10 @@ const SettingsControlWidthsFixture: React.FC = () => {
             className="flex min-w-0 items-center gap-1"
           >
             <button
-              className="min-w-0 truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-sm"
+              className="min-w-0 flex-1 truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-sm"
               type="button"
             >
-              Command Shift Control Option Transcription
+              Command Shift Option K
             </button>
             <ResetButton ariaLabel="Reset shortcut" onClick={() => undefined} />
           </div>

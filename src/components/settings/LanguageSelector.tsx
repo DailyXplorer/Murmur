@@ -149,13 +149,13 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       descriptionMode={descriptionMode}
       grouped={grouped}
     >
-      <div className="flex items-center space-x-1">
-        <div className="relative">
+      <div className="flex min-w-0 items-center space-x-1">
+        <div className="relative min-w-0 flex-1">
           <button
             ref={dropdownRef}
             id={triggerId}
             type="button"
-            className={`px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded min-w-[200px] text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
+            className={`w-full min-w-[200px] px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
               isLanguageUpdating
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
@@ -229,7 +229,11 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             </div>
           </FloatingPanel>
         </div>
-        <ResetButton onClick={handleReset} disabled={isLanguageUpdating} />
+        <ResetButton
+          className="shrink-0"
+          onClick={handleReset}
+          disabled={isLanguageUpdating}
+        />
       </div>
       {isLanguageUpdating && (
         <div className="absolute inset-0 bg-mid-gray/10 rounded flex items-center justify-center">

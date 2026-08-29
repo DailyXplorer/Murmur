@@ -70,27 +70,43 @@ test.describe("settings control widths", () => {
     expect(panelBox).not.toBeNull();
     expectWidth(panelBox?.width ?? 0, RAIL_WIDTH);
 
-    const [resetBox, addBox, toggleBox, chipBox, chipLaneBox, stackedBox] =
-      await Promise.all([
-        page
-          .getByTestId("dropdown-reset")
-          .getByRole("button", { name: "Reset dropdown" })
-          .boundingBox(),
-        page
-          .getByTestId("custom-words")
-          .getByRole("button", { name: "Add" })
-          .boundingBox(),
-        page
-          .getByRole("checkbox", { name: "Recording indicator" })
-          .locator("..")
-          .boundingBox(),
-        page
-          .getByTestId("custom-word-chips")
-          .getByRole("button", { name: "Acme" })
-          .boundingBox(),
-        page.getByTestId("custom-word-chips").boundingBox(),
-        page.getByTestId("stacked-control").boundingBox(),
-      ]);
+    const [
+      resetBox,
+      addBox,
+      toggleBox,
+      chipBox,
+      chipLaneBox,
+      shortcutSurfaceBox,
+      shortcutResetBox,
+      stackedBox,
+    ] = await Promise.all([
+      page
+        .getByTestId("dropdown-reset")
+        .getByRole("button", { name: "Reset dropdown" })
+        .boundingBox(),
+      page
+        .getByTestId("custom-words")
+        .getByRole("button", { name: "Add" })
+        .boundingBox(),
+      page
+        .getByRole("checkbox", { name: "Recording indicator" })
+        .locator("..")
+        .boundingBox(),
+      page
+        .getByTestId("custom-word-chips")
+        .getByRole("button", { name: "Acme" })
+        .boundingBox(),
+      page.getByTestId("custom-word-chips").boundingBox(),
+      page
+        .getByTestId("shortcut-control")
+        .getByRole("button", { name: "Command Shift Option K" })
+        .boundingBox(),
+      page
+        .getByTestId("shortcut-control")
+        .getByRole("button", { name: "Reset shortcut" })
+        .boundingBox(),
+      page.getByTestId("stacked-control").boundingBox(),
+    ]);
 
     for (const box of [resetBox, addBox, toggleBox, chipBox]) {
       expect(box).not.toBeNull();
@@ -98,6 +114,17 @@ test.describe("settings control widths", () => {
     }
     expect(chipLaneBox).not.toBeNull();
     expectWidth(chipLaneBox?.width ?? 0, RAIL_WIDTH);
+    expect(shortcutSurfaceBox).not.toBeNull();
+    expect(shortcutResetBox).not.toBeNull();
+    expect(
+      (shortcutResetBox?.x ?? 0) +
+        (shortcutResetBox?.width ?? 0) -
+        (shortcutSurfaceBox?.x ?? 0),
+    ).toBeCloseTo(RAIL_WIDTH, 1);
+    expect((toggleBox?.x ?? 0) + (toggleBox?.width ?? 0)).toBeCloseTo(
+      slotMeasurements[slotMeasurements.length - 1].right,
+      1,
+    );
     expect(stackedBox).not.toBeNull();
     expect(stackedBox?.width ?? 0).toBeGreaterThan(RAIL_WIDTH);
   });

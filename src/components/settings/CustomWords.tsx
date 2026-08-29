@@ -63,10 +63,10 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           descriptionMode={descriptionMode}
           grouped={grouped}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Input
               type="text"
-              className="max-w-40"
+              className="min-w-0 flex-1"
               value={newWord}
               onChange={(e) => setNewWord(e.target.value)}
               onKeyDown={handleKeyPress}
@@ -83,6 +83,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               }
               variant="primary"
               size="md"
+              className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}
             </Button>
@@ -90,22 +91,26 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
         </SettingContainer>
         {customWords.length > 0 && (
           <div
-            className={`px-4 p-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"} flex flex-wrap gap-1`}
+            className={`flex justify-end px-4 p-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
-            {customWords.map((word) => (
-              <Button
-                key={word}
-                onClick={() => handleRemoveWord(word)}
-                disabled={isUpdating("custom_words")}
-                variant="secondary"
-                size="sm"
-                className="inline-flex items-center gap-1 cursor-pointer"
-                aria-label={t("settings.advanced.customWords.remove", { word })}
-              >
-                <span>{word}</span>
-                <XIcon size={12} />
-              </Button>
-            ))}
+            <div className="flex w-[var(--settings-control-rail-width)] flex-wrap gap-1">
+              {customWords.map((word) => (
+                <Button
+                  key={word}
+                  onClick={() => handleRemoveWord(word)}
+                  disabled={isUpdating("custom_words")}
+                  variant="secondary"
+                  size="sm"
+                  className="inline-flex items-center gap-1 cursor-pointer"
+                  aria-label={t("settings.advanced.customWords.remove", {
+                    word,
+                  })}
+                >
+                  <span>{word}</span>
+                  <XIcon size={12} />
+                </Button>
+              ))}
+            </div>
           </div>
         )}
       </>
