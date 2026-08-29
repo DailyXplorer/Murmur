@@ -255,13 +255,16 @@ test.describe("Murmur App", () => {
     }
   });
 
-  test("primary button keeps a contrasting keyboard focus ring", async ({
+  test("primary button keeps a contrasting legacy focus fallback", async ({
     page,
   }) => {
     await page.goto("/tests/fixtures/accent-controls.html");
+    await page.getByRole("button", { name: "Donate" }).click();
 
     const samples = await page.evaluate(() => {
-      const button = document.querySelector<HTMLButtonElement>("button");
+      const button = document.querySelector<HTMLButtonElement>(
+        "button:not([aria-label])",
+      );
       const accents = ["pink", "blue", "green", "yellow", "orange", "red"];
       const themes = ["light", "dark"];
       const canvas = document.createElement("canvas");
@@ -280,8 +283,6 @@ test.describe("Murmur App", () => {
         return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
       };
 
-      button.focus();
-
       return themes.flatMap((theme) => {
         document.documentElement.dataset.theme = theme;
 
@@ -293,6 +294,7 @@ test.describe("Murmur App", () => {
           return {
             accent,
             theme,
+            focused: button.matches(":focus"),
             focusVisible: button.matches(":focus-visible"),
             boxShadow: buttonStyles.boxShadow,
             pageBackground: toRgb(
@@ -309,6 +311,7 @@ test.describe("Murmur App", () => {
     for (const {
       accent,
       theme,
+      focused,
       focusVisible,
       boxShadow,
       pageBackground,
@@ -317,7 +320,11 @@ test.describe("Murmur App", () => {
       const label = `${accent} in ${theme} mode`;
       const ringColor = `rgb(${focusRing.join(", ")})`;
 
-      expect(focusVisible, `${label} exposes keyboard focus`).toBe(true);
+      expect(focused, `${label} keeps the primary button focused`).toBe(true);
+      expect(
+        focusVisible,
+        `${label} exercises the legacy :focus fallback`,
+      ).toBe(false);
       expect(
         boxShadow,
         `${label} renders the theme text color in its focus ring`,
