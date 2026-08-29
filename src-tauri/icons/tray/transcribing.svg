@@ -1,10 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <!-- Three dots distinguish transcription without introducing accent color. -->
-  <g fill="#000">
-    <circle cx="3" cy="9" r="2" />
-    <circle cx="9" cy="9" r="2" />
-    <circle cx="15" cy="9" r="2" />
-  </g>
+  <!-- Monochrome adaptation of the Murmur website mark, optically thickened
+       for macOS's 18-point menu-bar rendering. -->
   <polyline
     points="20,5 44,5 57,18 57,34 45,46 45,54 40,60 33,60 27,54 27,16"
     fill="none"

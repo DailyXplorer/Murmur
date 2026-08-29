@@ -326,7 +326,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn macos_tray_icons_use_the_website_mark_and_state_markers() {
+    fn macos_tray_icon_stays_the_same_for_every_state() {
         let idle = tray_icon(AccentColor::Pink, NativeIconState::Idle)
             .expect("idle tray icon should decode");
         let recording = tray_icon(AccentColor::Pink, NativeIconState::Recording)
@@ -339,11 +339,7 @@ mod tests {
             assert_eq!(alpha_at(&idle, x, y), 255);
         }
         assert_eq!(alpha_at(&idle, 49, 25), 0);
-
-        assert_eq!(alpha_at(&idle, 8, 9), 0);
-        assert_eq!(alpha_at(&recording, 8, 9), 255);
-        for x in [3, 9, 15] {
-            assert_eq!(alpha_at(&transcribing, x, 9), 255);
-        }
+        assert_eq!(idle.rgba(), recording.rgba());
+        assert_eq!(idle.rgba(), transcribing.rgba());
     }
 }

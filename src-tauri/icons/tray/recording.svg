@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <!-- The dot stays separate from the website mark at menu-bar size. -->
-  <circle cx="8" cy="9" r="4" fill="#000" />
+  <!-- Monochrome adaptation of the Murmur website mark, optically thickened
+       for macOS's 18-point menu-bar rendering. -->
   <polyline
     points="20,5 44,5 57,18 57,34 45,46 45,54 40,60 33,60 27,54 27,16"
     fill="none"
