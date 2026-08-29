@@ -82,6 +82,7 @@ test.describe("settings control widths", () => {
       longChipBox,
       shortcutSurfaceBox,
       shortcutResetBox,
+      shortcutTextAlign,
       stackedBox,
     ] = await Promise.all([
       page
@@ -110,12 +111,16 @@ test.describe("settings control widths", () => {
       page.getByTestId("long-custom-word").boundingBox(),
       page
         .getByTestId("shortcut-control")
-        .getByRole("button", { name: "Command Shift Option K" })
+        .getByTestId("shortcut-surface")
         .boundingBox(),
       page
         .getByTestId("shortcut-control")
         .getByRole("button", { name: "Reset shortcut" })
         .boundingBox(),
+      page
+        .getByTestId("shortcut-control")
+        .getByTestId("shortcut-surface")
+        .evaluate((element) => getComputedStyle(element).textAlign),
       page.getByTestId("stacked-control").boundingBox(),
     ]);
 
@@ -140,6 +145,7 @@ test.describe("settings control widths", () => {
     expect(longChipBox?.width ?? 0).toBeLessThanOrEqual(RAIL_WIDTH);
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
+    expect(shortcutTextAlign).toBe("start");
     expect(
       (shortcutResetBox?.x ?? 0) +
         (shortcutResetBox?.width ?? 0) -
