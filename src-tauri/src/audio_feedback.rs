@@ -22,9 +22,11 @@ fn resolve_sound_path(
     let sound_file = get_sound_path(settings, sound_type);
     let base_dir = get_sound_base_dir(settings);
     match base_dir {
-        tauri::path::BaseDirectory::AppData => {
-            crate::portable::resolve_app_data(app, &sound_file).ok()
-        }
+        tauri::path::BaseDirectory::AppData => app
+            .path()
+            .app_data_dir()
+            .ok()
+            .map(|directory| directory.join(sound_file)),
         _ => app.path().resolve(&sound_file, base_dir).ok(),
     }
 }
@@ -104,7 +106,7 @@ fn play_audio_file(
             debug!("Using default device");
             OutputStreamBuilder::from_default_device()?
         } else {
-            let host = crate::audio_toolkit::get_cpal_host();
+            let host = cpal::default_host();
             let devices = host.output_devices()?;
 
             let mut found_device = None;

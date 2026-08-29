@@ -31,7 +31,6 @@ jobs:
       sign-binaries: true
       asset-prefix: "murmur-pr-${{ inputs.pr_number }}"
       upload-artifacts: true
-      is-debug-build: ${{ contains(matrix.args, '--debug') }}
       ref: ${{ format('refs/pull/{0}/merge', inputs.pr_number) }}
     secrets: inherit
 

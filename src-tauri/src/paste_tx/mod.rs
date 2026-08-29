@@ -10,8 +10,8 @@
 //! for the operating system to tell us that a consumer actually read the
 //! clipboard — a "receipt" — before restoring:
 //!
-//! - macOS: `declareTypes:owner:` with an owner object, the pasteboard calls
-//!   `pasteboard:provideDataForType:` on read.
+//! On macOS, `declareTypes:owner:` installs an owner object and the pasteboard
+//! calls `pasteboard:provideDataForType:` on read.
 //!
 //! Two rules make the receipt trustworthy:
 //!
@@ -29,15 +29,9 @@
 //! transcript stays on the clipboard a bit longer", never "stale content gets
 //! pasted".
 
-#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
-
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
 mod macos;
-
-#[cfg(target_os = "macos")]
-use macos as platform;
 
 /// How long after the *last* observed read the transcript stays on the
 /// clipboard before restoring. Covers applications that read the clipboard
@@ -69,8 +63,7 @@ pub(crate) struct TxState {
     pub receipts: Vec<Instant>,
     /// Someone else took clipboard ownership (user copied elsewhere, ...).
     pub ownership_lost: bool,
-    /// A newer paste transaction settled this one early (see flush logic in
-    /// the platform modules).
+    /// A newer paste transaction settled this one early.
     pub cancelled: bool,
     /// The post-paste Enter (auto-submit) has been sent for this transaction.
     /// (The macOS path settles via `MacPending::settled`.)
@@ -127,7 +120,7 @@ pub(crate) enum WaitDecision {
 }
 
 /// Pure decision: given the current transaction state, keep waiting for the
-/// target to read, or finish now. Both platform event loops call this.
+/// target to read, or finish now.
 pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     if state.ownership_lost || state.cancelled {
         return WaitDecision::Finish;
@@ -160,42 +153,26 @@ pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
 /// ~110ms to ~20ms) can be tried as its own experiment later.
 const CHORD_HOLD_MS: u64 = 100;
 
-/// Sends the platform paste chord for the configured method.
-pub(crate) fn send_chord(
-    enigo: &mut enigo::Enigo,
-    paste_method: &crate::settings::PasteMethod,
-) -> Result<(), String> {
-    use crate::settings::PasteMethod;
-    match paste_method {
-        PasteMethod::CtrlV => crate::input::send_paste_ctrl_v(enigo, CHORD_HOLD_MS),
-        PasteMethod::CtrlShiftV => crate::input::send_paste_ctrl_shift_v(enigo, CHORD_HOLD_MS),
-        PasteMethod::ShiftInsert => crate::input::send_paste_shift_insert(enigo, CHORD_HOLD_MS),
-        other => Err(format!(
-            "Invalid paste method for clipboard paste: {:?}",
-            other
-        )),
-    }
+pub(crate) fn send_chord(enigo: &mut enigo::Enigo) -> Result<(), String> {
+    crate::input::send_paste_ctrl_v(enigo, CHORD_HOLD_MS)
 }
 
 /// Attempts the receipt-sequenced paste. Returns `Err` before anything has
-/// been published when the platform transaction cannot start, in which case
+/// been published when the macOS transaction cannot start, in which case
 /// the caller should fall back to the legacy paste path. On `Ok`, publishing
 /// and chord injection have completed and the guarded restore (plus
 /// auto-submit) finishes asynchronously.
-#[cfg(target_os = "macos")]
 pub(crate) fn try_reliable_paste(
     text: &str,
     app_handle: &tauri::AppHandle,
-    paste_method: &crate::settings::PasteMethod,
     enigo: &mut enigo::Enigo,
     auto_submit: bool,
     auto_submit_key: crate::settings::AutoSubmitKey,
     clipboard_handling: crate::settings::ClipboardHandling,
 ) -> Result<(), String> {
-    platform::run(
+    macos::run(
         text,
         app_handle,
-        paste_method,
         enigo,
         auto_submit,
         auto_submit_key,

@@ -8,7 +8,6 @@ import {
 import { ResetButton } from "../ui/ResetButton";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
-import { useOsType } from "../../hooks/useOsType";
 import { commands } from "@/bindings";
 import { toast } from "sonner";
 
@@ -35,7 +34,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   );
   const [originalBinding, setOriginalBinding] = useState<string>("");
   const shortcutRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
-  const osType = useOsType();
 
   const bindings = getSetting("bindings") || {};
 
@@ -51,8 +49,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (e.repeat) return; // ignore auto-repeat
       e.preventDefault();
 
-      // Get the key with OS-specific naming and normalize it
-      const rawKey = getKeyName(e, osType);
+      const rawKey = getKeyName(e);
       const key = normalizeKey(rawKey);
 
       if (!keyPressed.includes(key)) {
@@ -68,8 +65,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (cleanup) return;
       e.preventDefault();
 
-      // Get the key with OS-specific naming and normalize it
-      const rawKey = getKeyName(e, osType);
+      const rawKey = getKeyName(e);
       const key = normalizeKey(rawKey);
 
       // Remove from currently pressed keys
@@ -89,9 +85,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
           "meta",
           "command",
           "cmd",
-          "super",
-          "win",
-          "windows",
         ];
         const sortedKeys = recordedKeys.sort((a, b) => {
           const aIsModifier = modifiers.includes(a.toLowerCase());
@@ -176,7 +169,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     bindings,
     originalBinding,
     updateBinding,
-    osType,
   ]);
 
   // Start recording a new shortcut
@@ -200,7 +192,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       return t("settings.general.shortcut.pressKeys");
 
     // Use the same formatting as the display to ensure consistency
-    return formatKeyCombination(recordedKeys.join("+"), osType);
+    return formatKeyCombination(recordedKeys.join("+"));
   };
 
   // Store references to shortcut elements
@@ -288,7 +280,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
             className="px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 hover:bg-logo-primary/10 rounded-md cursor-pointer hover:border-logo-primary"
             onClick={() => startRecording(shortcutId)}
           >
-            {formatKeyCombination(binding.current_binding, osType)}
+            {formatKeyCombination(binding.current_binding)}
           </div>
         )}
         <ResetButton

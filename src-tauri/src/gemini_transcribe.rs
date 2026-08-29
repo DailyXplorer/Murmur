@@ -33,7 +33,6 @@ const CAPABILITIES_PATH: &str = "/exa.language_server_pb.LanguageServerService/G
 /// opens or copies the Antigravity token.
 pub fn status() -> crate::commands::transcription::GeminiStatus {
     crate::commands::transcription::GeminiStatus {
-        available_on_platform: true,
         installed: antigravity_binary().is_some(),
         // The token is never opened. Its presence only lets the settings page
         // report the session Antigravity has already created. The service

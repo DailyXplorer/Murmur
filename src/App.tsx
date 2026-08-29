@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
-import { platform } from "@tauri-apps/plugin-os";
 import {
   checkAccessibilityPermission,
   checkMicrophonePermission,
@@ -179,23 +178,19 @@ function App() {
       const hasCompletedOnboarding =
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
-      const currentPlatform = platform();
-
       if (hasCompletedOnboarding) {
-        if (currentPlatform === "macos") {
-          try {
-            const [hasAccessibility, hasMicrophone] = await Promise.all([
-              checkAccessibilityPermission(),
-              checkMicrophonePermission(),
-            ]);
-            if (!hasAccessibility || !hasMicrophone) {
-              await revealMainWindowForPermissions();
-              setOnboardingStep("accessibility");
-              return;
-            }
-          } catch (e) {
-            console.warn("Failed to check macOS permissions:", e);
+        try {
+          const [hasAccessibility, hasMicrophone] = await Promise.all([
+            checkAccessibilityPermission(),
+            checkMicrophonePermission(),
+          ]);
+          if (!hasAccessibility || !hasMicrophone) {
+            await revealMainWindowForPermissions();
+            setOnboardingStep("accessibility");
+            return;
           }
+        } catch (e) {
+          console.warn("Failed to check macOS permissions:", e);
         }
 
         try {
@@ -223,20 +218,14 @@ function App() {
   /** Completes onboarding after a usable transcription session is confirmed. */
   const handleAccessibilityComplete = async () => {
     try {
-      const isMacOS = platform() === "macos";
       const [codex, gemini] = await Promise.all([
         commands.getCodexAuthStatus(),
-        isMacOS ? commands.getGeminiStatus().catch(() => null) : null,
+        commands.getGeminiStatus().catch(() => null),
       ]);
-      const hasUsableGeminiSession =
-        gemini?.available_on_platform && gemini.installed && gemini.signed_in;
+      const hasUsableGeminiSession = gemini?.installed && gemini.signed_in;
       if (!codex.signed_in && !hasUsableGeminiSession) {
         toast.error(t("settings.transcription.missing"), {
-          description: t(
-            isMacOS
-              ? "settings.transcription.onboardingDescription"
-              : "settings.transcription.onboardingDescriptionCodex",
-          ),
+          description: t("settings.transcription.onboardingDescription"),
         });
         return;
       }

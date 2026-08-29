@@ -1,9 +1,4 @@
-export type OSType = "macos";
-
-export const getKeyName = (
-  e: KeyboardEvent,
-  _osType: OSType = "macos",
-): string => {
+export const getKeyName = (e: KeyboardEvent): string => {
   if (e.code) {
     const code = e.code;
 
@@ -23,32 +18,15 @@ export const getKeyName = (
       return code.replace("Numpad", "numpad ").toLowerCase();
     }
 
-    const getModifierName = (baseModifier: string): string => {
-      switch (baseModifier) {
-        case "shift":
-          return "shift";
-        case "ctrl":
-          return "ctrl";
-        case "alt":
-          return "option";
-        case "meta":
-          return "command";
-        default:
-          return baseModifier;
-      }
-    };
-
     const modifierMap: Record<string, string> = {
-      ShiftLeft: getModifierName("shift"),
-      ShiftRight: getModifierName("shift"),
-      ControlLeft: getModifierName("ctrl"),
-      ControlRight: getModifierName("ctrl"),
-      AltLeft: getModifierName("alt"),
-      AltRight: getModifierName("alt"),
-      MetaLeft: getModifierName("meta"),
-      MetaRight: getModifierName("meta"),
-      OSLeft: getModifierName("meta"),
-      OSRight: getModifierName("meta"),
+      ShiftLeft: "shift",
+      ShiftRight: "shift",
+      ControlLeft: "ctrl",
+      ControlRight: "ctrl",
+      AltLeft: "option",
+      AltRight: "option",
+      MetaLeft: "command",
+      MetaRight: "command",
       CapsLock: "caps lock",
       Tab: "tab",
       Enter: "enter",
@@ -110,7 +88,6 @@ export const getKeyName = (
       Alt: "option",
       Shift: "shift",
       Meta: "command",
-      OS: "command",
       CapsLock: "caps lock",
       ArrowUp: "up",
       ArrowDown: "down",
@@ -153,10 +130,7 @@ const formatKeyPart = (part: string): string => {
   return capitalizeKey(trimmed);
 };
 
-export const formatKeyCombination = (
-  combination: string,
-  _osType: OSType,
-): string => {
+export const formatKeyCombination = (combination: string): string => {
   if (!combination) return "";
   return combination.split("+").map(formatKeyPart).join(" + ");
 };

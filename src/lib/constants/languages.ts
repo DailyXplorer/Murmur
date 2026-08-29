@@ -3,9 +3,9 @@ export interface Language {
   label: string;
 }
 
-export const CHINESE_LANGUAGE_CODE = "zh";
+const CHINESE_LANGUAGE_CODE = "zh";
 
-export const LANGUAGES: Language[] = [
+const LANGUAGES: Language[] = [
   { value: "auto", label: "Auto Detect" },
   { value: "en", label: "English" },
   { value: CHINESE_LANGUAGE_CODE, label: "Chinese" },

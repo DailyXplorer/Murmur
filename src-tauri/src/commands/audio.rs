@@ -15,7 +15,9 @@ pub struct CustomSounds {
 }
 
 fn custom_sound_exists(app: &AppHandle, sound_type: &str) -> bool {
-    crate::portable::resolve_app_data(app, &format!("custom_{}.wav", sound_type))
+    app.path()
+        .app_data_dir()
+        .map(|directory| directory.join(format!("custom_{sound_type}.wav")))
         .is_ok_and(|path| path.exists())
 }
 
@@ -33,45 +35,6 @@ pub struct AudioDevice {
     pub index: String,
     pub name: String,
     pub is_default: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
-#[serde(rename_all = "snake_case")]
-pub enum PermissionAccess {
-    Allowed,
-    Denied,
-    Unknown,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
-pub struct WindowsMicrophonePermissionStatus {
-    pub supported: bool,
-    pub overall_access: PermissionAccess,
-    pub device_access: PermissionAccess,
-    pub app_access: PermissionAccess,
-    pub desktop_app_access: PermissionAccess,
-}
-
-/// Kept as a macOS stub so generated frontend bindings stay valid until the
-/// Windows onboarding path is removed.
-#[tauri::command]
-#[specta::specta]
-pub fn get_windows_microphone_permission_status() -> WindowsMicrophonePermissionStatus {
-    WindowsMicrophonePermissionStatus {
-        supported: false,
-        overall_access: PermissionAccess::Unknown,
-        device_access: PermissionAccess::Unknown,
-        app_access: PermissionAccess::Unknown,
-        desktop_app_access: PermissionAccess::Unknown,
-    }
-}
-
-/// Kept as a macOS stub so generated frontend bindings stay valid until the
-/// Windows onboarding path is removed.
-#[tauri::command]
-#[specta::specta]
-pub fn open_microphone_privacy_settings() -> Result<(), String> {
-    Err("Opening microphone privacy settings is not supported on this platform".to_string())
 }
 
 #[tauri::command]
@@ -97,13 +60,6 @@ pub async fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(
         .await
         .map_err(|e| format!("audio task join failed: {}", e))?
         .map_err(|e| format!("Failed to update microphone mode: {}", e))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn get_microphone_mode(app: AppHandle) -> Result<bool, String> {
-    let settings = get_settings(&app);
-    Ok(settings.always_on_microphone)
 }
 
 #[tauri::command]
@@ -155,15 +111,6 @@ pub async fn set_selected_microphone(app: AppHandle, device_name: String) -> Res
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_selected_microphone(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .selected_microphone
-        .unwrap_or_else(|| "default".to_string()))
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn get_available_output_devices() -> Result<Vec<AudioDevice>, String> {
     // cpal device enumeration can stall — run it off the webview/main run loop.
     tokio::task::spawn_blocking(|| {
@@ -203,15 +150,6 @@ pub fn set_selected_output_device(app: AppHandle, device_name: String) -> Result
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_selected_output_device(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .selected_output_device
-        .unwrap_or_else(|| "default".to_string()))
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn play_test_sound(app: AppHandle, sound_type: String) {
     let sound = match sound_type.as_str() {
         "start" => audio_feedback::SoundType::Start,
@@ -239,22 +177,6 @@ pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_clamshell_microphone(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .clamshell_microphone
-        .unwrap_or_else(|| "default".to_string()))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn is_recording(app: AppHandle) -> bool {
-    let audio_manager = app.state::<Arc<AudioRecordingManager>>();
-    audio_manager.is_recording()
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn get_microphone_channels(device_name: String) -> Result<u16, String> {
     // cpal device enumeration and config queries can stall, so keep them off
     // the webview/main run loop.
@@ -262,7 +184,7 @@ pub async fn get_microphone_channels(device_name: String) -> Result<u16, String>
         use cpal::traits::HostTrait;
 
         let device = if device_name.eq_ignore_ascii_case("default") {
-            crate::audio_toolkit::get_cpal_host().default_input_device()
+            cpal::default_host().default_input_device()
         } else {
             list_input_devices()
                 .map_err(|e| format!("Failed to list audio devices: {e}"))?

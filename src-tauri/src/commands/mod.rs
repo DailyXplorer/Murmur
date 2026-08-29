@@ -4,20 +4,15 @@ pub mod transcription;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
 use crate::utils::cancel_current_operation;
-#[cfg(target_os = "macos")]
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
-#[cfg(target_os = "macos")]
 const TCCUTIL_PATH: &str = "/usr/bin/tccutil";
-#[cfg(target_os = "macos")]
 const OPEN_PATH: &str = "/usr/bin/open";
-#[cfg(target_os = "macos")]
 const ACCESSIBILITY_SETTINGS_URL: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
 
-#[cfg(target_os = "macos")]
 fn accessibility_reset_arguments(bundle_id: &str) -> Result<[String; 3], String> {
     if bundle_id.trim().is_empty() {
         return Err("Cannot repair Accessibility without an application bundle ID".to_string());
@@ -30,7 +25,6 @@ fn accessibility_reset_arguments(bundle_id: &str) -> Result<[String; 3], String>
     ])
 }
 
-#[cfg(target_os = "macos")]
 fn reset_accessibility_decision(bundle_id: &str) -> Result<(), String> {
     let arguments = accessibility_reset_arguments(bundle_id)?;
     let output = Command::new(TCCUTIL_PATH)
@@ -54,7 +48,6 @@ fn reset_accessibility_decision(bundle_id: &str) -> Result<(), String> {
     }
 }
 
-#[cfg(target_os = "macos")]
 fn open_accessibility_settings() -> Result<(), String> {
     let status = Command::new(OPEN_PATH)
         .arg(ACCESSIBILITY_SETTINGS_URL)
@@ -78,14 +71,10 @@ pub fn cancel_operation(app: AppHandle) {
 
 #[tauri::command]
 #[specta::specta]
-pub fn is_portable() -> bool {
-    crate::portable::is_portable()
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn get_app_dir_path(app: AppHandle) -> Result<String, String> {
-    let app_data_dir = crate::portable::app_data_dir(&app)
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
     Ok(app_data_dir.to_string_lossy().to_string())
@@ -106,7 +95,9 @@ pub fn get_default_settings() -> Result<AppSettings, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_log_dir_path(app: AppHandle) -> Result<String, String> {
-    let log_dir = crate::portable::app_log_dir(&app)
+    let log_dir = app
+        .path()
+        .app_log_dir()
         .map_err(|e| format!("Failed to get log directory: {}", e))?;
 
     Ok(log_dir.to_string_lossy().to_string())
@@ -133,7 +124,9 @@ pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
 #[specta::specta]
 #[tauri::command]
 pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
-    let app_data_dir = crate::portable::app_data_dir(&app)
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
     let recordings_dir = app_data_dir.join("recordings");
@@ -149,7 +142,9 @@ pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
 #[specta::specta]
 #[tauri::command]
 pub fn open_log_dir(app: AppHandle) -> Result<(), String> {
-    let log_dir = crate::portable::app_log_dir(&app)
+    let log_dir = app
+        .path()
+        .app_log_dir()
         .map_err(|e| format!("Failed to get log directory: {}", e))?;
 
     let path = log_dir.to_string_lossy().as_ref().to_string();
@@ -163,7 +158,9 @@ pub fn open_log_dir(app: AppHandle) -> Result<(), String> {
 #[specta::specta]
 #[tauri::command]
 pub fn open_app_data_dir(app: AppHandle) -> Result<(), String> {
-    let app_data_dir = crate::portable::app_data_dir(&app)
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
     let path = app_data_dir.to_string_lossy().as_ref().to_string();
@@ -185,34 +182,26 @@ pub fn open_app_data_dir(app: AppHandle) -> Result<(), String> {
 #[specta::specta]
 #[tauri::command]
 pub async fn repair_accessibility_permission(app: AppHandle) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        if tauri_plugin_macos_permissions::check_accessibility_permission().await {
-            return Ok(());
-        }
-
-        let bundle_id = app.config().identifier.clone();
-        let reset_bundle_id = bundle_id.clone();
-        let reset_result = tauri::async_runtime::spawn_blocking(move || {
-            reset_accessibility_decision(&reset_bundle_id)
-        })
-        .await
-        .map_err(|error| format!("Accessibility repair task failed: {error}"))?;
-
-        // This registers the current code identity with TCC. Recent macOS
-        // versions may not keep the prompt in front, so open the pane as well.
-        tauri_plugin_macos_permissions::request_accessibility_permission().await;
-
-        let open_result = tauri::async_runtime::spawn_blocking(open_accessibility_settings)
-            .await
-            .map_err(|error| format!("Accessibility settings task failed: {error}"))?;
-
-        reset_result?;
-        open_result?;
+    if tauri_plugin_macos_permissions::check_accessibility_permission().await {
+        return Ok(());
     }
 
-    #[cfg(not(target_os = "macos"))]
-    let _ = app;
+    let bundle_id = app.config().identifier.clone();
+    let reset_bundle_id = bundle_id.clone();
+    let reset_result = tauri::async_runtime::spawn_blocking(move || {
+        reset_accessibility_decision(&reset_bundle_id)
+    })
+    .await
+    .map_err(|error| format!("Accessibility repair task failed: {error}"))?;
+
+    tauri_plugin_macos_permissions::request_accessibility_permission().await;
+
+    let open_result = tauri::async_runtime::spawn_blocking(open_accessibility_settings)
+        .await
+        .map_err(|error| format!("Accessibility settings task failed: {error}"))?;
+
+    reset_result?;
+    open_result?;
 
     Ok(())
 }
@@ -238,14 +227,10 @@ pub fn initialize_enigo(app: AppHandle) -> Result<(), String> {
             Ok(())
         }
         Err(e) => {
-            if cfg!(target_os = "macos") {
-                log::warn!(
-                    "Failed to initialize Enigo: {} (accessibility permissions may not be granted)",
-                    e
-                );
-            } else {
-                log::warn!("Failed to initialize Enigo: {}", e);
-            }
+            log::warn!(
+                "Failed to initialize Enigo: {} (accessibility permissions may not be granted)",
+                e
+            );
             Err(format!("Failed to initialize input system: {}", e))
         }
     }
@@ -276,7 +261,7 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod tests {
     use super::{
         accessibility_reset_arguments, ACCESSIBILITY_SETTINGS_URL, OPEN_PATH, TCCUTIL_PATH,

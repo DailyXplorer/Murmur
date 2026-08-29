@@ -75,7 +75,7 @@ microphone -> WAV/audio samples -> selected cloud transcription -> cleanup -> cl
 ```
 
 The backend owns audio capture, authentication-cache reading, transcription,
-history, shortcuts, and platform integration. The frontend owns onboarding,
+history, shortcuts, and macOS integration. The frontend owns onboarding,
 settings, history, and the recording overlay.
 
 ## Privacy and security

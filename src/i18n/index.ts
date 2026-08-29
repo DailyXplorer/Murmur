@@ -131,7 +131,4 @@ i18n.on("languageChanged", (lng) => {
   updateDocumentLanguage(lng);
 });
 
-// Re-export RTL utilities for convenience
-export { getLanguageDirection, isRTLLanguage } from "@/lib/utils/rtl";
-
 export default i18n;

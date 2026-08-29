@@ -342,7 +342,6 @@
       "installAntigravity": "Инсталиране",
       "openAntigravity": "Отвори Antigravity",
       "onboardingDescription": "Влезте в Codex или Antigravity, преди да продължите.",
-      "onboardingDescriptionCodex": "Влезте в Codex, преди да продължите.",
       "groups": {
         "service": "Услуга",
         "processing": "Обработка на текста",
