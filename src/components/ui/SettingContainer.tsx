@@ -9,6 +9,7 @@ interface SettingContainerProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   layout?: "horizontal" | "stacked";
+  controlSizing?: "rail" | "content";
   disabled?: boolean;
   tooltipPosition?: "top" | "bottom";
 }
@@ -118,6 +119,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
   layout = "horizontal",
+  controlSizing = "rail",
   disabled = false,
   tooltipPosition = "top",
 }) => {
@@ -153,6 +155,10 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   const horizontalContainerClasses = grouped
     ? "flex min-h-12 items-center justify-between gap-4 px-4 py-1"
     : "flex min-h-12 items-center justify-between gap-4 rounded-lg border border-mid-gray/20 px-4 py-1";
+  const controlClasses =
+    controlSizing === "content"
+      ? "relative max-w-full shrink-0 text-end"
+      : "relative w-[var(--settings-control-rail-width)] shrink-0 text-end";
 
   return (
     <div className={horizontalContainerClasses}>
@@ -174,7 +180,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
           </p>
         )}
       </div>
-      <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">
+      <div data-slot="setting-control" className={controlClasses}>
         {children}
       </div>
     </div>

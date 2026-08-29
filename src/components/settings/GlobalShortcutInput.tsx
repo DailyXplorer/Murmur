@@ -7,6 +7,7 @@ import {
 } from "../../lib/utils/keyboard";
 import { ResetButton } from "../ui/ResetButton";
 import { SettingContainer } from "../ui/SettingContainer";
+import { SettingControlGroup } from "../ui/SettingControlGroup";
 import { useSettings } from "../../hooks/useSettings";
 import { commands } from "@/bindings";
 import { toast } from "sonner";
@@ -266,29 +267,33 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       grouped={grouped}
       disabled={disabled}
       layout="horizontal"
+      controlSizing="content"
     >
-      <div className="flex min-w-0 items-center space-x-1">
-        {editingShortcutId === shortcutId ? (
-          <div
-            ref={(ref) => setShortcutRef(shortcutId, ref)}
-            className="min-w-0 flex-1 truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
-          >
-            {formatCurrentKeys()}
-          </div>
-        ) : (
-          <div
-            className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
-            onClick={() => startRecording(shortcutId)}
-          >
-            {formatKeyCombination(binding.current_binding)}
-          </div>
-        )}
-        <ResetButton
-          className="shrink-0"
-          onClick={() => resetBinding(shortcutId)}
-          disabled={isUpdating(`binding_${shortcutId}`)}
-        />
-      </div>
+      <SettingControlGroup
+        primary={
+          editingShortcutId === shortcutId ? (
+            <div
+              ref={(ref) => setShortcutRef(shortcutId, ref)}
+              className="w-full truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
+            >
+              {formatCurrentKeys()}
+            </div>
+          ) : (
+            <div
+              className="w-full cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
+              onClick={() => startRecording(shortcutId)}
+            >
+              {formatKeyCombination(binding.current_binding)}
+            </div>
+          )
+        }
+        action={
+          <ResetButton
+            onClick={() => resetBinding(shortcutId)}
+            disabled={isUpdating(`binding_${shortcutId}`)}
+          />
+        }
+      />
     </SettingContainer>
   );
 };

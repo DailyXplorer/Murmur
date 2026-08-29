@@ -6,6 +6,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
+import { SettingControlGroup } from "../ui/SettingControlGroup";
 
 interface CustomWordsProps {
   descriptionMode?: "inline" | "tooltip";
@@ -62,32 +63,36 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           description={t("settings.advanced.customWords.description")}
           descriptionMode={descriptionMode}
           grouped={grouped}
+          controlSizing="content"
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <Input
-              type="text"
-              className="min-w-0 flex-1"
-              value={newWord}
-              onChange={(e) => setNewWord(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder={t("settings.advanced.customWords.placeholder")}
-              variant="compact"
-              disabled={isUpdating("custom_words")}
-            />
-            <Button
-              onClick={handleAddWord}
-              disabled={
-                !normalizedWord ||
-                normalizedWord.length > 50 ||
-                isUpdating("custom_words")
-              }
-              variant="primary"
-              size="md"
-              className="shrink-0"
-            >
-              {t("settings.advanced.customWords.add")}
-            </Button>
-          </div>
+          <SettingControlGroup
+            primary={
+              <Input
+                type="text"
+                className="w-full"
+                value={newWord}
+                onChange={(e) => setNewWord(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder={t("settings.advanced.customWords.placeholder")}
+                variant="compact"
+                disabled={isUpdating("custom_words")}
+              />
+            }
+            action={
+              <Button
+                onClick={handleAddWord}
+                disabled={
+                  !normalizedWord ||
+                  normalizedWord.length > 50 ||
+                  isUpdating("custom_words")
+                }
+                variant="primary"
+                size="md"
+              >
+                {t("settings.advanced.customWords.add")}
+              </Button>
+            }
+          />
         </SettingContainer>
         {customWords.length > 0 && (
           <div

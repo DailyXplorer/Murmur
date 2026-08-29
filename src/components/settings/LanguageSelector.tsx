@@ -9,6 +9,7 @@ import React, {
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { useTranslation } from "react-i18next";
 import { SettingContainer } from "../ui/SettingContainer";
+import { SettingControlGroup } from "../ui/SettingControlGroup";
 import { ResetButton } from "../ui/ResetButton";
 import { FloatingPanel } from "../ui/FloatingPanel";
 import { useSettings } from "../../hooks/useSettings";
@@ -148,93 +149,94 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       description={t("settings.general.language.description")}
       descriptionMode={descriptionMode}
       grouped={grouped}
+      controlSizing="content"
     >
-      <div className="flex min-w-0 items-center space-x-1">
-        <div className="relative min-w-0 flex-1">
-          <button
-            ref={dropdownRef}
-            id={triggerId}
-            type="button"
-            className={`w-full min-w-[200px] px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
-              isLanguageUpdating
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
-            }`}
-            onClick={handleToggle}
-            disabled={isLanguageUpdating}
-            aria-haspopup="listbox"
-            aria-expanded={isLanguageMenuOpen}
-            aria-controls={isLanguageMenuOpen ? menuId : undefined}
-          >
-            <span className="truncate">{selectedLanguageName}</span>
-            <CaretDownIcon
-              size={14}
-              className={`ms-2 transition-transform duration-200 ${
-                isLanguageMenuOpen ? "transform rotate-180" : ""
+      <SettingControlGroup
+        primary={
+          <div className="relative min-w-0">
+            <button
+              ref={dropdownRef}
+              id={triggerId}
+              type="button"
+              className={`w-full min-w-[200px] px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
+                isLanguageUpdating
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
               }`}
-            />
-          </button>
-
-          <FloatingPanel
-            open={isLanguageMenuOpen}
-            anchorRef={dropdownRef}
-            onDismiss={handleDismiss}
-            className="flex flex-col overflow-hidden rounded border border-mid-gray/80 bg-background shadow-lg"
-          >
-            {/* Search input */}
-            <div className="p-2 border-b border-mid-gray/80">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onKeyDown={handleKeyDown}
-                placeholder={t("settings.general.language.searchPlaceholder")}
-                className="w-full px-2 py-1 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded focus:outline-none focus:ring-1 focus:ring-logo-primary focus:border-logo-primary"
-              />
-            </div>
-
-            <div
-              ref={languageListRef}
-              id={menuId}
-              role="listbox"
-              aria-labelledby={triggerId}
-              className="min-h-0 flex-1 overflow-y-auto"
+              onClick={handleToggle}
+              disabled={isLanguageUpdating}
+              aria-haspopup="listbox"
+              aria-expanded={isLanguageMenuOpen}
+              aria-controls={isLanguageMenuOpen ? menuId : undefined}
             >
-              {filteredLanguages.length === 0 ? (
-                <div className="px-2 py-2 text-sm text-mid-gray text-center">
-                  {t("settings.general.language.noResults")}
-                </div>
-              ) : (
-                filteredLanguages.map((language) => (
-                  <button
-                    key={language.value}
-                    type="button"
-                    role="option"
-                    aria-selected={selectedLanguage === language.value}
-                    tabIndex={language.value === initialTabStopValue ? 0 : -1}
-                    className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
-                      selectedLanguage === language.value
-                        ? "bg-logo-primary/20 text-logo-primary"
-                        : ""
-                    }`}
-                    onClick={() => handleLanguageSelect(language.value)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{language.label}</span>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </FloatingPanel>
-        </div>
-        <ResetButton
-          className="shrink-0"
-          onClick={handleReset}
-          disabled={isLanguageUpdating}
-        />
-      </div>
+              <span className="truncate">{selectedLanguageName}</span>
+              <CaretDownIcon
+                size={14}
+                className={`ms-2 transition-transform duration-200 ${
+                  isLanguageMenuOpen ? "transform rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <FloatingPanel
+              open={isLanguageMenuOpen}
+              anchorRef={dropdownRef}
+              onDismiss={handleDismiss}
+              className="flex flex-col overflow-hidden rounded border border-mid-gray/80 bg-background shadow-lg"
+            >
+              {/* Search input */}
+              <div className="p-2 border-b border-mid-gray/80">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder={t("settings.general.language.searchPlaceholder")}
+                  className="w-full px-2 py-1 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded focus:outline-none focus:ring-1 focus:ring-logo-primary focus:border-logo-primary"
+                />
+              </div>
+
+              <div
+                ref={languageListRef}
+                id={menuId}
+                role="listbox"
+                aria-labelledby={triggerId}
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
+                {filteredLanguages.length === 0 ? (
+                  <div className="px-2 py-2 text-sm text-mid-gray text-center">
+                    {t("settings.general.language.noResults")}
+                  </div>
+                ) : (
+                  filteredLanguages.map((language) => (
+                    <button
+                      key={language.value}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedLanguage === language.value}
+                      tabIndex={language.value === initialTabStopValue ? 0 : -1}
+                      className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
+                        selectedLanguage === language.value
+                          ? "bg-logo-primary/20 text-logo-primary"
+                          : ""
+                      }`}
+                      onClick={() => handleLanguageSelect(language.value)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate">{language.label}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </FloatingPanel>
+          </div>
+        }
+        action={
+          <ResetButton onClick={handleReset} disabled={isLanguageUpdating} />
+        }
+      />
       {isLanguageUpdating && (
         <div className="absolute inset-0 bg-mid-gray/10 rounded flex items-center justify-center">
           <div className="w-4 h-4 border-2 border-logo-primary border-t-transparent rounded-full animate-spin"></div>

@@ -4,8 +4,10 @@ import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { Button } from "../../src/components/ui/Button";
 import { Dropdown } from "../../src/components/ui/Dropdown";
 import { Input } from "../../src/components/ui/Input";
+import { PathDisplay } from "../../src/components/ui/PathDisplay";
 import { ResetButton } from "../../src/components/ui/ResetButton";
 import { SettingContainer } from "../../src/components/ui/SettingContainer";
+import { SettingControlGroup } from "../../src/components/ui/SettingControlGroup";
 import { ToggleSwitch } from "../../src/components/ui/ToggleSwitch";
 import "../../src/App.css";
 
@@ -21,10 +23,10 @@ const SettingsControlWidthsFixture: React.FC = () => {
   const [isToggleChecked, setIsToggleChecked] = useState(false);
 
   return (
-    <main className="min-h-screen bg-background px-8 py-10 text-text">
+    <main className="min-h-screen bg-background px-4 py-10 text-text">
       <section
         data-testid="settings-control-widths"
-        className="mx-auto flex w-[768px] flex-col gap-2"
+        className="mx-auto flex w-full max-w-[768px] flex-col gap-2"
       >
         <SettingContainer
           title="Direct dropdown"
@@ -41,63 +43,80 @@ const SettingsControlWidthsFixture: React.FC = () => {
 
         <SettingContainer
           title="Dropdown with reset"
-          description="The reset target stays compact"
+          description="The primary dropdown keeps the full rail"
+          controlSizing="content"
         >
-          <div
-            data-testid="dropdown-reset"
-            className="flex min-w-0 items-center gap-1"
-          >
-            <Dropdown
-              className="min-w-0 flex-1"
-              options={OPTIONS}
-              selectedValue={selectedValue}
-              onSelect={setSelectedValue}
-            />
-            <ResetButton ariaLabel="Reset dropdown" onClick={() => undefined} />
-          </div>
+          <SettingControlGroup
+            primary={
+              <div data-testid="dropdown-reset-primary">
+                <Dropdown
+                  options={OPTIONS}
+                  selectedValue={selectedValue}
+                  onSelect={setSelectedValue}
+                />
+              </div>
+            }
+            action={
+              <ResetButton
+                ariaLabel="Reset dropdown"
+                onClick={() => undefined}
+              />
+            }
+          />
         </SettingContainer>
 
         <SettingContainer
           title="Language-like picker"
-          description="A bespoke picker shares the rail with reset"
+          description="A bespoke picker keeps the full rail"
+          controlSizing="content"
         >
-          <div
-            data-testid="language-picker"
-            className="flex min-w-0 items-center gap-1"
-          >
-            <button
-              className="min-w-0 flex-1 rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm"
-              type="button"
-            >
-              English (United States)
-            </button>
-            <ResetButton ariaLabel="Reset language" onClick={() => undefined} />
-          </div>
+          <SettingControlGroup
+            primary={
+              <button
+                data-testid="language-picker-primary"
+                className="min-h-10 w-full rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm"
+                type="button"
+              >
+                English (United States)
+              </button>
+            }
+            action={
+              <ResetButton
+                ariaLabel="Reset language"
+                onClick={() => undefined}
+              />
+            }
+          />
         </SettingContainer>
 
         <ToggleSwitch
           checked={isToggleChecked}
-          description="The toggle remains a 44px target at the rail edge"
+          description="The toggle remains compact at the rail edge"
           label="Recording indicator"
           onChange={setIsToggleChecked}
         />
 
         <SettingContainer
           title="Shortcut-like control"
-          description="A long shortcut chip still leaves reset intrinsic"
+          description="A long shortcut keeps the full rail"
+          controlSizing="content"
         >
-          <div
-            data-testid="shortcut-control"
-            className="flex min-w-0 items-center gap-1"
-          >
-            <div
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
-              data-testid="shortcut-surface"
-            >
-              Command Shift Option K
-            </div>
-            <ResetButton ariaLabel="Reset shortcut" onClick={() => undefined} />
-          </div>
+          <SettingControlGroup
+            primary={
+              <div
+                className="w-full cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
+                data-testid="shortcut-primary"
+              >
+                Command Shift Option K
+              </div>
+            }
+            action={
+              <ResetButton
+                ariaLabel="Reset shortcut"
+                onClick={() => undefined}
+              />
+            }
+          />
         </SettingContainer>
 
         <SettingContainer
@@ -115,21 +134,20 @@ const SettingsControlWidthsFixture: React.FC = () => {
 
         <SettingContainer
           title="Custom words"
-          description="Input and add action stay within the rail"
+          description="The input keeps the full rail beside Add"
+          controlSizing="content"
         >
-          <div
-            data-testid="custom-words"
-            className="flex min-w-0 items-center gap-2"
-          >
-            <Input
-              className="min-w-0 flex-1"
-              placeholder="Add a custom word"
-              type="text"
-            />
-            <Button className="shrink-0" size="md">
-              Add
-            </Button>
-          </div>
+          <SettingControlGroup
+            primary={
+              <Input
+                data-testid="custom-words-primary"
+                className="w-full"
+                placeholder="Add a custom word"
+                type="text"
+              />
+            }
+            action={<Button size="md">Add</Button>}
+          />
         </SettingContainer>
         <div className="flex justify-end rounded-lg border border-mid-gray/20 px-4 p-2">
           <div
@@ -156,7 +174,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
 
         <SettingContainer
           title="Gemini status"
-          description="Status and action share the same rail"
+          description="Status and action retain the standard slot"
         >
           <div
             data-testid="gemini-status"
@@ -173,13 +191,15 @@ const SettingsControlWidthsFixture: React.FC = () => {
 
         <SettingContainer
           layout="stacked"
-          title="Stacked content"
-          description="This content intentionally remains full width"
+          title="App data directory"
+          description="The path uses the complete stacked width"
         >
-          <div
-            data-testid="stacked-control"
-            className="h-10 rounded-md border border-mid-gray/80 bg-mid-gray/10"
-          />
+          <div data-testid="path-display">
+            <PathDisplay
+              path="/Users/example/Library/Application Support/com.dailyxplorer.murmur"
+              onOpen={() => undefined}
+            />
+          </div>
         </SettingContainer>
       </section>
     </main>

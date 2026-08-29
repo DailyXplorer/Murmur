@@ -3,6 +3,7 @@ import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
 import { Button } from "../ui/Button";
 import { Dropdown, DropdownOption } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
+import { SettingControlGroup } from "../ui/SettingControlGroup";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -42,26 +43,33 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
       description={description}
       grouped
       layout="horizontal"
+      controlSizing="content"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <Dropdown
-          className="min-w-0 flex-1"
-          selectedValue={selectedTheme}
-          onSelect={(value) =>
-            updateSetting("sound_theme", value as "marimba" | "pop" | "custom")
-          }
-          options={options}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={handlePlayBothSounds}
-          title="Preview sound theme (plays start then stop)"
-        >
-          <PlayIcon size={15} />
-        </Button>
-      </div>
+      <SettingControlGroup
+        primary={
+          <Dropdown
+            className="w-full"
+            selectedValue={selectedTheme}
+            onSelect={(value) =>
+              updateSetting(
+                "sound_theme",
+                value as "marimba" | "pop" | "custom",
+              )
+            }
+            options={options}
+          />
+        }
+        action={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handlePlayBothSounds}
+            title="Preview sound theme (plays start then stop)"
+          >
+            <PlayIcon size={15} />
+          </Button>
+        }
+      />
     </SettingContainer>
   );
 };
