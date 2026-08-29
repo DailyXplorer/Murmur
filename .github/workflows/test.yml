@@ -32,6 +32,12 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Check generated macOS icons
+        run: cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check
+
+      - name: Test macOS icon generator
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons
+
       - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test --locked
