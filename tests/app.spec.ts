@@ -178,7 +178,7 @@ test.describe("Murmur App", () => {
   test("checked toggle keeps a contrasting boundary for every accent", async ({
     page,
   }) => {
-    await page.goto("/tests/fixtures/toggle-switch.html");
+    await page.goto("/tests/fixtures/accent-controls.html");
 
     const samples = await page.evaluate(() => {
       const track = document.querySelector<HTMLDivElement>(
@@ -230,6 +230,80 @@ test.describe("Murmur App", () => {
       expect(
         contrastRatio(track, boundary),
         `${label} keeps the thumb boundary contrast above 3:1`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test("primary button keeps a contrasting keyboard focus ring", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/accent-controls.html");
+
+    const samples = await page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>("button");
+      const accents = ["pink", "blue", "green", "yellow", "orange", "red"];
+      const themes = ["light", "dark"];
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+
+      if (!button) throw new Error("Primary button is unavailable");
+      if (!context) throw new Error("Canvas 2D context is unavailable");
+
+      const toRgb = (color: string): number[] => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = "#000000";
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      };
+
+      button.focus();
+
+      return themes.flatMap((theme) => {
+        document.documentElement.dataset.theme = theme;
+
+        return accents.map((accent) => {
+          document.documentElement.dataset.accentColor = accent;
+          const buttonStyles = getComputedStyle(button);
+          const rootStyles = getComputedStyle(document.documentElement);
+
+          return {
+            accent,
+            theme,
+            focusVisible: button.matches(":focus-visible"),
+            boxShadow: buttonStyles.boxShadow,
+            pageBackground: toRgb(
+              rootStyles.getPropertyValue("--color-background").trim(),
+            ),
+            focusRing: toRgb(
+              rootStyles.getPropertyValue("--color-text").trim(),
+            ),
+          };
+        });
+      });
+    });
+
+    for (const {
+      accent,
+      theme,
+      focusVisible,
+      boxShadow,
+      pageBackground,
+      focusRing,
+    } of samples) {
+      const label = `${accent} in ${theme} mode`;
+      const ringColor = `rgb(${focusRing.join(", ")})`;
+
+      expect(focusVisible, `${label} exposes keyboard focus`).toBe(true);
+      expect(
+        boxShadow,
+        `${label} renders the theme text color in its focus ring`,
+      ).toContain(ringColor);
+      expect(
+        contrastRatio(pageBackground, focusRing),
+        `${label} keeps focus contrast above 3:1`,
       ).toBeGreaterThanOrEqual(3);
     }
   });
