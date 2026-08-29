@@ -272,6 +272,14 @@ export const HistorySettings: React.FC = () => {
 
   return (
     <SettingsPage label={t("sidebar.history")}>
+      <SettingsGroup title={t("settings.history.preferences")}>
+        <HistoryLimit descriptionMode="tooltip" grouped={true} />
+        <RecordingRetentionPeriodSelector
+          descriptionMode="tooltip"
+          grouped={true}
+        />
+      </SettingsGroup>
+
       <SettingsGroup
         title={t("settings.history.title")}
         action={
@@ -282,14 +290,6 @@ export const HistorySettings: React.FC = () => {
         }
       >
         {content}
-      </SettingsGroup>
-
-      <SettingsGroup title={t("settings.history.preferences")}>
-        <HistoryLimit descriptionMode="tooltip" grouped={true} />
-        <RecordingRetentionPeriodSelector
-          descriptionMode="tooltip"
-          grouped={true}
-        />
       </SettingsGroup>
 
       {!loading && hasMore && entries.length > 0 && (

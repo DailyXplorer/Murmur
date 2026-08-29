@@ -16,6 +16,8 @@ interface TooltipProps {
   targetRef: React.RefObject<HTMLElement | null>;
   position?: TooltipPosition;
   children: React.ReactNode;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 const TOOLTIP_WIDTH = 200;
@@ -29,6 +31,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
   targetRef,
   position = "top",
   children,
+  onMouseEnter,
+  onMouseLeave,
 }) => {
   const { tooltip: tooltipZIndex } = useFloatingLayers();
   const [coords, setCoords] = useState<TooltipCoords | null>(null);
@@ -108,6 +112,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
         opacity: coords ? 1 : 0,
       }}
       className="px-3 py-2 bg-background border border-mid-gray/80 rounded-lg shadow-lg whitespace-normal transition-opacity duration-150"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {children}
       <div

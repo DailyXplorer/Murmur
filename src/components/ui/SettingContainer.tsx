@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
 import { Tooltip } from "./Tooltip";
 
@@ -18,13 +18,43 @@ interface DescriptionTooltipProps {
   position: "top" | "bottom";
 }
 
+const TOOLTIP_HIDE_DELAY_MS = 150;
+
 const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
   description,
   position,
 }) => {
   const [visible, setVisible] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const hideTimeoutRef = useRef<number | null>(null);
   const tooltipId = useId();
+
+  const clearHideTimeout = useCallback(() => {
+    if (hideTimeoutRef.current === null) return;
+
+    window.clearTimeout(hideTimeoutRef.current);
+    hideTimeoutRef.current = null;
+  }, []);
+
+  const showTooltip = useCallback(() => {
+    clearHideTimeout();
+    setVisible(true);
+  }, [clearHideTimeout]);
+
+  const hideTooltip = useCallback(() => {
+    clearHideTimeout();
+    setVisible(false);
+  }, [clearHideTimeout]);
+
+  const scheduleTooltipHide = useCallback(() => {
+    clearHideTimeout();
+    hideTimeoutRef.current = window.setTimeout(() => {
+      hideTimeoutRef.current = null;
+      setVisible(false);
+    }, TOOLTIP_HIDE_DELAY_MS);
+  }, [clearHideTimeout]);
+
+  useEffect(() => clearHideTimeout, [clearHideTimeout]);
 
   useEffect(() => {
     if (!visible) return;
@@ -35,11 +65,11 @@ const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
         event.target instanceof Node &&
         !triggerRef.current.contains(event.target)
       ) {
-        setVisible(false);
+        hideTooltip();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setVisible(false);
+      if (event.key === "Escape") hideTooltip();
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -48,28 +78,36 @@ const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [visible]);
+  }, [hideTooltip, visible]);
 
   return (
-    <button
-      ref={triggerRef}
-      type="button"
-      aria-label={description}
-      aria-describedby={visible ? tooltipId : undefined}
-      className="relative -my-1 flex size-10 shrink-0 items-center justify-center rounded-md text-mid-gray transition-colors duration-150 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
-      onBlur={() => setVisible(false)}
-      onClick={() => setVisible(true)}
-    >
-      <InfoIcon size={15} aria-hidden="true" />
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={description}
+        aria-describedby={visible ? tooltipId : undefined}
+        className="relative -my-1 flex size-10 shrink-0 items-center justify-center rounded-md text-mid-gray transition-colors duration-150 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+        onMouseEnter={showTooltip}
+        onMouseLeave={scheduleTooltipHide}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+        onClick={showTooltip}
+      >
+        <InfoIcon size={15} aria-hidden="true" />
+      </button>
       {visible && (
-        <Tooltip id={tooltipId} targetRef={triggerRef} position={position}>
+        <Tooltip
+          id={tooltipId}
+          targetRef={triggerRef}
+          position={position}
+          onMouseEnter={showTooltip}
+          onMouseLeave={scheduleTooltipHide}
+        >
           <p className="text-center text-sm leading-relaxed">{description}</p>
         </Tooltip>
       )}
-    </button>
+    </>
   );
 };
 

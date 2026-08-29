@@ -63,4 +63,17 @@ test.describe("settings information architecture", () => {
     expect(source).toContain('aria-current={isActive ? "page" : undefined}');
     expect(source).not.toMatch(/<div[^>]*onClick=/);
   });
+
+  test("history preferences stay ahead of the paginated entry list", async () => {
+    const source = await readSource(
+      "src/components/settings/history/HistorySettings.tsx",
+    );
+    const preferences = source.indexOf("settings.history.preferences");
+    const entries = source.indexOf("settings.history.title");
+    const sentinel = source.indexOf("ref={sentinelRef}");
+
+    expect(preferences).toBeGreaterThan(-1);
+    expect(entries).toBeGreaterThan(preferences);
+    expect(sentinel).toBeGreaterThan(entries);
+  });
 });
