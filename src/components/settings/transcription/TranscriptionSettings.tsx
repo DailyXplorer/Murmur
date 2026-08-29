@@ -85,7 +85,6 @@ export const TranscriptionSettings: React.FC = () => {
           <Dropdown
             options={providerOptions}
             selectedValue={provider}
-            className="w-[260px]"
             onSelect={(value) => {
               if (value !== "codex" && value !== "gemini") return;
               void updateSetting("transcription_provider", value);
@@ -109,8 +108,8 @@ export const TranscriptionSettings: React.FC = () => {
           description={t("settings.transcription.geminiDescription")}
           grouped={true}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text/80">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
               {geminiStatusError
                 ? t("settings.transcription.statusUnavailable")
                 : geminiStatus == null
@@ -123,6 +122,7 @@ export const TranscriptionSettings: React.FC = () => {
               <Button
                 size="sm"
                 variant="secondary"
+                className="shrink-0"
                 onClick={() => void openUrl("https://antigravity.google/")}
               >
                 {t("settings.transcription.installAntigravity")}
@@ -134,6 +134,7 @@ export const TranscriptionSettings: React.FC = () => {
                 <Button
                   size="sm"
                   variant="secondary"
+                  className="shrink-0"
                   onClick={() => void openAntigravity()}
                 >
                   {t("settings.transcription.openAntigravity")}

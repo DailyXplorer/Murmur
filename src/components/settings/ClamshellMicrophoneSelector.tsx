@@ -74,8 +74,9 @@ export const ClamshellMicrophoneSelector: React.FC<ClamshellMicrophoneSelectorPr
         descriptionMode={descriptionMode}
         grouped={grouped}
       >
-        <div className="flex items-center space-x-1">
+        <div className="flex min-w-0 items-center space-x-1">
           <Dropdown
+            className="min-w-0 flex-1"
             options={microphoneOptions}
             selectedValue={selectedClamshellMicrophone}
             onSelect={handleClamshellMicrophoneSelect}
@@ -92,6 +93,7 @@ export const ClamshellMicrophoneSelector: React.FC<ClamshellMicrophoneSelectorPr
             onRefresh={refreshAudioDevices}
           />
           <ResetButton
+            className="shrink-0"
             onClick={handleReset}
             disabled={isUpdating("clamshell_microphone") || isLoading}
           />
