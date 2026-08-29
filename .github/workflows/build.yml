@@ -20,10 +20,6 @@ on:
         required: false
         type: string
         default: "murmur"
-      asset-name-pattern:
-        required: false
-        type: string
-        default: ""
       upload-artifacts:
         required: false
         type: boolean
@@ -32,17 +28,10 @@ on:
         required: false
         type: boolean
         default: false
-      repository:
-        required: false
-        type: string
       ref:
         required: false
         type: string
         default: ${{ github.ref }}
-      is-debug-build:
-        required: false
-        type: boolean
-        default: false
       no-cache:
         required: false
         type: boolean
@@ -60,7 +49,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
@@ -76,7 +64,7 @@ jobs:
         id: build-profile
         shell: bash
         run: |
-          if [[ "${{ inputs.is-debug-build }}" == "true" ]]; then
+          if [[ "${{ inputs.build-args }}" == *"--debug"* ]]; then
             echo "profile=debug" >> "$GITHUB_OUTPUT"
             echo "Build profile: debug"
           else
@@ -90,9 +78,7 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Apple rustc targets are only installed on macos-* runners.
-          # Never add aarch64-apple-darwin / x86_64-apple-darwin on ubuntu.
-          targets: ${{ contains(inputs.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ inputs.target }}
 
       - name: Rust cache
         # Release builds skip the cache (no-cache: true) so the artifact is
@@ -105,14 +91,10 @@ jobs:
           key: ${{ inputs.platform }}-${{ inputs.target }}
 
       - name: install frontend dependencies
-        run: bun install
-
-      - name: rustup install target
-        if: ${{ inputs.target != '' && contains(inputs.target, 'apple-darwin') }}
-        run: rustup target add ${{ inputs.target }}
+        run: bun install --frozen-lockfile
 
       - name: import Apple Developer Certificate
-        if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'
+        if: inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -128,7 +110,7 @@ jobs:
           security find-identity -v -p codesigning build.keychain
 
       - name: verify certificate
-        if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'
+        if: inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'
         run: |
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
@@ -136,7 +118,7 @@ jobs:
           echo "Certificate imported."
 
       - name: Configure Apple notarization
-        if: contains(inputs.platform, 'macos') && inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
+        if: inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
         env:
           APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD_SECRET: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -153,19 +135,6 @@ jobs:
             echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET" >> "$GITHUB_ENV"
           fi
 
-      - name: Patch asset name pattern
-        id: patch-release-name
-        shell: bash
-        if: ${{ inputs.release-id != '' && inputs.asset-name-pattern != '' }}
-        run: |
-          platform="${{ inputs.platform }}"
-          replacement="$(echo ${platform} | sed -E 's/-latest//')"
-          patched_platform=$(echo '${{ inputs.asset-name-pattern }}' | sed -E "s/\[platform\]/${replacement}/")
-          if [[ -n "${{ inputs.asset-prefix }}" ]]; then
-            patched_platform="${{ inputs.asset-prefix }}_${patched_platform}"
-          fi
-          echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
-
       - name: Build with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -179,7 +148,6 @@ jobs:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseId: ${{ inputs.release-id }}
-          assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           includeUpdaterJson: false
           args: ${{ inputs.build-args }}
 
@@ -205,7 +173,7 @@ jobs:
           done <<< "$RPATH_DEPS"
 
       - name: Upload artifacts (macOS)
-        if: inputs.upload-artifacts && contains(inputs.platform, 'macos')
+        if: inputs.upload-artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}

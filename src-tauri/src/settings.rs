@@ -112,9 +112,6 @@ pub enum PasteMethod {
     CtrlV,
     Direct,
     None,
-    ShiftInsert,
-    CtrlShiftV,
-    ExternalScript,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
@@ -142,16 +139,6 @@ pub enum RecordingRetentionPeriod {
     Days3,
     Weeks2,
     Months3,
-}
-
-impl PasteMethod {
-    /// Shift+Insert has no macOS equivalent, so stored values become Cmd+V.
-    pub(crate) fn supported_on_macos(self) -> Self {
-        match self {
-            PasteMethod::ShiftInsert => PasteMethod::CtrlV,
-            other => other,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -201,18 +188,6 @@ pub enum AccentColor {
     Yellow,
     Orange,
     Red,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TypingTool {
-    #[default]
-    Auto,
-    Wtype,
-    Kwtype,
-    Dotool,
-    Ydotool,
-    Xdotool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
@@ -319,10 +294,6 @@ pub struct AppSettings {
     /// fixed delay. See `paste_tx`. macOS only.
     #[serde(default)]
     pub reliable_paste: bool,
-    #[serde(default = "default_typing_tool")]
-    pub typing_tool: TypingTool,
-    #[serde(default)]
-    pub external_script_path: Option<String>,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
     #[serde(default)]
@@ -431,11 +402,8 @@ fn default_show_tray_icon() -> bool {
     true
 }
 
-fn default_typing_tool() -> TypingTool {
-    TypingTool::Auto
-}
-
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
+const OBSOLETE_SETTINGS_KEYS: [&str; 2] = ["typing_tool", "external_script_path"];
 
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = "option+space";
@@ -503,8 +471,6 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_ms: default_paste_delay_ms(),
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: false,
-        typing_tool: default_typing_tool(),
-        external_script_path: None,
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
         extra_recording_buffer_ms: 0,
@@ -525,22 +491,31 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     settings
 }
 
-/// Loads persisted settings, repairing invalid fields and platform-unsupported
-/// transcription providers before returning them.
+fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bool) {
+    let has_obsolete_keys = settings_value.as_object().is_some_and(|settings| {
+        OBSOLETE_SETTINGS_KEYS
+            .iter()
+            .any(|key| settings.contains_key(*key))
+    });
+
+    match serde_json::from_value::<AppSettings>(settings_value.clone()) {
+        Ok(settings) => (settings, has_obsolete_keys),
+        Err(e) => {
+            warn!("Failed to parse stored settings ({e}); salvaging valid fields");
+            (salvage_settings(settings_value), true)
+        }
+    }
+}
+
+/// Loads persisted settings, repairing invalid fields and obsolete values
+/// before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
-        .store(crate::portable::store_path(SETTINGS_STORE_PATH))
+        .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
     if let Some(settings_value) = store.get("settings") {
-        let (mut settings, mut updated) =
-            match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-                Ok(settings) => (settings, false),
-                Err(e) => {
-                    warn!("Failed to parse stored settings ({e}); salvaging valid fields");
-                    (salvage_settings(&settings_value), true)
-                }
-            };
+        let (mut settings, mut updated) = parse_stored_settings(&settings_value);
 
         // Merge in any bindings added since this store was written.
         for (key, value) in get_default_settings().bindings {
@@ -549,16 +524,6 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
                 entry.insert(value);
                 updated = true;
             }
-        }
-
-        let paste_method = settings.paste_method.supported_on_macos();
-        if settings.paste_method != paste_method {
-            settings.paste_method = paste_method;
-            updated = true;
-        }
-
-        if normalize_transcription_provider(&mut settings, cfg!(target_os = "macos")) {
-            updated = true;
         }
 
         if updated {
@@ -571,22 +536,6 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
         store.set("settings", serde_json::to_value(&default_settings).unwrap());
         default_settings
     }
-}
-
-/// Resets Gemini to Codex when the current platform cannot run Antigravity.
-/// Returns whether the stored provider value changed.
-fn normalize_transcription_provider(
-    settings: &mut AppSettings,
-    gemini_available_on_platform: bool,
-) -> bool {
-    if !gemini_available_on_platform
-        && settings.transcription_provider == TranscriptionProvider::Gemini
-    {
-        warn!("Resetting unsupported Gemini transcription provider to Codex");
-        settings.transcription_provider = TranscriptionProvider::Codex;
-        return true;
-    }
-    false
 }
 
 /// Rebuilds settings from a store value that failed to deserialize as a whole.
@@ -629,7 +578,7 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
 
 pub fn write_settings(app: &AppHandle, settings: AppSettings) {
     let store = app
-        .store(crate::portable::store_path(SETTINGS_STORE_PATH))
+        .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
     store.set("settings", serde_json::to_value(&settings).unwrap());
@@ -742,20 +691,6 @@ mod tests {
         );
     }
 
-    /// Resets Gemini to Codex when the platform cannot run Antigravity.
-    #[test]
-    fn unsupported_platform_normalizes_gemini_to_codex() {
-        let mut settings = get_default_settings();
-        settings.transcription_provider = TranscriptionProvider::Gemini;
-
-        assert!(normalize_transcription_provider(&mut settings, false));
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
-        assert!(!normalize_transcription_provider(&mut settings, false));
-    }
-
     #[test]
     fn salvage_defaults_only_an_invalid_accent_color() {
         let mut stored = default_settings_json();
@@ -861,20 +796,56 @@ mod tests {
     }
 
     #[test]
-    fn shift_insert_paste_method_maps_to_ctrl_v_on_macos() {
-        assert_eq!(
-            PasteMethod::ShiftInsert.supported_on_macos(),
-            PasteMethod::CtrlV
+    fn obsolete_settings_fall_back_without_resetting_other_fields() {
+        for legacy_paste_method in ["shift_insert", "ctrl_shift_v", "external_script"] {
+            let mut stored = default_settings_json();
+            let stored = stored.as_object_mut().unwrap();
+            stored.insert("selected_language".into(), serde_json::json!("de"));
+            stored.insert(
+                "paste_method".into(),
+                serde_json::json!(legacy_paste_method),
+            );
+            stored.insert("typing_tool".into(), serde_json::json!("wtype"));
+            stored.insert(
+                "external_script_path".into(),
+                serde_json::json!("/tmp/paste"),
+            );
+
+            let settings = salvage_settings(&serde_json::Value::Object(stored.clone()));
+            assert_eq!(settings.selected_language, "de");
+            assert_eq!(settings.paste_method, PasteMethod::CtrlV);
+
+            let repaired = serde_json::to_value(settings).unwrap();
+            assert!(repaired.get("typing_tool").is_none());
+            assert!(repaired.get("external_script_path").is_none());
+        }
+    }
+
+    #[test]
+    fn valid_store_without_obsolete_fields_does_not_require_rewrite() {
+        let (_, updated) = parse_stored_settings(&default_settings_json());
+        assert!(!updated);
+    }
+
+    #[test]
+    fn valid_store_with_obsolete_fields_is_marked_for_rewrite() {
+        let mut stored = default_settings_json();
+        let stored = stored.as_object_mut().unwrap();
+        stored.insert("selected_language".into(), serde_json::json!("de"));
+        stored.insert("paste_method".into(), serde_json::json!("direct"));
+        stored.insert("typing_tool".into(), serde_json::json!("wtype"));
+        stored.insert(
+            "external_script_path".into(),
+            serde_json::json!("/tmp/paste"),
         );
-        assert_eq!(PasteMethod::CtrlV.supported_on_macos(), PasteMethod::CtrlV);
-        assert_eq!(
-            PasteMethod::CtrlShiftV.supported_on_macos(),
-            PasteMethod::CtrlShiftV
-        );
-        assert_eq!(
-            PasteMethod::Direct.supported_on_macos(),
-            PasteMethod::Direct
-        );
-        assert_eq!(PasteMethod::None.supported_on_macos(), PasteMethod::None);
+
+        let (settings, updated) = parse_stored_settings(&serde_json::Value::Object(stored.clone()));
+        assert!(updated);
+        assert_eq!(settings.selected_language, "de");
+        assert_eq!(settings.paste_method, PasteMethod::Direct);
+
+        let repaired = serde_json::to_value(settings).unwrap();
+        assert!(repaired.get("typing_tool").is_none());
+        assert!(repaired.get("external_script_path").is_none());
     }
 }

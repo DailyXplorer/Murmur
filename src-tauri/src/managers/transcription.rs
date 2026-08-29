@@ -3,7 +3,6 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::codex_transcribe;
-#[cfg(target_os = "macos")]
 use crate::gemini_transcribe::GeminiTranscriber;
 use crate::settings::{get_settings, TranscriptionProvider};
 use anyhow::Result;
@@ -18,7 +17,6 @@ const SUPPORTED_LANGUAGES: &[&str] = &[
 /// Routes audio through the selected cloud transcription provider.
 pub struct TranscriptionManager {
     app_handle: AppHandle,
-    #[cfg(target_os = "macos")]
     gemini: GeminiTranscriber,
 }
 
@@ -27,7 +25,6 @@ impl TranscriptionManager {
     pub fn new(app_handle: &AppHandle) -> Self {
         Self {
             app_handle: app_handle.clone(),
-            #[cfg(target_os = "macos")]
             gemini: GeminiTranscriber::new(),
         }
     }
@@ -62,18 +59,7 @@ impl TranscriptionManager {
             TranscriptionProvider::Codex => {
                 codex_transcribe::transcribe(&audio, language.as_deref())
             }
-            TranscriptionProvider::Gemini => {
-                #[cfg(target_os = "macos")]
-                {
-                    self.gemini.transcribe(&audio)
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    Err(anyhow::anyhow!(
-                        "Gemini transcription is currently available on macOS only."
-                    ))
-                }
-            }
+            TranscriptionProvider::Gemini => self.gemini.transcribe(&audio),
         }
         .map_err(|err| {
             error!("{provider:?} transcription failed: {err}");
@@ -116,7 +102,6 @@ impl TranscriptionManager {
 
     /// Releases provider resources before the application exits.
     pub fn shutdown(&self) {
-        #[cfg(target_os = "macos")]
         self.gemini.shutdown();
     }
 }

@@ -173,25 +173,6 @@ async changePasteMethodSetting(method: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getAvailableTypingTools() : Promise<string[]> {
-    return await TAURI_INVOKE("get_available_typing_tools");
-},
-async changeTypingToolSetting(tool: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_typing_tool_setting", { tool }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async changeExternalScriptPathSetting(path: string | null) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_external_script_path_setting", { path }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async changeClipboardHandlingSetting(handling: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_clipboard_handling_setting", { handling }) };
@@ -320,14 +301,6 @@ async changeShowTrayIconSetting(enabled: boolean) : Promise<Result<null, string>
     else return { status: "error", error: String(e) };
 }
 },
-async triggerUpdateCheck() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("trigger_update_check") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async showMainWindowCommand() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("show_main_window_command") };
@@ -338,9 +311,6 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
 },
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
-},
-async isPortable() : Promise<boolean> {
-    return await TAURI_INVOKE("is_portable");
 },
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
@@ -457,25 +427,6 @@ async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getMicrophoneMode() : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_microphone_mode") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async getWindowsMicrophonePermissionStatus() : Promise<WindowsMicrophonePermissionStatus> {
-    return await TAURI_INVOKE("get_windows_microphone_permission_status");
-},
-async openMicrophonePrivacySettings() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("open_microphone_privacy_settings") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async getAvailableMicrophones() : Promise<Result<AudioDevice[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_available_microphones") };
@@ -487,14 +438,6 @@ async getAvailableMicrophones() : Promise<Result<AudioDevice[], string>> {
 async setSelectedMicrophone(deviceName: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_selected_microphone", { deviceName }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async getSelectedMicrophone() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_selected_microphone") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -516,14 +459,6 @@ async setSelectedOutputDevice(deviceName: string) : Promise<Result<null, string>
     else return { status: "error", error: String(e) };
 }
 },
-async getSelectedOutputDevice() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_selected_output_device") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async playTestSound(soundType: string) : Promise<void> {
     await TAURI_INVOKE("play_test_sound", { soundType });
 },
@@ -537,17 +472,6 @@ async setClamshellMicrophone(deviceName: string) : Promise<Result<null, string>>
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
-},
-async getClamshellMicrophone() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_clamshell_microphone") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async isRecording() : Promise<boolean> {
-    return await TAURI_INVOKE("is_recording");
 },
 async getMicrophoneChannels(deviceName: string) : Promise<Result<number, string>> {
     try {
@@ -593,8 +517,8 @@ async openAntigravity() : Promise<Result<null, string>> {
 /**
  * Marks onboarding as complete in Murmur's settings store.
  * 
- * Returns an error string only if the command contract changes to expose a
- * persistence failure; the current store API completes synchronously.
+ * Keeps the selected provider when its session is usable, otherwise switches
+ * to the available provider. Onboarding remains incomplete if neither works.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
@@ -720,24 +644,23 @@ selected_channel?: number | null; clamshell_microphone?: string | null; selected
 /**
  * Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
  * after the target app actually reads the transcript, instead of after a
- * fixed delay. See `paste_tx`. macOS and Windows only.
+ * fixed delay. See `paste_tx`. macOS only.
  */
-reliable_paste?: boolean; typing_tool?: TypingTool; external_script_path?: string | null; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
+reliable_paste?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CodexAuthStatus = { signed_in: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
-export type GeminiStatus = { available_on_platform: boolean; installed: boolean; signed_in: boolean }
+export type GeminiStatus = { installed: boolean; signed_in: boolean }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
-export type PasteMethod = "ctrl_v" | "direct" | "none" | "shift_insert" | "ctrl_shift_v" | "external_script"
-export type PermissionAccess = "allowed" | "denied" | "unknown"
+export type PasteMethod = "ctrl_v" | "direct" | "none"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
@@ -747,8 +670,6 @@ export type SoundTheme = "marimba" | "pop" | "custom"
  */
 export type Theme = "system" | "light" | "dark"
 export type TranscriptionProvider = "codex" | "gemini"
-export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
-export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
 
 /** tauri-specta globals **/
 

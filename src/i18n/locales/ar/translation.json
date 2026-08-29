@@ -342,7 +342,6 @@
       "installAntigravity": "تثبيت",
       "openAntigravity": "فتح Antigravity",
       "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
-      "onboardingDescriptionCodex": "سجّل الدخول إلى Codex قبل المتابعة.",
       "groups": {
         "service": "الخدمة",
         "processing": "معالجة النص",

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type as osType } from "@tauri-apps/plugin-os";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { commands } from "@/bindings";
 import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
@@ -21,7 +20,6 @@ const EMPTY_CODEX_STATUS: CodexAuthStatus = { signed_in: false };
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
-  const isMacOS = osType() === "macos";
   const [codexStatus, setCodexStatus] = useState<CodexAuthStatus | null>(null);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null);
   const [geminiStatusError, setGeminiStatusError] = useState(false);
@@ -79,24 +77,22 @@ export const TranscriptionSettings: React.FC = () => {
   return (
     <SettingsPage label={t("sidebar.transcription")}>
       <SettingsGroup title={t("settings.transcription.groups.service")}>
-        {isMacOS && (
-          <SettingContainer
-            title={t("settings.transcription.providerTitle")}
-            description={t("settings.transcription.providerDescription")}
-            grouped={true}
-          >
-            <Dropdown
-              options={providerOptions}
-              selectedValue={provider}
-              className="w-[260px]"
-              onSelect={(value) => {
-                if (value !== "codex" && value !== "gemini") return;
-                void updateSetting("transcription_provider", value);
-              }}
-              disabled={isUpdating("transcription_provider")}
-            />
-          </SettingContainer>
-        )}
+        <SettingContainer
+          title={t("settings.transcription.providerTitle")}
+          description={t("settings.transcription.providerDescription")}
+          grouped={true}
+        >
+          <Dropdown
+            options={providerOptions}
+            selectedValue={provider}
+            className="w-[260px]"
+            onSelect={(value) => {
+              if (value !== "codex" && value !== "gemini") return;
+              void updateSetting("transcription_provider", value);
+            }}
+            disabled={isUpdating("transcription_provider")}
+          />
+        </SettingContainer>
 
         <SettingContainer
           title={t("settings.transcription.codex")}
@@ -108,47 +104,43 @@ export const TranscriptionSettings: React.FC = () => {
           </span>
         </SettingContainer>
 
-        {isMacOS && (
-          <SettingContainer
-            title={t("settings.transcription.gemini")}
-            description={t("settings.transcription.geminiDescription")}
-            grouped={true}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-text/80">
-                {geminiStatusError
-                  ? t("settings.transcription.statusUnavailable")
-                  : geminiStatus == null
-                    ? t("settings.transcription.checking")
-                    : !geminiStatus.installed
-                      ? t("settings.transcription.notInstalled")
-                      : sessionLabel(geminiStatus.signed_in)}
-              </span>
-              {!geminiStatusError &&
-                geminiStatus &&
-                !geminiStatus.installed && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void openUrl("https://antigravity.google/")}
-                  >
-                    {t("settings.transcription.installAntigravity")}
-                  </Button>
-                )}
-              {!geminiStatusError &&
-                geminiStatus?.installed &&
-                !geminiStatus.signed_in && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void openAntigravity()}
-                  >
-                    {t("settings.transcription.openAntigravity")}
-                  </Button>
-                )}
-            </div>
-          </SettingContainer>
-        )}
+        <SettingContainer
+          title={t("settings.transcription.gemini")}
+          description={t("settings.transcription.geminiDescription")}
+          grouped={true}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text/80">
+              {geminiStatusError
+                ? t("settings.transcription.statusUnavailable")
+                : geminiStatus == null
+                  ? t("settings.transcription.checking")
+                  : !geminiStatus.installed
+                    ? t("settings.transcription.notInstalled")
+                    : sessionLabel(geminiStatus.signed_in)}
+            </span>
+            {!geminiStatusError && geminiStatus && !geminiStatus.installed && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void openUrl("https://antigravity.google/")}
+              >
+                {t("settings.transcription.installAntigravity")}
+              </Button>
+            )}
+            {!geminiStatusError &&
+              geminiStatus?.installed &&
+              !geminiStatus.signed_in && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void openAntigravity()}
+                >
+                  {t("settings.transcription.openAntigravity")}
+                </Button>
+              )}
+          </div>
+        </SettingContainer>
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>

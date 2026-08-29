@@ -1,6 +1,6 @@
 import React from "react";
 
-export interface ProgressData {
+interface ProgressData {
   id: string;
   percentage: number;
   speed?: number;

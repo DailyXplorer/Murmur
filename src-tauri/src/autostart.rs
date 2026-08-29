@@ -1,7 +1,6 @@
 //! Launch-at-login (autostart) handling.
 //!
-//! All platforms apply the setting through tauri-plugin-autostart, except
-//! macOS 13+ where the app registers itself as a login item via
+//! macOS 13+ registers the app as a login item via
 //! `SMAppService`. The plugin's launch agent plist carries no app
 //! association, so the System Settings Login Items pane attributes it to the
 //! code-signing certificate's developer name instead of the app (#337).
@@ -11,15 +10,13 @@
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 
-/// Apply the user's autostart preference using the best mechanism for the
-/// current platform.
+/// Apply the user's autostart preference using the newest available macOS API.
 ///
 /// Errors are logged rather than returned: the preference is re-applied on
 /// every launch, so a transient failure self-heals and must not block
 /// startup. This mirrors the pre-existing behavior of ignoring
 /// enable()/disable() results.
 pub fn apply_autostart(app: &AppHandle, enabled: bool) {
-    #[cfg(target_os = "macos")]
     if macos::login_item_api_available() {
         macos::remove_plugin_launch_agent(app);
         macos::set_login_item(enabled);
@@ -41,7 +38,6 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     }
 }
 
-#[cfg(target_os = "macos")]
 mod macos {
     use std::path::{Path, PathBuf};
 

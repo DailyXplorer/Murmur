@@ -12,7 +12,7 @@ import { LANGUAGE_METADATA } from "@/i18n/languages";
  * @param langCode - The language code (e.g., 'ar', 'en', 'he')
  * @returns true if the language is RTL, false otherwise
  */
-export const isRTLLanguage = (langCode: string): boolean => {
+const isRTLLanguage = (langCode: string): boolean => {
   if (!langCode) return false;
   const code = langCode.split("-")[0].toLowerCase();
   return LANGUAGE_METADATA[code]?.direction === "rtl";

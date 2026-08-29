@@ -25,5 +25,4 @@ jobs:
       sign-binaries: true
       asset-prefix: "murmur-test"
       upload-artifacts: true
-      is-debug-build: ${{ contains(matrix.args, '--debug') }}
     secrets: inherit

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type } from "@tauri-apps/plugin-os";
 import { checkAccessibilityPermission } from "tauri-plugin-macos-permissions-api";
 import { CircleNotchIcon } from "@phosphor-icons/react/dist/csr/CircleNotch";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
@@ -20,9 +19,6 @@ const AccessibilityPermissions: React.FC = () => {
     useState<PermissionState>("request");
   const [isRepairing, setIsRepairing] = useState(false);
 
-  // Accessibility permissions are only required on macOS
-  const isMacOS = type() === "macos";
-
   // Handle the unified button action based on current state
   const handleButtonClick = async (): Promise<void> => {
     if (isRepairing || permissionState === "granted") return;
@@ -39,10 +35,7 @@ const AccessibilityPermissions: React.FC = () => {
     }
   };
 
-  // On app boot - check permissions (only on macOS)
   useEffect(() => {
-    if (!isMacOS) return;
-
     const initialSetup = async (): Promise<void> => {
       const hasPermissions: boolean = await checkAccessibilityPermission();
       if (hasPermissions) {
@@ -52,10 +45,10 @@ const AccessibilityPermissions: React.FC = () => {
     };
 
     initialSetup();
-  }, [isMacOS]);
+  }, []);
 
   useEffect(() => {
-    if (!isMacOS || permissionState !== "waiting") return;
+    if (permissionState !== "waiting") return;
 
     const refreshPermission = async (): Promise<void> => {
       try {
@@ -72,10 +65,9 @@ const AccessibilityPermissions: React.FC = () => {
     const interval = setInterval(() => void refreshPermission(), 1000);
 
     return () => clearInterval(interval);
-  }, [isMacOS, permissionState]);
+  }, [permissionState]);
 
-  // Skip rendering on non-macOS platforms or if permission is already granted
-  if (!isMacOS || hasAccessibility) {
+  if (hasAccessibility) {
     return null;
   }
 

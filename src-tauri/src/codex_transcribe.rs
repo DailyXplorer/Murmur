@@ -180,17 +180,12 @@ fn user_home() -> Option<PathBuf> {
 }
 
 fn user_agent() -> String {
-    let os = if cfg!(target_os = "macos") {
-        "Mac OS"
-    } else {
-        "Linux"
-    };
     let arch = if cfg!(target_arch = "aarch64") {
         "arm64"
     } else {
         "x64"
     };
-    format!("Murmur/{} ({os}; {arch})", env!("CARGO_PKG_VERSION"))
+    format!("Murmur/{} (Mac OS; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
 fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {

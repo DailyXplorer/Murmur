@@ -909,7 +909,7 @@ checksum = "064badf302c3194842cf2c5d61f56cc88e54a759313879cdf03abdd27d0c3b97"
 dependencies = [
  "bitflags 2.11.0",
  "core-foundation 0.10.1",
- "core-graphics-types 0.2.0",
+ "core-graphics-types",
  "foreign-types 0.5.0",
  "libc",
 ]
@@ -1394,7 +1394,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71c6c56e50f7acae2906a0dcbb34529ca647e40421119ad5d12e7f8ba6e50010"
 dependencies = [
  "core-foundation 0.10.1",
- "core-graphics 0.25.0",
+ "core-graphics",
  "foreign-types-shared 0.3.1",
  "libc",
  "log",
@@ -3103,8 +3103,6 @@ dependencies = [
  "tauri-nspanel",
  "tauri-plugin-autostart",
  "tauri-plugin-clipboard-manager",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-log",
  "tauri-plugin-macos-permissions",
@@ -4585,30 +4583,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rfd"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a15ad77d9e70a92437d8f74c35d99b4e4691128df018833e99f90bcd36152672"
-dependencies = [
- "block2",
- "dispatch2",
- "glib-sys",
- "gobject-sys",
- "gtk-sys",
- "js-sys",
- "log",
- "objc2",
- "objc2-app-kit",
- "objc2-core-foundation",
- "objc2-foundation",
- "raw-window-handle",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "windows-sys 0.60.2",
-]
-
-[[package]]
 name = "ring"
 version = "0.17.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5676,12 +5650,13 @@ dependencies = [
 [[package]]
 name = "tao"
 version = "0.35.3"
-source = "git+https://github.com/tauri-apps/tao?rev=da7441aa06a03df2298d09909d95eb99070aa6c9#da7441aa06a03df2298d09909d95eb99070aa6c9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1c93047acf68669466a34690ac58cca7010bd1b201e1ec86f1fd0a75d3dd4a9"
 dependencies = [
  "bitflags 2.11.0",
  "block2",
  "core-foundation 0.10.1",
- "core-graphics 0.25.0",
+ "core-graphics",
  "crossbeam-channel",
  "dbus",
  "dispatch2",
@@ -5714,8 +5689,9 @@ dependencies = [
 
 [[package]]
 name = "tao-macros"
-version = "0.1.3"
-source = "git+https://github.com/tauri-apps/tao?rev=da7441aa06a03df2298d09909d95eb99070aa6c9#da7441aa06a03df2298d09909d95eb99070aa6c9"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f7eeb6d99155545da6150a1795945f16ac9c178deb2a5f2e74d776107bd5849"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5917,46 +5893,6 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "tauri-plugin-dialog"
-version = "2.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9204b425d9be8d12aa60c2a83a289cf7d1caae40f57f336ed1155b3a5c0e359b"
-dependencies = [
- "log",
- "raw-window-handle",
- "rfd",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "tauri-plugin-fs",
- "thiserror 2.0.18",
- "url",
-]
-
-[[package]]
-name = "tauri-plugin-fs"
-version = "2.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed390cc669f937afeb8b28032ce837bac8ea023d975a2e207375ec05afaf1804"
-dependencies = [
- "anyhow",
- "dunce",
- "glob",
- "percent-encoding",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "serde_repr",
- "tauri",
- "tauri-plugin",
- "tauri-utils",
- "thiserror 2.0.18",
- "toml 0.9.12+spec-1.1.0",
- "url",
 ]
 
 [[package]]
@@ -6408,7 +6344,7 @@ checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "bytes",
  "libc",
- "mio 1.1.1",
+ "mio",
  "pin-project-lite",
  "socket2",
  "tokio-macros",

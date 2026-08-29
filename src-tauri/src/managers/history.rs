@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
 use std::path::PathBuf;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 /// Database migrations for transcription history.
@@ -122,12 +122,10 @@ pub struct HistoryManager {
 
 impl HistoryManager {
     pub fn new(app_handle: &AppHandle) -> Result<Self> {
-        // Create recordings directory in app data dir
-        let app_data_dir = crate::portable::app_data_dir(app_handle)?;
+        let app_data_dir = app_handle.path().app_data_dir()?;
         let recordings_dir = app_data_dir.join("recordings");
         let db_path = app_data_dir.join("history.db");
 
-        // Ensure recordings directory exists
         if !recordings_dir.exists() {
             fs::create_dir_all(&recordings_dir)?;
             debug!("Created recordings directory: {:?}", recordings_dir);

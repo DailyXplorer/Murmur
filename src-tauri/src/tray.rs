@@ -1,4 +1,4 @@
-use crate::accent::{self, NativeIconState};
+use crate::accent;
 use crate::managers::history::{HistoryEntry, HistoryManager};
 use crate::settings;
 use crate::tray_i18n::get_tray_translations;
@@ -35,21 +35,14 @@ impl CurrentTrayIconState {
 
 pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     let tray = app.state::<TrayIcon>();
-    let accent_color = settings::get_settings(app).accent_color;
 
-    // Store current state
     app.state::<CurrentTrayIconState>().set(icon);
 
     let icon_started = std::time::Instant::now();
-    let native_state = match icon {
-        TrayIconState::Idle => NativeIconState::Idle,
-        TrayIconState::Recording => NativeIconState::Recording,
-        TrayIconState::Transcribing => NativeIconState::Transcribing,
-    };
-    match accent::tray_icon(accent_color, native_state) {
+    match accent::tray_icon() {
         Ok(image) => {
             if let Err(error) =
-                tray.set_icon_with_as_template(Some(image), accent::tray_icon_is_template())
+                tray.set_icon_with_as_template(Some(image), accent::TRAY_ICON_IS_TEMPLATE)
             {
                 error!("Failed to update tray icon: {error}");
             }
@@ -62,9 +55,8 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     let menu_started = std::time::Instant::now();
     update_tray_menu(app, None);
     debug!(
-        "tray icon change ({:?}): accent={:?} set_icon={:?} menu={:?}",
+        "tray icon change ({:?}): set_icon={:?} menu={:?}",
         icon,
-        accent_color,
         icon_elapsed,
         menu_started.elapsed()
     );
@@ -96,11 +88,7 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
     let locale = locale.unwrap_or(&settings.app_language);
     let strings = get_tray_translations(Some(locale.to_string()));
 
-    // Platform-specific accelerators
-    #[cfg(target_os = "macos")]
     let (settings_accelerator, quit_accelerator) = (Some("Cmd+,"), Some("Cmd+Q"));
-    #[cfg(not(target_os = "macos"))]
-    let (settings_accelerator, quit_accelerator) = (Some("Ctrl+,"), Some("Ctrl+Q"));
 
     // Create common menu items
     let version_label = version_label();

@@ -342,7 +342,6 @@
       "installAntigravity": "安装",
       "openAntigravity": "打开 Antigravity",
       "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。",
-      "onboardingDescriptionCodex": "请先登录 Codex，然后再继续。",
       "groups": {
         "service": "服务",
         "processing": "文本处理",

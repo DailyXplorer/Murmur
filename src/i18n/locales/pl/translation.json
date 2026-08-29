@@ -342,7 +342,6 @@
       "installAntigravity": "Zainstaluj",
       "openAntigravity": "Otwórz Antigravity",
       "onboardingDescription": "Przed kontynuowaniem zaloguj się do Codex lub Antigravity.",
-      "onboardingDescriptionCodex": "Przed kontynuowaniem zaloguj się do Codex.",
       "groups": {
         "service": "Usługa",
         "processing": "Przetwarzanie tekstu",

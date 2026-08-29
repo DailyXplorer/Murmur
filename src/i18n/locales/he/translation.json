@@ -342,7 +342,6 @@
       "installAntigravity": "התקנה",
       "openAntigravity": "פתיחת Antigravity",
       "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים.",
-      "onboardingDescriptionCodex": "יש להתחבר ל-Codex לפני שממשיכים.",
       "groups": {
         "service": "שירות",
         "processing": "עיבוד טקסט",

@@ -2,7 +2,6 @@ use enigo::{Enigo, Key, Keyboard, Mouse, Settings};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
-#[cfg(target_os = "macos")]
 mod macos {
     use super::Key;
     use log::{debug, warn};
@@ -166,8 +165,7 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
     enigo.location().ok()
 }
 
-/// Sends a Ctrl+V or Cmd+V paste command using platform-specific virtual key codes.
-/// This ensures the paste works regardless of keyboard layout (e.g., Russian, AZERTY, DVORAK).
+/// Sends Cmd+V using the physical key for the active keyboard layout.
 ///
 /// `hold_ms` is how long the modifier stays held after the V click before being
 /// released. Most applications read the modifier from the V event's flags and
@@ -176,10 +174,7 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
 /// against those. Callers that can detect a failed chord (e.g. the
 /// receipt-sequenced paste path) may use a much shorter hold.
 pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
     let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
-    #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
 
     // Press modifier + V
     enigo
@@ -196,44 +191,6 @@ pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> 
         .map_err(|e| format!("Failed to release modifier key: {}", e))?;
 
     Ok(())
-}
-
-/// Sends a Ctrl+Shift+V paste command.
-pub fn send_paste_ctrl_shift_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
-    #[cfg(not(target_os = "macos"))]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
-
-    // Press Ctrl/Cmd + Shift + V
-    enigo
-        .key(modifier_key, enigo::Direction::Press)
-        .map_err(|e| format!("Failed to press modifier key: {}", e))?;
-    enigo
-        .key(Key::Shift, enigo::Direction::Press)
-        .map_err(|e| format!("Failed to press Shift key: {}", e))?;
-    enigo
-        .key(v_key_code, enigo::Direction::Click)
-        .map_err(|e| format!("Failed to click V key: {}", e))?;
-
-    std::thread::sleep(std::time::Duration::from_millis(hold_ms));
-
-    enigo
-        .key(Key::Shift, enigo::Direction::Release)
-        .map_err(|e| format!("Failed to release Shift key: {}", e))?;
-    enigo
-        .key(modifier_key, enigo::Direction::Release)
-        .map_err(|e| format!("Failed to release modifier key: {}", e))?;
-
-    Ok(())
-}
-
-/// Shift+Insert is not a macOS paste chord. `enigo::Key::Insert` is not a
-/// macOS variant, and `Key::Other(0x76)` is F4 (`kVK_F4`), so emitting that
-/// chord would type Shift+F4. Existing `paste_method=shift_insert` settings
-/// therefore use the native Cmd+V paste instead.
-pub fn send_paste_shift_insert(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    send_paste_ctrl_v(enigo, hold_ms)
 }
 
 /// Pastes text directly using the enigo text method.

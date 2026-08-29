@@ -6,7 +6,7 @@ interface FloatingLayerValues {
   tooltip: number;
 }
 
-export const DEFAULT_FLOATING_LAYERS: FloatingLayerValues = {
+const DEFAULT_FLOATING_LAYERS: FloatingLayerValues = {
   floatingContent: LAYER_Z_INDEX.floatingContent,
   tooltip: LAYER_Z_INDEX.tooltip,
 };

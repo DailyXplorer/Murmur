@@ -6,7 +6,7 @@ pub mod tauri_impl;
 use crate::accent;
 use crate::settings::{
     self, AccentColor, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle,
-    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider, TypingTool,
+    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider,
 };
 use crate::tray;
 use log::{debug, warn};
@@ -187,7 +187,6 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
     };
     value.theme = parsed;
     settings::write_settings(&app, value);
-    #[cfg(target_os = "macos")]
     apply_window_theme(&app, parsed);
     let _ = app.emit("theme-changed", parsed);
     Ok(())
@@ -218,7 +217,6 @@ pub fn change_accent_color_setting(app: AppHandle, accent_color: String) -> Resu
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
 pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
     let theme = match theme {
         Theme::System => None,
@@ -248,24 +246,18 @@ pub fn change_transcription_provider_setting(
     provider: TranscriptionProvider,
 ) -> Result<(), String> {
     if provider == TranscriptionProvider::Gemini {
-        #[cfg(not(target_os = "macos"))]
-        return Err("Gemini transcription is currently available on macOS only.".to_string());
-
-        #[cfg(target_os = "macos")]
-        {
-            let status = crate::gemini_transcribe::status();
-            if !status.installed {
-                return Err(
-                    "Antigravity is not installed. Install it before selecting Gemini transcription."
-                        .to_string(),
-                );
-            }
-            if !status.signed_in {
-                return Err(
-                    "No Antigravity session was found. Open Antigravity, sign in, and retry."
-                        .to_string(),
-                );
-            }
+        let status = crate::gemini_transcribe::status();
+        if !status.installed {
+            return Err(
+                "Antigravity is not installed. Install it before selecting Gemini transcription."
+                    .to_string(),
+            );
+        }
+        if !status.signed_in {
+            return Err(
+                "No Antigravity session was found. Open Antigravity, sign in, and retry."
+                    .to_string(),
+            );
         }
     }
 
@@ -440,46 +432,8 @@ pub fn change_paste_method_setting(app: AppHandle, method: String) -> Result<(),
         "ctrl_v" => PasteMethod::CtrlV,
         "direct" => PasteMethod::Direct,
         "none" => PasteMethod::None,
-        "shift_insert" => PasteMethod::ShiftInsert.supported_on_macos(),
-        "ctrl_shift_v" => PasteMethod::CtrlShiftV,
-        "external_script" => PasteMethod::ExternalScript,
         _ => return Err(format!("Invalid paste method: {method}")),
     };
-    settings::write_settings(&app, value);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn get_available_typing_tools() -> Vec<String> {
-    vec!["auto".to_string()]
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_typing_tool_setting(app: AppHandle, tool: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.typing_tool = match tool.as_str() {
-        "auto" => TypingTool::Auto,
-        "wtype" => TypingTool::Wtype,
-        "kwtype" => TypingTool::Kwtype,
-        "dotool" => TypingTool::Dotool,
-        "ydotool" => TypingTool::Ydotool,
-        "xdotool" => TypingTool::Xdotool,
-        _ => return Err(format!("Invalid typing tool: {tool}")),
-    };
-    settings::write_settings(&app, value);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_external_script_path_setting(
-    app: AppHandle,
-    path: Option<String>,
-) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.external_script_path = path;
     settings::write_settings(&app, value);
     Ok(())
 }

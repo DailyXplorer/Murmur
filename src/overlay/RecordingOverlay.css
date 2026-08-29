@@ -79,9 +79,7 @@
  * `--s-surface` and `--s-accent` honour the setting for free because they derive
  * from shared palette tokens, but the neutrals above are chosen here, so without
  * this block a forced theme on a differently-themed OS mixes the two — e.g. dark
- * surface with light-theme secondary text at ~2.8:1 contrast. macOS masks that
- * (setting the app appearance flips the webview's `prefers-color-scheme` to
- * match), so this is what Windows and Linux need.
+ * surface with light-theme secondary text at ~2.8:1 contrast.
  */
 :root[data-theme="light"] {
   --s-accent-soft: var(--light-s-accent-soft);
@@ -106,7 +104,7 @@
    top) and centered horizontally, so the visible card sits exactly
    OVERLAY_*_OFFSET from the screen edge regardless of window height — only the
    offsets in overlay.rs move it. Pops scale from that edge, so the card is never
-   drawn past it (matters for the 4px top offset on Windows/Linux).
+   drawn past it.
    ============================================================ */
 .ov-stage {
   position: fixed;
@@ -257,7 +255,6 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
   mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
   scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* legacy Edge */
 }
 /* Hide the scrollbar (WebKit/Chromium) — scroll-back is signalled by the fade. */
 .stext-cap::-webkit-scrollbar {

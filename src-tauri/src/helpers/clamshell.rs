@@ -1,11 +1,9 @@
-#[cfg(target_os = "macos")]
 use std::process::Command;
 
 /// Checks if the MacBook is in clamshell mode (lid closed with external display)
 ///
 /// This queries the macOS IORegistry for the AppleClamshellState key.
 /// Returns true if the lid is closed, false if open.
-#[cfg(target_os = "macos")]
 pub fn is_clamshell() -> Result<bool, String> {
     let output = Command::new("ioreg")
         .args(["-r", "-k", "AppleClamshellState", "-d", "4"])
@@ -29,7 +27,6 @@ pub fn is_clamshell() -> Result<bool, String> {
 ///
 /// This uses pmset to check for battery information.
 /// Returns true if a battery is detected (laptop), false otherwise (desktop)
-#[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
 pub fn is_laptop() -> Result<bool, String> {
@@ -45,28 +42,11 @@ pub fn is_laptop() -> Result<bool, String> {
     Ok(stdout.contains("InternalBattery"))
 }
 
-/// Stub implementation for non-macOS platforms
-/// Always returns false since clamshell mode is macOS-specific
-#[cfg(not(target_os = "macos"))]
-pub fn is_clamshell() -> Result<bool, String> {
-    Ok(false)
-}
-
-/// Stub implementation for non-macOS platforms
-/// Always returns false since laptop detection is macOS-specific
-#[cfg(not(target_os = "macos"))]
-#[tauri::command]
-#[specta::specta]
-pub fn is_laptop() -> Result<bool, String> {
-    Ok(false)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "macos")]
     fn test_clamshell_check() {
         // This will run on macOS and should not panic
         let result = is_clamshell();
@@ -75,7 +55,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "macos")]
     fn test_is_laptop() {
         let result = is_laptop();
         assert!(result.is_ok());

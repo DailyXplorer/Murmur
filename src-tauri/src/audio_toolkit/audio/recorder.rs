@@ -90,7 +90,7 @@ impl AudioRecorder {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let (init_tx, init_rx) = mpsc::sync_channel::<Result<(), String>>(1);
 
-        let host = crate::audio_toolkit::get_cpal_host();
+        let host = cpal::default_host();
         let device = match device {
             Some(dev) => dev,
             None => host

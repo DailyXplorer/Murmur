@@ -342,7 +342,6 @@
       "installAntigravity": "설치",
       "openAntigravity": "Antigravity 열기",
       "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하세요.",
-      "onboardingDescriptionCodex": "계속하기 전에 Codex에 로그인하세요.",
       "groups": {
         "service": "서비스",
         "processing": "텍스트 처리",
