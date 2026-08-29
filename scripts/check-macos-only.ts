@@ -95,6 +95,11 @@ const forbiddenRustText = [
   "WindowsMicrophonePermissionStatus",
   "get_windows_microphone_permission_status",
   "open_microphone_privacy_settings",
+  "get_microphone_mode",
+  "get_selected_microphone",
+  "get_selected_output_device",
+  "get_clamshell_microphone",
+  "trigger_update_check",
 ];
 
 for (const relativePath of rustFiles) {
@@ -120,7 +125,13 @@ const frontendFiles = [
 ];
 for (const relativePath of frontendFiles) {
   const source = read(relativePath);
-  for (const text of ["typing_tool", "external_script_path", "useOsType"]) {
+  for (const text of [
+    "typing_tool",
+    "external_script_path",
+    "useOsType",
+    "available_on_platform",
+    "data-platform",
+  ]) {
     if (source.includes(text)) {
       failures.push(
         `legacy frontend symbol '${text}' remains: ${relativePath}`,
@@ -147,8 +158,19 @@ for (const dependency of [
     failures.push(`unused frontend dependency remains: ${dependency}`);
   }
 }
-if ("@types/react-select" in packageJson.devDependencies) {
-  failures.push("unused frontend dependency remains: @types/react-select");
+for (const dependency of [
+  "@types/react-select",
+  "@typescript-eslint/eslint-plugin",
+]) {
+  if (dependency in packageJson.devDependencies) {
+    failures.push(`unused frontend dependency remains: ${dependency}`);
+  }
+}
+
+for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
+  if (read(relativePath).includes('"onboardingDescriptionCodex"')) {
+    failures.push(`obsolete translation remains: ${relativePath}`);
+  }
 }
 
 const cargoManifest = read("src-tauri/Cargo.toml");
@@ -157,6 +179,9 @@ for (const text of [
   "tauri-plugin-fs",
   "[patch.crates-io]",
   "[target.'cfg(",
+  "staticlib",
+  "cdylib",
+  "murmur_app_lib",
 ]) {
   if (cargoManifest.includes(text)) {
     failures.push(`obsolete Cargo configuration remains: ${text}`);

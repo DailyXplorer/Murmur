@@ -70,7 +70,7 @@
   }
 }
 
-:root[data-platform="macos"] {
+:root {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 

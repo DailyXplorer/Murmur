@@ -10,8 +10,8 @@
 //! for the operating system to tell us that a consumer actually read the
 //! clipboard — a "receipt" — before restoring:
 //!
-//! - macOS: `declareTypes:owner:` with an owner object, the pasteboard calls
-//!   `pasteboard:provideDataForType:` on read.
+//! On macOS, `declareTypes:owner:` installs an owner object and the pasteboard
+//! calls `pasteboard:provideDataForType:` on read.
 //!
 //! Two rules make the receipt trustworthy:
 //!
@@ -32,8 +32,6 @@
 use std::time::{Duration, Instant};
 
 mod macos;
-
-use macos as platform;
 
 /// How long after the *last* observed read the transcript stays on the
 /// clipboard before restoring. Covers applications that read the clipboard
@@ -65,8 +63,7 @@ pub(crate) struct TxState {
     pub receipts: Vec<Instant>,
     /// Someone else took clipboard ownership (user copied elsewhere, ...).
     pub ownership_lost: bool,
-    /// A newer paste transaction settled this one early (see flush logic in
-    /// the platform modules).
+    /// A newer paste transaction settled this one early.
     pub cancelled: bool,
     /// The post-paste Enter (auto-submit) has been sent for this transaction.
     /// (The macOS path settles via `MacPending::settled`.)
@@ -123,7 +120,7 @@ pub(crate) enum WaitDecision {
 }
 
 /// Pure decision: given the current transaction state, keep waiting for the
-/// target to read, or finish now. Both platform event loops call this.
+/// target to read, or finish now.
 pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     if state.ownership_lost || state.cancelled {
         return WaitDecision::Finish;
@@ -161,7 +158,7 @@ pub(crate) fn send_chord(enigo: &mut enigo::Enigo) -> Result<(), String> {
 }
 
 /// Attempts the receipt-sequenced paste. Returns `Err` before anything has
-/// been published when the platform transaction cannot start, in which case
+/// been published when the macOS transaction cannot start, in which case
 /// the caller should fall back to the legacy paste path. On `Ok`, publishing
 /// and chord injection have completed and the guarded restore (plus
 /// auto-submit) finishes asynchronously.
@@ -173,7 +170,7 @@ pub(crate) fn try_reliable_paste(
     auto_submit_key: crate::settings::AutoSubmitKey,
     clipboard_handling: crate::settings::ClipboardHandling,
 ) -> Result<(), String> {
-    platform::run(
+    macos::run(
         text,
         app_handle,
         enigo,

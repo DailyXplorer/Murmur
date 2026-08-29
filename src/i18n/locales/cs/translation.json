@@ -335,8 +335,7 @@
       "notInstalled": "Antigravity není nainstalován",
       "installAntigravity": "Nainstalovat",
       "openAntigravity": "Otevřít Antigravity",
-      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity.",
-      "onboardingDescriptionCodex": "Než budete pokračovat, přihlaste se do Codexu."
+      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity."
     }
   },
   "footer": {

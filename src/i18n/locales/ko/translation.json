@@ -335,8 +335,7 @@
       "notInstalled": "Antigravity가 설치되지 않음",
       "installAntigravity": "설치",
       "openAntigravity": "Antigravity 열기",
-      "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하세요.",
-      "onboardingDescriptionCodex": "계속하기 전에 Codex에 로그인하세요."
+      "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하세요."
     }
   },
   "footer": {

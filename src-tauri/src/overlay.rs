@@ -5,13 +5,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
-#[cfg(target_os = "macos")]
 use tauri::WebviewUrl;
 
-#[cfg(target_os = "macos")]
 use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelBuilder, PanelLevel, StyleMask};
 
-#[cfg(target_os = "macos")]
 tauri_panel! {
     panel!(RecordingOverlayPanel {
         config: {
@@ -121,15 +118,13 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
-#[cfg(target_os = "macos")]
 fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Option<(f64, f64)> {
     let size = window.inner_size().ok()?;
     let scale = window.scale_factor().ok()?;
     Some((size.width as f64 / scale, size.height as f64 / scale))
 }
 
-/// Creates the recording overlay panel and keeps it hidden by default (macOS)
-#[cfg(target_os = "macos")]
+/// Creates the recording overlay panel and keeps it hidden by default.
 pub fn create_recording_overlay(app_handle: &AppHandle) {
     match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
         .url(WebviewUrl::App("src/overlay/index.html".into()))
@@ -238,9 +233,7 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
     let _ = app_handle.run_on_main_thread(move || update_overlay_position_on_main(&handle));
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 fn update_overlay_position_on_main(app_handle: &AppHandle) {
-    #[cfg(target_os = "macos")]
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));

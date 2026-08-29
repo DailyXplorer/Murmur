@@ -490,8 +490,8 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     settings
 }
 
-/// Loads persisted settings, repairing invalid fields and platform-unsupported
-/// transcription providers before returning them.
+/// Loads persisted settings, repairing invalid fields and obsolete values
+/// before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
@@ -786,7 +786,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_platform_settings_fall_back_without_resetting_other_fields() {
+    fn obsolete_settings_fall_back_without_resetting_other_fields() {
         for legacy_paste_method in ["shift_insert", "ctrl_shift_v", "external_script"] {
             let mut stored = default_settings_json();
             let stored = stored.as_object_mut().unwrap();

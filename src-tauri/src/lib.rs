@@ -1,3 +1,6 @@
+#[cfg(not(target_os = "macos"))]
+compile_error!("Murmur supports macOS only.");
+
 mod accent;
 mod actions;
 mod audio_feedback;
@@ -7,12 +10,10 @@ pub mod cli;
 mod clipboard;
 mod codex_transcribe;
 mod commands;
-#[cfg(target_os = "macos")]
 mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
-mod memory;
 mod overlay;
 mod paste_tx;
 mod settings;
@@ -116,7 +117,6 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
-#[cfg(target_os = "macos")]
 fn settings_window_collection_behavior(
     mut behavior: objc2_app_kit::NSWindowCollectionBehavior,
 ) -> objc2_app_kit::NSWindowCollectionBehavior {
@@ -127,12 +127,10 @@ fn settings_window_collection_behavior(
     behavior
 }
 
-#[cfg(target_os = "macos")]
 fn settings_window_needs_order_out(is_visible: bool, is_on_active_space: bool) -> bool {
     is_visible && !is_on_active_space
 }
 
-#[cfg(target_os = "macos")]
 fn prepare_settings_window_for_active_space(
     main_window: &tauri::WebviewWindow,
 ) -> tauri::Result<()> {
@@ -164,42 +162,26 @@ fn prepare_settings_window_for_active_space(
 
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
-        #[cfg(target_os = "macos")]
-        {
-            let app = app.clone();
-            let window = main_window.clone();
-            if let Err(e) = main_window.run_on_main_thread(move || {
-                if let Err(e) = prepare_settings_window_for_active_space(&window) {
-                    log::error!("Failed to prepare settings window for active Space: {}", e);
-                }
-                if let Err(e) = window.unminimize() {
-                    log::error!("Failed to unminimize webview window: {}", e);
-                }
-                if let Err(e) = window.show() {
-                    log::error!("Failed to show webview window: {}", e);
-                }
-                if let Err(e) = window.set_focus() {
-                    log::error!("Failed to focus webview window: {}", e);
-                }
-                if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
-                    log::error!("Failed to set activation policy to Regular: {}", e);
-                }
-            }) {
-                log::error!("Failed to schedule settings window presentation: {}", e);
+        let app = app.clone();
+        let window = main_window.clone();
+        if let Err(e) = main_window.run_on_main_thread(move || {
+            if let Err(e) = prepare_settings_window_for_active_space(&window) {
+                log::error!("Failed to prepare settings window for active Space: {}", e);
             }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            if let Err(e) = main_window.unminimize() {
+            if let Err(e) = window.unminimize() {
                 log::error!("Failed to unminimize webview window: {}", e);
             }
-            if let Err(e) = main_window.show() {
+            if let Err(e) = window.show() {
                 log::error!("Failed to show webview window: {}", e);
             }
-            if let Err(e) = main_window.set_focus() {
+            if let Err(e) = window.set_focus() {
                 log::error!("Failed to focus webview window: {}", e);
             }
+            if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
+                log::error!("Failed to set activation policy to Regular: {}", e);
+            }
+        }) {
+            log::error!("Failed to schedule settings window presentation: {}", e);
         }
         return;
     }
@@ -231,36 +213,23 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
-    // The frontend is responsible for calling the `initialize_shortcuts` command
-    // after permissions are confirmed (on macOS) or after onboarding completes.
+    // The frontend calls `initialize_shortcuts` after permissions are confirmed.
     // This matches the pattern used for Enigo initialization.
 
-    // Set up signal handlers for toggling transcription. On Linux, SIGUSR1 is
-    // deliberately not handled — it belongs to WebKitGTK's garbage collector
-    // (#1660) — see signal_handle.rs.
-    #[cfg(unix)]
     signal_handle::setup_signal_handler(app_handle.clone());
 
-    // Apply macOS Accessory policy if starting hidden and tray is available.
     // If the tray icon is disabled, keep the dock icon so the user can reopen.
-    #[cfg(target_os = "macos")]
-    {
-        let settings = settings::get_settings(app_handle);
-        if settings.start_hidden && settings.show_tray_icon {
-            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
-        }
+    let settings = settings::get_settings(app_handle);
+    if settings.start_hidden && settings.show_tray_icon {
+        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
     }
     let initial_icon = accent::tray_icon().expect("failed to build initial tray icon");
 
-    let mut tray_builder = TrayIconBuilder::new()
+    let tray_builder = TrayIconBuilder::new()
         .icon(initial_icon)
         .tooltip(tray::tray_tooltip())
-        .icon_as_template(accent::TRAY_ICON_IS_TEMPLATE);
-
-    #[cfg(target_os = "macos")]
-    {
-        tray_builder = tray_builder.show_menu_on_left_click(true);
-    }
+        .icon_as_template(accent::TRAY_ICON_IS_TEMPLATE)
+        .show_menu_on_left_click(true);
 
     let tray = tray_builder
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -300,24 +269,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         tray::set_tray_visibility(app_handle, false);
     }
 
-    // Apply the autostart preference (SMAppService login item on macOS 13+,
-    // tauri-plugin-autostart elsewhere)
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
-    #[cfg(target_os = "macos")]
     utils::create_recording_overlay(app_handle);
-}
-
-#[tauri::command]
-#[specta::specta]
-fn trigger_update_check(app: AppHandle) -> Result<(), String> {
-    let settings = settings::get_settings(&app);
-    if !settings.update_checks_enabled {
-        return Ok(());
-    }
-    app.emit("check-for-updates", ())
-        .map_err(|e| e.to_string())?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -432,11 +386,8 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     0
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// Starts the Tauri application and shuts down transcription on process exit.
 pub fn run(cli_args: CliArgs) {
-    memory::init_allocator();
-
     // Parse console logging directives from RUST_LOG, falling back to info-level logging
     // when the variable is unset
     let console_filter = build_console_filter();
@@ -480,7 +431,6 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_show_whats_new_on_update_setting,
             shortcut::change_whats_new_last_seen_version_setting,
             shortcut::change_show_tray_icon_setting,
-            trigger_update_check,
             show_main_window_command,
             commands::cancel_operation,
             commands::get_app_dir_path,
@@ -495,20 +445,13 @@ pub fn run(cli_args: CliArgs) {
             commands::initialize_enigo,
             commands::initialize_shortcuts,
             commands::audio::update_microphone_mode,
-            commands::audio::get_microphone_mode,
-            commands::audio::get_windows_microphone_permission_status,
-            commands::audio::open_microphone_privacy_settings,
             commands::audio::get_available_microphones,
             commands::audio::set_selected_microphone,
-            commands::audio::get_selected_microphone,
             commands::audio::get_available_output_devices,
             commands::audio::set_selected_output_device,
-            commands::audio::get_selected_output_device,
             commands::audio::play_test_sound,
             commands::audio::check_custom_sounds,
             commands::audio::set_clamshell_microphone,
-            commands::audio::get_clamshell_microphone,
-            commands::audio::is_recording,
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
@@ -546,7 +489,6 @@ pub fn run(cli_args: CliArgs) {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .device_event_filter(tauri::DeviceEventFilter::Always)
-        .plugin(tauri_plugin_dialog::init())
         .plugin(
             LogBuilder::new()
                 .level(log::LevelFilter::Trace) // Set to most verbose level globally
@@ -588,10 +530,7 @@ pub fn run(cli_args: CliArgs) {
                 .build(),
         );
 
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder.plugin(tauri_nspanel::init());
-    }
+    builder = builder.plugin(tauri_nspanel::init());
 
     // Single-instance forwards CLI args to an already-running Murmur and exits.
     // That would make the headless path
@@ -611,7 +550,6 @@ pub fn run(cli_args: CliArgs) {
     }
 
     builder
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
@@ -664,16 +602,13 @@ pub fn run(cli_args: CliArgs) {
                     .visible(false)
                     .build()?;
 
-            #[cfg(target_os = "macos")]
             prepare_settings_window_for_active_space(&main_window)?;
 
             let mut settings = get_settings(app.handle());
 
             // Apply the persisted appearance theme to the native title bar before
             // the window is shown, so it matches the in-app palette without a flash
-            // of the wrong theme. See `apply_window_theme` for what this does per
-            // platform.
-            #[cfg(target_os = "macos")]
+            // of the wrong theme.
             shortcut::apply_window_theme(app.handle(), settings.theme);
 
             if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
@@ -729,21 +664,16 @@ pub fn run(cli_args: CliArgs) {
                 api.prevent_close();
                 let _res = window.hide();
 
-                #[cfg(target_os = "macos")]
-                {
-                    let settings = get_settings(window.app_handle());
-                    let tray_visible =
-                        settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
-                    if tray_visible {
-                        // Tray is available: hide the dock icon, app lives in the tray
-                        let res = window
-                            .app_handle()
-                            .set_activation_policy(tauri::ActivationPolicy::Accessory);
-                        if let Err(e) = res {
-                            log::error!("Failed to set activation policy: {}", e);
-                        }
+                let settings = get_settings(window.app_handle());
+                let tray_visible =
+                    settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
+                if tray_visible {
+                    let res = window
+                        .app_handle()
+                        .set_activation_policy(tauri::ActivationPolicy::Accessory);
+                    if let Err(e) = res {
+                        log::error!("Failed to set activation policy: {}", e);
                     }
-                    // No tray: keep the dock icon visible so the user can reopen
                 }
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
@@ -757,7 +687,6 @@ pub fn run(cli_args: CliArgs) {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match &event {
-            #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
             }
@@ -774,10 +703,8 @@ pub fn run(cli_args: CliArgs) {
 mod headless_guard_tests {
     use super::{normalize_generated_bindings_source, run_headless_guarded};
 
-    #[cfg(target_os = "macos")]
     use super::{settings_window_collection_behavior, settings_window_needs_order_out};
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn settings_window_moves_to_active_space_without_joining_every_space() {
         use objc2_app_kit::NSWindowCollectionBehavior;
@@ -791,7 +718,6 @@ mod headless_guard_tests {
         assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn settings_window_is_reordered_only_when_visible_on_another_space() {
         assert!(settings_window_needs_order_out(true, false));

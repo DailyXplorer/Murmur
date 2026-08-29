@@ -335,8 +335,7 @@
       "notInstalled": "Antigravity yüklü değil",
       "installAntigravity": "Yükle",
       "openAntigravity": "Antigravity'yi aç",
-      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın.",
-      "onboardingDescriptionCodex": "Devam etmeden önce Codex'te oturum açın."
+      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın."
     }
   },
   "footer": {

@@ -59,11 +59,11 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
   - `audio/` - Device enumeration, recording, resampling
 - `commands/` - Tauri command handlers for frontend communication
 - `cli.rs` - CLI argument definitions (clap derive)
-- `shortcut.rs` - Global keyboard shortcut handling
+- `shortcut/` - Global keyboard shortcut handling
 - `settings.rs` - Application settings management
-- `overlay.rs` - Recording overlay window (platform-specific)
+- `overlay.rs` - Native macOS recording overlay window
 - `signal_handle.rs` - `send_transcription_input()` reusable function
-- `utils.rs` - Platform detection helpers
+- `utils.rs` - Tray, window, and application helpers
 
 ### Frontend Structure (src/)
 

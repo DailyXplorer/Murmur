@@ -335,8 +335,7 @@
       "notInstalled": "Antigravity not installed",
       "installAntigravity": "Install",
       "openAntigravity": "Open Antigravity",
-      "onboardingDescription": "Sign in to Codex or Antigravity before continuing.",
-      "onboardingDescriptionCodex": "Sign in to Codex before continuing."
+      "onboardingDescription": "Sign in to Codex or Antigravity before continuing."
     }
   },
   "footer": {

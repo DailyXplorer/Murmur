@@ -11,26 +11,20 @@ use tauri::{Emitter, Manager};
 const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn set_mute(mute: bool) {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let script = format!(
-            "set volume output muted {}",
-            if mute { "true" } else { "false" }
-        );
-        let _ = Command::new("osascript").args(["-e", &script]).output();
-    }
-    #[cfg(not(target_os = "macos"))]
-    let _ = mute;
+    use std::process::Command;
+    let script = format!(
+        "set volume output muted {}",
+        if mute { "true" } else { "false" }
+    );
+    let _ = Command::new("osascript").args(["-e", &script]).output();
 }
 
-/// Reads the current system output mute state, mirroring `set_mute`'s backends.
+/// Reads the current system output mute state, mirroring `set_mute`.
 ///
 /// Returns `Some(true)`/`Some(false)` when the state could be determined, or
-/// `None` when it couldn't (unsupported platform, missing CLI tools, or an
-/// error). Callers treat `None` as "unknown" and fall back to unmuting on stop,
+/// `None` when `osascript` is missing or returns an error. Callers treat `None`
+/// as "unknown" and fall back to unmuting on stop,
 /// so we never strand the user's audio muted.
-#[cfg(target_os = "macos")]
 fn get_mute() -> Option<bool> {
     use std::process::Command;
 
@@ -46,11 +40,6 @@ fn get_mute() -> Option<bool> {
         "false" => Some(false),
         _ => None,
     }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn get_mute() -> Option<bool> {
-    None
 }
 
 /// Restores the system mute state after our forced mute, given the state

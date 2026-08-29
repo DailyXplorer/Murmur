@@ -45,9 +45,6 @@ interface SettingsStore {
   setCustomSounds: (sounds: { start: boolean; stop: boolean }) => void;
 }
 
-// Note: Default settings are now fetched from Rust via commands.getDefaultSettings()
-// This ensures platform-specific defaults (like overlay_position, shortcuts, paste_method) work correctly
-
 const DEFAULT_AUDIO_DEVICE: AudioDevice = {
   index: "default",
   name: "Default",

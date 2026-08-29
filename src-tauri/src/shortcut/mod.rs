@@ -187,7 +187,6 @@ pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String>
     };
     value.theme = parsed;
     settings::write_settings(&app, value);
-    #[cfg(target_os = "macos")]
     apply_window_theme(&app, parsed);
     let _ = app.emit("theme-changed", parsed);
     Ok(())
@@ -218,7 +217,6 @@ pub fn change_accent_color_setting(app: AppHandle, accent_color: String) -> Resu
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
 pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
     let theme = match theme {
         Theme::System => None,
@@ -248,24 +246,18 @@ pub fn change_transcription_provider_setting(
     provider: TranscriptionProvider,
 ) -> Result<(), String> {
     if provider == TranscriptionProvider::Gemini {
-        #[cfg(not(target_os = "macos"))]
-        return Err("Gemini transcription is currently available on macOS only.".to_string());
-
-        #[cfg(target_os = "macos")]
-        {
-            let status = crate::gemini_transcribe::status();
-            if !status.installed {
-                return Err(
-                    "Antigravity is not installed. Install it before selecting Gemini transcription."
-                        .to_string(),
-                );
-            }
-            if !status.signed_in {
-                return Err(
-                    "No Antigravity session was found. Open Antigravity, sign in, and retry."
-                        .to_string(),
-                );
-            }
+        let status = crate::gemini_transcribe::status();
+        if !status.installed {
+            return Err(
+                "Antigravity is not installed. Install it before selecting Gemini transcription."
+                    .to_string(),
+            );
+        }
+        if !status.signed_in {
+            return Err(
+                "No Antigravity session was found. Open Antigravity, sign in, and retry."
+                    .to_string(),
+            );
         }
     }
 
