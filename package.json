@@ -14,6 +14,8 @@
     "format:check": "prettier --check . && cd src-tauri && cargo fmt -- --check",
     "format:frontend": "prettier --write .",
     "format:backend": "cd src-tauri && cargo fmt",
+    "icons:generate": "cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons",
+    "icons:check": "cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check",
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
     "check:translations": "bun scripts/check-translations.ts",
