@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "לחץ כדי לדבר",
         "description": "החזק כדי להקליט, שחרר כדי לעצור"
+      },
+      "groups": {
+        "appearance": "מראה"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "פלט",
         "transcription": "תמלול",
         "history": "היסטוריה",
-        "experimental": "ניסיוני"
+        "experimental": "ניסיוני",
+        "updates": "עדכונים",
+        "storage": "אחסון"
       },
       "experimentalToggle": {
         "label": "תכונות ניסיוניות",
@@ -204,7 +209,8 @@
       "retranscribe": "תמלל מחדש",
       "retranscribeError": "תמלול מחדש נכשל. נסה שוב.",
       "transcribing": "מתמלל...",
-      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר."
+      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר.",
+      "preferences": "העדפות"
     },
     "debug": {
       "title": "ניפוי שגיאות",
@@ -336,7 +342,12 @@
       "installAntigravity": "התקנה",
       "openAntigravity": "פתיחת Antigravity",
       "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים.",
-      "onboardingDescriptionCodex": "יש להתחבר ל-Codex לפני שממשיכים."
+      "onboardingDescriptionCodex": "יש להתחבר ל-Codex לפני שממשיכים.",
+      "groups": {
+        "service": "שירות",
+        "processing": "עיבוד טקסט",
+        "output": "פלט"
+      }
     }
   },
   "footer": {

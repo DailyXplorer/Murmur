@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "पुश टु टक",
         "description": "रेकर्ड गर्न थिचिराख्नुहोस्, रोक्न छोड्नुहोस्"
+      },
+      "groups": {
+        "appearance": "रूप"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "आउटपुट",
         "transcription": "ट्रान्सक्रिप्सन",
         "history": "हिस्ट्री",
-        "experimental": "प्रयोगात्मक"
+        "experimental": "प्रयोगात्मक",
+        "updates": "अद्यावधिकहरू",
+        "storage": "भण्डारण"
       },
       "experimentalToggle": {
         "label": "प्रयोगात्मक सुविधाहरू",
@@ -204,7 +209,8 @@
       "retranscribe": "फेरि ट्रान्सक्राइब गर्नुहोस्",
       "retranscribeError": "फेरि ट्रान्सक्राइब गर्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।",
       "transcribing": "ट्रान्सक्राइब गरिँदैछ...",
-      "transcriptionFailed": "ट्रान्सक्रिप्सन गर्न सकिएन। रिट्राई आइकन प्रयोग गरेर फेरि ट्रान्सक्राइब गर्न सक्नुहुन्छ।"
+      "transcriptionFailed": "ट्रान्सक्रिप्सन गर्न सकिएन। रिट्राई आइकन प्रयोग गरेर फेरि ट्रान्सक्राइब गर्न सक्नुहुन्छ।",
+      "preferences": "प्राथमिकताहरू"
     },
     "debug": {
       "title": "डिबग",
@@ -336,7 +342,12 @@
       "installAntigravity": "स्थापना गर्नुहोस्",
       "openAntigravity": "Antigravity खोल्नुहोस्",
       "onboardingDescription": "अघि बढ्नुअघि Codex वा Antigravity मा साइन इन गर्नुहोस्।",
-      "onboardingDescriptionCodex": "अघि बढ्नुअघि Codex मा साइन इन गर्नुहोस्।"
+      "onboardingDescriptionCodex": "अघि बढ्नुअघि Codex मा साइन इन गर्नुहोस्।",
+      "groups": {
+        "service": "सेवा",
+        "processing": "पाठ प्रशोधन",
+        "output": "आउटपुट"
+      }
     }
   },
   "footer": {

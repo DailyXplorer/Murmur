@@ -48,25 +48,6 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-        <div className="h-8 bg-gray-100 rounded"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-600 text-sm">
-          {t("errors.loadDirectory", { error })}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <SettingContainer
       title={t("settings.about.appDataDirectory.title")}
@@ -75,11 +56,25 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
       grouped={grouped}
       layout="stacked"
     >
-      <PathDisplay
-        path={appDirPath}
-        onOpen={handleOpen}
-        disabled={!appDirPath}
-      />
+      {loading ? (
+        <div
+          className="h-10 animate-pulse rounded-md bg-mid-gray/10"
+          aria-hidden="true"
+        />
+      ) : error ? (
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error/10 p-3 text-sm text-error"
+        >
+          {t("errors.loadDirectory", { error })}
+        </p>
+      ) : (
+        <PathDisplay
+          path={appDirPath}
+          onOpen={handleOpen}
+          disabled={!appDirPath}
+        />
+      )}
     </SettingContainer>
   );
 };

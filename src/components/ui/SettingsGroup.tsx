@@ -1,31 +1,36 @@
 import React from "react";
 
 interface SettingsGroupProps {
-  title?: string;
+  title: string;
   description?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }
 
 export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   title,
   description,
+  action,
   children,
 }) => {
   return (
-    <div className="space-y-2">
-      {title && (
-        <div className="px-4">
-          <h2 className="text-xs font-medium text-mid-gray uppercase tracking-wide">
+    <section className="space-y-2">
+      <div className="flex min-h-6 items-center justify-between gap-4 px-4">
+        <div className="min-w-0">
+          <h2 className="text-balance text-xs font-medium uppercase tracking-wide text-mid-gray">
             {title}
           </h2>
           {description && (
-            <p className="text-xs text-mid-gray mt-1">{description}</p>
+            <p className="mt-1 text-pretty text-xs text-mid-gray">
+              {description}
+            </p>
           )}
         </div>
-      )}
-      <div className="bg-background border border-mid-gray/20 rounded-lg overflow-visible">
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      <div className="overflow-visible rounded-lg border border-mid-gray/20 bg-background">
         <div className="divide-y divide-mid-gray/20">{children}</div>
       </div>
-    </div>
+    </section>
   );
 };

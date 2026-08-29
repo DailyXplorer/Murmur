@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "按住说话",
         "description": "按住录制，松开停止"
+      },
+      "groups": {
+        "appearance": "外观"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "输出",
         "transcription": "转录",
         "history": "历史",
-        "experimental": "实验性"
+        "experimental": "实验性",
+        "updates": "更新",
+        "storage": "存储"
       },
       "experimentalToggle": {
         "label": "实验性功能",
@@ -204,7 +209,8 @@
       "retranscribe": "重新转录",
       "retranscribeError": "重新转录失败。请重试。",
       "transcribing": "转录中...",
-      "transcriptionFailed": "转录失败。您可以使用重试图标重新转录。"
+      "transcriptionFailed": "转录失败。您可以使用重试图标重新转录。",
+      "preferences": "偏好设置"
     },
     "debug": {
       "title": "调试",
@@ -336,7 +342,12 @@
       "installAntigravity": "安装",
       "openAntigravity": "打开 Antigravity",
       "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。",
-      "onboardingDescriptionCodex": "请先登录 Codex，然后再继续。"
+      "onboardingDescriptionCodex": "请先登录 Codex，然后再继续。",
+      "groups": {
+        "service": "服务",
+        "processing": "文本处理",
+        "output": "输出"
+      }
     }
   },
   "footer": {

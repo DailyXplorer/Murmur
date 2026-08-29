@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "プッシュツートーク",
         "description": "押し続けて録音、離して停止"
+      },
+      "groups": {
+        "appearance": "外観"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "出力",
         "transcription": "文字起こし",
         "history": "履歴",
-        "experimental": "実験的"
+        "experimental": "実験的",
+        "updates": "アップデート",
+        "storage": "ストレージ"
       },
       "experimentalToggle": {
         "label": "実験的な機能",
@@ -204,7 +209,8 @@
       "retranscribe": "再文字起こし",
       "retranscribeError": "再文字起こしに失敗しました。もう一度お試しください。",
       "transcribing": "文字起こし中…",
-      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。"
+      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。",
+      "preferences": "環境設定"
     },
     "debug": {
       "title": "デバッグ",
@@ -336,7 +342,12 @@
       "installAntigravity": "インストール",
       "openAntigravity": "Antigravity を開く",
       "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。",
-      "onboardingDescriptionCodex": "続行する前に Codex にログインしてください。"
+      "onboardingDescriptionCodex": "続行する前に Codex にログインしてください。",
+      "groups": {
+        "service": "サービス",
+        "processing": "テキスト処理",
+        "output": "出力"
+      }
     }
   },
   "footer": {

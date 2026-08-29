@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Naciśnij i mów",
         "description": "Przytrzymaj, aby nagrywać, puść, aby zatrzymać"
+      },
+      "groups": {
+        "appearance": "Wygląd"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Wyjście",
         "transcription": "Transkrypcja",
         "history": "Historia",
-        "experimental": "Eksperymentalne"
+        "experimental": "Eksperymentalne",
+        "updates": "Aktualizacje",
+        "storage": "Pamięć"
       },
       "experimentalToggle": {
         "label": "Funkcje Eksperymentalne",
@@ -204,7 +209,8 @@
       "retranscribe": "Transkrybuj ponownie",
       "retranscribeError": "Nie udało się ponownie transkrybować. Spróbuj ponownie.",
       "transcribing": "Transkrybuję...",
-      "transcriptionFailed": "Transkrypcja nie powiodła się. Możesz transkrybować ponownie za pomocą ikony ponowienia."
+      "transcriptionFailed": "Transkrypcja nie powiodła się. Możesz transkrybować ponownie za pomocą ikony ponowienia.",
+      "preferences": "Preferencje"
     },
     "debug": {
       "title": "Debugowanie",
@@ -336,7 +342,12 @@
       "installAntigravity": "Zainstaluj",
       "openAntigravity": "Otwórz Antigravity",
       "onboardingDescription": "Przed kontynuowaniem zaloguj się do Codex lub Antigravity.",
-      "onboardingDescriptionCodex": "Przed kontynuowaniem zaloguj się do Codex."
+      "onboardingDescriptionCodex": "Przed kontynuowaniem zaloguj się do Codex.",
+      "groups": {
+        "service": "Usługa",
+        "processing": "Przetwarzanie tekstu",
+        "output": "Wyjście"
+      }
     }
   },
   "footer": {

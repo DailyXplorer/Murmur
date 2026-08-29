@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Premi per Parlare",
         "description": "Tieni premuto per parlare, rilascia per interrompere"
+      },
+      "groups": {
+        "appearance": "Aspetto"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Output",
         "transcription": "Trascrizione",
         "history": "Cronologia",
-        "experimental": "Sperimentale"
+        "experimental": "Sperimentale",
+        "updates": "Aggiornamenti",
+        "storage": "Archiviazione"
       },
       "experimentalToggle": {
         "label": "Funzionalità Sperimentali",
@@ -204,7 +209,8 @@
       "retranscribe": "Ri-trascrivere",
       "retranscribeError": "Impossibile ri-trascrivere. Riprova.",
       "transcribing": "Trascrizione in corso...",
-      "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione."
+      "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione.",
+      "preferences": "Preferenze"
     },
     "debug": {
       "title": "Debug",
@@ -336,7 +342,12 @@
       "installAntigravity": "Installa",
       "openAntigravity": "Apri Antigravity",
       "onboardingDescription": "Accedi a Codex o Antigravity prima di continuare.",
-      "onboardingDescriptionCodex": "Accedi a Codex prima di continuare."
+      "onboardingDescriptionCodex": "Accedi a Codex prima di continuare.",
+      "groups": {
+        "service": "Servizio",
+        "processing": "Elaborazione del testo",
+        "output": "Output"
+      }
     }
   },
   "footer": {

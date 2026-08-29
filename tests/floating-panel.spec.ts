@@ -123,6 +123,32 @@ test.describe("floating settings panels", () => {
     await expect(page.getByRole("button", { name: "Option 2" })).toBeVisible();
   });
 
+  test("keeps a portaled tooltip open while the pointer crosses into it", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/floating-panel.html?tooltip=1");
+
+    const trigger = page.getByRole("button", {
+      name: "Tooltip description",
+    });
+    const tooltip = page.getByRole("tooltip");
+
+    await trigger.hover();
+    await expect(tooltip).toBeVisible();
+    await tooltip.hover();
+    await page.waitForTimeout(200);
+    await expect(tooltip).toBeVisible();
+
+    await page.getByTestId("outside-control").hover();
+    await expect(tooltip).toHaveCount(0);
+
+    await trigger.focus();
+    await expect(tooltip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tooltip).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test("supports selection, Escape, and outside-click dismissal", async ({
     page,
   }) => {

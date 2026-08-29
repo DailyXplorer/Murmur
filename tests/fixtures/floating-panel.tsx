@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { Dialog } from "../../src/components/ui/Dialog";
 import { Dropdown } from "../../src/components/ui/Dropdown";
 import { FloatingPanel } from "../../src/components/ui/FloatingPanel";
+import { SettingContainer } from "../../src/components/ui/SettingContainer";
 import "../../src/App.css";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -188,6 +189,23 @@ const DisabledTriggerFixture: React.FC = () => {
   );
 };
 
+/** Setting tooltip used to verify hover and keyboard behavior across its portal. */
+const TooltipFixture: React.FC = () => (
+  <div className="flex h-screen flex-col items-center justify-center gap-8 bg-background text-text">
+    <div className="w-96">
+      <SettingContainer
+        title="Tooltip setting"
+        description="Tooltip description"
+      >
+        <span>Enabled</span>
+      </SettingContainer>
+    </div>
+    <button data-testid="outside-control" type="button">
+      Outside control
+    </button>
+  </div>
+);
+
 /** Dropdown inside a scrollable ancestor used to assert clip-based dismissal. */
 const ScrollContainerFixture: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
@@ -247,6 +265,8 @@ const fixture = searchParams.has("multiple") ? (
   <MultiplePanelsFixture />
 ) : searchParams.has("dialog-layers") ? (
   <DialogLayeringFixture />
+) : searchParams.has("tooltip") ? (
+  <TooltipFixture />
 ) : searchParams.has("disabled-trigger") ? (
   <DisabledTriggerFixture />
 ) : searchParams.has("scroll-container") ? (

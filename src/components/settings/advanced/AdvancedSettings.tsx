@@ -1,21 +1,18 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ShowOverlay } from "../ShowOverlay";
-import { CustomWords } from "../CustomWords";
 import { SettingsGroup } from "../../ui/SettingsGroup";
+import { SettingsPage } from "../../ui/SettingsPage";
 import { StartHidden } from "../StartHidden";
 import { AutostartToggle } from "../AutostartToggle";
 import { ShowTrayIcon } from "../ShowTrayIcon";
-import { PasteMethodSetting } from "../PasteMethod";
-import { ClipboardHandlingSetting } from "../ClipboardHandling";
-import { AutoSubmit } from "../AutoSubmit";
-import { AppendTrailingSpace } from "../AppendTrailingSpace";
-import { HistoryLimit } from "../HistoryLimit";
-import { RecordingRetentionPeriodSelector } from "../RecordingRetentionPeriod";
 import { ExperimentalToggle } from "../ExperimentalToggle";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
-import { FillerWordRemoval } from "../FillerWordRemoval";
+import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
+import { UpdateChecksToggle } from "../UpdateChecksToggle";
+import { AppDataDirectory } from "../AppDataDirectory";
+import { LogDirectory } from "../debug";
 
 export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -23,40 +20,30 @@ export const AdvancedSettings: React.FC = () => {
   const experimentalEnabled = getSetting("experimental_enabled") || false;
 
   return (
-    <div className="max-w-3xl w-full mx-auto space-y-6">
+    <SettingsPage label={t("sidebar.advanced")}>
       <SettingsGroup title={t("settings.advanced.groups.app")}>
         <StartHidden descriptionMode="tooltip" grouped={true} />
         <AutostartToggle descriptionMode="tooltip" grouped={true} />
         <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+
+      <SettingsGroup title={t("settings.advanced.groups.updates")}>
+        <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />
+        <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+
+      <SettingsGroup title={t("settings.advanced.groups.storage")}>
+        <AppDataDirectory descriptionMode="tooltip" grouped={true} />
+        <LogDirectory descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+
+      <SettingsGroup title={t("settings.advanced.groups.experimental")}>
         <ExperimentalToggle descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
-
-      <SettingsGroup title={t("settings.advanced.groups.output")}>
-        <PasteMethodSetting descriptionMode="tooltip" grouped={true} />
-        <ClipboardHandlingSetting descriptionMode="tooltip" grouped={true} />
-        <AutoSubmit descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
-
-      <SettingsGroup title={t("settings.advanced.groups.transcription")}>
-        <FillerWordRemoval descriptionMode="tooltip" grouped={true} />
-        <CustomWords descriptionMode="tooltip" grouped />
-        <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
-
-      <SettingsGroup title={t("settings.advanced.groups.history")}>
-        <HistoryLimit descriptionMode="tooltip" grouped={true} />
-        <RecordingRetentionPeriodSelector
-          descriptionMode="tooltip"
-          grouped={true}
-        />
-      </SettingsGroup>
-
-      {experimentalEnabled && (
-        <SettingsGroup title={t("settings.advanced.groups.experimental")}>
+        {experimentalEnabled && (
           <LazyStreamClose descriptionMode="tooltip" grouped={true} />
-        </SettingsGroup>
-      )}
-    </div>
+        )}
+      </SettingsGroup>
+    </SettingsPage>
   );
 };

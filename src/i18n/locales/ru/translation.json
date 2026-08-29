@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "Нажми и говори",
         "description": "Удерживайте, чтобы записать, отпустите, чтобы остановить"
+      },
+      "groups": {
+        "appearance": "Внешний вид"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "Вывод",
         "transcription": "Транскрипция",
         "history": "История",
-        "experimental": "Экспериментальное"
+        "experimental": "Экспериментальное",
+        "updates": "Обновления",
+        "storage": "Хранилище"
       },
       "experimentalToggle": {
         "label": "Экспериментальные функции",
@@ -204,7 +209,8 @@
       "retranscribe": "Перетранскрибировать",
       "retranscribeError": "Не удалось перетранскрибировать. Пожалуйста, попробуйте снова.",
       "transcribing": "Транскрибирование...",
-      "transcriptionFailed": "Транскрипция не удалась. Вы можете перетранскрибировать, используя значок повтора."
+      "transcriptionFailed": "Транскрипция не удалась. Вы можете перетранскрибировать, используя значок повтора.",
+      "preferences": "Настройки"
     },
     "debug": {
       "title": "Отлаживать",
@@ -336,7 +342,12 @@
       "installAntigravity": "Установить",
       "openAntigravity": "Открыть Antigravity",
       "onboardingDescription": "Перед продолжением войдите в Codex или Antigravity.",
-      "onboardingDescriptionCodex": "Перед продолжением войдите в Codex."
+      "onboardingDescriptionCodex": "Перед продолжением войдите в Codex.",
+      "groups": {
+        "service": "Сервис",
+        "processing": "Обработка текста",
+        "output": "Вывод"
+      }
     }
   },
   "footer": {

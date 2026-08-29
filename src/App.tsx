@@ -45,8 +45,7 @@ const revealMainWindowForPermissions = async () => {
 };
 
 const renderSettingsContent = (section: SidebarSection) => {
-  const ActiveComponent =
-    SECTIONS_CONFIG[section]?.component || SECTIONS_CONFIG.general.component;
+  const ActiveComponent = SECTIONS_CONFIG[section].component;
   return <ActiveComponent />;
 };
 

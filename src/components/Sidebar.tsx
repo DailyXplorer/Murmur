@@ -7,6 +7,7 @@ import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
 import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
 import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
+import type { AppSettings } from "@/bindings";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -18,13 +19,11 @@ import {
   TranscriptionSettings,
 } from "./settings";
 
-export type SidebarSection = keyof typeof SECTIONS_CONFIG;
-
 interface SectionConfig {
   labelKey: string;
   icon: Icon;
   component: React.ComponentType;
-  enabled: (settings: any) => boolean;
+  enabled: (settings: AppSettings | null) => boolean;
 }
 
 export const SECTIONS_CONFIG = {
@@ -34,16 +33,16 @@ export const SECTIONS_CONFIG = {
     component: GeneralSettings,
     enabled: () => true,
   },
-  history: {
-    labelKey: "sidebar.history",
-    icon: ClockCounterClockwiseIcon,
-    component: HistorySettings,
-    enabled: () => true,
-  },
   transcription: {
     labelKey: "sidebar.transcription",
     icon: CloudIcon,
     component: TranscriptionSettings,
+    enabled: () => true,
+  },
+  history: {
+    labelKey: "sidebar.history",
+    icon: ClockCounterClockwiseIcon,
+    component: HistorySettings,
     enabled: () => true,
   },
   advanced: {
@@ -66,6 +65,17 @@ export const SECTIONS_CONFIG = {
   },
 } as const satisfies Record<string, SectionConfig>;
 
+export type SidebarSection = keyof typeof SECTIONS_CONFIG;
+
+const SECTION_ORDER: readonly SidebarSection[] = [
+  "general",
+  "transcription",
+  "history",
+  "advanced",
+  "debug",
+  "about",
+];
+
 interface SidebarProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
@@ -78,39 +88,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation();
   const { settings } = useSettings();
 
-  const availableSections = Object.entries(SECTIONS_CONFIG)
-    .filter(([_, config]) => config.enabled(settings))
-    .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
+  const availableSections = SECTION_ORDER.filter((sectionId) =>
+    SECTIONS_CONFIG[sectionId].enabled(settings),
+  );
 
   return (
-    <div className="flex flex-col w-40 h-full border-e border-mid-gray/20 items-center px-2">
+    <nav
+      aria-label={t("tray.settings")}
+      className="flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2"
+    >
       <MurmurTextLogo width={120} className="m-4" />
-      <div className="flex flex-col w-full items-center gap-1 pt-2 border-t border-mid-gray/20">
-        {availableSections.map((section) => {
+      <div className="flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-2">
+        {availableSections.map((sectionId) => {
+          const section = SECTIONS_CONFIG[sectionId];
           const Icon = section.icon;
-          const isActive = activeSection === section.id;
+          const isActive = activeSection === sectionId;
 
           return (
-            <div
-              key={section.id}
-              className={`flex gap-2 items-center p-2 w-full rounded-lg cursor-pointer transition-colors ${
+            <button
+              key={sectionId}
+              type="button"
+              aria-current={isActive ? "page" : undefined}
+              className={`flex min-h-10 w-full cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 p-2 text-start transition-[color,background-color,opacity,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] ${
                 isActive
                   ? "bg-background-ui text-on-accent hover:bg-background-ui-hover active:bg-background-ui-active"
-                  : "hover:bg-mid-gray/20 hover:opacity-100 opacity-85"
+                  : "bg-transparent opacity-85 hover:bg-mid-gray/20 hover:opacity-100"
               }`}
-              onClick={() => onSectionChange(section.id)}
+              onClick={() => onSectionChange(sectionId)}
             >
-              <Icon size={20} className="shrink-0" />
-              <p
-                className="text-sm font-medium truncate"
+              <Icon size={20} className="shrink-0" aria-hidden="true" />
+              <span
+                className="min-w-0 truncate text-sm font-medium"
                 title={t(section.labelKey)}
               >
                 {t(section.labelKey)}
-              </p>
-            </div>
+              </span>
+            </button>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 };

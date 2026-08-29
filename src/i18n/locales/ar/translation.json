@@ -74,6 +74,9 @@
       "pushToTalk": {
         "label": "اضغط للتحدث",
         "description": "استمر في الضغط للتسجيل، واترك للتوقف"
+      },
+      "groups": {
+        "appearance": "المظهر"
       }
     },
     "sound": {
@@ -111,7 +114,9 @@
         "output": "الإخراج",
         "transcription": "التفريغ الصوتي",
         "history": "السجل",
-        "experimental": "تجريبي"
+        "experimental": "تجريبي",
+        "updates": "التحديثات",
+        "storage": "التخزين"
       },
       "experimentalToggle": {
         "label": "الميزات التجريبية",
@@ -204,7 +209,8 @@
       "retranscribe": "إعادة النسخ",
       "retranscribeError": "فشلت إعادة النسخ. يرجى المحاولة مرة أخرى.",
       "transcribing": "جارٍ النسخ...",
-      "transcriptionFailed": "فشل النسخ. يمكنك إعادة النسخ باستخدام أيقونة إعادة المحاولة."
+      "transcriptionFailed": "فشل النسخ. يمكنك إعادة النسخ باستخدام أيقونة إعادة المحاولة.",
+      "preferences": "التفضيلات"
     },
     "debug": {
       "title": "تصحيح الأخطاء",
@@ -336,7 +342,12 @@
       "installAntigravity": "تثبيت",
       "openAntigravity": "فتح Antigravity",
       "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
-      "onboardingDescriptionCodex": "سجّل الدخول إلى Codex قبل المتابعة."
+      "onboardingDescriptionCodex": "سجّل الدخول إلى Codex قبل المتابعة.",
+      "groups": {
+        "service": "الخدمة",
+        "processing": "معالجة النص",
+        "output": "الإخراج"
+      }
     }
   },
   "footer": {
