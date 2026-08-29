@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Accessibility Access",
-        "description": "Required to type transcribed text into your applications."
+        "description": "Required to type transcribed text into your applications.",
+        "action": "Allow Access",
+        "waiting": "Turn on Murmur in System Settings."
       },
       "grant": "Grant Permission",
       "granted": "Granted",

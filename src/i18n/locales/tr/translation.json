@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Erişilebilirlik Erişimi",
-        "description": "Transkribe edilen metni uygulamalarınıza yazabilmek için gereklidir."
+        "description": "Transkribe edilen metni uygulamalarınıza yazabilmek için gereklidir.",
+        "action": "Erişime İzin Ver",
+        "waiting": "Sistem Ayarları'nda Murmur'u açın."
       },
       "grant": "İzin Ver",
       "granted": "Verildi",

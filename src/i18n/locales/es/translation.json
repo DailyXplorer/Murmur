@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Acceso de accesibilidad",
-        "description": "Necesario para escribir el texto transcrito en tus aplicaciones."
+        "description": "Necesario para escribir el texto transcrito en tus aplicaciones.",
+        "action": "Permitir acceso",
+        "waiting": "Activa Murmur en Ajustes del Sistema."
       },
       "grant": "Conceder permiso",
       "granted": "Concedido",

@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Dostęp do dostępności",
-        "description": "Wymagany do wpisywania transkrybowanego tekstu w Twoich aplikacjach."
+        "description": "Wymagany do wpisywania transkrybowanego tekstu w Twoich aplikacjach.",
+        "action": "Zezwól na dostęp",
+        "waiting": "Włącz Murmur w Ustawieniach systemowych."
       },
       "grant": "Przyznaj uprawnienie",
       "granted": "Przyznano",
