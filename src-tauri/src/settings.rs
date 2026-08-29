@@ -403,6 +403,7 @@ fn default_show_tray_icon() -> bool {
 }
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
+const OBSOLETE_SETTINGS_KEYS: [&str; 2] = ["typing_tool", "external_script_path"];
 
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = "option+space";
@@ -490,6 +491,22 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     settings
 }
 
+fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bool) {
+    let has_obsolete_keys = settings_value.as_object().is_some_and(|settings| {
+        OBSOLETE_SETTINGS_KEYS
+            .iter()
+            .any(|key| settings.contains_key(*key))
+    });
+
+    match serde_json::from_value::<AppSettings>(settings_value.clone()) {
+        Ok(settings) => (settings, has_obsolete_keys),
+        Err(e) => {
+            warn!("Failed to parse stored settings ({e}); salvaging valid fields");
+            (salvage_settings(settings_value), true)
+        }
+    }
+}
+
 /// Loads persisted settings, repairing invalid fields and obsolete values
 /// before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
@@ -498,14 +515,7 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
         .expect("Failed to initialize store");
 
     if let Some(settings_value) = store.get("settings") {
-        let (mut settings, mut updated) =
-            match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-                Ok(settings) => (settings, false),
-                Err(e) => {
-                    warn!("Failed to parse stored settings ({e}); salvaging valid fields");
-                    (salvage_settings(&settings_value), true)
-                }
-            };
+        let (mut settings, mut updated) = parse_stored_settings(&settings_value);
 
         // Merge in any bindings added since this store was written.
         for (key, value) in get_default_settings().bindings {
@@ -809,5 +819,33 @@ mod tests {
             assert!(repaired.get("typing_tool").is_none());
             assert!(repaired.get("external_script_path").is_none());
         }
+    }
+
+    #[test]
+    fn valid_store_without_obsolete_fields_does_not_require_rewrite() {
+        let (_, updated) = parse_stored_settings(&default_settings_json());
+        assert!(!updated);
+    }
+
+    #[test]
+    fn valid_store_with_obsolete_fields_is_marked_for_rewrite() {
+        let mut stored = default_settings_json();
+        let stored = stored.as_object_mut().unwrap();
+        stored.insert("selected_language".into(), serde_json::json!("de"));
+        stored.insert("paste_method".into(), serde_json::json!("direct"));
+        stored.insert("typing_tool".into(), serde_json::json!("wtype"));
+        stored.insert(
+            "external_script_path".into(),
+            serde_json::json!("/tmp/paste"),
+        );
+
+        let (settings, updated) = parse_stored_settings(&serde_json::Value::Object(stored.clone()));
+        assert!(updated);
+        assert_eq!(settings.selected_language, "de");
+        assert_eq!(settings.paste_method, PasteMethod::Direct);
+
+        let repaired = serde_json::to_value(settings).unwrap();
+        assert!(repaired.get("typing_tool").is_none());
+        assert!(repaired.get("external_script_path").is_none());
     }
 }
