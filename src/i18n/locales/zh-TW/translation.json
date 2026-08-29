@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "輔助使用存取",
-        "description": "需要將轉錄文字輸入到您的應用程式中"
+        "description": "需要將轉錄文字輸入到您的應用程式中",
+        "action": "允許存取",
+        "waiting": "請在「系統設定」中開啟 Murmur。"
       },
       "grant": "授予權限",
       "granted": "已授予",

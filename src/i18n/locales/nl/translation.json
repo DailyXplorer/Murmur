@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Toegankelijkheid",
-        "description": "Vereist om getranscribeerde tekst in je applicaties te kunnen typen."
+        "description": "Vereist om getranscribeerde tekst in je applicaties te kunnen typen.",
+        "action": "Toegang toestaan",
+        "waiting": "Schakel Murmur in bij Systeeminstellingen."
       },
       "grant": "Machtiging verlenen",
       "granted": "Verleend",

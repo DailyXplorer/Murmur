@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Přístup k usnadnění",
-        "description": "Potřebný pro psaní přepsaného textu do vašich aplikací."
+        "description": "Potřebný pro psaní přepsaného textu do vašich aplikací.",
+        "action": "Povolit přístup",
+        "waiting": "Zapněte Murmur v Nastavení systému."
       },
       "grant": "Udělit oprávnění",
       "granted": "Uděleno",

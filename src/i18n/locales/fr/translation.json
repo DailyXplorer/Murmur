@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Accès à l'accessibilité",
-        "description": "Nécessaire pour taper le texte transcrit dans vos applications."
+        "description": "Nécessaire pour taper le texte transcrit dans vos applications.",
+        "action": "Autoriser l'accès",
+        "waiting": "Activez Murmur dans Réglages Système."
       },
       "grant": "Accorder l'autorisation",
       "granted": "Accordé",
@@ -358,7 +360,7 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur a besoin des autorisations d'accessibilité pour taper le texte transcrit.",
-    "openSettings": "Ouvrir les Préférences Système"
+    "openSettings": "Ouvrir Réglages Système"
   },
   "errors": {
     "loadDirectory": "Erreur lors du chargement du répertoire : {{error}}",

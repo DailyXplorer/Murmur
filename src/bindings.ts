@@ -407,6 +407,24 @@ async openAppDataDir() : Promise<Result<null, string>> {
 }
 },
 /**
+ * Replace Murmur's stale Accessibility entry after an ad-hoc signed update.
+ * 
+ * macOS ties Accessibility decisions to the app's code requirement. Murmur's
+ * public builds currently use ad-hoc signing, so that requirement changes on
+ * every update even though the bundle ID and installation path stay the same.
+ * Reset only this running bundle's Accessibility decision, register the current
+ * process with the system prompt, and take the user straight to the correct
+ * privacy pane. Microphone and every other privacy decision are left untouched.
+ */
+async repairAccessibilityPermission() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("repair_accessibility_permission") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * Try to initialize Enigo (keyboard/mouse simulation).
  * On macOS, this will return an error if accessibility permissions are not granted.
  */

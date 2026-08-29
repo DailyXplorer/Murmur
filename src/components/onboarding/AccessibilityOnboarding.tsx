@@ -2,12 +2,12 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   checkAccessibilityPermission,
-  requestAccessibilityPermission,
   checkMicrophonePermission,
   requestMicrophonePermission,
 } from "tauri-plugin-macos-permissions-api";
 import { toast } from "sonner";
 import { commands } from "@/bindings";
+import { repairAccessibilityPermission } from "@/lib/macosPermissions";
 import { useSettingsStore } from "@/stores/settingsStore";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
@@ -54,6 +54,8 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     accessibility: "checking",
     microphone: "checking",
   });
+  const [isRepairingAccessibility, setIsRepairingAccessibility] =
+    useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const errorCountRef = useRef<number>(0);
@@ -171,13 +173,20 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   }, []);
 
   const handleGrantAccessibility = async () => {
+    if (isRepairingAccessibility) return;
+
+    setIsRepairingAccessibility(true);
+    setPermissions((prev) => ({ ...prev, accessibility: "waiting" }));
+
     try {
-      await requestAccessibilityPermission();
-      setPermissions((prev) => ({ ...prev, accessibility: "waiting" }));
+      await repairAccessibilityPermission();
       startPolling();
     } catch (error) {
-      console.error("Failed to request accessibility permission:", error);
+      console.error("Failed to repair accessibility permission:", error);
+      setPermissions((prev) => ({ ...prev, accessibility: "needed" }));
       toast.error(t("onboarding.permissions.errors.requestFailed"));
+    } finally {
+      setIsRepairingAccessibility(false);
     }
   };
 
@@ -225,10 +234,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
 
       <div className="max-w-md w-full flex flex-col items-center gap-4">
         <div className="text-center mb-2">
-          <h2 className="text-xl font-semibold text-text mb-2">
+          <h2 className="text-xl font-semibold text-text mb-2 text-balance">
             {t("onboarding.permissions.title")}
           </h2>
-          <p className="text-text/70">
+          <p className="text-text/70 text-pretty">
             {t("onboarding.permissions.description")}
           </p>
         </div>
@@ -242,7 +251,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               <h3 className="font-medium text-text">
                 {t("onboarding.permissions.microphone.title")}
               </h3>
-              <p className="text-sm text-text/60 mb-3">
+              <p className="text-sm text-text/60 mb-3 text-pretty">
                 {t("onboarding.permissions.microphone.description")}
               </p>
               {permissions.microphone === "granted" ? (
@@ -258,7 +267,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               ) : (
                 <button
                   onClick={handleGrantMicrophone}
-                  className="px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium transition-colors"
+                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
                 >
                   {t("onboarding.permissions.grant")}
                 </button>
@@ -276,7 +285,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
               <h3 className="font-medium text-text">
                 {t("onboarding.permissions.accessibility.title")}
               </h3>
-              <p className="text-sm text-text/60 mb-3">
+              <p className="text-sm text-text/60 mb-3 text-pretty">
                 {t("onboarding.permissions.accessibility.description")}
               </p>
               {permissions.accessibility === "granted" ? (
@@ -285,16 +294,29 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   {t("onboarding.permissions.granted")}
                 </div>
               ) : permissions.accessibility === "waiting" ? (
-                <div className="flex items-center gap-2 text-text/50 text-sm">
-                  <CircleNotchIcon size={15} className="animate-spin" />
-                  {t("onboarding.permissions.waiting")}
+                <div
+                  aria-live="polite"
+                  className="flex flex-wrap items-center gap-2 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
+                >
+                  <span className="flex min-h-10 items-center gap-2">
+                    <CircleNotchIcon size={15} className="animate-spin" />
+                    {t("onboarding.permissions.accessibility.waiting")}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isRepairingAccessibility}
+                    onClick={handleGrantAccessibility}
+                    className="min-h-10 rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+                  >
+                    {t("accessibility.openSettings")}
+                  </button>
                 </div>
               ) : (
                 <button
                   onClick={handleGrantAccessibility}
-                  className="px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium transition-colors"
+                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
                 >
-                  {t("onboarding.permissions.grant")}
+                  {t("onboarding.permissions.accessibility.action")}
                 </button>
               )}
             </div>
