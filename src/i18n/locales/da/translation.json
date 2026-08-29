@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Tilgængelighedsadgang",
-        "description": "Påkrævet for at skrive den transskriberede tekst ind i dine programmer."
+        "description": "Påkrævet for at skrive den transskriberede tekst ind i dine programmer.",
+        "action": "Tillad adgang",
+        "waiting": "Slå Murmur til i Systemindstillinger."
       },
       "grant": "Giv tilladelse",
       "granted": "Givet",

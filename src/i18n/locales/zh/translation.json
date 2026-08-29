@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "辅助功能访问",
-        "description": "需要将转录文本输入到您的应用程序中。"
+        "description": "需要将转录文本输入到您的应用程序中。",
+        "action": "允许访问",
+        "waiting": "在“系统设置”中开启 Murmur。"
       },
       "grant": "授予权限",
       "granted": "已授予",

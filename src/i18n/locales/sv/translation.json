@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Hjälpmedelsåtkomst",
-        "description": "Krävs för att skriva transkriberad text i dina program."
+        "description": "Krävs för att skriva transkriberad text i dina program.",
+        "action": "Tillåt åtkomst",
+        "waiting": "Aktivera Murmur i Systeminställningar."
       },
       "grant": "Bevilja behörighet",
       "granted": "Beviljad",

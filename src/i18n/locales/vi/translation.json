@@ -24,7 +24,9 @@
       },
       "accessibility": {
         "title": "Quyền truy cập Trợ năng",
-        "description": "Cần thiết để nhập văn bản đã chuyển đổi vào các ứng dụng của bạn."
+        "description": "Cần thiết để nhập văn bản đã chuyển đổi vào các ứng dụng của bạn.",
+        "action": "Cho phép truy cập",
+        "waiting": "Bật Murmur trong Cài đặt hệ thống."
       },
       "grant": "Cấp quyền",
       "granted": "Đã cấp",
