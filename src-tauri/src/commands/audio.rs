@@ -15,7 +15,9 @@ pub struct CustomSounds {
 }
 
 fn custom_sound_exists(app: &AppHandle, sound_type: &str) -> bool {
-    crate::portable::resolve_app_data(app, &format!("custom_{}.wav", sound_type))
+    app.path()
+        .app_data_dir()
+        .map(|directory| directory.join(format!("custom_{sound_type}.wav")))
         .is_ok_and(|path| path.exists())
 }
 

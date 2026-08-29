@@ -15,7 +15,6 @@ mod managers;
 mod memory;
 mod overlay;
 mod paste_tx;
-pub mod portable;
 mod settings;
 mod shortcut;
 mod signal_handle;
@@ -438,9 +437,6 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 pub fn run(cli_args: CliArgs) {
     memory::init_allocator();
 
-    // Detect portable mode before anything else
-    portable::init();
-
     // Parse console logging directives from RUST_LOG, falling back to info-level logging
     // when the variable is unset
     let console_filter = build_console_filter();
@@ -487,7 +483,6 @@ pub fn run(cli_args: CliArgs) {
             trigger_update_check,
             show_main_window_command,
             commands::cancel_operation,
-            commands::is_portable,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,
@@ -573,15 +568,8 @@ pub fn run(cli_args: CliArgs) {
                         move |metadata| console_filter.enabled(metadata)
                     }),
                     // File logs respect the user's settings (stored in FILE_LOG_LEVEL atomic)
-                    Target::new(if let Some(data_dir) = portable::data_dir() {
-                        TargetKind::Folder {
-                            path: data_dir.join("logs"),
-                            file_name: Some("murmur".into()),
-                        }
-                    } else {
-                        TargetKind::LogDir {
-                            file_name: Some("murmur".into()),
-                        }
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("murmur".into()),
                     })
                     .filter(|metadata| {
                         let file_level = FILE_LOG_LEVEL.load(Ordering::Relaxed);
@@ -666,22 +654,15 @@ pub fn run(cli_args: CliArgs) {
                 return Ok(());
             }
 
-            // Create main window programmatically so we can set data_directory
-            // for portable mode (redirects WebView2 cache to portable Data dir)
-            let mut win_builder =
+            let main_window =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Murmur")
                     .inner_size(680.0, 570.0)
                     .min_inner_size(680.0, 570.0)
                     .resizable(true)
                     .maximizable(true)
-                    .visible(false);
-
-            if let Some(data_dir) = portable::data_dir() {
-                win_builder = win_builder.data_directory(data_dir.join("webview"));
-            }
-
-            let main_window = win_builder.build()?;
+                    .visible(false)
+                    .build()?;
 
             #[cfg(target_os = "macos")]
             prepare_settings_window_for_active_space(&main_window)?;
