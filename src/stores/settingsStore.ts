@@ -57,6 +57,10 @@ let settingsChangedListenerUnlisten: Awaited<ReturnType<typeof listen>> | null =
   null;
 let settingsChangedListenerRegistration: Promise<void> | null = null;
 let settingsListenerDisposed = false;
+let settingsChangedListenerRetryTimer: number | null = null;
+let settingsChangedListenerRegistrationAttempts = 0;
+
+const SETTINGS_CHANGED_LISTENER_RETRY_DELAYS_MS = [250, 1000];
 
 const previousSettingsChangedListenerCleanup: Promise<void> =
   import.meta.hot?.data.settingsChangedListenerCleanup ?? Promise.resolve();
@@ -71,12 +75,91 @@ const unlistenSettingsChangedListener = async (
   }
 };
 
+const clearSettingsChangedListenerRetry = () => {
+  if (settingsChangedListenerRetryTimer !== null) {
+    window.clearTimeout(settingsChangedListenerRetryTimer);
+    settingsChangedListenerRetryTimer = null;
+  }
+};
+
+const scheduleSettingsChangedListenerRetry = (get: () => SettingsStore) => {
+  if (
+    settingsListenerDisposed ||
+    settingsChangedListenerRegistered ||
+    settingsChangedListenerRetryTimer !== null
+  ) {
+    return;
+  }
+
+  const delay =
+    SETTINGS_CHANGED_LISTENER_RETRY_DELAYS_MS[
+      settingsChangedListenerRegistrationAttempts - 1
+    ];
+  if (delay === undefined) {
+    return;
+  }
+
+  settingsChangedListenerRetryTimer = window.setTimeout(() => {
+    settingsChangedListenerRetryTimer = null;
+    void registerSettingsChangedListener(get);
+  }, delay);
+};
+
+const registerSettingsChangedListener = (get: () => SettingsStore) => {
+  if (settingsListenerDisposed || settingsChangedListenerRegistered) {
+    return Promise.resolve();
+  }
+
+  if (settingsChangedListenerRegistration) {
+    return settingsChangedListenerRegistration;
+  }
+
+  settingsChangedListenerRegistrationAttempts += 1;
+  const registration = (async () => {
+    try {
+      const unlisten = await listen<{ setting?: string }>(
+        "settings-changed",
+        (event) => {
+          get().refreshSettings();
+          if (event.payload.setting === "selected_microphone") {
+            get().refreshAudioDevices();
+          }
+        },
+      );
+
+      if (settingsListenerDisposed) {
+        await unlistenSettingsChangedListener(unlisten);
+        return;
+      }
+
+      settingsChangedListenerUnlisten = unlisten;
+      settingsChangedListenerRegistered = true;
+      settingsChangedListenerRegistrationAttempts = 0;
+    } catch (error) {
+      console.error("Failed to register settings listener:", error);
+      scheduleSettingsChangedListenerRetry(get);
+    }
+  })();
+
+  settingsChangedListenerRegistration = registration;
+  void registration.finally(() => {
+    if (settingsChangedListenerRegistration === registration) {
+      settingsChangedListenerRegistration = null;
+    }
+  });
+
+  return registration;
+};
+
 const disposeSettingsChangedListener = async () => {
   settingsListenerDisposed = true;
+  clearSettingsChangedListenerRetry();
 
   if (settingsChangedListenerRegistration) {
     await settingsChangedListenerRegistration;
   }
+
+  clearSettingsChangedListenerRetry();
 
   const unlisten = settingsChangedListenerUnlisten;
   settingsChangedListenerUnlisten = null;
@@ -461,35 +544,7 @@ export const useSettingsStore = create<SettingsStore>()(
           checkCustomSounds(),
         ]);
 
-        if (settingsListenerDisposed || settingsChangedListenerRegistered) {
-          return;
-        }
-
-        settingsChangedListenerRegistration = (async () => {
-          try {
-            const unlisten = await listen<{ setting?: string }>(
-              "settings-changed",
-              (event) => {
-                get().refreshSettings();
-                if (event.payload.setting === "selected_microphone") {
-                  get().refreshAudioDevices();
-                }
-              },
-            );
-
-            if (settingsListenerDisposed) {
-              await unlistenSettingsChangedListener(unlisten);
-              return;
-            }
-
-            settingsChangedListenerUnlisten = unlisten;
-            settingsChangedListenerRegistered = true;
-          } catch (error) {
-            console.error("Failed to register settings listener:", error);
-          }
-        })();
-
-        await settingsChangedListenerRegistration;
+        await registerSettingsChangedListener(get);
       })().finally(() => {
         initializationPromise = null;
       });

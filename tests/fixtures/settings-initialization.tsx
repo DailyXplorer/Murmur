@@ -4,7 +4,6 @@ import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";
 import { useSettings } from "../../src/hooks/useSettings";
-import { useSettingsStore } from "../../src/stores/settingsStore";
 
 declare global {
   interface Window {
@@ -15,7 +14,6 @@ declare global {
       settings: number;
       unhandledRejections: number;
       emitSettingsChanged: () => Promise<void>;
-      retryListenerRegistration: () => Promise<void>;
     };
   }
 }
@@ -46,8 +44,8 @@ const SettingsConsumer: React.FC = () => {
   return <output>{isLoading ? "loading" : "ready"}</output>;
 };
 
-const listenerShouldFail = new URLSearchParams(window.location.search).has(
-  "listener-error",
+const configuredListenerFailures = Number(
+  new URLSearchParams(window.location.search).get("listener-failures") ?? 0,
 );
 
 window.settingsInitialization = {
@@ -57,7 +55,6 @@ window.settingsInitialization = {
   settings: 0,
   unhandledRejections: 0,
   emitSettingsChanged: () => emit("settings-changed", { setting: "theme" }),
-  retryListenerRegistration: () => useSettingsStore.getState().initialize(),
 };
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -94,7 +91,10 @@ const tauriInternals = window.__TAURI_INTERNALS__ as unknown as {
   invoke: TauriInvoke;
 };
 const invoke = tauriInternals.invoke;
-let remainingListenerFailures = listenerShouldFail ? 1 : 0;
+let remainingListenerFailures =
+  Number.isInteger(configuredListenerFailures) && configuredListenerFailures > 0
+    ? configuredListenerFailures
+    : 0;
 
 tauriInternals.invoke = async (command, args, options) => {
   if (command === "plugin:event|listen") {

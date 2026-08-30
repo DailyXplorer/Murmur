@@ -6,7 +6,7 @@ import { resolve } from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(async ({ mode }) => ({
   plugins: [react(), tailwindcss()],
 
   // Path aliases
@@ -23,6 +23,14 @@ export default defineConfig(async () => ({
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "src/overlay/index.html"),
+        ...(mode === "test"
+          ? {
+              settingsInitialization: resolve(
+                __dirname,
+                "tests/fixtures/settings-initialization.html",
+              ),
+            }
+          : {}),
       },
     },
   },
@@ -33,7 +41,7 @@ export default defineConfig(async () => ({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
+    port: mode === "test" ? 1422 : 1420,
     strictPort: true,
     host: host || false,
     hmr: host
