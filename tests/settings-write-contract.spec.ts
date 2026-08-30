@@ -52,6 +52,19 @@ test("refetches when a settings write overlaps a refresh", async ({ page }) => {
   });
 });
 
+test("ignores an older refresh that resolves after a newer one", async ({
+  page,
+}) => {
+  await expect(
+    page.evaluate(() =>
+      window.settingsWriteContract.runConcurrentRefreshProbe(),
+    ),
+  ).resolves.toEqual({
+    refreshCalls: 2,
+    theme: "light",
+  });
+});
+
 test("does not enable auto-submit when persisting its key fails", async ({
   page,
 }) => {

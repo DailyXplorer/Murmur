@@ -26,9 +26,9 @@ const failedCommands = new Set<string>();
 const observedAccentColors: string[] = [];
 let backendSettings: AppSettings = { ...INITIAL_SETTINGS };
 let deferredCommand: string | null = null;
-let deferSettingsRead = false;
+let deferredSettingsReadsRemaining = 0;
 let rejectDeferredCommand: ((reason?: unknown) => void) | null = null;
-let resolveSettingsRead: ((settings: AppSettings) => void) | null = null;
+const settingsReadResolvers: Array<(settings: AppSettings) => void> = [];
 
 const accentObserver = new MutationObserver(() => {
   const accentColor = document.documentElement.dataset.accentColor;
@@ -39,10 +39,10 @@ mockIPC((command) => {
   calls.push(command);
 
   if (command === "get_app_settings") {
-    if (deferSettingsRead) {
-      deferSettingsRead = false;
+    if (deferredSettingsReadsRemaining > 0) {
+      deferredSettingsReadsRemaining -= 1;
       return new Promise<AppSettings>((resolve) => {
-        resolveSettingsRead = resolve;
+        settingsReadResolvers.push(resolve);
       });
     }
     return { ...backendSettings };
@@ -77,9 +77,9 @@ const reset = async () => {
   observedAccentColors.length = 0;
   backendSettings = { ...INITIAL_SETTINGS };
   deferredCommand = null;
-  deferSettingsRead = false;
+  deferredSettingsReadsRemaining = 0;
   rejectDeferredCommand = null;
-  resolveSettingsRead = null;
+  settingsReadResolvers.length = 0;
   delete document.documentElement.dataset.theme;
   document.documentElement.dataset.accentColor = "pink";
   localStorage.removeItem("murmur.theme");
@@ -93,6 +93,12 @@ const reset = async () => {
 
 const waitForDeferredCommand = async () => {
   while (!rejectDeferredCommand) {
+    await Promise.resolve();
+  }
+};
+
+const waitForSettingsRead = async (index: number) => {
+  while (!settingsReadResolvers[index]) {
     await Promise.resolve();
   }
 };
@@ -113,6 +119,10 @@ declare global {
       runRollbackProbe: () => Promise<{
         historyLimit: number | undefined;
         result: boolean;
+        theme: Theme | undefined;
+      }>;
+      runConcurrentRefreshProbe: () => Promise<{
+        refreshCalls: number;
         theme: Theme | undefined;
       }>;
       runRefreshRaceProbe: () => Promise<{
@@ -143,6 +153,25 @@ window.settingsWriteContract = {
   }),
   failCommand: (command) => failedCommands.add(command),
   reset,
+  runConcurrentRefreshProbe: async () => {
+    deferredSettingsReadsRemaining = 2;
+    const firstRefresh = useSettingsStore.getState().refreshSettings();
+    await waitForSettingsRead(0);
+
+    const secondRefresh = useSettingsStore.getState().refreshSettings();
+    await waitForSettingsRead(1);
+
+    settingsReadResolvers[1]?.({ ...INITIAL_SETTINGS, theme: "light" });
+    await secondRefresh;
+    settingsReadResolvers[0]?.({ ...INITIAL_SETTINGS, theme: "system" });
+    await firstRefresh;
+
+    return {
+      refreshCalls: calls.filter((command) => command === "get_app_settings")
+        .length,
+      theme: useSettingsStore.getState().settings?.theme,
+    };
+  },
   runRollbackProbe: async () => {
     deferredCommand = "change_theme_setting";
     const update = useSettingsStore.getState().updateSetting("theme", "dark");
@@ -165,17 +194,15 @@ window.settingsWriteContract = {
     };
   },
   runRefreshRaceProbe: async () => {
-    deferSettingsRead = true;
+    deferredSettingsReadsRemaining = 1;
     const refresh = useSettingsStore.getState().refreshSettings();
-    while (!resolveSettingsRead) {
-      await Promise.resolve();
-    }
+    await waitForSettingsRead(0);
 
     const updateResult = await useSettingsStore
       .getState()
       .updateSetting("theme", "light");
     backendSettings = { ...backendSettings, theme: "light" };
-    resolveSettingsRead({ ...INITIAL_SETTINGS });
+    settingsReadResolvers[0]?.({ ...INITIAL_SETTINGS });
     await refresh;
 
     return {

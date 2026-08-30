@@ -300,6 +300,7 @@ interface SettingWriteState {
 
 const MAX_SETTINGS_REFRESH_ATTEMPTS = 3;
 const settingWriteStates = new Map<keyof Settings, SettingWriteState>();
+let settingsRefreshRevision = 0;
 let settingsWriteRevision = 0;
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -330,6 +331,8 @@ export const useSettingsStore = create<SettingsStore>()(
 
     // Load settings from store
     refreshSettings: async () => {
+      const refreshRevision = ++settingsRefreshRevision;
+
       try {
         for (
           let attempt = 0;
@@ -341,10 +344,12 @@ export const useSettingsStore = create<SettingsStore>()(
           );
           await Promise.all(activeWrites);
 
+          if (refreshRevision !== settingsRefreshRevision) return;
           if (settingWriteStates.size > 0) continue;
 
           const revisionBeforeRequest = settingsWriteRevision;
           const result = await commands.getAppSettings();
+          if (refreshRevision !== settingsRefreshRevision) return;
           if (result.status === "error") {
             console.error("Failed to load settings:", result.error);
             set({ isLoading: false });
@@ -371,9 +376,11 @@ export const useSettingsStore = create<SettingsStore>()(
           return;
         }
 
+        if (refreshRevision !== settingsRefreshRevision) return;
         console.warn("Skipped stale settings refresh while writes were active");
         set({ isLoading: false });
       } catch (error) {
+        if (refreshRevision !== settingsRefreshRevision) return;
         console.error("Failed to load settings:", error);
         set({ isLoading: false });
       }
