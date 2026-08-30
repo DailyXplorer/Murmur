@@ -98,3 +98,31 @@ test("bounds autonomous retries after repeated listener failures", async ({
       unhandledRejections: 0,
     });
 });
+
+test("chains HMR listener cleanup before replacing a late registration", async ({
+  page,
+}) => {
+  await openFixture(page);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsInitialization.unhandledRejections),
+    )
+    .toBe(0);
+
+  await expect(
+    page.evaluate(() => window.settingsInitialization.runHmrLifecycleRace()),
+  ).resolves.toEqual({
+    activeListeners: 1,
+    aEvents: 0,
+    cEvents: 1,
+    listenerRegistrations: 2,
+    maximumActiveListeners: 1,
+  });
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsInitialization.unhandledRejections),
+    )
+    .toBe(0);
+});

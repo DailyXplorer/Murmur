@@ -4,6 +4,7 @@ import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";
 import { useSettings } from "../../src/hooks/useSettings";
+import { createSettingsChangedListenerLifecycle } from "../../src/stores/settingsStore";
 
 declare global {
   interface Window {
@@ -14,6 +15,13 @@ declare global {
       settings: number;
       unhandledRejections: number;
       emitSettingsChanged: () => Promise<void>;
+      runHmrLifecycleRace: () => Promise<{
+        activeListeners: number;
+        aEvents: number;
+        cEvents: number;
+        listenerRegistrations: number;
+        maximumActiveListeners: number;
+      }>;
     };
   }
 }
@@ -38,6 +46,33 @@ const respondAfterDelay = <Value,>(value: Value): Promise<Value> =>
     window.setTimeout(() => resolve(value), 25);
   });
 
+type SettingsChangedEvent = { payload: { setting?: string } };
+type SettingsChangedHandler = (event: SettingsChangedEvent) => void;
+
+const createDeferred = <Value,>() => {
+  let resolvePromise: ((value: Value | PromiseLike<Value>) => void) | undefined;
+  const promise = new Promise<Value>((resolve) => {
+    resolvePromise = resolve;
+  });
+
+  return {
+    promise,
+    resolve: (value: Value) => {
+      if (resolvePromise === undefined) {
+        throw new Error("Deferred promise was not initialized");
+      }
+      resolvePromise(value);
+    },
+  };
+};
+
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 const SettingsConsumer: React.FC = () => {
   const { isLoading } = useSettings();
 
@@ -55,6 +90,93 @@ window.settingsInitialization = {
   settings: 0,
   unhandledRejections: 0,
   emitSettingsChanged: () => emit("settings-changed", { setting: "theme" }),
+  runHmrLifecycleRace: async () => {
+    const activeListeners = new Set<SettingsChangedHandler>();
+    let maximumActiveListeners = 0;
+    const addActiveListener = (handler: SettingsChangedHandler) => {
+      activeListeners.add(handler);
+      maximumActiveListeners = Math.max(
+        maximumActiveListeners,
+        activeListeners.size,
+      );
+    };
+    let aEvents = 0;
+    let cEvents = 0;
+    let aHandler: SettingsChangedHandler | undefined;
+    let listenerRegistrations = 0;
+    const aListenerRegistration = createDeferred<() => Promise<void>>();
+    const aUnlistenFinished = createDeferred<void>();
+
+    const generationA = createSettingsChangedListenerLifecycle({
+      listen: (handler) => {
+        aHandler = handler;
+        listenerRegistrations += 1;
+        return aListenerRegistration.promise;
+      },
+      onSettingsChanged: () => {
+        aEvents += 1;
+      },
+    });
+    const generationAInitialization = generationA.initialize();
+    await flushMicrotasks();
+
+    const generationACleanup = generationA.dispose();
+    const generationB = createSettingsChangedListenerLifecycle({
+      previousCleanup: generationACleanup,
+      listen: async () => {
+        throw new Error("Disposed generation B must not register a listener");
+      },
+      onSettingsChanged: () => undefined,
+    });
+    const generationBCleanup = generationB.dispose();
+    const generationC = createSettingsChangedListenerLifecycle({
+      previousCleanup: generationBCleanup,
+      listen: async (handler) => {
+        listenerRegistrations += 1;
+        addActiveListener(handler);
+        return async () => {
+          activeListeners.delete(handler);
+        };
+      },
+      onSettingsChanged: () => {
+        cEvents += 1;
+      },
+    });
+    const generationCInitialization = generationC.initialize();
+
+    await flushMicrotasks();
+
+    if (aHandler === undefined) {
+      throw new Error("Generation A did not begin listener registration");
+    }
+
+    addActiveListener(aHandler);
+    aListenerRegistration.resolve(async () => {
+      await aUnlistenFinished.promise;
+      activeListeners.delete(aHandler);
+    });
+    await flushMicrotasks();
+
+    aUnlistenFinished.resolve(undefined);
+    await Promise.all([
+      generationAInitialization,
+      generationACleanup,
+      generationBCleanup,
+      generationCInitialization,
+    ]);
+
+    for (const handler of activeListeners) {
+      handler({ payload: { setting: "theme" } });
+    }
+
+    return {
+      activeListeners: activeListeners.size,
+      aEvents,
+      cEvents,
+      listenerRegistrations,
+      maximumActiveListeners,
+    };
+  },
 };
 
 window.addEventListener("unhandledrejection", (event) => {
