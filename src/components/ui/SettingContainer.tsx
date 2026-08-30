@@ -87,7 +87,7 @@ const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
         type="button"
         aria-label={description}
         aria-describedby={visible ? tooltipId : undefined}
-        className="relative -my-1 flex size-10 shrink-0 items-center justify-center rounded-md text-mid-gray transition-colors duration-150 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:left-1/2 after:top-1/2 after:size-10 after:-translate-x-1/2 after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
         onMouseEnter={showTooltip}
         onMouseLeave={scheduleTooltipHide}
         onFocus={showTooltip}
@@ -121,7 +121,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   disabled = false,
   tooltipPosition = "top",
 }) => {
-  const titleClasses = `min-w-0 text-pretty text-sm font-medium ${disabled ? "opacity-50" : ""}`;
+  const titleClasses = `min-w-0 truncate whitespace-nowrap text-sm font-medium ${disabled ? "opacity-50" : ""}`;
   const containerClasses = grouped
     ? "px-4 p-2"
     : "rounded-lg border border-mid-gray/20 px-4 p-2";
@@ -129,7 +129,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   if (layout === "stacked") {
     return (
       <div className={containerClasses}>
-        <div className="mb-2 flex min-w-0 items-center gap-1">
+        <div className="mb-2 flex min-w-0 items-center gap-0.5">
           <h3 className={titleClasses}>{title}</h3>
           {descriptionMode === "tooltip" && (
             <DescriptionTooltip
@@ -151,13 +151,13 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   }
 
   const horizontalContainerClasses = grouped
-    ? "flex min-h-12 items-center justify-between gap-4 px-4 py-1"
-    : "flex min-h-12 items-center justify-between gap-4 rounded-lg border border-mid-gray/20 px-4 py-1";
+    ? "flex min-h-12 items-center justify-between gap-3 px-4 py-1"
+    : "flex min-h-12 items-center justify-between gap-3 rounded-lg border border-mid-gray/20 px-4 py-1";
 
   return (
     <div className={horizontalContainerClasses}>
-      <div className="min-w-0 max-w-2/3">
-        <div className="flex min-w-0 items-center gap-1">
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-0.5">
           <h3 className={titleClasses}>{title}</h3>
           {descriptionMode === "tooltip" && (
             <DescriptionTooltip

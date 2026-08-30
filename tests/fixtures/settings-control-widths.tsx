@@ -114,8 +114,8 @@ const SettingsControlWidthsFixture: React.FC = () => {
         </SettingContainer>
 
         <SettingContainer
-          title="Custom words"
-          description="Input and add action stay within the rail"
+          title="Supprimer les mots de remplissage"
+          description="A long French label must stay on one line"
         >
           <div
             data-testid="custom-words"
@@ -131,10 +131,10 @@ const SettingsControlWidthsFixture: React.FC = () => {
             </Button>
           </div>
         </SettingContainer>
-        <div className="flex justify-end rounded-lg border border-mid-gray/20 px-4 p-2">
+        <div className="px-4 py-2">
           <div
             data-testid="custom-word-chips"
-            className="flex w-[var(--settings-control-rail-width)] flex-wrap gap-1"
+            className="flex flex-wrap justify-start gap-1"
           >
             <Button size="sm" variant="secondary">
               Acme

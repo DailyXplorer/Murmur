@@ -129,7 +129,7 @@ test.describe("settings control widths", () => {
       expect(box?.width ?? RAIL_WIDTH).toBeLessThan(RAIL_WIDTH);
     }
     expect(chipLaneBox).not.toBeNull();
-    expectWidth(chipLaneBox?.width ?? 0, RAIL_WIDTH);
+    expect(chipLaneBox?.width ?? 0).toBeGreaterThan(RAIL_WIDTH);
     expect(historyLimitBox).not.toBeNull();
     expect(
       (historyLimitBox?.x ?? 0) + (historyLimitBox?.width ?? 0),
@@ -142,7 +142,35 @@ test.describe("settings control widths", () => {
       chipLaneOverflow.clientWidth,
     );
     expect(longChipBox).not.toBeNull();
-    expect(longChipBox?.width ?? 0).toBeLessThanOrEqual(RAIL_WIDTH);
+    expect(longChipBox?.width ?? 0).toBeLessThanOrEqual(
+      chipLaneBox?.width ?? RAIL_WIDTH,
+    );
+    expect(chipBox?.x ?? 0).toBeCloseTo(chipLaneBox?.x ?? 0, 1);
+
+    const longTitle = page.getByRole("heading", {
+      name: "Supprimer les mots de remplissage",
+    });
+    const infoTrigger = page.getByRole("button", {
+      name: "A long French label must stay on one line",
+    });
+    const [titleMetrics, infoBox] = await Promise.all([
+      longTitle.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const styles = getComputedStyle(element);
+        return {
+          height: rect.height,
+          lineHeight: Number.parseFloat(styles.lineHeight),
+          right: rect.right,
+        };
+      }),
+      infoTrigger.boundingBox(),
+    ]);
+    expect(titleMetrics.height).toBeLessThanOrEqual(
+      titleMetrics.lineHeight + 1,
+    );
+    expect(infoBox).not.toBeNull();
+    expect((infoBox?.x ?? 0) - titleMetrics.right).toBeLessThan(8);
+
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
     expect(shortcutTextAlign).toBe("start");
