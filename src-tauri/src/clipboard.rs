@@ -41,11 +41,18 @@ enum LegacyClipboardAction {
 }
 
 fn decide_legacy_clipboard_action(
-    _current_clipboard: LegacyClipboardContents<'_>,
-    _transcript: &str,
-    _clipboard_handling: ClipboardHandling,
+    current_clipboard: LegacyClipboardContents<'_>,
+    transcript: &str,
+    clipboard_handling: ClipboardHandling,
 ) -> LegacyClipboardAction {
-    LegacyClipboardAction::RestoreSnapshot
+    match current_clipboard {
+        LegacyClipboardContents::Text(current) if current == transcript => match clipboard_handling
+        {
+            ClipboardHandling::DontModify => LegacyClipboardAction::RestoreSnapshot,
+            ClipboardHandling::CopyToClipboard => LegacyClipboardAction::KeepTranscript,
+        },
+        _ => LegacyClipboardAction::LeaveUntouched,
+    }
 }
 
 fn finish_clipboard_paste(
@@ -63,6 +70,7 @@ fn paste_via_clipboard(
     app_handle: &AppHandle,
     paste_delay_ms: u64,
     paste_delay_after_ms: u64,
+    clipboard_handling: ClipboardHandling,
 ) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
     let saved_text = clipboard.read_text().ok().filter(|t| !t.is_empty());
@@ -79,13 +87,23 @@ fn paste_via_clipboard(
     let paste_result = with_enigo(app_handle, |enigo| input::send_paste_ctrl_v(enigo, 100));
 
     finish_clipboard_paste(paste_result, paste_delay_after_ms, || {
-        if let Some(clipboard_content) = saved_text {
-            let _ = write_text_to_clipboard(app_handle, &clipboard_content);
-        } else if let Some(image) = saved_image {
-            info!("Restoring image to clipboard");
-            let _ = clipboard.write_image(&image);
-        } else {
-            let _ = clipboard.clear();
+        let current_text = clipboard.read_text().ok();
+        let current_clipboard = current_text
+            .as_deref()
+            .map(LegacyClipboardContents::Text)
+            .unwrap_or(LegacyClipboardContents::NotTextOrUnreadable);
+
+        if decide_legacy_clipboard_action(current_clipboard, text, clipboard_handling)
+            == LegacyClipboardAction::RestoreSnapshot
+        {
+            if let Some(clipboard_content) = saved_text {
+                let _ = write_text_to_clipboard(app_handle, &clipboard_content);
+            } else if let Some(image) = saved_image {
+                info!("Restoring image to clipboard");
+                let _ = clipboard.write_image(&image);
+            } else {
+                let _ = clipboard.clear();
+            }
         }
     })
 }
@@ -184,7 +202,13 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
                     }
                 }
             }
-            paste_via_clipboard(&text, &app_handle, paste_delay_ms, paste_delay_after_ms)?
+            paste_via_clipboard(
+                &text,
+                &app_handle,
+                paste_delay_ms,
+                paste_delay_after_ms,
+                settings.clipboard_handling,
+            )?
         }
     }
 
@@ -197,7 +221,9 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         }
     }
 
-    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
+    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard
+        && paste_method != PasteMethod::CtrlV
+    {
         write_text_to_clipboard(&app_handle, &text)?;
     }
 
