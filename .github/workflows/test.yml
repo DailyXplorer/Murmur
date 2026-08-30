@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "src-tauri/**"
+      - "rust-toolchain.toml"
       - ".github/workflows/test.yml"
   pull_request:
     paths:
       - "src-tauri/**"
+      - "rust-toolchain.toml"
       - ".github/workflows/test.yml"
 
 concurrency:
