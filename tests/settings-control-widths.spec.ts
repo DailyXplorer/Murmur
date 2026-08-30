@@ -169,7 +169,9 @@ test.describe("settings control widths", () => {
       titleMetrics.lineHeight + 1,
     );
     expect(infoBox).not.toBeNull();
-    expect((infoBox?.x ?? 0) - titleMetrics.right).toBeLessThan(8);
+    const titleToTriggerGap = (infoBox?.x ?? 0) - titleMetrics.right;
+    expect(titleToTriggerGap).toBeGreaterThanOrEqual(0);
+    expect(titleToTriggerGap).toBeLessThan(8);
 
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
