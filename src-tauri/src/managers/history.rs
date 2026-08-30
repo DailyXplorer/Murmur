@@ -834,6 +834,105 @@ mod tests {
         assert_eq!(error.to_string(), RECORDING_UNAVAILABLE_ERROR);
     }
 
+    #[cfg(unix)]
+    fn symlinked_recordings_root_with_sentinel() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let external_recordings_dir = temp.path().join("external-recordings");
+        std::fs::create_dir(&external_recordings_dir)
+            .expect("create external recordings directory");
+        let sentinel = external_recordings_dir.join("murmur-100.wav");
+        std::fs::write(&sentinel, "sentinel").expect("write external sentinel");
+        let recordings_dir = temp.path().join("recordings");
+        std::os::unix::fs::symlink(&external_recordings_dir, &recordings_dir)
+            .expect("symlink recordings directory");
+
+        (temp, recordings_dir, sentinel)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinked_recordings_root_for_playback_resolution() {
+        let (_temp, recordings_dir, sentinel) = symlinked_recordings_root_with_sentinel();
+
+        let error =
+            HistoryManager::resolve_recording_path_in_dir(&recordings_dir, "murmur-100.wav")
+                .expect_err("reject symlinked recordings root");
+
+        assert_eq!(error.to_string(), RECORDING_UNAVAILABLE_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&sentinel).expect("read external sentinel"),
+            "sentinel"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deletion_with_symlinked_recordings_root_keeps_external_sentinel_and_removes_database_row() {
+        let (_temp, recordings_dir, sentinel) = symlinked_recordings_root_with_sentinel();
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "murmur-100.wav");
+
+        HistoryManager::delete_entry_with_conn(&conn, &recordings_dir, id)
+            .expect("delete history entry with symlinked recordings root");
+
+        assert_eq!(
+            std::fs::read_to_string(&sentinel).expect("read external sentinel"),
+            "sentinel"
+        );
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retention_with_symlinked_recordings_root_keeps_external_sentinel_and_removes_database_row() {
+        let (_temp, recordings_dir, sentinel) = symlinked_recordings_root_with_sentinel();
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "murmur-100.wav");
+
+        let deleted = HistoryManager::delete_entries_and_files_with_conn(
+            &conn,
+            &recordings_dir,
+            &[(id, "murmur-100.wav".to_string())],
+        )
+        .expect("retain history entry with symlinked recordings root");
+
+        assert_eq!(deleted, 0);
+        assert_eq!(
+            std::fs::read_to_string(&sentinel).expect("read external sentinel"),
+            "sentinel"
+        );
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn rejects_missing_or_non_directory_recordings_roots() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let missing_root = temp.path().join("missing-recordings");
+        let non_directory_root = temp.path().join("recordings-file");
+        std::fs::write(&non_directory_root, "not a directory").expect("write recordings file");
+
+        for recordings_dir in [&missing_root, &non_directory_root] {
+            let error =
+                HistoryManager::resolve_recording_path_in_dir(recordings_dir, "murmur-100.wav")
+                    .expect_err("reject invalid recordings root");
+            assert_eq!(error.to_string(), RECORDING_UNAVAILABLE_ERROR);
+        }
+    }
+
     #[test]
     fn deletion_of_invalid_recording_keeps_external_sentinel_and_removes_database_row() {
         let temp = tempfile::tempdir().expect("create temporary directory");
