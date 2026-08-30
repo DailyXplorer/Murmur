@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 const initializationCounts = (page: import("@playwright/test").Page) =>
   page.evaluate(() => window.settingsInitialization);
 
+const emitSettingsChanged = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => window.settingsInitialization.emitSettingsChanged());
+
 test("shares settings initialization during Strict Mode mounts", async ({
   page,
 }) => {
@@ -15,6 +18,18 @@ test("shares settings initialization during Strict Mode mounts", async ({
       defaultSettings: 1,
       listeners: 1,
       settings: 1,
+      unhandledRejections: 0,
+    });
+
+  await emitSettingsChanged(page);
+
+  await expect
+    .poll(() => initializationCounts(page))
+    .toEqual({
+      customSounds: 1,
+      defaultSettings: 1,
+      listeners: 1,
+      settings: 2,
       unhandledRejections: 0,
     });
 });
@@ -31,6 +46,32 @@ test("handles settings listener registration failures", async ({ page }) => {
       defaultSettings: 1,
       listeners: 1,
       settings: 1,
+      unhandledRejections: 0,
+    });
+
+  await page.evaluate(() =>
+    window.settingsInitialization.retryListenerRegistration(),
+  );
+
+  await expect
+    .poll(() => initializationCounts(page))
+    .toEqual({
+      customSounds: 2,
+      defaultSettings: 2,
+      listeners: 2,
+      settings: 2,
+      unhandledRejections: 0,
+    });
+
+  await emitSettingsChanged(page);
+
+  await expect
+    .poll(() => initializationCounts(page))
+    .toEqual({
+      customSounds: 2,
+      defaultSettings: 2,
+      listeners: 2,
+      settings: 3,
       unhandledRejections: 0,
     });
 });

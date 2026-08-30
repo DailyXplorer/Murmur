@@ -1,8 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";
 import { useSettings } from "../../src/hooks/useSettings";
+import { useSettingsStore } from "../../src/stores/settingsStore";
 
 declare global {
   interface Window {
@@ -12,6 +14,8 @@ declare global {
       listeners: number;
       settings: number;
       unhandledRejections: number;
+      emitSettingsChanged: () => Promise<void>;
+      retryListenerRegistration: () => Promise<void>;
     };
   }
 }
@@ -52,6 +56,8 @@ window.settingsInitialization = {
   listeners: 0,
   settings: 0,
   unhandledRejections: 0,
+  emitSettingsChanged: () => emit("settings-changed", { setting: "theme" }),
+  retryListenerRegistration: () => useSettingsStore.getState().initialize(),
 };
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -59,29 +65,49 @@ window.addEventListener("unhandledrejection", (event) => {
   window.settingsInitialization.unhandledRejections += 1;
 });
 
-mockIPC((command) => {
-  switch (command) {
-    case "get_app_settings":
-      window.settingsInitialization.settings += 1;
-      return respondAfterDelay(TEST_SETTINGS);
-    case "get_default_settings":
-      window.settingsInitialization.defaultSettings += 1;
-      return respondAfterDelay(TEST_SETTINGS);
-    case "check_custom_sounds":
-      window.settingsInitialization.customSounds += 1;
-      return respondAfterDelay({ start: false, stop: false });
-    case "plugin:event|listen":
-      window.settingsInitialization.listeners += 1;
-      if (listenerShouldFail) {
-        return Promise.reject(
-          new Error("Expected listener registration failure"),
-        );
-      }
-      return 1;
-    default:
-      throw new Error(`Unexpected Tauri command: ${command}`);
+mockIPC(
+  (command) => {
+    switch (command) {
+      case "get_app_settings":
+        window.settingsInitialization.settings += 1;
+        return respondAfterDelay(TEST_SETTINGS);
+      case "get_default_settings":
+        window.settingsInitialization.defaultSettings += 1;
+        return respondAfterDelay(TEST_SETTINGS);
+      case "check_custom_sounds":
+        window.settingsInitialization.customSounds += 1;
+        return respondAfterDelay({ start: false, stop: false });
+      default:
+        throw new Error(`Unexpected Tauri command: ${command}`);
+    }
+  },
+  { shouldMockEvents: true },
+);
+
+type TauriInvoke = (
+  command: string,
+  args?: unknown,
+  options?: unknown,
+) => Promise<unknown>;
+
+const tauriInternals = window.__TAURI_INTERNALS__ as unknown as {
+  invoke: TauriInvoke;
+};
+const invoke = tauriInternals.invoke;
+let remainingListenerFailures = listenerShouldFail ? 1 : 0;
+
+tauriInternals.invoke = async (command, args, options) => {
+  if (command === "plugin:event|listen") {
+    window.settingsInitialization.listeners += 1;
+
+    if (remainingListenerFailures > 0) {
+      remainingListenerFailures -= 1;
+      throw new Error("Expected listener registration failure");
+    }
   }
-});
+
+  return invoke(command, args, options);
+};
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
