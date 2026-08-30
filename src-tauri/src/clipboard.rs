@@ -27,6 +27,27 @@ fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), Str
         .map_err(|e| format!("Failed to write to clipboard: {}", e))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum LegacyClipboardContents<'a> {
+    Text(&'a str),
+    NotTextOrUnreadable,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum LegacyClipboardAction {
+    RestoreSnapshot,
+    KeepTranscript,
+    LeaveUntouched,
+}
+
+fn decide_legacy_clipboard_action(
+    _current_clipboard: LegacyClipboardContents<'_>,
+    _transcript: &str,
+    _clipboard_handling: ClipboardHandling,
+) -> LegacyClipboardAction {
+    LegacyClipboardAction::RestoreSnapshot
+}
+
 fn finish_clipboard_paste(
     paste_result: Result<(), String>,
     paste_delay_after_ms: u64,
@@ -214,5 +235,77 @@ mod tests {
 
         assert_eq!(result.unwrap_err(), "input failed");
         assert!(restored.get());
+    }
+
+    #[test]
+    fn restores_snapshot_when_murmur_still_owns_the_clipboard() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::Text("transcript"),
+                "transcript",
+                ClipboardHandling::DontModify,
+            ),
+            LegacyClipboardAction::RestoreSnapshot
+        );
+    }
+
+    #[test]
+    fn doesnt_restore_snapshot_over_newer_text() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::Text("newer text"),
+                "transcript",
+                ClipboardHandling::DontModify,
+            ),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn doesnt_restore_snapshot_over_non_text_or_unreadable_content() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::NotTextOrUnreadable,
+                "transcript",
+                ClipboardHandling::DontModify,
+            ),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn keeps_transcript_when_murmur_still_owns_the_clipboard() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::Text("transcript"),
+                "transcript",
+                ClipboardHandling::CopyToClipboard,
+            ),
+            LegacyClipboardAction::KeepTranscript
+        );
+    }
+
+    #[test]
+    fn doesnt_preserve_transcript_over_newer_text() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::Text("newer text"),
+                "transcript",
+                ClipboardHandling::CopyToClipboard,
+            ),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn doesnt_preserve_transcript_over_non_text_or_unreadable_content() {
+        assert_eq!(
+            decide_legacy_clipboard_action(
+                LegacyClipboardContents::NotTextOrUnreadable,
+                "transcript",
+                ClipboardHandling::CopyToClipboard,
+            ),
+            LegacyClipboardAction::LeaveUntouched
+        );
     }
 }
