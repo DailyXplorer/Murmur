@@ -23,10 +23,11 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = React.memo(
       label: t(`theme.options.${value}`),
     }));
 
-    const handleThemeChange = (value: string) => {
+    const handleThemeChange = async (value: string) => {
       const theme = value as Theme;
-      applyTheme(theme);
-      updateSetting("theme", theme);
+      if (await updateSetting("theme", theme)) {
+        applyTheme(theme);
+      }
     };
 
     return (

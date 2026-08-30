@@ -21,17 +21,17 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
     const { t } = useTranslation();
     const { settings, updateSetting, isUpdating } = useSettings();
     const settingsLoaded = settings !== null;
+    const accentColorUpdating = isUpdating("accent_color");
     const currentAccent: AccentColor = settings
       ? (settings.accent_color ?? "pink")
       : getStoredAccentColor();
 
     useEffect(() => {
-      if (!settingsLoaded) return;
+      if (!settingsLoaded || accentColorUpdating) return;
       applyAccentColor(currentAccent);
-    }, [currentAccent, settingsLoaded]);
+    }, [accentColorUpdating, currentAccent, settingsLoaded]);
 
     const handleAccentChange = (accentColor: AccentColor) => {
-      applyAccentColor(accentColor);
       void updateSetting("accent_color", accentColor);
     };
 
@@ -50,7 +50,7 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
           {ACCENT_COLOR_OPTIONS.map((accentColor) => {
             const selected = accentColor === currentAccent;
             const label = t(`accentColor.options.${accentColor}`);
-            const disabled = !settingsLoaded || isUpdating("accent_color");
+            const disabled = !settingsLoaded || accentColorUpdating;
 
             return (
               <label

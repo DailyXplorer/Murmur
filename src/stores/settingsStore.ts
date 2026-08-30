@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  Result,
   TranscriptionProvider,
 } from "@/bindings";
 import { commands } from "@/bindings";
@@ -23,7 +24,7 @@ interface SettingsStore {
   updateSetting: <K extends keyof Settings>(
     key: K,
     value: Settings[K],
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   resetSetting: (key: keyof Settings) => Promise<void>;
   refreshSettings: () => Promise<void>;
   refreshAudioDevices: () => Promise<void>;
@@ -205,7 +206,9 @@ if (import.meta.hot) {
 }
 
 const settingUpdaters: {
-  [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
+  [K in keyof Settings]?: (
+    value: Settings[K],
+  ) => Promise<Result<unknown, string>>;
 } = {
   always_on_microphone: (value) =>
     commands.updateMicrophoneMode(value as boolean),
@@ -230,14 +233,8 @@ const settingUpdaters: {
         ? "default"
         : (value as string),
     ),
-  selected_channel: async (value) => {
-    const result = await commands.setSelectedChannel(
-      (value as number | null | undefined) ?? null,
-    );
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
-  },
+  selected_channel: (value) =>
+    commands.setSelectedChannel((value as number | null | undefined) ?? null),
   clamshell_microphone: (value) =>
     commands.setClamshellMicrophone(
       (value as string) === "Default" ? "default" : (value as string),
@@ -252,12 +249,8 @@ const settingUpdaters: {
     commands.updateRecordingRetentionPeriod(value as string),
   selected_language: (value) =>
     commands.changeSelectedLanguageSetting(value as string),
-  transcription_provider: async (value) => {
-    const result = await commands.changeTranscriptionProviderSetting(
-      value as TranscriptionProvider,
-    );
-    if (result.status === "error") throw new Error(result.error);
-  },
+  transcription_provider: (value) =>
+    commands.changeTranscriptionProviderSetting(value as TranscriptionProvider),
   overlay_position: (value) =>
     commands.changeOverlayPositionSetting(value as string),
   debug_mode: (value) => commands.changeDebugModeSetting(value as boolean),
@@ -426,16 +419,22 @@ export const useSettingsStore = create<SettingsStore>()(
         }));
 
         const updater = settingUpdaters[key];
-        if (updater) {
-          await updater(value);
-        } else if (key !== "bindings") {
-          console.warn(`No handler for setting: ${String(key)}`);
+        if (!updater) {
+          throw new Error(`No handler for setting: ${String(key)}`);
         }
+
+        const result = await updater(value);
+        if (result.status === "error") throw new Error(result.error);
+
+        return true;
       } catch (error) {
         console.error(`Failed to update setting ${String(key)}:`, error);
-        if (settings) {
-          set({ settings: { ...settings, [key]: originalValue } });
-        }
+        set((state) => ({
+          settings: state.settings
+            ? { ...state.settings, [key]: originalValue }
+            : null,
+        }));
+        return false;
       } finally {
         setUpdating(updateKey, false);
       }
