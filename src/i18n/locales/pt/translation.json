@@ -366,7 +366,8 @@
     "open": "Abrir",
     "copy": "Copiar",
     "clear": "Limpar",
-    "noOptionsFound": "Nenhuma opção encontrada"
+    "noOptionsFound": "Nenhuma opção encontrada",
+    "reset": "Repor"
   },
   "accessibility": {
     "permissionsDescription": "O Murmur precisa de permissões de acessibilidade para digitar o texto transcrito.",

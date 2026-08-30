@@ -366,7 +366,8 @@
     "open": "Öppna",
     "copy": "Kopiera",
     "clear": "Rensa",
-    "noOptionsFound": "Inga alternativ hittades"
+    "noOptionsFound": "Inga alternativ hittades",
+    "reset": "Återställ"
   },
   "accessibility": {
     "permissionsDescription": "Murmur behöver behörighet för hjälpmedel för att kunna skriva transkriberad text.",
