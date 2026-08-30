@@ -99,6 +99,13 @@ declare global {
         result: boolean;
         theme: Theme | undefined;
       }>;
+      runSameKeyOrderingProbe: () => Promise<{
+        callsBeforeRelease: string[];
+        finalTheme: Theme | undefined;
+        firstResult: boolean;
+        isUpdating: boolean;
+        secondResult: boolean;
+      }>;
       updateTheme: (theme: Theme) => Promise<boolean>;
     };
   }
@@ -134,6 +141,34 @@ window.settingsWriteContract = {
       historyLimit: settings?.history_limit,
       result,
       theme: settings?.theme,
+    };
+  },
+  runSameKeyOrderingProbe: async () => {
+    deferredCommand = "change_theme_setting";
+    const firstUpdate = useSettingsStore
+      .getState()
+      .updateSetting("theme", "dark");
+    await waitForDeferredCommand();
+
+    const secondUpdate = useSettingsStore
+      .getState()
+      .updateSetting("theme", "light");
+    await Promise.resolve();
+    const callsBeforeRelease = [...calls];
+
+    deferredCommand = null;
+    rejectDeferredCommand?.("First theme persistence failed");
+    const [firstResult, secondResult] = await Promise.all([
+      firstUpdate,
+      secondUpdate,
+    ]);
+
+    return {
+      callsBeforeRelease,
+      finalTheme: useSettingsStore.getState().settings?.theme,
+      firstResult,
+      isUpdating: useSettingsStore.getState().isUpdatingKey("theme"),
+      secondResult,
     };
   },
   updateTheme: (theme) =>

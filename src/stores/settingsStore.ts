@@ -291,6 +291,15 @@ const settingUpdaters: {
     commands.changeExtraRecordingBufferSetting(value as number),
 };
 
+interface SettingWriteState {
+  committedValue: Settings[keyof Settings];
+  latestRevision: number;
+  pendingCount: number;
+  tail: Promise<void>;
+}
+
+const settingWriteStates = new Map<keyof Settings, SettingWriteState>();
+
 export const useSettingsStore = create<SettingsStore>()(
   subscribeWithSelector((set, get) => ({
     settings: null,
@@ -409,35 +418,68 @@ export const useSettingsStore = create<SettingsStore>()(
     ) => {
       const { settings, setUpdating } = get();
       const updateKey = String(key);
-      const originalValue = settings?.[key];
+      let writeState = settingWriteStates.get(key);
+
+      if (!writeState) {
+        writeState = {
+          committedValue: settings?.[key],
+          latestRevision: 0,
+          pendingCount: 0,
+          tail: Promise.resolve(),
+        };
+        settingWriteStates.set(key, writeState);
+      }
+
+      const revision = writeState.latestRevision + 1;
+      writeState.latestRevision = revision;
+      writeState.pendingCount += 1;
 
       setUpdating(updateKey, true);
+      set((state) => ({
+        settings: state.settings ? { ...state.settings, [key]: value } : null,
+      }));
 
-      try {
-        set((state) => ({
-          settings: state.settings ? { ...state.settings, [key]: value } : null,
-        }));
+      const operation = writeState.tail.then(async () => {
+        try {
+          const updater = settingUpdaters[key];
+          if (!updater) {
+            throw new Error(`No handler for setting: ${String(key)}`);
+          }
 
-        const updater = settingUpdaters[key];
-        if (!updater) {
-          throw new Error(`No handler for setting: ${String(key)}`);
+          const result = await updater(value);
+          if (result.status === "error") throw new Error(result.error);
+
+          writeState.committedValue = value;
+          return true;
+        } catch (error) {
+          console.error(`Failed to update setting ${String(key)}:`, error);
+          if (
+            revision === writeState.latestRevision &&
+            Object.is(get().settings?.[key], value)
+          ) {
+            set((state) => ({
+              settings: state.settings
+                ? { ...state.settings, [key]: writeState.committedValue }
+                : null,
+            }));
+          }
+          return false;
+        } finally {
+          writeState.pendingCount -= 1;
+          if (revision === writeState.latestRevision) {
+            setUpdating(updateKey, false);
+          }
+          if (
+            writeState.pendingCount === 0 &&
+            settingWriteStates.get(key) === writeState
+          ) {
+            settingWriteStates.delete(key);
+          }
         }
+      });
 
-        const result = await updater(value);
-        if (result.status === "error") throw new Error(result.error);
-
-        return true;
-      } catch (error) {
-        console.error(`Failed to update setting ${String(key)}:`, error);
-        set((state) => ({
-          settings: state.settings
-            ? { ...state.settings, [key]: originalValue }
-            : null,
-        }));
-        return false;
-      } finally {
-        setUpdating(updateKey, false);
-      }
+      writeState.tail = operation.then(() => undefined);
+      return operation;
     },
 
     // Reset a setting to its default value

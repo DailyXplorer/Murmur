@@ -28,6 +28,20 @@ test("rolls back only the failed key after a structured backend error", async ({
   });
 });
 
+test("serializes same-key writes and keeps the latest accepted value", async ({
+  page,
+}) => {
+  await expect(
+    page.evaluate(() => window.settingsWriteContract.runSameKeyOrderingProbe()),
+  ).resolves.toEqual({
+    callsBeforeRelease: ["change_theme_setting"],
+    finalTheme: "light",
+    firstResult: false,
+    isUpdating: false,
+    secondResult: true,
+  });
+});
+
 test("does not enable auto-submit when persisting its key fails", async ({
   page,
 }) => {
