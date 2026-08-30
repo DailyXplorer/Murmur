@@ -28,6 +28,8 @@ let backendSettings: AppSettings = { ...INITIAL_SETTINGS };
 let deferredCommand: string | null = null;
 let deferredSettingsReadsRemaining = 0;
 let rejectDeferredCommand: ((reason?: unknown) => void) | null = null;
+const deferredCommandResolvers: Array<() => void> = [];
+const deferredCommandRejectors: Array<(reason?: unknown) => void> = [];
 const settingsReadResolvers: Array<(settings: AppSettings) => void> = [];
 
 const accentObserver = new MutationObserver(() => {
@@ -49,7 +51,9 @@ mockIPC((command) => {
   }
 
   if (command === deferredCommand) {
-    return new Promise((_resolve, reject) => {
+    return new Promise<null>((resolve, reject) => {
+      deferredCommandResolvers.push(() => resolve(null));
+      deferredCommandRejectors.push(reject);
       rejectDeferredCommand = reject;
     });
   }
@@ -79,6 +83,8 @@ const reset = async () => {
   deferredCommand = null;
   deferredSettingsReadsRemaining = 0;
   rejectDeferredCommand = null;
+  deferredCommandResolvers.length = 0;
+  deferredCommandRejectors.length = 0;
   settingsReadResolvers.length = 0;
   delete document.documentElement.dataset.theme;
   document.documentElement.dataset.accentColor = "pink";
@@ -114,8 +120,12 @@ declare global {
         renderedLanguage: string;
         theme: Theme | undefined;
       };
+      deferCommand: (command: string) => void;
+      deferredCommandCount: () => number;
       failCommand: (command: string) => void;
+      rejectDeferredCommand: (index: number, reason?: unknown) => void;
       reset: () => Promise<void>;
+      resolveDeferredCommand: (index: number) => void;
       runRollbackProbe: () => Promise<{
         historyLimit: number | undefined;
         result: boolean;
@@ -151,8 +161,18 @@ window.settingsWriteContract = {
     renderedLanguage: i18n.language,
     theme: useSettingsStore.getState().settings?.theme,
   }),
+  deferCommand: (command) => {
+    deferredCommand = command;
+  },
+  deferredCommandCount: () => deferredCommandResolvers.length,
   failCommand: (command) => failedCommands.add(command),
+  rejectDeferredCommand: (index, reason) => {
+    deferredCommandRejectors[index]?.(reason);
+  },
   reset,
+  resolveDeferredCommand: (index) => {
+    deferredCommandResolvers[index]?.();
+  },
   runConcurrentRefreshProbe: async () => {
     deferredSettingsReadsRemaining = 2;
     const firstRefresh = useSettingsStore.getState().refreshSettings();

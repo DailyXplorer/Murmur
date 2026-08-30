@@ -65,6 +65,161 @@ test("ignores an older refresh that resolves after a newer one", async ({
   });
 });
 
+test("does not apply a stale theme while a newer same-key write is pending", async ({
+  page,
+}) => {
+  await page.evaluate(() =>
+    window.settingsWriteContract.deferCommand("change_theme_setting"),
+  );
+
+  const theme = page.getByTestId("theme");
+  await theme.getByRole("button", { name: "System", exact: true }).click();
+  await page.getByRole("option", { name: "Dark" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(1);
+
+  await theme.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("option", { name: "Light" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.settingsWriteContract.currentAppearance().theme,
+      ),
+    )
+    .toBe("light");
+
+  await page.evaluate(() =>
+    window.settingsWriteContract.resolveDeferredCommand(0),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(2);
+  await page.evaluate(
+    () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+  );
+
+  await expect(
+    page.evaluate(() => document.documentElement.dataset.theme),
+  ).resolves.toBeUndefined();
+
+  await page.evaluate(() =>
+    window.settingsWriteContract.resolveDeferredCommand(1),
+  );
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.theme))
+    .toBe("light");
+});
+
+test("does not apply a stale language while a newer same-key write is pending", async ({
+  page,
+}) => {
+  await page.evaluate(() =>
+    window.settingsWriteContract.deferCommand("change_app_language_setting"),
+  );
+
+  const appLanguage = page.getByTestId("app-language");
+  await appLanguage
+    .getByRole("button", { name: "English (English)", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Français (French)" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(1);
+
+  await appLanguage
+    .getByRole("button", { name: "Français (French)", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Deutsch (German)" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.settingsWriteContract.currentAppearance().appLanguage,
+      ),
+    )
+    .toBe("de");
+
+  await page.evaluate(() =>
+    window.settingsWriteContract.resolveDeferredCommand(0),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(2);
+  await page.evaluate(
+    () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+  );
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.settingsWriteContract.currentAppearance().renderedLanguage,
+      ),
+    )
+    .toBe("en");
+
+  await page.evaluate(() =>
+    window.settingsWriteContract.resolveDeferredCommand(1),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.settingsWriteContract.currentAppearance().renderedLanguage,
+      ),
+    )
+    .toBe("de");
+});
+
+test("reconciles the theme effect after the newer same-key write fails", async ({
+  page,
+}) => {
+  await page.evaluate(() =>
+    window.settingsWriteContract.deferCommand("change_theme_setting"),
+  );
+
+  const theme = page.getByTestId("theme");
+  await theme.getByRole("button", { name: "System", exact: true }).click();
+  await page.getByRole("option", { name: "Dark" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(1);
+
+  await theme.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("option", { name: "Light" }).click();
+  await page.evaluate(() =>
+    window.settingsWriteContract.resolveDeferredCommand(0),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.deferredCommandCount()),
+    )
+    .toBe(2);
+  await page.evaluate(() =>
+    window.settingsWriteContract.rejectDeferredCommand(
+      1,
+      "Second theme persistence failed",
+    ),
+  );
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.settingsWriteContract.currentAppearance()),
+    )
+    .toMatchObject({ theme: "dark" });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.theme))
+    .toBe("dark");
+});
+
 test("does not enable auto-submit when persisting its key fails", async ({
   page,
 }) => {
