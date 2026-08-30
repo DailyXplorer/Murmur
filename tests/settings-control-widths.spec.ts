@@ -172,6 +172,15 @@ test.describe("settings control widths", () => {
     const titleToTriggerGap = (infoBox?.x ?? 0) - titleMetrics.right;
     expect(titleToTriggerGap).toBeGreaterThanOrEqual(0);
     expect(titleToTriggerGap).toBeLessThan(8);
+    const titleOwnsItsRightEdge = await longTitle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.right - 4,
+        rect.top + rect.height / 2,
+      );
+      return Boolean(hit && (hit === element || element.contains(hit)));
+    });
+    expect(titleOwnsItsRightEdge).toBe(true);
 
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
