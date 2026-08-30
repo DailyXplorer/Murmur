@@ -42,6 +42,16 @@ test("serializes same-key writes and keeps the latest accepted value", async ({
   });
 });
 
+test("refetches when a settings write overlaps a refresh", async ({ page }) => {
+  await expect(
+    page.evaluate(() => window.settingsWriteContract.runRefreshRaceProbe()),
+  ).resolves.toEqual({
+    refreshCalls: 2,
+    theme: "light",
+    updateResult: true,
+  });
+});
+
 test("does not enable auto-submit when persisting its key fails", async ({
   page,
 }) => {

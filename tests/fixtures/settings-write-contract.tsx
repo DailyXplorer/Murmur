@@ -24,8 +24,11 @@ const INITIAL_SETTINGS: AppSettings = {
 const calls: string[] = [];
 const failedCommands = new Set<string>();
 const observedAccentColors: string[] = [];
+let backendSettings: AppSettings = { ...INITIAL_SETTINGS };
 let deferredCommand: string | null = null;
+let deferSettingsRead = false;
 let rejectDeferredCommand: ((reason?: unknown) => void) | null = null;
+let resolveSettingsRead: ((settings: AppSettings) => void) | null = null;
 
 const accentObserver = new MutationObserver(() => {
   const accentColor = document.documentElement.dataset.accentColor;
@@ -34,6 +37,16 @@ const accentObserver = new MutationObserver(() => {
 
 mockIPC((command) => {
   calls.push(command);
+
+  if (command === "get_app_settings") {
+    if (deferSettingsRead) {
+      deferSettingsRead = false;
+      return new Promise<AppSettings>((resolve) => {
+        resolveSettingsRead = resolve;
+      });
+    }
+    return { ...backendSettings };
+  }
 
   if (command === deferredCommand) {
     return new Promise((_resolve, reject) => {
@@ -62,8 +75,11 @@ const reset = async () => {
   calls.length = 0;
   failedCommands.clear();
   observedAccentColors.length = 0;
+  backendSettings = { ...INITIAL_SETTINGS };
   deferredCommand = null;
+  deferSettingsRead = false;
   rejectDeferredCommand = null;
+  resolveSettingsRead = null;
   delete document.documentElement.dataset.theme;
   document.documentElement.dataset.accentColor = "pink";
   localStorage.removeItem("murmur.theme");
@@ -98,6 +114,11 @@ declare global {
         historyLimit: number | undefined;
         result: boolean;
         theme: Theme | undefined;
+      }>;
+      runRefreshRaceProbe: () => Promise<{
+        refreshCalls: number;
+        theme: Theme | undefined;
+        updateResult: boolean;
       }>;
       runSameKeyOrderingProbe: () => Promise<{
         callsBeforeRelease: string[];
@@ -141,6 +162,27 @@ window.settingsWriteContract = {
       historyLimit: settings?.history_limit,
       result,
       theme: settings?.theme,
+    };
+  },
+  runRefreshRaceProbe: async () => {
+    deferSettingsRead = true;
+    const refresh = useSettingsStore.getState().refreshSettings();
+    while (!resolveSettingsRead) {
+      await Promise.resolve();
+    }
+
+    const updateResult = await useSettingsStore
+      .getState()
+      .updateSetting("theme", "light");
+    backendSettings = { ...backendSettings, theme: "light" };
+    resolveSettingsRead({ ...INITIAL_SETTINGS });
+    await refresh;
+
+    return {
+      refreshCalls: calls.filter((command) => command === "get_app_settings")
+        .length,
+      theme: useSettingsStore.getState().settings?.theme,
+      updateResult,
     };
   },
   runSameKeyOrderingProbe: async () => {

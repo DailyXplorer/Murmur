@@ -298,7 +298,9 @@ interface SettingWriteState {
   tail: Promise<void>;
 }
 
+const MAX_SETTINGS_REFRESH_ATTEMPTS = 3;
 const settingWriteStates = new Map<keyof Settings, SettingWriteState>();
+let settingsWriteRevision = 0;
 
 export const useSettingsStore = create<SettingsStore>()(
   subscribeWithSelector((set, get) => ({
@@ -329,8 +331,33 @@ export const useSettingsStore = create<SettingsStore>()(
     // Load settings from store
     refreshSettings: async () => {
       try {
-        const result = await commands.getAppSettings();
-        if (result.status === "ok") {
+        for (
+          let attempt = 0;
+          attempt < MAX_SETTINGS_REFRESH_ATTEMPTS;
+          attempt++
+        ) {
+          const activeWrites = [...settingWriteStates.values()].map(
+            (writeState) => writeState.tail,
+          );
+          await Promise.all(activeWrites);
+
+          if (settingWriteStates.size > 0) continue;
+
+          const revisionBeforeRequest = settingsWriteRevision;
+          const result = await commands.getAppSettings();
+          if (result.status === "error") {
+            console.error("Failed to load settings:", result.error);
+            set({ isLoading: false });
+            return;
+          }
+
+          if (
+            revisionBeforeRequest !== settingsWriteRevision ||
+            settingWriteStates.size > 0
+          ) {
+            continue;
+          }
+
           const settings = result.data;
           const normalizedSettings: Settings = {
             ...settings,
@@ -341,10 +368,11 @@ export const useSettingsStore = create<SettingsStore>()(
               settings.selected_output_device ?? "Default",
           };
           set({ settings: normalizedSettings, isLoading: false });
-        } else {
-          console.error("Failed to load settings:", result.error);
-          set({ isLoading: false });
+          return;
         }
+
+        console.warn("Skipped stale settings refresh while writes were active");
+        set({ isLoading: false });
       } catch (error) {
         console.error("Failed to load settings:", error);
         set({ isLoading: false });
@@ -418,6 +446,7 @@ export const useSettingsStore = create<SettingsStore>()(
     ) => {
       const { settings, setUpdating } = get();
       const updateKey = String(key);
+      settingsWriteRevision += 1;
       let writeState = settingWriteStates.get(key);
 
       if (!writeState) {
