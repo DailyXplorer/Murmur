@@ -283,7 +283,10 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
             aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
             disabled={disabled || isUpdating(`binding_${shortcutId}`)}
             className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => startRecording(shortcutId)}
+            onClick={(event) => {
+              event.stopPropagation();
+              void startRecording(shortcutId);
+            }}
           >
             {formatKeyCombination(binding.current_binding)}
           </button>
