@@ -91,9 +91,9 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
         </SettingContainer>
         {customWords.length > 0 && (
           <div
-            className={`flex justify-end px-4 p-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
+            className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
-            <div className="flex w-[var(--settings-control-rail-width)] flex-wrap gap-1">
+            <div className="flex flex-wrap justify-start gap-1">
               {customWords.map((word) => (
                 <Button
                   key={word}

@@ -140,9 +140,17 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
     width: element.getBoundingClientRect().width,
+    x: element.getBoundingClientRect().x,
   }));
-  expectWidth(chipMeasurements.width, RAIL_WIDTH);
+  expect(chipMeasurements.width).toBeGreaterThan(RAIL_WIDTH);
   expect(chipMeasurements.scrollWidth).toBeLessThanOrEqual(
     chipMeasurements.clientWidth,
   );
+
+  const customWordsTitle = page
+    .getByTestId("production-custom-words")
+    .getByRole("heading", { name: "Custom Words" });
+  const customTitleBox = await customWordsTitle.boundingBox();
+  expect(customTitleBox).not.toBeNull();
+  expect(chipMeasurements.x).toBeCloseTo(customTitleBox?.x ?? 0, 1);
 });
