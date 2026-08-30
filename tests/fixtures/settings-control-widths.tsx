@@ -114,7 +114,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
         </SettingContainer>
 
         <SettingContainer
-          title="Supprimer les mots de remplissage"
+          title="Supprimer automatiquement tous les mots de remplissage détectés pendant la transcription"
           description="A long French label must stay on one line"
         >
           <div

@@ -148,7 +148,7 @@ test.describe("settings control widths", () => {
     expect(chipBox?.x ?? 0).toBeCloseTo(chipLaneBox?.x ?? 0, 1);
 
     const longTitle = page.getByRole("heading", {
-      name: "Supprimer les mots de remplissage",
+      name: "Supprimer automatiquement tous les mots de remplissage détectés pendant la transcription",
     });
     const infoTrigger = page.getByRole("button", {
       name: "A long French label must stay on one line",
@@ -158,13 +158,16 @@ test.describe("settings control widths", () => {
         const rect = element.getBoundingClientRect();
         const styles = getComputedStyle(element);
         return {
+          clientWidth: element.clientWidth,
           height: rect.height,
           lineHeight: Number.parseFloat(styles.lineHeight),
           right: rect.right,
+          scrollWidth: element.scrollWidth,
         };
       }),
       infoTrigger.boundingBox(),
     ]);
+    expect(titleMetrics.scrollWidth).toBeGreaterThan(titleMetrics.clientWidth);
     expect(titleMetrics.height).toBeLessThanOrEqual(
       titleMetrics.lineHeight + 1,
     );
@@ -181,6 +184,46 @@ test.describe("settings control widths", () => {
       return Boolean(hit && (hit === element || element.contains(hit)));
     });
     expect(titleOwnsItsRightEdge).toBe(true);
+    const [infoHitAreaRight, customWordsInputBox] = await Promise.all([
+      infoTrigger.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const styles = getComputedStyle(element, "::after");
+        return (
+          rect.left +
+          Number.parseFloat(styles.left) +
+          Number.parseFloat(styles.width)
+        );
+      }),
+      page.getByPlaceholder("Add a custom word").boundingBox(),
+    ]);
+    expect(customWordsInputBox).not.toBeNull();
+    expect(infoHitAreaRight).toBeLessThanOrEqual(customWordsInputBox?.x ?? 0);
+
+    const stackedInfoTrigger = page.getByRole("button", {
+      name: "This content intentionally remains full width",
+    });
+    const stackedContainer = page
+      .getByTestId("stacked-control")
+      .locator("..")
+      .locator("..");
+    const [stackedHitArea, stackedContainerBox] = await Promise.all([
+      stackedInfoTrigger.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const styles = getComputedStyle(element, "::after");
+        const height = Number.parseFloat(styles.height);
+        const center = rect.top + rect.height / 2;
+        return {
+          bottom: center + height / 2,
+          top: center - height / 2,
+        };
+      }),
+      stackedContainer.boundingBox(),
+    ]);
+    expect(stackedContainerBox).not.toBeNull();
+    expect(stackedHitArea.top).toBeGreaterThanOrEqual(
+      stackedContainerBox?.y ?? 0,
+    );
+    expect(stackedHitArea.bottom).toBeLessThanOrEqual(stackedBox?.y ?? 0);
 
     expect(shortcutSurfaceBox).not.toBeNull();
     expect(shortcutResetBox).not.toBeNull();
@@ -196,5 +239,57 @@ test.describe("settings control widths", () => {
     );
     expect(stackedBox).not.toBeNull();
     expect(stackedBox?.width ?? 0).toBeGreaterThan(RAIL_WIDTH);
+  });
+
+  test("keeps the enlarged info target clear in right-to-left layouts", async ({
+    page,
+  }) => {
+    await page
+      .getByTestId("settings-control-widths")
+      .evaluate((element) => element.setAttribute("dir", "rtl"));
+
+    const longTitle = page.getByRole("heading", {
+      name: "Supprimer automatiquement tous les mots de remplissage détectés pendant la transcription",
+    });
+    const infoTrigger = page.getByRole("button", {
+      name: "A long French label must stay on one line",
+    });
+    const customWordsInput = page.getByPlaceholder("Add a custom word");
+    const [titleBox, infoBox, customWordsInputBox] = await Promise.all([
+      longTitle.boundingBox(),
+      infoTrigger.boundingBox(),
+      customWordsInput.boundingBox(),
+    ]);
+
+    expect(titleBox).not.toBeNull();
+    expect(infoBox).not.toBeNull();
+    expect(customWordsInputBox).not.toBeNull();
+    const titleToTriggerGap =
+      (titleBox?.x ?? 0) - ((infoBox?.x ?? 0) + (infoBox?.width ?? 0));
+    expect(titleToTriggerGap).toBeGreaterThanOrEqual(0);
+    expect(titleToTriggerGap).toBeLessThan(8);
+
+    const titleOwnsItsLeftEdge = await longTitle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.left + 4,
+        rect.top + rect.height / 2,
+      );
+      return Boolean(hit && (hit === element || element.contains(hit)));
+    });
+    expect(titleOwnsItsLeftEdge).toBe(true);
+
+    const infoHitAreaLeft = await infoTrigger.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const styles = getComputedStyle(element, "::after");
+      return (
+        rect.right -
+        Number.parseFloat(styles.right) -
+        Number.parseFloat(styles.width)
+      );
+    });
+    expect(infoHitAreaLeft).toBeGreaterThanOrEqual(
+      (customWordsInputBox?.x ?? 0) + (customWordsInputBox?.width ?? 0),
+    );
   });
 });

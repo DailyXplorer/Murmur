@@ -81,13 +81,13 @@ const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
   }, [hideTooltip, visible]);
 
   return (
-    <>
+    <span className="-my-1 inline-flex h-10 w-5 shrink-0 items-center">
       <button
         ref={triggerRef}
         type="button"
         aria-label={description}
         aria-describedby={visible ? tooltipId : undefined}
-        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:left-0 after:top-1/2 after:size-10 after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:start-0 after:top-1/2 after:size-10 after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
         onMouseEnter={showTooltip}
         onMouseLeave={scheduleTooltipHide}
         onFocus={showTooltip}
@@ -107,7 +107,7 @@ const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
           <p className="text-center text-sm leading-relaxed">{description}</p>
         </Tooltip>
       )}
-    </>
+    </span>
   );
 };
 
@@ -151,8 +151,8 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   }
 
   const horizontalContainerClasses = grouped
-    ? "flex min-h-12 items-center justify-between gap-3 px-4 py-1"
-    : "flex min-h-12 items-center justify-between gap-3 rounded-lg border border-mid-gray/20 px-4 py-1";
+    ? "flex min-h-12 items-center justify-between gap-5 px-4 py-1"
+    : "flex min-h-12 items-center justify-between gap-5 rounded-lg border border-mid-gray/20 px-4 py-1";
 
   return (
     <div className={horizontalContainerClasses}>
