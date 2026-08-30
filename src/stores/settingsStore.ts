@@ -51,6 +51,9 @@ const DEFAULT_AUDIO_DEVICE: AudioDevice = {
   is_default: true,
 };
 
+let initializationPromise: Promise<void> | null = null;
+let settingsChangedListenerRegistered = false;
+
 const settingUpdaters: {
   [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
 } = {
@@ -394,27 +397,45 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Initialize everything
-    initialize: async () => {
-      const { refreshSettings, checkCustomSounds, loadDefaultSettings } = get();
+    initialize: () => {
+      if (initializationPromise) {
+        return initializationPromise;
+      }
 
-      // Note: Audio devices are NOT refreshed here. The frontend (App.tsx)
-      // is responsible for calling refreshAudioDevices/refreshOutputDevices
-      // after onboarding completes. This avoids triggering permission dialogs
-      // on macOS before the user is ready.
-      await Promise.all([
-        loadDefaultSettings(),
-        refreshSettings(),
-        checkCustomSounds(),
-      ]);
+      initializationPromise = (async () => {
+        const { refreshSettings, checkCustomSounds, loadDefaultSettings } =
+          get();
 
-      // The backend is the source of truth for settings changed outside this UI.
-      listen<{ setting?: string }>("settings-changed", (event) => {
-        get().refreshSettings();
-        if (event.payload.setting === "selected_microphone") {
-          get().refreshAudioDevices();
+        // Note: Audio devices are NOT refreshed here. The frontend (App.tsx)
+        // is responsible for calling refreshAudioDevices/refreshOutputDevices
+        // after onboarding completes. This avoids triggering permission dialogs
+        // on macOS before the user is ready.
+        await Promise.all([
+          loadDefaultSettings(),
+          refreshSettings(),
+          checkCustomSounds(),
+        ]);
+
+        if (settingsChangedListenerRegistered) {
+          return;
         }
+
+        try {
+          await listen<{ setting?: string }>("settings-changed", (event) => {
+            get().refreshSettings();
+            if (event.payload.setting === "selected_microphone") {
+              get().refreshAudioDevices();
+            }
+          });
+          settingsChangedListenerRegistered = true;
+        } catch (error) {
+          console.error("Failed to register settings listener:", error);
+        }
+      })().finally(() => {
+        initializationPromise = null;
       });
+
+      return initializationPromise;
     },
   })),
 );
