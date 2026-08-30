@@ -6,12 +6,13 @@ on:
       pr_number:
         description: "PR number to build"
         required: true
-        type: string
+        type: number
 
 jobs:
   build-test:
+    if: github.ref == 'refs/heads/main'
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -28,11 +29,11 @@ jobs:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
-      sign-binaries: true
-      asset-prefix: "murmur-pr-${{ inputs.pr_number }}"
+      sign-binaries: false
+      asset-prefix: "murmur-pr-${{ inputs.pr_number }}-unsigned-not-notarized"
       upload-artifacts: true
       ref: ${{ format('refs/pull/{0}/merge', inputs.pr_number) }}
-    secrets: inherit
+      no-cache: true
 
   comment-on-pr:
     needs: build-test
@@ -49,5 +50,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: ${{ inputs.pr_number }},
-              body: `## 🧪 Test Build Ready\n\nBuild artifacts for PR #${{ inputs.pr_number }} are available for testing.\n\n**[Download artifacts from workflow run](${runUrl})**\n\nArtifacts expire after 30 days.`
+              body: `## 🧪 Unsigned and not notarized test build ready\n\nUnsigned and not notarized build artifacts for PR #${{ inputs.pr_number }} are available for testing.\n\n**[Download artifacts from workflow run](${runUrl})**\n\nArtifacts expire after 30 days.`
             });
