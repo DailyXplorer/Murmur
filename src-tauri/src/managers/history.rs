@@ -220,6 +220,12 @@ impl HistoryManager {
             return Err(Self::unavailable_recording_error());
         }
 
+        let root_metadata = fs::symlink_metadata(recordings_dir)
+            .map_err(|_| Self::unavailable_recording_error())?;
+        if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+            return Err(Self::unavailable_recording_error());
+        }
+
         let canonical_root =
             fs::canonicalize(recordings_dir).map_err(|_| Self::unavailable_recording_error())?;
         let candidate = recordings_dir.join(file_name);
