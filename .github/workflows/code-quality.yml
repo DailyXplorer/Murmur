@@ -14,6 +14,7 @@ on:
       - ".prettierrc*"
       - "tsconfig*"
       - "tailwind.config.*"
+      - ".github/scripts/**"
       - ".github/workflows/**"
   pull_request:
     paths:
@@ -27,6 +28,7 @@ on:
       - ".prettierrc*"
       - "tsconfig*"
       - "tailwind.config.*"
+      - ".github/scripts/**"
       - ".github/workflows/**"
 
 concurrency:
@@ -52,8 +54,14 @@ jobs:
       - name: Check macOS-only invariants
         run: bun run check:macos-only
 
+      - name: Test updater manifest
+        run: bun run test:updater-manifest
+
       - name: Run ESLint
         run: bun run lint
 
       - name: Run prettier
         run: bun run format:check
+
+      - name: Build frontend
+        run: bun run build
