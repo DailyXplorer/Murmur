@@ -668,6 +668,15 @@ mod tests {
     }
 
     #[test]
+    fn frontend_requests_audio_by_history_entry_id() {
+        let frontend = include_str!("../../../src/components/settings/history/HistorySettings.tsx");
+
+        assert!(frontend.contains("const getAudioUrl = useCallback(async (id: number)"));
+        assert!(frontend.contains("commands.getAudioFilePath(id)"));
+        assert!(!frontend.contains("getAudioUrl(entry.file_name)"));
+    }
+
+    #[test]
     fn migration_from_version_four_preserves_history_and_removes_retired_columns() {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
         conn.execute_batch(
