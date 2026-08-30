@@ -2,6 +2,8 @@ use crate::input::{self, EnigoState};
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use enigo::{Direction, Enigo, Key, Keyboard};
 use log::info;
+use objc2_app_kit::NSPasteboard;
+use objc2_foundation::NSInteger;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -28,12 +30,6 @@ fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), Str
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum LegacyClipboardContents<'a> {
-    Text(&'a str),
-    NotTextOrUnreadable,
-}
-
-#[derive(Debug, PartialEq, Eq)]
 enum LegacyClipboardAction {
     RestoreSnapshot,
     KeepTranscript,
@@ -41,17 +37,17 @@ enum LegacyClipboardAction {
 }
 
 fn decide_legacy_clipboard_action(
-    current_clipboard: LegacyClipboardContents<'_>,
-    transcript: &str,
+    published_change_count: NSInteger,
+    current_change_count: NSInteger,
     clipboard_handling: ClipboardHandling,
 ) -> LegacyClipboardAction {
-    match current_clipboard {
-        LegacyClipboardContents::Text(current) if current == transcript => match clipboard_handling
-        {
-            ClipboardHandling::DontModify => LegacyClipboardAction::RestoreSnapshot,
-            ClipboardHandling::CopyToClipboard => LegacyClipboardAction::KeepTranscript,
-        },
-        _ => LegacyClipboardAction::LeaveUntouched,
+    if current_change_count != published_change_count {
+        return LegacyClipboardAction::LeaveUntouched;
+    }
+
+    match clipboard_handling {
+        ClipboardHandling::DontModify => LegacyClipboardAction::RestoreSnapshot,
+        ClipboardHandling::CopyToClipboard => LegacyClipboardAction::KeepTranscript,
     }
 }
 
@@ -81,20 +77,20 @@ fn paste_via_clipboard(
     };
 
     write_text_to_clipboard(app_handle, text)?;
+    let published_change_count = NSPasteboard::generalPasteboard().changeCount();
 
     std::thread::sleep(Duration::from_millis(paste_delay_ms));
 
     let paste_result = with_enigo(app_handle, |enigo| input::send_paste_ctrl_v(enigo, 100));
 
     finish_clipboard_paste(paste_result, paste_delay_after_ms, || {
-        let current_text = clipboard.read_text().ok();
-        let current_clipboard = current_text
-            .as_deref()
-            .map(LegacyClipboardContents::Text)
-            .unwrap_or(LegacyClipboardContents::NotTextOrUnreadable);
+        let current_change_count = NSPasteboard::generalPasteboard().changeCount();
 
-        if decide_legacy_clipboard_action(current_clipboard, text, clipboard_handling)
-            == LegacyClipboardAction::RestoreSnapshot
+        if decide_legacy_clipboard_action(
+            published_change_count,
+            current_change_count,
+            clipboard_handling,
+        ) == LegacyClipboardAction::RestoreSnapshot
         {
             if let Some(clipboard_content) = saved_text {
                 let _ = write_text_to_clipboard(app_handle, &clipboard_content);
@@ -266,35 +262,23 @@ mod tests {
     #[test]
     fn restores_snapshot_when_murmur_still_owns_the_clipboard() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::Text("transcript"),
-                "transcript",
-                ClipboardHandling::DontModify,
-            ),
+            decide_legacy_clipboard_action(42, 42, ClipboardHandling::DontModify,),
             LegacyClipboardAction::RestoreSnapshot
         );
     }
 
     #[test]
-    fn doesnt_restore_snapshot_over_newer_text() {
+    fn doesnt_restore_snapshot_after_external_copy_of_identical_text() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::Text("newer text"),
-                "transcript",
-                ClipboardHandling::DontModify,
-            ),
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::DontModify,),
             LegacyClipboardAction::LeaveUntouched
         );
     }
 
     #[test]
-    fn doesnt_restore_snapshot_over_non_text_or_unreadable_content() {
+    fn doesnt_restore_snapshot_after_external_non_text_or_unreadable_change() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::NotTextOrUnreadable,
-                "transcript",
-                ClipboardHandling::DontModify,
-            ),
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::DontModify,),
             LegacyClipboardAction::LeaveUntouched
         );
     }
@@ -302,35 +286,23 @@ mod tests {
     #[test]
     fn keeps_transcript_when_murmur_still_owns_the_clipboard() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::Text("transcript"),
-                "transcript",
-                ClipboardHandling::CopyToClipboard,
-            ),
+            decide_legacy_clipboard_action(42, 42, ClipboardHandling::CopyToClipboard,),
             LegacyClipboardAction::KeepTranscript
         );
     }
 
     #[test]
-    fn doesnt_preserve_transcript_over_newer_text() {
+    fn doesnt_preserve_transcript_after_external_copy_of_identical_text() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::Text("newer text"),
-                "transcript",
-                ClipboardHandling::CopyToClipboard,
-            ),
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::CopyToClipboard,),
             LegacyClipboardAction::LeaveUntouched
         );
     }
 
     #[test]
-    fn doesnt_preserve_transcript_over_non_text_or_unreadable_content() {
+    fn doesnt_preserve_transcript_after_external_non_text_or_unreadable_change() {
         assert_eq!(
-            decide_legacy_clipboard_action(
-                LegacyClipboardContents::NotTextOrUnreadable,
-                "transcript",
-                ClipboardHandling::CopyToClipboard,
-            ),
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::CopyToClipboard,),
             LegacyClipboardAction::LeaveUntouched
         );
     }
