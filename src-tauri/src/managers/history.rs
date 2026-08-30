@@ -6,9 +6,11 @@ use rusqlite_migration::{Migrations, M};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
+
+pub const RECORDING_UNAVAILABLE_ERROR: &str = "Recording unavailable";
 
 /// Database migrations for transcription history.
 /// Each migration is applied in order. The library tracks which migrations
@@ -199,6 +201,61 @@ impl HistoryManager {
         &self.recordings_dir
     }
 
+    fn unavailable_recording_error() -> anyhow::Error {
+        anyhow!(RECORDING_UNAVAILABLE_ERROR)
+    }
+
+    fn resolve_recording_path_in_dir(recordings_dir: &Path, file_name: &str) -> Result<PathBuf> {
+        let path = Path::new(file_name);
+        let mut components = path.components();
+        let has_one_normal_component =
+            matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
+
+        if file_name.is_empty()
+            || file_name.starts_with('.')
+            || file_name.contains(['/', '\\'])
+            || !file_name.ends_with(".wav")
+            || !has_one_normal_component
+        {
+            return Err(Self::unavailable_recording_error());
+        }
+
+        let canonical_root =
+            fs::canonicalize(recordings_dir).map_err(|_| Self::unavailable_recording_error())?;
+        let candidate = recordings_dir.join(file_name);
+        let metadata =
+            fs::symlink_metadata(&candidate).map_err(|_| Self::unavailable_recording_error())?;
+
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(Self::unavailable_recording_error());
+        }
+
+        let canonical_candidate =
+            fs::canonicalize(candidate).map_err(|_| Self::unavailable_recording_error())?;
+        if !canonical_candidate.starts_with(&canonical_root) {
+            return Err(Self::unavailable_recording_error());
+        }
+
+        Ok(canonical_candidate)
+    }
+
+    pub fn resolve_persisted_recording_path(&self, file_name: &str) -> Result<PathBuf> {
+        Self::resolve_recording_path_in_dir(&self.recordings_dir, file_name)
+    }
+
+    fn delete_recording_file(recordings_dir: &Path, file_name: &str) -> bool {
+        let Ok(file_path) = Self::resolve_recording_path_in_dir(recordings_dir, file_name) else {
+            return false;
+        };
+
+        if fs::remove_file(file_path).is_err() {
+            error!("Failed to delete history recording");
+            return false;
+        }
+
+        true
+    }
+
     /// Save a new history entry to the database.
     /// The WAV file should already have been written to the recordings directory.
     pub fn save_entry(
@@ -298,34 +355,34 @@ impl HistoryManager {
         }
     }
 
-    fn delete_entries_and_files(&self, entries: &[(i64, String)]) -> Result<usize> {
+    fn delete_entries_and_files_with_conn(
+        conn: &Connection,
+        recordings_dir: &Path,
+        entries: &[(i64, String)],
+    ) -> Result<usize> {
         if entries.is_empty() {
             return Ok(0);
         }
 
-        let conn = self.get_connection()?;
         let mut deleted_count = 0;
 
         for (id, file_name) in entries {
-            // Delete database entry
             conn.execute(
                 "DELETE FROM transcription_history WHERE id = ?1",
                 params![id],
             )?;
 
-            // Delete WAV file
-            let file_path = self.recordings_dir.join(file_name);
-            if file_path.exists() {
-                if let Err(e) = fs::remove_file(&file_path) {
-                    error!("Failed to delete WAV file {}: {}", file_name, e);
-                } else {
-                    debug!("Deleted old WAV file: {}", file_name);
-                    deleted_count += 1;
-                }
+            if Self::delete_recording_file(recordings_dir, file_name) {
+                deleted_count += 1;
             }
         }
 
         Ok(deleted_count)
+    }
+
+    fn delete_entries_and_files(&self, entries: &[(i64, String)]) -> Result<usize> {
+        let conn = self.get_connection()?;
+        Self::delete_entries_and_files_with_conn(&conn, &self.recordings_dir, entries)
     }
 
     fn cleanup_by_count(&self, limit: usize) -> Result<()> {
@@ -526,8 +583,13 @@ impl HistoryManager {
         Ok(())
     }
 
-    pub fn get_audio_file_path(&self, file_name: &str) -> PathBuf {
-        self.recordings_dir.join(file_name)
+    pub async fn get_audio_file_path(&self, id: i64) -> Result<PathBuf> {
+        let entry = self
+            .get_entry_by_id(id)
+            .await?
+            .ok_or_else(Self::unavailable_recording_error)?;
+
+        self.resolve_persisted_recording_path(&entry.file_name)
     }
 
     pub async fn get_entry_by_id(&self, id: i64) -> Result<Option<HistoryEntry>> {
@@ -549,26 +611,30 @@ impl HistoryManager {
         Ok(entry)
     }
 
-    pub async fn delete_entry(&self, id: i64) -> Result<()> {
-        let conn = self.get_connection()?;
+    fn delete_entry_with_conn(conn: &Connection, recordings_dir: &Path, id: i64) -> Result<()> {
+        let file_name = conn
+            .query_row(
+                "SELECT file_name FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get::<_, String>("file_name"),
+            )
+            .optional()?;
 
-        // Get the entry to find the file name
-        if let Some(entry) = self.get_entry_by_id(id).await? {
-            // Delete the audio file first
-            let file_path = self.get_audio_file_path(&entry.file_name);
-            if file_path.exists() {
-                if let Err(e) = fs::remove_file(&file_path) {
-                    error!("Failed to delete audio file {}: {}", entry.file_name, e);
-                    // Continue with database deletion even if file deletion fails
-                }
-            }
+        if let Some(file_name) = file_name {
+            Self::delete_recording_file(recordings_dir, &file_name);
         }
 
-        // Delete from database
         conn.execute(
             "DELETE FROM transcription_history WHERE id = ?1",
             params![id],
         )?;
+
+        Ok(())
+    }
+
+    pub async fn delete_entry(&self, id: i64) -> Result<()> {
+        let conn = self.get_connection()?;
+        Self::delete_entry_with_conn(&conn, &self.recordings_dir, id)?;
 
         debug!("Deleted history entry with id: {}", id);
 
@@ -632,6 +698,21 @@ mod tests {
         .expect("insert history entry");
     }
 
+    fn insert_entry_with_file_name(conn: &Connection, file_name: &str) -> i64 {
+        conn.execute(
+            "INSERT INTO transcription_history (
+                file_name,
+                timestamp,
+                saved,
+                title,
+                transcription_text
+            ) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![file_name, 100, false, "Recording 100", "transcription"],
+        )
+        .expect("insert history entry");
+        conn.last_insert_rowid()
+    }
+
     #[test]
     fn get_latest_entry_returns_none_when_empty() {
         let conn = setup_conn();
@@ -674,6 +755,171 @@ mod tests {
         assert!(frontend.contains("const getAudioUrl = useCallback(async (id: number)"));
         assert!(frontend.contains("commands.getAudioFilePath(id)"));
         assert!(!frontend.contains("getAudioUrl(entry.file_name)"));
+    }
+
+    #[test]
+    fn asset_protocol_allows_only_literal_recording_wavs() {
+        let config = include_str!("../../tauri.conf.json");
+
+        assert!(config.contains("\"allow\": [\"$APPDATA/recordings/*.wav\"]"));
+        assert!(config.contains("\"requireLiteralLeadingDot\": true"));
+    }
+
+    #[test]
+    fn resolves_existing_root_level_wav_inside_canonical_recordings_directory() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let recording = recordings_dir.join("murmur-100.wav");
+        std::fs::write(&recording, "wav").expect("write recording");
+
+        let resolved =
+            HistoryManager::resolve_recording_path_in_dir(&recordings_dir, "murmur-100.wav")
+                .expect("resolve recording");
+
+        assert_eq!(
+            resolved,
+            std::fs::canonicalize(&recording).expect("canonicalize recording")
+        );
+        assert!(resolved.starts_with(
+            std::fs::canonicalize(&recordings_dir).expect("canonicalize recordings directory")
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_recording_file_names() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        std::fs::create_dir(recordings_dir.join("directory.wav"))
+            .expect("create recording directory");
+
+        let absolute_path = temp.path().join("outside.wav");
+        let invalid_names = vec![
+            String::new(),
+            ".".to_string(),
+            "..".to_string(),
+            "../outside.wav".to_string(),
+            absolute_path.display().to_string(),
+            "nested/recording.wav".to_string(),
+            r"nested\recording.wav".to_string(),
+            ".hidden.wav".to_string(),
+            "recording.WAV".to_string(),
+            "recording.mp3".to_string(),
+            "missing.wav".to_string(),
+            "directory.wav".to_string(),
+        ];
+
+        for file_name in invalid_names {
+            let error = HistoryManager::resolve_recording_path_in_dir(&recordings_dir, &file_name)
+                .expect_err("reject invalid recording name");
+            assert_eq!(error.to_string(), RECORDING_UNAVAILABLE_ERROR);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_external_recording_symlinks() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let external_recording = temp.path().join("external.wav");
+        std::fs::write(&external_recording, "wav").expect("write external recording");
+        std::os::unix::fs::symlink(&external_recording, recordings_dir.join("linked.wav"))
+            .expect("create recording symlink");
+
+        let error = HistoryManager::resolve_recording_path_in_dir(&recordings_dir, "linked.wav")
+            .expect_err("reject recording symlink");
+
+        assert_eq!(error.to_string(), RECORDING_UNAVAILABLE_ERROR);
+    }
+
+    #[test]
+    fn deletion_of_invalid_recording_keeps_external_sentinel_and_removes_database_row() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let sentinel = temp.path().join("sentinel.wav");
+        std::fs::write(&sentinel, "sentinel").expect("write sentinel");
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "../sentinel.wav");
+
+        HistoryManager::delete_entry_with_conn(&conn, &recordings_dir, id)
+            .expect("delete invalid history entry");
+
+        assert_eq!(
+            std::fs::read_to_string(&sentinel).expect("read sentinel"),
+            "sentinel"
+        );
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn retention_of_invalid_recording_keeps_external_sentinel_and_removes_database_row() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let sentinel = temp.path().join("sentinel.wav");
+        std::fs::write(&sentinel, "sentinel").expect("write sentinel");
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "../sentinel.wav");
+
+        let deleted = HistoryManager::delete_entries_and_files_with_conn(
+            &conn,
+            &recordings_dir,
+            &[(id, "../sentinel.wav".to_string())],
+        )
+        .expect("retain invalid history entry");
+
+        assert_eq!(deleted, 0);
+        assert_eq!(
+            std::fs::read_to_string(&sentinel).expect("read sentinel"),
+            "sentinel"
+        );
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn retention_deletes_valid_recording_and_database_row() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let recording = recordings_dir.join("murmur-100.wav");
+        std::fs::write(&recording, "wav").expect("write recording");
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "murmur-100.wav");
+
+        let deleted = HistoryManager::delete_entries_and_files_with_conn(
+            &conn,
+            &recordings_dir,
+            &[(id, "murmur-100.wav".to_string())],
+        )
+        .expect("retain valid history entry");
+
+        assert_eq!(deleted, 1);
+        assert!(!recording.exists());
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 0);
     }
 
     #[test]

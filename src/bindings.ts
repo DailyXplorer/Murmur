@@ -544,9 +544,9 @@ async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getAudioFilePath(fileName: string) : Promise<Result<string, string>> {
+async getAudioFilePath(id: number) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_audio_file_path", { fileName }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_audio_file_path", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };

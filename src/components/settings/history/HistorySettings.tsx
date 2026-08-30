@@ -188,9 +188,9 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
-  const getAudioUrl = useCallback(async (fileName: string) => {
+  const getAudioUrl = useCallback(async (id: number) => {
     try {
-      const result = await commands.getAudioFilePath(fileName);
+      const result = await commands.getAudioFilePath(id);
       if (result.status === "ok") {
         return convertFileSrc(result.data, "asset");
       }
@@ -303,7 +303,7 @@ interface HistoryEntryProps {
   entry: HistoryEntry;
   onToggleSaved: () => void;
   onCopyText: () => void;
-  getAudioUrl: (fileName: string) => Promise<string | null>;
+  getAudioUrl: (id: number) => Promise<string | null>;
   deleteAudio: (id: number) => Promise<void>;
   retryTranscription: (id: number) => Promise<void>;
 }
@@ -323,8 +323,8 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const hasTranscription = entry.transcription_text.trim().length > 0;
 
   const handleLoadAudio = useCallback(
-    () => getAudioUrl(entry.file_name),
-    [getAudioUrl, entry.file_name],
+    () => getAudioUrl(entry.id),
+    [getAudioUrl, entry.id],
   );
 
   const handleCopyText = () => {
