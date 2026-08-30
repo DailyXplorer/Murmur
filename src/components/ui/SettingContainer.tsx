@@ -130,7 +130,9 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
     return (
       <div className={containerClasses}>
         <div className="mb-2 flex min-w-0 items-center gap-0.5">
-          <h3 className={titleClasses}>{title}</h3>
+          <h3 className={titleClasses} title={title}>
+            {title}
+          </h3>
           {descriptionMode === "tooltip" && (
             <DescriptionTooltip
               description={description}
@@ -158,7 +160,9 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
     <div className={horizontalContainerClasses}>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-0.5">
-          <h3 className={titleClasses}>{title}</h3>
+          <h3 className={titleClasses} title={title}>
+            {title}
+          </h3>
           {descriptionMode === "tooltip" && (
             <DescriptionTooltip
               description={description}

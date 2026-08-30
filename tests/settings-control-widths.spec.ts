@@ -153,6 +153,13 @@ test.describe("settings control widths", () => {
     const infoTrigger = page.getByRole("button", {
       name: "A long French label must stay on one line",
     });
+    await expect(longTitle).toHaveAttribute(
+      "title",
+      "Supprimer automatiquement tous les mots de remplissage détectés pendant la transcription",
+    );
+    await expect(
+      page.getByRole("heading", { name: "Stacked content" }),
+    ).toHaveAttribute("title", "Stacked content");
     const [titleMetrics, infoBox] = await Promise.all([
       longTitle.evaluate((element) => {
         const rect = element.getBoundingClientRect();
