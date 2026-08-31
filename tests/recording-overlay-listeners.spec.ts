@@ -191,6 +191,9 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
   }));
   expect(deliveredEvents).toEqual({ show: 1, ready: 1, level: 1 });
   await expect(page.locator(".ov-stage")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".sdot")).toHaveClass(/ready/);
   await expect(page.locator(".swave i").first()).toHaveCSS("height", "18px");
 

@@ -98,7 +98,7 @@ const RecordingOverlay: React.FC = () => {
   const cancelBtn = (
     <button
       className="sx"
-      aria-label="cancel"
+      aria-label={t("tray.cancel")}
       onClick={() => commands.cancelOperation()}
     >
       <XIcon size={9} aria-hidden="true" />
