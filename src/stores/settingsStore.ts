@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  Result,
   TranscriptionProvider,
 } from "@/bindings";
 import { commands } from "@/bindings";
@@ -23,7 +24,7 @@ interface SettingsStore {
   updateSetting: <K extends keyof Settings>(
     key: K,
     value: Settings[K],
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   resetSetting: (key: keyof Settings) => Promise<void>;
   refreshSettings: () => Promise<void>;
   refreshAudioDevices: () => Promise<void>;
@@ -205,7 +206,9 @@ if (import.meta.hot) {
 }
 
 const settingUpdaters: {
-  [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
+  [K in keyof Settings]?: (
+    value: Settings[K],
+  ) => Promise<Result<unknown, string>>;
 } = {
   always_on_microphone: (value) =>
     commands.updateMicrophoneMode(value as boolean),
@@ -230,14 +233,8 @@ const settingUpdaters: {
         ? "default"
         : (value as string),
     ),
-  selected_channel: async (value) => {
-    const result = await commands.setSelectedChannel(
-      (value as number | null | undefined) ?? null,
-    );
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
-  },
+  selected_channel: (value) =>
+    commands.setSelectedChannel((value as number | null | undefined) ?? null),
   clamshell_microphone: (value) =>
     commands.setClamshellMicrophone(
       (value as string) === "Default" ? "default" : (value as string),
@@ -252,12 +249,8 @@ const settingUpdaters: {
     commands.updateRecordingRetentionPeriod(value as string),
   selected_language: (value) =>
     commands.changeSelectedLanguageSetting(value as string),
-  transcription_provider: async (value) => {
-    const result = await commands.changeTranscriptionProviderSetting(
-      value as TranscriptionProvider,
-    );
-    if (result.status === "error") throw new Error(result.error);
-  },
+  transcription_provider: (value) =>
+    commands.changeTranscriptionProviderSetting(value as TranscriptionProvider),
   overlay_position: (value) =>
     commands.changeOverlayPositionSetting(value as string),
   debug_mode: (value) => commands.changeDebugModeSetting(value as boolean),
@@ -298,6 +291,18 @@ const settingUpdaters: {
     commands.changeExtraRecordingBufferSetting(value as number),
 };
 
+interface SettingWriteState {
+  committedValue: Settings[keyof Settings];
+  latestRevision: number;
+  pendingCount: number;
+  tail: Promise<void>;
+}
+
+const MAX_SETTINGS_REFRESH_ATTEMPTS = 3;
+const settingWriteStates = new Map<keyof Settings, SettingWriteState>();
+let settingsRefreshRevision = 0;
+let settingsWriteRevision = 0;
+
 export const useSettingsStore = create<SettingsStore>()(
   subscribeWithSelector((set, get) => ({
     settings: null,
@@ -326,9 +331,38 @@ export const useSettingsStore = create<SettingsStore>()(
 
     // Load settings from store
     refreshSettings: async () => {
+      const refreshRevision = ++settingsRefreshRevision;
+
       try {
-        const result = await commands.getAppSettings();
-        if (result.status === "ok") {
+        for (
+          let attempt = 0;
+          attempt < MAX_SETTINGS_REFRESH_ATTEMPTS;
+          attempt++
+        ) {
+          const activeWrites = [...settingWriteStates.values()].map(
+            (writeState) => writeState.tail,
+          );
+          await Promise.all(activeWrites);
+
+          if (refreshRevision !== settingsRefreshRevision) return;
+          if (settingWriteStates.size > 0) continue;
+
+          const revisionBeforeRequest = settingsWriteRevision;
+          const result = await commands.getAppSettings();
+          if (refreshRevision !== settingsRefreshRevision) return;
+          if (result.status === "error") {
+            console.error("Failed to load settings:", result.error);
+            set({ isLoading: false });
+            return;
+          }
+
+          if (
+            revisionBeforeRequest !== settingsWriteRevision ||
+            settingWriteStates.size > 0
+          ) {
+            continue;
+          }
+
           const settings = result.data;
           const normalizedSettings: Settings = {
             ...settings,
@@ -339,11 +373,14 @@ export const useSettingsStore = create<SettingsStore>()(
               settings.selected_output_device ?? "Default",
           };
           set({ settings: normalizedSettings, isLoading: false });
-        } else {
-          console.error("Failed to load settings:", result.error);
-          set({ isLoading: false });
+          return;
         }
+
+        if (refreshRevision !== settingsRefreshRevision) return;
+        console.warn("Skipped stale settings refresh while writes were active");
+        set({ isLoading: false });
       } catch (error) {
+        if (refreshRevision !== settingsRefreshRevision) return;
         console.error("Failed to load settings:", error);
         set({ isLoading: false });
       }
@@ -416,29 +453,69 @@ export const useSettingsStore = create<SettingsStore>()(
     ) => {
       const { settings, setUpdating } = get();
       const updateKey = String(key);
-      const originalValue = settings?.[key];
+      settingsWriteRevision += 1;
+      let writeState = settingWriteStates.get(key);
+
+      if (!writeState) {
+        writeState = {
+          committedValue: settings?.[key],
+          latestRevision: 0,
+          pendingCount: 0,
+          tail: Promise.resolve(),
+        };
+        settingWriteStates.set(key, writeState);
+      }
+
+      const revision = writeState.latestRevision + 1;
+      writeState.latestRevision = revision;
+      writeState.pendingCount += 1;
 
       setUpdating(updateKey, true);
+      set((state) => ({
+        settings: state.settings ? { ...state.settings, [key]: value } : null,
+      }));
 
-      try {
-        set((state) => ({
-          settings: state.settings ? { ...state.settings, [key]: value } : null,
-        }));
+      const operation = writeState.tail.then(async () => {
+        try {
+          const updater = settingUpdaters[key];
+          if (!updater) {
+            throw new Error(`No handler for setting: ${String(key)}`);
+          }
 
-        const updater = settingUpdaters[key];
-        if (updater) {
-          await updater(value);
-        } else if (key !== "bindings") {
-          console.warn(`No handler for setting: ${String(key)}`);
+          const result = await updater(value);
+          if (result.status === "error") throw new Error(result.error);
+
+          writeState.committedValue = value;
+          return true;
+        } catch (error) {
+          console.error(`Failed to update setting ${String(key)}:`, error);
+          if (
+            revision === writeState.latestRevision &&
+            Object.is(get().settings?.[key], value)
+          ) {
+            set((state) => ({
+              settings: state.settings
+                ? { ...state.settings, [key]: writeState.committedValue }
+                : null,
+            }));
+          }
+          return false;
+        } finally {
+          writeState.pendingCount -= 1;
+          if (revision === writeState.latestRevision) {
+            setUpdating(updateKey, false);
+          }
+          if (
+            writeState.pendingCount === 0 &&
+            settingWriteStates.get(key) === writeState
+          ) {
+            settingWriteStates.delete(key);
+          }
         }
-      } catch (error) {
-        console.error(`Failed to update setting ${String(key)}:`, error);
-        if (settings) {
-          set({ settings: { ...settings, [key]: originalValue } });
-        }
-      } finally {
-        setUpdating(updateKey, false);
-      }
+      });
+
+      writeState.tail = operation.then(() => undefined);
+      return operation;
     },
 
     // Reset a setting to its default value
