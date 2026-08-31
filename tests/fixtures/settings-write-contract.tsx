@@ -3,14 +3,18 @@ import ReactDOM from "react-dom/client";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import type { AppSettings, Theme } from "../../src/bindings";
+import type { AppSettings, AudioDevice, Theme } from "../../src/bindings";
 import { AccentColorSelector } from "../../src/components/settings/AccentColorSelector";
 import { AppLanguageSelector } from "../../src/components/settings/AppLanguageSelector";
 import { AutoSubmit } from "../../src/components/settings/AutoSubmit";
+import { MicrophoneSelector } from "../../src/components/settings/MicrophoneSelector";
 import { ThemeSelector } from "../../src/components/settings/ThemeSelector";
 import { useSettingsStore } from "../../src/stores/settingsStore";
 import enTranslation from "../../src/i18n/locales/en/translation.json";
 import "../../src/App.css";
+
+const PREVIOUS_MICROPHONE = "Built-in Microphone";
+const PROPOSED_MICROPHONE = "USB Microphone";
 
 const INITIAL_SETTINGS: AppSettings = {
   app_language: "en",
@@ -18,8 +22,19 @@ const INITIAL_SETTINGS: AppSettings = {
   auto_submit: false,
   auto_submit_key: "enter",
   history_limit: 50,
+  selected_microphone: PREVIOUS_MICROPHONE,
   theme: "system",
 };
+
+const AUDIO_DEVICES: AudioDevice[] = [
+  { index: "default", is_default: true, name: "Default" },
+  {
+    index: "built-in-microphone",
+    is_default: false,
+    name: PREVIOUS_MICROPHONE,
+  },
+  { index: "usb-microphone", is_default: false, name: PROPOSED_MICROPHONE },
+];
 
 const calls: string[] = [];
 const failedCommands = new Set<string>();
@@ -91,6 +106,7 @@ const reset = async () => {
   localStorage.removeItem("murmur.theme");
   localStorage.setItem("murmur.accent-color", "pink");
   useSettingsStore.setState({
+    audioDevices: AUDIO_DEVICES,
     isLoading: false,
     isUpdating: {},
     settings: { ...INITIAL_SETTINGS },
@@ -134,6 +150,11 @@ declare global {
       runConcurrentRefreshProbe: () => Promise<{
         refreshCalls: number;
         theme: Theme | undefined;
+      }>;
+      runMicrophoneRollbackProbe: () => Promise<{
+        historyLimit: number | undefined;
+        microphone: string | undefined;
+        result: boolean;
       }>;
       runRefreshRaceProbe: () => Promise<{
         refreshCalls: number;
@@ -190,6 +211,31 @@ window.settingsWriteContract = {
       refreshCalls: calls.filter((command) => command === "get_app_settings")
         .length,
       theme: useSettingsStore.getState().settings?.theme,
+    };
+  },
+  runMicrophoneRollbackProbe: async () => {
+    deferredCommand = "set_selected_microphone";
+    const update = useSettingsStore
+      .getState()
+      .updateSetting("selected_microphone", PROPOSED_MICROPHONE);
+    await waitForDeferredCommand();
+
+    useSettingsStore.setState((state) => ({
+      settings: state.settings
+        ? { ...state.settings, history_limit: 200 }
+        : null,
+    }));
+
+    rejectDeferredCommand?.(
+      "Microphone runtime switch failed after Rust restored the previous microphone",
+    );
+    const result = await update;
+    const settings = useSettingsStore.getState().settings;
+
+    return {
+      historyLimit: settings?.history_limit,
+      microphone: settings?.selected_microphone,
+      result,
     };
   },
   runRollbackProbe: async () => {
@@ -275,6 +321,9 @@ const renderFixture = async () => {
     <main className="flex flex-col gap-4 p-8">
       <section data-testid="auto-submit">
         <AutoSubmit />
+      </section>
+      <section data-testid="microphone">
+        <MicrophoneSelector />
       </section>
       <section data-testid="theme">
         <ThemeSelector />

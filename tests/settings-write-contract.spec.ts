@@ -28,6 +28,29 @@ test("rolls back only the failed key after a structured backend error", async ({
   });
 });
 
+test("restores the previous microphone after Rust rejects a runtime proposal", async ({
+  page,
+}) => {
+  await expect(
+    page.evaluate(() =>
+      window.settingsWriteContract.runMicrophoneRollbackProbe(),
+    ),
+  ).resolves.toEqual({
+    historyLimit: 200,
+    microphone: "Built-in Microphone",
+    result: false,
+  });
+
+  await expect(
+    page.getByTestId("microphone").getByRole("button", {
+      name: "Built-in Microphone",
+    }),
+  ).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.settingsWriteContract.calls()))
+    .toEqual(["set_selected_microphone"]);
+});
+
 test("serializes same-key writes and keeps the latest accepted value", async ({
   page,
 }) => {
