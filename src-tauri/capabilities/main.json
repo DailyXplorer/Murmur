@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Capabilities for the main settings window",
+  "windows": ["main"],
+  "permissions": [
+    "default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
+    "os:allow-locale",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "process:allow-restart",
+    "macos-permissions:allow-check-accessibility-permission",
+    "macos-permissions:allow-check-microphone-permission",
+    "macos-permissions:allow-request-microphone-permission"
+  ]
+}

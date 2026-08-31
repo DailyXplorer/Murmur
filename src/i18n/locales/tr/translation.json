@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Pano Yönetimi",
-        "description": "Panoyu Değiştirme, transkripsiyon sonrası mevcut pano içeriğini korur. Panoya Kopyala ise yapıştırma işleminden sonra transkripsiyon sonucunu panoda bırakır.",
+        "description": "Cmd+V ile güvenli yapıştırma için önceki pano verileri asla geri yüklenmez. \"Yapıştırdıktan sonra temizle\" transkripsiyonu 8 saniye sonra kaldırır; \"Transkripsiyonu koru\" kullanılabilir durumda bırakır.",
         "options": {
-          "dontModify": "Panoyu Değiştirme",
-          "copyToClipboard": "Panoya Kopyala"
+          "dontModify": "Yapıştırdıktan sonra temizle",
+          "copyToClipboard": "Transkripsiyonu koru"
         }
       },
       "autoSubmit": {

@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Hantering av urklipp",
-        "description": "Ändra inte urklipp bevarar ditt nuvarande urklippsinnehåll efter transkription. Kopiera till urklipp lämnar transkriptionsresultatet i ditt urklipp efter att ha klistrat in.",
+        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. ”Rensa efter inklistring” tar bort transkriberingen efter 8 sekunder; ”Behåll transkriberingen” låter den vara tillgänglig.",
         "options": {
-          "dontModify": "Ändra inte urklipp",
-          "copyToClipboard": "Kopiera till urklipp"
+          "dontModify": "Rensa efter inklistring",
+          "copyToClipboard": "Behåll transkriberingen"
         }
       },
       "autoSubmit": {

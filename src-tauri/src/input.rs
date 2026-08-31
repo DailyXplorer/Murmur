@@ -1,9 +1,10 @@
-use enigo::{Enigo, Key, Keyboard, Mouse, Settings};
+use core_graphics::event::{CGEvent, CGEventFlags, KeyCode};
+use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+use enigo::{Enigo, Mouse, Settings};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 mod macos {
-    use super::Key;
     use log::{debug, warn};
     use std::ffi::c_void;
 
@@ -129,20 +130,147 @@ mod macos {
         Ok(keycode)
     }
 
-    pub(super) fn command_v_key() -> Key {
+    pub(super) fn command_v_keycode() -> u16 {
         match resolve_command_v_keycode() {
             Ok(keycode) => {
                 debug!("Resolved Cmd+V for the active macOS layout to keycode {keycode}");
-                Key::Other(u32::from(keycode))
+                keycode
             }
             Err(error) => {
                 warn!(
                     "Could not resolve Cmd+V for the active macOS layout ({error}); using ANSI V keycode {ANSI_V_KEYCODE}"
                 );
-                Key::Other(u32::from(ANSI_V_KEYCODE))
+                ANSI_V_KEYCODE
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum TargetedModifier {
+    Command,
+    Control,
+}
+
+fn modifier_event(modifier: TargetedModifier) -> (u16, CGEventFlags) {
+    match modifier {
+        TargetedModifier::Command => (KeyCode::COMMAND, CGEventFlags::CGEventFlagCommand),
+        TargetedModifier::Control => (KeyCode::CONTROL, CGEventFlags::CGEventFlagControl),
+    }
+}
+
+fn keyboard_event(
+    source: &CGEventSource,
+    keycode: u16,
+    keydown: bool,
+    flags: CGEventFlags,
+) -> Result<CGEvent, String> {
+    let event = CGEvent::new_keyboard_event(source.clone(), keycode, keydown)
+        .map_err(|_| "Failed to create targeted keyboard event".to_string())?;
+    event.set_flags(flags);
+    Ok(event)
+}
+
+fn send_key_chord_to_pid(
+    pid: i32,
+    keycode: u16,
+    modifier: Option<TargetedModifier>,
+    hold_ms: u64,
+) -> Result<(), String> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
+    let modifier_data = modifier.map(modifier_event);
+
+    let flags = modifier_data
+        .map(|(_, flags)| flags)
+        .unwrap_or(CGEventFlags::CGEventFlagNull);
+    let modifier_down = modifier_data
+        .map(|(modifier_keycode, flags)| keyboard_event(&source, modifier_keycode, true, flags))
+        .transpose()?;
+    let key_down = keyboard_event(&source, keycode, true, flags)?;
+    let key_up = keyboard_event(&source, keycode, false, flags)?;
+    let modifier_up = modifier_data
+        .map(|(modifier_keycode, _)| {
+            keyboard_event(
+                &source,
+                modifier_keycode,
+                false,
+                CGEventFlags::CGEventFlagNull,
+            )
+        })
+        .transpose()?;
+
+    if let Some(event) = modifier_down {
+        event.post_to_pid(pid);
+    }
+    key_down.post_to_pid(pid);
+    key_up.post_to_pid(pid);
+
+    if let Some(event) = modifier_up {
+        std::thread::sleep(std::time::Duration::from_millis(hold_ms));
+        event.post_to_pid(pid);
+    }
+    Ok(())
+}
+
+/// Sends Cmd+V directly to the process that was frontmost when the operation
+/// began. Unlike a global HID post, a focus switch cannot redirect the chord.
+pub fn send_paste_to_pid(pid: i32, hold_ms: u64) -> Result<(), String> {
+    send_key_chord_to_pid(
+        pid,
+        macos::command_v_keycode(),
+        Some(TargetedModifier::Command),
+        hold_ms,
+    )
+}
+
+/// Sends Return, optionally with a modifier, directly to one process.
+pub fn send_return_to_pid(pid: i32, modifier: Option<TargetedModifier>) -> Result<(), String> {
+    send_key_chord_to_pid(pid, KeyCode::RETURN, modifier, 0)
+}
+
+const MAX_UNICODE_EVENT_UNITS: usize = 20;
+
+fn targeted_text_chunks(text: &str) -> Vec<String> {
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_units = 0;
+
+    for character in text.chars() {
+        let character_units = character.len_utf16();
+        if !current.is_empty() && current_units + character_units > MAX_UNICODE_EVENT_UNITS {
+            chunks.push(std::mem::take(&mut current));
+            current_units = 0;
+        }
+
+        // CGEventKeyboardSetUnicodeString ignores a payload that starts with
+        // one of these controls. Enigo uses the same zero-width prefix
+        // workaround; it keeps multiline legacy Direct mode functional.
+        if current.is_empty() && matches!(character, '\n' | '\r' | '\t') {
+            current.push('\u{200b}');
+            current_units += 1;
+        }
+        current.push(character);
+        current_units += character_units;
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
+/// Posts Unicode text only to the captured process. Each CoreGraphics payload
+/// is bounded to macOS's 20 UTF-16-unit limit, so no later chunk can leak to a
+/// process that steals focus while a long transcription is being inserted.
+pub fn send_text_to_pid(pid: i32, text: &str) -> Result<(), String> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "Failed to create targeted text event source".to_string())?;
+    for chunk in targeted_text_chunks(text) {
+        let event = keyboard_event(&source, 0, true, CGEventFlags::CGEventFlagNull)?;
+        event.set_string(&chunk);
+        event.post_to_pid(pid);
+    }
+    Ok(())
 }
 
 /// Wrapper for Enigo to store in Tauri's managed state.
@@ -165,40 +293,26 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
     enigo.location().ok()
 }
 
-/// Sends Cmd+V using the physical key for the active keyboard layout.
-///
-/// `hold_ms` is how long the modifier stays held after the V click before being
-/// released. Most applications read the modifier from the V event's flags and
-/// need no hold at all, but applications that poll global keyboard state when
-/// handling the key need the modifier to still be down — the hold insures
-/// against those. Callers that can detect a failed chord (e.g. the
-/// receipt-sequenced paste path) may use a much shorter hold.
-pub fn send_paste_ctrl_v(enigo: &mut Enigo, hold_ms: u64) -> Result<(), String> {
-    let (modifier_key, v_key_code) = (Key::Meta, macos::command_v_key());
+#[cfg(test)]
+mod targeted_input_tests {
+    use super::*;
 
-    // Press modifier + V
-    enigo
-        .key(modifier_key, enigo::Direction::Press)
-        .map_err(|e| format!("Failed to press modifier key: {}", e))?;
-    enigo
-        .key(v_key_code, enigo::Direction::Click)
-        .map_err(|e| format!("Failed to click V key: {}", e))?;
+    #[test]
+    fn unicode_chunks_respect_utf16_limit_without_splitting_scalars() {
+        let text = format!("{}😀{}", "a".repeat(19), "b".repeat(19));
+        let chunks = targeted_text_chunks(&text);
+        assert_eq!(chunks.concat(), text);
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.encode_utf16().count() <= MAX_UNICODE_EVENT_UNITS));
+    }
 
-    std::thread::sleep(std::time::Duration::from_millis(hold_ms));
-
-    enigo
-        .key(modifier_key, enigo::Direction::Release)
-        .map_err(|e| format!("Failed to release modifier key: {}", e))?;
-
-    Ok(())
-}
-
-/// Pastes text directly using the enigo text method.
-/// This tries to use system input methods if possible, otherwise simulates keystrokes one by one.
-pub fn paste_text_direct(enigo: &mut Enigo, text: &str) -> Result<(), String> {
-    enigo
-        .text(text)
-        .map_err(|e| format!("Failed to send text directly: {}", e))?;
-
-    Ok(())
+    #[test]
+    fn leading_controls_get_the_core_graphics_workaround() {
+        for input in ["\nline", "\rline", "\tline"] {
+            let chunks = targeted_text_chunks(input);
+            assert!(chunks[0].starts_with('\u{200b}'));
+            assert_eq!(chunks[0].trim_start_matches('\u{200b}'), input);
+        }
+    }
 }

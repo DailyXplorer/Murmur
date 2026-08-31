@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Zwischenablage nicht ändern bewahrt den aktuellen Inhalt nach der Transkription. In Zwischenablage kopieren hinterlässt das Transkriptionsergebnis in der Zwischenablage.",
+        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. „Nach dem Einfügen löschen“ entfernt die Transkription nach 8 Sekunden; „Transkription behalten“ lässt sie verfügbar.",
         "options": {
-          "dontModify": "Zwischenablage nicht ändern",
-          "copyToClipboard": "In Zwischenablage kopieren"
+          "dontModify": "Nach dem Einfügen löschen",
+          "copyToClipboard": "Transkription behalten"
         }
       },
       "autoSubmit": {

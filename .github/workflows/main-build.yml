@@ -1,6 +1,6 @@
 name: "Main Branch Build"
 
-# Runs the signed macOS (darwin) build on every push to main so breakage is
+# Runs an unsigned macOS (darwin) build on every push to main so breakage is
 # caught before a manual release is triggered. Artifacts are kept for 30 days
 # so any commit on main has a downloadable, testable build.
 
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -33,5 +33,6 @@ jobs:
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
       upload-artifacts: true
-      sign-binaries: true
-    secrets: inherit
+      sign-binaries: false
+      asset-prefix: "murmur-main-unsigned-not-notarized"
+      ref: ${{ github.sha }}

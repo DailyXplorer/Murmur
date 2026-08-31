@@ -9,6 +9,8 @@ use tauri::{AppHandle, Manager};
 
 const DEBOUNCE: Duration = Duration::from_millis(30);
 const RELEASE_GRACE: Duration = Duration::from_millis(50);
+const MAX_RECORDING_DURATION: Duration =
+    Duration::from_secs(crate::audio_toolkit::constants::MAX_RECORDING_SECONDS);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PttAction {
@@ -18,6 +20,12 @@ enum PttAction {
 }
 
 struct PendingRelease {
+    binding_id: String,
+    hotkey_string: String,
+    deadline: Instant,
+}
+
+struct ActiveRecording {
     binding_id: String,
     hotkey_string: String,
     deadline: Instant,
@@ -44,8 +52,54 @@ enum Command {
 /// Pipeline lifecycle, owned exclusively by the coordinator thread.
 enum Stage {
     Idle,
-    Recording(String), // binding_id
+    Recording(ActiveRecording),
     Processing,
+}
+
+fn next_deadline(stage: &Stage, pending_release: Option<&PendingRelease>) -> Option<Instant> {
+    let recording_deadline = match stage {
+        Stage::Recording(recording) => Some(recording.deadline),
+        _ => None,
+    };
+    match (
+        pending_release.map(|pending| pending.deadline),
+        recording_deadline,
+    ) {
+        (Some(release), Some(recording)) => Some(release.min(recording)),
+        (Some(release), None) => Some(release),
+        (None, Some(recording)) => Some(recording),
+        (None, None) => None,
+    }
+}
+
+fn take_due_stop(
+    stage: &Stage,
+    pending_release: &mut Option<PendingRelease>,
+    now: Instant,
+) -> Option<(String, String, bool)> {
+    if pending_release
+        .as_ref()
+        .is_some_and(|pending| pending.deadline <= now)
+    {
+        if let Some(pending) = pending_release.take() {
+            if matches!(stage, Stage::Recording(recording) if recording.binding_id == pending.binding_id)
+            {
+                return Some((pending.binding_id, pending.hotkey_string, false));
+            }
+        }
+    }
+
+    if let Stage::Recording(recording) = stage {
+        if recording.deadline <= now {
+            *pending_release = None;
+            return Some((
+                recording.binding_id.clone(),
+                recording.hotkey_string.clone(),
+                true,
+            ));
+        }
+    }
+    None
 }
 
 fn classify_ptt_event(
@@ -114,25 +168,26 @@ impl TranscriptionCoordinator {
                 let mut pending_release: Option<PendingRelease> = None;
 
                 loop {
-                    let cmd = if let Some(pending) = &pending_release {
-                        match rx.recv_timeout(
-                            pending.deadline.saturating_duration_since(Instant::now()),
-                        ) {
+                    // Check deadlines before receiving so a continuously busy
+                    // channel cannot postpone the hard recording limit.
+                    if let Some((binding_id, hotkey_string, recording_limit)) =
+                        take_due_stop(&stage, &mut pending_release, Instant::now())
+                    {
+                        if recording_limit {
+                            warn!(
+                                "Recording reached the 15-minute duration limit; stopping safely"
+                            );
+                        }
+                        stop(&app, &mut stage, &binding_id, &hotkey_string);
+                        continue;
+                    }
+
+                    let cmd = if let Some(deadline) =
+                        next_deadline(&stage, pending_release.as_ref())
+                    {
+                        match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
                             Ok(cmd) => cmd,
-                            Err(mpsc::RecvTimeoutError::Timeout) => {
-                                if let Some(pending) = pending_release.take() {
-                                    if matches!(&stage, Stage::Recording(id) if id == &pending.binding_id)
-                                    {
-                                        stop(
-                                            &app,
-                                            &mut stage,
-                                            &pending.binding_id,
-                                            &pending.hotkey_string,
-                                        );
-                                    }
-                                }
-                                continue;
-                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => continue,
                             Err(mpsc::RecvTimeoutError::Disconnected) => break,
                         }
                     } else {
@@ -153,7 +208,7 @@ impl TranscriptionCoordinator {
                                 .as_ref()
                                 .map(|pending| pending.binding_id.as_str());
                             let recording_binding = match &stage {
-                                Stage::Recording(id) => Some(id.as_str()),
+                                Stage::Recording(recording) => Some(recording.binding_id.as_str()),
                                 _ => None,
                             };
 
@@ -194,7 +249,7 @@ impl TranscriptionCoordinator {
                                 if is_pressed && matches!(stage, Stage::Idle) {
                                     start(&app, &mut stage, &binding_id, &hotkey_string);
                                 } else if !is_pressed
-                                    && matches!(&stage, Stage::Recording(id) if id == &binding_id)
+                                    && matches!(&stage, Stage::Recording(recording) if recording.binding_id == binding_id)
                                 {
                                     stop(&app, &mut stage, &binding_id, &hotkey_string);
                                 }
@@ -203,7 +258,9 @@ impl TranscriptionCoordinator {
                                     Stage::Idle => {
                                         start(&app, &mut stage, &binding_id, &hotkey_string);
                                     }
-                                    Stage::Recording(id) if id == &binding_id => {
+                                    Stage::Recording(recording)
+                                        if recording.binding_id == binding_id =>
+                                    {
                                         stop(&app, &mut stage, &binding_id, &hotkey_string);
                                     }
                                     _ => {
@@ -303,7 +360,11 @@ fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &s
         .try_state::<Arc<AudioRecordingManager>>()
         .is_some_and(|a| a.is_recording())
     {
-        *stage = Stage::Recording(binding_id.to_string());
+        *stage = Stage::Recording(ActiveRecording {
+            binding_id: binding_id.to_string(),
+            hotkey_string: hotkey_string.to_string(),
+            deadline: Instant::now() + MAX_RECORDING_DURATION,
+        });
     } else {
         debug!("Start for '{binding_id}' did not begin recording; staying idle");
     }
@@ -321,6 +382,14 @@ fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &st
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn recording_stage(deadline: Instant) -> Stage {
+        Stage::Recording(ActiveRecording {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "CLI".to_string(),
+            deadline,
+        })
+    }
 
     #[test]
     fn push_to_talk_release_while_recording_defers_release() {
@@ -386,7 +455,7 @@ mod tests {
 
     #[test]
     fn remote_cancel_after_toggle_returns_the_coordinator_to_idle() {
-        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
         let mut pending_release = Some(PendingRelease {
             binding_id: "transcribe".to_string(),
             hotkey_string: "CLI".to_string(),
@@ -431,7 +500,7 @@ mod tests {
 
     #[test]
     fn local_cancel_during_recording_cleans_up_immediately() {
-        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
         let mut pending_release = None;
 
         let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
@@ -442,6 +511,36 @@ mod tests {
 
         finish_cancel(&mut stage, &mut pending_release);
         assert!(matches!(stage, Stage::Idle));
+    }
+
+    #[test]
+    fn receiver_uses_the_earliest_release_or_recording_deadline() {
+        let now = Instant::now();
+        let stage = recording_stage(now + Duration::from_secs(10));
+        let pending = PendingRelease {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: now + Duration::from_millis(50),
+        };
+        assert_eq!(
+            next_deadline(&stage, Some(&pending)),
+            Some(pending.deadline)
+        );
+        assert_eq!(
+            next_deadline(&stage, None),
+            Some(now + Duration::from_secs(10))
+        );
+    }
+
+    #[test]
+    fn expired_recording_is_taken_before_queued_input() {
+        let now = Instant::now();
+        let stage = recording_stage(now - Duration::from_millis(1));
+        let mut pending_release = None;
+        assert_eq!(
+            take_due_stop(&stage, &mut pending_release, now),
+            Some(("transcribe".to_string(), "CLI".to_string(), true))
+        );
     }
 
     #[test]

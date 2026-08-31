@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Gestion du presse-papiers",
-        "description": "Ne pas modifier le presse-papiers préserve le contenu actuel de votre presse-papiers après la transcription. Copier dans le presse-papiers laisse le résultat de la transcription dans votre presse-papiers après le collage.",
+        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. « Effacer après le collage » supprime la transcription après 8 secondes ; « Conserver la transcription » la laisse disponible.",
         "options": {
-          "dontModify": "Ne pas modifier le presse-papiers",
-          "copyToClipboard": "Copier dans le presse-papiers"
+          "dontModify": "Effacer après le collage",
+          "copyToClipboard": "Conserver la transcription"
         }
       },
       "autoSubmit": {

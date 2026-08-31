@@ -642,9 +642,8 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  */
 selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
- * Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
- * after the target app actually reads the transcript, instead of after a
- * fixed delay. See `paste_tx`. macOS only.
+ * Required guarded paste path. Prior clipboard data is never restored;
+ * AppKit does not identify the process reading promised data. macOS only.
  */
 reliable_paste?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
 export type AudioDevice = { index: string; name: string; is_default: boolean }

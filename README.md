@@ -16,9 +16,10 @@ option requires an API key or local speech-recognition model.
 - Network access while transcribing
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
-`~/.codex/auth.json`. It never writes to that file. For Gemini, Murmur starts or
-reuses Antigravity's local language server and lets that server access its own
-session. Murmur does not read or copy the Antigravity token. Both integrations
+`~/.codex/auth.json`. It never writes to that file. For Gemini, Murmur starts a
+Murmur-owned language server from the verified system Antigravity
+installation and lets that server access its own session. Murmur does not read
+or copy the Antigravity token. Both integrations
 use internal services rather than public, documented APIs, so a Codex,
 ChatGPT, or Antigravity update may require a Murmur update.
 

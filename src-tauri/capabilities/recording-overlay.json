@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "recording-overlay",
+  "description": "Least-privilege capabilities for the recording overlay",
+  "windows": ["recording_overlay"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "os:allow-locale",
+    "allow-get-app-settings",
+    "allow-cancel-operation"
+  ]
+}

@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "剪贴板处理",
-        "description": "不修改剪贴板将在转录后保留当前剪贴板内容。复制到剪贴板将在粘贴后将转录结果留在剪贴板中。",
+        "description": "为通过 Cmd+V 安全粘贴，先前的剪贴板数据绝不会被恢复。“粘贴后清除”会在 8 秒后移除转录内容；“保留转录内容”会让其继续可用。",
         "options": {
-          "dontModify": "不修改剪贴板",
-          "copyToClipboard": "复制到剪贴板"
+          "dontModify": "粘贴后清除",
+          "copyToClipboard": "保留转录内容"
         }
       },
       "autoSubmit": {

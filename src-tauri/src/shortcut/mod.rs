@@ -374,6 +374,7 @@ pub fn change_whats_new_last_seen_version_setting(
 #[tauri::command]
 #[specta::specta]
 pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), String> {
+    settings::validate_custom_words(&words)?;
     let mut value = settings::get_settings(&app);
     value.custom_words = words;
     settings::write_settings(&app, value);
@@ -395,6 +396,12 @@ pub fn change_word_correction_threshold_setting(
 #[tauri::command]
 #[specta::specta]
 pub fn change_extra_recording_buffer_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_EXTRA_RECORDING_BUFFER_MS {
+        return Err(format!(
+            "Recording buffer cannot exceed {} ms",
+            settings::MAX_EXTRA_RECORDING_BUFFER_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.extra_recording_buffer_ms = ms;
     settings::write_settings(&app, value);
@@ -404,6 +411,12 @@ pub fn change_extra_recording_buffer_setting(app: AppHandle, ms: u64) -> Result<
 #[tauri::command]
 #[specta::specta]
 pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_PASTE_DELAY_MS {
+        return Err(format!(
+            "Paste delay cannot exceed {} ms",
+            settings::MAX_PASTE_DELAY_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.paste_delay_ms = ms;
     settings::write_settings(&app, value);
@@ -413,6 +426,12 @@ pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), Stri
 #[tauri::command]
 #[specta::specta]
 pub fn change_paste_delay_after_ms_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_PASTE_DELAY_MS {
+        return Err(format!(
+            "Paste delay cannot exceed {} ms",
+            settings::MAX_PASTE_DELAY_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.paste_delay_after_ms = ms;
     settings::write_settings(&app, value);
@@ -422,6 +441,9 @@ pub fn change_paste_delay_after_ms_setting(app: AppHandle, ms: u64) -> Result<()
 #[tauri::command]
 #[specta::specta]
 pub fn change_reliable_paste_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if !enabled {
+        return Err("Reliable paste is required to protect clipboard contents".to_string());
+    }
     let mut value = settings::get_settings(&app);
     value.reliable_paste = enabled;
     settings::write_settings(&app, value);

@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Klembordbeheer",
-        "description": "'Klembord niet aanpassen' behoudt je huidige klembordinhoud na een transcriptie. 'Kopiëren naar klembord' laat de getranscribeerde tekst achter op je klembord.",
+        "description": "Voor veilig plakken met Cmd+V worden eerdere klembordgegevens nooit hersteld. 'Wissen na plakken' verwijdert de transcriptie na 8 seconden; 'Transcriptie behouden' laat deze beschikbaar.",
         "options": {
-          "dontModify": "Klembord niet aanpassen",
-          "copyToClipboard": "Kopiëren naar klembord"
+          "dontModify": "Wissen na plakken",
+          "copyToClipboard": "Transcriptie behouden"
         }
       },
       "autoSubmit": {

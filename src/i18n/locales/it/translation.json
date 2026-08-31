@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Gestione Appunti",
-        "description": "Non Modificare gli Appunti mantiene il contenuto dei tuoi appunti dopo la trascrizione. Copia negli Appunti lascia il risultato della trascrizione negli appunti dopo aver incollato.",
+        "description": "Per un incollamento sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. «Cancella dopo l'incollamento» rimuove la trascrizione dopo 8 secondi; «Mantieni la trascrizione» la lascia disponibile.",
         "options": {
-          "dontModify": "Non Modificare gli Appunti",
-          "copyToClipboard": "Copia negli Appunti"
+          "dontModify": "Cancella dopo l'incollamento",
+          "copyToClipboard": "Mantieni la trascrizione"
         }
       },
       "autoSubmit": {

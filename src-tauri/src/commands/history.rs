@@ -105,6 +105,12 @@ pub async fn update_history_limit(
     history_manager: State<'_, Arc<HistoryManager>>,
     limit: usize,
 ) -> Result<(), String> {
+    if limit > crate::settings::MAX_HISTORY_LIMIT {
+        return Err(format!(
+            "History limit cannot exceed {} entries",
+            crate::settings::MAX_HISTORY_LIMIT
+        ));
+    }
     let mut settings = crate::settings::get_settings(&app);
     settings.history_limit = limit;
     crate::settings::write_settings(&app, settings);
