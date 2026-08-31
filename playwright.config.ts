@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const vitePort = process.env.PLAYWRIGHT_VITE_PORT ?? "1422";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -8,7 +10,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
   use: {
-    baseURL: "http://localhost:1420",
+    baseURL: `http://localhost:${vitePort}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -18,9 +20,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bunx vite dev",
-    url: "http://localhost:1420",
-    reuseExistingServer: !process.env.CI,
+    command: `bunx vite dev --mode test --port ${vitePort}`,
+    url: `http://localhost:${vitePort}`,
+    reuseExistingServer:
+      process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "true",
     timeout: 30000,
   },
 });
