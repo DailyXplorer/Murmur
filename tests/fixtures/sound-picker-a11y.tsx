@@ -1,7 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import i18n from "i18next";
-import { I18nextProvider, initReactI18next } from "react-i18next";
 import type { AppSettings } from "../../src/bindings";
 import { SoundPicker } from "../../src/components/settings/SoundPicker";
 import { useSettingsStore } from "../../src/stores/settingsStore";
@@ -27,25 +25,15 @@ const TEST_SETTINGS: AppSettings = {
 const SoundPickerFixture: React.FC = () => (
   <main className="min-h-screen bg-background px-8 py-10 text-text">
     <section className="mx-auto flex w-[720px] flex-col gap-4">
-      <I18nextProvider i18n={i18n}>
-        <SoundPicker
-          label={i18n.t("settings.debug.soundTheme.label")}
-          description={i18n.t("settings.debug.soundTheme.description")}
-        />
-      </I18nextProvider>
+      <SoundPicker
+        label={frTranslation.settings.debug.soundTheme.label}
+        description={frTranslation.settings.debug.soundTheme.description}
+      />
     </section>
   </main>
 );
 
-const renderFixture = async () => {
-  await i18n.use(initReactI18next).init({
-    fallbackLng: "fr",
-    interpolation: { escapeValue: false },
-    lng: "fr",
-    react: { useSuspense: false },
-    resources: { fr: { translation: frTranslation } },
-  });
-
+const renderFixture = () => {
   useSettingsStore.setState({
     customSounds: { start: false, stop: false },
     isLoading: false,
@@ -59,4 +47,4 @@ const renderFixture = async () => {
   ReactDOM.createRoot(rootElement).render(<SoundPickerFixture />);
 };
 
-void renderFixture();
+renderFixture();
