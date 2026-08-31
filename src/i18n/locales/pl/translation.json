@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Obsługa schowka",
-        "description": "Nie modyfikuj schowka zachowuje jego zawartość. Kopiuj do schowka pozostawia wynik transkrypcji w schowku.",
+        "description": "Aby bezpiecznie wkleić za pomocą Cmd+V, poprzednie dane schowka nigdy nie są przywracane. „Wyczyść po wklejeniu” usuwa transkrypcję po 8 sekundach; „Zachowaj transkrypcję” pozostawia ją dostępną.",
         "options": {
-          "dontModify": "Nie modyfikuj schowka",
-          "copyToClipboard": "Kopiuj do schowka"
+          "dontModify": "Wyczyść po wklejeniu",
+          "copyToClipboard": "Zachowaj transkrypcję"
         }
       },
       "autoSubmit": {

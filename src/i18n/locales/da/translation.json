@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Håndtering af udklipsholder",
-        "description": "Rør ikke ved udklipsholder bevarer dit nuværende udklipsholderindhold efter transskription. Kopiér til udklipsholder efterlader transskriptionsresultatet i din udklipsholder efter indsætning.",
+        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. \"Ryd efter indsættelse\" fjerner transskriptionen efter 8 sekunder; \"Behold transskription\" lader den forblive tilgængelig.",
         "options": {
-          "dontModify": "Rør ikke ved udklipsholder",
-          "copyToClipboard": "Kopiér til udklipsholder"
+          "dontModify": "Ryd efter indsættelse",
+          "copyToClipboard": "Behold transskription"
         }
       },
       "autoSubmit": {

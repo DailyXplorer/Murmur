@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "클립보드 처리",
-        "description": "클립보드 수정 안 함은 전사 후 현재 클립보드 내용을 보존합니다. 클립보드에 복사는 붙여넣기 후 전사 결과를 클립보드에 남겨둡니다.",
+        "description": "Cmd+V로 안전하게 붙여넣기 위해 이전 클립보드 데이터는 복원되지 않습니다. '붙여넣기 후 지우기'는 8초 후 전사 내용을 제거하며, '전사 내용 유지'는 계속 사용할 수 있게 둡니다.",
         "options": {
-          "dontModify": "클립보드 수정 안 함",
-          "copyToClipboard": "클립보드에 복사"
+          "dontModify": "붙여넣기 후 지우기",
+          "copyToClipboard": "전사 내용 유지"
         }
       },
       "autoSubmit": {

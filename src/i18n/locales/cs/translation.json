@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Práce se schránkou",
-        "description": "'Neměnit schránku' zachová po přepisu aktuální obsah schránky. 'Kopírovat do schránky' ponechá po vložení výsledek přepisu ve schránce.",
+        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. „Vymazat po vložení“ odstraní přepis po 8 sekundách; „Ponechat přepis“ jej ponechá k dispozici.",
         "options": {
-          "dontModify": "Neměnit schránku",
-          "copyToClipboard": "Kopírovat do schránky"
+          "dontModify": "Vymazat po vložení",
+          "copyToClipboard": "Ponechat přepis"
         }
       },
       "autoSubmit": {

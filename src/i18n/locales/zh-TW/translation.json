@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "剪貼簿處理",
-        "description": "不修改剪貼簿將在轉錄後保留目前剪貼簿內容。複製到剪貼簿會在貼上後將轉錄結果留在剪貼簿中",
+        "description": "為了透過 Cmd+V 安全貼上，先前的剪貼簿資料絕不會被還原。「貼上後清除」會在 8 秒後移除轉錄內容；「保留轉錄內容」會讓其繼續可用。",
         "options": {
-          "dontModify": "不修改剪貼簿",
-          "copyToClipboard": "複製到剪貼簿"
+          "dontModify": "貼上後清除",
+          "copyToClipboard": "保留轉錄內容"
         }
       },
       "autoSubmit": {

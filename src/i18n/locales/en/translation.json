@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Clipboard Handling",
-        "description": "Don't Modify Clipboard preserves your current clipboard contents after transcription. Copy to Clipboard leaves the transcription result in your clipboard after pasting.",
+        "description": "For secure Cmd+V pasting, previous clipboard data is never restored. Clear After Paste removes the transcription after 8 seconds; Keep Transcription leaves it available.",
         "options": {
-          "dontModify": "Don't Modify Clipboard",
-          "copyToClipboard": "Copy to Clipboard"
+          "dontModify": "Clear After Paste",
+          "copyToClipboard": "Keep Transcription"
         }
       },
       "autoSubmit": {

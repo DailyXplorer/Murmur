@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use hound::{WavReader, WavSpec, WavWriter};
 use log::debug;
 use std::path::Path;
@@ -6,11 +6,23 @@ use std::path::Path;
 /// Read a WAV file and return normalised f32 samples.
 pub fn read_wav_samples<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let reader = WavReader::open(file_path.as_ref())?;
+    let sample_count = reader.len() as usize;
+    ensure_wav_sample_count_within_limit(sample_count)?;
     let samples = reader
         .into_samples::<i16>()
         .map(|s| s.map(|v| v as f32 / i16::MAX as f32))
         .collect::<Result<Vec<f32>, _>>()?;
     Ok(samples)
+}
+
+fn ensure_wav_sample_count_within_limit(sample_count: usize) -> Result<()> {
+    if sample_count > crate::audio_toolkit::constants::MAX_RECORDING_SAMPLES {
+        bail!(
+            "WAV contains {sample_count} samples; the maximum is {}",
+            crate::audio_toolkit::constants::MAX_RECORDING_SAMPLES
+        );
+    }
+    Ok(())
 }
 
 /// Verify a WAV file by reading it back and checking the sample count.
@@ -47,4 +59,21 @@ pub fn save_wav_file<P: AsRef<Path>>(file_path: P, samples: &[f32]) -> Result<()
     writer.finalize()?;
     debug!("Saved WAV file: {:?}", file_path.as_ref());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_wav_sample_limit_before_collecting() {
+        assert!(ensure_wav_sample_count_within_limit(
+            crate::audio_toolkit::constants::MAX_RECORDING_SAMPLES
+        )
+        .is_ok());
+        assert!(ensure_wav_sample_count_within_limit(
+            crate::audio_toolkit::constants::MAX_RECORDING_SAMPLES + 1
+        )
+        .is_err());
+    }
 }

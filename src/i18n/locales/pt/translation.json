@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Manipulação da Área de Transferência",
-        "description": "Não Modificar Área de Transferência preserva o conteúdo atual da área de transferência após a transcrição. Copiar para Área de Transferência deixa o resultado da transcrição na área de transferência após colar.",
+        "description": "Para uma colagem segura com Cmd+V, os dados anteriores da Área de Transferência nunca são restaurados. «Limpar após colar» remove a transcrição após 8 segundos; «Manter transcrição» deixa-a disponível.",
         "options": {
-          "dontModify": "Não Modificar Área de Transferência",
-          "copyToClipboard": "Copiar para Área de Transferência"
+          "dontModify": "Limpar após colar",
+          "copyToClipboard": "Manter transcrição"
         }
       },
       "autoSubmit": {

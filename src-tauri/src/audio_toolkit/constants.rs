@@ -1,1 +1,4 @@
 pub const TARGET_SAMPLE_RATE: u32 = 16000;
+pub const MAX_RECORDING_SECONDS: u64 = 15 * 60;
+pub const MAX_RECORDING_SAMPLES: usize =
+    TARGET_SAMPLE_RATE as usize * MAX_RECORDING_SECONDS as usize;
