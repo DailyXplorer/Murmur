@@ -212,7 +212,7 @@ fn dispatch_single_instance_action(app: &AppHandle, action: SingleInstanceAction
             if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
                 coordinator.send_remote_cancel();
             } else {
-                crate::utils::cancel_current_operation(app);
+                crate::utils::cancel_current_operation_before_coordinator(app);
             }
         }
     }
@@ -272,9 +272,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 tray::copy_last_transcript(app);
             }
             "cancel" => {
-                use crate::utils::cancel_current_operation;
-
-                cancel_current_operation(app);
+                if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+                    coordinator.send_cancel();
+                } else {
+                    crate::utils::cancel_current_operation_before_coordinator(app);
+                }
             }
             "quit" => {
                 app.exit(0);
