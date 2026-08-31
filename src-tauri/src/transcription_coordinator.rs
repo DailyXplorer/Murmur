@@ -34,6 +34,7 @@ enum Command {
     Cancel {
         recording_was_active: bool,
     },
+    RemoteCancel,
     ProcessingFinished,
 }
 
@@ -65,6 +66,13 @@ fn classify_ptt_event(
         PttAction::DeferRelease
     } else {
         PttAction::Passthrough
+    }
+}
+
+fn finish_remote_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>) {
+    *pending_release = None;
+    if !matches!(stage, Stage::Processing) {
+        *stage = Stage::Idle;
     }
 }
 
@@ -200,6 +208,17 @@ impl TranscriptionCoordinator {
                                 stage = Stage::Idle;
                             }
                         }
+                        Command::RemoteCancel => {
+                            // Remote single-instance actions share this queue
+                            // with remote toggles. Cancelling here guarantees a
+                            // preceding toggle has started recording before the
+                            // audio manager is inspected.
+                            let processing = matches!(stage, Stage::Processing);
+                            crate::utils::cancel_current_operation_from_coordinator(
+                                &app, processing,
+                            );
+                            finish_remote_cancel(&mut stage, &mut pending_release);
+                        }
                         Command::ProcessingFinished => {
                             stage = Stage::Idle;
                         }
@@ -246,6 +265,15 @@ impl TranscriptionCoordinator {
             })
             .is_err()
         {
+            warn!("Transcription coordinator channel closed");
+        }
+    }
+
+    /// Queues a remote cancellation behind remote transcription inputs. Unlike
+    /// a local cancel shortcut, this must wait for an earlier remote toggle to
+    /// reach the audio manager before it checks whether recording is active.
+    pub fn send_remote_cancel(&self) {
+        if self.tx.send(Command::RemoteCancel).is_err() {
             warn!("Transcription coordinator channel closed");
         }
     }
@@ -346,6 +374,33 @@ mod tests {
             classify_ptt_event(Some("transcribe"), true, true, "transcribe", None),
             PttAction::CancelRelease
         );
+    }
+
+    #[test]
+    fn remote_cancel_after_toggle_returns_the_coordinator_to_idle() {
+        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut pending_release = Some(PendingRelease {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "CLI".to_string(),
+            deadline: Instant::now(),
+        });
+
+        finish_remote_cancel(&mut stage, &mut pending_release);
+
+        assert!(matches!(stage, Stage::Idle));
+        assert!(pending_release.is_none());
+    }
+
+    #[test]
+    fn remote_cancel_keeps_processing_stage_while_audio_is_still_stopping() {
+        let mut stage = Stage::Processing;
+        let mut pending_release = None;
+
+        // `stop` moves the coordinator to Processing before its async worker
+        // stops the audio manager, so that manager can still report active.
+        finish_remote_cancel(&mut stage, &mut pending_release);
+
+        assert!(matches!(stage, Stage::Processing));
     }
 
     // ---------------------------------------------------------------------
