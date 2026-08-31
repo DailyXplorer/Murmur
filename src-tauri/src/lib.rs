@@ -19,6 +19,7 @@ mod paste_tx;
 mod settings;
 mod shortcut;
 mod signal_handle;
+mod single_instance_actions;
 mod transcription_coordinator;
 mod tray;
 mod tray_i18n;
@@ -43,6 +44,9 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind};
 
 use crate::settings::get_settings;
+use crate::single_instance_actions::{
+    action_from_args, SingleInstanceAction, SingleInstanceActionQueue,
+};
 
 #[cfg(debug_assertions)]
 fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<String> {
@@ -191,6 +195,27 @@ fn show_main_window(app: &AppHandle) {
         "Main window not found. Webview labels: {:?}",
         webview_labels
     );
+}
+
+fn dispatch_single_instance_action(app: &AppHandle, action: SingleInstanceAction) {
+    match action {
+        SingleInstanceAction::Show => show_main_window(app),
+        SingleInstanceAction::Toggle => {
+            signal_handle::send_transcription_input(app, "transcribe", "CLI");
+        }
+        // Queue cancellation through the coordinator so a preceding remote
+        // toggle has started its recording before cancellation inspects it.
+        // The fallback keeps this dispatch safe if it is ever reused before
+        // coordinator initialization; normal single-instance startup buffers
+        // actions until after that initialization.
+        SingleInstanceAction::Cancel => {
+            if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+                coordinator.send_remote_cancel();
+            } else {
+                crate::utils::cancel_current_operation(app);
+            }
+        }
+    }
 }
 
 fn initialize_core_logic(app_handle: &AppHandle) {
@@ -538,13 +563,17 @@ pub fn run(cli_args: CliArgs) {
     // app is already open, so skip it in headless mode and run a standalone
     // instance instead.
     if !headless_mode {
+        // The plugin can call its callback before setup has initialized the
+        // window, coordinator, and recording manager. Register this state
+        // before the plugin so early remote actions have somewhere safe to go.
+        builder = builder.manage(SingleInstanceActionQueue::default());
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if args.iter().any(|a| a == "--toggle-transcription") {
-                signal_handle::send_transcription_input(app, "transcribe", "CLI");
-            } else if args.iter().any(|a| a == "--cancel") {
-                crate::utils::cancel_current_operation(app);
-            } else {
-                show_main_window(app);
+            let action = action_from_args(&args);
+            if let Some(action) = app
+                .state::<SingleInstanceActionQueue>()
+                .enqueue_or_dispatch(action)
+            {
+                dispatch_single_instance_action(app, action);
             }
         }));
     }
@@ -656,6 +685,16 @@ pub fn run(cli_args: CliArgs) {
             if !should_hide || !tray_available {
                 show_main_window(&app_handle);
             }
+
+            // This is deliberately the final non-headless setup step. A remote
+            // Toggle now observes the initialized overlay cache and final tray
+            // visibility. A remote Show runs after the start-hidden decision,
+            // so it always brings the window forward.
+            app_handle
+                .state::<SingleInstanceActionQueue>()
+                .mark_ready_and_drain(|action| {
+                    dispatch_single_instance_action(&app_handle, action)
+                });
 
             Ok(())
         })
