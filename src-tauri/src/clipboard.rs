@@ -2,6 +2,8 @@ use crate::input::{self, EnigoState};
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use enigo::{Direction, Enigo, Key, Keyboard};
 use log::info;
+use objc2_app_kit::NSPasteboard;
+use objc2_foundation::NSInteger;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -27,6 +29,28 @@ fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), Str
         .map_err(|e| format!("Failed to write to clipboard: {}", e))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum LegacyClipboardAction {
+    RestoreSnapshot,
+    KeepTranscript,
+    LeaveUntouched,
+}
+
+fn decide_legacy_clipboard_action(
+    published_change_count: NSInteger,
+    current_change_count: NSInteger,
+    clipboard_handling: ClipboardHandling,
+) -> LegacyClipboardAction {
+    if current_change_count != published_change_count {
+        return LegacyClipboardAction::LeaveUntouched;
+    }
+
+    match clipboard_handling {
+        ClipboardHandling::DontModify => LegacyClipboardAction::RestoreSnapshot,
+        ClipboardHandling::CopyToClipboard => LegacyClipboardAction::KeepTranscript,
+    }
+}
+
 fn finish_clipboard_paste(
     paste_result: Result<(), String>,
     paste_delay_after_ms: u64,
@@ -42,6 +66,7 @@ fn paste_via_clipboard(
     app_handle: &AppHandle,
     paste_delay_ms: u64,
     paste_delay_after_ms: u64,
+    clipboard_handling: ClipboardHandling,
 ) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
     let saved_text = clipboard.read_text().ok().filter(|t| !t.is_empty());
@@ -52,19 +77,29 @@ fn paste_via_clipboard(
     };
 
     write_text_to_clipboard(app_handle, text)?;
+    let published_change_count = NSPasteboard::generalPasteboard().changeCount();
 
     std::thread::sleep(Duration::from_millis(paste_delay_ms));
 
     let paste_result = with_enigo(app_handle, |enigo| input::send_paste_ctrl_v(enigo, 100));
 
     finish_clipboard_paste(paste_result, paste_delay_after_ms, || {
-        if let Some(clipboard_content) = saved_text {
-            let _ = write_text_to_clipboard(app_handle, &clipboard_content);
-        } else if let Some(image) = saved_image {
-            info!("Restoring image to clipboard");
-            let _ = clipboard.write_image(&image);
-        } else {
-            let _ = clipboard.clear();
+        let current_change_count = NSPasteboard::generalPasteboard().changeCount();
+
+        if decide_legacy_clipboard_action(
+            published_change_count,
+            current_change_count,
+            clipboard_handling,
+        ) == LegacyClipboardAction::RestoreSnapshot
+        {
+            if let Some(clipboard_content) = saved_text {
+                let _ = write_text_to_clipboard(app_handle, &clipboard_content);
+            } else if let Some(image) = saved_image {
+                info!("Restoring image to clipboard");
+                let _ = clipboard.write_image(&image);
+            } else {
+                let _ = clipboard.clear();
+            }
         }
     })
 }
@@ -163,7 +198,13 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
                     }
                 }
             }
-            paste_via_clipboard(&text, &app_handle, paste_delay_ms, paste_delay_after_ms)?
+            paste_via_clipboard(
+                &text,
+                &app_handle,
+                paste_delay_ms,
+                paste_delay_after_ms,
+                settings.clipboard_handling,
+            )?
         }
     }
 
@@ -176,7 +217,9 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         }
     }
 
-    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
+    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard
+        && paste_method != PasteMethod::CtrlV
+    {
         write_text_to_clipboard(&app_handle, &text)?;
     }
 
@@ -214,5 +257,53 @@ mod tests {
 
         assert_eq!(result.unwrap_err(), "input failed");
         assert!(restored.get());
+    }
+
+    #[test]
+    fn restores_snapshot_when_murmur_still_owns_the_clipboard() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 42, ClipboardHandling::DontModify,),
+            LegacyClipboardAction::RestoreSnapshot
+        );
+    }
+
+    #[test]
+    fn doesnt_restore_snapshot_after_external_copy_of_identical_text() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::DontModify,),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn doesnt_restore_snapshot_after_external_non_text_or_unreadable_change() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::DontModify,),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn keeps_transcript_when_murmur_still_owns_the_clipboard() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 42, ClipboardHandling::CopyToClipboard,),
+            LegacyClipboardAction::KeepTranscript
+        );
+    }
+
+    #[test]
+    fn doesnt_preserve_transcript_after_external_copy_of_identical_text() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::CopyToClipboard,),
+            LegacyClipboardAction::LeaveUntouched
+        );
+    }
+
+    #[test]
+    fn doesnt_preserve_transcript_after_external_non_text_or_unreadable_change() {
+        assert_eq!(
+            decide_legacy_clipboard_action(42, 43, ClipboardHandling::CopyToClipboard,),
+            LegacyClipboardAction::LeaveUntouched
+        );
     }
 }
