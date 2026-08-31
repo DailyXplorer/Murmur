@@ -33,7 +33,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     null,
   );
   const [originalBinding, setOriginalBinding] = useState<string>("");
-  const shortcutRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
 
   const bindings = getSetting("bindings") || {};
 
@@ -196,7 +196,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   };
 
   // Store references to shortcut elements
-  const setShortcutRef = (id: string, ref: HTMLDivElement | null) => {
+  const setShortcutRef = (id: string, ref: HTMLElement | null) => {
     shortcutRefs.current.set(id, ref);
   };
 
@@ -271,22 +271,31 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
         {editingShortcutId === shortcutId ? (
           <div
             ref={(ref) => setShortcutRef(shortcutId, ref)}
+            role="status"
+            aria-live="polite"
             className="min-w-0 flex-1 truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
           >
             {formatCurrentKeys()}
           </div>
         ) : (
-          <div
-            className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10"
-            onClick={() => startRecording(shortcutId)}
+          <button
+            type="button"
+            aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
+            disabled={disabled || isUpdating(`binding_${shortcutId}`)}
+            className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={(event) => {
+              event.stopPropagation();
+              void startRecording(shortcutId);
+            }}
           >
             {formatKeyCombination(binding.current_binding)}
-          </div>
+          </button>
         )}
         <ResetButton
           className="shrink-0"
           onClick={() => resetBinding(shortcutId)}
           disabled={isUpdating(`binding_${shortcutId}`)}
+          ariaLabel={`${t("common.reset")}: ${translatedName}`}
         />
       </div>
     </SettingContainer>

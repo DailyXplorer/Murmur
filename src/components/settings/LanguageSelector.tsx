@@ -233,6 +233,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           className="shrink-0"
           onClick={handleReset}
           disabled={isLanguageUpdating}
+          ariaLabel={`${t("common.reset")}: ${t("settings.general.language.title")}`}
         />
       </div>
       {isLanguageUpdating && (

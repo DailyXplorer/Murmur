@@ -369,7 +369,8 @@
     "open": "Åbn",
     "copy": "Kopiér",
     "clear": "Ryd",
-    "noOptionsFound": "Ingen muligheder fundet"
+    "noOptionsFound": "Ingen muligheder fundet",
+    "reset": "Nulstil"
   },
   "accessibility": {
     "permissionsDescription": "Murmur har brug for tilgængelighedstilladelser for at skrive den transskriberede tekst.",
