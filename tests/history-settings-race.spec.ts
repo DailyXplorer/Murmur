@@ -26,6 +26,9 @@ test("keeps an added entry that arrives before a stale first page", async ({
 
   const liveEntry = historyEntry({ id: 101, transcription_text: "Live entry" });
   const olderEntry = historyEntry({ id: 1, transcription_text: "Older entry" });
+  const settledCommitBeforeResponse = await page.evaluate(() =>
+    window.historyRace.settledCommitCount(),
+  );
 
   await page.evaluate(
     (entry) => window.historyRace.emit({ action: "added", entry }),
@@ -34,6 +37,12 @@ test("keeps an added entry that arrives before a stale first page", async ({
   await page.evaluate(
     (entry) => window.historyRace.resolveFirstPage([entry]),
     olderEntry,
+  );
+  await page.waitForFunction(
+    (previousCommit) =>
+      window.historyRace.inFlightHistoryRequests() === 0 &&
+      window.historyRace.settledCommitCount() > previousCommit,
+    settledCommitBeforeResponse,
   );
 
   await expect(page.getByText("Live entry", { exact: true })).toBeVisible();

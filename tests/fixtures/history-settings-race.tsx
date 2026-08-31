@@ -50,6 +50,7 @@ interface HistoryRaceFixture {
     hasMore: boolean,
   ) => void;
   resolveListener: () => void;
+  settledCommitCount: () => number;
   triggerPagination: () => void;
   unhandledRejections: () => number;
   unlistenAttempts: () => number;
@@ -97,6 +98,7 @@ let deleteShouldFail = false;
 let inFlightHistoryRequestCount = 0;
 let listenerRequestCount = 0;
 let maxInFlightRequestCount = 0;
+let settledCommitCount = 0;
 type PaginationObserverCallback = (
   entries: {
     isIntersecting: boolean;
@@ -262,6 +264,7 @@ window.historyRace = {
   resolveListener: () => {
     delayedListener.resolve(1);
   },
+  settledCommitCount: () => settledCommitCount,
   triggerPagination: () => {
     paginationObserverCallback?.([{ isIntersecting: true }]);
   },
@@ -280,7 +283,18 @@ const renderFixture = async () => {
   });
 
   root = ReactDOM.createRoot(rootElement);
-  root.render(<HistorySettings />);
+  root.render(
+    <React.Profiler
+      id="history-race"
+      onRender={() => {
+        if (inFlightHistoryRequestCount === 0) {
+          settledCommitCount += 1;
+        }
+      }}
+    >
+      <HistorySettings />
+    </React.Profiler>,
+  );
 };
 
 void renderFixture();
