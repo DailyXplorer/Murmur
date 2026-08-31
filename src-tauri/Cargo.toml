@@ -49,7 +49,7 @@ rubato = "0.16.2"
 hound = "3.5.1"
 log = "0.4.25"
 env_filter = "0.1.0"
-tokio = "1.43.0"
+tokio = { version = "1.43.0", features = ["sync"] }
 enigo = "0.6.1"
 rodio = "0.21.1"
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }

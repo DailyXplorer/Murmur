@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
+use tokio::sync::oneshot;
 
 const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
@@ -116,6 +117,54 @@ where
             return Some(result);
         }
     }
+}
+
+type MainThreadAction = Box<dyn FnOnce() + Send + 'static>;
+
+#[derive(Debug, PartialEq, Eq)]
+enum MainThreadPasteOutcome {
+    Cancelled,
+    Attempted,
+}
+
+/// Builds the closure sent to Tauri's main-thread queue and a receipt for its
+/// execution. The caller must await the receipt before committing history.
+fn prepare_main_thread_paste<C, P>(
+    is_cancelled: C,
+    paste: P,
+) -> (MainThreadAction, oneshot::Receiver<MainThreadPasteOutcome>)
+where
+    C: FnOnce() -> bool + Send + 'static,
+    P: FnOnce() + Send + 'static,
+{
+    let (completion_tx, completion_rx) = oneshot::channel();
+    let action = Box::new(move || {
+        let outcome = if is_cancelled() {
+            MainThreadPasteOutcome::Cancelled
+        } else {
+            paste();
+            MainThreadPasteOutcome::Attempted
+        };
+        let _ = completion_tx.send(outcome);
+    });
+
+    (action, completion_rx)
+}
+
+/// Waits for the queued main-thread closure before committing dependent state.
+/// A cancellation observed at that boundary leaves the WAV guard uncommitted.
+async fn commit_after_main_thread_paste<F>(
+    completion: oneshot::Receiver<MainThreadPasteOutcome>,
+    commit: F,
+) -> Result<MainThreadPasteOutcome, oneshot::error::RecvError>
+where
+    F: FnOnce(),
+{
+    let outcome = completion.await?;
+    if outcome == MainThreadPasteOutcome::Attempted {
+        commit();
+    }
+    Ok(outcome)
 }
 
 async fn maybe_convert_chinese_variant(
@@ -458,15 +507,7 @@ impl ShortcutAction for TranscribeAction {
                                 return;
                             };
 
-                            if rm.was_cancelled_since(cancel_generation) {
-                                debug!("Transcription operation cancelled before paste");
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
-                                return;
-                            }
-
-                            // Save to history if WAV was saved
-                            if wav_saved {
+                            if final_text.is_empty() {
                                 if rm.was_cancelled_since(cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
                                     utils::hide_recording_overlay(&ah);
@@ -474,50 +515,92 @@ impl ShortcutAction for TranscribeAction {
                                     return;
                                 }
 
-                                match hm.save_entry(file_name.clone(), final_text.clone()) {
-                                    Ok(_) => {
-                                        if let Some(wav) = pending_wav.as_mut() {
-                                            wav.commit();
+                                if wav_saved {
+                                    match hm.save_entry(file_name, final_text) {
+                                        Ok(_) => {
+                                            if let Some(wav) = pending_wav.as_mut() {
+                                                wav.commit();
+                                            }
+                                        }
+                                        Err(error) => {
+                                            error!("Failed to save history entry: {}", error)
                                         }
                                     }
-                                    Err(err) => error!("Failed to save history entry: {}", err),
+                                }
+                            } else {
+                                let ah_clone = ah.clone();
+                                let rm_for_paste = Arc::clone(&rm);
+                                let text_for_paste = final_text.clone();
+                                let (paste_action, paste_completion) = prepare_main_thread_paste(
+                                    move || rm_for_paste.was_cancelled_since(cancel_generation),
+                                    move || {
+                                        let paste_time = Instant::now();
+                                        match utils::paste(text_for_paste, ah_clone.clone()) {
+                                            Ok(()) => debug!(
+                                                "Text pasted successfully in {:?}",
+                                                paste_time.elapsed()
+                                            ),
+                                            Err(error) => {
+                                                error!("Failed to paste transcription: {}", error);
+                                                let _ = ah_clone.emit("paste-error", ());
+                                            }
+                                        }
+                                    },
+                                );
+
+                                if let Err(error) = ah.run_on_main_thread(paste_action) {
+                                    error!("Failed to queue paste on main thread: {:?}", error);
+                                    utils::hide_recording_overlay(&ah);
+                                    change_tray_icon(&ah, TrayIconState::Idle);
+                                    return;
+                                }
+
+                                let paste_outcome =
+                                    match commit_after_main_thread_paste(paste_completion, || {
+                                        // The main-thread closure checked cancellation at the
+                                        // irreversible paste boundary. Only after it runs may
+                                        // the WAV be committed to history.
+                                        if wav_saved {
+                                            match hm.save_entry(file_name, final_text) {
+                                                Ok(_) => {
+                                                    if let Some(wav) = pending_wav.as_mut() {
+                                                        wav.commit();
+                                                    }
+                                                }
+                                                Err(error) => {
+                                                    error!(
+                                                        "Failed to save history entry: {}",
+                                                        error
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    })
+                                    .await
+                                    {
+                                        Ok(outcome) => outcome,
+                                        Err(_) => {
+                                            error!(
+                                            "Main-thread paste closure was dropped before execution"
+                                        );
+                                            utils::hide_recording_overlay(&ah);
+                                            change_tray_icon(&ah, TrayIconState::Idle);
+                                            return;
+                                        }
+                                    };
+
+                                if paste_outcome == MainThreadPasteOutcome::Cancelled {
+                                    debug!(
+                                        "Transcription operation cancelled before paste execution"
+                                    );
+                                    utils::hide_recording_overlay(&ah);
+                                    change_tray_icon(&ah, TrayIconState::Idle);
+                                    return;
                                 }
                             }
 
-                            if final_text.is_empty() {
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
-                            } else {
-                                let ah_clone = ah.clone();
-                                let paste_time = Instant::now();
-                                let rm_for_paste = Arc::clone(&rm);
-                                ah.run_on_main_thread(move || {
-                                    if rm_for_paste.was_cancelled_since(cancel_generation) {
-                                        debug!("Transcription operation cancelled before paste");
-                                        utils::hide_recording_overlay(&ah_clone);
-                                        change_tray_icon(&ah_clone, TrayIconState::Idle);
-                                        return;
-                                    }
-
-                                    match utils::paste(final_text, ah_clone.clone()) {
-                                        Ok(()) => debug!(
-                                            "Text pasted successfully in {:?}",
-                                            paste_time.elapsed()
-                                        ),
-                                        Err(e) => {
-                                            error!("Failed to paste transcription: {}", e);
-                                            let _ = ah_clone.emit("paste-error", ());
-                                        }
-                                    }
-                                    utils::hide_recording_overlay(&ah_clone);
-                                    change_tray_icon(&ah_clone, TrayIconState::Idle);
-                                })
-                                .unwrap_or_else(|e| {
-                                    error!("Failed to run paste on main thread: {:?}", e);
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
-                                });
-                            }
+                            utils::hide_recording_overlay(&ah);
+                            change_tray_icon(&ah, TrayIconState::Idle);
                         }
                         Err(err) => {
                             if rm.was_cancelled_since(cancel_generation) {
@@ -598,10 +681,13 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 
 #[cfg(test)]
 mod tests {
-    use super::{complete_unless_cancelled, PendingWav};
+    use super::{
+        commit_after_main_thread_paste, complete_unless_cancelled, prepare_main_thread_paste,
+        MainThreadAction, MainThreadPasteOutcome, PendingWav,
+    };
     use std::fs;
     use std::future;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
@@ -680,5 +766,40 @@ mod tests {
         assert!(PendingWav::reserve(wav_path.clone()).is_err());
 
         assert_eq!(fs::read(&wav_path).unwrap(), b"history-owned wav");
+    }
+
+    #[test]
+    fn cancellation_before_queued_paste_keeps_history_and_wav_uncommitted() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("queued.wav");
+        let mut wav = PendingWav::reserve(wav_path.clone()).unwrap();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let paste_count = Arc::new(AtomicUsize::new(0));
+        let history_count = Arc::new(AtomicUsize::new(0));
+
+        let cancelled_for_action = Arc::clone(&cancelled);
+        let paste_count_for_action = Arc::clone(&paste_count);
+        let (queued_action, completion) = prepare_main_thread_paste(
+            move || cancelled_for_action.load(Ordering::Acquire),
+            move || {
+                paste_count_for_action.fetch_add(1, Ordering::AcqRel);
+            },
+        );
+        let mut main_thread_queue: Vec<MainThreadAction> = vec![queued_action];
+
+        cancelled.store(true, Ordering::Release);
+        main_thread_queue.pop().unwrap()();
+        let outcome =
+            tauri::async_runtime::block_on(commit_after_main_thread_paste(completion, || {
+                history_count.fetch_add(1, Ordering::AcqRel);
+                wav.commit();
+            }))
+            .unwrap();
+        drop(wav);
+
+        assert_eq!(outcome, MainThreadPasteOutcome::Cancelled);
+        assert_eq!(paste_count.load(Ordering::Acquire), 0);
+        assert_eq!(history_count.load(Ordering::Acquire), 0);
+        assert!(!wav_path.exists());
     }
 }
