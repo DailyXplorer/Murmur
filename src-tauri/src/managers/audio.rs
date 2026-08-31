@@ -4,7 +4,7 @@ use crate::settings::{get_settings, write_settings, AppSettings};
 use crate::utils;
 use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
@@ -138,6 +138,14 @@ fn ensure_idle_for_input_change(
             "Cannot change the {input_name} while recording"
         ))
     }
+}
+
+/// Serializes every operation that can open, close, or reconfigure the input
+/// stream. Device/channel changes keep this guard through their transaction;
+/// a mode transition must take the same guard before it can start an
+/// always-on stream from a settings snapshot.
+fn lock_input_reconfiguration(state: &Mutex<RecordingState>) -> MutexGuard<'_, RecordingState> {
+    state.lock().unwrap()
 }
 
 /// Stops an already-open idle stream, starts it with the proposed setting, and
@@ -595,11 +603,16 @@ impl AudioRecordingManager {
     /* ---------- mode switching --------------------------------------------- */
 
     pub fn update_mode(&self, new_mode: MicrophoneMode) -> Result<(), anyhow::Error> {
+        // Keep this lock through the stream transition. Device and channel
+        // updates use the same lock, so an OnDemand -> AlwaysOn switch cannot
+        // open a stream from the old settings between their snapshot and
+        // commit.
+        let state = lock_input_reconfiguration(&self.state);
         let cur_mode = self.mode.lock().unwrap().clone();
 
         match (cur_mode, &new_mode) {
             (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
-                if matches!(*self.state.lock().unwrap(), RecordingState::Idle) {
+                if matches!(*state, RecordingState::Idle) {
                     self.close_generation.fetch_add(1, Ordering::SeqCst);
                     self.stop_microphone_stream();
                 }
@@ -683,7 +696,7 @@ impl AudioRecordingManager {
         // Serialize against recording start/stop. Restarting an active capture
         // would discard its samples and leave the manager's recording state out
         // of sync with the new recorder.
-        let state = self.state.lock().unwrap();
+        let state = lock_input_reconfiguration(&self.state);
         ensure_idle_for_input_change(&state, "microphone")?;
 
         let previous_settings = get_settings(&self.app_handle);
@@ -749,7 +762,7 @@ impl AudioRecordingManager {
         // Serialize against recording start/stop. Restarting an active capture
         // would discard its samples and leave the manager's recording state out
         // of sync with the new recorder.
-        let state = self.state.lock().unwrap();
+        let state = lock_input_reconfiguration(&self.state);
         ensure_idle_for_input_change(&state, "input channel")?;
 
         let previous_settings = get_settings(&self.app_handle);
@@ -951,6 +964,7 @@ impl AudioRecordingManager {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use std::sync::Arc;
 
     #[test]
     fn input_changes_require_an_idle_recording_state() {
@@ -974,6 +988,54 @@ mod tests {
             stopping.to_string(),
             "Cannot change the input channel while recording"
         );
+    }
+
+    #[test]
+    fn on_demand_to_always_on_waits_for_device_or_channel_transaction_commit() {
+        for input_name in ["microphone", "input channel"] {
+            let state = Arc::new(Mutex::new(RecordingState::Idle));
+            let configured_input = Arc::new(Mutex::new("previous input"));
+            let (transaction_started_tx, transaction_started_rx) = mpsc::channel();
+            let (commit_transaction_tx, commit_transaction_rx) = mpsc::channel();
+
+            let state_for_transaction = Arc::clone(&state);
+            let configured_input_for_transaction = Arc::clone(&configured_input);
+            let transaction = std::thread::spawn(move || {
+                let state = lock_input_reconfiguration(&state_for_transaction);
+                ensure_idle_for_input_change(&state, input_name).unwrap();
+                transaction_started_tx.send(()).unwrap();
+
+                commit_transaction_rx.recv().unwrap();
+                *configured_input_for_transaction.lock().unwrap() = "updated input";
+            });
+
+            transaction_started_rx.recv().unwrap();
+
+            let state_for_mode = Arc::clone(&state);
+            let configured_input_for_mode = Arc::clone(&configured_input);
+            let (mode_transition_started_tx, mode_transition_started_rx) = mpsc::channel();
+            let (stream_started_with_tx, stream_started_with_rx) = mpsc::channel();
+            let mode_transition = std::thread::spawn(move || {
+                // This models update_mode's OnDemand -> AlwaysOn path: it must
+                // take the same reconfiguration lock before opening a stream.
+                mode_transition_started_tx.send(()).unwrap();
+                let _state = lock_input_reconfiguration(&state_for_mode);
+                stream_started_with_tx
+                    .send(*configured_input_for_mode.lock().unwrap())
+                    .unwrap();
+            });
+
+            mode_transition_started_rx.recv().unwrap();
+            assert!(
+                stream_started_with_rx.try_recv().is_err(),
+                "the OnDemand -> AlwaysOn transition opened before the {input_name} transaction committed"
+            );
+
+            commit_transaction_tx.send(()).unwrap();
+            transaction.join().unwrap();
+            assert_eq!(stream_started_with_rx.recv().unwrap(), "updated input");
+            mode_transition.join().unwrap();
+        }
     }
 
     #[test]
