@@ -4,12 +4,21 @@
 //! global-shortcut plugin.
 
 use log::{debug, error, warn};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::settings::{self, get_settings, ShortcutBinding};
 
 use super::handler::handle_shortcut_event;
+
+// Registration happens on the async runtime because global-shortcut callbacks
+// must not register or unregister themselves. The epoch and mutex ensure an
+// older queued operation cannot re-register Cancel after a newer one removed
+// it, or remove it after a new recording started.
+static CANCEL_SHORTCUT_EPOCH: AtomicU64 = AtomicU64::new(0);
+static CANCEL_SHORTCUT_OPERATION_LOCK: Mutex<()> = Mutex::new(());
 
 /// Initialize shortcuts using Tauri's global-shortcut plugin
 pub fn init_shortcuts(app: &AppHandle) {
@@ -155,7 +164,15 @@ pub fn unregister_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<
 /// Register the cancel shortcut (called when recording starts)
 pub fn register_cancel_shortcut(app: &AppHandle) {
     let app_clone = app.clone();
+    let request_epoch = CANCEL_SHORTCUT_EPOCH.fetch_add(1, Ordering::AcqRel) + 1;
     tauri::async_runtime::spawn(async move {
+        let _operation = CANCEL_SHORTCUT_OPERATION_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire) != request_epoch {
+            return;
+        }
+
         if let Some(cancel_binding) = get_settings(&app_clone).bindings.get("cancel").cloned() {
             if let Err(e) = register_shortcut(&app_clone, cancel_binding) {
                 error!("Failed to register cancel shortcut: {}", e);
@@ -167,7 +184,15 @@ pub fn register_cancel_shortcut(app: &AppHandle) {
 /// Unregister the cancel shortcut (called when recording stops)
 pub fn unregister_cancel_shortcut(app: &AppHandle) {
     let app_clone = app.clone();
+    let request_epoch = CANCEL_SHORTCUT_EPOCH.fetch_add(1, Ordering::AcqRel) + 1;
     tauri::async_runtime::spawn(async move {
+        let _operation = CANCEL_SHORTCUT_OPERATION_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire) != request_epoch {
+            return;
+        }
+
         if let Some(cancel_binding) = get_settings(&app_clone).bindings.get("cancel").cloned() {
             let _ = unregister_shortcut(&app_clone, cancel_binding);
         }

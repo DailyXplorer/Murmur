@@ -291,7 +291,15 @@ impl HistoryManager {
 
         debug!("Saved history entry with id {}", entry.id);
 
-        self.cleanup_old_entries()?;
+        // The row has committed at this point, so a cleanup failure must not
+        // report the save as failed. Callers use success to transfer WAV
+        // ownership and deleting that referenced file would corrupt history.
+        if let Err(error) = self.cleanup_old_entries() {
+            error!(
+                "History cleanup failed after saving entry {}: {}",
+                entry.id, error
+            );
+        }
 
         // Emit typed event for real-time frontend updates
         if let Err(e) = (HistoryUpdatePayload::Added {
