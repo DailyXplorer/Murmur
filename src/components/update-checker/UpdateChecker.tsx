@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -25,8 +25,64 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
 
   const upToDateTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isManualCheckRef = useRef(false);
+  const activeCheckRef = useRef<symbol>();
   const downloadedBytesRef = useRef(0);
   const contentLengthRef = useRef(0);
+
+  const checkForUpdates = useCallback(
+    async (isManual = false) => {
+      if (!updateChecksEnabled) return;
+
+      if (isManual) {
+        isManualCheckRef.current = true;
+      }
+
+      if (activeCheckRef.current) return;
+
+      const checkId = Symbol("update-check");
+      activeCheckRef.current = checkId;
+
+      try {
+        setIsChecking(true);
+        const update = await check();
+
+        if (update) {
+          setUpdateAvailable(true);
+          setShowUpToDate(false);
+        } else {
+          setUpdateAvailable(false);
+
+          if (isManualCheckRef.current) {
+            setShowUpToDate(true);
+            if (upToDateTimeoutRef.current) {
+              clearTimeout(upToDateTimeoutRef.current);
+            }
+            upToDateTimeoutRef.current = setTimeout(() => {
+              setShowUpToDate(false);
+            }, 3000);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check for updates:", error);
+        if (isManualCheckRef.current) {
+          toast.error(t("footer.checkForUpdates"), {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
+      } finally {
+        if (activeCheckRef.current === checkId) {
+          activeCheckRef.current = undefined;
+          setIsChecking(false);
+          isManualCheckRef.current = false;
+        }
+      }
+    },
+    [t, updateChecksEnabled],
+  );
+
+  const handleManualUpdateCheck = useCallback(() => {
+    void checkForUpdates(true);
+  }, [checkForUpdates]);
 
   useEffect(() => {
     if (!settingsLoaded) return;
@@ -35,13 +91,12 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       if (upToDateTimeoutRef.current) {
         clearTimeout(upToDateTimeoutRef.current);
       }
-      setIsChecking(false);
       setUpdateAvailable(false);
       setShowUpToDate(false);
       return;
     }
 
-    checkForUpdates();
+    void checkForUpdates();
 
     const updateUnlisten = listen("check-for-updates", () => {
       handleManualUpdateCheck();
@@ -53,49 +108,12 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       }
       updateUnlisten.then((fn) => fn());
     };
-  }, [settingsLoaded, updateChecksEnabled]);
-
-  const checkForUpdates = async () => {
-    if (!updateChecksEnabled || isChecking) return;
-
-    try {
-      setIsChecking(true);
-      const update = await check();
-
-      if (update) {
-        setUpdateAvailable(true);
-        setShowUpToDate(false);
-      } else {
-        setUpdateAvailable(false);
-
-        if (isManualCheckRef.current) {
-          setShowUpToDate(true);
-          if (upToDateTimeoutRef.current) {
-            clearTimeout(upToDateTimeoutRef.current);
-          }
-          upToDateTimeoutRef.current = setTimeout(() => {
-            setShowUpToDate(false);
-          }, 3000);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to check for updates:", error);
-      if (isManualCheckRef.current) {
-        toast.error(t("footer.checkForUpdates"), {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      }
-    } finally {
-      setIsChecking(false);
-      isManualCheckRef.current = false;
-    }
-  };
-
-  const handleManualUpdateCheck = () => {
-    if (!updateChecksEnabled) return;
-    isManualCheckRef.current = true;
-    checkForUpdates();
-  };
+  }, [
+    checkForUpdates,
+    handleManualUpdateCheck,
+    settingsLoaded,
+    updateChecksEnabled,
+  ]);
 
   const installUpdate = async () => {
     if (!updateChecksEnabled) return;
