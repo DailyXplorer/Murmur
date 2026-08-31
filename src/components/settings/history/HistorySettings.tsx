@@ -47,6 +47,11 @@ const IconButton: React.FC<{
 
 const PAGE_SIZE = 30;
 
+interface PendingHistoryEntry {
+  entry: HistoryEntry;
+  revision: number;
+}
+
 interface OpenRecordingsButtonProps {
   onClick: () => void;
   label: string;
@@ -68,6 +73,72 @@ const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
   </Button>
 );
 
+const upsertHistoryEntry = (
+  entries: HistoryEntry[],
+  entry: HistoryEntry,
+  moveToStart: boolean,
+): HistoryEntry[] => {
+  const existingIndex = entries.findIndex(
+    (existingEntry) => existingEntry.id === entry.id,
+  );
+
+  if (existingIndex === -1 || moveToStart) {
+    return [
+      entry,
+      ...entries.filter((existingEntry) => existingEntry.id !== entry.id),
+    ];
+  }
+
+  return entries.map((existingEntry) =>
+    existingEntry.id === entry.id ? entry : existingEntry,
+  );
+};
+
+const mergeHistoryPage = ({
+  currentEntries,
+  pageEntries,
+  isFirstPage,
+  pendingEntries,
+}: {
+  currentEntries: HistoryEntry[];
+  pageEntries: HistoryEntry[];
+  isFirstPage: boolean;
+  pendingEntries: PendingHistoryEntry[];
+}): HistoryEntry[] => {
+  const pendingEntriesById = new Map(
+    pendingEntries.map(({ entry }) => [entry.id, entry]),
+  );
+  const pageEntryIds = new Set(pageEntries.map((entry) => entry.id));
+  const pendingEntriesOutsidePage = pendingEntries
+    .filter(({ entry }) => !pageEntryIds.has(entry.id))
+    .sort((left, right) => right.revision - left.revision)
+    .map(({ entry }) => entry);
+  const pageEntriesWithPendingUpdates = pageEntries.map(
+    (entry) => pendingEntriesById.get(entry.id) ?? entry,
+  );
+
+  if (isFirstPage) {
+    return [...pendingEntriesOutsidePage, ...pageEntriesWithPendingUpdates];
+  }
+
+  const mergedEntries: HistoryEntry[] = [];
+  const seenEntryIds = new Set<number>();
+  for (const entry of [
+    ...currentEntries,
+    ...pendingEntriesOutsidePage,
+    ...pageEntriesWithPendingUpdates,
+  ]) {
+    if (seenEntryIds.has(entry.id)) {
+      continue;
+    }
+
+    seenEntryIds.add(entry.id);
+    mergedEntries.push(pendingEntriesById.get(entry.id) ?? entry);
+  }
+
+  return mergedEntries;
+};
+
 export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -76,6 +147,11 @@ export const HistorySettings: React.FC = () => {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const entriesRef = useRef<HistoryEntry[]>([]);
   const loadingRef = useRef(false);
+  const historyEventRevisionRef = useRef(0);
+  const activeHistoryRequestRevisionRef = useRef<number | null>(null);
+  const pendingHistoryEntriesByIdRef = useRef<Map<number, PendingHistoryEntry>>(
+    new Map(),
+  );
 
   // Keep ref in sync for use in IntersectionObserver callback
   useEffect(() => {
@@ -84,8 +160,11 @@ export const HistorySettings: React.FC = () => {
 
   const loadPage = useCallback(async (cursor?: number) => {
     const isFirstPage = cursor === undefined;
-    if (!isFirstPage && loadingRef.current) return;
+    if (loadingRef.current) return;
     loadingRef.current = true;
+    const requestRevision = historyEventRevisionRef.current;
+    activeHistoryRequestRevisionRef.current = requestRevision;
+    pendingHistoryEntriesByIdRef.current.clear();
 
     if (isFirstPage) setLoading(true);
 
@@ -96,8 +175,16 @@ export const HistorySettings: React.FC = () => {
       );
       if (result.status === "ok") {
         const { entries: newEntries, has_more } = result.data;
+        const pendingEntries = Array.from(
+          pendingHistoryEntriesByIdRef.current.values(),
+        ).filter(({ revision }) => revision > requestRevision);
         setEntries((prev) =>
-          isFirstPage ? newEntries : [...prev, ...newEntries],
+          mergeHistoryPage({
+            currentEntries: prev,
+            pageEntries: newEntries,
+            isFirstPage,
+            pendingEntries,
+          }),
         );
         setHasMore(has_more);
       }
@@ -106,6 +193,10 @@ export const HistorySettings: React.FC = () => {
     } finally {
       setLoading(false);
       loadingRef.current = false;
+      if (activeHistoryRequestRevisionRef.current === requestRevision) {
+        activeHistoryRequestRevisionRef.current = null;
+        pendingHistoryEntriesByIdRef.current.clear();
+      }
     }
   }, []);
 
@@ -140,21 +231,44 @@ export const HistorySettings: React.FC = () => {
 
   // Listen for new entries added from the transcription pipeline
   useEffect(() => {
-    const unlisten = events.historyUpdatePayload.listen((event) => {
-      const payload: HistoryUpdatePayload = event.payload;
-      if (payload.action === "added") {
-        setEntries((prev) => [payload.entry, ...prev]);
-      } else if (payload.action === "updated") {
-        setEntries((prev) =>
-          prev.map((e) => (e.id === payload.entry.id ? payload.entry : e)),
-        );
-      }
-      // "deleted" and "toggled" are handled by optimistic updates only,
-      // so we intentionally ignore them here to avoid double-mutation.
-    });
+    const unlisten = events.historyUpdatePayload
+      .listen((event) => {
+        const payload: HistoryUpdatePayload = event.payload;
+        if (payload.action === "added") {
+          const revision = historyEventRevisionRef.current + 1;
+          historyEventRevisionRef.current = revision;
+          if (activeHistoryRequestRevisionRef.current !== null) {
+            pendingHistoryEntriesByIdRef.current.set(payload.entry.id, {
+              entry: payload.entry,
+              revision,
+            });
+          }
+          setEntries((prev) => upsertHistoryEntry(prev, payload.entry, true));
+        } else if (payload.action === "updated") {
+          const revision = historyEventRevisionRef.current + 1;
+          historyEventRevisionRef.current = revision;
+          if (activeHistoryRequestRevisionRef.current !== null) {
+            pendingHistoryEntriesByIdRef.current.set(payload.entry.id, {
+              entry: payload.entry,
+              revision,
+            });
+          }
+          setEntries((prev) => upsertHistoryEntry(prev, payload.entry, false));
+        }
+        // "deleted" and "toggled" are handled by optimistic updates only,
+        // so we intentionally ignore them here to avoid double-mutation.
+      })
+      .catch((error) => {
+        console.error("Failed to listen for history updates:", error);
+        return undefined;
+      });
 
     return () => {
-      unlisten.then((fn) => fn());
+      void unlisten
+        .then((stopListening) => stopListening?.())
+        .catch((error) => {
+          console.error("Failed to stop history update listener:", error);
+        });
     };
   }, []);
 
