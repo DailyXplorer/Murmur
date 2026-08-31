@@ -45,6 +45,34 @@ test("shares settings initialization during Strict Mode mounts", async ({
     });
 });
 
+test("waits for a pending write before an event-triggered refresh", async ({
+  page,
+}) => {
+  await openFixture(page);
+
+  await expect
+    .poll(() => initializationCounts(page))
+    .toEqual({
+      customSounds: 1,
+      defaultSettings: 1,
+      listeners: 1,
+      settings: 1,
+      unhandledRejections: 0,
+    });
+
+  await expect(
+    page.evaluate(() =>
+      window.settingsInitialization.runSettingsEventDuringWrite(),
+    ),
+  ).resolves.toEqual({
+    listeners: 1,
+    settingsReadsAfterRelease: 2,
+    settingsReadsBeforeRelease: 1,
+    theme: "dark",
+    updateResult: true,
+  });
+});
+
 test("handles settings listener registration failures", async ({ page }) => {
   await openFixture(page, "?listener-failures=1");
 

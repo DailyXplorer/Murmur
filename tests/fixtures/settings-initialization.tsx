@@ -4,7 +4,10 @@ import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";
 import { useSettings } from "../../src/hooks/useSettings";
-import { createSettingsChangedListenerLifecycle } from "../../src/stores/settingsStore";
+import {
+  createSettingsChangedListenerLifecycle,
+  useSettingsStore,
+} from "../../src/stores/settingsStore";
 
 declare global {
   interface Window {
@@ -15,6 +18,13 @@ declare global {
       settings: number;
       unhandledRejections: number;
       emitSettingsChanged: () => Promise<void>;
+      runSettingsEventDuringWrite: () => Promise<{
+        listeners: number;
+        settingsReadsAfterRelease: number;
+        settingsReadsBeforeRelease: number;
+        theme: string | undefined;
+        updateResult: boolean;
+      }>;
       runHmrLifecycleRace: () => Promise<{
         activeListeners: number;
         aEvents: number;
@@ -38,6 +48,7 @@ const TEST_SETTINGS: AppSettings = {
   paste_method: "ctrl_v",
   selected_language: "auto",
   selected_microphone: "Default",
+  theme: "system",
   transcription_provider: "gemini",
 };
 
@@ -73,6 +84,17 @@ const flushMicrotasks = async () => {
   await Promise.resolve();
 };
 
+let backendSettings: AppSettings = { ...TEST_SETTINGS };
+let deferThemeWrite = false;
+let themeWriteCalls = 0;
+const themeWrite = createDeferred<null>();
+
+const waitFor = async (predicate: () => boolean) => {
+  while (!predicate()) {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  }
+};
+
 const SettingsConsumer: React.FC = () => {
   const { isLoading } = useSettings();
 
@@ -90,6 +112,32 @@ window.settingsInitialization = {
   settings: 0,
   unhandledRejections: 0,
   emitSettingsChanged: () => emit("settings-changed", { setting: "theme" }),
+  runSettingsEventDuringWrite: async () => {
+    deferThemeWrite = true;
+    const update = useSettingsStore.getState().updateSetting("theme", "dark");
+    await waitFor(() => themeWriteCalls === 1);
+
+    await emit("settings-changed", { setting: "theme" });
+    await flushMicrotasks();
+    const settingsReadsBeforeRelease = window.settingsInitialization.settings;
+
+    backendSettings = { ...backendSettings, theme: "dark" };
+    themeWrite.resolve(null);
+    const updateResult = await update;
+    await waitFor(
+      () =>
+        window.settingsInitialization.settings === 2 &&
+        useSettingsStore.getState().settings?.theme === "dark",
+    );
+
+    return {
+      listeners: window.settingsInitialization.listeners,
+      settingsReadsAfterRelease: window.settingsInitialization.settings,
+      settingsReadsBeforeRelease,
+      theme: useSettingsStore.getState().settings?.theme,
+      updateResult,
+    };
+  },
   runHmrLifecycleRace: async () => {
     const activeListeners = new Set<SettingsChangedHandler>();
     let maximumActiveListeners = 0;
@@ -189,13 +237,16 @@ mockIPC(
     switch (command) {
       case "get_app_settings":
         window.settingsInitialization.settings += 1;
-        return respondAfterDelay(TEST_SETTINGS);
+        return respondAfterDelay({ ...backendSettings });
       case "get_default_settings":
         window.settingsInitialization.defaultSettings += 1;
         return respondAfterDelay(TEST_SETTINGS);
       case "check_custom_sounds":
         window.settingsInitialization.customSounds += 1;
         return respondAfterDelay({ start: false, stop: false });
+      case "change_theme_setting":
+        themeWriteCalls += 1;
+        return deferThemeWrite ? themeWrite.promise : null;
       default:
         throw new Error(`Unexpected Tauri command: ${command}`);
     }
