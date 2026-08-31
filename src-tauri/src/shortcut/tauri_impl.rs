@@ -55,6 +55,32 @@ enum CancelShortcutLifecycleOperation {
     Unregister,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CancelShortcutSettingsState {
+    Previous,
+    Updated,
+}
+
+trait CancelShortcutPersistence {
+    fn persist(&self, state: CancelShortcutSettingsState) -> Result<(), String>;
+}
+
+struct TauriCancelShortcutPersistence<'a> {
+    app: &'a AppHandle,
+    previous_settings: &'a AppSettings,
+    updated_settings: &'a AppSettings,
+}
+
+impl CancelShortcutPersistence for TauriCancelShortcutPersistence<'_> {
+    fn persist(&self, state: CancelShortcutSettingsState) -> Result<(), String> {
+        let settings = match state {
+            CancelShortcutSettingsState::Previous => self.previous_settings,
+            CancelShortcutSettingsState::Updated => self.updated_settings,
+        };
+        settings::write_settings_checked(self.app, settings.clone())
+    }
+}
+
 fn apply_cancel_shortcut_lifecycle_operation<R: CancelShortcutRegistry>(
     registry: &R,
     current_epoch: u64,
@@ -72,27 +98,131 @@ fn apply_cancel_shortcut_lifecycle_operation<R: CancelShortcutRegistry>(
     }
 }
 
-fn replace_active_cancel_shortcut<R: CancelShortcutRegistry, P: FnOnce()>(
+fn registered_cancel_state<R: CancelShortcutRegistry>(
     registry: &R,
+    previous: &ShortcutBinding,
+    updated: &ShortcutBinding,
+) -> String {
+    format!(
+        "previous_registered={}, updated_registered={}",
+        registry.is_registered(previous),
+        registry.is_registered(updated)
+    )
+}
+
+fn rollback_after_updated_settings_persist_failure<R: CancelShortcutRegistry>(
+    registry: &R,
+    previous: &ShortcutBinding,
+    updated: ShortcutBinding,
+    persist_error: String,
+) -> String {
+    let unregister_error = registry.unregister(updated.clone()).err();
+    let state = registered_cancel_state(registry, previous, &updated);
+
+    match unregister_error {
+        Some(unregister_error) => format!(
+            "Failed to persist the new Cancel shortcut: {persist_error}. Failed to remove the new Cancel shortcut during rollback: {unregister_error}. {state}"
+        ),
+        None => format!(
+            "Failed to persist the new Cancel shortcut: {persist_error}. Rolled back the new Cancel shortcut. {state}"
+        ),
+    }
+}
+
+fn reconcile_failed_previous_cancel_unregistration<
+    R: CancelShortcutRegistry,
+    P: CancelShortcutPersistence,
+>(
+    registry: &R,
+    persistence: &P,
     previous: ShortcutBinding,
     updated: ShortcutBinding,
-    persist: P,
+    cleanup_error: String,
 ) -> Result<(), String> {
-    if registry.is_registered(&previous) {
-        registry.unregister(previous.clone())?;
+    if !registry.is_registered(&previous) && registry.is_registered(&updated) {
+        return Ok(());
+    }
 
-        if let Err(error) = registry.register(updated.clone()) {
-            if let Err(restore_error) = registry.register(previous) {
-                return Err(format!(
-                    "Failed to register the new Cancel shortcut: {error}. Failed to restore the previous Cancel shortcut: {restore_error}"
-                ));
-            }
-            return Err(error);
+    let mut errors = vec![format!(
+        "Failed to unregister the previous Cancel shortcut: {cleanup_error}"
+    )];
+    let settings_restored = match persistence.persist(CancelShortcutSettingsState::Previous) {
+        Ok(()) => true,
+        Err(error) => {
+            errors.push(format!("Failed to restore the previous settings: {error}"));
+            false
+        }
+    };
+
+    if registry.is_registered(&updated) {
+        if let Err(error) = registry.unregister(updated.clone()) {
+            errors.push(format!(
+                "Failed to unregister the new Cancel shortcut during rollback: {error}"
+            ));
         }
     }
 
-    persist();
-    Ok(())
+    if !registry.is_registered(&previous) {
+        if let Err(error) = registry.register(previous.clone()) {
+            errors.push(format!(
+                "Failed to restore the previous Cancel shortcut: {error}"
+            ));
+        }
+    }
+
+    let previous_registered = registry.is_registered(&previous);
+    let updated_registered = registry.is_registered(&updated);
+    if settings_restored && previous_registered && !updated_registered {
+        return Err(format!(
+            "{}. The Cancel shortcut change was rolled back.",
+            errors.join(" ")
+        ));
+    }
+
+    errors.push(format!(
+        "Rollback could not guarantee a single active Cancel shortcut: previous_registered={previous_registered}, updated_registered={updated_registered}"
+    ));
+    Err(errors.join(" "))
+}
+
+fn replace_active_cancel_shortcut<R: CancelShortcutRegistry, P: CancelShortcutPersistence>(
+    registry: &R,
+    persistence: &P,
+    previous: ShortcutBinding,
+    updated: ShortcutBinding,
+) -> Result<(), String> {
+    if previous.current_binding == updated.current_binding {
+        return Ok(());
+    }
+
+    if !registry.is_registered(&previous) {
+        if registry.is_registered(&updated) {
+            return Err(format!(
+                "Shortcut '{}' is already in use",
+                updated.current_binding
+            ));
+        }
+        return persistence.persist(CancelShortcutSettingsState::Updated);
+    }
+
+    registry.register(updated.clone())?;
+
+    if let Err(error) = persistence.persist(CancelShortcutSettingsState::Updated) {
+        return Err(rollback_after_updated_settings_persist_failure(
+            registry, &previous, updated, error,
+        ));
+    }
+
+    match registry.unregister(previous.clone()) {
+        Ok(()) => Ok(()),
+        Err(error) => reconcile_failed_previous_cancel_unregistration(
+            registry,
+            persistence,
+            previous,
+            updated,
+            error,
+        ),
+    }
 }
 
 /// Update Cancel while preserving its dynamic lifecycle. Idle changes only
@@ -102,8 +232,8 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    let mut settings: AppSettings = get_settings(app);
-    let previous = settings
+    let previous_settings: AppSettings = get_settings(app);
+    let previous = previous_settings
         .bindings
         .get("cancel")
         .cloned()
@@ -117,14 +247,18 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
     let mut updated = previous.clone();
     updated.current_binding = binding;
 
+    let mut updated_settings = previous_settings.clone();
+    updated_settings
+        .bindings
+        .insert("cancel".to_string(), updated.clone());
+
     let registry = TauriCancelShortcutRegistry { app };
-    let updated_for_store = updated.clone();
-    replace_active_cancel_shortcut(&registry, previous, updated.clone(), || {
-        settings
-            .bindings
-            .insert("cancel".to_string(), updated_for_store);
-        settings::write_settings(app, settings);
-    })?;
+    let persistence = TauriCancelShortcutPersistence {
+        app,
+        previous_settings: &previous_settings,
+        updated_settings: &updated_settings,
+    };
+    replace_active_cancel_shortcut(&registry, &persistence, previous, updated.clone())?;
 
     Ok(updated)
 }
@@ -318,16 +452,29 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
 mod tests {
     use super::{
         apply_cancel_shortcut_lifecycle_operation, replace_active_cancel_shortcut,
-        CancelShortcutLifecycleOperation, CancelShortcutRegistry,
+        CancelShortcutLifecycleOperation, CancelShortcutPersistence, CancelShortcutRegistry,
+        CancelShortcutSettingsState,
     };
     use crate::settings::ShortcutBinding;
     use std::cell::RefCell;
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeSet, VecDeque};
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum RegistryOperation {
+        Register,
+        Unregister,
+    }
+
+    struct RegistryFailure {
+        operation: RegistryOperation,
+        binding: String,
+        error: String,
+    }
 
     #[derive(Default)]
     struct FakeCancelShortcutRegistry {
         active: RefCell<BTreeSet<String>>,
-        blocked_registration: RefCell<Option<String>>,
+        failures: RefCell<VecDeque<RegistryFailure>>,
         operations: RefCell<Vec<String>>,
     }
 
@@ -341,6 +488,27 @@ mod tests {
         fn is_active(&self, binding: &ShortcutBinding) -> bool {
             self.active.borrow().contains(&binding.current_binding)
         }
+
+        fn fail_next(&self, operation: RegistryOperation, binding: &ShortcutBinding, error: &str) {
+            self.failures.borrow_mut().push_back(RegistryFailure {
+                operation,
+                binding: binding.current_binding.clone(),
+                error: error.to_string(),
+            });
+        }
+
+        fn take_failure(
+            &self,
+            operation: RegistryOperation,
+            binding: &ShortcutBinding,
+        ) -> Option<String> {
+            let mut failures = self.failures.borrow_mut();
+            let failure = failures.front()?;
+            if failure.operation != operation || failure.binding != binding.current_binding {
+                return None;
+            }
+            failures.pop_front().map(|failure| failure.error)
+        }
     }
 
     impl CancelShortcutRegistry for FakeCancelShortcutRegistry {
@@ -352,13 +520,8 @@ mod tests {
             self.operations
                 .borrow_mut()
                 .push(format!("register:{}", binding.current_binding));
-            if self.blocked_registration.borrow().as_deref()
-                == Some(binding.current_binding.as_str())
-            {
-                return Err(format!(
-                    "Shortcut '{}' is already in use",
-                    binding.current_binding
-                ));
+            if let Some(error) = self.take_failure(RegistryOperation::Register, &binding) {
+                return Err(error);
             }
             self.active.borrow_mut().insert(binding.current_binding);
             Ok(())
@@ -368,6 +531,9 @@ mod tests {
             self.operations
                 .borrow_mut()
                 .push(format!("unregister:{}", binding.current_binding));
+            if let Some(error) = self.take_failure(RegistryOperation::Unregister, &binding) {
+                return Err(error);
+            }
             if self.active.borrow_mut().remove(&binding.current_binding) {
                 Ok(())
             } else {
@@ -376,6 +542,37 @@ mod tests {
                     binding.current_binding
                 ))
             }
+        }
+    }
+
+    struct FakeCancelShortcutPersistence {
+        state: RefCell<CancelShortcutSettingsState>,
+        failures: RefCell<VecDeque<String>>,
+        writes: RefCell<Vec<CancelShortcutSettingsState>>,
+    }
+
+    impl FakeCancelShortcutPersistence {
+        fn new(state: CancelShortcutSettingsState) -> Self {
+            Self {
+                state: RefCell::new(state),
+                failures: RefCell::new(VecDeque::new()),
+                writes: RefCell::new(Vec::new()),
+            }
+        }
+
+        fn fail_next(&self, error: &str) {
+            self.failures.borrow_mut().push_back(error.to_string());
+        }
+    }
+
+    impl CancelShortcutPersistence for FakeCancelShortcutPersistence {
+        fn persist(&self, state: CancelShortcutSettingsState) -> Result<(), String> {
+            self.writes.borrow_mut().push(state);
+            if let Some(error) = self.failures.borrow_mut().pop_front() {
+                return Err(error);
+            }
+            *self.state.borrow_mut() = state;
+            Ok(())
         }
     }
 
@@ -392,15 +589,13 @@ mod tests {
     #[test]
     fn active_replace_then_finish_unregisters_the_new_cancel_shortcut() {
         let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
         let previous = cancel_binding("escape");
         let updated = cancel_binding("cmd+shift+c");
-        let persisted = RefCell::new(previous.current_binding.clone());
         registry.activate(&previous);
 
-        replace_active_cancel_shortcut(&registry, previous.clone(), updated.clone(), || {
-            *persisted.borrow_mut() = updated.current_binding.clone();
-        })
-        .unwrap();
+        replace_active_cancel_shortcut(&registry, &persistence, previous.clone(), updated.clone())
+            .unwrap();
         apply_cancel_shortcut_lifecycle_operation(
             &registry,
             2,
@@ -410,14 +605,17 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(*persisted.borrow(), "cmd+shift+c");
+        assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Updated
+        );
         assert!(!registry.is_active(&previous));
         assert!(!registry.is_active(&updated));
         assert_eq!(
             *registry.operations.borrow(),
             vec![
-                "unregister:escape".to_string(),
                 "register:cmd+shift+c".to_string(),
+                "unregister:escape".to_string(),
                 "unregister:cmd+shift+c".to_string(),
             ]
         );
@@ -426,45 +624,171 @@ mod tests {
     #[test]
     fn idle_replace_persists_without_registering_cancel() {
         let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
         let previous = cancel_binding("escape");
         let updated = cancel_binding("cmd+shift+c");
-        let persisted = RefCell::new(previous.current_binding.clone());
 
-        replace_active_cancel_shortcut(&registry, previous, updated.clone(), || {
-            *persisted.borrow_mut() = updated.current_binding.clone();
-        })
-        .unwrap();
+        replace_active_cancel_shortcut(&registry, &persistence, previous, updated.clone()).unwrap();
 
-        assert_eq!(*persisted.borrow(), "cmd+shift+c");
+        assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Updated
+        );
         assert!(!registry.is_active(&updated));
         assert!(registry.operations.borrow().is_empty());
+        assert_eq!(
+            *persistence.writes.borrow(),
+            vec![CancelShortcutSettingsState::Updated]
+        );
     }
 
     #[test]
-    fn collision_restores_active_cancel_and_does_not_persist_the_change() {
+    fn same_binding_is_a_no_op() {
         let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
+        let previous = cancel_binding("escape");
+        registry.activate(&previous);
+
+        replace_active_cancel_shortcut(&registry, &persistence, previous.clone(), previous.clone())
+            .unwrap();
+
+        assert!(registry.is_active(&previous));
+        assert!(registry.operations.borrow().is_empty());
+        assert!(persistence.writes.borrow().is_empty());
+    }
+
+    #[test]
+    fn new_registration_failure_leaves_the_previous_cancel_shortcut_active() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
         let previous = cancel_binding("escape");
         let updated = cancel_binding("cmd+shift+c");
-        let persisted = RefCell::new(previous.current_binding.clone());
         registry.activate(&previous);
-        *registry.blocked_registration.borrow_mut() = Some(updated.current_binding.clone());
+        registry.fail_next(RegistryOperation::Register, &updated, "simulated conflict");
 
-        let result =
-            replace_active_cancel_shortcut(&registry, previous.clone(), updated.clone(), || {
-                *persisted.borrow_mut() = updated.current_binding.clone();
-            });
+        let result = replace_active_cancel_shortcut(
+            &registry,
+            &persistence,
+            previous.clone(),
+            updated.clone(),
+        );
 
         assert!(result.is_err());
-        assert_eq!(*persisted.borrow(), "escape");
         assert!(registry.is_active(&previous));
         assert!(!registry.is_active(&updated));
         assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Previous
+        );
+        assert!(persistence.writes.borrow().is_empty());
+        assert_eq!(
+            *registry.operations.borrow(),
+            vec!["register:cmd+shift+c".to_string()]
+        );
+    }
+
+    #[test]
+    fn persistence_failure_removes_the_new_shortcut_and_keeps_previous_settings() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        registry.activate(&previous);
+        persistence.fail_next("disk full");
+
+        let result = replace_active_cancel_shortcut(
+            &registry,
+            &persistence,
+            previous.clone(),
+            updated.clone(),
+        );
+
+        assert!(result.is_err());
+        assert!(registry.is_active(&previous));
+        assert!(!registry.is_active(&updated));
+        assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Previous
+        );
+        assert_eq!(
             *registry.operations.borrow(),
             vec![
-                "unregister:escape".to_string(),
                 "register:cmd+shift+c".to_string(),
-                "register:escape".to_string(),
+                "unregister:cmd+shift+c".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn failed_previous_cleanup_rolls_back_settings_and_new_shortcut() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        registry.activate(&previous);
+        registry.fail_next(
+            RegistryOperation::Unregister,
+            &previous,
+            "simulated old cleanup failure",
+        );
+
+        let result = replace_active_cancel_shortcut(
+            &registry,
+            &persistence,
+            previous.clone(),
+            updated.clone(),
+        );
+
+        assert!(result.is_err());
+        assert!(registry.is_active(&previous));
+        assert!(!registry.is_active(&updated));
+        assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Previous
+        );
+        assert_eq!(
+            *persistence.writes.borrow(),
+            vec![
+                CancelShortcutSettingsState::Updated,
+                CancelShortcutSettingsState::Previous,
+            ]
+        );
+    }
+
+    #[test]
+    fn failed_cleanup_and_rollback_return_composed_error_with_real_state() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let persistence = FakeCancelShortcutPersistence::new(CancelShortcutSettingsState::Previous);
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        registry.activate(&previous);
+        registry.fail_next(
+            RegistryOperation::Unregister,
+            &previous,
+            "simulated old cleanup failure",
+        );
+        registry.fail_next(
+            RegistryOperation::Unregister,
+            &updated,
+            "simulated rollback failure",
+        );
+
+        let error = replace_active_cancel_shortcut(
+            &registry,
+            &persistence,
+            previous.clone(),
+            updated.clone(),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("simulated old cleanup failure"));
+        assert!(error.contains("simulated rollback failure"));
+        assert!(error.contains("previous_registered=true, updated_registered=true"));
+        assert!(registry.is_active(&previous));
+        assert!(registry.is_active(&updated));
+        assert_eq!(
+            *persistence.state.borrow(),
+            CancelShortcutSettingsState::Previous
         );
     }
 
