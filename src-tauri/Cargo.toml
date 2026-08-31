@@ -69,7 +69,7 @@ signal-hook = "0.3"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
-tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2.1" }
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "da9c9a8d4eb7f0524a2508988df1a7d9585b4904" }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 prost = "0.13"
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
