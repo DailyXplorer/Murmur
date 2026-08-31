@@ -203,7 +203,8 @@ pub enum TranscriptionProvider {
 /// its `get_default_settings()` value when missing from a stored settings
 /// object, so a partial store can never fail the whole load (#1619).
 /// Field-level defaults below take precedence where present.
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+/// Settings may contain user-authored and private values. Do not derive `Debug`.
+#[derive(Serialize, Deserialize, Clone, Type)]
 #[serde(default)]
 pub struct AppSettings {
     /// Defaults to empty on partial stores; the load path merges in the
@@ -484,10 +485,9 @@ impl Default for AppSettings {
     }
 }
 
-/// Startup entry point with a one-time debug dump of the loaded settings.
 pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     let settings = get_settings(app);
-    debug!("Loaded settings: {:?}", settings);
+    debug!("Loaded settings");
     settings
 }
 
