@@ -1,6 +1,6 @@
 use crate::actions::process_transcription_output;
 use crate::managers::{
-    history::{HistoryManager, PaginatedHistory},
+    history::{HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
 };
 use std::sync::Arc;
@@ -38,11 +38,14 @@ pub async fn toggle_history_entry_saved(
 pub async fn get_audio_file_path(
     _app: AppHandle,
     history_manager: State<'_, Arc<HistoryManager>>,
-    file_name: String,
+    id: i64,
 ) -> Result<String, String> {
-    let path = history_manager.get_audio_file_path(&file_name);
+    let path = history_manager
+        .get_audio_file_path(id)
+        .await
+        .map_err(|_| RECORDING_UNAVAILABLE_ERROR.to_string())?;
     path.to_str()
-        .ok_or_else(|| "Invalid file path".to_string())
+        .ok_or_else(|| RECORDING_UNAVAILABLE_ERROR.to_string())
         .map(|s| s.to_string())
 }
 
@@ -67,15 +70,12 @@ pub async fn retry_history_entry_transcription(
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     id: i64,
 ) -> Result<(), String> {
-    let entry = history_manager
-        .get_entry_by_id(id)
+    let audio_path = history_manager
+        .get_audio_file_path(id)
         .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("History entry {} not found", id))?;
-
-    let audio_path = history_manager.get_audio_file_path(&entry.file_name);
+        .map_err(|_| RECORDING_UNAVAILABLE_ERROR.to_string())?;
     let samples = crate::audio_toolkit::read_wav_samples(&audio_path)
-        .map_err(|e| format!("Failed to load audio: {}", e))?;
+        .map_err(|_| RECORDING_UNAVAILABLE_ERROR.to_string())?;
 
     if samples.is_empty() {
         return Err("Recording has no audio samples".to_string());
