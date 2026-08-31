@@ -36,15 +36,25 @@ const AccessibilityPermissions: React.FC = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const initialSetup = async (): Promise<void> => {
-      const hasPermissions: boolean = await checkAccessibilityPermission();
-      if (hasPermissions) {
-        setHasAccessibility(true);
-        setPermissionState("granted");
+      try {
+        const hasPermissions = await checkAccessibilityPermission();
+        if (hasPermissions && isMounted) {
+          setHasAccessibility(true);
+          setPermissionState("granted");
+        }
+      } catch (error) {
+        console.error("Error checking Accessibility permission:", error);
       }
     };
 
-    initialSetup();
+    void initialSetup();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
