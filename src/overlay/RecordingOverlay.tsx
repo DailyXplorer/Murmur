@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "./RecordingOverlay.css";
@@ -22,58 +22,62 @@ const RecordingOverlay: React.FC = () => {
   const direction = getLanguageDirection(i18n.language);
 
   useEffect(() => {
-    const setupEventListeners = async () => {
-      const unlistenShow = await listen("show-overlay", async (event) => {
-        const overlayState = event.payload as OverlayState;
-        if (overlayState === "recording") {
-          setCaptureReady(false);
-          smoothedLevelsRef.current = Array(16).fill(0);
-          setLevels(Array(WAVE_BARS).fill(0));
-        }
-
-        await syncLanguageFromSettings();
-        void commands
-          .getAppSettings()
-          .then((settings) => {
-            if (settings.status === "ok") {
-              setPosition(
-                settings.data.overlay_position === "top" ? "top" : "bottom",
-              );
-            }
-          })
-          .catch(() => undefined);
-        setState(overlayState);
-        setIsVisible(true);
-      });
-
-      const unlistenHide = await listen("hide-overlay", () => {
-        setIsVisible(false);
-        setCaptureReady(false);
-      });
-
-      const unlistenReady = await listen("recording-ready", () => {
-        setCaptureReady(true);
-      });
-
-      const unlistenLevel = await listen<number[]>("mic-level", (event) => {
-        const newLevels = event.payload as number[];
-        const smoothed = smoothedLevelsRef.current.map((prev, i) => {
-          const target = newLevels[i] || 0;
-          return prev * 0.7 + target * 0.3;
-        });
-        smoothedLevelsRef.current = smoothed;
-        setLevels(smoothed.slice(0, WAVE_BARS));
-      });
-
-      return () => {
-        unlistenShow();
-        unlistenHide();
-        unlistenReady();
-        unlistenLevel();
-      };
+    let isUnmounted = false;
+    const unlisteners: UnlistenFn[] = [];
+    const storeUnlistener = (unlisten: UnlistenFn) => {
+      if (isUnmounted) {
+        unlisten();
+      } else {
+        unlisteners.push(unlisten);
+      }
     };
 
-    setupEventListeners();
+    void listen("show-overlay", async (event) => {
+      const overlayState = event.payload as OverlayState;
+      if (overlayState === "recording") {
+        setCaptureReady(false);
+        smoothedLevelsRef.current = Array(16).fill(0);
+        setLevels(Array(WAVE_BARS).fill(0));
+      }
+
+      await syncLanguageFromSettings();
+      void commands
+        .getAppSettings()
+        .then((settings) => {
+          if (settings.status === "ok") {
+            setPosition(
+              settings.data.overlay_position === "top" ? "top" : "bottom",
+            );
+          }
+        })
+        .catch(() => undefined);
+      setState(overlayState);
+      setIsVisible(true);
+    }).then(storeUnlistener, () => undefined);
+
+    void listen("hide-overlay", () => {
+      setIsVisible(false);
+      setCaptureReady(false);
+    }).then(storeUnlistener, () => undefined);
+
+    void listen("recording-ready", () => {
+      setCaptureReady(true);
+    }).then(storeUnlistener, () => undefined);
+
+    void listen<number[]>("mic-level", (event) => {
+      const newLevels = event.payload as number[];
+      const smoothed = smoothedLevelsRef.current.map((prev, i) => {
+        const target = newLevels[i] || 0;
+        return prev * 0.7 + target * 0.3;
+      });
+      smoothedLevelsRef.current = smoothed;
+      setLevels(smoothed.slice(0, WAVE_BARS));
+    }).then(storeUnlistener, () => undefined);
+
+    return () => {
+      isUnmounted = true;
+      unlisteners.forEach((unlisten) => unlisten());
+    };
   }, []);
 
   if (!isVisible) return null;
