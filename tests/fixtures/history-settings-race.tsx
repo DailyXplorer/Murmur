@@ -97,9 +97,12 @@ let deleteShouldFail = false;
 let inFlightHistoryRequestCount = 0;
 let listenerRequestCount = 0;
 let maxInFlightRequestCount = 0;
-let paginationObserverCallback:
-  | ((entries: { isIntersecting: boolean }[]) => void)
-  | undefined;
+type PaginationObserverCallback = (
+  entries: {
+    isIntersecting: boolean;
+  }[],
+) => void;
+let paginationObserverCallback: PaginationObserverCallback | undefined;
 let unhandledRejectionCount = 0;
 let unlistenAttemptCount = 0;
 
