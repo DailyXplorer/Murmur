@@ -9,10 +9,10 @@
   </defs>
   <image
     href="../source/murmur-mark.png"
-    x="6.5"
-    y="6.5"
-    width="51"
-    height="51"
+    x="2"
+    y="2"
+    width="60"
+    height="60"
     filter="url(#black)"
   />
 </svg>

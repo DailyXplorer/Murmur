@@ -234,7 +234,7 @@ mod tests {
 
         assert_eq!((tray.width(), tray.height()), (64, 64));
         assert_eq!(alpha_at(&tray, 0, 0), 0);
-        assert_eq!(visible_bounds(&tray), (9, 13, 54, 50));
+        assert_eq!(visible_bounds(&tray), (5, 9, 58, 53));
         assert!(tray.rgba().chunks_exact(4).any(|pixel| pixel[3] == 0));
         assert!(tray
             .rgba()

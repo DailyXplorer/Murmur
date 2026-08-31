@@ -74,7 +74,8 @@ mod macos {
         tray: TrayTemplateSpec {
             canvas_size: 64,
             alpha_threshold: 128,
-            mark_fit: 46,
+            // Keeps the mark at 16x14 visible pixels when macOS renders it at 18 points.
+            mark_fit: 54,
         },
         outputs: OutputRegistry {
             app_icon: IconOutput {
@@ -636,10 +637,10 @@ mod macos {
         fn production_tray_template_keeps_the_m_at_menu_bar_size() {
             let tray = generate_tray_template(ICON_RECIPE.tray, &canonical_source())
                 .expect("canonical source should produce a tray template");
-            assert_eq!(visible_bounds(&tray, 1), Some((9, 13, 54, 50)));
+            assert_eq!(visible_bounds(&tray, 1), Some((5, 9, 58, 53)));
 
             let rendered = resize_square(&tray, 18);
-            assert_eq!(visible_bounds(&rendered, 16), Some((2, 3, 15, 14)));
+            assert_eq!(visible_bounds(&rendered, 16), Some((1, 2, 16, 15)));
             assert!(rendered.get_pixel(4, 4)[3] > 200);
             assert!(rendered.get_pixel(13, 4)[3] > 200);
             assert!(rendered.get_pixel(9, 3)[3] < 32);
