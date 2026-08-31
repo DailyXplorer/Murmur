@@ -20,10 +20,11 @@ use super::handler::handle_shortcut_event;
 // it, or remove it after a new recording started.
 static CANCEL_SHORTCUT_EPOCH: AtomicU64 = AtomicU64::new(0);
 static CANCEL_SHORTCUT_OPERATION_LOCK: Mutex<()> = Mutex::new(());
-/// Under `CANCEL_SHORTCUT_OPERATION_LOCK`, this is the exact set of Cancel
-/// keys that may still be registered. Rebind reconciliation samples the
-/// registry after every fallible cleanup and keeps every surviving key here;
-/// FinishGuard-driven teardown drains this set instead of re-reading settings.
+/// Under `CANCEL_SHORTCUT_OPERATION_LOCK`, this is the exact set of keys
+/// owned by successful Cancel registrations. A global registration alone does
+/// not prove Cancel owns it: it may belong to Transcribe or another feature.
+/// Rebind reconciliation keeps every surviving owned key here; FinishGuard
+/// drains this set instead of re-reading settings.
 static CANCEL_SHORTCUT_BINDINGS: Mutex<Vec<ShortcutBinding>> = Mutex::new(Vec::new());
 
 fn is_tracked_cancel_binding(bindings: &[ShortcutBinding], binding: &ShortcutBinding) -> bool {
@@ -127,6 +128,9 @@ fn apply_cancel_shortcut_lifecycle_operation<R: CancelShortcutRegistry>(
         CancelShortcutLifecycleOperation::Register => {
             let binding =
                 binding.ok_or_else(|| "Missing Cancel shortcut registration".to_string())?;
+            if is_tracked_cancel_binding(bindings, &binding) && registry.is_registered(&binding) {
+                return Ok(());
+            }
             register_tracked_cancel_binding(registry, bindings, binding)
         }
         CancelShortcutLifecycleOperation::Unregister => {
@@ -164,9 +168,15 @@ fn register_tracked_cancel_binding<R: CancelShortcutRegistry>(
     bindings: &mut Vec<ShortcutBinding>,
     binding: ShortcutBinding,
 ) -> Result<(), String> {
-    let result = registry.register(binding.clone());
-    synchronize_tracked_cancel_binding(registry, bindings, binding);
-    result
+    match registry.register(binding.clone()) {
+        Ok(()) => {
+            track_cancel_binding(bindings, binding);
+            Ok(())
+        }
+        // A failed registration can be a collision with another shortcut. Do
+        // not adopt a binding solely because it is globally registered.
+        Err(error) => Err(error),
+    }
 }
 
 fn unregister_tracked_cancel_binding<R: CancelShortcutRegistry>(
@@ -598,9 +608,9 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_cancel_shortcut_lifecycle_operation, replace_active_cancel_shortcut,
-        CancelShortcutLifecycleOperation, CancelShortcutPersistence, CancelShortcutRegistry,
-        CancelShortcutSettingsState,
+        apply_cancel_shortcut_lifecycle_operation, register_tracked_cancel_binding,
+        replace_active_cancel_shortcut, CancelShortcutLifecycleOperation,
+        CancelShortcutPersistence, CancelShortcutRegistry, CancelShortcutSettingsState,
     };
     use crate::settings::ShortcutBinding;
     use std::cell::RefCell;
@@ -669,6 +679,12 @@ mod tests {
                 .push(format!("register:{}", binding.current_binding));
             if let Some(error) = self.take_failure(RegistryOperation::Register, &binding) {
                 return Err(error);
+            }
+            if self.active.borrow().contains(&binding.current_binding) {
+                return Err(format!(
+                    "Shortcut '{}' is already in use",
+                    binding.current_binding
+                ));
             }
             self.active.borrow_mut().insert(binding.current_binding);
             Ok(())
@@ -749,6 +765,16 @@ mod tests {
             name: "Cancel".to_string(),
             description: "Cancels the current recording.".to_string(),
             default_binding: "escape".to_string(),
+            current_binding: binding.to_string(),
+        }
+    }
+
+    fn transcribe_binding(binding: &str) -> ShortcutBinding {
+        ShortcutBinding {
+            id: "transcribe".to_string(),
+            name: "Transcribe".to_string(),
+            description: "Converts your speech into text.".to_string(),
+            default_binding: "option+space".to_string(),
             current_binding: binding.to_string(),
         }
     }
@@ -855,6 +881,87 @@ mod tests {
         assert_eq!(tracked_binding_names(&bindings), vec!["escape"]);
         assert!(registry.operations.borrow().is_empty());
         assert!(persistence.writes.borrow().is_empty());
+    }
+
+    #[test]
+    fn lifecycle_register_is_a_no_op_for_an_owned_cancel_binding() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let cancel = cancel_binding("escape");
+        registry.activate(&cancel);
+        let mut bindings = vec![cancel.clone()];
+
+        apply_cancel_shortcut_lifecycle_operation(
+            &registry,
+            &mut bindings,
+            2,
+            2,
+            CancelShortcutLifecycleOperation::Register,
+            Some(cancel.clone()),
+        )
+        .unwrap();
+
+        assert!(registry.is_active(&cancel));
+        assert_eq!(tracked_binding_names(&bindings), vec!["escape"]);
+        assert!(registry.operations.borrow().is_empty());
+    }
+
+    #[test]
+    fn failed_reregistration_preserves_an_owned_cancel_binding() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let cancel = cancel_binding("escape");
+        registry.activate(&cancel);
+        let mut bindings = vec![cancel.clone()];
+        registry.fail_next(
+            RegistryOperation::Register,
+            &cancel,
+            "simulated re-registration failure",
+        );
+
+        let error =
+            register_tracked_cancel_binding(&registry, &mut bindings, cancel.clone()).unwrap_err();
+
+        assert!(error.contains("simulated re-registration failure"));
+        assert!(registry.is_active(&cancel));
+        assert_eq!(tracked_binding_names(&bindings), vec!["escape"]);
+    }
+
+    #[test]
+    fn lifecycle_collision_never_adopts_a_foreign_global_binding() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let cancel = cancel_binding("cmd+shift+c");
+        let transcribe = transcribe_binding("cmd+shift+c");
+        registry.activate(&transcribe);
+        let mut bindings = Vec::new();
+
+        let error = apply_cancel_shortcut_lifecycle_operation(
+            &registry,
+            &mut bindings,
+            2,
+            2,
+            CancelShortcutLifecycleOperation::Register,
+            Some(cancel),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("already in use"));
+        assert!(registry.is_active(&transcribe));
+        assert!(bindings.is_empty());
+
+        apply_cancel_shortcut_lifecycle_operation(
+            &registry,
+            &mut bindings,
+            3,
+            3,
+            CancelShortcutLifecycleOperation::Unregister,
+            None,
+        )
+        .unwrap();
+
+        assert!(registry.is_active(&transcribe));
+        assert_eq!(
+            *registry.operations.borrow(),
+            vec!["register:cmd+shift+c".to_string()]
+        );
     }
 
     #[test]
