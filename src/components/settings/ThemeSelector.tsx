@@ -14,7 +14,7 @@ interface ThemeSelectorProps {
 export const ThemeSelector: React.FC<ThemeSelectorProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
-    const { settings, updateSetting } = useSettings();
+    const { settings, getSetting, isUpdating, updateSetting } = useSettings();
 
     const currentTheme: Theme = settings?.theme ?? "system";
 
@@ -23,10 +23,12 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = React.memo(
       label: t(`theme.options.${value}`),
     }));
 
-    const handleThemeChange = (value: string) => {
+    const handleThemeChange = async (value: string) => {
       const theme = value as Theme;
-      applyTheme(theme);
-      updateSetting("theme", theme);
+      await updateSetting("theme", theme);
+      if (!isUpdating("theme")) {
+        applyTheme(getSetting("theme") ?? "system");
+      }
     };
 
     return (
