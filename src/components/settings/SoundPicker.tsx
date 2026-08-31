@@ -43,7 +43,11 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
       grouped
       layout="horizontal"
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div
+        role="group"
+        aria-label={label}
+        className="flex min-w-0 items-center gap-2"
+      >
         <Dropdown
           className="min-w-0 flex-1"
           selectedValue={selectedTheme}
