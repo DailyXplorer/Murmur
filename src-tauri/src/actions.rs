@@ -12,7 +12,9 @@ use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Manager;
@@ -26,13 +28,63 @@ struct RecordingErrorEvent {
     detail: Option<String>,
 }
 
-/// Drop guard that notifies the [`TranscriptionCoordinator`] when the
-/// transcription pipeline finishes — whether it completes normally or panics.
+/// Drop guard that finishes the cancellation lifecycle when the transcription
+/// pipeline completes, even if the task unwinds.
 struct FinishGuard(AppHandle);
 impl Drop for FinishGuard {
     fn drop(&mut self) {
+        shortcut::unregister_cancel_shortcut(&self.0);
         if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
             c.notify_processing_finished();
+        }
+    }
+}
+
+/// Owns a newly-created recording until a history row commits it.
+///
+/// A pipeline cancellation, save failure, or panic drops this value and must
+/// remove the unreferenced file. `commit` transfers ownership to history.
+struct PendingWav {
+    path: PathBuf,
+    committed: bool,
+}
+
+impl PendingWav {
+    /// Reserves a new path before asynchronous WAV writing begins.
+    ///
+    /// Exclusive creation makes the guard the sole owner of the path. If an
+    /// existing history row refers to it, reservation fails and that file is
+    /// left untouched.
+    fn reserve(path: PathBuf) -> std::io::Result<Self> {
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        Ok(Self {
+            path,
+            committed: false,
+        })
+    }
+
+    fn commit(&mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for PendingWav {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+
+        match fs::remove_file(&self.path) {
+            Ok(()) => debug!("Removed uncommitted recording: {}", self.path.display()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => error!(
+                "Failed to remove uncommitted recording {}: {}",
+                self.path.display(),
+                error
+            ),
         }
     }
 }
@@ -264,9 +316,6 @@ impl ShortcutAction for TranscribeAction {
         app.state::<Arc<AudioRecordingManager>>()
             .invalidate_recording_readiness();
 
-        // Unregister the cancel shortcut when transcription stops
-        shortcut::unregister_cancel_shortcut(app);
-
         let stop_time = Instant::now();
         debug!("TranscribeAction::stop called for binding: {}", binding_id);
 
@@ -316,12 +365,32 @@ impl ShortcutAction for TranscribeAction {
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
-                    let file_name = format!("murmur-{}.wav", chrono::Utc::now().timestamp());
+                    let file_name = format!(
+                        "murmur-{}.wav",
+                        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+                    );
                     let wav_path = hm.recordings_dir().join(&file_name);
                     let wav_path_for_verify = wav_path.clone();
-                    let samples_for_wav = samples.clone();
-                    let wav_handle = tauri::async_runtime::spawn_blocking(move || {
-                        crate::audio_toolkit::save_wav_file(&wav_path, &samples_for_wav)
+                    let mut pending_wav = match PendingWav::reserve(wav_path.clone()) {
+                        Ok(wav) => Some(wav),
+                        Err(error) => {
+                            error!(
+                                "Failed to reserve WAV path {}: {}",
+                                wav_path.display(),
+                                error
+                            );
+                            None
+                        }
+                    };
+                    let wav_handle = pending_wav.as_ref().map(|_| {
+                        let wav_path_for_save = wav_path.clone();
+                        let samples_for_wav = samples.clone();
+                        tauri::async_runtime::spawn_blocking(move || {
+                            crate::audio_toolkit::save_wav_file(
+                                &wav_path_for_save,
+                                &samples_for_wav,
+                            )
+                        })
                     });
 
                     let transcription_time = Instant::now();
@@ -336,27 +405,30 @@ impl ShortcutAction for TranscribeAction {
                         };
 
                     // Await WAV save and verify
-                    let wav_saved = match wav_handle.await {
-                        Ok(Ok(())) => {
-                            match crate::audio_toolkit::verify_wav_file(
-                                &wav_path_for_verify,
-                                sample_count,
-                            ) {
-                                Ok(()) => true,
-                                Err(e) => {
-                                    error!("WAV verification failed: {}", e);
-                                    false
+                    let wav_saved = match wav_handle {
+                        None => false,
+                        Some(wav_handle) => match wav_handle.await {
+                            Ok(Ok(())) => {
+                                match crate::audio_toolkit::verify_wav_file(
+                                    &wav_path_for_verify,
+                                    sample_count,
+                                ) {
+                                    Ok(()) => true,
+                                    Err(e) => {
+                                        error!("WAV verification failed: {}", e);
+                                        false
+                                    }
                                 }
                             }
-                        }
-                        Ok(Err(e)) => {
-                            error!("Failed to save WAV file: {}", e);
-                            false
-                        }
-                        Err(e) => {
-                            error!("WAV save task panicked: {}", e);
-                            false
-                        }
+                            Ok(Err(e)) => {
+                                error!("Failed to save WAV file: {}", e);
+                                false
+                            }
+                            Err(e) => {
+                                error!("WAV save task panicked: {}", e);
+                                false
+                            }
+                        },
                     };
 
                     if rm.was_cancelled_since(cancel_generation) {
@@ -395,8 +467,20 @@ impl ShortcutAction for TranscribeAction {
 
                             // Save to history if WAV was saved
                             if wav_saved {
-                                if let Err(err) = hm.save_entry(file_name, final_text.clone()) {
-                                    error!("Failed to save history entry: {}", err);
+                                if rm.was_cancelled_since(cancel_generation) {
+                                    debug!("Transcription operation cancelled before history save");
+                                    utils::hide_recording_overlay(&ah);
+                                    change_tray_icon(&ah, TrayIconState::Idle);
+                                    return;
+                                }
+
+                                match hm.save_entry(file_name.clone(), final_text.clone()) {
+                                    Ok(_) => {
+                                        if let Some(wav) = pending_wav.as_mut() {
+                                            wav.commit();
+                                        }
+                                    }
+                                    Err(err) => error!("Failed to save history entry: {}", err),
                                 }
                             }
 
@@ -451,8 +535,22 @@ impl ShortcutAction for TranscribeAction {
                             let _ = ah.emit("transcription-error", err.to_string());
                             // Save entry with empty text so user can retry
                             if wav_saved {
-                                if let Err(save_err) = hm.save_entry(file_name, String::new()) {
-                                    error!("Failed to save failed history entry: {}", save_err);
+                                if rm.was_cancelled_since(cancel_generation) {
+                                    debug!("Transcription operation cancelled before failed history save");
+                                    utils::hide_recording_overlay(&ah);
+                                    change_tray_icon(&ah, TrayIconState::Idle);
+                                    return;
+                                }
+
+                                match hm.save_entry(file_name, String::new()) {
+                                    Ok(_) => {
+                                        if let Some(wav) = pending_wav.as_mut() {
+                                            wav.commit();
+                                        }
+                                    }
+                                    Err(save_err) => {
+                                        error!("Failed to save failed history entry: {}", save_err)
+                                    }
                                 }
                             }
                             utils::hide_recording_overlay(&ah);
@@ -500,7 +598,8 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 
 #[cfg(test)]
 mod tests {
-    use super::complete_unless_cancelled;
+    use super::{complete_unless_cancelled, PendingWav};
+    use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -533,5 +632,53 @@ mod tests {
 
         cancel_thread.join().unwrap();
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn uncommitted_wav_is_removed_when_its_owner_drops() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("pending.wav");
+
+        drop(PendingWav::reserve(wav_path.clone()).unwrap());
+
+        assert!(!wav_path.exists());
+    }
+
+    #[test]
+    fn committed_wav_survives_its_owner() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("committed.wav");
+
+        let mut wav = PendingWav::reserve(wav_path.clone()).unwrap();
+        fs::write(&wav_path, b"saved wav").unwrap();
+        wav.commit();
+        drop(wav);
+
+        assert!(wav_path.exists());
+    }
+
+    #[test]
+    fn uncommitted_wav_is_removed_during_panic_unwind() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("panic.wav");
+
+        let result = std::panic::catch_unwind(|| {
+            let _wav = PendingWav::reserve(wav_path.clone()).unwrap();
+            panic!("simulated pipeline panic");
+        });
+
+        assert!(result.is_err());
+        assert!(!wav_path.exists());
+    }
+
+    #[test]
+    fn reserving_a_referenced_wav_never_claims_or_deletes_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("referenced.wav");
+        fs::write(&wav_path, b"history-owned wav").unwrap();
+
+        assert!(PendingWav::reserve(wav_path.clone()).is_err());
+
+        assert_eq!(fs::read(&wav_path).unwrap(), b"history-owned wav");
     }
 }

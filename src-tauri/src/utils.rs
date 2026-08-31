@@ -12,11 +12,16 @@ pub use crate::tray::*;
 pub fn cancel_current_operation(app: &AppHandle) {
     info!("Initiating operation cancellation...");
 
-    shortcut::unregister_cancel_shortcut(app);
-
     let audio_manager = app.state::<Arc<AudioRecordingManager>>();
     let recording_was_active = audio_manager.is_recording();
     audio_manager.cancel_recording();
+
+    // A direct recording cancellation has no processing task to clean up the
+    // dynamically registered shortcut. Once processing has started, its drop
+    // guard keeps this binding available until the pipeline finishes.
+    if recording_was_active {
+        shortcut::unregister_cancel_shortcut(app);
+    }
 
     change_tray_icon(app, crate::tray::TrayIconState::Idle);
     hide_recording_overlay(app);

@@ -1,20 +1,22 @@
 //! Shared shortcut event handling logic.
 
 use log::warn;
-use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::actions::ACTION_MAP;
-use crate::managers::audio::AudioRecordingManager;
 use crate::settings::get_settings;
 use crate::transcription_coordinator::is_transcribe_binding;
 use crate::TranscriptionCoordinator;
+
+fn should_dispatch_cancel(is_pressed: bool) -> bool {
+    is_pressed
+}
 
 /// Handle a shortcut event from the global-shortcut implementation.
 ///
 /// This function contains the shared logic for:
 /// - Looking up the action in ACTION_MAP
-/// - Handling the cancel binding (only fires when recording)
+/// - Handling the cancel binding during recording or processing
 /// - Handling push-to-talk mode (start on press, stop on release)
 /// - Handling toggle mode (toggle state on press only)
 ///
@@ -49,10 +51,10 @@ pub fn handle_shortcut_event(
         return;
     };
 
-    // Cancel binding: only fires when recording and key is pressed
+    // The binding stays registered until the pipeline's finish guard runs, so
+    // a press must reach cancellation while WAV saving or transcription runs.
     if binding_id == "cancel" {
-        let audio_manager = app.state::<Arc<AudioRecordingManager>>();
-        if audio_manager.is_recording() && is_pressed {
+        if should_dispatch_cancel(is_pressed) {
             action.start(app, binding_id, hotkey_string);
         }
         return;
@@ -63,5 +65,20 @@ pub fn handle_shortcut_event(
         action.start(app, binding_id, hotkey_string);
     } else {
         action.stop(app, binding_id, hotkey_string);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_dispatch_cancel;
+
+    #[test]
+    fn cancel_press_is_dispatched_without_a_recording_state_check() {
+        assert!(should_dispatch_cancel(true));
+    }
+
+    #[test]
+    fn cancel_release_is_not_dispatched() {
+        assert!(!should_dispatch_cancel(false));
     }
 }
