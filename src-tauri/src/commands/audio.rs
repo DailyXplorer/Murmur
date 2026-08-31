@@ -40,15 +40,10 @@ pub struct AudioDevice {
 #[tauri::command]
 #[specta::specta]
 pub async fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), String> {
-    // Update settings (fast, stays inline)
-    let mut settings = get_settings(&app);
-    settings.always_on_microphone = always_on;
-    write_settings(&app, settings);
-
-    // Update the audio manager mode. update_mode can stop/start the cpal stream
-    // (blocking CoreAudio) and takes the manager std mutexes — run it on a
-    // blocking thread, NOT inline on the webview/main run loop (a slow device
-    // open/close would freeze the UI).
+    // `update_mode` commits the mode setting and emits `settings-changed` only
+    // after the runtime transition succeeds. It can stop/start the cpal stream
+    // and takes the manager std mutexes, so run it on a blocking thread rather
+    // than the webview/main run loop.
     let rm = app.state::<Arc<AudioRecordingManager>>().inner().clone();
     let new_mode = if always_on {
         MicrophoneMode::AlwaysOn
@@ -91,19 +86,17 @@ pub async fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_microphone = if device_name == "default" {
+    let selected_microphone = if device_name == "default" {
         None
     } else {
         Some(device_name)
     };
-    write_settings(&app, settings);
 
-    // Update the audio manager to use the new device. update_selected_device
-    // can restart the cpal stream (blocking CoreAudio) — run it on a blocking
-    // thread, not inline on the webview/main run loop.
+    // The manager holds the recording-state lock across the CoreAudio restart
+    // and only persists a setting after the runtime switch succeeds. Run that
+    // blocking work off the webview/main run loop.
     let rm = app.state::<Arc<AudioRecordingManager>>().inner().clone();
-    tokio::task::spawn_blocking(move || rm.update_selected_device())
+    tokio::task::spawn_blocking(move || rm.update_selected_device(selected_microphone))
         .await
         .map_err(|e| format!("audio task join failed: {}", e))?
         .map_err(|e| format!("Failed to update selected device: {}", e))
@@ -206,17 +199,11 @@ pub async fn get_microphone_channels(device_name: String) -> Result<u16, String>
 #[tauri::command]
 #[specta::specta]
 pub async fn set_selected_channel(app: AppHandle, channel: Option<u16>) -> Result<(), String> {
-    // Restarting cpal can block, so keep it off the webview/main run loop. Apply
-    // the runtime change before persisting it so a rejected active-recording
-    // change does not become effective on the next launch.
+    // Restarting cpal can block, so keep it off the webview/main run loop. The
+    // manager persists only after it has applied the runtime change.
     let manager = app.state::<Arc<AudioRecordingManager>>().inner().clone();
     tokio::task::spawn_blocking(move || manager.update_selected_channel(channel))
         .await
         .map_err(|e| format!("audio task join failed: {e}"))?
-        .map_err(|e| format!("Failed to update channel selection: {e}"))?;
-
-    let mut settings = get_settings(&app);
-    settings.selected_channel = channel;
-    write_settings(&app, settings);
-    Ok(())
+        .map_err(|e| format!("Failed to update channel selection: {e}"))
 }

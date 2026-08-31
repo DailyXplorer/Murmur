@@ -4,7 +4,7 @@ use crate::settings::{get_settings, write_settings, AppSettings};
 use crate::utils;
 use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
@@ -117,6 +117,102 @@ fn create_audio_recorder(
     Ok(recorder)
 }
 
+/// Outcome of rebuilding an idle stream after an input setting changes. The
+/// caller must persist the setting that matches the returned live stream.
+enum StreamRestartOutcome<T> {
+    Updated(T),
+    RestoredAfterUpdateFailure {
+        restored: T,
+        update_error: anyhow::Error,
+    },
+}
+
+fn ensure_idle_for_input_change(
+    state: &RecordingState,
+    input_name: &str,
+) -> Result<(), anyhow::Error> {
+    if matches!(state, RecordingState::Idle) {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Cannot change the {input_name} while recording"
+        ))
+    }
+}
+
+/// Serializes every operation that can open, close, or reconfigure the input
+/// stream. Device/channel changes keep this guard through their transaction;
+/// a mode transition must take the same guard before it can start an
+/// always-on stream from a settings snapshot.
+fn lock_input_reconfiguration(state: &Mutex<RecordingState>) -> MutexGuard<'_, RecordingState> {
+    state.lock().unwrap()
+}
+
+/// Applies a microphone-mode change as one transaction. The runtime stream is
+/// reconfigured first; only then do we expose the new mode and persist it.
+///
+/// Keeping this independent from Tauri lets the exact manager transition be
+/// exercised deterministically with controlled stream and persistence seams.
+fn update_mode_transaction(
+    state: &Mutex<RecordingState>,
+    mode: &Mutex<MicrophoneMode>,
+    new_mode: MicrophoneMode,
+    stop_stream: impl FnOnce(),
+    start_stream: impl FnOnce() -> Result<(), anyhow::Error>,
+    persist_mode: impl FnOnce(&MicrophoneMode),
+    #[cfg(test)] before_reconfiguration_lock: Option<&dyn Fn()>,
+) -> Result<(), anyhow::Error> {
+    #[cfg(test)]
+    if let Some(before_reconfiguration_lock) = before_reconfiguration_lock {
+        before_reconfiguration_lock();
+    }
+
+    let state = lock_input_reconfiguration(state);
+    let current_mode = mode.lock().unwrap().clone();
+
+    match (current_mode, &new_mode) {
+        (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
+            if matches!(*state, RecordingState::Idle) {
+                stop_stream();
+            }
+        }
+        (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
+            start_stream()?;
+        }
+        _ => {}
+    }
+
+    *mode.lock().unwrap() = new_mode.clone();
+    persist_mode(&new_mode);
+    Ok(())
+}
+
+/// Stops an already-open idle stream, starts it with the proposed setting, and
+/// restores the previous setting if the proposed stream cannot open.
+///
+/// The closures make the CoreAudio boundary explicit and keep the rollback
+/// testable without depending on a physical input device.
+fn restart_open_stream_transaction<T>(
+    stop_stream: impl FnOnce(),
+    start_updated_stream: impl FnOnce() -> Result<T, anyhow::Error>,
+    restore_previous_stream: impl FnOnce() -> Result<T, anyhow::Error>,
+) -> Result<StreamRestartOutcome<T>, anyhow::Error> {
+    stop_stream();
+
+    match start_updated_stream() {
+        Ok(updated) => Ok(StreamRestartOutcome::Updated(updated)),
+        Err(update_error) => match restore_previous_stream() {
+            Ok(restored) => Ok(StreamRestartOutcome::RestoredAfterUpdateFailure {
+                restored,
+                update_error,
+            }),
+            Err(restore_error) => Err(anyhow::anyhow!(
+                "Failed to apply input change ({update_error}); failed to restore the previous input ({restore_error})"
+            )),
+        },
+    }
+}
+
 /* ──────────────────────────────────────────────────────────────── */
 
 /// One recording session's first-sample notification. Waiting on this never
@@ -191,7 +287,10 @@ impl AudioRecordingManager {
             cached_device: Arc::new(Mutex::new(None)),
         };
 
-        // Always-on?  Open immediately.
+        // The persisted AlwaysOn value was committed by a previous successful
+        // transition, so startup opens the stream without writing or emitting
+        // it again. If opening fails, construction fails and no live manager
+        // exposes an uncommitted runtime mode.
         if matches!(mode, MicrophoneMode::AlwaysOn) {
             manager.start_microphone_stream()?;
         }
@@ -301,6 +400,10 @@ impl AudioRecordingManager {
 
         settings.selected_microphone = None;
         write_settings(&self.app_handle, settings);
+        self.emit_default_microphone_fallback();
+    }
+
+    fn emit_default_microphone_fallback(&self) {
         let _ = self.app_handle.emit(
             "settings-changed",
             serde_json::json!({
@@ -377,18 +480,37 @@ impl AudioRecordingManager {
     }
 
     pub fn ensure_recorder(&self) -> Result<(), anyhow::Error> {
+        let selected_channel = get_settings(&self.app_handle).selected_channel;
+        self.ensure_recorder_with_channel(selected_channel)
+    }
+
+    fn ensure_recorder_with_channel(
+        &self,
+        selected_channel: Option<u16>,
+    ) -> Result<(), anyhow::Error> {
         let mut recorder_opt = self.recorder.lock().unwrap();
         if recorder_opt.is_none() {
-            let settings = get_settings(&self.app_handle);
-            *recorder_opt = Some(create_audio_recorder(
-                &self.app_handle,
-                settings.selected_channel,
-            )?);
+            *recorder_opt = Some(create_audio_recorder(&self.app_handle, selected_channel)?);
         }
         Ok(())
     }
 
     pub fn start_microphone_stream(&self) -> Result<(), anyhow::Error> {
+        let settings = get_settings(&self.app_handle);
+        if let Some(unavailable_name) = self.start_microphone_stream_with_settings(&settings)? {
+            // Do this only after the default stream opened successfully. A
+            // failed fallback must not erase the user's microphone preference.
+            self.persist_default_microphone_after_fallback(&unavailable_name);
+        }
+        Ok(())
+    }
+
+    /// Opens the stream for an explicit settings snapshot. The caller owns any
+    /// persistence so it can commit the setting only after CoreAudio accepts it.
+    fn start_microphone_stream_with_settings(
+        &self,
+        settings: &AppSettings,
+    ) -> Result<Option<String>, anyhow::Error> {
         let mut open_flag = self.is_open.lock().unwrap();
         if *open_flag {
             // `is_open` only records that we opened a stream at some point, not
@@ -407,7 +529,7 @@ impl AudioRecordingManager {
                 // try_start_recording this now fires on every keypress in
                 // always-on mode.
                 trace!("Microphone stream already active");
-                return Ok(());
+                return Ok(None);
             }
 
             warn!("Microphone stream is no longer running (device disconnected?); reopening");
@@ -450,13 +572,12 @@ impl AudioRecordingManager {
         // recorder resolves the system default itself, and a machine with no
         // input devices at all fails inside open() with the same
         // "No input device found" error this used to check for.
-        let settings = get_settings(&self.app_handle);
         let resolve_started = Instant::now();
-        let mut resolution = self.resolve_microphone_device(&settings);
+        let mut resolution = self.resolve_microphone_device(settings);
         let resolve_elapsed = resolve_started.elapsed();
 
         let recorder_started = Instant::now();
-        self.ensure_recorder()?;
+        self.ensure_recorder_with_channel(settings.selected_channel)?;
         let recorder_elapsed = recorder_started.elapsed();
 
         let open_started = Instant::now();
@@ -468,7 +589,7 @@ impl AudioRecordingManager {
                 // retry once before surfacing the error.
                 warn!("Recorder open failed ({first_err}); re-resolving device and retrying once");
                 self.invalidate_device_cache();
-                resolution = self.resolve_microphone_device(&settings);
+                resolution = self.resolve_microphone_device(settings);
                 rec.open(resolution.device.clone())
                     .map_err(|e| anyhow::anyhow!("Failed to open recorder: {}", e))?;
             }
@@ -482,11 +603,6 @@ impl AudioRecordingManager {
         drop(recorder_opt);
 
         *open_flag = true;
-        if let Some(unavailable_name) = resolution.unavailable_selected_microphone {
-            // Do this only after the default stream opened successfully. A
-            // failed fallback must not erase the user's microphone preference.
-            self.persist_default_microphone_after_fallback(&unavailable_name);
-        }
         // This timing covers through cpal's stream.play() returning — i.e. the
         // point cpal surfaces as "stream running." It does NOT guarantee the
         // host audio device is producing samples yet; the first input callback
@@ -496,7 +612,7 @@ impl AudioRecordingManager {
             "Microphone stream initialized in {:?}",
             start_time.elapsed()
         );
-        Ok(())
+        Ok(resolution.unavailable_selected_microphone)
     }
 
     pub fn stop_microphone_stream(&self) {
@@ -529,24 +645,36 @@ impl AudioRecordingManager {
     /* ---------- mode switching --------------------------------------------- */
 
     pub fn update_mode(&self, new_mode: MicrophoneMode) -> Result<(), anyhow::Error> {
-        let cur_mode = self.mode.lock().unwrap().clone();
-
-        match (cur_mode, &new_mode) {
-            (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
-                if matches!(*self.state.lock().unwrap(), RecordingState::Idle) {
-                    self.close_generation.fetch_add(1, Ordering::SeqCst);
-                    self.stop_microphone_stream();
-                }
-            }
-            (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
+        update_mode_transaction(
+            &self.state,
+            &self.mode,
+            new_mode,
+            || {
                 self.close_generation.fetch_add(1, Ordering::SeqCst);
-                self.start_microphone_stream()?;
-            }
-            _ => {}
-        }
+                self.stop_microphone_stream();
+            },
+            || {
+                self.close_generation.fetch_add(1, Ordering::SeqCst);
+                self.start_microphone_stream()
+            },
+            |mode| self.persist_microphone_mode(mode),
+            #[cfg(test)]
+            None,
+        )
+    }
 
-        *self.mode.lock().unwrap() = new_mode;
-        Ok(())
+    fn persist_microphone_mode(&self, mode: &MicrophoneMode) {
+        let always_on = matches!(mode, MicrophoneMode::AlwaysOn);
+        let mut settings = get_settings(&self.app_handle);
+        settings.always_on_microphone = always_on;
+        write_settings(&self.app_handle, settings);
+        let _ = self.app_handle.emit(
+            "settings-changed",
+            serde_json::json!({
+                "setting": "always_on_microphone",
+                "value": always_on,
+            }),
+        );
     }
 
     /* ---------- recording --------------------------------------------------- */
@@ -610,16 +738,70 @@ impl AudioRecordingManager {
         }
     }
 
-    pub fn update_selected_device(&self) -> Result<(), anyhow::Error> {
-        // Device settings changed; re-enumerate the device and restart capture.
+    pub fn update_selected_device(
+        &self,
+        selected_microphone: Option<String>,
+    ) -> Result<(), anyhow::Error> {
+        // Serialize against recording start/stop. Restarting an active capture
+        // would discard its samples and leave the manager's recording state out
+        // of sync with the new recorder.
+        let state = lock_input_reconfiguration(&self.state);
+        ensure_idle_for_input_change(&state, "microphone")?;
+
+        let previous_settings = get_settings(&self.app_handle);
+        let mut updated_settings = previous_settings.clone();
+        updated_settings.selected_microphone = selected_microphone;
+
+        // Device settings changed; re-enumerate the device before a later
+        // on-demand open. When the stream is already open, first prove the
+        // replacement can start, then write the effective preference.
         self.invalidate_device_cache();
         let was_open = *self.is_open.lock().unwrap();
-        if was_open {
-            self.close_generation.fetch_add(1, Ordering::SeqCst);
-            self.stop_microphone_stream();
-            self.start_microphone_stream()?;
+        if !was_open {
+            write_settings(&self.app_handle, updated_settings);
+            return Ok(());
         }
-        Ok(())
+
+        match restart_open_stream_transaction(
+            || {
+                self.close_generation.fetch_add(1, Ordering::SeqCst);
+                self.stop_microphone_stream();
+            },
+            || self.start_microphone_stream_with_settings(&updated_settings),
+            || {
+                self.invalidate_device_cache();
+                self.start_microphone_stream_with_settings(&previous_settings)
+            },
+        )? {
+            StreamRestartOutcome::Updated(unavailable_name) => {
+                let fell_back_to_default = unavailable_name.is_some();
+                if fell_back_to_default {
+                    updated_settings.selected_microphone = None;
+                }
+                write_settings(&self.app_handle, updated_settings);
+                if fell_back_to_default {
+                    self.emit_default_microphone_fallback();
+                }
+                Ok(())
+            }
+            StreamRestartOutcome::RestoredAfterUpdateFailure {
+                restored,
+                update_error,
+            } => {
+                // The original device may have disappeared while the failed
+                // replacement was being opened. If recovery fell back to the
+                // system default, record that live state instead of reviving a
+                // stale microphone preference.
+                let restored_default_microphone = restored.is_some();
+                if restored_default_microphone {
+                    let mut restored_settings = previous_settings;
+                    restored_settings.selected_microphone = None;
+                    write_settings(&self.app_handle, restored_settings);
+                    self.emit_default_microphone_fallback();
+                }
+                Err(update_error)
+            }
+        }
     }
 
     pub fn update_selected_channel(
@@ -629,32 +811,66 @@ impl AudioRecordingManager {
         // Serialize against recording start/stop. Restarting an active capture
         // would discard its samples and leave the manager's recording state out
         // of sync with the new recorder.
-        let state = self.state.lock().unwrap();
-        if !matches!(*state, RecordingState::Idle) {
-            return Err(anyhow::anyhow!(
-                "Cannot change the input channel while recording"
-            ));
+        let state = lock_input_reconfiguration(&self.state);
+        ensure_idle_for_input_change(&state, "input channel")?;
+
+        let previous_settings = get_settings(&self.app_handle);
+        let previous_channel = previous_settings.selected_channel;
+        let mut updated_settings = previous_settings.clone();
+        updated_settings.selected_channel = selected_channel;
+        let was_open = *self.is_open.lock().unwrap();
+        if !was_open {
+            if let Some(recorder) = self.recorder.lock().unwrap().as_mut() {
+                recorder.set_selected_channel(selected_channel);
+            }
+            write_settings(&self.app_handle, updated_settings);
+            return Ok(());
         }
 
-        let previous_channel = get_settings(&self.app_handle).selected_channel;
-        let was_open = *self.is_open.lock().unwrap();
-        if was_open {
-            self.close_generation.fetch_add(1, Ordering::SeqCst);
-            self.stop_microphone_stream();
-        }
-        if let Some(recorder) = self.recorder.lock().unwrap().as_mut() {
-            recorder.set_selected_channel(selected_channel);
-        }
-        if was_open {
-            if let Err(error) = self.start_microphone_stream() {
+        match restart_open_stream_transaction(
+            || {
+                self.close_generation.fetch_add(1, Ordering::SeqCst);
+                self.stop_microphone_stream();
+            },
+            || {
+                if let Some(recorder) = self.recorder.lock().unwrap().as_mut() {
+                    recorder.set_selected_channel(selected_channel);
+                }
+                self.start_microphone_stream_with_settings(&updated_settings)
+            },
+            || {
                 if let Some(recorder) = self.recorder.lock().unwrap().as_mut() {
                     recorder.set_selected_channel(previous_channel);
                 }
-                return Err(error);
+                self.invalidate_device_cache();
+                self.start_microphone_stream_with_settings(&previous_settings)
+            },
+        )? {
+            StreamRestartOutcome::Updated(unavailable_name) => {
+                let fell_back_to_default = unavailable_name.is_some();
+                if fell_back_to_default {
+                    updated_settings.selected_microphone = None;
+                }
+                write_settings(&self.app_handle, updated_settings);
+                if fell_back_to_default {
+                    self.emit_default_microphone_fallback();
+                }
+                Ok(())
+            }
+            StreamRestartOutcome::RestoredAfterUpdateFailure {
+                restored,
+                update_error,
+            } => {
+                let restored_default_microphone = restored.is_some();
+                if restored_default_microphone {
+                    let mut restored_settings = previous_settings;
+                    restored_settings.selected_microphone = None;
+                    write_settings(&self.app_handle, restored_settings);
+                    self.emit_default_microphone_fallback();
+                }
+                Err(update_error)
             }
         }
-        drop(state);
-        Ok(())
     }
 
     /// Invalidate pending first-sample UI and audio-feedback work immediately.
@@ -789,6 +1005,197 @@ impl AudioRecordingManager {
                 debug!("Cancellation requested while recording is stopping");
             }
             RecordingState::Idle => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::sync::Arc;
+
+    #[test]
+    fn input_changes_require_an_idle_recording_state() {
+        assert!(ensure_idle_for_input_change(&RecordingState::Idle, "microphone").is_ok());
+
+        let recording = ensure_idle_for_input_change(
+            &RecordingState::Recording {
+                binding_id: "main".to_string(),
+            },
+            "microphone",
+        )
+        .unwrap_err();
+        assert_eq!(
+            recording.to_string(),
+            "Cannot change the microphone while recording"
+        );
+
+        let stopping =
+            ensure_idle_for_input_change(&RecordingState::Stopping, "input channel").unwrap_err();
+        assert_eq!(
+            stopping.to_string(),
+            "Cannot change the input channel while recording"
+        );
+    }
+
+    #[test]
+    fn on_demand_to_always_on_waits_for_device_or_channel_transaction_commit() {
+        for input_name in ["microphone", "input channel"] {
+            let state = Arc::new(Mutex::new(RecordingState::Idle));
+            let configured_input = Arc::new(Mutex::new("previous input"));
+            let mode = Arc::new(Mutex::new(MicrophoneMode::OnDemand));
+            let persisted_modes = Arc::new(Mutex::new(Vec::new()));
+            let (transaction_started_tx, transaction_started_rx) = mpsc::sync_channel(0);
+            let (commit_transaction_tx, commit_transaction_rx) = mpsc::sync_channel(0);
+
+            let state_for_transaction = Arc::clone(&state);
+            let configured_input_for_transaction = Arc::clone(&configured_input);
+            let transaction = std::thread::spawn(move || {
+                let state = lock_input_reconfiguration(&state_for_transaction);
+                ensure_idle_for_input_change(&state, input_name).unwrap();
+                transaction_started_tx.send(()).unwrap();
+
+                commit_transaction_rx.recv().unwrap();
+                *configured_input_for_transaction.lock().unwrap() = "updated input";
+            });
+
+            transaction_started_rx.recv().unwrap();
+
+            let state_for_mode = Arc::clone(&state);
+            let configured_input_for_mode = Arc::clone(&configured_input);
+            let mode_for_transition = Arc::clone(&mode);
+            let persisted_modes_for_transition = Arc::clone(&persisted_modes);
+            let (mode_before_lock_tx, mode_before_lock_rx) = mpsc::sync_channel(0);
+            let (stream_started_with_tx, stream_started_with_rx) = mpsc::channel();
+            let mode_transition = std::thread::spawn(move || {
+                let before_reconfiguration_lock = || mode_before_lock_tx.send(()).unwrap();
+                update_mode_transaction(
+                    &state_for_mode,
+                    &mode_for_transition,
+                    MicrophoneMode::AlwaysOn,
+                    || panic!("OnDemand -> AlwaysOn must not stop the stream"),
+                    || {
+                        stream_started_with_tx
+                            .send(*configured_input_for_mode.lock().unwrap())
+                            .unwrap();
+                        Ok(())
+                    },
+                    |mode| {
+                        persisted_modes_for_transition
+                            .lock()
+                            .unwrap()
+                            .push(matches!(mode, MicrophoneMode::AlwaysOn))
+                    },
+                    Some(&before_reconfiguration_lock),
+                )
+                .unwrap();
+            });
+
+            // The exact update-mode transaction has reached the same lock that
+            // the input transaction holds. It therefore cannot snapshot or
+            // open until this controlled commit finishes.
+            mode_before_lock_rx.recv().unwrap();
+            commit_transaction_tx.send(()).unwrap();
+            transaction.join().unwrap();
+            mode_transition.join().unwrap();
+            assert_eq!(stream_started_with_rx.recv().unwrap(), "updated input");
+            assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::AlwaysOn));
+            assert_eq!(*persisted_modes.lock().unwrap(), [true]);
+        }
+    }
+
+    #[test]
+    fn always_on_open_failure_keeps_mode_and_persistence_on_demand() {
+        let state = Mutex::new(RecordingState::Idle);
+        let mode = Mutex::new(MicrophoneMode::OnDemand);
+        let persisted_modes = Mutex::new(Vec::new());
+
+        let result = update_mode_transaction(
+            &state,
+            &mode,
+            MicrophoneMode::AlwaysOn,
+            || panic!("OnDemand -> AlwaysOn must not stop the stream"),
+            || Err(anyhow::anyhow!("input unavailable")),
+            |mode| {
+                persisted_modes
+                    .lock()
+                    .unwrap()
+                    .push(matches!(mode, MicrophoneMode::AlwaysOn))
+            },
+            None,
+        );
+
+        assert_eq!(result.unwrap_err().to_string(), "input unavailable");
+        assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::OnDemand));
+        assert!(persisted_modes.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn stream_restart_uses_the_updated_input_after_closing_the_old_stream() {
+        let steps = RefCell::new(Vec::new());
+        let outcome = restart_open_stream_transaction(
+            || steps.borrow_mut().push("stop"),
+            || {
+                steps.borrow_mut().push("start-updated");
+                Ok::<_, anyhow::Error>("updated")
+            },
+            || unreachable!("the previous stream must not be reopened after a successful update"),
+        )
+        .unwrap();
+
+        assert_eq!(*steps.borrow(), ["stop", "start-updated"]);
+        assert!(matches!(outcome, StreamRestartOutcome::Updated("updated")));
+    }
+
+    #[test]
+    fn stream_restart_restores_the_previous_input_when_the_update_fails() {
+        let steps = RefCell::new(Vec::new());
+        let outcome = restart_open_stream_transaction(
+            || steps.borrow_mut().push("stop"),
+            || {
+                steps.borrow_mut().push("start-updated");
+                Err(anyhow::anyhow!("new input rejected"))
+            },
+            || {
+                steps.borrow_mut().push("restore-previous");
+                Ok::<_, anyhow::Error>("previous")
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            *steps.borrow(),
+            ["stop", "start-updated", "restore-previous"]
+        );
+        match outcome {
+            StreamRestartOutcome::RestoredAfterUpdateFailure {
+                restored,
+                update_error,
+            } => {
+                assert_eq!(restored, "previous");
+                assert_eq!(update_error.to_string(), "new input rejected");
+            }
+            StreamRestartOutcome::Updated(_) => {
+                panic!("expected the previous stream to be restored")
+            }
+        }
+    }
+
+    #[test]
+    fn stream_restart_reports_when_neither_input_can_be_opened() {
+        let result = restart_open_stream_transaction::<()>(
+            || {},
+            || Err(anyhow::anyhow!("new input rejected")),
+            || Err(anyhow::anyhow!("previous input rejected")),
+        );
+
+        match result {
+            Ok(_) => panic!("expected both stream opens to fail"),
+            Err(error) => assert_eq!(
+                error.to_string(),
+                "Failed to apply input change (new input rejected); failed to restore the previous input (previous input rejected)"
+            ),
         }
     }
 }
