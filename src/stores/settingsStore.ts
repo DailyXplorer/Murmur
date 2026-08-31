@@ -51,6 +51,159 @@ const DEFAULT_AUDIO_DEVICE: AudioDevice = {
   is_default: true,
 };
 
+const SETTINGS_CHANGED_LISTENER_RETRY_DELAYS_MS = [250, 1000];
+
+const previousSettingsChangedListenerCleanup: Promise<void> =
+  import.meta.hot?.data.settingsChangedListenerCleanup ?? Promise.resolve();
+
+type SettingsChangedEvent = { payload: { setting?: string } };
+type SettingsChangedUnlisten = () => void | Promise<void>;
+
+interface SettingsChangedListenerLifecycleOptions {
+  previousCleanup?: Promise<void>;
+  listen: (
+    handler: (event: SettingsChangedEvent) => void,
+  ) => Promise<SettingsChangedUnlisten>;
+  onSettingsChanged: (event: SettingsChangedEvent) => void;
+}
+
+export const createSettingsChangedListenerLifecycle = ({
+  previousCleanup = Promise.resolve(),
+  listen: registerListener,
+  onSettingsChanged,
+}: SettingsChangedListenerLifecycleOptions) => {
+  let registered = false;
+  let unlisten: SettingsChangedUnlisten | null = null;
+  let registration: Promise<void> | null = null;
+  let disposed = false;
+  let retryTimer: number | null = null;
+  let registrationAttempts = 0;
+
+  const unregister = async (listenerUnlisten: SettingsChangedUnlisten) => {
+    try {
+      await listenerUnlisten();
+    } catch (error) {
+      console.error("Failed to unregister settings listener:", error);
+    }
+  };
+
+  const clearRetry = () => {
+    if (retryTimer !== null) {
+      window.clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+
+  const scheduleRetry = () => {
+    if (disposed || registered || retryTimer !== null) {
+      return;
+    }
+
+    const delay =
+      SETTINGS_CHANGED_LISTENER_RETRY_DELAYS_MS[registrationAttempts - 1];
+    if (delay === undefined) {
+      return;
+    }
+
+    retryTimer = window.setTimeout(() => {
+      retryTimer = null;
+      void register();
+    }, delay);
+  };
+
+  const register = () => {
+    if (disposed || registered) {
+      return Promise.resolve();
+    }
+
+    if (registration) {
+      return registration;
+    }
+
+    registrationAttempts += 1;
+    const activeRegistration = (async () => {
+      try {
+        const listenerUnlisten = await registerListener(onSettingsChanged);
+
+        if (disposed) {
+          await unregister(listenerUnlisten);
+          return;
+        }
+
+        unlisten = listenerUnlisten;
+        registered = true;
+        registrationAttempts = 0;
+      } catch (error) {
+        console.error("Failed to register settings listener:", error);
+        scheduleRetry();
+      }
+    })();
+
+    registration = activeRegistration;
+    void activeRegistration.finally(() => {
+      if (registration === activeRegistration) {
+        registration = null;
+      }
+    });
+
+    return activeRegistration;
+  };
+
+  const initialize = async () => {
+    await previousCleanup;
+    if (disposed) {
+      return;
+    }
+    await register();
+  };
+
+  const dispose = async () => {
+    disposed = true;
+    clearRetry();
+
+    await previousCleanup;
+
+    if (registration) {
+      await registration;
+    }
+
+    clearRetry();
+
+    const listenerUnlisten = unlisten;
+    unlisten = null;
+    registered = false;
+
+    if (listenerUnlisten) {
+      await unregister(listenerUnlisten);
+    }
+  };
+
+  return { dispose, initialize };
+};
+
+let initializationPromise: Promise<void> | null = null;
+
+const settingsChangedListenerLifecycle = createSettingsChangedListenerLifecycle(
+  {
+    previousCleanup: previousSettingsChangedListenerCleanup,
+    listen: (handler) =>
+      listen<{ setting?: string }>("settings-changed", handler),
+    onSettingsChanged: (event) => {
+      useSettingsStore.getState().refreshSettings();
+      if (event.payload.setting === "selected_microphone") {
+        useSettingsStore.getState().refreshAudioDevices();
+      }
+    },
+  },
+);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose((data) => {
+    data.settingsChangedListenerCleanup =
+      settingsChangedListenerLifecycle.dispose();
+  });
+}
+
 const settingUpdaters: {
   [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
 } = {
@@ -394,27 +547,31 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Initialize everything
-    initialize: async () => {
-      const { refreshSettings, checkCustomSounds, loadDefaultSettings } = get();
+    initialize: () => {
+      if (initializationPromise) {
+        return initializationPromise;
+      }
 
-      // Note: Audio devices are NOT refreshed here. The frontend (App.tsx)
-      // is responsible for calling refreshAudioDevices/refreshOutputDevices
-      // after onboarding completes. This avoids triggering permission dialogs
-      // on macOS before the user is ready.
-      await Promise.all([
-        loadDefaultSettings(),
-        refreshSettings(),
-        checkCustomSounds(),
-      ]);
+      initializationPromise = (async () => {
+        const { refreshSettings, checkCustomSounds, loadDefaultSettings } =
+          get();
 
-      // The backend is the source of truth for settings changed outside this UI.
-      listen<{ setting?: string }>("settings-changed", (event) => {
-        get().refreshSettings();
-        if (event.payload.setting === "selected_microphone") {
-          get().refreshAudioDevices();
-        }
+        // Note: Audio devices are NOT refreshed here. The frontend (App.tsx)
+        // is responsible for calling refreshAudioDevices/refreshOutputDevices
+        // after onboarding completes. This avoids triggering permission dialogs
+        // on macOS before the user is ready.
+        await Promise.all([
+          loadDefaultSettings(),
+          refreshSettings(),
+          checkCustomSounds(),
+        ]);
+
+        await settingsChangedListenerLifecycle.initialize();
+      })().finally(() => {
+        initializationPromise = null;
       });
+
+      return initializationPromise;
     },
   })),
 );
