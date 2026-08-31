@@ -111,6 +111,40 @@ test("handles an unlisten rejection during cleanup", async ({ page }) => {
   expect(unhandledRejections).toBe(0);
 });
 
+test("loads history after listener registration rejects", async ({ page }) => {
+  await page.goto(
+    "/tests/fixtures/history-settings-race.html?mode=listen-reject",
+  );
+  await page.waitForFunction(
+    () => window.historyRace.listenRequestCount() === 1,
+  );
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 1,
+  );
+
+  const fallbackEntry = historyEntry({
+    id: 707,
+    transcription_text: "History after listener registration rejection",
+  });
+  await page.evaluate((entry) => {
+    window.historyRace.resolveHistoryRequest(0, [entry], false);
+  }, fallbackEntry);
+
+  await expect(
+    page.getByText("History after listener registration rejection", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.historyRace.inFlightHistoryRequests()),
+    )
+    .toBe(0);
+  await expect
+    .poll(() => page.evaluate(() => window.historyRace.unhandledRejections()))
+    .toBe(0);
+});
+
 test("queues a first-page refresh after a delete rollback during pagination", async ({
   page,
 }) => {

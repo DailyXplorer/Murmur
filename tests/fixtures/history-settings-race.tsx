@@ -15,6 +15,7 @@ import "../../src/App.css";
 
 type FixtureMode =
   | "race"
+  | "listen-reject"
   | "unlisten-reject"
   | "delete-refresh"
   | "delayed-listen";
@@ -74,6 +75,7 @@ const fixtureModeParam = new URLSearchParams(window.location.search).get(
   "mode",
 );
 const fixtureMode: FixtureMode =
+  fixtureModeParam === "listen-reject" ||
   fixtureModeParam === "unlisten-reject" ||
   fixtureModeParam === "delete-refresh" ||
   fixtureModeParam === "delayed-listen"
@@ -179,6 +181,11 @@ mockIPC(
           : undefined;
       if (eventName === "history-update-payload") {
         listenerRequestCount += 1;
+        if (fixtureMode === "listen-reject") {
+          return Promise.reject(
+            new Error("forced history listener registration rejection"),
+          );
+        }
         if (fixtureMode === "delayed-listen") {
           return delayedListener.promise;
         }
