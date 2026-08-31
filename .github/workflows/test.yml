@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "src-tauri/**"
+      - "rust-toolchain.toml"
       - ".github/workflows/test.yml"
   pull_request:
     paths:
       - "src-tauri/**"
+      - "rust-toolchain.toml"
       - ".github/workflows/test.yml"
 
 concurrency:
@@ -25,8 +27,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+          components: clippy
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -41,3 +46,7 @@ jobs:
       - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test --locked
+
+      - name: Run Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
