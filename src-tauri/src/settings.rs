@@ -584,6 +584,37 @@ pub fn write_settings(app: &AppHandle, settings: AppSettings) {
     store.set("settings", serde_json::to_value(&settings).unwrap());
 }
 
+/// Persist settings synchronously and restore the store cache if the write
+/// fails. Callers that need a transactional side effect should use this rather
+/// than the fire-and-forget write helper above.
+pub fn write_settings_checked(app: &AppHandle, settings: AppSettings) -> Result<(), String> {
+    let store = app
+        .store(SETTINGS_STORE_PATH)
+        .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
+    let next = serde_json::to_value(&settings)
+        .map_err(|error| format!("Failed to serialize settings: {error}"))?;
+    let previous = store.get("settings");
+
+    store.set("settings", next);
+    if let Err(write_error) = store.save() {
+        match previous {
+            Some(previous) => store.set("settings", previous),
+            None => {
+                store.delete("settings");
+            }
+        }
+
+        return match store.save() {
+            Ok(()) => Err(format!("Failed to persist settings: {write_error}")),
+            Err(restore_error) => Err(format!(
+                "Failed to persist settings: {write_error}. Failed to restore the previous settings: {restore_error}"
+            )),
+        };
+    }
+
+    Ok(())
+}
+
 pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
     let settings = get_settings(app);
 
