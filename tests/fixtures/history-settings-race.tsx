@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
@@ -13,17 +13,43 @@ import { HistorySettings } from "../../src/components/settings/history/HistorySe
 import enTranslation from "../../src/i18n/locales/en/translation.json";
 import "../../src/App.css";
 
-type FixtureMode = "race" | "unlisten-reject";
+type FixtureMode =
+  | "race"
+  | "unlisten-reject"
+  | "delete-refresh"
+  | "delayed-listen";
 
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
 }
 
+interface HistoryRequest {
+  cursor: number | null;
+  deferred: Deferred<PaginatedHistory>;
+  snapshot: HistoryEntry[];
+}
+
 interface HistoryRaceFixture {
+  addDatabaseEntry: (entry: HistoryEntry) => void;
   emit: (payload: HistoryUpdatePayload) => Promise<void>;
+  emitBeforeListener: (payload: HistoryUpdatePayload) => Promise<void>;
+  failNextDelete: () => void;
+  historyRequestCount: () => number;
+  historyRequestCursors: () => (number | null)[];
+  inFlightHistoryRequests: () => number;
+  listenRequestCount: () => number;
+  maxInFlightHistoryRequests: () => number;
   ready: boolean;
+  resolveCapturedHistoryRequest: (requestIndex: number) => void;
   resolveFirstPage: (entries: HistoryEntry[]) => void;
+  resolveHistoryRequest: (
+    requestIndex: number,
+    entries: HistoryEntry[],
+    hasMore: boolean,
+  ) => void;
+  resolveListener: () => void;
+  triggerPagination: () => void;
   unhandledRejections: () => number;
   unlistenAttempts: () => number;
   unmount: () => void;
@@ -44,53 +70,143 @@ const createDeferred = <T,>(): Deferred<T> => {
   return { promise, resolve: resolvePromise };
 };
 
+const fixtureModeParam = new URLSearchParams(window.location.search).get(
+  "mode",
+);
 const fixtureMode: FixtureMode =
-  new URLSearchParams(window.location.search).get("mode") === "unlisten-reject"
-    ? "unlisten-reject"
+  fixtureModeParam === "unlisten-reject" ||
+  fixtureModeParam === "delete-refresh" ||
+  fixtureModeParam === "delayed-listen"
+    ? fixtureModeParam
     : "race";
-const initialPage = createDeferred<PaginatedHistory>();
+const delayedListener = createDeferred<number>();
+const historyRequests: HistoryRequest[] = [];
+let databaseEntries: HistoryEntry[] = [
+  {
+    file_name: "history-404.wav",
+    id: 404,
+    saved: false,
+    timestamp: 1_700_000_404,
+    title: "History 404",
+    transcription_text: "Stale listener snapshot",
+  },
+];
+let deleteShouldFail = false;
+let inFlightHistoryRequestCount = 0;
+let listenerRequestCount = 0;
+let maxInFlightRequestCount = 0;
+let paginationObserverCallback:
+  | ((entries: { isIntersecting: boolean }[]) => void)
+  | undefined;
 let unhandledRejectionCount = 0;
 let unlistenAttemptCount = 0;
+
+const addDatabaseEntry = (entry: HistoryEntry) => {
+  databaseEntries = [
+    entry,
+    ...databaseEntries.filter((existingEntry) => existingEntry.id !== entry.id),
+  ];
+};
 
 window.addEventListener("unhandledrejection", (event) => {
   unhandledRejectionCount += 1;
   event.preventDefault();
 });
 
+if (fixtureMode === "delete-refresh") {
+  class ControlledIntersectionObserver {
+    constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+      paginationObserverCallback = callback;
+    }
+
+    disconnect() {}
+
+    observe() {}
+  }
+
+  Object.defineProperty(window, "IntersectionObserver", {
+    value: ControlledIntersectionObserver,
+  });
+}
+
+const trackHistoryRequest = (cursor: number | null) => {
+  const deferred = createDeferred<PaginatedHistory>();
+  const request = {
+    cursor,
+    deferred,
+    snapshot: databaseEntries,
+  };
+  historyRequests.push(request);
+  inFlightHistoryRequestCount += 1;
+  maxInFlightRequestCount = Math.max(
+    maxInFlightRequestCount,
+    inFlightHistoryRequestCount,
+  );
+  window.historyRace.ready = true;
+
+  return deferred.promise.finally(() => {
+    inFlightHistoryRequestCount -= 1;
+  });
+};
+
 mockIPC(
-  (command) => {
+  (command, payload) => {
     if (command === "get_history_entries") {
       if (fixtureMode === "unlisten-reject") {
+        window.historyRace.ready = true;
         return { entries: [], has_more: false };
       }
-      return initialPage.promise;
+
+      const cursor =
+        payload && "cursor" in payload && typeof payload.cursor === "number"
+          ? payload.cursor
+          : null;
+      return trackHistoryRequest(cursor);
+    }
+
+    if (command === "delete_history_entry") {
+      if (deleteShouldFail) {
+        deleteShouldFail = false;
+        return Promise.reject(new Error("forced delete rejection"));
+      }
+      return null;
     }
 
     if (command === "plugin:event|listen") {
+      const eventName =
+        payload && typeof payload === "object" && "event" in payload
+          ? payload.event
+          : undefined;
+      if (eventName === "history-update-payload") {
+        listenerRequestCount += 1;
+        if (fixtureMode === "delayed-listen") {
+          return delayedListener.promise;
+        }
+      }
       return 1;
     }
 
     if (command === "plugin:event|unlisten") {
       unlistenAttemptCount += 1;
-      return Promise.reject(new Error("forced unlisten rejection"));
+      if (fixtureMode === "unlisten-reject") {
+        return Promise.reject(new Error("forced unlisten rejection"));
+      }
+      return null;
+    }
+
+    if (command === "plugin:event|emit") {
+      return null;
     }
 
     throw new Error(`Unexpected Tauri command: ${command}`);
   },
-  { shouldMockEvents: fixtureMode === "race" },
+  {
+    shouldMockEvents:
+      fixtureMode === "race" || fixtureMode === "delete-refresh",
+  },
 );
 
 let root: ReactDOM.Root | undefined;
-
-const HistoryRaceHarness: React.FC = () => {
-  useEffect(() => {
-    void Promise.resolve().then(() => {
-      window.historyRace.ready = true;
-    });
-  }, []);
-
-  return <HistorySettings />;
-};
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
@@ -98,10 +214,46 @@ if (!rootElement) {
 }
 
 window.historyRace = {
+  addDatabaseEntry,
   emit: (payload) => events.historyUpdatePayload.emit(payload),
+  emitBeforeListener: (payload) => {
+    if ("entry" in payload) {
+      addDatabaseEntry(payload.entry);
+    }
+    return events.historyUpdatePayload.emit(payload);
+  },
+  failNextDelete: () => {
+    deleteShouldFail = true;
+  },
+  historyRequestCount: () => historyRequests.length,
+  historyRequestCursors: () =>
+    historyRequests.map((historyRequest) => historyRequest.cursor),
+  inFlightHistoryRequests: () => inFlightHistoryRequestCount,
+  listenRequestCount: () => listenerRequestCount,
+  maxInFlightHistoryRequests: () => maxInFlightRequestCount,
   ready: false,
+  resolveCapturedHistoryRequest: (requestIndex) => {
+    const request = historyRequests[requestIndex];
+    if (!request) {
+      throw new Error(`History request ${requestIndex} was not started`);
+    }
+    request.deferred.resolve({ entries: request.snapshot, has_more: false });
+  },
   resolveFirstPage: (entries) => {
-    initialPage.resolve({ entries, has_more: false });
+    window.historyRace.resolveHistoryRequest(0, entries, false);
+  },
+  resolveHistoryRequest: (requestIndex, entries, hasMore) => {
+    const request = historyRequests[requestIndex];
+    if (!request) {
+      throw new Error(`History request ${requestIndex} was not started`);
+    }
+    request.deferred.resolve({ entries, has_more: hasMore });
+  },
+  resolveListener: () => {
+    delayedListener.resolve(1);
+  },
+  triggerPagination: () => {
+    paginationObserverCallback?.([{ isIntersecting: true }]);
   },
   unhandledRejections: () => unhandledRejectionCount,
   unlistenAttempts: () => unlistenAttemptCount,
@@ -118,7 +270,7 @@ const renderFixture = async () => {
   });
 
   root = ReactDOM.createRoot(rootElement);
-  root.render(<HistoryRaceHarness />);
+  root.render(<HistorySettings />);
 };
 
 void renderFixture();

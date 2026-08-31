@@ -139,16 +139,28 @@ const mergeHistoryPage = ({
   return mergedEntries;
 };
 
+const stopHistoryUpdateListener = async (stopListening: () => void) => {
+  try {
+    await stopListening();
+  } catch (error) {
+    console.error("Failed to stop history update listener:", error);
+  }
+};
+
 export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
+  const [historyListenerReady, setHistoryListenerReady] = useState(false);
+  const [hasQueuedFirstPageRefresh, setHasQueuedFirstPageRefresh] =
+    useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const entriesRef = useRef<HistoryEntry[]>([]);
   const loadingRef = useRef(false);
   const historyEventRevisionRef = useRef(0);
   const activeHistoryRequestRevisionRef = useRef<number | null>(null);
+  const queuedFirstPageRefreshRef = useRef(false);
   const pendingHistoryEntriesByIdRef = useRef<Map<number, PendingHistoryEntry>>(
     new Map(),
   );
@@ -160,7 +172,12 @@ export const HistorySettings: React.FC = () => {
 
   const loadPage = useCallback(async (cursor?: number) => {
     const isFirstPage = cursor === undefined;
-    if (loadingRef.current) return;
+    if (loadingRef.current) {
+      if (isFirstPage) {
+        queuedFirstPageRefreshRef.current = true;
+      }
+      return;
+    }
     loadingRef.current = true;
     const requestRevision = historyEventRevisionRef.current;
     activeHistoryRequestRevisionRef.current = requestRevision;
@@ -197,13 +214,26 @@ export const HistorySettings: React.FC = () => {
         activeHistoryRequestRevisionRef.current = null;
         pendingHistoryEntriesByIdRef.current.clear();
       }
+      if (queuedFirstPageRefreshRef.current) {
+        queuedFirstPageRefreshRef.current = false;
+        setHasQueuedFirstPageRefresh(true);
+      }
     }
   }, []);
 
   // Initial load
   useEffect(() => {
-    loadPage();
-  }, [loadPage]);
+    if (historyListenerReady) {
+      void loadPage();
+    }
+  }, [historyListenerReady, loadPage]);
+
+  useEffect(() => {
+    if (!hasQueuedFirstPageRefresh) return;
+
+    setHasQueuedFirstPageRefresh(false);
+    void loadPage();
+  }, [hasQueuedFirstPageRefresh, loadPage]);
 
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
@@ -231,6 +261,7 @@ export const HistorySettings: React.FC = () => {
 
   // Listen for new entries added from the transcription pipeline
   useEffect(() => {
+    let disposed = false;
     const unlisten = events.historyUpdatePayload
       .listen((event) => {
         const payload: HistoryUpdatePayload = event.payload;
@@ -258,17 +289,30 @@ export const HistorySettings: React.FC = () => {
         // "deleted" and "toggled" are handled by optimistic updates only,
         // so we intentionally ignore them here to avoid double-mutation.
       })
+      .then((stopListening) => {
+        if (disposed) {
+          void stopHistoryUpdateListener(stopListening);
+          return undefined;
+        }
+
+        setHistoryListenerReady(true);
+        return stopListening;
+      })
       .catch((error) => {
         console.error("Failed to listen for history updates:", error);
+        if (!disposed) {
+          setHistoryListenerReady(true);
+        }
         return undefined;
       });
 
     return () => {
-      void unlisten
-        .then((stopListening) => stopListening?.())
-        .catch((error) => {
-          console.error("Failed to stop history update listener:", error);
-        });
+      disposed = true;
+      void unlisten.then((stopListening) => {
+        if (stopListening) {
+          return stopHistoryUpdateListener(stopListening);
+        }
+      });
     };
   }, []);
 

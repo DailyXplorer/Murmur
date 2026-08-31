@@ -110,3 +110,105 @@ test("handles an unlisten rejection during cleanup", async ({ page }) => {
 
   expect(unhandledRejections).toBe(0);
 });
+
+test("queues a first-page refresh after a delete rollback during pagination", async ({
+  page,
+}) => {
+  await page.goto(
+    "/tests/fixtures/history-settings-race.html?mode=delete-refresh",
+  );
+  await page.waitForFunction(() => window.historyRace?.ready === true);
+
+  const restoredEntry = historyEntry({
+    id: 505,
+    transcription_text: "Restored after delete failure",
+  });
+  await page.evaluate((entry) => {
+    window.historyRace.resolveHistoryRequest(0, [entry], true);
+  }, restoredEntry);
+  await expect(
+    page.getByText("Restored after delete failure", { exact: true }),
+  ).toBeVisible();
+  await page.waitForFunction(
+    () => window.historyRace.inFlightHistoryRequests() === 0,
+  );
+
+  await page.evaluate(() => window.historyRace.triggerPagination());
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 2,
+  );
+  await page.evaluate(() => window.historyRace.failNextDelete());
+  await page.getByRole("button", { name: "Delete entry" }).click();
+
+  await page.evaluate(() =>
+    window.historyRace.resolveHistoryRequest(1, [], false),
+  );
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 3,
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.historyRace.historyRequestCursors()))
+    .toEqual([null, 505, null]);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.historyRace.maxInFlightHistoryRequests()),
+    )
+    .toBe(1);
+
+  await page.evaluate((entry) => {
+    window.historyRace.resolveHistoryRequest(2, [entry], false);
+  }, restoredEntry);
+  await expect(
+    page.getByText("Restored after delete failure", { exact: true }),
+  ).toBeVisible();
+});
+
+test("waits for the history listener before capturing the first page", async ({
+  page,
+}) => {
+  await page.goto(
+    "/tests/fixtures/history-settings-race.html?mode=delayed-listen",
+  );
+  await page.waitForFunction(
+    () => window.historyRace.listenRequestCount() === 1,
+  );
+
+  const liveEntry = historyEntry({
+    id: 606,
+    transcription_text: "Persisted before listener registration",
+  });
+  await page.evaluate(
+    (entry) =>
+      window.historyRace.emitBeforeListener({ action: "added", entry }),
+    liveEntry,
+  );
+  await page.evaluate(() => window.historyRace.resolveListener());
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 1,
+  );
+  await page.evaluate(() =>
+    window.historyRace.resolveCapturedHistoryRequest(0),
+  );
+
+  await expect(
+    page.getByText("Persisted before listener registration", { exact: true }),
+  ).toBeVisible();
+});
+
+test("cleans up a listener that registers after the component unmounts", async ({
+  page,
+}) => {
+  await page.goto(
+    "/tests/fixtures/history-settings-race.html?mode=delayed-listen",
+  );
+  await page.waitForFunction(
+    () => window.historyRace.listenRequestCount() === 1,
+  );
+
+  await page.evaluate(() => window.historyRace.unmount());
+  await page.evaluate(() => window.historyRace.resolveListener());
+  await page.waitForFunction(() => window.historyRace.unlistenAttempts() === 1);
+  await expect
+    .poll(() => page.evaluate(() => window.historyRace.unhandledRejections()))
+    .toBe(0);
+});
