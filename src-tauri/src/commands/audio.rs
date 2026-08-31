@@ -91,19 +91,17 @@ pub async fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_microphone = if device_name == "default" {
+    let selected_microphone = if device_name == "default" {
         None
     } else {
         Some(device_name)
     };
-    write_settings(&app, settings);
 
-    // Update the audio manager to use the new device. update_selected_device
-    // can restart the cpal stream (blocking CoreAudio) — run it on a blocking
-    // thread, not inline on the webview/main run loop.
+    // The manager holds the recording-state lock across the CoreAudio restart
+    // and only persists a setting after the runtime switch succeeds. Run that
+    // blocking work off the webview/main run loop.
     let rm = app.state::<Arc<AudioRecordingManager>>().inner().clone();
-    tokio::task::spawn_blocking(move || rm.update_selected_device())
+    tokio::task::spawn_blocking(move || rm.update_selected_device(selected_microphone))
         .await
         .map_err(|e| format!("audio task join failed: {}", e))?
         .map_err(|e| format!("Failed to update selected device: {}", e))
@@ -206,17 +204,11 @@ pub async fn get_microphone_channels(device_name: String) -> Result<u16, String>
 #[tauri::command]
 #[specta::specta]
 pub async fn set_selected_channel(app: AppHandle, channel: Option<u16>) -> Result<(), String> {
-    // Restarting cpal can block, so keep it off the webview/main run loop. Apply
-    // the runtime change before persisting it so a rejected active-recording
-    // change does not become effective on the next launch.
+    // Restarting cpal can block, so keep it off the webview/main run loop. The
+    // manager persists only after it has applied the runtime change.
     let manager = app.state::<Arc<AudioRecordingManager>>().inner().clone();
     tokio::task::spawn_blocking(move || manager.update_selected_channel(channel))
         .await
         .map_err(|e| format!("audio task join failed: {e}"))?
-        .map_err(|e| format!("Failed to update channel selection: {e}"))?;
-
-    let mut settings = get_settings(&app);
-    settings.selected_channel = channel;
-    write_settings(&app, settings);
-    Ok(())
+        .map_err(|e| format!("Failed to update channel selection: {e}"))
 }
