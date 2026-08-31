@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::settings::{self, get_settings, ShortcutBinding};
+use crate::settings::{self, get_settings, AppSettings, ShortcutBinding};
 
 use super::handler::handle_shortcut_event;
 
@@ -19,6 +19,115 @@ use super::handler::handle_shortcut_event;
 // it, or remove it after a new recording started.
 static CANCEL_SHORTCUT_EPOCH: AtomicU64 = AtomicU64::new(0);
 static CANCEL_SHORTCUT_OPERATION_LOCK: Mutex<()> = Mutex::new(());
+
+/// Small adapter around Tauri's global shortcut manager. Keeping this private
+/// lets the cancel lifecycle be tested without registering real macOS keys.
+trait CancelShortcutRegistry {
+    fn is_registered(&self, binding: &ShortcutBinding) -> bool;
+    fn register(&self, binding: ShortcutBinding) -> Result<(), String>;
+    fn unregister(&self, binding: ShortcutBinding) -> Result<(), String>;
+}
+
+struct TauriCancelShortcutRegistry<'a> {
+    app: &'a AppHandle,
+}
+
+impl CancelShortcutRegistry for TauriCancelShortcutRegistry<'_> {
+    fn is_registered(&self, binding: &ShortcutBinding) -> bool {
+        binding
+            .current_binding
+            .parse::<Shortcut>()
+            .is_ok_and(|shortcut| self.app.global_shortcut().is_registered(shortcut))
+    }
+
+    fn register(&self, binding: ShortcutBinding) -> Result<(), String> {
+        register_shortcut(self.app, binding)
+    }
+
+    fn unregister(&self, binding: ShortcutBinding) -> Result<(), String> {
+        unregister_shortcut(self.app, binding)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CancelShortcutLifecycleOperation {
+    Register,
+    Unregister,
+}
+
+fn apply_cancel_shortcut_lifecycle_operation<R: CancelShortcutRegistry>(
+    registry: &R,
+    current_epoch: u64,
+    request_epoch: u64,
+    operation: CancelShortcutLifecycleOperation,
+    binding: ShortcutBinding,
+) -> Result<(), String> {
+    if current_epoch != request_epoch {
+        return Ok(());
+    }
+
+    match operation {
+        CancelShortcutLifecycleOperation::Register => registry.register(binding),
+        CancelShortcutLifecycleOperation::Unregister => registry.unregister(binding),
+    }
+}
+
+fn replace_active_cancel_shortcut<R: CancelShortcutRegistry, P: FnOnce()>(
+    registry: &R,
+    previous: ShortcutBinding,
+    updated: ShortcutBinding,
+    persist: P,
+) -> Result<(), String> {
+    if registry.is_registered(&previous) {
+        registry.unregister(previous.clone())?;
+
+        if let Err(error) = registry.register(updated.clone()) {
+            if let Err(restore_error) = registry.register(previous) {
+                return Err(format!(
+                    "Failed to register the new Cancel shortcut: {error}. Failed to restore the previous Cancel shortcut: {restore_error}"
+                ));
+            }
+            return Err(error);
+        }
+    }
+
+    persist();
+    Ok(())
+}
+
+/// Update Cancel while preserving its dynamic lifecycle. Idle changes only
+/// update settings; active changes atomically replace the registered shortcut.
+pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<ShortcutBinding, String> {
+    let _operation = CANCEL_SHORTCUT_OPERATION_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let mut settings: AppSettings = get_settings(app);
+    let previous = settings
+        .bindings
+        .get("cancel")
+        .cloned()
+        .or_else(|| {
+            settings::get_default_settings()
+                .bindings
+                .get("cancel")
+                .cloned()
+        })
+        .ok_or_else(|| "Binding 'cancel' does not exist".to_string())?;
+    let mut updated = previous.clone();
+    updated.current_binding = binding;
+
+    let registry = TauriCancelShortcutRegistry { app };
+    let updated_for_store = updated.clone();
+    replace_active_cancel_shortcut(&registry, previous, updated.clone(), || {
+        settings
+            .bindings
+            .insert("cancel".to_string(), updated_for_store);
+        settings::write_settings(app, settings);
+    })?;
+
+    Ok(updated)
+}
 
 /// Initialize shortcuts using Tauri's global-shortcut plugin
 pub fn init_shortcuts(app: &AppHandle) {
@@ -169,12 +278,15 @@ pub fn register_cancel_shortcut(app: &AppHandle) {
         let _operation = CANCEL_SHORTCUT_OPERATION_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire) != request_epoch {
-            return;
-        }
-
         if let Some(cancel_binding) = get_settings(&app_clone).bindings.get("cancel").cloned() {
-            if let Err(e) = register_shortcut(&app_clone, cancel_binding) {
+            let registry = TauriCancelShortcutRegistry { app: &app_clone };
+            if let Err(e) = apply_cancel_shortcut_lifecycle_operation(
+                &registry,
+                CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire),
+                request_epoch,
+                CancelShortcutLifecycleOperation::Register,
+                cancel_binding,
+            ) {
                 error!("Failed to register cancel shortcut: {}", e);
             }
         }
@@ -189,12 +301,191 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
         let _operation = CANCEL_SHORTCUT_OPERATION_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire) != request_epoch {
-            return;
-        }
-
         if let Some(cancel_binding) = get_settings(&app_clone).bindings.get("cancel").cloned() {
-            let _ = unregister_shortcut(&app_clone, cancel_binding);
+            let registry = TauriCancelShortcutRegistry { app: &app_clone };
+            let _ = apply_cancel_shortcut_lifecycle_operation(
+                &registry,
+                CANCEL_SHORTCUT_EPOCH.load(Ordering::Acquire),
+                request_epoch,
+                CancelShortcutLifecycleOperation::Unregister,
+                cancel_binding,
+            );
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        apply_cancel_shortcut_lifecycle_operation, replace_active_cancel_shortcut,
+        CancelShortcutLifecycleOperation, CancelShortcutRegistry,
+    };
+    use crate::settings::ShortcutBinding;
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    #[derive(Default)]
+    struct FakeCancelShortcutRegistry {
+        active: RefCell<BTreeSet<String>>,
+        blocked_registration: RefCell<Option<String>>,
+        operations: RefCell<Vec<String>>,
+    }
+
+    impl FakeCancelShortcutRegistry {
+        fn activate(&self, binding: &ShortcutBinding) {
+            self.active
+                .borrow_mut()
+                .insert(binding.current_binding.clone());
+        }
+
+        fn is_active(&self, binding: &ShortcutBinding) -> bool {
+            self.active.borrow().contains(&binding.current_binding)
+        }
+    }
+
+    impl CancelShortcutRegistry for FakeCancelShortcutRegistry {
+        fn is_registered(&self, binding: &ShortcutBinding) -> bool {
+            self.is_active(binding)
+        }
+
+        fn register(&self, binding: ShortcutBinding) -> Result<(), String> {
+            self.operations
+                .borrow_mut()
+                .push(format!("register:{}", binding.current_binding));
+            if self.blocked_registration.borrow().as_deref()
+                == Some(binding.current_binding.as_str())
+            {
+                return Err(format!(
+                    "Shortcut '{}' is already in use",
+                    binding.current_binding
+                ));
+            }
+            self.active.borrow_mut().insert(binding.current_binding);
+            Ok(())
+        }
+
+        fn unregister(&self, binding: ShortcutBinding) -> Result<(), String> {
+            self.operations
+                .borrow_mut()
+                .push(format!("unregister:{}", binding.current_binding));
+            if self.active.borrow_mut().remove(&binding.current_binding) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Shortcut '{}' is not registered",
+                    binding.current_binding
+                ))
+            }
+        }
+    }
+
+    fn cancel_binding(binding: &str) -> ShortcutBinding {
+        ShortcutBinding {
+            id: "cancel".to_string(),
+            name: "Cancel".to_string(),
+            description: "Cancels the current recording.".to_string(),
+            default_binding: "escape".to_string(),
+            current_binding: binding.to_string(),
+        }
+    }
+
+    #[test]
+    fn active_replace_then_finish_unregisters_the_new_cancel_shortcut() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        let persisted = RefCell::new(previous.current_binding.clone());
+        registry.activate(&previous);
+
+        replace_active_cancel_shortcut(&registry, previous.clone(), updated.clone(), || {
+            *persisted.borrow_mut() = updated.current_binding.clone();
+        })
+        .unwrap();
+        apply_cancel_shortcut_lifecycle_operation(
+            &registry,
+            2,
+            2,
+            CancelShortcutLifecycleOperation::Unregister,
+            updated.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(*persisted.borrow(), "cmd+shift+c");
+        assert!(!registry.is_active(&previous));
+        assert!(!registry.is_active(&updated));
+        assert_eq!(
+            *registry.operations.borrow(),
+            vec![
+                "unregister:escape".to_string(),
+                "register:cmd+shift+c".to_string(),
+                "unregister:cmd+shift+c".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn idle_replace_persists_without_registering_cancel() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        let persisted = RefCell::new(previous.current_binding.clone());
+
+        replace_active_cancel_shortcut(&registry, previous, updated.clone(), || {
+            *persisted.borrow_mut() = updated.current_binding.clone();
+        })
+        .unwrap();
+
+        assert_eq!(*persisted.borrow(), "cmd+shift+c");
+        assert!(!registry.is_active(&updated));
+        assert!(registry.operations.borrow().is_empty());
+    }
+
+    #[test]
+    fn collision_restores_active_cancel_and_does_not_persist_the_change() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        let persisted = RefCell::new(previous.current_binding.clone());
+        registry.activate(&previous);
+        *registry.blocked_registration.borrow_mut() = Some(updated.current_binding.clone());
+
+        let result =
+            replace_active_cancel_shortcut(&registry, previous.clone(), updated.clone(), || {
+                *persisted.borrow_mut() = updated.current_binding.clone();
+            });
+
+        assert!(result.is_err());
+        assert_eq!(*persisted.borrow(), "escape");
+        assert!(registry.is_active(&previous));
+        assert!(!registry.is_active(&updated));
+        assert_eq!(
+            *registry.operations.borrow(),
+            vec![
+                "unregister:escape".to_string(),
+                "register:cmd+shift+c".to_string(),
+                "register:escape".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn stale_lifecycle_request_cannot_register_an_old_cancel_shortcut() {
+        let registry = FakeCancelShortcutRegistry::default();
+        let previous = cancel_binding("escape");
+        let updated = cancel_binding("cmd+shift+c");
+        registry.activate(&updated);
+
+        apply_cancel_shortcut_lifecycle_operation(
+            &registry,
+            2,
+            1,
+            CancelShortcutLifecycleOperation::Register,
+            previous.clone(),
+        )
+        .unwrap();
+
+        assert!(registry.is_active(&updated));
+        assert!(!registry.is_active(&previous));
+        assert!(registry.operations.borrow().is_empty());
+    }
 }

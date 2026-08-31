@@ -49,6 +49,22 @@ pub fn change_binding(
     binding: String,
 ) -> Result<BindingResponse, String> {
     tauri_impl::validate_shortcut(&binding)?;
+
+    if id == "cancel" {
+        return match tauri_impl::change_cancel_binding(&app, binding) {
+            Ok(updated) => Ok(BindingResponse {
+                success: true,
+                binding: Some(updated),
+                error: None,
+            }),
+            Err(error) => Ok(BindingResponse {
+                success: false,
+                binding: None,
+                error: Some(error),
+            }),
+        };
+    }
+
     let mut current = settings::get_settings(&app);
     let previous = current
         .bindings
@@ -56,18 +72,6 @@ pub fn change_binding(
         .cloned()
         .or_else(|| settings::get_default_settings().bindings.get(&id).cloned())
         .ok_or_else(|| format!("Binding '{id}' does not exist"))?;
-
-    if id == "cancel" {
-        let mut updated = previous;
-        updated.current_binding = binding;
-        current.bindings.insert(id, updated.clone());
-        settings::write_settings(&app, current);
-        return Ok(BindingResponse {
-            success: true,
-            binding: Some(updated),
-            error: None,
-        });
-    }
 
     if let Err(error) = unregister_shortcut(&app, previous.clone()) {
         debug!("Previous shortcut was not registered: {error}");
