@@ -148,6 +148,45 @@ fn lock_input_reconfiguration(state: &Mutex<RecordingState>) -> MutexGuard<'_, R
     state.lock().unwrap()
 }
 
+/// Applies a microphone-mode change as one transaction. The runtime stream is
+/// reconfigured first; only then do we expose the new mode and persist it.
+///
+/// Keeping this independent from Tauri lets the exact manager transition be
+/// exercised deterministically with controlled stream and persistence seams.
+fn update_mode_transaction(
+    state: &Mutex<RecordingState>,
+    mode: &Mutex<MicrophoneMode>,
+    new_mode: MicrophoneMode,
+    stop_stream: impl FnOnce(),
+    start_stream: impl FnOnce() -> Result<(), anyhow::Error>,
+    persist_mode: impl FnOnce(&MicrophoneMode),
+    #[cfg(test)] before_reconfiguration_lock: Option<&dyn Fn()>,
+) -> Result<(), anyhow::Error> {
+    #[cfg(test)]
+    if let Some(before_reconfiguration_lock) = before_reconfiguration_lock {
+        before_reconfiguration_lock();
+    }
+
+    let state = lock_input_reconfiguration(state);
+    let current_mode = mode.lock().unwrap().clone();
+
+    match (current_mode, &new_mode) {
+        (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
+            if matches!(*state, RecordingState::Idle) {
+                stop_stream();
+            }
+        }
+        (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
+            start_stream()?;
+        }
+        _ => {}
+    }
+
+    *mode.lock().unwrap() = new_mode.clone();
+    persist_mode(&new_mode);
+    Ok(())
+}
+
 /// Stops an already-open idle stream, starts it with the proposed setting, and
 /// restores the previous setting if the proposed stream cannot open.
 ///
@@ -248,7 +287,10 @@ impl AudioRecordingManager {
             cached_device: Arc::new(Mutex::new(None)),
         };
 
-        // Always-on?  Open immediately.
+        // The persisted AlwaysOn value was committed by a previous successful
+        // transition, so startup opens the stream without writing or emitting
+        // it again. If opening fails, construction fails and no live manager
+        // exposes an uncommitted runtime mode.
         if matches!(mode, MicrophoneMode::AlwaysOn) {
             manager.start_microphone_stream()?;
         }
@@ -603,29 +645,36 @@ impl AudioRecordingManager {
     /* ---------- mode switching --------------------------------------------- */
 
     pub fn update_mode(&self, new_mode: MicrophoneMode) -> Result<(), anyhow::Error> {
-        // Keep this lock through the stream transition. Device and channel
-        // updates use the same lock, so an OnDemand -> AlwaysOn switch cannot
-        // open a stream from the old settings between their snapshot and
-        // commit.
-        let state = lock_input_reconfiguration(&self.state);
-        let cur_mode = self.mode.lock().unwrap().clone();
-
-        match (cur_mode, &new_mode) {
-            (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
-                if matches!(*state, RecordingState::Idle) {
-                    self.close_generation.fetch_add(1, Ordering::SeqCst);
-                    self.stop_microphone_stream();
-                }
-            }
-            (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
+        update_mode_transaction(
+            &self.state,
+            &self.mode,
+            new_mode,
+            || {
                 self.close_generation.fetch_add(1, Ordering::SeqCst);
-                self.start_microphone_stream()?;
-            }
-            _ => {}
-        }
+                self.stop_microphone_stream();
+            },
+            || {
+                self.close_generation.fetch_add(1, Ordering::SeqCst);
+                self.start_microphone_stream()
+            },
+            |mode| self.persist_microphone_mode(mode),
+            #[cfg(test)]
+            None,
+        )
+    }
 
-        *self.mode.lock().unwrap() = new_mode;
-        Ok(())
+    fn persist_microphone_mode(&self, mode: &MicrophoneMode) {
+        let always_on = matches!(mode, MicrophoneMode::AlwaysOn);
+        let mut settings = get_settings(&self.app_handle);
+        settings.always_on_microphone = always_on;
+        write_settings(&self.app_handle, settings);
+        let _ = self.app_handle.emit(
+            "settings-changed",
+            serde_json::json!({
+                "setting": "always_on_microphone",
+                "value": always_on,
+            }),
+        );
     }
 
     /* ---------- recording --------------------------------------------------- */
@@ -995,8 +1044,10 @@ mod tests {
         for input_name in ["microphone", "input channel"] {
             let state = Arc::new(Mutex::new(RecordingState::Idle));
             let configured_input = Arc::new(Mutex::new("previous input"));
-            let (transaction_started_tx, transaction_started_rx) = mpsc::channel();
-            let (commit_transaction_tx, commit_transaction_rx) = mpsc::channel();
+            let mode = Arc::new(Mutex::new(MicrophoneMode::OnDemand));
+            let persisted_modes = Arc::new(Mutex::new(Vec::new()));
+            let (transaction_started_tx, transaction_started_rx) = mpsc::sync_channel(0);
+            let (commit_transaction_tx, commit_transaction_rx) = mpsc::sync_channel(0);
 
             let state_for_transaction = Arc::clone(&state);
             let configured_input_for_transaction = Arc::clone(&configured_input);
@@ -1013,29 +1064,71 @@ mod tests {
 
             let state_for_mode = Arc::clone(&state);
             let configured_input_for_mode = Arc::clone(&configured_input);
-            let (mode_transition_started_tx, mode_transition_started_rx) = mpsc::channel();
+            let mode_for_transition = Arc::clone(&mode);
+            let persisted_modes_for_transition = Arc::clone(&persisted_modes);
+            let (mode_before_lock_tx, mode_before_lock_rx) = mpsc::sync_channel(0);
             let (stream_started_with_tx, stream_started_with_rx) = mpsc::channel();
             let mode_transition = std::thread::spawn(move || {
-                // This models update_mode's OnDemand -> AlwaysOn path: it must
-                // take the same reconfiguration lock before opening a stream.
-                mode_transition_started_tx.send(()).unwrap();
-                let _state = lock_input_reconfiguration(&state_for_mode);
-                stream_started_with_tx
-                    .send(*configured_input_for_mode.lock().unwrap())
-                    .unwrap();
+                let before_reconfiguration_lock = || mode_before_lock_tx.send(()).unwrap();
+                update_mode_transaction(
+                    &state_for_mode,
+                    &mode_for_transition,
+                    MicrophoneMode::AlwaysOn,
+                    || panic!("OnDemand -> AlwaysOn must not stop the stream"),
+                    || {
+                        stream_started_with_tx
+                            .send(*configured_input_for_mode.lock().unwrap())
+                            .unwrap();
+                        Ok(())
+                    },
+                    |mode| {
+                        persisted_modes_for_transition
+                            .lock()
+                            .unwrap()
+                            .push(matches!(mode, MicrophoneMode::AlwaysOn))
+                    },
+                    Some(&before_reconfiguration_lock),
+                )
+                .unwrap();
             });
 
-            mode_transition_started_rx.recv().unwrap();
-            assert!(
-                stream_started_with_rx.try_recv().is_err(),
-                "the OnDemand -> AlwaysOn transition opened before the {input_name} transaction committed"
-            );
-
+            // The exact update-mode transaction has reached the same lock that
+            // the input transaction holds. It therefore cannot snapshot or
+            // open until this controlled commit finishes.
+            mode_before_lock_rx.recv().unwrap();
             commit_transaction_tx.send(()).unwrap();
             transaction.join().unwrap();
-            assert_eq!(stream_started_with_rx.recv().unwrap(), "updated input");
             mode_transition.join().unwrap();
+            assert_eq!(stream_started_with_rx.recv().unwrap(), "updated input");
+            assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::AlwaysOn));
+            assert_eq!(*persisted_modes.lock().unwrap(), [true]);
         }
+    }
+
+    #[test]
+    fn always_on_open_failure_keeps_mode_and_persistence_on_demand() {
+        let state = Mutex::new(RecordingState::Idle);
+        let mode = Mutex::new(MicrophoneMode::OnDemand);
+        let persisted_modes = Mutex::new(Vec::new());
+
+        let result = update_mode_transaction(
+            &state,
+            &mode,
+            MicrophoneMode::AlwaysOn,
+            || panic!("OnDemand -> AlwaysOn must not stop the stream"),
+            || Err(anyhow::anyhow!("input unavailable")),
+            |mode| {
+                persisted_modes
+                    .lock()
+                    .unwrap()
+                    .push(matches!(mode, MicrophoneMode::AlwaysOn))
+            },
+            None,
+        );
+
+        assert_eq!(result.unwrap_err().to_string(), "input unavailable");
+        assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::OnDemand));
+        assert!(persisted_modes.lock().unwrap().is_empty());
     }
 
     #[test]

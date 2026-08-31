@@ -40,15 +40,10 @@ pub struct AudioDevice {
 #[tauri::command]
 #[specta::specta]
 pub async fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), String> {
-    // Update settings (fast, stays inline)
-    let mut settings = get_settings(&app);
-    settings.always_on_microphone = always_on;
-    write_settings(&app, settings);
-
-    // Update the audio manager mode. update_mode can stop/start the cpal stream
-    // (blocking CoreAudio) and takes the manager std mutexes — run it on a
-    // blocking thread, NOT inline on the webview/main run loop (a slow device
-    // open/close would freeze the UI).
+    // `update_mode` commits the mode setting and emits `settings-changed` only
+    // after the runtime transition succeeds. It can stop/start the cpal stream
+    // and takes the manager std mutexes, so run it on a blocking thread rather
+    // than the webview/main run loop.
     let rm = app.state::<Arc<AudioRecordingManager>>().inner().clone();
     let new_mode = if always_on {
         MicrophoneMode::AlwaysOn
