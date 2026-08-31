@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
 import { Button } from "../ui/Button";
 import { Dropdown, DropdownOption } from "../ui/Dropdown";
@@ -15,11 +16,13 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
   label,
   description,
 }) => {
+  const { t } = useTranslation();
   const { getSetting, updateSetting } = useSettings();
   const playTestSound = useSettingsStore((state) => state.playTestSound);
   const customSounds = useSettingsStore((state) => state.customSounds);
 
   const selectedTheme = getSetting("sound_theme") ?? "marimba";
+  const previewLabel = t("settings.debug.whatsNewPreview.button");
 
   const options: DropdownOption[] = [
     { value: "marimba", label: "Marimba" },
@@ -43,7 +46,11 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
       grouped
       layout="horizontal"
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div
+        role="group"
+        aria-label={label}
+        className="flex min-w-0 items-center gap-2"
+      >
         <Dropdown
           className="min-w-0 flex-1"
           selectedValue={selectedTheme}
@@ -57,9 +64,10 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
           size="sm"
           className="shrink-0"
           onClick={handlePlayBothSounds}
-          title="Preview sound theme (plays start then stop)"
+          aria-label={previewLabel}
+          title={previewLabel}
         >
-          <PlayIcon size={15} />
+          <PlayIcon size={15} aria-hidden="true" />
         </Button>
       </div>
     </SettingContainer>
