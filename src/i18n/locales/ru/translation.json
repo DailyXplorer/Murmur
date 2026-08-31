@@ -366,7 +366,8 @@
     "open": "Открыть",
     "copy": "Копировать",
     "clear": "Очистить",
-    "noOptionsFound": "Вариантов не найдено"
+    "noOptionsFound": "Вариантов не найдено",
+    "reset": "Сбросить"
   },
   "accessibility": {
     "permissionsDescription": "Murmur необходимы разрешения на доступ для ввода расшифрованного текста.",

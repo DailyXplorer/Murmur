@@ -70,6 +70,7 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
             className="shrink-0"
             onClick={handleReset}
             disabled={isUpdating("selected_microphone") || isLoading}
+            ariaLabel={`${t("common.reset")}: ${t("settings.sound.microphone.title")}`}
           />
         </div>
       </SettingContainer>

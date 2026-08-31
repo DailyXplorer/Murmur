@@ -366,7 +366,8 @@
     "open": "Apri",
     "copy": "Copia",
     "clear": "Svuota",
-    "noOptionsFound": "Nessuna opzione trovata"
+    "noOptionsFound": "Nessuna opzione trovata",
+    "reset": "Reimposta"
   },
   "accessibility": {
     "permissionsDescription": "Murmur ha bisogno dei permessi di accessibilità per digitare il testo trascritto.",

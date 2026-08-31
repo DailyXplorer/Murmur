@@ -366,7 +366,8 @@
     "open": "Mở",
     "copy": "Sao chép",
     "clear": "Xóa",
-    "noOptionsFound": "Không tìm thấy tùy chọn"
+    "noOptionsFound": "Không tìm thấy tùy chọn",
+    "reset": "Đặt lại"
   },
   "accessibility": {
     "permissionsDescription": "Murmur cần quyền truy cập để gõ văn bản đã chuyển đổi.",

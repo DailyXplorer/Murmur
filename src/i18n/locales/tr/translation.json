@@ -366,7 +366,8 @@
     "open": "Aç",
     "copy": "Kopyala",
     "clear": "Temizle",
-    "noOptionsFound": "Seçenek bulunamadı"
+    "noOptionsFound": "Seçenek bulunamadı",
+    "reset": "Sıfırla"
   },
   "accessibility": {
     "permissionsDescription": "Murmur, transkribe edilen metni yazabilmek için erişilebilirlik izinlerine ihtiyaç duyar.",

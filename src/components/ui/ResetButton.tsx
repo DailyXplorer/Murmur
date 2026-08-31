@@ -5,7 +5,7 @@ interface ResetButtonProps {
   onClick: () => void;
   disabled?: boolean;
   className?: string;
-  ariaLabel?: string;
+  ariaLabel: string;
   children?: React.ReactNode;
 }
 

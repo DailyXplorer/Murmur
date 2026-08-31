@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { SettingContainer } from "./SettingContainer";
 import { ResetButton } from "./ResetButton";
 
@@ -35,6 +36,8 @@ export const Slider: React.FC<SliderProps> = ({
   onReset,
   isResetting = false,
 }) => {
+  const { t } = useTranslation();
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(parseFloat(e.target.value));
   };
@@ -56,6 +59,8 @@ export const Slider: React.FC<SliderProps> = ({
             max={max}
             step={step}
             value={value}
+            aria-label={label}
+            aria-valuetext={formatValue(value)}
             onChange={handleChange}
             disabled={disabled}
             className="flex-grow h-2 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-logo-primary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -73,7 +78,11 @@ export const Slider: React.FC<SliderProps> = ({
             </span>
           )}
           {onReset && (
-            <ResetButton onClick={onReset} disabled={disabled || isResetting} />
+            <ResetButton
+              onClick={onReset}
+              disabled={disabled || isResetting}
+              ariaLabel={`${t("common.reset")}: ${label}`}
+            />
           )}
         </div>
       </div>

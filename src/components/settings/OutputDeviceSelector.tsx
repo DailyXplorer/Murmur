@@ -74,6 +74,7 @@ export const OutputDeviceSelector: React.FC<OutputDeviceSelectorProps> =
             <ResetButton
               className="shrink-0"
               onClick={handleReset}
+              ariaLabel={`${t("common.reset")}: ${t("settings.sound.outputDevice.title")}`}
               disabled={
                 disabled || isUpdating("selected_output_device") || isLoading
               }
