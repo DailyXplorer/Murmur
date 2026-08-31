@@ -31,9 +31,12 @@ enum Command {
         is_pressed: bool,
         push_to_talk: bool,
     },
-    Cancel {
-        recording_was_active: bool,
-    },
+    /// Local cancellation from a shortcut, the tray, or the webview.
+    ///
+    /// This must be processed here rather than at the source, because the
+    /// coordinator's stage is authoritative while `stop_recording` runs on an
+    /// async worker and the audio manager can still report recording active.
+    Cancel,
     RemoteCancel,
     ProcessingFinished,
 }
@@ -69,11 +72,23 @@ fn classify_ptt_event(
     }
 }
 
-fn finish_remote_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>) {
+fn cancellation_stage(stage: &Stage) -> crate::utils::CancellationStage {
+    if matches!(stage, Stage::Processing) {
+        crate::utils::CancellationStage::Processing
+    } else {
+        crate::utils::CancellationStage::NotProcessing
+    }
+}
+
+fn finish_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>) {
     *pending_release = None;
     if !matches!(stage, Stage::Processing) {
         *stage = Stage::Idle;
     }
+}
+
+fn queue_local_cancel(tx: &Sender<Command>) -> Result<(), mpsc::SendError<Command>> {
+    tx.send(Command::Cancel)
 }
 
 /// Serialises all transcription lifecycle events through a single thread
@@ -197,27 +212,21 @@ impl TranscriptionCoordinator {
                                 }
                             }
                         }
-                        Command::Cancel {
-                            recording_was_active,
-                        } => {
+                        Command::Cancel | Command::RemoteCancel => {
                             pending_release = None;
-                            // Don't reset during processing — wait for the pipeline to finish.
-                            if !matches!(stage, Stage::Processing)
-                                && (recording_was_active || matches!(stage, Stage::Recording(_)))
-                            {
-                                stage = Stage::Idle;
-                            }
-                        }
-                        Command::RemoteCancel => {
                             // Remote single-instance actions share this queue
-                            // with remote toggles. Cancelling here guarantees a
-                            // preceding toggle has started recording before the
-                            // audio manager is inspected.
-                            let processing = matches!(stage, Stage::Processing);
+                            // with remote toggles, and local cancellations must
+                            // make the same decision from this authoritative
+                            // stage. In particular, `stop_recording` moves us
+                            // to Processing before its worker releases the
+                            // audio manager, so that manager can still report
+                            // recording active here.
+                            let cancellation_stage = cancellation_stage(&stage);
                             crate::utils::cancel_current_operation_from_coordinator(
-                                &app, processing,
+                                &app,
+                                cancellation_stage,
                             );
-                            finish_remote_cancel(&mut stage, &mut pending_release);
+                            finish_cancel(&mut stage, &mut pending_release);
                         }
                         Command::ProcessingFinished => {
                             stage = Stage::Idle;
@@ -257,14 +266,13 @@ impl TranscriptionCoordinator {
         }
     }
 
-    pub fn notify_cancel(&self, recording_was_active: bool) {
-        if self
-            .tx
-            .send(Command::Cancel {
-                recording_was_active,
-            })
-            .is_err()
-        {
+    /// Queue a local cancellation after any earlier lifecycle event.
+    ///
+    /// The coordinator supplies the authoritative stage to the cancellation
+    /// helper, so it cannot mistake an asynchronously stopping recording for
+    /// a fresh Recording stage.
+    pub fn send_cancel(&self) {
+        if queue_local_cancel(&self.tx).is_err() {
             warn!("Transcription coordinator channel closed");
         }
     }
@@ -385,7 +393,7 @@ mod tests {
             deadline: Instant::now(),
         });
 
-        finish_remote_cancel(&mut stage, &mut pending_release);
+        finish_cancel(&mut stage, &mut pending_release);
 
         assert!(matches!(stage, Stage::Idle));
         assert!(pending_release.is_none());
@@ -398,9 +406,55 @@ mod tests {
 
         // `stop` moves the coordinator to Processing before its async worker
         // stops the audio manager, so that manager can still report active.
-        finish_remote_cancel(&mut stage, &mut pending_release);
+        finish_cancel(&mut stage, &mut pending_release);
 
         assert!(matches!(stage, Stage::Processing));
+    }
+
+    #[test]
+    fn local_cancel_during_processing_uses_stage_not_active_audio_for_ui_cleanup() {
+        let mut stage = Stage::Processing;
+        let mut pending_release = None;
+
+        // `stop` enters Processing before its worker releases the audio
+        // manager. The cancellation must still be signalled, but none of the
+        // idle UI side effects may run before FinishGuard completes.
+        let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
+        assert!(effects.signal_audio_cancellation);
+        assert!(!effects.unregister_cancel_shortcut);
+        assert!(!effects.set_tray_idle);
+        assert!(!effects.hide_recording_overlay);
+
+        finish_cancel(&mut stage, &mut pending_release);
+        assert!(matches!(stage, Stage::Processing));
+    }
+
+    #[test]
+    fn local_cancel_during_recording_cleans_up_immediately() {
+        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut pending_release = None;
+
+        let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
+        assert!(effects.signal_audio_cancellation);
+        assert!(effects.unregister_cancel_shortcut);
+        assert!(effects.set_tray_idle);
+        assert!(effects.hide_recording_overlay);
+
+        finish_cancel(&mut stage, &mut pending_release);
+        assert!(matches!(stage, Stage::Idle));
+    }
+
+    #[test]
+    fn local_cancel_queues_once_without_waiting_for_the_coordinator() {
+        let (tx, rx) = mpsc::channel();
+
+        // `CancelAction` can call send_cancel from the coordinator thread
+        // itself. An mpsc send adds one later command and never waits for that
+        // thread to receive it, so there is neither recursive dispatch nor a
+        // self-deadlock.
+        assert!(queue_local_cancel(&tx).is_ok());
+        assert!(matches!(rx.try_recv(), Ok(Command::Cancel)));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
     }
 
     // ---------------------------------------------------------------------

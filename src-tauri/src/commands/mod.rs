@@ -3,7 +3,8 @@ pub mod history;
 pub mod transcription;
 
 use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
-use crate::utils::cancel_current_operation;
+use crate::utils::cancel_current_operation_before_coordinator;
+use crate::TranscriptionCoordinator;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
@@ -66,7 +67,11 @@ fn open_accessibility_settings() -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_operation(app: AppHandle) {
-    cancel_current_operation(&app);
+    if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+        coordinator.send_cancel();
+    } else {
+        cancel_current_operation_before_coordinator(&app);
+    }
 }
 
 #[tauri::command]
