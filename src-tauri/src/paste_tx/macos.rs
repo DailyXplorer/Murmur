@@ -195,8 +195,51 @@ fn flush_pending(app_handle: &AppHandle) {
     }
 }
 
-fn spawn_waiter(pending: Arc<Mutex<MacPending>>, app_handle: AppHandle) {
+fn same_pending(
+    current: Option<&Arc<Mutex<MacPending>>>,
+    candidate: &Arc<Mutex<MacPending>>,
+) -> bool {
+    current
+        .map(|pending| Arc::ptr_eq(pending, candidate))
+        .unwrap_or(false)
+}
+
+fn is_current_pending(candidate: &Arc<Mutex<MacPending>>) -> bool {
+    PENDING
+        .lock()
+        .map(|slot| same_pending(slot.as_ref(), candidate))
+        .unwrap_or(false)
+}
+
+fn spawn_waiter(
+    pending: Arc<Mutex<MacPending>>,
+    app_handle: AppHandle,
+    auto_submit: Option<(AutoSubmitKey, FrontmostTarget)>,
+) {
     thread::spawn(move || {
+        if let Some((auto_submit_key, target)) = auto_submit {
+            // Keep AppKit's main run loop free to fulfill the promised
+            // pasteboard data before submitting the target form.
+            thread::sleep(Duration::from_millis(50));
+            let pending_for_submit = pending.clone();
+            if let Err(error) = app_handle.run_on_main_thread(move || {
+                // A newer paste may have replaced this transaction while the
+                // delay elapsed. Focus identity alone cannot detect that when
+                // both pastes target the same application.
+                if !is_current_pending(&pending_for_submit) {
+                    info!("[reliable-paste] skipping auto-submit for superseded transaction");
+                    return;
+                }
+                if let Err(error) =
+                    send_return_if_target_unchanged(auto_submit_key, Some(target)).map(|_| ())
+                {
+                    error!("[reliable-paste] paste succeeded, but auto-submit failed: {error}");
+                }
+            }) {
+                error!("[reliable-paste] failed to queue auto-submit on main thread: {error}");
+            }
+        }
+
         let outcome = loop {
             thread::sleep(Duration::from_millis(15));
             let (decision, state_snapshot) = {
@@ -239,11 +282,7 @@ fn spawn_waiter(pending: Arc<Mutex<MacPending>>, app_handle: AppHandle) {
         let _ = app_handle.run_on_main_thread(move || {
             settle(&pending_for_finish, &app_for_finish);
             if let Ok(mut slot) = PENDING.lock() {
-                let is_us = slot
-                    .as_ref()
-                    .map(|current| Arc::ptr_eq(current, &pending))
-                    .unwrap_or(false);
-                if is_us {
+                if same_pending(slot.as_ref(), &pending) {
                     *slot = None;
                 }
             }
@@ -287,23 +326,17 @@ pub(super) fn run(
     if let Ok(mut st) = state.lock() {
         st.injected_at = Some(Instant::now());
     }
-    match send_paste_if_target_unchanged(Some(target.clone())) {
+    let paste_injected = match send_paste_if_target_unchanged(Some(target.clone())) {
         Ok(true) => {
             info!("[reliable-paste] Cmd+V sent");
-            if auto_submit {
-                std::thread::sleep(Duration::from_millis(50));
-                if let Err(error) =
-                    send_return_if_target_unchanged(auto_submit_key, Some(target)).map(|_| ())
-                {
-                    error!("[reliable-paste] paste succeeded, but auto-submit failed: {error}");
-                }
-            }
+            true
         }
         Ok(false) => {
             if let Ok(mut st) = state.lock() {
                 st.injection_failed = true;
             }
             info!("[reliable-paste] target changed before Cmd+V; paste skipped");
+            false
         }
         Err(e) => {
             // Keep the transaction alive long enough to replace the promise
@@ -313,8 +346,9 @@ pub(super) fn run(
                 st.injection_failed = true;
             }
             error!("[reliable-paste] failed to send paste chord: {e}");
+            false
         }
-    }
+    };
 
     let pending = Arc::new(Mutex::new(MacPending {
         state,
@@ -327,7 +361,8 @@ pub(super) fn run(
     if let Ok(mut slot) = PENDING.lock() {
         *slot = Some(pending.clone());
     }
-    spawn_waiter(pending, app_handle.clone());
+    let auto_submit = (paste_injected && auto_submit).then_some((auto_submit_key, target));
+    spawn_waiter(pending, app_handle.clone(), auto_submit);
 
     Ok(())
 }
@@ -364,5 +399,26 @@ mod tests {
             decide_settlement(true, preserve_transcript || injection_failed),
             ClipboardSettlement::KeepTranscript
         );
+    }
+
+    #[test]
+    fn auto_submit_guard_accepts_only_the_current_transaction() {
+        fn pending() -> Arc<Mutex<MacPending>> {
+            Arc::new(Mutex::new(MacPending {
+                state: Arc::new(Mutex::new(TxState::new())),
+                change_count: 0,
+                provider: None,
+                preserve_transcript: false,
+                transcript: String::new(),
+                settled: false,
+            }))
+        }
+
+        let current = pending();
+        let superseded = pending();
+
+        assert!(same_pending(Some(&current), &current));
+        assert!(!same_pending(Some(&current), &superseded));
+        assert!(!same_pending(None, &current));
     }
 }
