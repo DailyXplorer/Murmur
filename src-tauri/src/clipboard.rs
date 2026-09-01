@@ -259,7 +259,10 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         PasteMethod::Direct => {
             let target = frontmost_target();
             let pasted = paste_direct_if_target_unchanged(&text, target.clone())?;
-            if pasted && settings.auto_submit {
+            if !pasted {
+                return Err("Direct paste skipped because the frontmost target changed".to_string());
+            }
+            if settings.auto_submit {
                 std::thread::sleep(Duration::from_millis(50));
                 if let Err(error) =
                     send_return_if_target_unchanged(settings.auto_submit_key, target).map(|_| ())
