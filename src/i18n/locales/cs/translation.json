@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Práce se schránkou",
-        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. „Vymazat po vložení“ odstraní přepis po 8 sekundách; „Ponechat přepis“ jej ponechá k dispozici.",
+        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. Po úspěšném vložení možnost „Vymazat po vložení“ odstraní přepis na konci 8sekundového bezpečnostního intervalu; „Ponechat přepis“ jej ponechá k dispozici. Pokud vložení selže, Murmur přepis zachová pro obnovení.",
         "options": {
           "dontModify": "Vymazat po vložení",
           "copyToClipboard": "Ponechat přepis"

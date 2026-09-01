@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Gestion du presse-papiers",
-        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. « Effacer après le collage » supprime la transcription après 8 secondes ; « Conserver la transcription » la laisse disponible.",
+        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. Après un collage réussi, « Effacer après le collage » supprime la transcription à la fin de la fenêtre de sécurité de 8 secondes ; « Conserver la transcription » la laisse disponible. Si le collage échoue, Murmur conserve la transcription afin de pouvoir la récupérer.",
         "options": {
           "dontModify": "Effacer après le collage",
           "copyToClipboard": "Conserver la transcription"

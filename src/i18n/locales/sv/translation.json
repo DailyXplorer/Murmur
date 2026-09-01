@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Hantering av urklipp",
-        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. ”Rensa efter inklistring” tar bort transkriberingen efter 8 sekunder; ”Behåll transkriberingen” låter den vara tillgänglig.",
+        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. Efter en lyckad inklistring tar ”Rensa efter inklistring” bort transkriberingen när säkerhetsperioden på 8 sekunder löper ut; ”Behåll transkriberingen” låter den vara tillgänglig. Om inklistringen misslyckas behåller Murmur transkriberingen så att den kan återställas.",
         "options": {
           "dontModify": "Rensa efter inklistring",
           "copyToClipboard": "Behåll transkriberingen"

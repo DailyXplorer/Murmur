@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Gestione Appunti",
-        "description": "Per un incollamento sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. «Cancella dopo l'incollamento» rimuove la trascrizione dopo 8 secondi; «Mantieni la trascrizione» la lascia disponibile.",
+        "description": "Per incollare in modo sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. Dopo un incollamento riuscito, «Cancella dopo l'incollamento» rimuove la trascrizione al termine della finestra di sicurezza di 8 secondi; «Mantieni la trascrizione» la lascia disponibile. Se l'incollamento non riesce, Murmur conserva la trascrizione per consentirne il recupero.",
         "options": {
           "dontModify": "Cancella dopo l'incollamento",
           "copyToClipboard": "Mantieni la trascrizione"

@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Manipulação da Área de Transferência",
-        "description": "Para uma colagem segura com Cmd+V, os dados anteriores da Área de Transferência nunca são restaurados. «Limpar após colar» remove a transcrição após 8 segundos; «Manter transcrição» deixa-a disponível.",
+        "description": "Para uma colagem segura com Cmd+V, os dados anteriores da Área de Transferência nunca são restaurados. Após uma colagem bem-sucedida, «Limpar após colar» remove a transcrição no fim da janela de segurança de 8 segundos; «Manter transcrição» deixa-a disponível. Se a colagem falhar, o Murmur mantém a transcrição para recuperação.",
         "options": {
           "dontModify": "Limpar após colar",
           "copyToClipboard": "Manter transcrição"

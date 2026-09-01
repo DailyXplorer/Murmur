@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Clipboard Handling",
-        "description": "For secure Cmd+V pasting, previous clipboard data is never restored. Clear After Paste removes the transcription after 8 seconds; Keep Transcription leaves it available.",
+        "description": "For secure Cmd+V pasting, previous clipboard data is never restored. After a successful paste, Clear After Paste removes the transcription when the 8-second safety window ends; Keep Transcription leaves it available. If pasting fails, Murmur keeps the transcription for recovery.",
         "options": {
           "dontModify": "Clear After Paste",
           "copyToClipboard": "Keep Transcription"
