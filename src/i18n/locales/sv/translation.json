@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Hantering av urklipp",
-        "description": "Ändra inte urklipp bevarar ditt nuvarande urklippsinnehåll efter transkription. Kopiera till urklipp lämnar transkriptionsresultatet i ditt urklipp efter att ha klistrat in.",
+        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. Efter en lyckad inklistring tar ”Rensa efter inklistring” bort transkriberingen när säkerhetsperioden på 8 sekunder löper ut; ”Behåll transkriberingen” låter den vara tillgänglig. Om inklistringen misslyckas behåller Murmur transkriberingen så att den kan återställas.",
         "options": {
-          "dontModify": "Ändra inte urklipp",
-          "copyToClipboard": "Kopiera till urklipp"
+          "dontModify": "Rensa efter inklistring",
+          "copyToClipboard": "Behåll transkriberingen"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Lägg till avslutande mellanslag",
         "description": "Lägg till ett mellanslag efter klistrad transkription"
-      },
-      "pasteDelay": {
-        "title": "Fördröjning vid klistra in (före)",
-        "description": "Fördröjning (i millisekunder) efter att text kopierats, innan tangenttryckningen för att klistra in skickas. Öka om ingenting klistras in."
-      },
-      "pasteDelayAfter": {
-        "title": "Fördröjning vid klistra in (efter)",
-        "description": "Fördröjning (i millisekunder) efter tangenttryckningen för att klistra in, innan ditt tidigare urklipp återställs. Öka om det gamla urklippsinnehållet klistras in i stället för transkriptionen."
-      },
-      "reliablePaste": {
-        "title": "Tillförlitlig inklistring (Beta)",
-        "description": "Återställ urklipp först när målappen faktiskt har läst transkriptionen, i stället för efter en fast fördröjning. Avsett att åtgärda att det gamla urklippsinnehållet klistras in när systemet är belastat. Kräver en klistra-in-metod via urklipp."
       },
       "recordingBuffer": {
         "title": "Extra inspelningsbuffert",

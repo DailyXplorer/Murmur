@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Práce se schránkou",
-        "description": "'Neměnit schránku' zachová po přepisu aktuální obsah schránky. 'Kopírovat do schránky' ponechá po vložení výsledek přepisu ve schránce.",
+        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. Po úspěšném vložení možnost „Vymazat po vložení“ odstraní přepis na konci 8sekundového bezpečnostního intervalu; „Ponechat přepis“ jej ponechá k dispozici. Pokud vložení selže, Murmur přepis zachová pro obnovení.",
         "options": {
-          "dontModify": "Neměnit schránku",
-          "copyToClipboard": "Kopírovat do schránky"
+          "dontModify": "Vymazat po vložení",
+          "copyToClipboard": "Ponechat přepis"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Přidat koncovou mezeru",
         "description": "Přidat mezeru po vloženém přepisu"
-      },
-      "pasteDelay": {
-        "title": "Zpoždění vložení (před)",
-        "description": "Zpoždění (v milisekundách) po zkopírování textu, před odesláním klávesy pro vložení. Zvyšte, pokud se nic nevloží."
-      },
-      "pasteDelayAfter": {
-        "title": "Zpoždění vložení (po)",
-        "description": "Zpoždění (v milisekundách) po klávese pro vložení, před obnovením předchozí schránky. Zvyšte, pokud se místo přepisu vkládá starý obsah schránky."
-      },
-      "reliablePaste": {
-        "title": "Spolehlivé vložení (Beta)",
-        "description": "Obnoví schránku teprve poté, co cílová aplikace skutečně přečte přepis, místo po pevně daném zpoždění. Má odstranit vkládání starého obsahu schránky při zatížení systému. Vyžaduje způsob vložení přes schránku."
       },
       "recordingBuffer": {
         "title": "Extra vyrovnávací paměť nahrávání",

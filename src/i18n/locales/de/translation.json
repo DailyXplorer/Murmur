@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Zwischenablage nicht ändern bewahrt den aktuellen Inhalt nach der Transkription. In Zwischenablage kopieren hinterlässt das Transkriptionsergebnis in der Zwischenablage.",
+        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. Nach erfolgreichem Einfügen entfernt „Nach dem Einfügen löschen“ die Transkription am Ende des 8-sekündigen Sicherheitszeitraums; „Transkription behalten“ lässt sie verfügbar. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung bei.",
         "options": {
-          "dontModify": "Zwischenablage nicht ändern",
-          "copyToClipboard": "In Zwischenablage kopieren"
+          "dontModify": "Nach dem Einfügen löschen",
+          "copyToClipboard": "Transkription behalten"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Leerzeichen anhängen",
         "description": "Leerzeichen nach eingefügter Transkription hinzufügen"
-      },
-      "pasteDelay": {
-        "title": "Einfügeverzögerung (vorher)",
-        "description": "Verzögerung (in Millisekunden) nach dem Kopieren des Textes, bevor der Einfüge-Tastendruck gesendet wird. Erhöhe den Wert, wenn nichts eingefügt wird."
-      },
-      "pasteDelayAfter": {
-        "title": "Einfügeverzögerung (nachher)",
-        "description": "Verzögerung (in Millisekunden) nach dem Einfüge-Tastendruck, bevor deine vorherige Zwischenablage wiederhergestellt wird. Erhöhe den Wert, wenn der alte Inhalt der Zwischenablage statt der Transkription eingefügt wird."
-      },
-      "reliablePaste": {
-        "title": "Zuverlässiges Einfügen (Beta)",
-        "description": "Die Zwischenablage erst wiederherstellen, wenn die Ziel-App die Transkription tatsächlich gelesen hat, statt nach einer festen Verzögerung. Soll verhindern, dass bei Systemlast der alte Inhalt der Zwischenablage eingefügt wird. Erfordert eine Einfügemethode über die Zwischenablage."
       },
       "recordingBuffer": {
         "title": "Zusätzlicher Aufnahmepuffer",

@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Gestion du presse-papiers",
-        "description": "Ne pas modifier le presse-papiers préserve le contenu actuel de votre presse-papiers après la transcription. Copier dans le presse-papiers laisse le résultat de la transcription dans votre presse-papiers après le collage.",
+        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. Après un collage réussi, « Effacer après le collage » supprime la transcription à la fin de la fenêtre de sécurité de 8 secondes ; « Conserver la transcription » la laisse disponible. Si le collage échoue, Murmur conserve la transcription afin de pouvoir la récupérer.",
         "options": {
-          "dontModify": "Ne pas modifier le presse-papiers",
-          "copyToClipboard": "Copier dans le presse-papiers"
+          "dontModify": "Effacer après le collage",
+          "copyToClipboard": "Conserver la transcription"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Ajouter une espace final",
         "description": "Ajouter une espace après la transcription collée"
-      },
-      "pasteDelay": {
-        "title": "Délai de collage (avant)",
-        "description": "Délai (en millisecondes) après la copie du texte, avant l'envoi de la touche de collage. Augmentez si rien n'est collé."
-      },
-      "pasteDelayAfter": {
-        "title": "Délai de collage (après)",
-        "description": "Délai (en millisecondes) après la touche de collage, avant la restauration de votre presse-papiers précédent. Augmentez si l'ancien contenu du presse-papiers est collé à la place de la transcription."
-      },
-      "reliablePaste": {
-        "title": "Collage fiable (Beta)",
-        "description": "Restaure le presse-papiers uniquement après que l'application cible a réellement lu la transcription, au lieu d'attendre un délai fixe. Vise à corriger le collage de l'ancien contenu du presse-papiers lorsque le système est chargé. Nécessite une méthode de collage par presse-papiers."
       },
       "recordingBuffer": {
         "title": "Tampon d'enregistrement supplémentaire",

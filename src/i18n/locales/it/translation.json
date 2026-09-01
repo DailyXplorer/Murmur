@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Gestione Appunti",
-        "description": "Non Modificare gli Appunti mantiene il contenuto dei tuoi appunti dopo la trascrizione. Copia negli Appunti lascia il risultato della trascrizione negli appunti dopo aver incollato.",
+        "description": "Per incollare in modo sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. Dopo un incollamento riuscito, «Cancella dopo l'incollamento» rimuove la trascrizione al termine della finestra di sicurezza di 8 secondi; «Mantieni la trascrizione» la lascia disponibile. Se l'incollamento non riesce, Murmur conserva la trascrizione per consentirne il recupero.",
         "options": {
-          "dontModify": "Non Modificare gli Appunti",
-          "copyToClipboard": "Copia negli Appunti"
+          "dontModify": "Cancella dopo l'incollamento",
+          "copyToClipboard": "Mantieni la trascrizione"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Aggiungi Spazio Finale",
         "description": "Aggiungi uno spazio dopo la trascrizione incollata"
-      },
-      "pasteDelay": {
-        "title": "Ritardo incolla (prima)",
-        "description": "Ritardo (in millisecondi) dopo aver copiato il testo, prima di inviare il tasto incolla. Aumentare se non viene incollato nulla."
-      },
-      "pasteDelayAfter": {
-        "title": "Ritardo incolla (dopo)",
-        "description": "Ritardo (in millisecondi) dopo il tasto incolla, prima di ripristinare gli appunti precedenti. Aumentare se viene incollato il vecchio contenuto degli appunti invece della trascrizione."
-      },
-      "reliablePaste": {
-        "title": "Incolla affidabile (Beta)",
-        "description": "Ripristina gli appunti solo dopo che l'app di destinazione ha effettivamente letto la trascrizione, anziché dopo un ritardo fisso. Serve a risolvere l'incollaggio del vecchio contenuto degli appunti quando il sistema è sotto carico. Richiede un metodo di incollaggio tramite appunti."
       },
       "recordingBuffer": {
         "title": "Buffer di registrazione extra",

@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Klembordbeheer",
-        "description": "'Klembord niet aanpassen' behoudt je huidige klembordinhoud na een transcriptie. 'Kopiëren naar klembord' laat de getranscribeerde tekst achter op je klembord.",
+        "description": "Voor veilig plakken met Cmd+V worden eerdere klembordgegevens nooit hersteld. Na geslaagd plakken verwijdert 'Wissen na plakken' de transcriptie aan het einde van het veiligheidsvenster van 8 seconden; 'Transcriptie behouden' laat deze beschikbaar. Als plakken mislukt, bewaart Murmur de transcriptie voor herstel.",
         "options": {
-          "dontModify": "Klembord niet aanpassen",
-          "copyToClipboard": "Kopiëren naar klembord"
+          "dontModify": "Wissen na plakken",
+          "copyToClipboard": "Transcriptie behouden"
         }
       },
       "autoSubmit": {
@@ -282,18 +282,6 @@
       "appendTrailingSpace": {
         "label": "Spatie achteraan toevoegen",
         "description": "Voeg een spatie toe na de geplakte transcriptie"
-      },
-      "pasteDelay": {
-        "title": "Plakvertraging (voor)",
-        "description": "Vertraging (in milliseconden) na het kopiëren van de tekst, voordat de plak-toetsaanslag wordt verzonden. Verhoog dit als er niets wordt geplakt."
-      },
-      "pasteDelayAfter": {
-        "title": "Plakvertraging (na)",
-        "description": "Vertraging (in milliseconden) na de plak-toetsaanslag, voordat je vorige klembord wordt hersteld. Verhoog dit als de oude klembordinhoud wordt geplakt in plaats van de transcriptie."
-      },
-      "reliablePaste": {
-        "title": "Betrouwbaar plakken (Beta)",
-        "description": "Herstel het klembord pas nadat de doelapp de transcriptie daadwerkelijk heeft gelezen, in plaats van na een vaste vertraging. Bedoeld om te verhelpen dat bij systeembelasting de oude klembordinhoud wordt geplakt. Vereist een plakmethode via het klembord."
       },
       "recordingBuffer": {
         "title": "Extra opnamebuffer",

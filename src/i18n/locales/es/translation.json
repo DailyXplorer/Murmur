@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Manejo del portapapeles",
-        "description": "No modificar portapapeles conserva el contenido actual de tu portapapeles después de la transcripción. Copiar al portapapeles deja el resultado de la transcripción en tu portapapeles después de pegar.",
+        "description": "Para pegar de forma segura con Cmd+V, los datos anteriores del portapapeles nunca se restauran. Tras un pegado correcto, «Borrar después de pegar» elimina la transcripción al finalizar el intervalo de seguridad de 8 segundos; «Conservar la transcripción» la deja disponible. Si el pegado falla, Murmur conserva la transcripción para poder recuperarla.",
         "options": {
-          "dontModify": "No modificar portapapeles",
-          "copyToClipboard": "Copiar al portapapeles"
+          "dontModify": "Borrar después de pegar",
+          "copyToClipboard": "Conservar la transcripción"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Agregar espacio final",
         "description": "Agregar un espacio después de la transcripción pegada"
-      },
-      "pasteDelay": {
-        "title": "Retraso de pegado (antes)",
-        "description": "Retraso (en milisegundos) después de copiar el texto, antes de enviar la pulsación de tecla de pegar. Auméntelo si no se pega nada."
-      },
-      "pasteDelayAfter": {
-        "title": "Retraso de pegado (después)",
-        "description": "Retraso (en milisegundos) después de la pulsación de tecla de pegar, antes de restaurar el portapapeles anterior. Auméntelo si se pega el contenido antiguo del portapapeles en lugar de la transcripción."
-      },
-      "reliablePaste": {
-        "title": "Pegado fiable (Beta)",
-        "description": "Restaura el portapapeles solo después de que la aplicación de destino lea realmente la transcripción, en lugar de tras un retraso fijo. Pensado para corregir que se pegue el contenido antiguo del portapapeles cuando el sistema está cargado. Requiere un método de pegado por portapapeles."
       },
       "recordingBuffer": {
         "title": "Búfer de grabación adicional",

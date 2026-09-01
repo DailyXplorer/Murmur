@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Xử lý Clipboard",
-        "description": "Không sửa đổi Clipboard giữ nguyên nội dung clipboard hiện tại sau khi chuyển đổi. Sao chép vào Clipboard để lại kết quả chuyển đổi trong clipboard sau khi dán.",
+        "description": "Để dán an toàn bằng Cmd+V, dữ liệu bảng nhớ tạm trước đó không bao giờ được khôi phục. Sau khi dán thành công, \"Xóa sau khi dán\" sẽ xóa bản chép lời khi khoảng an toàn 8 giây kết thúc; \"Giữ bản chép lời\" sẽ giữ lại để sử dụng. Nếu thao tác dán thất bại, Murmur giữ bản chép lời để có thể khôi phục.",
         "options": {
-          "dontModify": "Không sửa đổi Clipboard",
-          "copyToClipboard": "Sao chép vào Clipboard"
+          "dontModify": "Xóa sau khi dán",
+          "copyToClipboard": "Giữ bản chép lời"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "Thêm dấu cách cuối",
         "description": "Thêm một dấu cách sau bản ghi đã dán"
-      },
-      "pasteDelay": {
-        "title": "Độ trễ dán (trước)",
-        "description": "Độ trễ (tính bằng mili giây) sau khi sao chép văn bản, trước khi gửi phím dán. Tăng nếu không có gì được dán."
-      },
-      "pasteDelayAfter": {
-        "title": "Độ trễ dán (sau)",
-        "description": "Độ trễ (tính bằng mili giây) sau khi gửi phím dán, trước khi khôi phục bảng nhớ tạm trước đó. Tăng nếu nội dung bảng nhớ tạm cũ được dán thay vì bản chép lời."
-      },
-      "reliablePaste": {
-        "title": "Dán đáng tin cậy (Beta)",
-        "description": "Chỉ khôi phục bảng nhớ tạm sau khi ứng dụng đích thực sự đọc bản chép lời, thay vì sau một độ trễ cố định. Nhằm khắc phục việc nội dung bảng nhớ tạm cũ bị dán khi hệ thống bị tải nặng. Cần một phương thức dán qua bảng nhớ tạm."
       },
       "recordingBuffer": {
         "title": "Bộ đệm ghi âm thêm",

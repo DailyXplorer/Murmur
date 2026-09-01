@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "剪贴板处理",
-        "description": "不修改剪贴板将在转录后保留当前剪贴板内容。复制到剪贴板将在粘贴后将转录结果留在剪贴板中。",
+        "description": "为通过 Cmd+V 安全粘贴，先前的剪贴板数据绝不会被恢复。粘贴成功后，“粘贴后清除”会在 8 秒安全时限结束时移除转录内容；“保留转录内容”会让其继续可用。如果粘贴失败，Murmur 会保留转录内容以便恢复。",
         "options": {
-          "dontModify": "不修改剪贴板",
-          "copyToClipboard": "复制到剪贴板"
+          "dontModify": "粘贴后清除",
+          "copyToClipboard": "保留转录内容"
         }
       },
       "autoSubmit": {
@@ -275,18 +275,6 @@
       "appendTrailingSpace": {
         "label": "追加尾部空格",
         "description": "在粘贴的转录后添加空格"
-      },
-      "pasteDelay": {
-        "title": "粘贴延迟（前）",
-        "description": "复制文本后、发送粘贴按键前的延迟（毫秒）。如果没有粘贴任何内容，请增加此值。"
-      },
-      "pasteDelayAfter": {
-        "title": "粘贴延迟（后）",
-        "description": "发送粘贴按键后、恢复先前剪贴板前的延迟（毫秒）。如果粘贴的是旧的剪贴板内容而非转录文本，请增加此值。"
-      },
-      "reliablePaste": {
-        "title": "可靠粘贴（Beta）",
-        "description": "在目标应用程序真正读取转录文本之后再恢复剪贴板，而不是等待固定延迟。用于解决系统负载较高时粘贴旧剪贴板内容的问题。需要使用剪贴板类的粘贴方式。"
       },
       "recordingBuffer": {
         "title": "额外录音缓冲",

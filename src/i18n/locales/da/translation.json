@@ -167,10 +167,10 @@
       },
       "clipboardHandling": {
         "title": "Håndtering af udklipsholder",
-        "description": "Rør ikke ved udklipsholder bevarer dit nuværende udklipsholderindhold efter transskription. Kopiér til udklipsholder efterlader transskriptionsresultatet i din udklipsholder efter indsætning.",
+        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. Efter en vellykket indsættelse fjerner \"Ryd efter indsættelse\" transskriptionen, når sikkerhedsperioden på 8 sekunder udløber; \"Behold transskription\" lader den forblive tilgængelig. Hvis indsættelsen mislykkes, beholder Murmur transskriptionen, så den kan gendannes.",
         "options": {
-          "dontModify": "Rør ikke ved udklipsholder",
-          "copyToClipboard": "Kopiér til udklipsholder"
+          "dontModify": "Ryd efter indsættelse",
+          "copyToClipboard": "Behold transskription"
         }
       },
       "autoSubmit": {
@@ -282,18 +282,6 @@
       "appendTrailingSpace": {
         "label": "Tilføj efterfølgende mellemrum",
         "description": "Tilføj et mellemrum efter indsat transskription"
-      },
-      "pasteDelay": {
-        "title": "Forsinkelse af indsættelse (før)",
-        "description": "Forsinkelse (i millisekunder) efter kopiering af tekst, før tastetrykket for indsætning sendes. Øg, hvis intet bliver indsat."
-      },
-      "pasteDelayAfter": {
-        "title": "Forsinkelse af indsættelse (efter)",
-        "description": "Forsinkelse (i millisekunder) efter tastetrykket for indsætning, før din tidligere udklipsholder gendannes. Øg, hvis dit gamle udklipsholderindhold bliver indsat i stedet for transskriptionen."
-      },
-      "reliablePaste": {
-        "title": "Pålidelig indsættelse (Beta)",
-        "description": "Gendan først din udklipsholder, når målappen faktisk har læst transskriptionen, i stedet for efter en fast forsinkelse. Skal afhjælpe, at gammelt udklipsholderindhold indsættes, når systemet er belastet. Kræver en indsætningsmetode via udklipsholderen."
       },
       "recordingBuffer": {
         "title": "Ekstra optagelsesbuffer",
