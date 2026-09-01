@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Klembordbeheer",
-        "description": "Voor veilig plakken met Cmd+V worden eerdere klembordgegevens nooit hersteld. 'Wissen na plakken' verwijdert de transcriptie na 8 seconden; 'Transcriptie behouden' laat deze beschikbaar.",
+        "description": "Voor veilig plakken met Cmd+V worden eerdere klembordgegevens nooit hersteld. Na geslaagd plakken verwijdert 'Wissen na plakken' de transcriptie aan het einde van het veiligheidsvenster van 8 seconden; 'Transcriptie behouden' laat deze beschikbaar. Als plakken mislukt, bewaart Murmur de transcriptie voor herstel.",
         "options": {
           "dontModify": "Wissen na plakken",
           "copyToClipboard": "Transcriptie behouden"

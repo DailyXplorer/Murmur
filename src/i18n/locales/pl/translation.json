@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Obsługa schowka",
-        "description": "Aby bezpiecznie wkleić za pomocą Cmd+V, poprzednie dane schowka nigdy nie są przywracane. „Wyczyść po wklejeniu” usuwa transkrypcję po 8 sekundach; „Zachowaj transkrypcję” pozostawia ją dostępną.",
+        "description": "Aby bezpiecznie wkleić za pomocą Cmd+V, poprzednie dane schowka nigdy nie są przywracane. Po udanym wklejeniu opcja „Wyczyść po wklejeniu” usuwa transkrypcję po upływie 8-sekundowego okresu bezpieczeństwa; „Zachowaj transkrypcję” pozostawia ją dostępną. Jeśli wklejanie się nie powiedzie, Murmur zachowuje transkrypcję do odzyskania.",
         "options": {
           "dontModify": "Wyczyść po wklejeniu",
           "copyToClipboard": "Zachowaj transkrypcję"

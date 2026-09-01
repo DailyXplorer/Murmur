@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Manejo del portapapeles",
-        "description": "Para pegar de forma segura con Cmd+V, los datos anteriores del portapapeles nunca se restauran. «Borrar después de pegar» elimina la transcripción después de 8 segundos; «Conservar la transcripción» la deja disponible.",
+        "description": "Para pegar de forma segura con Cmd+V, los datos anteriores del portapapeles nunca se restauran. Tras un pegado correcto, «Borrar después de pegar» elimina la transcripción al finalizar el intervalo de seguridad de 8 segundos; «Conservar la transcripción» la deja disponible. Si el pegado falla, Murmur conserva la transcripción para poder recuperarla.",
         "options": {
           "dontModify": "Borrar después de pegar",
           "copyToClipboard": "Conservar la transcripción"

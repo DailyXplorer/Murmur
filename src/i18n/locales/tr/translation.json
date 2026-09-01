@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Pano Yönetimi",
-        "description": "Cmd+V ile güvenli yapıştırma için önceki pano verileri asla geri yüklenmez. \"Yapıştırdıktan sonra temizle\" transkripsiyonu 8 saniye sonra kaldırır; \"Transkripsiyonu koru\" kullanılabilir durumda bırakır.",
+        "description": "Cmd+V ile güvenli yapıştırma için önceki pano verileri asla geri yüklenmez. Başarılı bir yapıştırmadan sonra \"Yapıştırdıktan sonra temizle\", 8 saniyelik güvenlik süresi dolduğunda transkripsiyonu kaldırır; \"Transkripsiyonu koru\" kullanılabilir durumda bırakır. Yapıştırma başarısız olursa Murmur, kurtarma için transkripsiyonu korur.",
         "options": {
           "dontModify": "Yapıştırdıktan sonra temizle",
           "copyToClipboard": "Transkripsiyonu koru"

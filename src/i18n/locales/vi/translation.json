@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Xử lý Clipboard",
-        "description": "Để dán an toàn bằng Cmd+V, dữ liệu bảng nhớ tạm trước đó không bao giờ được khôi phục. \"Xóa sau khi dán\" sẽ xóa bản chép lời sau 8 giây; \"Giữ bản chép lời\" sẽ giữ lại để sử dụng.",
+        "description": "Để dán an toàn bằng Cmd+V, dữ liệu bảng nhớ tạm trước đó không bao giờ được khôi phục. Sau khi dán thành công, \"Xóa sau khi dán\" sẽ xóa bản chép lời khi khoảng an toàn 8 giây kết thúc; \"Giữ bản chép lời\" sẽ giữ lại để sử dụng. Nếu thao tác dán thất bại, Murmur giữ bản chép lời để có thể khôi phục.",
         "options": {
           "dontModify": "Xóa sau khi dán",
           "copyToClipboard": "Giữ bản chép lời"

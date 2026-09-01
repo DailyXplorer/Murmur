@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Håndtering af udklipsholder",
-        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. \"Ryd efter indsættelse\" fjerner transskriptionen efter 8 sekunder; \"Behold transskription\" lader den forblive tilgængelig.",
+        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. Efter en vellykket indsættelse fjerner \"Ryd efter indsættelse\" transskriptionen, når sikkerhedsperioden på 8 sekunder udløber; \"Behold transskription\" lader den forblive tilgængelig. Hvis indsættelsen mislykkes, beholder Murmur transskriptionen, så den kan gendannes.",
         "options": {
           "dontModify": "Ryd efter indsættelse",
           "copyToClipboard": "Behold transskription"

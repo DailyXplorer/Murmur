@@ -167,7 +167,7 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. „Nach dem Einfügen löschen“ entfernt die Transkription nach 8 Sekunden; „Transkription behalten“ lässt sie verfügbar.",
+        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. Nach erfolgreichem Einfügen entfernt „Nach dem Einfügen löschen“ die Transkription am Ende des 8-sekündigen Sicherheitszeitraums; „Transkription behalten“ lässt sie verfügbar. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung bei.",
         "options": {
           "dontModify": "Nach dem Einfügen löschen",
           "copyToClipboard": "Transkription behalten"
