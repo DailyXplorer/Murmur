@@ -1,15 +1,13 @@
+use crate::audio_toolkit::pcm_f32_to_wav_bytes;
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
-use hound::WavSpec;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
-use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::Duration;
 
 const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcribe";
-const SAMPLE_RATE: u32 = 16_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CodexAuthStatus {
@@ -188,28 +186,6 @@ fn user_agent() -> String {
     format!("Murmur/{} (Mac OS; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
-fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: SAMPLE_RATE,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut cursor = Cursor::new(Vec::new());
-    {
-        let mut writer = hound::WavWriter::new(&mut cursor, spec)
-            .context("failed to create in-memory WAV writer")?;
-        for sample in samples {
-            let clipped = sample.clamp(-1.0, 1.0);
-            writer
-                .write_sample((clipped * i16::MAX as f32) as i16)
-                .context("failed to write WAV sample")?;
-        }
-        writer.finalize().context("failed to finalize WAV")?;
-    }
-    Ok(cursor.into_inner())
-}
-
 fn chatgpt_account_id_from_jwt(token: &str) -> Option<String> {
     jwt_payload(token)?
         .get("https://api.openai.com/auth")
@@ -337,8 +313,8 @@ mod tests {
     #[test]
     #[ignore]
     fn live_codex_session_transcribes() {
-        let sample_rate = SAMPLE_RATE as f32;
-        let samples: Vec<f32> = (0..SAMPLE_RATE)
+        let sample_rate = 16_000.0_f32;
+        let samples: Vec<f32> = (0..16_000_u32)
             .map(|i| {
                 let t = i as f32 / sample_rate;
                 (2.0 * std::f32::consts::PI * 440.0 * t).sin() * 0.2
