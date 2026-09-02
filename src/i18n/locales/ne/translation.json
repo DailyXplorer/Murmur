@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "फिलर शब्दहरू हटाउनुहोस्",
-        "description": "Codex ट्रान्सक्रिप्सनबाट सामान्य हिचकिचाहटका शब्दहरू हटाउँछ। Gemini ले फिलर शब्दहरू आफैं व्यवस्थापन गर्छ।"
+        "description": "Codex र Meta ट्रान्सक्रिप्सनबाट सामान्य हिचकिचाहटका शब्दहरू हटाउँछ। Gemini ले फिलर शब्दहरू आफैं व्यवस्थापन गर्छ।"
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini ले यस Mac को स्थानीय Antigravity सत्र प्रयोग गर्छ। यो प्रयोगात्मक हो; Antigravity अद्यावधिकपछि Murmur अद्यावधिक आवश्यक पर्न सक्छ।",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "आधिकारिक Meta Model API प्रयोग गर्छ। कुञ्जी macOS Keychain मा रहन्छ। Meta ले प्रति अडियो घण्टा $0.18 लिन्छ; निःशुल्क क्रेडिट लागू हुन सक्छ।",
+      "configured": "कन्फिगर गरिएको",
+      "metaApiKeyPlaceholder": "Meta API कुञ्जी",
+      "saveMetaApiKey": "सेभ गर्नुहोस्",
+      "removeMetaApiKeyDisabled": "यो कुञ्जी मेटाउनुअघि अर्को सेवा छान्नुहोस्।",
       "notInstalled": "Antigravity स्थापना गरिएको छैन",
       "installAntigravity": "स्थापना गर्नुहोस्",
       "openAntigravity": "Antigravity खोल्नुहोस्",
-      "onboardingDescription": "अघि बढ्नुअघि Codex वा Antigravity मा साइन इन गर्नुहोस्।",
+      "onboardingDescription": "अघि बढ्नुअघि Codex वा Antigravity मा साइन इन गर्नुहोस् वा Meta API कुञ्जी थप्नुहोस्।",
       "groups": {
         "service": "सेवा",
         "processing": "पाठ प्रशोधन",

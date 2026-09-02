@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Opvulwoorden verwijderen",
-        "description": "Verwijdert veelvoorkomende aarzelwoorden uit Codex-transcripties. Gemini verwerkt opvulwoorden zelf."
+        "description": "Verwijdert veelvoorkomende aarzelwoorden uit Codex- en Meta-transcripties. Gemini verwerkt opvulwoorden zelf."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini gebruikt de lokale Antigravity-sessie op deze Mac. Experimenteel; updates van Antigravity kunnen een update van Murmur vereisen.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Gebruikt de officiële Meta Model API. De sleutel blijft in de macOS-sleutelhanger. Meta rekent 0,18 USD per audio-uur; gratis tegoed kan van toepassing zijn.",
+      "configured": "Geconfigureerd",
+      "metaApiKeyPlaceholder": "Meta API-sleutel",
+      "saveMetaApiKey": "Opslaan",
+      "removeMetaApiKeyDisabled": "Selecteer een andere service voordat je deze sleutel verwijdert.",
       "notInstalled": "Antigravity is niet geïnstalleerd",
       "installAntigravity": "Installeren",
       "openAntigravity": "Antigravity openen",
-      "onboardingDescription": "Meld je aan bij Codex of Antigravity voordat je doorgaat.",
+      "onboardingDescription": "Meld je aan bij Codex of Antigravity, of voeg een Meta API-sleutel toe voordat je doorgaat.",
       "groups": {
         "service": "Service",
         "processing": "Tekstverwerking",

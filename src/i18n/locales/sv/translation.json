@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Ta bort utfyllnadsord",
-        "description": "Tar bort vanliga tvekljud från Codex-transkriberingar. Gemini hanterar utfyllnadsord själv."
+        "description": "Tar bort vanliga tvekljud från Codex- och Meta-transkriberingar. Gemini hanterar utfyllnadsord själv."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini använder den lokala Antigravity-sessionen på denna Mac. Experimentell; Antigravity-uppdateringar kan kräva en Murmur-uppdatering.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Använder officiella Meta Model API. Nyckeln stannar i macOS-nyckelringen. Meta tar 0,18 USD per ljudtimme; kostnadsfria krediter kan gälla.",
+      "configured": "Konfigurerad",
+      "metaApiKeyPlaceholder": "Meta API-nyckel",
+      "saveMetaApiKey": "Spara",
+      "removeMetaApiKeyDisabled": "Välj en annan tjänst innan du tar bort nyckeln.",
       "notInstalled": "Antigravity är inte installerat",
       "installAntigravity": "Installera",
       "openAntigravity": "Öppna Antigravity",
-      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter.",
+      "onboardingDescription": "Logga in på Codex eller Antigravity, eller lägg till en Meta API-nyckel innan du fortsätter.",
       "groups": {
         "service": "Tjänst",
         "processing": "Textbearbetning",

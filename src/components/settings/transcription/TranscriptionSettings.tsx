@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { toast } from "sonner";
 import { commands } from "@/bindings";
-import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
+import type { CodexAuthStatus, GeminiStatus, MetaApiStatus } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import { Button } from "../../ui/Button";
 import { Dropdown } from "../../ui/Dropdown";
+import { Input } from "../../ui/Input";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsPage } from "../../ui/SettingsPage";
@@ -23,11 +25,15 @@ export const TranscriptionSettings: React.FC = () => {
   const [codexStatus, setCodexStatus] = useState<CodexAuthStatus | null>(null);
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null);
   const [geminiStatusError, setGeminiStatusError] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<MetaApiStatus | null>(null);
+  const [metaApiKey, setMetaApiKey] = useState("");
+  const [isUpdatingMetaKey, setIsUpdatingMetaKey] = useState(false);
 
   const refreshStatuses = useCallback(async () => {
-    const [codex, gemini] = await Promise.allSettled([
+    const [codex, gemini, meta] = await Promise.allSettled([
       commands.getCodexAuthStatus(),
       commands.getGeminiStatus(),
+      commands.getMetaApiStatus(),
     ]);
     setCodexStatus(
       codex.status === "fulfilled" ? codex.value : EMPTY_CODEX_STATUS,
@@ -38,6 +44,9 @@ export const TranscriptionSettings: React.FC = () => {
     } else {
       setGeminiStatusError(true);
     }
+    setMetaStatus(
+      meta.status === "fulfilled" ? meta.value : { configured: false },
+    );
   }, []);
 
   useEffect(() => {
@@ -58,8 +67,19 @@ export const TranscriptionSettings: React.FC = () => {
           geminiStatusError ||
           !(geminiStatus?.installed && geminiStatus.signed_in),
       },
+      {
+        value: "meta",
+        label: t("settings.transcription.meta"),
+        disabled: !metaStatus?.configured,
+      },
     ],
-    [geminiStatus?.installed, geminiStatus?.signed_in, geminiStatusError, t],
+    [
+      geminiStatus?.installed,
+      geminiStatus?.signed_in,
+      geminiStatusError,
+      metaStatus?.configured,
+      t,
+    ],
   );
 
   const sessionLabel = (signedIn: boolean | null | undefined) => {
@@ -74,6 +94,42 @@ export const TranscriptionSettings: React.FC = () => {
     if (result.status === "error") console.error(result.error);
   };
 
+  const saveMetaApiKey = async () => {
+    const apiKey = metaApiKey.trim();
+    if (!apiKey) return;
+
+    setIsUpdatingMetaKey(true);
+    try {
+      const result = await commands.saveMetaApiKey(apiKey);
+      if (result.status === "error") {
+        toast.error(t("errors.transcriptionFailedTitle"), {
+          description: result.error,
+        });
+        return;
+      }
+      setMetaApiKey("");
+      await refreshStatuses();
+    } finally {
+      setIsUpdatingMetaKey(false);
+    }
+  };
+
+  const clearMetaApiKey = async () => {
+    setIsUpdatingMetaKey(true);
+    try {
+      const result = await commands.clearMetaApiKey();
+      if (result.status === "error") {
+        toast.error(t("errors.transcriptionFailedTitle"), {
+          description: result.error,
+        });
+        return;
+      }
+      await refreshStatuses();
+    } finally {
+      setIsUpdatingMetaKey(false);
+    }
+  };
+
   return (
     <SettingsPage label={t("sidebar.transcription")}>
       <SettingsGroup title={t("settings.transcription.groups.service")}>
@@ -86,7 +142,8 @@ export const TranscriptionSettings: React.FC = () => {
             options={providerOptions}
             selectedValue={provider}
             onSelect={(value) => {
-              if (value !== "codex" && value !== "gemini") return;
+              if (value !== "codex" && value !== "gemini" && value !== "meta")
+                return;
               void updateSetting("transcription_provider", value);
             }}
             disabled={isUpdating("transcription_provider")}
@@ -140,6 +197,72 @@ export const TranscriptionSettings: React.FC = () => {
                   {t("settings.transcription.openAntigravity")}
                 </Button>
               )}
+          </div>
+        </SettingContainer>
+
+        <SettingContainer
+          title={t("settings.transcription.meta")}
+          description={t("settings.transcription.metaDescription")}
+          grouped={true}
+        >
+          <div className="flex w-full min-w-0 items-center gap-2">
+            {metaStatus?.configured ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
+                  {t("settings.transcription.configured")}
+                </span>
+                <Button
+                  size="sm"
+                  variant="danger-ghost"
+                  disabled={provider === "meta" || isUpdatingMetaKey}
+                  title={
+                    provider === "meta"
+                      ? t("settings.transcription.removeMetaApiKeyDisabled")
+                      : undefined
+                  }
+                  onClick={() => void clearMetaApiKey()}
+                >
+                  {t("common.delete")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Input
+                  type="password"
+                  value={metaApiKey}
+                  onChange={(event) => setMetaApiKey(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveMetaApiKey();
+                  }}
+                  aria-label={t("settings.transcription.metaApiKeyPlaceholder")}
+                  placeholder={t(
+                    "settings.transcription.metaApiKeyPlaceholder",
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-24 min-w-0 flex-1"
+                  variant="compact"
+                  disabled={isUpdatingMetaKey}
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  disabled={!metaApiKey.trim() || isUpdatingMetaKey}
+                  onClick={() => void saveMetaApiKey()}
+                >
+                  {t("settings.transcription.saveMetaApiKey")}
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shrink-0"
+              onClick={() => void openUrl("https://dev.meta.ai/")}
+            >
+              {t("common.open")}
+            </Button>
           </div>
         </SettingContainer>
       </SettingsGroup>

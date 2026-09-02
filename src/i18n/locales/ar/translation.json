@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "إزالة كلمات الحشو",
-        "description": "يزيل كلمات التردد الشائعة من نصوص Codex. يتولى Gemini معالجة كلمات الحشو بنفسه."
+        "description": "يزيل كلمات التردد الشائعة من نصوص Codex وMeta. يتولى Gemini معالجة كلمات الحشو بنفسه."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "يستخدم Gemini جلسة Antigravity المحلية على هذا الـ Mac. ميزة تجريبية؛ قد تتطلب تحديثات Antigravity تحديث Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "يستخدم واجهة Meta Model API الرسمية. يبقى المفتاح في سلسلة مفاتيح macOS. تتقاضى Meta ‏0.18 دولار لكل ساعة صوتية، وقد تُطبّق أرصدة الفئة المجانية.",
+      "configured": "تم الإعداد",
+      "metaApiKeyPlaceholder": "مفتاح Meta API",
+      "saveMetaApiKey": "حفظ",
+      "removeMetaApiKeyDisabled": "اختر خدمة أخرى قبل حذف هذا المفتاح.",
       "notInstalled": "Antigravity غير مثبت",
       "installAntigravity": "تثبيت",
       "openAntigravity": "فتح Antigravity",
-      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
+      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity، أو أضف مفتاح Meta API قبل المتابعة.",
       "groups": {
         "service": "الخدمة",
         "processing": "معالجة النص",

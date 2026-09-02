@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Remover palavras de preenchimento",
-        "description": "Remove hesitações comuns das transcrições do Codex. O Gemini trata as palavras de preenchimento por conta própria."
+        "description": "Remove hesitações comuns das transcrições do Codex e da Meta. O Gemini trata as palavras de preenchimento por conta própria."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "O Gemini usa a sessão local do Antigravity neste Mac. Recurso experimental; atualizações do Antigravity podem exigir uma atualização do Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Usa a API oficial Meta Model. A chave permanece nas Chaves do macOS. A Meta cobra US$ 0,18 por hora de áudio; créditos gratuitos podem ser aplicados.",
+      "configured": "Configurado",
+      "metaApiKeyPlaceholder": "Chave da API Meta",
+      "saveMetaApiKey": "Salvar",
+      "removeMetaApiKeyDisabled": "Selecione outro serviço antes de excluir esta chave.",
       "notInstalled": "Antigravity não está instalado",
       "installAntigravity": "Instalar",
       "openAntigravity": "Abrir Antigravity",
-      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar.",
+      "onboardingDescription": "Entre no Codex ou no Antigravity, ou adicione uma chave da API Meta antes de continuar.",
       "groups": {
         "service": "Serviço",
         "processing": "Processamento de texto",

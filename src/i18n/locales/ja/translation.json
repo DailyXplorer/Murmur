@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "フィラー語を削除",
-        "description": "Codexの文字起こしから一般的なフィラー語を削除します。Geminiはフィラー語を独自に処理します。"
+        "description": "Codex と Meta の文字起こしから一般的なフィラー語を削除します。Gemini はフィラー語を独自に処理します。"
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini はこの Mac のローカル Antigravity セッションを使います。試験的機能のため、Antigravity の更新後に Murmur の更新が必要になる場合があります。",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "公式の Meta Model API を使います。キーは macOS キーチェーンに保存されます。Meta の料金は音声 1 時間あたり 0.18 米ドルで、無料クレジットが適用される場合があります。",
+      "configured": "設定済み",
+      "metaApiKeyPlaceholder": "Meta API キー",
+      "saveMetaApiKey": "保存",
+      "removeMetaApiKeyDisabled": "このキーを削除する前に別のサービスを選択してください。",
       "notInstalled": "Antigravity がインストールされていません",
       "installAntigravity": "インストール",
       "openAntigravity": "Antigravity を開く",
-      "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。",
+      "onboardingDescription": "続行する前に Codex または Antigravity にログインするか、Meta API キーを追加してください。",
       "groups": {
         "service": "サービス",
         "processing": "テキスト処理",

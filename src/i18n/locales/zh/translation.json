@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "移除填充词",
-        "description": "从 Codex 转录中移除常见的填充词。Gemini 会自行处理填充词。"
+        "description": "从 Codex 和 Meta 转录中移除常见的填充词。Gemini 会自行处理填充词。"
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini 使用这台 Mac 上的本地 Antigravity 会话。此功能仍处于实验阶段；Antigravity 更新后可能需要更新 Murmur。",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "使用官方 Meta Model API。密钥保存在 macOS 钥匙串中。Meta 每音频小时收费 0.18 美元；可能适用免费额度。",
+      "configured": "已配置",
+      "metaApiKeyPlaceholder": "Meta API 密钥",
+      "saveMetaApiKey": "保存",
+      "removeMetaApiKeyDisabled": "删除此密钥前，请选择其他服务。",
       "notInstalled": "未安装 Antigravity",
       "installAntigravity": "安装",
       "openAntigravity": "打开 Antigravity",
-      "onboardingDescription": "请先登录 Codex 或 Antigravity，然后再继续。",
+      "onboardingDescription": "请先登录 Codex 或 Antigravity，或添加 Meta API 密钥，然后再继续。",
       "groups": {
         "service": "服务",
         "processing": "文本处理",

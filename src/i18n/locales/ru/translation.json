@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Удалять слова-паразиты",
-        "description": "Удаляет распространённые слова-заминки из расшифровок Codex. Gemini обрабатывает слова-паразиты самостоятельно."
+        "description": "Удаляет распространённые слова-заминки из расшифровок Codex и Meta. Gemini обрабатывает слова-паразиты самостоятельно."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini использует локальный сеанс Antigravity на этом Mac. Экспериментальная функция; после обновления Antigravity может потребоваться обновление Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Использует официальный Meta Model API. Ключ хранится в Связке ключей macOS. Meta взимает 0,18 доллара США за час аудио; могут применяться бесплатные кредиты.",
+      "configured": "Настроено",
+      "metaApiKeyPlaceholder": "Ключ API Meta",
+      "saveMetaApiKey": "Сохранить",
+      "removeMetaApiKeyDisabled": "Перед удалением ключа выберите другой сервис.",
       "notInstalled": "Antigravity не установлен",
       "installAntigravity": "Установить",
       "openAntigravity": "Открыть Antigravity",
-      "onboardingDescription": "Перед продолжением войдите в Codex или Antigravity.",
+      "onboardingDescription": "Перед продолжением войдите в Codex или Antigravity либо добавьте ключ API Meta.",
       "groups": {
         "service": "Сервис",
         "processing": "Обработка текста",

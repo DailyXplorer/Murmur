@@ -75,10 +75,22 @@ const ProductionSettingsControlWidthsFixture: React.FC = () => (
 );
 
 const renderFixture = async () => {
+  let metaConfigured = false;
   mockIPC((command) => {
     if (command === "get_codex_auth_status") return { signed_in: true };
     if (command === "get_gemini_status") {
       return { installed: true, signed_in: true };
+    }
+    if (command === "get_meta_api_status") {
+      return { configured: metaConfigured };
+    }
+    if (command === "save_meta_api_key") {
+      metaConfigured = true;
+      return null;
+    }
+    if (command === "clear_meta_api_key") {
+      metaConfigured = false;
+      return null;
     }
     throw new Error(`Unexpected Tauri command: ${command}`);
   });

@@ -5,13 +5,16 @@ Murmur pastes the transcription into the active application.
 
 Murmur sends audio to a cloud transcription service using a session already on
 the computer. Codex with ChatGPT is the default. On macOS, Gemini through the
-local Antigravity session is available as an experimental alternative. Neither
-option requires an API key or local speech-recognition model.
+local Antigravity session is available as an experimental alternative. Murmur
+can also use Muse Voice Transcribe through the official Meta Model API. Codex
+and Gemini require no API key or local speech-recognition model. Meta requires
+an API key and charges $0.18 per audio hour; free-tier credits may apply.
 
 ## Requirements
 
 - A working microphone
-- Codex signed in with a ChatGPT account, or Antigravity signed in on macOS
+- Codex signed in with a ChatGPT account, Antigravity signed in on macOS, or a
+  Meta Model API key
 - Accessibility permission for global shortcuts and text insertion
 - Network access while transcribing
 
@@ -22,13 +25,18 @@ session. Murmur does not read or copy the Antigravity token. Both integrations
 use internal services rather than public, documented APIs, so a Codex,
 ChatGPT, or Antigravity update may require a Murmur update.
 
+For Meta, Murmur sends 16 kHz WAV audio to the documented Muse Voice Transcribe
+file API. The API key is stored in macOS Keychain and is never returned to the
+frontend after it is saved.
+
 ## Features
 
 - Global record, push-to-talk, and cancel shortcuts
 - Automatic language detection or explicit language selection
-- Codex or experimental Gemini transcription selection on macOS
+- Codex, experimental Gemini, or Meta Muse Voice Transcribe selection on macOS
 - Microphone and output-device selection
-- Optional filler-word removal for Codex and custom-word correction for both services
+- Optional filler-word removal for Codex and Meta, plus custom-word correction
+  for all services
 - Transcription history with saved recordings
 - Recording overlay, audio feedback, tray controls, and automatic updates
 
@@ -80,9 +88,9 @@ settings, history, and the recording overlay.
 
 ## Privacy and security
 
-Audio sent for transcription leaves the computer and is handled by ChatGPT or
-Google, depending on the selected service. Do not describe Murmur as offline
-or local-only.
+Audio sent for transcription leaves the computer and is handled by ChatGPT,
+Google, or Meta, depending on the selected service. Do not describe Murmur as
+offline or local-only.
 
 The Codex authentication cache is sensitive. Murmur reads only the access token
 and account identifier needed for a request, does not log them, and does not
@@ -93,13 +101,16 @@ ephemeral CSRF token. It never logs that token. A language server started by
 Murmur stops after five minutes without a Gemini dictation. Murmur never stops
 an Antigravity process it did not start.
 
+For Meta, Murmur keeps the API key in macOS Keychain, never logs it, and sends
+it only to Meta's documented Model API endpoint as a bearer credential.
+
 ## Origin
 
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur now
 transcribes through cloud services using sessions already present on the
-computer.
+computer or a user-provided Meta Model API key.
 
 ## License
 

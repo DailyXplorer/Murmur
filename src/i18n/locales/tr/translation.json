@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Dolgu Sözcüklerini Kaldır",
-        "description": "Codex transkripsiyonlarındaki yaygın duraksama sözcüklerini kaldırır. Gemini dolgu sözcüklerini kendisi işler."
+        "description": "Codex ve Meta transkripsiyonlarındaki yaygın duraksama sözcüklerini kaldırır. Gemini dolgu sözcüklerini kendisi işler."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini bu Mac'teki yerel Antigravity oturumunu kullanır. Deneyseldir; Antigravity güncellemeleri Murmur güncellemesi gerektirebilir.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Resmi Meta Model API'yi kullanır. Anahtar macOS Anahtar Zinciri'nde kalır. Meta ses saati başına 0,18 ABD doları ücret alır; ücretsiz krediler geçerli olabilir.",
+      "configured": "Yapılandırıldı",
+      "metaApiKeyPlaceholder": "Meta API anahtarı",
+      "saveMetaApiKey": "Kaydet",
+      "removeMetaApiKeyDisabled": "Bu anahtarı silmeden önce başka bir hizmet seçin.",
       "notInstalled": "Antigravity yüklü değil",
       "installAntigravity": "Yükle",
       "openAntigravity": "Antigravity'yi aç",
-      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın.",
+      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın ya da bir Meta API anahtarı ekleyin.",
       "groups": {
         "service": "Hizmet",
         "processing": "Metin işleme",

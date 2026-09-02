@@ -119,6 +119,34 @@ export const SELECTABLE_LANGUAGES: Language[] = LANGUAGES.filter(
   (language) => language.value !== CHINESE_LANGUAGE_CODE,
 );
 
+export const META_TRANSCRIPTION_LANGUAGES = [
+  "ar",
+  "bn",
+  "nl",
+  "en",
+  "fr",
+  "de",
+  "he",
+  "hi",
+  "id",
+  "it",
+  "ja",
+  "kn",
+  "ko",
+  "ms",
+  "zh",
+  "mr",
+  "pl",
+  "pt",
+  "es",
+  "tl",
+  "ta",
+  "te",
+  "th",
+  "tr",
+  "vi",
+] as const;
+
 // Collapse a language tag to the base code Murmur matches on, dropping any
 // BCP-47 region or script subtag: "en-US" → "en", "zh-CN" → "zh", "zh-Hant" →
 // "zh". Bare and three-letter codes ("haw") pass through unchanged. This lets

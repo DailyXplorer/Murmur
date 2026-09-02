@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Премахване на думи паразити",
-        "description": "Премахва често срещаните думи за колебание от транскрипциите на Codex. Gemini обработва паразитните думи самостоятелно."
+        "description": "Премахва често срещаните думи за колебание от транскрипциите на Codex и Meta. Gemini обработва паразитните думи самостоятелно."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini използва локалната сесия на Antigravity на този Mac. Експериментално; актуализациите на Antigravity може да изискват актуализация на Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Използва официалния Meta Model API. Ключът остава в Keychain на macOS. Meta таксува $0,18 за час аудио; може да важат безплатни кредити.",
+      "configured": "Конфигурирано",
+      "metaApiKeyPlaceholder": "Meta API ключ",
+      "saveMetaApiKey": "Запази",
+      "removeMetaApiKeyDisabled": "Изберете друга услуга, преди да изтриете този ключ.",
       "notInstalled": "Antigravity не е инсталиран",
       "installAntigravity": "Инсталиране",
       "openAntigravity": "Отвори Antigravity",
-      "onboardingDescription": "Влезте в Codex или Antigravity, преди да продължите.",
+      "onboardingDescription": "Влезте в Codex или Antigravity или добавете Meta API ключ, преди да продължите.",
       "groups": {
         "service": "Услуга",
         "processing": "Обработка на текста",

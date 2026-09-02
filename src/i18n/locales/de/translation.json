@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Füllwörter entfernen",
-        "description": "Entfernt häufige Verzögerungslaute aus Codex-Transkriptionen. Gemini verarbeitet Füllwörter selbst."
+        "description": "Entfernt häufige Verzögerungslaute aus Codex- und Meta-Transkriptionen. Gemini verarbeitet Füllwörter selbst."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini verwendet die lokale Antigravity-Sitzung auf diesem Mac. Experimentell; nach Antigravity-Updates kann ein Murmur-Update nötig sein.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Verwendet die offizielle Meta Model API. Der Schlüssel bleibt im macOS-Schlüsselbund. Meta berechnet 0,18 USD pro Audiostunde; kostenlose Guthaben können gelten.",
+      "configured": "Konfiguriert",
+      "metaApiKeyPlaceholder": "Meta-API-Schlüssel",
+      "saveMetaApiKey": "Speichern",
+      "removeMetaApiKeyDisabled": "Wähle einen anderen Dienst, bevor du diesen Schlüssel löschst.",
       "notInstalled": "Antigravity ist nicht installiert",
       "installAntigravity": "Installieren",
       "openAntigravity": "Antigravity öffnen",
-      "onboardingDescription": "Melde dich bei Codex oder Antigravity an, bevor du fortfährst.",
+      "onboardingDescription": "Melde dich bei Codex oder Antigravity an oder füge einen Meta-API-Schlüssel hinzu, bevor du fortfährst.",
       "groups": {
         "service": "Dienst",
         "processing": "Textverarbeitung",

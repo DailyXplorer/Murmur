@@ -15,11 +15,13 @@ import { LanguageSelector } from "../LanguageSelector";
 import { AppLanguageSelector } from "../AppLanguageSelector";
 import { ThemeSelector } from "../ThemeSelector";
 import { AccentColorSelector } from "../AccentColorSelector";
+import { META_TRANSCRIPTION_LANGUAGES } from "../../../lib/constants/languages";
 
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
   const { audioFeedbackEnabled, getSetting } = useSettings();
   const pushToTalk = getSetting("push_to_talk");
+  const transcriptionProvider = getSetting("transcription_provider");
   return (
     <SettingsPage label={t("sidebar.general")}>
       <SettingsGroup title={t("settings.general.groups.appearance")}>
@@ -34,6 +36,11 @@ export const GeneralSettings: React.FC = () => {
         <LanguageSelector
           descriptionMode="tooltip"
           grouped={true}
+          supportedLanguages={
+            transcriptionProvider === "meta"
+              ? [...META_TRANSCRIPTION_LANGUAGES]
+              : undefined
+          }
           supportsLanguageDetection={true}
         />
       </SettingsGroup>

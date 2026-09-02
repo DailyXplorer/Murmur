@@ -39,8 +39,12 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByTestId("production-transcription")
     .getByText("Connected", { exact: true })
     .last();
+  const metaApiKey = page
+    .getByTestId("production-transcription")
+    .getByLabel("Meta API key");
 
   await expect(geminiStatus).toBeVisible();
+  await expect(metaApiKey).toHaveAttribute("type", "password");
 
   const slots = [
     microphone,
@@ -50,6 +54,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     customWordsInput,
     provider,
     geminiStatus,
+    metaApiKey,
   ].map(controlSlot);
   const slotNames = [
     "microphone",
@@ -59,6 +64,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     "custom words",
     "provider",
     "Gemini status",
+    "Meta API key",
   ];
   const slotMeasurements = await Promise.all(
     slots.map((slot) =>
@@ -109,6 +115,12 @@ test("real settings controls consume the shared rail", async ({ page }) => {
         .getByRole("button", { name: "Add" }),
       start: customWordsInput,
     },
+    {
+      end: page
+        .getByTestId("production-transcription")
+        .getByRole("button", { name: "Open" }),
+      start: metaApiKey,
+    },
   ];
   for (const { end, start } of compositeControls) {
     const [endBox, startBox] = await Promise.all([
@@ -153,4 +165,24 @@ test("real settings controls consume the shared rail", async ({ page }) => {
   const customTitleBox = await customWordsTitle.boundingBox();
   expect(customTitleBox).not.toBeNull();
   expect(chipMeasurements.x).toBeCloseTo(customTitleBox?.x ?? 0, 1);
+
+  await metaApiKey.fill("meta-test-secret");
+  await page
+    .getByTestId("production-transcription")
+    .getByRole("button", { name: "Save" })
+    .click();
+  await expect(
+    page
+      .getByTestId("production-transcription")
+      .getByText("Configured", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("meta-test-secret")).toHaveCount(0);
+
+  await page
+    .getByTestId("production-transcription")
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(
+    page.getByTestId("production-transcription").getByLabel("Meta API key"),
+  ).toHaveAttribute("type", "password");
 });

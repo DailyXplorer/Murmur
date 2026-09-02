@@ -218,12 +218,13 @@ function App() {
   /** Completes onboarding after a usable transcription session is confirmed. */
   const handleAccessibilityComplete = async () => {
     try {
-      const [codex, gemini] = await Promise.all([
+      const [codex, gemini, meta] = await Promise.all([
         commands.getCodexAuthStatus(),
         commands.getGeminiStatus().catch(() => null),
+        commands.getMetaApiStatus().catch(() => null),
       ]);
       const hasUsableGeminiSession = gemini?.installed && gemini.signed_in;
-      if (!codex.signed_in && !hasUsableGeminiSession) {
+      if (!codex.signed_in && !hasUsableGeminiSession && !meta?.configured) {
         toast.error(t("settings.transcription.missing"), {
           description: t("settings.transcription.onboardingDescription"),
         });

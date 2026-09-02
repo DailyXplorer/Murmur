@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Odstranit výplňová slova",
-        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů Codexu. Gemini zpracovává výplňová slova sám."
+        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů Codexu a Meta. Gemini zpracovává výplňová slova sám."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini používá místní relaci Antigravity na tomto Macu. Experimentální funkce; aktualizace Antigravity mohou vyžadovat aktualizaci Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Používá oficiální Meta Model API. Klíč zůstává v Klíčence macOS. Meta účtuje 0,18 USD za hodinu zvuku; mohou se uplatnit bezplatné kredity.",
+      "configured": "Nakonfigurováno",
+      "metaApiKeyPlaceholder": "Klíč Meta API",
+      "saveMetaApiKey": "Uložit",
+      "removeMetaApiKeyDisabled": "Před odstraněním tohoto klíče vyberte jinou službu.",
       "notInstalled": "Antigravity není nainstalován",
       "installAntigravity": "Nainstalovat",
       "openAntigravity": "Otevřít Antigravity",
-      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity.",
+      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu či Antigravity nebo přidejte klíč Meta API.",
       "groups": {
         "service": "Služba",
         "processing": "Zpracování textu",

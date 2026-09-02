@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Eliminar muletillas",
-        "description": "Elimina las muletillas más comunes de las transcripciones de Codex. Gemini gestiona las muletillas por sí mismo."
+        "description": "Elimina las muletillas más comunes de las transcripciones de Codex y Meta. Gemini gestiona las muletillas por sí mismo."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini usa la sesión local de Antigravity en este Mac. Es experimental; las actualizaciones de Antigravity pueden requerir una actualización de Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Usa la API oficial de Meta Model. La clave permanece en el llavero de macOS. Meta cobra 0,18 USD por hora de audio; pueden aplicarse créditos gratuitos.",
+      "configured": "Configurado",
+      "metaApiKeyPlaceholder": "Clave de API de Meta",
+      "saveMetaApiKey": "Guardar",
+      "removeMetaApiKeyDisabled": "Selecciona otro servicio antes de eliminar esta clave.",
       "notInstalled": "Antigravity no está instalado",
       "installAntigravity": "Instalar",
       "openAntigravity": "Abrir Antigravity",
-      "onboardingDescription": "Inicia sesión en Codex o Antigravity antes de continuar.",
+      "onboardingDescription": "Inicia sesión en Codex o Antigravity, o añade una clave de API de Meta antes de continuar.",
       "groups": {
         "service": "Servicio",
         "processing": "Procesamiento de texto",

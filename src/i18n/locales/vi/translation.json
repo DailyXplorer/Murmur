@@ -193,7 +193,7 @@
       },
       "fillerWordRemoval": {
         "title": "Loại bỏ từ đệm",
-        "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời của Codex. Gemini tự xử lý các từ đệm."
+        "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời của Codex và Meta. Gemini tự xử lý các từ đệm."
       }
     },
     "history": {
@@ -338,10 +338,16 @@
       "codex": "Codex (GPT Transcribe)",
       "gemini": "Gemini (Gemini 3.5 Transcribe)",
       "geminiDescription": "Gemini dùng phiên Antigravity cục bộ trên máy Mac này. Đây là tính năng thử nghiệm; bản cập nhật Antigravity có thể yêu cầu cập nhật Murmur.",
+      "meta": "Meta (Muse Voice Transcribe)",
+      "metaDescription": "Dùng Meta Model API chính thức. Khóa được lưu trong Chuỗi khóa macOS. Meta tính phí 0,18 USD mỗi giờ âm thanh; tín dụng miễn phí có thể được áp dụng.",
+      "configured": "Đã cấu hình",
+      "metaApiKeyPlaceholder": "Khóa API Meta",
+      "saveMetaApiKey": "Lưu",
+      "removeMetaApiKeyDisabled": "Chọn dịch vụ khác trước khi xóa khóa này.",
       "notInstalled": "Chưa cài đặt Antigravity",
       "installAntigravity": "Cài đặt",
       "openAntigravity": "Mở Antigravity",
-      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity trước khi tiếp tục.",
+      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity, hoặc thêm khóa API Meta trước khi tiếp tục.",
       "groups": {
         "service": "Dịch vụ",
         "processing": "Xử lý văn bản",
