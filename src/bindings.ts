@@ -503,6 +503,25 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
 async getGeminiStatus() : Promise<GeminiStatus> {
     return await TAURI_INVOKE("get_gemini_status");
 },
+async getMetaApiStatus() : Promise<MetaApiStatus> {
+    return await TAURI_INVOKE("get_meta_api_status");
+},
+async saveMetaApiKey(apiKey: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_meta_api_key", { apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async clearMetaApiKey() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_meta_api_key") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 /**
  * Opens Antigravity after an explicit user action so the user can sign in.
  */
@@ -625,6 +644,7 @@ export type AccentColor = "pink" | "blue" | "green" | "yellow" | "orange" | "red
  * its `get_default_settings()` value when missing from a stored settings
  * object, so a partial store can never fail the whole load (#1619).
  * Field-level defaults below take precedence where present.
+ * Settings may contain user-authored and private values. Do not derive `Debug`.
  */
 export type AppSettings = { 
 /**
@@ -657,6 +677,7 @@ export type GeminiStatus = { installed: boolean; signed_in: boolean }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+export type MetaApiStatus = { configured: boolean }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -669,7 +690,7 @@ export type SoundTheme = "marimba" | "pop" | "custom"
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
-export type TranscriptionProvider = "codex" | "gemini"
+export type TranscriptionProvider = "codex" | "gemini" | "meta"
 
 /** tauri-specta globals **/
 

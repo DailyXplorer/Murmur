@@ -4,6 +4,7 @@ use crate::audio_toolkit::{
 };
 use crate::codex_transcribe;
 use crate::gemini_transcribe::GeminiTranscriber;
+use crate::meta_transcribe;
 use crate::settings::{get_settings, TranscriptionProvider};
 use anyhow::Result;
 use log::{debug, error, info};
@@ -60,6 +61,9 @@ impl TranscriptionManager {
                 codex_transcribe::transcribe(&audio, language.as_deref())
             }
             TranscriptionProvider::Gemini => self.gemini.transcribe(&audio),
+            TranscriptionProvider::Meta => {
+                meta_transcribe::transcribe(&audio, language.as_deref(), &settings.custom_words)
+            }
         }
         .map_err(|err| {
             error!("{provider:?} transcription failed: {err}");
@@ -73,7 +77,7 @@ impl TranscriptionManager {
             settings.word_correction_threshold,
         );
 
-        if provider == TranscriptionProvider::Codex {
+        if provider != TranscriptionProvider::Gemini {
             let language_evidence = if settings.selected_language == "auto" {
                 let supported_languages = SUPPORTED_LANGUAGES
                     .iter()

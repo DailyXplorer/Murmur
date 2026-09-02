@@ -196,6 +196,7 @@ pub enum TranscriptionProvider {
     #[default]
     Codex,
     Gemini,
+    Meta,
 }
 
 /// The container-level `serde(default)` (backed by the `Default` impl below)
@@ -714,6 +715,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(TranscriptionProvider::Gemini).unwrap(),
             "gemini"
+        );
+        assert_eq!(
+            serde_json::to_value(TranscriptionProvider::Meta).unwrap(),
+            "meta"
         );
         let settings: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
         assert_eq!(

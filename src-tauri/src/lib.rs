@@ -14,6 +14,7 @@ mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
+mod meta_transcribe;
 mod overlay;
 mod paste_tx;
 mod settings;
@@ -376,6 +377,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     let backend = match get_settings(app).transcription_provider {
         settings::TranscriptionProvider::Codex => "chatgpt-session",
         settings::TranscriptionProvider::Gemini => "antigravity-session",
+        settings::TranscriptionProvider::Meta => "meta-model-api",
     };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
@@ -483,6 +485,9 @@ pub fn run(cli_args: CliArgs) {
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
             commands::transcription::get_gemini_status,
+            commands::transcription::get_meta_api_status,
+            commands::transcription::save_meta_api_key,
+            commands::transcription::clear_meta_api_key,
             commands::transcription::open_antigravity,
             commands::transcription::complete_onboarding,
             commands::history::get_history_entries,
