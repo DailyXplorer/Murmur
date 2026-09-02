@@ -971,7 +971,6 @@ fn parse_default_bool(value: &str) -> bool {
     )
 }
 
-#[cfg(target_os = "macos")]
 mod macos {
     use super::{
         classify_runtime_state, non_pill_window_is_visible, target_still_focused,
@@ -1310,42 +1309,6 @@ mod macos {
     fn running_application() -> Option<objc2::rc::Retained<NSRunningApplication>> {
         let bundle_id = NSString::from_str(META_AI_BUNDLE_ID);
         NSRunningApplication::runningApplicationsWithBundleIdentifier(&bundle_id).firstObject()
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-mod macos {
-    use super::{MetaAppRuntimeState, TargetApplication};
-    use anyhow::{anyhow, Result};
-
-    #[derive(Debug, Clone, Copy, Default)]
-    pub(super) struct PillObservation {
-        pub(super) present: bool,
-        pub(super) moved: bool,
-    }
-
-    pub(super) fn is_installed() -> bool {
-        false
-    }
-
-    pub(super) fn accessibility_trusted() -> bool {
-        false
-    }
-
-    pub(super) fn runtime_state() -> MetaAppRuntimeState {
-        MetaAppRuntimeState::NotRunning
-    }
-
-    pub(super) fn frontmost_target() -> Result<TargetApplication> {
-        Err(anyhow!("Meta AI app dictation is only available on macOS"))
-    }
-
-    pub(super) fn ensure_ready_for_target(_: TargetApplication, _: bool) -> Result<()> {
-        Err(anyhow!("Meta AI app dictation is only available on macOS"))
-    }
-
-    pub(super) fn position_dictation_pill(_: (f64, f64, f64, f64)) -> Result<PillObservation> {
-        Err(anyhow!("Meta AI app dictation is only available on macOS"))
     }
 }
 
