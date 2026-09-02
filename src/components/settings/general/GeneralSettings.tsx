@@ -22,6 +22,7 @@ export const GeneralSettings: React.FC = () => {
   const { audioFeedbackEnabled, getSetting } = useSettings();
   const pushToTalk = getSetting("push_to_talk");
   const transcriptionProvider = getSetting("transcription_provider");
+  const usesMetaApp = transcriptionProvider === "meta_app";
   return (
     <SettingsPage label={t("sidebar.general")}>
       <SettingsGroup title={t("settings.general.groups.appearance")}>
@@ -33,29 +34,33 @@ export const GeneralSettings: React.FC = () => {
         <ShortcutInput shortcutId="transcribe" grouped={true} />
         <PushToTalk descriptionMode="tooltip" grouped={true} />
         {!pushToTalk && <ShortcutInput shortcutId="cancel" grouped={true} />}
-        <LanguageSelector
-          descriptionMode="tooltip"
-          grouped={true}
-          supportedLanguages={
-            transcriptionProvider === "meta"
-              ? [...META_TRANSCRIPTION_LANGUAGES]
-              : undefined
-          }
-          supportsLanguageDetection={true}
-        />
+        {!usesMetaApp && (
+          <LanguageSelector
+            descriptionMode="tooltip"
+            grouped={true}
+            supportedLanguages={
+              transcriptionProvider === "meta"
+                ? [...META_TRANSCRIPTION_LANGUAGES]
+                : undefined
+            }
+            supportsLanguageDetection={true}
+          />
+        )}
       </SettingsGroup>
-      <SettingsGroup title={t("settings.sound.title")}>
-        <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
-        <ChannelSelector descriptionMode="tooltip" grouped={true} />
-        <MuteWhileRecording descriptionMode="tooltip" grouped={true} />
-        <AudioFeedback descriptionMode="tooltip" grouped={true} />
-        <OutputDeviceSelector
-          descriptionMode="tooltip"
-          grouped={true}
-          disabled={!audioFeedbackEnabled}
-        />
-        <VolumeSlider disabled={!audioFeedbackEnabled} />
-      </SettingsGroup>
+      {!usesMetaApp && (
+        <SettingsGroup title={t("settings.sound.title")}>
+          <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
+          <ChannelSelector descriptionMode="tooltip" grouped={true} />
+          <MuteWhileRecording descriptionMode="tooltip" grouped={true} />
+          <AudioFeedback descriptionMode="tooltip" grouped={true} />
+          <OutputDeviceSelector
+            descriptionMode="tooltip"
+            grouped={true}
+            disabled={!audioFeedbackEnabled}
+          />
+          <VolumeSlider disabled={!audioFeedbackEnabled} />
+        </SettingsGroup>
+      )}
     </SettingsPage>
   );
 };

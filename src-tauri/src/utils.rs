@@ -17,6 +17,16 @@ pub(crate) enum CancellationStage {
     Processing,
 }
 
+/// What the authoritative cancellation attempt did. The coordinator must keep
+/// `Recording` when Meta's Fn-up is blocked, rather than treating the bridge
+/// as an asynchronous finalization that will never arrive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CancellationDisposition {
+    MetaFinalizing,
+    MetaReleaseBlocked,
+    Audio,
+}
+
 /// Side effects permitted for a cancellation in a given authoritative stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CancellationEffects {
@@ -43,25 +53,45 @@ pub(crate) fn cancellation_effects(
 /// Cancels from the coordinator thread after it has ordered the remote action.
 /// `stage` is the coordinator's authoritative state, which keeps the UI
 /// truthful while the stop task releases the audio manager asynchronously.
-pub(crate) fn cancel_current_operation_from_coordinator(app: &AppHandle, stage: CancellationStage) {
+pub(crate) fn cancel_current_operation_from_coordinator(
+    app: &AppHandle,
+    stage: CancellationStage,
+) -> CancellationDisposition {
     cancel_current_operation_impl(app, stage)
 }
 
 /// Safe fallback for cancellation before the coordinator exists. Normal local
 /// cancellation is routed through `TranscriptionCoordinator::send_cancel`.
 pub(crate) fn cancel_current_operation_before_coordinator(app: &AppHandle) {
-    cancel_current_operation_impl(app, CancellationStage::NotProcessing)
+    let _ = cancel_current_operation_impl(app, CancellationStage::NotProcessing);
 }
 
-fn cancel_current_operation_impl(app: &AppHandle, stage: CancellationStage) {
+fn cancel_current_operation_impl(
+    app: &AppHandle,
+    stage: CancellationStage,
+) -> CancellationDisposition {
     info!("Initiating operation cancellation...");
+
+    if let Some(bridge) = app.try_state::<crate::meta_app::MetaAppBridge>() {
+        match bridge.stop(app) {
+            Ok(
+                crate::meta_app::MetaStopDisposition::Finalizing
+                | crate::meta_app::MetaStopDisposition::AlreadyFinalizing,
+            ) => return CancellationDisposition::MetaFinalizing,
+            Ok(crate::meta_app::MetaStopDisposition::Inactive) => {}
+            Err(error) => {
+                log::error!("Failed to release Meta AI dictation during cancellation: {error}");
+                return CancellationDisposition::MetaReleaseBlocked;
+            }
+        }
+    }
 
     let Some(audio_manager) = app.try_state::<Arc<AudioRecordingManager>>() else {
         // A public caller may run during startup, before initialize_core_logic
         // manages the audio manager. Single-instance actions are buffered by
         // SingleInstanceActionQueue; this guard only keeps other callers safe.
         log::warn!("Ignoring cancellation before the audio manager is initialized");
-        return;
+        return CancellationDisposition::Audio;
     };
     let recording_was_active = audio_manager.is_recording();
     let effects = cancellation_effects(stage, recording_was_active);
@@ -88,11 +118,22 @@ fn cancel_current_operation_impl(app: &AppHandle, stage: CancellationStage) {
     } else {
         info!("Processing cancellation requested - waiting for worker completion");
     }
+    CancellationDisposition::Audio
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{cancellation_effects, CancellationEffects, CancellationStage};
+    use super::{
+        cancellation_effects, CancellationDisposition, CancellationEffects, CancellationStage,
+    };
+
+    #[test]
+    fn meta_release_blocked_is_distinct_from_async_finalization() {
+        assert_ne!(
+            CancellationDisposition::MetaReleaseBlocked,
+            CancellationDisposition::MetaFinalizing
+        );
+    }
 
     #[test]
     fn active_audio_during_processing_only_signals_cancellation() {

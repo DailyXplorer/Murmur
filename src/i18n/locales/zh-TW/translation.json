@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini 會使用這台 Mac 上的本機 Antigravity 工作階段。此功能仍在實驗階段；Antigravity 更新後可能需要更新 Murmur。",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "使用官方 Meta Model API。金鑰保存在 macOS 鑰匙圈中。Meta 每小時音訊收費 0.18 美元；可能適用免費額度。",
+      "metaApp": "Meta AI App（實驗性）",
+      "metaAppDescription": "請先開啟 Meta AI 一次，將聽寫設為按住 Fn，然後關閉主視窗。Meta 會留在選單列中，而 Murmur 會保留自己的浮層。",
+      "metaAppNotInstalled": "尚未安裝 Meta AI",
+      "metaAppNeedsSetup": "請在 Meta AI 中啟用聽寫，並設為按住 Fn。",
+      "metaAppNotRunning": "請開啟 Meta AI，然後關閉主視窗。",
+      "metaAppWindowOpen": "請關閉 Meta AI 視窗，然後回到目標 App。",
+      "metaAppAlreadyDictating": "請先完成目前的 Meta AI 聽寫。",
+      "installMetaApp": "安裝",
+      "openMetaApp": "開啟 Meta AI",
+      "metaAppDirectTitle": "直接在 App 中聽寫",
+      "metaAppDirectDescription": "Meta AI 會直接輸入到目前使用中的 App，因此 Murmur 的歷史記錄、文字處理和輸出設定不會套用。",
       "configured": "已設定",
       "metaApiKeyPlaceholder": "Meta API 金鑰",
       "saveMetaApiKey": "儲存",
@@ -347,9 +358,10 @@
       "notInstalled": "尚未安裝 Antigravity",
       "installAntigravity": "安裝",
       "openAntigravity": "開啟 Antigravity",
-      "onboardingDescription": "請先登入 Codex 或 Antigravity，或新增 Meta API 金鑰，再繼續操作。",
+      "onboardingDescription": "請先設定 Codex、Antigravity、Meta AI 或 Meta API 金鑰，再繼續操作。",
       "groups": {
         "service": "服務",
+        "behavior": "行為",
         "processing": "文字處理",
         "output": "輸出"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "錄音啟動失敗: {{error}}",
     "pasteFailedTitle": "貼上文字失敗",
     "pasteFailed": "無法將文字貼上至目前作用中的應用程式。",
-    "transcriptionFailedTitle": "轉錄失敗"
+    "transcriptionFailedTitle": "轉錄失敗",
+    "metaApp": {
+      "setupRequired": "Meta AI 尚未就緒。請開啟它，啟用按住 Fn 的聽寫，關閉主要視窗，然後回到目標 App。",
+      "targetChanged": "目標 App 或 Meta AI 狀態已變更。Murmur 已停止聽寫，讓正確的 App 保持可見。",
+      "overlayUnavailable": "Murmur 無法顯示錄音浮層，因此沒有啟動 Meta AI 聽寫。",
+      "keyboardControlFailed": "Murmur 無法安全控制 Meta AI 的按住 Fn 快捷鍵。請先結束進行中的 Meta 聽寫，再試一次。",
+      "inspectionUnavailable": "Murmur 無法驗證 Meta AI 的背景狀態。確認狀態前，聽寫會保持停用。",
+      "indicatorMoveFailed": "Murmur 無法將 Meta 指示器保留在自己的浮層中，因此已停止聽寫。",
+      "dictationDidNotStart": "Meta AI 沒有啟動聽寫。請確認已登入 Meta，並啟用按住 Fn 的聽寫。",
+      "dictationEndedUnexpectedly": "Meta AI 在 Murmur 收到停止要求前結束了聽寫。",
+      "indicatorStuck": "Meta AI 似乎仍在聽寫。Murmur 會等待它結束，並在此之前阻止新的聽寫。",
+      "exitReleaseFailed": "Murmur 保持開啟，因為它無法安全結束 Meta AI 聽寫。請結束聽寫，然後再次退出。",
+      "openFailed": "無法開啟 Meta AI。請從「應用程式」手動開啟它。"
+    },
+    "metaApi": {
+      "saveFailed": "無法儲存 Meta Model API 金鑰。請檢查金鑰後再試一次。",
+      "removeFailed": "無法移除 Meta Model API 金鑰。請先選擇其他服務，然後再試一次。"
+    }
   },
   "appLanguage": {
     "title": "應用程式語言",

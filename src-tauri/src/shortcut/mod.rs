@@ -267,6 +267,11 @@ pub fn change_transcription_provider_setting(
     if provider == TranscriptionProvider::Meta && !crate::meta_transcribe::status().configured {
         return Err("Add a Meta Model API key before selecting Muse Voice Transcribe.".to_string());
     }
+    if provider == TranscriptionProvider::MetaApp && !crate::meta_app::status().ready {
+        return Err(
+            "Install Meta AI, enable Dictation, and set its hold shortcut to Fn first.".to_string(),
+        );
+    }
 
     let mut value = settings::get_settings(&app);
     value.transcription_provider = provider;

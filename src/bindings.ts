@@ -506,6 +506,13 @@ async getGeminiStatus() : Promise<GeminiStatus> {
 async getMetaApiStatus() : Promise<MetaApiStatus> {
     return await TAURI_INVOKE("get_meta_api_status");
 },
+/**
+ * Reports whether Meta AI for Mac can provide background dictation. This
+ * never reads Meta credentials or starts the application.
+ */
+async getMetaAppStatus() : Promise<MetaAppStatus> {
+    return await TAURI_INVOKE("get_meta_app_status");
+},
 async saveMetaApiKey(apiKey: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_meta_api_key", { apiKey }) };
@@ -528,6 +535,17 @@ async clearMetaApiKey() : Promise<Result<null, string>> {
 async openAntigravity() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_antigravity") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Opens Meta AI after an explicit user action so dictation can be configured.
+ */
+async openMetaAi() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_meta_ai") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -623,9 +641,11 @@ async isLaptop() : Promise<Result<boolean, string>> {
 
 
 export const events = __makeEvents__<{
-historyUpdatePayload: HistoryUpdatePayload
+historyUpdatePayload: HistoryUpdatePayload,
+metaAppErrorEvent: MetaAppErrorEvent
 }>({
-historyUpdatePayload: "history-update-payload"
+historyUpdatePayload: "history-update-payload",
+metaAppErrorEvent: "meta-app-error-event"
 })
 
 /** user-defined constants **/
@@ -678,6 +698,10 @@ export type HistoryEntry = { id: number; file_name: string; timestamp: number; s
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MetaApiStatus = { configured: boolean }
+export type MetaAppErrorCode = "setup_required" | "target_changed" | "overlay_unavailable" | "keyboard_control_failed" | "inspection_unavailable" | "indicator_move_failed" | "dictation_did_not_start" | "dictation_ended_unexpectedly" | "indicator_stuck" | "exit_release_failed"
+export type MetaAppErrorEvent = { code: MetaAppErrorCode }
+export type MetaAppRuntimeState = "not_running" | "active" | "window_visible" | "dictating" | "inspection_unavailable" | "ready"
+export type MetaAppStatus = { installed: boolean; dictation_enabled: boolean; hold_fn_enabled: boolean; accessibility_trusted: boolean; runtime_state: MetaAppRuntimeState; ready: boolean }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -690,7 +714,7 @@ export type SoundTheme = "marimba" | "pop" | "custom"
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
-export type TranscriptionProvider = "codex" | "gemini" | "meta"
+export type TranscriptionProvider = "codex" | "gemini" | "meta" | "meta_app"
 
 /** tauri-specta globals **/
 

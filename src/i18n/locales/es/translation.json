@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini usa la sesión local de Antigravity en este Mac. Es experimental; las actualizaciones de Antigravity pueden requerir una actualización de Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Usa la API oficial de Meta Model. La clave permanece en el llavero de macOS. Meta cobra 0,18 USD por hora de audio; pueden aplicarse créditos gratuitos.",
+      "metaApp": "App de Meta AI (experimental)",
+      "metaAppDescription": "Abre Meta AI una vez, activa Dictado con Mantener Fn y después cierra su ventana principal. Murmur mantiene su propia superposición mientras Meta permanece en la barra de menús.",
+      "metaAppNotInstalled": "Meta AI no está instalada",
+      "metaAppNeedsSetup": "Activa Dictado y configúralo en Mantener Fn en Meta AI.",
+      "metaAppNotRunning": "Abre Meta AI y después cierra su ventana principal.",
+      "metaAppWindowOpen": "Cierra la ventana de Meta AI y vuelve a la aplicación de destino.",
+      "metaAppAlreadyDictating": "Primero termina el dictado actual de Meta AI.",
+      "installMetaApp": "Instalar",
+      "openMetaApp": "Abrir Meta AI",
+      "metaAppDirectTitle": "Dictado directo en la app",
+      "metaAppDirectDescription": "Meta AI escribe directamente en la app activa, así que el historial, el procesamiento de texto y los ajustes de salida de Murmur no se aplican.",
       "configured": "Configurado",
       "metaApiKeyPlaceholder": "Clave de API de Meta",
       "saveMetaApiKey": "Guardar",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity no está instalado",
       "installAntigravity": "Instalar",
       "openAntigravity": "Abrir Antigravity",
-      "onboardingDescription": "Inicia sesión en Codex o Antigravity, o añade una clave de API de Meta antes de continuar.",
+      "onboardingDescription": "Configura Codex, Antigravity, Meta AI o una clave de API de Meta antes de continuar.",
       "groups": {
         "service": "Servicio",
+        "behavior": "Comportamiento",
         "processing": "Procesamiento de texto",
         "output": "Salida"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Error al iniciar la grabación: {{error}}",
     "pasteFailedTitle": "Error al pegar el texto",
     "pasteFailed": "No se pudo pegar el texto en la aplicación activa.",
-    "transcriptionFailedTitle": "Error de transcripción"
+    "transcriptionFailedTitle": "Error de transcripción",
+    "metaApp": {
+      "setupRequired": "Meta AI no está lista. Ábrela, activa Dictado con Mantener Fn, cierra la ventana principal y vuelve a la app de destino.",
+      "targetChanged": "La app de destino o el estado de Meta AI cambió. Murmur detuvo el dictado para mantener visible la app correcta.",
+      "overlayUnavailable": "Murmur no pudo mostrar su superposición de grabación, así que no se inició el dictado de Meta AI.",
+      "keyboardControlFailed": "Murmur no pudo controlar de forma segura el atajo Mantener Fn de Meta AI. Termina cualquier dictado de Meta antes de volver a intentarlo.",
+      "inspectionUnavailable": "Murmur no pudo comprobar el estado de Meta AI en segundo plano. El dictado permanece bloqueado hasta poder confirmar el estado.",
+      "indicatorMoveFailed": "Murmur no pudo mantener el indicador de Meta dentro de su superposición, así que se detuvo el dictado.",
+      "dictationDidNotStart": "Meta AI no inició el dictado. Comprueba que has iniciado sesión en Meta y que Dictado con Mantener Fn está activado.",
+      "dictationEndedUnexpectedly": "Meta AI terminó el dictado antes de que Murmur recibiera una solicitud para detenerlo.",
+      "indicatorStuck": "Meta AI parece seguir dictando. Murmur esperará a que termine y bloqueará un nuevo dictado hasta entonces.",
+      "exitReleaseFailed": "Murmur permaneció abierto porque no pudo finalizar el dictado de Meta AI de forma segura. Termina el dictado y vuelve a salir.",
+      "openFailed": "No se pudo abrir Meta AI. Ábrela manualmente desde Aplicaciones."
+    },
+    "metaApi": {
+      "saveFailed": "No se pudo guardar la clave de API de Meta Model. Comprueba la clave y vuelve a intentarlo.",
+      "removeFailed": "No se pudo eliminar la clave de API de Meta Model. Primero selecciona otro servicio y vuelve a intentarlo."
+    }
   },
   "appLanguage": {
     "title": "Idioma de la aplicación",

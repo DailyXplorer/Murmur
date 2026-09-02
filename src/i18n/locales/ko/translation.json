@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini는 이 Mac의 로컬 Antigravity 세션을 사용합니다. 실험적 기능이며 Antigravity 업데이트 후 Murmur 업데이트가 필요할 수 있습니다.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "공식 Meta Model API를 사용합니다. 키는 macOS 키체인에 보관됩니다. Meta 요금은 오디오 시간당 미화 0.18달러이며 무료 크레딧이 적용될 수 있습니다.",
+      "metaApp": "Meta AI 앱 (실험적)",
+      "metaAppDescription": "Meta AI를 한 번 열어 받아쓰기를 Fn 길게 누르기로 설정한 다음 기본 창을 닫으세요. Meta는 메뉴 막대에 남아 있고 Murmur는 자체 오버레이를 유지합니다.",
+      "metaAppNotInstalled": "Meta AI가 설치되어 있지 않습니다",
+      "metaAppNeedsSetup": "Meta AI에서 받아쓰기를 켜고 Fn 길게 누르기로 설정하세요.",
+      "metaAppNotRunning": "Meta AI를 열고 기본 창을 닫으세요.",
+      "metaAppWindowOpen": "Meta AI 창을 닫고 대상 앱으로 돌아가세요.",
+      "metaAppAlreadyDictating": "먼저 진행 중인 Meta AI 받아쓰기를 끝내세요.",
+      "installMetaApp": "설치",
+      "openMetaApp": "Meta AI 열기",
+      "metaAppDirectTitle": "앱에 직접 받아쓰기",
+      "metaAppDirectDescription": "Meta AI가 활성 앱에 직접 입력하므로 Murmur의 기록, 텍스트 처리 및 출력 설정은 적용되지 않습니다.",
       "configured": "구성됨",
       "metaApiKeyPlaceholder": "Meta API 키",
       "saveMetaApiKey": "저장",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity가 설치되지 않음",
       "installAntigravity": "설치",
       "openAntigravity": "Antigravity 열기",
-      "onboardingDescription": "계속하기 전에 Codex 또는 Antigravity에 로그인하거나 Meta API 키를 추가하세요.",
+      "onboardingDescription": "계속하기 전에 Codex, Antigravity, Meta AI 또는 Meta API 키를 설정하세요.",
       "groups": {
         "service": "서비스",
+        "behavior": "동작",
         "processing": "텍스트 처리",
         "output": "출력"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "녹음을 시작하지 못했습니다: {{error}}",
     "pasteFailedTitle": "텍스트 붙여넣기 실패",
     "pasteFailed": "활성 애플리케이션에 텍스트를 붙여넣을 수 없습니다.",
-    "transcriptionFailedTitle": "음성 인식 실패"
+    "transcriptionFailedTitle": "음성 인식 실패",
+    "metaApp": {
+      "setupRequired": "Meta AI가 준비되지 않았습니다. 앱을 열고 Fn 길게 누르기 받아쓰기를 켠 뒤 기본 창을 닫고 대상 앱으로 돌아가세요.",
+      "targetChanged": "대상 앱 또는 Meta AI 상태가 바뀌었습니다. 올바른 앱이 보이도록 Murmur가 받아쓰기를 중지했습니다.",
+      "overlayUnavailable": "Murmur가 녹음 오버레이를 표시하지 못해 Meta AI 받아쓰기를 시작하지 않았습니다.",
+      "keyboardControlFailed": "Murmur가 Meta AI의 Fn 길게 누르기 단축키를 안전하게 제어하지 못했습니다. 다시 시도하기 전에 진행 중인 Meta 받아쓰기를 종료하세요.",
+      "inspectionUnavailable": "Murmur가 Meta AI의 백그라운드 상태를 확인하지 못했습니다. 상태를 확인할 수 있을 때까지 받아쓰기가 차단됩니다.",
+      "indicatorMoveFailed": "Murmur가 Meta 표시기를 오버레이 안에 유지하지 못해 받아쓰기를 중지했습니다.",
+      "dictationDidNotStart": "Meta AI가 받아쓰기를 시작하지 않았습니다. Meta에 로그인되어 있고 Fn 길게 누르기 받아쓰기가 켜져 있는지 확인하세요.",
+      "dictationEndedUnexpectedly": "Murmur가 중지 요청을 받기 전에 Meta AI가 받아쓰기를 끝냈습니다.",
+      "indicatorStuck": "Meta AI가 아직 받아쓰기를 하는 것 같습니다. Murmur는 끝날 때까지 기다리고 그동안 새 받아쓰기를 차단합니다.",
+      "exitReleaseFailed": "Murmur가 Meta AI 받아쓰기를 안전하게 끝내지 못해 열린 상태로 남아 있습니다. 받아쓰기를 끝내고 다시 종료하세요.",
+      "openFailed": "Meta AI를 열 수 없습니다. 응용 프로그램에서 수동으로 여세요."
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API 키를 저장할 수 없습니다. 키를 확인한 뒤 다시 시도하세요.",
+      "removeFailed": "Meta Model API 키를 삭제할 수 없습니다. 먼저 다른 서비스를 선택한 뒤 다시 시도하세요."
+    }
   },
   "appLanguage": {
     "title": "애플리케이션 언어",

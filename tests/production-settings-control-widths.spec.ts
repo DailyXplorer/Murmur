@@ -34,7 +34,8 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByPlaceholder("Add a word");
   const provider = page
     .getByTestId("production-transcription")
-    .getByRole("button", { name: "Gemini (Gemini 3.5 Transcribe)" });
+    .locator('button[aria-haspopup="listbox"]')
+    .first();
   const geminiStatus = page
     .getByTestId("production-transcription")
     .getByText("Connected", { exact: true })
@@ -118,7 +119,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     {
       end: page
         .getByTestId("production-transcription")
-        .getByRole("button", { name: "Open" }),
+        .getByRole("button", { name: "Open", exact: true }),
       start: metaApiKey,
     },
   ];
@@ -185,4 +186,38 @@ test("real settings controls consume the shared rail", async ({ page }) => {
   await expect(
     page.getByTestId("production-transcription").getByLabel("Meta API key"),
   ).toHaveAttribute("type", "password");
+
+  await provider.click();
+  await page
+    .getByRole("option", { name: "Meta AI app (experimental)" })
+    .click();
+  await expect(provider).toHaveText("Meta AI app (experimental)");
+  await expect(
+    page
+      .getByTestId("production-transcription")
+      .getByText("Direct app dictation", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId("production-transcription")
+      .getByRole("heading", { name: "Custom Words" }),
+  ).toHaveCount(0);
+});
+
+test("Meta AI launch rejections show a localized error", async ({ page }) => {
+  await page.goto(
+    "/tests/fixtures/production-settings-control-widths.html?rejectMetaOpen=1",
+  );
+
+  await page
+    .getByTestId("production-transcription")
+    .getByRole("button", { name: "Open Meta AI", exact: true })
+    .click();
+
+  await expect(page.getByText("Transcription Failed")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Meta AI could not be opened. Open it manually from Applications.",
+    ),
+  ).toBeVisible();
 });

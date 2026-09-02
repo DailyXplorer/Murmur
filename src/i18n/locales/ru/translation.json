@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini использует локальный сеанс Antigravity на этом Mac. Экспериментальная функция; после обновления Antigravity может потребоваться обновление Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Использует официальный Meta Model API. Ключ хранится в Связке ключей macOS. Meta взимает 0,18 доллара США за час аудио; могут применяться бесплатные кредиты.",
+      "metaApp": "Приложение Meta AI (экспериментальное)",
+      "metaAppDescription": "Один раз откройте Meta AI, включите Диктовку с параметром Удерживать Fn, затем закройте главное окно. Murmur сохраняет собственное наложение, пока Meta остаётся в строке меню.",
+      "metaAppNotInstalled": "Meta AI не установлено",
+      "metaAppNeedsSetup": "В Meta AI включите Диктовку и выберите Удерживать Fn.",
+      "metaAppNotRunning": "Откройте Meta AI, затем закройте главное окно.",
+      "metaAppWindowOpen": "Закройте окно Meta AI и вернитесь в целевое приложение.",
+      "metaAppAlreadyDictating": "Сначала завершите текущую диктовку Meta AI.",
+      "installMetaApp": "Установить",
+      "openMetaApp": "Открыть Meta AI",
+      "metaAppDirectTitle": "Прямая диктовка в приложении",
+      "metaAppDirectDescription": "Meta AI вводит текст напрямую в активное приложение. Поэтому история, обработка текста и настройки вывода Murmur не применяются.",
       "configured": "Настроено",
       "metaApiKeyPlaceholder": "Ключ API Meta",
       "saveMetaApiKey": "Сохранить",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity не установлен",
       "installAntigravity": "Установить",
       "openAntigravity": "Открыть Antigravity",
-      "onboardingDescription": "Перед продолжением войдите в Codex или Antigravity либо добавьте ключ API Meta.",
+      "onboardingDescription": "Перед продолжением настройте Codex, Antigravity, Meta AI или ключ API Meta.",
       "groups": {
         "service": "Сервис",
+        "behavior": "Поведение",
         "processing": "Обработка текста",
         "output": "Вывод"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Не удалось начать запись: {{error}}",
     "pasteFailedTitle": "Не удалось вставить текст",
     "pasteFailed": "Не удалось вставить текст в активное приложение.",
-    "transcriptionFailedTitle": "Ошибка транскрипции"
+    "transcriptionFailedTitle": "Ошибка транскрипции",
+    "metaApp": {
+      "setupRequired": "Meta AI не готово. Откройте приложение, включите Диктовку с настройкой Удерживать Fn, закройте главное окно и вернитесь в целевое приложение.",
+      "targetChanged": "Целевое приложение или состояние Meta AI изменилось. Murmur остановил диктовку, чтобы нужное приложение оставалось видимым.",
+      "overlayUnavailable": "Murmur не смог показать наложение записи, поэтому диктовка Meta AI не была запущена.",
+      "keyboardControlFailed": "Murmur не смог безопасно управлять сочетанием Удерживать Fn в Meta AI. Завершите текущую диктовку Meta, прежде чем повторить попытку.",
+      "inspectionUnavailable": "Murmur не смог проверить фоновое состояние Meta AI. Диктовка останется заблокированной, пока состояние не удастся подтвердить.",
+      "indicatorMoveFailed": "Murmur не смог удержать индикатор Meta внутри своего наложения, поэтому диктовка была остановлена.",
+      "dictationDidNotStart": "Meta AI не запустило диктовку. Проверьте, что вы вошли в Meta и включили Диктовку с настройкой Удерживать Fn.",
+      "dictationEndedUnexpectedly": "Meta AI завершило диктовку до того, как Murmur получил запрос на остановку.",
+      "indicatorStuck": "Похоже, Meta AI все еще диктует. Murmur дождется завершения и до этого заблокирует новую диктовку.",
+      "exitReleaseFailed": "Murmur остался открытым, потому что не смог безопасно завершить диктовку Meta AI. Завершите диктовку и снова попробуйте выйти.",
+      "openFailed": "Не удалось открыть Meta AI. Откройте приложение вручную из папки Программы."
+    },
+    "metaApi": {
+      "saveFailed": "Не удалось сохранить ключ Meta Model API. Проверьте ключ и повторите попытку.",
+      "removeFailed": "Не удалось удалить ключ Meta Model API. Сначала выберите другой сервис, затем повторите попытку."
+    }
   },
   "appLanguage": {
     "title": "Язык приложения",

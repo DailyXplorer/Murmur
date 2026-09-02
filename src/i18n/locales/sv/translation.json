@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini använder den lokala Antigravity-sessionen på denna Mac. Experimentell; Antigravity-uppdateringar kan kräva en Murmur-uppdatering.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Använder officiella Meta Model API. Nyckeln stannar i macOS-nyckelringen. Meta tar 0,18 USD per ljudtimme; kostnadsfria krediter kan gälla.",
+      "metaApp": "Meta AI-app (experimentell)",
+      "metaAppDescription": "Öppna Meta AI en gång, aktivera Diktering med Håll Fn nedtryckt och stäng sedan huvudfönstret. Murmur behåller sitt eget överlägg medan Meta ligger kvar i menyraden.",
+      "metaAppNotInstalled": "Meta AI är inte installerat",
+      "metaAppNeedsSetup": "Aktivera Diktering och välj Håll Fn nedtryckt i Meta AI.",
+      "metaAppNotRunning": "Öppna Meta AI och stäng sedan huvudfönstret.",
+      "metaAppWindowOpen": "Stäng Meta AI-fönstret och återgå till målappen.",
+      "metaAppAlreadyDictating": "Avsluta först den pågående Meta AI-dikteringen.",
+      "installMetaApp": "Installera",
+      "openMetaApp": "Öppna Meta AI",
+      "metaAppDirectTitle": "Direkt diktering i appen",
+      "metaAppDirectDescription": "Meta AI skriver direkt i den aktiva appen. Murmurs historik, textbearbetning och utdatainställningar gäller därför inte.",
       "configured": "Konfigurerad",
       "metaApiKeyPlaceholder": "Meta API-nyckel",
       "saveMetaApiKey": "Spara",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity är inte installerat",
       "installAntigravity": "Installera",
       "openAntigravity": "Öppna Antigravity",
-      "onboardingDescription": "Logga in på Codex eller Antigravity, eller lägg till en Meta API-nyckel innan du fortsätter.",
+      "onboardingDescription": "Konfigurera Codex, Antigravity, Meta AI eller en Meta API-nyckel innan du fortsätter.",
       "groups": {
         "service": "Tjänst",
+        "behavior": "Beteende",
         "processing": "Textbearbetning",
         "output": "Utdata"
       }
@@ -391,7 +403,24 @@
     "noInputDevice": "Ingen ljudenhet hittades. Anslut en mikrofon eller ett headset och försök igen.",
     "pasteFailedTitle": "Det gick inte att klistra in texten",
     "pasteFailed": "Texten kunde inte klistras in i det aktiva programmet.",
-    "transcriptionFailedTitle": "Transkriptionen misslyckades"
+    "transcriptionFailedTitle": "Transkriptionen misslyckades",
+    "metaApp": {
+      "setupRequired": "Meta AI är inte redo. Öppna appen, aktivera Diktering med Håll Fn nedtryckt, stäng huvudfönstret och återgå till målappen.",
+      "targetChanged": "Målappen eller Meta AI-statusen har ändrats. Murmur stoppade dikteringen för att rätt app ska vara synlig.",
+      "overlayUnavailable": "Murmur kunde inte visa sitt inspelningsöverlägg, så Meta AI-diktering startades inte.",
+      "keyboardControlFailed": "Murmur kunde inte styra Meta AI-genvägen Håll Fn nedtryckt på ett säkert sätt. Avsluta pågående Meta-diktering innan du försöker igen.",
+      "inspectionUnavailable": "Murmur kunde inte kontrollera Meta AI:s bakgrundsstatus. Diktering förblir blockerad tills statusen kan bekräftas.",
+      "indicatorMoveFailed": "Murmur kunde inte behålla Meta-indikatorn i sitt överlägg, så dikteringen stoppades.",
+      "dictationDidNotStart": "Meta AI startade inte dikteringen. Kontrollera att du är inloggad på Meta och att Diktering med Håll Fn nedtryckt är aktiverat.",
+      "dictationEndedUnexpectedly": "Meta AI avslutade dikteringen innan Murmur tog emot en begäran om att stoppa.",
+      "indicatorStuck": "Meta AI verkar fortfarande diktera. Murmur väntar tills det slutar och blockerar ny diktering under tiden.",
+      "exitReleaseFailed": "Murmur förblev öppet eftersom det inte kunde avsluta Meta AI-diktering på ett säkert sätt. Avsluta dikteringen och försök avsluta igen.",
+      "openFailed": "Meta AI kunde inte öppnas. Öppna appen manuellt från Program."
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API-nyckeln kunde inte sparas. Kontrollera nyckeln och försök igen.",
+      "removeFailed": "Meta Model API-nyckeln kunde inte tas bort. Välj först en annan tjänst och försök sedan igen."
+    }
   },
   "appLanguage": {
     "title": "Applikationsspråk",

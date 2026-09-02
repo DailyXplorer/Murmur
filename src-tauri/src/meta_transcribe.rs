@@ -12,6 +12,7 @@ const TRANSCRIBE_URL: &str = "https://api.meta.ai/v1/asr/transcribe";
 const MODEL: &str = "muse-voice-transcribe-1.0";
 const SAMPLE_RATE: usize = 16_000;
 const MAX_AUDIO_SAMPLES: usize = SAMPLE_RATE * 60 * 10;
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 const KEYCHAIN_SERVICE: &str = "com.dailyxplorer.murmur.meta-model-api";
 const KEYCHAIN_ACCOUNT: &str = "default";
 const KEYCHAIN_ITEM_NOT_FOUND: i32 = -25_300;
@@ -20,7 +21,6 @@ const KEYCHAIN_ITEM_NOT_FOUND: i32 = -25_300;
 pub struct MetaApiStatus {
     pub configured: bool,
 }
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MetaTranscribeRequest {
@@ -123,7 +123,7 @@ fn transcribe_with_key(
     let client = reqwest::blocking::Client::builder()
         .user_agent(user_agent())
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(90))
+        .timeout(REQUEST_TIMEOUT)
         .build()
         .context("failed to build Meta transcription HTTP client")?;
     let request_json = serde_json::to_string(request)

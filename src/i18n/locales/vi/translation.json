@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini dùng phiên Antigravity cục bộ trên máy Mac này. Đây là tính năng thử nghiệm; bản cập nhật Antigravity có thể yêu cầu cập nhật Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Dùng Meta Model API chính thức. Khóa được lưu trong Chuỗi khóa macOS. Meta tính phí 0,18 USD mỗi giờ âm thanh; tín dụng miễn phí có thể được áp dụng.",
+      "metaApp": "Ứng dụng Meta AI (thử nghiệm)",
+      "metaAppDescription": "Mở Meta AI một lần, bật Đọc chính tả với Giữ Fn rồi đóng cửa sổ chính. Murmur vẫn giữ lớp phủ riêng trong khi Meta ở trên thanh menu.",
+      "metaAppNotInstalled": "Meta AI chưa được cài đặt",
+      "metaAppNeedsSetup": "Bật Đọc chính tả và chọn Giữ Fn trong Meta AI.",
+      "metaAppNotRunning": "Mở Meta AI rồi đóng cửa sổ chính.",
+      "metaAppWindowOpen": "Đóng cửa sổ Meta AI và quay lại ứng dụng đích.",
+      "metaAppAlreadyDictating": "Trước tiên, hãy hoàn tất phiên đọc chính tả Meta AI hiện tại.",
+      "installMetaApp": "Cài đặt",
+      "openMetaApp": "Mở Meta AI",
+      "metaAppDirectTitle": "Đọc chính tả trực tiếp trong ứng dụng",
+      "metaAppDirectDescription": "Meta AI nhập trực tiếp vào ứng dụng đang hoạt động. Vì vậy, lịch sử, xử lý văn bản và cài đặt đầu ra của Murmur không áp dụng.",
       "configured": "Đã cấu hình",
       "metaApiKeyPlaceholder": "Khóa API Meta",
       "saveMetaApiKey": "Lưu",
@@ -347,9 +358,10 @@
       "notInstalled": "Chưa cài đặt Antigravity",
       "installAntigravity": "Cài đặt",
       "openAntigravity": "Mở Antigravity",
-      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity, hoặc thêm khóa API Meta trước khi tiếp tục.",
+      "onboardingDescription": "Thiết lập Codex, Antigravity, Meta AI hoặc khóa API Meta trước khi tiếp tục.",
       "groups": {
         "service": "Dịch vụ",
+        "behavior": "Hành vi",
         "processing": "Xử lý văn bản",
         "output": "Đầu ra"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Không thể bắt đầu ghi âm: {{error}}",
     "pasteFailedTitle": "Không thể dán văn bản",
     "pasteFailed": "Không thể dán văn bản vào ứng dụng đang hoạt động.",
-    "transcriptionFailedTitle": "Phiên âm thất bại"
+    "transcriptionFailedTitle": "Phiên âm thất bại",
+    "metaApp": {
+      "setupRequired": "Meta AI chưa sẵn sàng. Hãy mở ứng dụng, bật Đọc chính tả với Giữ Fn, đóng cửa sổ chính rồi quay lại ứng dụng đích.",
+      "targetChanged": "Ứng dụng đích hoặc trạng thái Meta AI đã thay đổi. Murmur đã dừng đọc chính tả để ứng dụng đúng vẫn hiển thị.",
+      "overlayUnavailable": "Murmur không thể hiển thị lớp phủ ghi âm nên không khởi động đọc chính tả của Meta AI.",
+      "keyboardControlFailed": "Murmur không thể điều khiển an toàn phím tắt Giữ Fn của Meta AI. Hãy kết thúc mọi lần đọc chính tả Meta trước khi thử lại.",
+      "inspectionUnavailable": "Murmur không thể xác minh trạng thái nền của Meta AI. Đọc chính tả vẫn bị chặn cho đến khi có thể xác nhận trạng thái.",
+      "indicatorMoveFailed": "Murmur không thể giữ chỉ báo Meta trong lớp phủ của mình nên đã dừng đọc chính tả.",
+      "dictationDidNotStart": "Meta AI không khởi động đọc chính tả. Hãy kiểm tra bạn đã đăng nhập Meta và bật Đọc chính tả với Giữ Fn.",
+      "dictationEndedUnexpectedly": "Meta AI đã kết thúc đọc chính tả trước khi Murmur nhận được yêu cầu dừng.",
+      "indicatorStuck": "Có vẻ Meta AI vẫn đang đọc chính tả. Murmur sẽ chờ đến khi kết thúc và chặn lần đọc chính tả mới trong lúc đó.",
+      "exitReleaseFailed": "Murmur vẫn mở vì không thể kết thúc an toàn đọc chính tả của Meta AI. Hãy kết thúc đọc chính tả rồi thử thoát lại.",
+      "openFailed": "Không thể mở Meta AI. Hãy mở ứng dụng thủ công từ Ứng dụng."
+    },
+    "metaApi": {
+      "saveFailed": "Không thể lưu khóa Meta Model API. Hãy kiểm tra khóa rồi thử lại.",
+      "removeFailed": "Không thể xóa khóa Meta Model API. Hãy chọn dịch vụ khác trước, rồi thử lại."
+    }
   },
   "appLanguage": {
     "title": "Ngôn ngữ ứng dụng",

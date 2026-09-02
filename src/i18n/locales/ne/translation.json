@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini ले यस Mac को स्थानीय Antigravity सत्र प्रयोग गर्छ। यो प्रयोगात्मक हो; Antigravity अद्यावधिकपछि Murmur अद्यावधिक आवश्यक पर्न सक्छ।",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "आधिकारिक Meta Model API प्रयोग गर्छ। कुञ्जी macOS Keychain मा रहन्छ। Meta ले प्रति अडियो घण्टा $0.18 लिन्छ; निःशुल्क क्रेडिट लागू हुन सक्छ।",
+      "metaApp": "Meta AI एप (प्रयोगात्मक)",
+      "metaAppDescription": "Meta AI एक पटक खोल्नुहोस्, Hold Fn सहित डिक्टेशन सक्षम गर्नुहोस्, त्यसपछि यसको मुख्य सञ्झ्याल बन्द गर्नुहोस्। Meta मेनु बारमा रहँदा Murmur ले आफ्नै ओभरले राख्छ।",
+      "metaAppNotInstalled": "Meta AI स्थापना गरिएको छैन",
+      "metaAppNeedsSetup": "Meta AI मा डिक्टेशन सक्षम गर्नुहोस् र Hold Fn छान्नुहोस्।",
+      "metaAppNotRunning": "Meta AI खोल्नुहोस्, त्यसपछि यसको मुख्य सञ्झ्याल बन्द गर्नुहोस्।",
+      "metaAppWindowOpen": "Meta AI को सञ्झ्याल बन्द गर्नुहोस् र लक्षित एपमा फर्कनुहोस्।",
+      "metaAppAlreadyDictating": "पहिले चलिरहेको Meta AI डिक्टेशन समाप्त गर्नुहोस्।",
+      "installMetaApp": "स्थापना गर्नुहोस्",
+      "openMetaApp": "Meta AI खोल्नुहोस्",
+      "metaAppDirectTitle": "एपमा सिधा डिक्टेशन",
+      "metaAppDirectDescription": "Meta AI ले सक्रिय एपमा सिधै टाइप गर्छ, त्यसैले Murmur को इतिहास, पाठ प्रशोधन र आउटपुट सेटिङ लागू हुँदैनन्।",
       "configured": "कन्फिगर गरिएको",
       "metaApiKeyPlaceholder": "Meta API कुञ्जी",
       "saveMetaApiKey": "सेभ गर्नुहोस्",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity स्थापना गरिएको छैन",
       "installAntigravity": "स्थापना गर्नुहोस्",
       "openAntigravity": "Antigravity खोल्नुहोस्",
-      "onboardingDescription": "अघि बढ्नुअघि Codex वा Antigravity मा साइन इन गर्नुहोस् वा Meta API कुञ्जी थप्नुहोस्।",
+      "onboardingDescription": "अघि बढ्नुअघि Codex, Antigravity, Meta AI वा Meta API कुञ्जी सेटअप गर्नुहोस्।",
       "groups": {
         "service": "सेवा",
+        "behavior": "व्यवहार",
         "processing": "पाठ प्रशोधन",
         "output": "आउटपुट"
       }
@@ -394,7 +406,24 @@
     "recordingFailed": "रेकर्डिङ सुरु गर्न सकिएन: {{error}}",
     "pasteFailedTitle": "टेक्स्ट पेस्ट गर्न सकिएन",
     "pasteFailed": "सक्रिय एपमा टेक्स्ट पेस्ट गर्न सकिएन।",
-    "transcriptionFailedTitle": "ट्रान्सक्रिप्सन गर्न सकिएन"
+    "transcriptionFailedTitle": "ट्रान्सक्रिप्सन गर्न सकिएन",
+    "metaApp": {
+      "setupRequired": "Meta AI तयार छैन। यसलाई खोल्नुहोस्, Hold Fn सहित डिक्टेशन सक्षम गर्नुहोस्, मुख्य विन्डो बन्द गर्नुहोस् र लक्ष्य एपमा फर्कनुहोस्।",
+      "targetChanged": "लक्ष्य एप वा Meta AI को अवस्था परिवर्तन भयो। सही एप देखिरहोस् भनेर Murmur ले डिक्टेशन रोक्यो।",
+      "overlayUnavailable": "Murmur ले आफ्नो रेकर्डिङ ओभरले देखाउन सकेन, त्यसैले Meta AI डिक्टेशन सुरु भएन।",
+      "keyboardControlFailed": "Murmur ले Meta AI को Hold Fn सर्टकट सुरक्षित रूपमा नियन्त्रण गर्न सकेन। फेरि प्रयास गर्नुअघि चलिरहेको Meta डिक्टेशन समाप्त गर्नुहोस्।",
+      "inspectionUnavailable": "Murmur ले Meta AI को पृष्ठभूमि अवस्था पुष्टि गर्न सकेन। अवस्था पुष्टि नभएसम्म डिक्टेशन अवरुद्ध रहन्छ।",
+      "indicatorMoveFailed": "Murmur ले Meta सूचकलाई आफ्नो ओभरलेभित्र राख्न सकेन, त्यसैले डिक्टेशन रोकियो।",
+      "dictationDidNotStart": "Meta AI ले डिक्टेशन सुरु गरेन। तपाईं Meta मा साइन इन हुनुहुन्छ र Hold Fn सहित डिक्टेशन सक्षम छ भनी जाँच्नुहोस्।",
+      "dictationEndedUnexpectedly": "Murmur ले रोक्ने अनुरोध पाउनुअघि Meta AI ले डिक्टेशन समाप्त गर्‍यो।",
+      "indicatorStuck": "Meta AI अझै डिक्टेट गरिरहेको देखिन्छ। Murmur ले यो समाप्त हुन प्रतीक्षा गर्नेछ र तबसम्म नयाँ डिक्टेशन रोक्नेछ।",
+      "exitReleaseFailed": "Murmur खुलै रह्यो, किनकि यसले Meta AI डिक्टेशन सुरक्षित रूपमा समाप्त गर्न सकेन। डिक्टेशन समाप्त गरी फेरि बाहिर निस्कनुहोस्।",
+      "openFailed": "Meta AI खोल्न सकिएन। यसलाई Applications बाट म्यानुअल रूपमा खोल्नुहोस्।"
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API कुञ्जी बचत गर्न सकिएन। कुञ्जी जाँच्नुहोस् र फेरि प्रयास गर्नुहोस्।",
+      "removeFailed": "Meta Model API कुञ्जी हटाउन सकिएन। पहिले अर्को सेवा छान्नुहोस्, त्यसपछि फेरि प्रयास गर्नुहोस्।"
+    }
   },
   "appLanguage": {
     "title": "एपको भाषा",

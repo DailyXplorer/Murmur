@@ -1,11 +1,9 @@
 use crate::actions::ACTION_MAP;
-use crate::managers::audio::AudioRecordingManager;
 use log::{debug, error, warn};
 use std::sync::mpsc::{self, Sender};
-use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 const DEBOUNCE: Duration = Duration::from_millis(30);
 const RELEASE_GRACE: Duration = Duration::from_millis(50);
@@ -84,6 +82,21 @@ fn finish_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>
     *pending_release = None;
     if !matches!(stage, Stage::Processing) {
         *stage = Stage::Idle;
+    }
+}
+
+fn apply_cancellation_disposition(
+    stage: &mut Stage,
+    pending_release: &mut Option<PendingRelease>,
+    disposition: crate::utils::CancellationDisposition,
+) {
+    *pending_release = None;
+    match disposition {
+        crate::utils::CancellationDisposition::MetaFinalizing => {
+            *stage = Stage::Processing;
+        }
+        crate::utils::CancellationDisposition::MetaReleaseBlocked => {}
+        crate::utils::CancellationDisposition::Audio => finish_cancel(stage, pending_release),
     }
 }
 
@@ -222,11 +235,16 @@ impl TranscriptionCoordinator {
                             // audio manager, so that manager can still report
                             // recording active here.
                             let cancellation_stage = cancellation_stage(&stage);
-                            crate::utils::cancel_current_operation_from_coordinator(
-                                &app,
-                                cancellation_stage,
+                            let disposition =
+                                crate::utils::cancel_current_operation_from_coordinator(
+                                    &app,
+                                    cancellation_stage,
+                                );
+                            apply_cancellation_disposition(
+                                &mut stage,
+                                &mut pending_release,
+                                disposition,
                             );
-                            finish_cancel(&mut stage, &mut pending_release);
                         }
                         Command::ProcessingFinished => {
                             stage = Stage::Idle;
@@ -298,11 +316,8 @@ fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &s
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
-    action.start(app, binding_id, hotkey_string);
-    if app
-        .try_state::<Arc<AudioRecordingManager>>()
-        .is_some_and(|a| a.is_recording())
-    {
+    let started = action.start(app, binding_id, hotkey_string);
+    if started {
         *stage = Stage::Recording(binding_id.to_string());
     } else {
         debug!("Start for '{binding_id}' did not begin recording; staying idle");
@@ -314,8 +329,11 @@ fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &st
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
-    action.stop(app, binding_id, hotkey_string);
-    *stage = Stage::Processing;
+    if action.stop(app, binding_id, hotkey_string) {
+        *stage = Stage::Processing;
+    } else {
+        debug!("Stop for '{binding_id}' did not begin processing; staying recording");
+    }
 }
 
 #[cfg(test)]
@@ -442,6 +460,34 @@ mod tests {
 
         finish_cancel(&mut stage, &mut pending_release);
         assert!(matches!(stage, Stage::Idle));
+    }
+
+    #[test]
+    fn meta_release_failure_keeps_the_coordinator_recording_for_retry() {
+        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut pending_release = None;
+
+        apply_cancellation_disposition(
+            &mut stage,
+            &mut pending_release,
+            crate::utils::CancellationDisposition::MetaReleaseBlocked,
+        );
+
+        assert!(matches!(stage, Stage::Recording(_)));
+    }
+
+    #[test]
+    fn successful_meta_stop_moves_the_coordinator_to_processing() {
+        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut pending_release = None;
+
+        apply_cancellation_disposition(
+            &mut stage,
+            &mut pending_release,
+            crate::utils::CancellationDisposition::MetaFinalizing,
+        );
+
+        assert!(matches!(stage, Stage::Processing));
     }
 
     #[test]

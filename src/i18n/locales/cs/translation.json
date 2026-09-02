@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini používá místní relaci Antigravity na tomto Macu. Experimentální funkce; aktualizace Antigravity mohou vyžadovat aktualizaci Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Používá oficiální Meta Model API. Klíč zůstává v Klíčence macOS. Meta účtuje 0,18 USD za hodinu zvuku; mohou se uplatnit bezplatné kredity.",
+      "metaApp": "Aplikace Meta AI (experimentální)",
+      "metaAppDescription": "Jednou otevřete Meta AI, zapněte Diktování s možností Podržet Fn a pak zavřete jeho hlavní okno. Murmur ponechá vlastní překryv, zatímco Meta zůstane v řádku nabídek.",
+      "metaAppNotInstalled": "Meta AI není nainstalována",
+      "metaAppNeedsSetup": "V Meta AI zapněte Diktování a nastavte Podržet Fn.",
+      "metaAppNotRunning": "Nejprve otevřete Meta AI a pak zavřete jeho hlavní okno.",
+      "metaAppWindowOpen": "Zavřete okno Meta AI a vraťte se do cílové aplikace.",
+      "metaAppAlreadyDictating": "Nejprve dokončete aktuální diktování v Meta AI.",
+      "installMetaApp": "Nainstalovat",
+      "openMetaApp": "Otevřít Meta AI",
+      "metaAppDirectTitle": "Přímé diktování v aplikaci",
+      "metaAppDirectDescription": "Meta AI píše přímo do aktivní aplikace. Historie, zpracování textu a nastavení výstupu Murmuru se proto nepoužijí.",
       "configured": "Nakonfigurováno",
       "metaApiKeyPlaceholder": "Klíč Meta API",
       "saveMetaApiKey": "Uložit",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity není nainstalován",
       "installAntigravity": "Nainstalovat",
       "openAntigravity": "Otevřít Antigravity",
-      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu či Antigravity nebo přidejte klíč Meta API.",
+      "onboardingDescription": "Než budete pokračovat, nastavte Codex, Antigravity, Meta AI nebo klíč Meta API.",
       "groups": {
         "service": "Služba",
+        "behavior": "Chování",
         "processing": "Zpracování textu",
         "output": "Výstup"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Nepodařilo se spustit nahrávání: {{error}}",
     "pasteFailedTitle": "Vložení textu se nezdařilo",
     "pasteFailed": "Text nebylo možné vložit do aktivní aplikace.",
-    "transcriptionFailedTitle": "Přepis selhal"
+    "transcriptionFailedTitle": "Přepis selhal",
+    "metaApp": {
+      "setupRequired": "Meta AI není připravena. Otevřete aplikaci, zapněte Diktování s volbou Podržet Fn, zavřete hlavní okno a vraťte se do cílové aplikace.",
+      "targetChanged": "Cílová aplikace nebo stav Meta AI se změnil. Murmur zastavil diktování, aby zůstala viditelná správná aplikace.",
+      "overlayUnavailable": "Murmur nemohl zobrazit překryv nahrávání, proto diktování Meta AI nebylo spuštěno.",
+      "keyboardControlFailed": "Murmur nemohl bezpečně ovládat zkratku Podržet Fn v Meta AI. Před dalším pokusem ukončete probíhající diktování Meta.",
+      "inspectionUnavailable": "Murmur nemohl ověřit stav Meta AI na pozadí. Diktování zůstane zablokované, dokud nebude možné stav potvrdit.",
+      "indicatorMoveFailed": "Murmur nemohl udržet indikátor Meta ve svém překryvu, proto bylo diktování zastaveno.",
+      "dictationDidNotStart": "Meta AI nespustila diktování. Zkontrolujte, že jste přihlášeni k Meta a že je zapnuté Diktování s volbou Podržet Fn.",
+      "dictationEndedUnexpectedly": "Meta AI ukončila diktování dříve, než Murmur obdržel požadavek na zastavení.",
+      "indicatorStuck": "Zdá se, že Meta AI stále diktuje. Murmur počká na ukončení a do té doby zablokuje nové diktování.",
+      "exitReleaseFailed": "Murmur zůstal otevřený, protože nemohl bezpečně ukončit diktování Meta AI. Ukončete diktování a zkuste aplikaci znovu zavřít.",
+      "openFailed": "Meta AI se nepodařilo otevřít. Otevřete ji ručně ze složky Aplikace."
+    },
+    "metaApi": {
+      "saveFailed": "Klíč Meta Model API se nepodařilo uložit. Zkontrolujte klíč a zkuste to znovu.",
+      "removeFailed": "Klíč Meta Model API se nepodařilo odstranit. Nejprve vyberte jinou službu a pak to zkuste znovu."
+    }
   },
   "appLanguage": {
     "title": "Jazyk aplikace",

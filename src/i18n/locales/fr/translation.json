@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini utilise la session Antigravity locale de ce Mac. Fonction expérimentale ; une mise à jour d’Antigravity peut nécessiter une mise à jour de Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Utilise l’API officielle Meta Model. La clé reste dans le Trousseau macOS. Meta facture 0,18 $ par heure audio ; les crédits gratuits peuvent s’appliquer.",
+      "metaApp": "Application Meta AI (expérimental)",
+      "metaAppDescription": "Ouvre Meta AI une fois, active Dictée avec Maintenir Fn, puis ferme sa fenêtre principale. Murmur conserve sa propre superposition pendant que Meta reste dans la barre des menus.",
+      "metaAppNotInstalled": "Meta AI n’est pas installée",
+      "metaAppNeedsSetup": "Active Dictée et choisis Maintenir Fn dans Meta AI.",
+      "metaAppNotRunning": "Ouvre Meta AI, puis ferme sa fenêtre principale.",
+      "metaAppWindowOpen": "Ferme la fenêtre Meta AI et retourne dans l’application cible.",
+      "metaAppAlreadyDictating": "Termine d’abord la dictée Meta AI en cours.",
+      "installMetaApp": "Installer",
+      "openMetaApp": "Ouvrir Meta AI",
+      "metaAppDirectTitle": "Dictée directe dans l’application",
+      "metaAppDirectDescription": "Meta AI saisit directement dans l’application active. L’historique, le traitement du texte et les réglages de sortie de Murmur ne s’appliquent pas.",
       "configured": "Configuré",
       "metaApiKeyPlaceholder": "Clé API Meta",
       "saveMetaApiKey": "Enregistrer",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity n’est pas installé",
       "installAntigravity": "Installer",
       "openAntigravity": "Ouvrir Antigravity",
-      "onboardingDescription": "Connecte-toi à Codex ou à Antigravity, ou ajoute une clé API Meta avant de continuer.",
+      "onboardingDescription": "Configure Codex, Antigravity, Meta AI ou une clé API Meta avant de continuer.",
       "groups": {
         "service": "Service",
+        "behavior": "Comportement",
         "processing": "Traitement du texte",
         "output": "Sortie"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Échec du démarrage de l'enregistrement : {{error}}",
     "pasteFailedTitle": "Échec du collage du texte",
     "pasteFailed": "Le texte n'a pas pu être collé dans l'application active.",
-    "transcriptionFailedTitle": "Échec de la transcription"
+    "transcriptionFailedTitle": "Échec de la transcription",
+    "metaApp": {
+      "setupRequired": "Meta AI n’est pas prête. Ouvre-la, active Dictée avec Maintenir Fn, ferme sa fenêtre principale, puis retourne dans l’application cible.",
+      "targetChanged": "L’application cible ou l’état de Meta AI a changé. Murmur a arrêté la dictée pour laisser la bonne application visible.",
+      "overlayUnavailable": "Murmur n’a pas pu afficher sa superposition d’enregistrement, la dictée Meta AI n’a donc pas démarré.",
+      "keyboardControlFailed": "Murmur n’a pas pu contrôler en toute sécurité le raccourci Maintenir Fn de Meta AI. Termine toute dictée Meta en cours avant de réessayer.",
+      "inspectionUnavailable": "Murmur n’a pas pu vérifier l’état en arrière-plan de Meta AI. La dictée reste bloquée jusqu’à ce que cet état soit confirmé.",
+      "indicatorMoveFailed": "Murmur n’a pas pu maintenir l’indicateur Meta dans sa superposition, la dictée a donc été arrêtée.",
+      "dictationDidNotStart": "Meta AI n’a pas démarré la dictée. Vérifie que Meta est connecté et que Dictée avec Maintenir Fn est activée.",
+      "dictationEndedUnexpectedly": "Meta AI a arrêté la dictée avant que Murmur reçoive une demande d’arrêt.",
+      "indicatorStuck": "Meta AI semble encore dicter. Murmur attendra la fin et bloquera toute nouvelle dictée jusque-là.",
+      "exitReleaseFailed": "Murmur est resté ouvert car il n’a pas pu arrêter la dictée Meta AI en toute sécurité. Termine la dictée, puis quitte à nouveau.",
+      "openFailed": "Meta AI n’a pas pu être ouverte. Ouvre-la manuellement depuis Applications."
+    },
+    "metaApi": {
+      "saveFailed": "La clé API Meta Model n’a pas pu être enregistrée. Vérifie la clé puis réessaie.",
+      "removeFailed": "La clé API Meta Model n’a pas pu être supprimée. Sélectionne d’abord un autre service, puis réessaie."
+    }
   },
   "appLanguage": {
     "title": "Langue de l'application",

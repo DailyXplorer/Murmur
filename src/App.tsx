@@ -16,7 +16,8 @@ import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
-import { commands } from "@/bindings";
+import { hasUsableTranscriptionService } from "./lib/transcriptionServiceReadiness";
+import { commands, events, type MetaAppErrorCode } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 type OnboardingStep = "accessibility" | "done";
@@ -172,6 +173,45 @@ function App() {
     };
   }, [t]);
 
+  useEffect(() => {
+    const unlisten = events.metaAppErrorEvent.listen((event) => {
+      const description = (() => {
+        const code: MetaAppErrorCode = event.payload.code;
+        switch (code) {
+          case "setup_required":
+            return t("errors.metaApp.setupRequired");
+          case "target_changed":
+            return t("errors.metaApp.targetChanged");
+          case "overlay_unavailable":
+            return t("errors.metaApp.overlayUnavailable");
+          case "keyboard_control_failed":
+            return t("errors.metaApp.keyboardControlFailed");
+          case "inspection_unavailable":
+            return t("errors.metaApp.inspectionUnavailable");
+          case "indicator_move_failed":
+            return t("errors.metaApp.indicatorMoveFailed");
+          case "dictation_did_not_start":
+            return t("errors.metaApp.dictationDidNotStart");
+          case "dictation_ended_unexpectedly":
+            return t("errors.metaApp.dictationEndedUnexpectedly");
+          case "indicator_stuck":
+            return t("errors.metaApp.indicatorStuck");
+          case "exit_release_failed":
+            return t("errors.metaApp.exitReleaseFailed");
+          default: {
+            const exhaustive: never = code;
+            return exhaustive;
+          }
+        }
+      })();
+
+      toast.error(t("errors.transcriptionFailedTitle"), { description });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [t]);
+
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
@@ -218,13 +258,13 @@ function App() {
   /** Completes onboarding after a usable transcription session is confirmed. */
   const handleAccessibilityComplete = async () => {
     try {
-      const [codex, gemini, meta] = await Promise.all([
+      const [codex, gemini, meta, metaApp] = await Promise.all([
         commands.getCodexAuthStatus(),
         commands.getGeminiStatus().catch(() => null),
         commands.getMetaApiStatus().catch(() => null),
+        commands.getMetaAppStatus().catch(() => null),
       ]);
-      const hasUsableGeminiSession = gemini?.installed && gemini.signed_in;
-      if (!codex.signed_in && !hasUsableGeminiSession && !meta?.configured) {
+      if (!hasUsableTranscriptionService({ codex, gemini, meta, metaApp })) {
         toast.error(t("settings.transcription.missing"), {
           description: t("settings.transcription.onboardingDescription"),
         });

@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { commands } from "@/bindings";
-import type { CodexAuthStatus, GeminiStatus, MetaApiStatus } from "@/bindings";
+import type {
+  CodexAuthStatus,
+  GeminiStatus,
+  MetaApiStatus,
+  MetaAppStatus,
+} from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import { Button } from "../../ui/Button";
 import { Dropdown } from "../../ui/Dropdown";
@@ -26,14 +31,18 @@ export const TranscriptionSettings: React.FC = () => {
   const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null);
   const [geminiStatusError, setGeminiStatusError] = useState(false);
   const [metaStatus, setMetaStatus] = useState<MetaApiStatus | null>(null);
+  const [metaAppStatus, setMetaAppStatus] = useState<MetaAppStatus | null>(
+    null,
+  );
   const [metaApiKey, setMetaApiKey] = useState("");
   const [isUpdatingMetaKey, setIsUpdatingMetaKey] = useState(false);
 
   const refreshStatuses = useCallback(async () => {
-    const [codex, gemini, meta] = await Promise.allSettled([
+    const [codex, gemini, meta, metaApp] = await Promise.allSettled([
       commands.getCodexAuthStatus(),
       commands.getGeminiStatus(),
       commands.getMetaApiStatus(),
+      commands.getMetaAppStatus(),
     ]);
     setCodexStatus(
       codex.status === "fulfilled" ? codex.value : EMPTY_CODEX_STATUS,
@@ -47,7 +56,48 @@ export const TranscriptionSettings: React.FC = () => {
     setMetaStatus(
       meta.status === "fulfilled" ? meta.value : { configured: false },
     );
+    setMetaAppStatus(
+      metaApp.status === "fulfilled"
+        ? metaApp.value
+        : {
+            installed: false,
+            dictation_enabled: false,
+            hold_fn_enabled: false,
+            accessibility_trusted: false,
+            runtime_state: "not_running",
+            ready: false,
+          },
+    );
   }, []);
+
+  const metaAppSessionLabel = (status: MetaAppStatus | null) => {
+    if (status == null) return t("settings.transcription.checking");
+    if (!status.installed)
+      return t("settings.transcription.metaAppNotInstalled");
+    if (!status.accessibility_trusted)
+      return t("onboarding.permissions.accessibility.waiting");
+    if (!status.dictation_enabled || !status.hold_fn_enabled)
+      return t("settings.transcription.metaAppNeedsSetup");
+
+    const runtimeState = status.runtime_state;
+    switch (runtimeState) {
+      case "not_running":
+        return t("settings.transcription.metaAppNotRunning");
+      case "active":
+      case "window_visible":
+        return t("settings.transcription.metaAppWindowOpen");
+      case "dictating":
+        return t("settings.transcription.metaAppAlreadyDictating");
+      case "inspection_unavailable":
+        return t("settings.transcription.statusUnavailable");
+      case "ready":
+        return t("settings.transcription.ready");
+      default: {
+        const exhaustive: never = runtimeState;
+        return exhaustive;
+      }
+    }
+  };
 
   useEffect(() => {
     void refreshStatuses();
@@ -72,12 +122,18 @@ export const TranscriptionSettings: React.FC = () => {
         label: t("settings.transcription.meta"),
         disabled: !metaStatus?.configured,
       },
+      {
+        value: "meta_app",
+        label: t("settings.transcription.metaApp"),
+        disabled: !metaAppStatus?.ready,
+      },
     ],
     [
       geminiStatus?.installed,
       geminiStatus?.signed_in,
       geminiStatusError,
       metaStatus?.configured,
+      metaAppStatus?.ready,
       t,
     ],
   );
@@ -94,6 +150,19 @@ export const TranscriptionSettings: React.FC = () => {
     if (result.status === "error") console.error(result.error);
   };
 
+  const openMetaAi = async () => {
+    try {
+      const result = await commands.openMetaAi();
+      if (result.status === "ok") return;
+      console.error(result.error);
+    } catch (error) {
+      console.error(error);
+    }
+    toast.error(t("errors.transcriptionFailedTitle"), {
+      description: t("errors.metaApp.openFailed"),
+    });
+  };
+
   const saveMetaApiKey = async () => {
     const apiKey = metaApiKey.trim();
     if (!apiKey) return;
@@ -103,7 +172,7 @@ export const TranscriptionSettings: React.FC = () => {
       const result = await commands.saveMetaApiKey(apiKey);
       if (result.status === "error") {
         toast.error(t("errors.transcriptionFailedTitle"), {
-          description: result.error,
+          description: t("errors.metaApi.saveFailed"),
         });
         return;
       }
@@ -120,7 +189,7 @@ export const TranscriptionSettings: React.FC = () => {
       const result = await commands.clearMetaApiKey();
       if (result.status === "error") {
         toast.error(t("errors.transcriptionFailedTitle"), {
-          description: result.error,
+          description: t("errors.metaApi.removeFailed"),
         });
         return;
       }
@@ -142,7 +211,12 @@ export const TranscriptionSettings: React.FC = () => {
             options={providerOptions}
             selectedValue={provider}
             onSelect={(value) => {
-              if (value !== "codex" && value !== "gemini" && value !== "meta")
+              if (
+                value !== "codex" &&
+                value !== "gemini" &&
+                value !== "meta" &&
+                value !== "meta_app"
+              )
                 return;
               void updateSetting("transcription_provider", value);
             }}
@@ -265,19 +339,67 @@ export const TranscriptionSettings: React.FC = () => {
             </Button>
           </div>
         </SettingContainer>
+
+        <SettingContainer
+          title={t("settings.transcription.metaApp")}
+          description={t("settings.transcription.metaAppDescription")}
+          grouped={true}
+        >
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
+              {metaAppSessionLabel(metaAppStatus)}
+            </span>
+            {!metaAppStatus?.installed ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+                onClick={() => void openUrl("https://www.meta.ai/download/")}
+              >
+                {t("settings.transcription.installMetaApp")}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+                onClick={() => void openMetaAi()}
+              >
+                {t("settings.transcription.openMetaApp")}
+              </Button>
+            )}
+          </div>
+        </SettingContainer>
       </SettingsGroup>
 
-      <SettingsGroup title={t("settings.transcription.groups.processing")}>
-        <FillerWordRemoval descriptionMode="tooltip" grouped={true} />
-        <CustomWords descriptionMode="tooltip" grouped={true} />
-        <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
+      {provider === "meta_app" ? (
+        <SettingsGroup title={t("settings.transcription.groups.behavior")}>
+          <SettingContainer
+            title={t("settings.transcription.metaAppDirectTitle")}
+            description={t("settings.transcription.metaAppDirectDescription")}
+            grouped={true}
+          >
+            <span />
+          </SettingContainer>
+        </SettingsGroup>
+      ) : (
+        <>
+          <SettingsGroup title={t("settings.transcription.groups.processing")}>
+            <FillerWordRemoval descriptionMode="tooltip" grouped={true} />
+            <CustomWords descriptionMode="tooltip" grouped={true} />
+            <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
+          </SettingsGroup>
 
-      <SettingsGroup title={t("settings.transcription.groups.output")}>
-        <PasteMethodSetting descriptionMode="tooltip" grouped={true} />
-        <ClipboardHandlingSetting descriptionMode="tooltip" grouped={true} />
-        <AutoSubmit descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
+          <SettingsGroup title={t("settings.transcription.groups.output")}>
+            <PasteMethodSetting descriptionMode="tooltip" grouped={true} />
+            <ClipboardHandlingSetting
+              descriptionMode="tooltip"
+              grouped={true}
+            />
+            <AutoSubmit descriptionMode="tooltip" grouped={true} />
+          </SettingsGroup>
+        </>
+      )}
     </SettingsPage>
   );
 };

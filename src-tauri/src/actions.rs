@@ -3,7 +3,8 @@ use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, OverlayStyle};
+use crate::meta_app::{MetaAppBridge, MetaStopDisposition};
+use crate::settings::{get_settings, OverlayStyle, TranscriptionProvider};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
@@ -92,8 +93,11 @@ impl Drop for PendingWav {
 
 // Shortcut Action Trait
 pub trait ShortcutAction: Send + Sync {
-    fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
-    fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
+    fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) -> bool;
+    /// Returns whether the operation entered an asynchronous processing or
+    /// finalization stage. A false result leaves the coordinator recording so
+    /// a transient stop failure can be retried safely.
+    fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) -> bool;
 }
 
 // Transcribe Action
@@ -227,9 +231,28 @@ pub(crate) async fn process_transcription_output(app: &AppHandle, transcription:
 }
 
 impl ShortcutAction for TranscribeAction {
-    fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
+    fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) -> bool {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+
+        let settings = get_settings(app);
+        if settings.transcription_provider == TranscriptionProvider::MetaApp {
+            let bridge = app.state::<MetaAppBridge>();
+            return match bridge.start(app) {
+                Ok(true) => {
+                    debug!(
+                        "Meta AI app dictation started in {:?}",
+                        start_time.elapsed()
+                    );
+                    true
+                }
+                Ok(false) => false,
+                Err(error) => {
+                    error!("Failed to start Meta AI app dictation: {error}");
+                    false
+                }
+            };
+        }
 
         let rm = app.state::<Arc<AudioRecordingManager>>();
 
@@ -249,7 +272,6 @@ impl ShortcutAction for TranscribeAction {
 
         // Get the microphone mode to determine audio feedback timing
         let plan_started = Instant::now();
-        let settings = get_settings(app);
         let is_always_on = settings.always_on_microphone;
         let plan_elapsed = plan_started.elapsed();
 
@@ -327,7 +349,8 @@ impl ShortcutAction for TranscribeAction {
             }
         }
 
-        if recording_error.is_none() {
+        let started = recording_error.is_none();
+        if started {
             // Dynamically register the cancel shortcut in a separate task to avoid deadlock
             shortcut::register_cancel_shortcut(app);
         } else {
@@ -357,9 +380,29 @@ impl ShortcutAction for TranscribeAction {
             "TranscribeAction::start completed in {:?}",
             start_time.elapsed()
         );
+        started
     }
 
-    fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
+    fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) -> bool {
+        if app.try_state::<MetaAppBridge>().is_some() {
+            let bridge = app.state::<MetaAppBridge>();
+            match bridge.stop(app) {
+                Ok(MetaStopDisposition::Finalizing) => {
+                    debug!("Meta AI app dictation is finalizing");
+                    return true;
+                }
+                Ok(MetaStopDisposition::AlreadyFinalizing) => {
+                    debug!("Meta AI app dictation was already finalizing");
+                    return true;
+                }
+                Ok(MetaStopDisposition::Inactive) => {}
+                Err(error) => {
+                    error!("Failed to stop Meta AI app dictation: {error}");
+                    return false;
+                }
+            }
+        }
+
         // Prevent a slow microphone from emitting a ready event or start chime
         // after the user has already requested stop.
         app.state::<Arc<AudioRecordingManager>>()
@@ -652,6 +695,7 @@ impl ShortcutAction for TranscribeAction {
             "TranscribeAction::stop completed in {:?}",
             stop_time.elapsed()
         );
+        true
     }
 }
 
@@ -659,15 +703,18 @@ impl ShortcutAction for TranscribeAction {
 struct CancelAction;
 
 impl ShortcutAction for CancelAction {
-    fn start(&self, app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {
+    fn start(&self, app: &AppHandle, _binding_id: &str, _shortcut_str: &str) -> bool {
         if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
             coordinator.send_cancel();
         } else {
             utils::cancel_current_operation_before_coordinator(app);
         }
+        false
     }
 
-    fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
+    fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) -> bool {
+        false
+    }
 }
 
 pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::new(|| {

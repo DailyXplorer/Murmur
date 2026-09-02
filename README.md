@@ -7,14 +7,17 @@ Murmur sends audio to a cloud transcription service using a session already on
 the computer. Codex with ChatGPT is the default. On macOS, Gemini through the
 local Antigravity session is available as an experimental alternative. Murmur
 can also use Muse Voice Transcribe through the official Meta Model API. Codex
-and Gemini require no API key or local speech-recognition model. Meta requires
-an API key and charges $0.18 per audio hour; free-tier credits may apply.
+and Gemini require no API key or local speech-recognition model. An experimental
+Meta AI app mode can instead drive Meta AI's global dictation without a key
+while keeping Murmur's overlay visible. The Meta Model API requires an API key
+and may incur usage charges under Meta's current pricing.
 
 ## Requirements
 
 - A working microphone
-- Codex signed in with a ChatGPT account, Antigravity signed in on macOS, or a
-  Meta Model API key
+- Codex signed in with a ChatGPT account, Antigravity signed in on macOS, Meta
+  AI for Mac running in the menu bar with Dictation set to Hold Fn, or a Meta
+  Model API key
 - Accessibility permission for global shortcuts and text insertion
 - Network access while transcribing
 
@@ -29,14 +32,25 @@ For Meta, Murmur sends 16 kHz WAV audio to the documented Muse Voice Transcribe
 file API. The API key is stored in macOS Keychain and is never returned to the
 frontend after it is saved.
 
+The separate experimental Meta AI app mode does not use that API. Open Meta AI
+once, enable Dictation with Hold Fn, close its main window, and leave it running
+in the menu bar. Murmur refuses to start if Meta has a visible window or owns an
+existing dictation. It then holds Meta's global Fn shortcut and places Meta's
+small dictation indicator behind Murmur's non-activating overlay. Meta AI
+captures the microphone and types directly into the focused app. Murmur never
+reads Meta credentials or its private network protocol. Because Murmur does not
+receive the transcript, history, language, microphone, text-processing, and
+output settings do not apply in this mode.
+
 ## Features
 
 - Global record, push-to-talk, and cancel shortcuts
 - Automatic language detection or explicit language selection
-- Codex, experimental Gemini, or Meta Muse Voice Transcribe selection on macOS
+- Codex, experimental Gemini, Meta Model API, or experimental Meta AI app
+  dictation selection on macOS
 - Microphone and output-device selection
-- Optional filler-word removal for Codex and Meta, plus custom-word correction
-  for all services
+- Optional filler-word removal and custom-word correction for Codex and the
+  Meta Model API
 - Transcription history with saved recordings
 - Recording overlay, audio feedback, tray controls, and automatic updates
 
@@ -82,6 +96,13 @@ runtime pipeline is:
 microphone -> WAV/audio samples -> selected cloud transcription -> cleanup -> clipboard/paste
 ```
 
+The experimental Meta AI app path is intentionally separate:
+
+```text
+Murmur shortcut -> Meta AI global dictation -> focused app
+                -> Murmur overlay only
+```
+
 The backend owns audio capture, authentication-cache reading, transcription,
 history, shortcuts, and macOS integration. The frontend owns onboarding,
 settings, history, and the recording overlay.
@@ -104,13 +125,21 @@ an Antigravity process it did not start.
 For Meta, Murmur keeps the API key in macOS Keychain, never logs it, and sends
 it only to Meta's documented Model API endpoint as a bearer credential.
 
+In Meta AI app mode, Meta AI owns microphone capture and remote transcription.
+Murmur never launches, activates, or hides Meta automatically. It posts the
+configured Fn shortcut only after confirming that Meta has no visible main
+window and that the target app still has focus. It uses macOS Accessibility to
+repeat those checks and position Meta's dictation indicator behind the Murmur
+overlay. It does not read Meta's Keychain items, session token, or private
+WebSocket traffic.
+
 ## Origin
 
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur now
 transcribes through cloud services using sessions already present on the
-computer or a user-provided Meta Model API key.
+computer, Meta AI's direct app dictation, or a user-provided Meta Model API key.
 
 ## License
 

@@ -14,6 +14,7 @@ mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
+mod meta_app;
 mod meta_transcribe;
 mod overlay;
 mod paste_tx;
@@ -236,6 +237,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(recording_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(meta_app::MetaAppBridge::default());
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -378,6 +380,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         settings::TranscriptionProvider::Codex => "chatgpt-session",
         settings::TranscriptionProvider::Gemini => "antigravity-session",
         settings::TranscriptionProvider::Meta => "meta-model-api",
+        settings::TranscriptionProvider::MetaApp => "meta-ai-app",
     };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
@@ -486,9 +489,11 @@ pub fn run(cli_args: CliArgs) {
             commands::transcription::get_codex_auth_status,
             commands::transcription::get_gemini_status,
             commands::transcription::get_meta_api_status,
+            commands::transcription::get_meta_app_status,
             commands::transcription::save_meta_api_key,
             commands::transcription::clear_meta_api_key,
             commands::transcription::open_antigravity,
+            commands::transcription::open_meta_ai,
             commands::transcription::complete_onboarding,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
@@ -499,7 +504,10 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
         ])
-        .events(collect_events![managers::history::HistoryUpdatePayload]);
+        .events(collect_events![
+            managers::history::HistoryUpdatePayload,
+            meta_app::MetaAppErrorEvent
+        ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     {
@@ -735,6 +743,18 @@ pub fn run(cli_args: CliArgs) {
         .run(|app, event| match &event {
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                if let Some(bridge) = app.try_state::<meta_app::MetaAppBridge>() {
+                    if let Err(error) = bridge.prepare_exit(app) {
+                        api.prevent_exit();
+                        let message = format!(
+                            "Murmur could not release Meta AI dictation, so it stayed open. Stop dictation and quit again: {error}"
+                        );
+                        log::error!("{message}");
+                        meta_app::report_exit_release_failure(app, message);
+                    }
+                }
             }
             tauri::RunEvent::Exit => {
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {

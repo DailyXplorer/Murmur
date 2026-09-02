@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini इस Mac की स्थानीय Antigravity session का उपयोग करता है। यह प्रायोगिक है; Antigravity अपडेट के बाद Murmur अपडेट की आवश्यकता हो सकती है।",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "आधिकारिक Meta Model API का उपयोग करता है। कुंजी macOS Keychain में रहती है। Meta प्रति ऑडियो घंटे $0.18 लेता है; मुफ़्त क्रेडिट लागू हो सकते हैं।",
+      "metaApp": "Meta AI ऐप (प्रायोगिक)",
+      "metaAppDescription": "Meta AI को एक बार खोलें, Hold Fn के साथ डिक्टेशन चालू करें, फिर उसकी मुख्य विंडो बंद करें। Meta मेनू बार में रहता है और Murmur अपना ओवरले बनाए रखता है।",
+      "metaAppNotInstalled": "Meta AI इंस्टॉल नहीं है",
+      "metaAppNeedsSetup": "Meta AI में डिक्टेशन चालू करें और Hold Fn चुनें।",
+      "metaAppNotRunning": "Meta AI खोलें, फिर उसकी मुख्य विंडो बंद करें।",
+      "metaAppWindowOpen": "Meta AI की विंडो बंद करें और अपने लक्ष्य ऐप पर वापस जाएँ।",
+      "metaAppAlreadyDictating": "पहले Meta AI में चल रहा डिक्टेशन पूरा करें।",
+      "installMetaApp": "इंस्टॉल करें",
+      "openMetaApp": "Meta AI खोलें",
+      "metaAppDirectTitle": "ऐप में सीधा डिक्टेशन",
+      "metaAppDirectDescription": "Meta AI सक्रिय ऐप में सीधे टाइप करता है, इसलिए Murmur का इतिहास, टेक्स्ट प्रोसेसिंग और आउटपुट सेटिंग लागू नहीं होतीं।",
       "configured": "कॉन्फ़िगर किया गया",
       "metaApiKeyPlaceholder": "Meta API कुंजी",
       "saveMetaApiKey": "सहेजें",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity इंस्टॉल नहीं है",
       "installAntigravity": "इंस्टॉल करें",
       "openAntigravity": "Antigravity खोलें",
-      "onboardingDescription": "आगे बढ़ने से पहले Codex या Antigravity में साइन इन करें, या Meta API कुंजी जोड़ें।",
+      "onboardingDescription": "आगे बढ़ने से पहले Codex, Antigravity, Meta AI या Meta API कुंजी सेट अप करें।",
       "groups": {
         "service": "सेवा",
+        "behavior": "व्यवहार",
         "processing": "टेक्स्ट प्रोसेसिंग",
         "output": "आउटपुट"
       }
@@ -394,7 +406,24 @@
     "recordingFailed": "रिकॉर्डिंग शुरू नहीं हो सकी: {{error}}",
     "pasteFailedTitle": "टेक्स्ट पेस्ट नहीं हो सका",
     "pasteFailed": "खुले हुए ऐप्लिकेशन में टेक्स्ट पेस्ट नहीं किया जा सका.",
-    "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका"
+    "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका",
+    "metaApp": {
+      "setupRequired": "Meta AI तैयार नहीं है। इसे खोलें, Hold Fn के साथ डिक्टेशन चालू करें, इसकी मुख्य विंडो बंद करें, फिर लक्ष्य ऐप पर लौटें।",
+      "targetChanged": "लक्ष्य ऐप या Meta AI की स्थिति बदल गई। सही ऐप दिखता रहे इसलिए Murmur ने डिक्टेशन रोक दिया।",
+      "overlayUnavailable": "Murmur अपना रिकॉर्डिंग ओवरले नहीं दिखा सका, इसलिए Meta AI डिक्टेशन शुरू नहीं हुआ।",
+      "keyboardControlFailed": "Murmur Meta AI के Hold Fn शॉर्टकट को सुरक्षित रूप से नियंत्रित नहीं कर सका। फिर कोशिश करने से पहले चल रहा Meta डिक्टेशन समाप्त करें।",
+      "inspectionUnavailable": "Murmur Meta AI की बैकग्राउंड स्थिति सत्यापित नहीं कर सका। स्थिति की पुष्टि होने तक डिक्टेशन अवरुद्ध रहेगा।",
+      "indicatorMoveFailed": "Murmur Meta संकेतक को अपने ओवरले में नहीं रख सका, इसलिए डिक्टेशन रोक दिया गया।",
+      "dictationDidNotStart": "Meta AI ने डिक्टेशन शुरू नहीं किया। जाँचें कि आप Meta में साइन इन हैं और Hold Fn के साथ डिक्टेशन चालू है।",
+      "dictationEndedUnexpectedly": "Murmur को रोकने का अनुरोध मिलने से पहले Meta AI ने डिक्टेशन समाप्त कर दिया।",
+      "indicatorStuck": "लगता है Meta AI अभी भी डिक्टेट कर रहा है। Murmur इसके समाप्त होने तक प्रतीक्षा करेगा और नया डिक्टेशन रोकेगा।",
+      "exitReleaseFailed": "Murmur खुला रहा क्योंकि वह Meta AI डिक्टेशन को सुरक्षित रूप से समाप्त नहीं कर सका। डिक्टेशन समाप्त करें और फिर से बाहर निकलें।",
+      "openFailed": "Meta AI खोला नहीं जा सका। इसे Applications से मैन्युअल रूप से खोलें।"
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API कुंजी सहेजी नहीं जा सकी। कुंजी जाँचें और फिर से कोशिश करें।",
+      "removeFailed": "Meta Model API कुंजी हटाई नहीं जा सकी। पहले दूसरी सेवा चुनें, फिर से कोशिश करें।"
+    }
   },
   "appLanguage": {
     "title": "ऐप्लिकेशन की भाषा",

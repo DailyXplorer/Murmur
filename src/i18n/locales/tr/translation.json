@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini bu Mac'teki yerel Antigravity oturumunu kullanır. Deneyseldir; Antigravity güncellemeleri Murmur güncellemesi gerektirebilir.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Resmi Meta Model API'yi kullanır. Anahtar macOS Anahtar Zinciri'nde kalır. Meta ses saati başına 0,18 ABD doları ücret alır; ücretsiz krediler geçerli olabilir.",
+      "metaApp": "Meta AI uygulaması (deneysel)",
+      "metaAppDescription": "Meta AI'ı bir kez açın, Fn'yi Basılı Tut ile Dikte özelliğini etkinleştirin, ardından ana penceresini kapatın. Meta menü çubuğunda kalırken Murmur kendi katmanını korur.",
+      "metaAppNotInstalled": "Meta AI yüklü değil",
+      "metaAppNeedsSetup": "Meta AI'da Dikte özelliğini etkinleştirin ve Fn'yi Basılı Tut'u seçin.",
+      "metaAppNotRunning": "Meta AI'ı açın, ardından ana penceresini kapatın.",
+      "metaAppWindowOpen": "Meta AI penceresini kapatın ve hedef uygulamanıza dönün.",
+      "metaAppAlreadyDictating": "Önce mevcut Meta AI diktesini bitirin.",
+      "installMetaApp": "Yükle",
+      "openMetaApp": "Meta AI'ı aç",
+      "metaAppDirectTitle": "Uygulamaya doğrudan dikte",
+      "metaAppDirectDescription": "Meta AI etkin uygulamaya doğrudan yazar. Bu nedenle Murmur geçmişi, metin işleme ve çıktı ayarları uygulanmaz.",
       "configured": "Yapılandırıldı",
       "metaApiKeyPlaceholder": "Meta API anahtarı",
       "saveMetaApiKey": "Kaydet",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity yüklü değil",
       "installAntigravity": "Yükle",
       "openAntigravity": "Antigravity'yi aç",
-      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın ya da bir Meta API anahtarı ekleyin.",
+      "onboardingDescription": "Devam etmeden önce Codex, Antigravity, Meta AI veya bir Meta API anahtarı ayarlayın.",
       "groups": {
         "service": "Hizmet",
+        "behavior": "Davranış",
         "processing": "Metin işleme",
         "output": "Çıktı"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Kayıt başlatılamadı: {{error}}",
     "pasteFailedTitle": "Metin yapıştırılamadı",
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
-    "transcriptionFailedTitle": "Transkripsiyon başarısız oldu"
+    "transcriptionFailedTitle": "Transkripsiyon başarısız oldu",
+    "metaApp": {
+      "setupRequired": "Meta AI hazır değil. Uygulamayı açın, Fn'yi Basılı Tut ile Dikte özelliğini etkinleştirin, ana pencereyi kapatın ve hedef uygulamaya dönün.",
+      "targetChanged": "Hedef uygulama veya Meta AI durumu değişti. Doğru uygulama görünür kalsın diye Murmur dikteyi durdurdu.",
+      "overlayUnavailable": "Murmur kayıt katmanını gösteremedi, bu nedenle Meta AI diktesi başlatılmadı.",
+      "keyboardControlFailed": "Murmur, Meta AI'ın Fn'yi Basılı Tut kısayolunu güvenle denetleyemedi. Yeniden denemeden önce devam eden Meta diktesini bitirin.",
+      "inspectionUnavailable": "Murmur, Meta AI'ın arka plan durumunu doğrulayamadı. Durum onaylanana kadar dikte engellenmiş kalır.",
+      "indicatorMoveFailed": "Murmur Meta göstergesini kendi katmanında tutamadı, bu nedenle dikte durduruldu.",
+      "dictationDidNotStart": "Meta AI dikteyi başlatmadı. Meta'da oturum açtığınızı ve Fn'yi Basılı Tut ile Dikte'nin etkin olduğunu kontrol edin.",
+      "dictationEndedUnexpectedly": "Murmur durdurma isteği almadan önce Meta AI dikteyi sonlandırdı.",
+      "indicatorStuck": "Meta AI hâlâ dikte ediyor gibi görünüyor. Murmur bitmesini bekler ve o zamana kadar yeni bir dikteyi engeller.",
+      "exitReleaseFailed": "Murmur açık kaldı çünkü Meta AI diktesini güvenle sonlandıramadı. Dikteyi bitirin ve yeniden çıkmayı deneyin.",
+      "openFailed": "Meta AI açılamadı. Uygulamayı Uygulamalar'dan elle açın."
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API anahtarı kaydedilemedi. Anahtarı kontrol edip yeniden deneyin.",
+      "removeFailed": "Meta Model API anahtarı kaldırılamadı. Önce başka bir hizmet seçin, sonra yeniden deneyin."
+    }
   },
   "appLanguage": {
     "title": "Uygulama Dili",

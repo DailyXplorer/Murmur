@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini bruger den lokale Antigravity-session på denne Mac. Eksperimentel; Antigravity-opdateringer kan kræve en Murmur-opdatering.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Bruger den officielle Meta Model API. Nøglen bliver i macOS-nøgleringen. Meta opkræver 0,18 USD pr. lydtime; gratis kreditter kan gælde.",
+      "metaApp": "Meta AI-app (eksperimentel)",
+      "metaAppDescription": "Åbn Meta AI én gang, slå Diktering til med Hold Fn nede, og luk derefter hovedvinduet. Murmur beholder sit eget overlay, mens Meta forbliver i menulinjen.",
+      "metaAppNotInstalled": "Meta AI er ikke installeret",
+      "metaAppNeedsSetup": "Slå Diktering til, og vælg Hold Fn nede i Meta AI.",
+      "metaAppNotRunning": "Åbn Meta AI, og luk derefter hovedvinduet.",
+      "metaAppWindowOpen": "Luk Meta AI-vinduet, og vend tilbage til målappen.",
+      "metaAppAlreadyDictating": "Afslut først den aktuelle Meta AI-diktering.",
+      "installMetaApp": "Installer",
+      "openMetaApp": "Åbn Meta AI",
+      "metaAppDirectTitle": "Direkte diktering i appen",
+      "metaAppDirectDescription": "Meta AI skriver direkte i den aktive app. Murmurs historik, tekstbehandling og outputindstillinger gælder derfor ikke.",
       "configured": "Konfigureret",
       "metaApiKeyPlaceholder": "Meta API-nøgle",
       "saveMetaApiKey": "Gem",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity er ikke installeret",
       "installAntigravity": "Installer",
       "openAntigravity": "Åbn Antigravity",
-      "onboardingDescription": "Log ind på Codex eller Antigravity, eller tilføj en Meta API-nøgle, før du fortsætter.",
+      "onboardingDescription": "Konfigurer Codex, Antigravity, Meta AI eller en Meta API-nøgle, før du fortsætter.",
       "groups": {
         "service": "Tjeneste",
+        "behavior": "Adfærd",
         "processing": "Tekstbehandling",
         "output": "Output"
       }
@@ -394,7 +406,24 @@
     "recordingFailed": "Kunne ikke starte optagelse: {{error}}",
     "pasteFailedTitle": "Kunne ikke indsætte tekst",
     "pasteFailed": "Teksten kunne ikke indsættes i det aktive program.",
-    "transcriptionFailedTitle": "Transskription mislykkedes"
+    "transcriptionFailedTitle": "Transskription mislykkedes",
+    "metaApp": {
+      "setupRequired": "Meta AI er ikke klar. Åbn appen, slå Diktering med Hold Fn nede til, luk hovedvinduet, og vend tilbage til målappen.",
+      "targetChanged": "Målappen eller Meta AI-tilstanden er ændret. Murmur stoppede dikteringen for at holde den rigtige app synlig.",
+      "overlayUnavailable": "Murmur kunne ikke vise sit optagelsesoverlay, så Meta AI-diktering blev ikke startet.",
+      "keyboardControlFailed": "Murmur kunne ikke styre Meta AI-genvejen Hold Fn nede sikkert. Afslut igangværende Meta-diktering, før du prøver igen.",
+      "inspectionUnavailable": "Murmur kunne ikke bekræfte Meta AI’s baggrundstilstand. Diktering forbliver blokeret, indtil tilstanden kan bekræftes.",
+      "indicatorMoveFailed": "Murmur kunne ikke holde Meta-indikatoren inde i sit overlay, så dikteringen blev stoppet.",
+      "dictationDidNotStart": "Meta AI startede ikke dikteringen. Kontrollér, at du er logget ind på Meta, og at Diktering med Hold Fn nede er aktiveret.",
+      "dictationEndedUnexpectedly": "Meta AI afsluttede dikteringen, før Murmur modtog en anmodning om at stoppe.",
+      "indicatorStuck": "Meta AI ser stadig ud til at diktere. Murmur venter på, at det slutter, og blokerer ny diktering indtil da.",
+      "exitReleaseFailed": "Murmur forblev åben, fordi det ikke sikkert kunne afslutte Meta AI-diktering. Afslut dikteringen, og afslut igen.",
+      "openFailed": "Meta AI kunne ikke åbnes. Åbn appen manuelt fra Programmer."
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API-nøglen kunne ikke gemmes. Kontrollér nøglen, og prøv igen.",
+      "removeFailed": "Meta Model API-nøglen kunne ikke fjernes. Vælg først en anden tjeneste, og prøv derefter igen."
+    }
   },
   "appLanguage": {
     "title": "Applikationssprog",

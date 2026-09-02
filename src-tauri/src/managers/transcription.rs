@@ -64,6 +64,9 @@ impl TranscriptionManager {
             TranscriptionProvider::Meta => {
                 meta_transcribe::transcribe(&audio, language.as_deref(), &settings.custom_words)
             }
+            TranscriptionProvider::MetaApp => Err(anyhow::anyhow!(
+                "Meta AI app dictation only supports live microphone input"
+            )),
         }
         .map_err(|err| {
             error!("{provider:?} transcription failed: {err}");

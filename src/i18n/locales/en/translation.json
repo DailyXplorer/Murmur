@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini uses the local Antigravity session on this Mac. Experimental; Antigravity updates may require a Murmur update.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Uses the official Meta Model API. The key stays in macOS Keychain. Meta charges $0.18 per audio hour; free-tier credits may apply.",
+      "metaApp": "Meta AI app (experimental)",
+      "metaAppDescription": "Open Meta AI once, enable Dictation with Hold Fn, then close its main window. Murmur keeps its own overlay while Meta stays in the menu bar.",
+      "metaAppNotInstalled": "Meta AI not installed",
+      "metaAppNeedsSetup": "Enable Dictation and set it to Hold Fn in Meta AI.",
+      "metaAppNotRunning": "Open Meta AI, then close its main window.",
+      "metaAppWindowOpen": "Close the Meta AI window and return to your target app.",
+      "metaAppAlreadyDictating": "Finish the current Meta AI dictation first.",
+      "installMetaApp": "Install",
+      "openMetaApp": "Open Meta AI",
+      "metaAppDirectTitle": "Direct app dictation",
+      "metaAppDirectDescription": "Meta AI types directly into the active app, so Murmur history, text processing, and output settings do not apply.",
       "configured": "Configured",
       "metaApiKeyPlaceholder": "Meta API key",
       "saveMetaApiKey": "Save",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity not installed",
       "installAntigravity": "Install",
       "openAntigravity": "Open Antigravity",
-      "onboardingDescription": "Sign in to Codex or Antigravity, or add a Meta API key before continuing.",
+      "onboardingDescription": "Set up Codex, Antigravity, Meta AI, or a Meta API key before continuing.",
       "groups": {
         "service": "Service",
+        "behavior": "Behavior",
         "processing": "Text Processing",
         "output": "Output"
       }
@@ -394,7 +406,24 @@
     "recordingFailed": "Failed to start recording: {{error}}",
     "pasteFailedTitle": "Failed to Paste Text",
     "pasteFailed": "Text could not be pasted into the active application.",
-    "transcriptionFailedTitle": "Transcription Failed"
+    "transcriptionFailedTitle": "Transcription Failed",
+    "metaApp": {
+      "setupRequired": "Meta AI is not ready. Open it, enable Dictation with Hold Fn, close its main window, then return to your target app.",
+      "targetChanged": "The target app or Meta AI state changed. Murmur stopped dictation to keep the correct app visible.",
+      "overlayUnavailable": "Murmur could not show its recording overlay, so Meta AI dictation was not started.",
+      "keyboardControlFailed": "Murmur could not safely control Meta AI's Hold Fn shortcut. Finish any Meta dictation before retrying.",
+      "inspectionUnavailable": "Murmur could not verify Meta AI's background state. Dictation remains blocked until the state can be confirmed.",
+      "indicatorMoveFailed": "Murmur could not keep the Meta indicator inside its overlay, so dictation was stopped.",
+      "dictationDidNotStart": "Meta AI did not start dictation. Check that Meta is signed in and Dictation is enabled with Hold Fn.",
+      "dictationEndedUnexpectedly": "Meta AI ended dictation before Murmur received a stop request.",
+      "indicatorStuck": "Meta AI still appears to be dictating. Murmur will wait and block a new dictation until it ends.",
+      "exitReleaseFailed": "Murmur stayed open because it could not safely release Meta AI dictation. End dictation and quit again.",
+      "openFailed": "Meta AI could not be opened. Open it manually from Applications."
+    },
+    "metaApi": {
+      "saveFailed": "The Meta Model API key could not be saved. Check the key and try again.",
+      "removeFailed": "The Meta Model API key could not be removed. Select another service first, then retry."
+    }
   },
   "appLanguage": {
     "title": "Application Language",

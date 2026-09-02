@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini משתמש בהפעלה המקומית של Antigravity ב-Mac הזה. תכונה ניסיונית; עדכוני Antigravity עשויים לדרוש עדכון של Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "משתמש ב-Meta Model API הרשמי. המפתח נשאר בצרור המפתחות של macOS. ‏Meta גובה 0.18 דולר לשעת שמע; ייתכן שיחולו זיכויים חינמיים.",
+      "metaApp": "אפליקציית Meta AI (ניסיונית)",
+      "metaAppDescription": "פתחו את Meta AI פעם אחת, הפעילו הכתבה עם החזקת Fn, ואז סגרו את החלון הראשי שלו. Murmur שומרת על שכבת התצוגה שלה בזמן ש-Meta נשארת בשורת התפריטים.",
+      "metaAppNotInstalled": "Meta AI אינה מותקנת",
+      "metaAppNeedsSetup": "הפעילו הכתבה והגדירו החזקת Fn ב-Meta AI.",
+      "metaAppNotRunning": "פתחו את Meta AI ואז סגרו את החלון הראשי שלו.",
+      "metaAppWindowOpen": "סגרו את חלון Meta AI וחזרו לאפליקציית היעד.",
+      "metaAppAlreadyDictating": "סיימו קודם את ההכתבה הנוכחית ב-Meta AI.",
+      "installMetaApp": "התקנה",
+      "openMetaApp": "פתיחת Meta AI",
+      "metaAppDirectTitle": "הכתבה ישירה באפליקציה",
+      "metaAppDirectDescription": "Meta AI מקלידה ישירות באפליקציה הפעילה. לכן ההיסטוריה, עיבוד הטקסט והגדרות הפלט של Murmur אינם חלים.",
       "configured": "מוגדר",
       "metaApiKeyPlaceholder": "מפתח API של Meta",
       "saveMetaApiKey": "שמירה",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity אינו מותקן",
       "installAntigravity": "התקנה",
       "openAntigravity": "פתיחת Antigravity",
-      "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity, או להוסיף מפתח API של Meta לפני שממשיכים.",
+      "onboardingDescription": "הגדירו את Codex, Antigravity, Meta AI או מפתח API של Meta לפני שממשיכים.",
       "groups": {
         "service": "שירות",
+        "behavior": "התנהגות",
         "processing": "עיבוד טקסט",
         "output": "פלט"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "הפעלת ההקלטה נכשלה: {{error}}",
     "pasteFailedTitle": "ההדבקה נכשלה",
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
-    "transcriptionFailedTitle": "התמלול נכשל"
+    "transcriptionFailedTitle": "התמלול נכשל",
+    "metaApp": {
+      "setupRequired": "Meta AI אינה מוכנה. פתחו אותה, הפעילו הכתבה עם החזקת Fn, סגרו את החלון הראשי וחזרו לאפליקציית היעד.",
+      "targetChanged": "אפליקציית היעד או המצב של Meta AI השתנו. Murmur עצרה את ההכתבה כדי שהאפליקציה הנכונה תישאר גלויה.",
+      "overlayUnavailable": "Murmur לא הצליחה להציג את שכבת ההקלטה שלה, ולכן ההכתבה של Meta AI לא התחילה.",
+      "keyboardControlFailed": "Murmur לא הצליחה לשלוט בבטחה בקיצור החזקת Fn של Meta AI. סיימו הכתבת Meta פעילה לפני ניסיון חוזר.",
+      "inspectionUnavailable": "Murmur לא הצליחה לאמת את המצב של Meta AI ברקע. ההכתבה תישאר חסומה עד שניתן יהיה לאשר את המצב.",
+      "indicatorMoveFailed": "Murmur לא הצליחה להשאיר את מחוון Meta בתוך השכבה שלה, ולכן ההכתבה נעצרה.",
+      "dictationDidNotStart": "Meta AI לא התחילה הכתבה. ודאו שאתם מחוברים ל-Meta ושהכתבה עם החזקת Fn פעילה.",
+      "dictationEndedUnexpectedly": "Meta AI סיימה את ההכתבה לפני ש-Murmur קיבלה בקשת עצירה.",
+      "indicatorStuck": "נראה ש-Meta AI עדיין מכתיבה. Murmur תחכה לסיום ותחסום הכתבה חדשה עד אז.",
+      "exitReleaseFailed": "Murmur נשארה פתוחה כי לא הצליחה לסיים בבטחה את ההכתבה של Meta AI. סיימו את ההכתבה ונסו לצאת שוב.",
+      "openFailed": "לא ניתן היה לפתוח את Meta AI. פתחו אותה ידנית מתוך יישומים."
+    },
+    "metaApi": {
+      "saveFailed": "לא ניתן היה לשמור את מפתח Meta Model API. בדקו את המפתח ונסו שוב.",
+      "removeFailed": "לא ניתן היה להסיר את מפתח Meta Model API. בחרו תחילה שירות אחר, ואז נסו שוב."
+    }
   },
   "appLanguage": {
     "title": "שפת האפליקציה",

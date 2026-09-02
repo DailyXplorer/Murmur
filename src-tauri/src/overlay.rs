@@ -32,6 +32,7 @@ const OVERLAY_WIDTH: f64 = 256.0;
 const OVERLAY_HEIGHT: f64 = 46.0;
 
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
+static OVERLAY_VISIBILITY_GENERATION: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
@@ -118,6 +119,26 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
+/// Returns the real logical frame of Murmur's visible recording panel. Reading
+/// the window rather than recalculating from the cursor keeps Meta's indicator
+/// covered if the pointer moves to another monitor during dictation.
+pub(crate) fn meta_overlay_frame(app_handle: &AppHandle) -> Option<(f64, f64, f64, f64)> {
+    let window = app_handle.get_webview_window("recording_overlay")?;
+    if !window.is_visible().ok()? {
+        return None;
+    }
+
+    let scale = window.scale_factor().ok()?;
+    let position = window.outer_position().ok()?;
+    let size = window.inner_size().ok()?;
+    Some((
+        position.x as f64 / scale,
+        position.y as f64 / scale,
+        size.width as f64 / scale,
+        size.height as f64 / scale,
+    ))
+}
+
 fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Option<(f64, f64)> {
     let size = window.inner_size().ok()?;
     let scale = window.scale_factor().ok()?;
@@ -162,6 +183,18 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
+    OVERLAY_VISIBILITY_GENERATION.fetch_add(1, Ordering::Relaxed);
+    let handle = app_handle.clone();
+    let state = state.to_string();
+    let _ = app_handle.run_on_main_thread(move || show_overlay_state_on_main(&handle, &state));
+}
+
+/// Meta AI app dictation has no transcript or window of its own in Murmur, so
+/// its bridge always keeps Murmur's non-activating panel visible. This is an
+/// intentional exception to the persisted overlay preference: without it the
+/// Meta dictation indicator could not be covered by Murmur's UI.
+fn show_meta_app_overlay_state(app_handle: &AppHandle, state: &str) {
+    OVERLAY_VISIBILITY_GENERATION.fetch_add(1, Ordering::Relaxed);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || show_overlay_state_on_main(&handle, &state));
@@ -227,6 +260,21 @@ pub fn show_transcribing_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "transcribing");
 }
 
+pub(crate) fn show_meta_app_recording_overlay(app_handle: &AppHandle) {
+    show_meta_app_overlay_state(app_handle, "recording");
+}
+
+pub(crate) fn show_meta_app_transcribing_overlay(app_handle: &AppHandle) {
+    show_meta_app_overlay_state(app_handle, "transcribing");
+}
+
+pub(crate) fn emit_meta_app_recording_ready(app_handle: &AppHandle) {
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let _ = handle.emit_to("recording_overlay", "recording-ready", ());
+    });
+}
+
 /// Updates the overlay window position based on current settings
 pub fn update_overlay_position(app_handle: &AppHandle) {
     let handle = app_handle.clone();
@@ -247,11 +295,16 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 /// Hides the recording overlay window with fade-out animation
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let hide_generation = OVERLAY_VISIBILITY_GENERATION
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1);
         let _ = overlay_window.emit("hide-overlay", ());
         let window_clone = overlay_window.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(300));
-            let _ = window_clone.hide();
+            if OVERLAY_VISIBILITY_GENERATION.load(Ordering::Relaxed) == hide_generation {
+                let _ = window_clone.hide();
+            }
         });
     }
 }

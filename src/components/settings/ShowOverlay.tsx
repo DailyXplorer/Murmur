@@ -14,17 +14,25 @@ export const ShowOverlay: React.FC<ShowOverlayProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
+    const usesMetaApp = getSetting("transcription_provider") === "meta_app";
 
-    const styleOptions = [
-      {
-        value: "none",
-        label: t("settings.advanced.overlay.style.options.none"),
-      },
-      {
-        value: "minimal",
-        label: t("settings.advanced.overlay.style.options.minimal"),
-      },
-    ];
+    const styleOptions = usesMetaApp
+      ? [
+          {
+            value: "minimal",
+            label: t("settings.advanced.overlay.style.options.minimal"),
+          },
+        ]
+      : [
+          {
+            value: "none",
+            label: t("settings.advanced.overlay.style.options.none"),
+          },
+          {
+            value: "minimal",
+            label: t("settings.advanced.overlay.style.options.minimal"),
+          },
+        ];
 
     const positionOptions = [
       {
@@ -38,7 +46,11 @@ export const ShowOverlay: React.FC<ShowOverlayProps> = React.memo(
     ];
 
     const selectedStyle = (
-      getSetting("overlay_style") === "none" ? "none" : "minimal"
+      usesMetaApp
+        ? "minimal"
+        : getSetting("overlay_style") === "none"
+          ? "none"
+          : "minimal"
     ) as OverlayStyle;
     // Only "top" and "bottom" are selectable; anything else (empty, or a legacy
     // "none" from before the position was retired) falls back to "bottom".

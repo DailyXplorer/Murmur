@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini verwendet die lokale Antigravity-Sitzung auf diesem Mac. Experimentell; nach Antigravity-Updates kann ein Murmur-Update nötig sein.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Verwendet die offizielle Meta Model API. Der Schlüssel bleibt im macOS-Schlüsselbund. Meta berechnet 0,18 USD pro Audiostunde; kostenlose Guthaben können gelten.",
+      "metaApp": "Meta AI-App (experimentell)",
+      "metaAppDescription": "Öffne Meta AI einmal, aktiviere Diktat mit der Option Fn gedrückt halten und schließe anschließend das Hauptfenster. Murmur behält sein eigenes Overlay, während Meta in der Menüleiste bleibt.",
+      "metaAppNotInstalled": "Meta AI ist nicht installiert",
+      "metaAppNeedsSetup": "Aktiviere Diktat in Meta AI und stelle es auf Fn gedrückt halten.",
+      "metaAppNotRunning": "Öffne Meta AI und schließe anschließend das Hauptfenster.",
+      "metaAppWindowOpen": "Schließe das Meta-AI-Fenster und kehre zu deiner Ziel-App zurück.",
+      "metaAppAlreadyDictating": "Beende zuerst die aktuelle Meta-AI-Diktierung.",
+      "installMetaApp": "Installieren",
+      "openMetaApp": "Meta AI öffnen",
+      "metaAppDirectTitle": "Direktes Diktat in der App",
+      "metaAppDirectDescription": "Meta AI schreibt direkt in die aktive App. Murmur-Verlauf, Textverarbeitung und Ausgabeeinstellungen gelten daher nicht.",
       "configured": "Konfiguriert",
       "metaApiKeyPlaceholder": "Meta-API-Schlüssel",
       "saveMetaApiKey": "Speichern",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity ist nicht installiert",
       "installAntigravity": "Installieren",
       "openAntigravity": "Antigravity öffnen",
-      "onboardingDescription": "Melde dich bei Codex oder Antigravity an oder füge einen Meta-API-Schlüssel hinzu, bevor du fortfährst.",
+      "onboardingDescription": "Richte Codex, Antigravity, Meta AI oder einen Meta-API-Schlüssel ein, bevor du fortfährst.",
       "groups": {
         "service": "Dienst",
+        "behavior": "Verhalten",
         "processing": "Textverarbeitung",
         "output": "Ausgabe"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Aufnahme konnte nicht gestartet werden: {{error}}",
     "pasteFailedTitle": "Text konnte nicht eingefügt werden",
     "pasteFailed": "Der Text konnte nicht in die aktive Anwendung eingefügt werden.",
-    "transcriptionFailedTitle": "Transkription fehlgeschlagen"
+    "transcriptionFailedTitle": "Transkription fehlgeschlagen",
+    "metaApp": {
+      "setupRequired": "Meta AI ist nicht bereit. Öffne die App, aktiviere Diktat mit Fn gedrückt halten, schließe das Hauptfenster und kehre dann zur Ziel-App zurück.",
+      "targetChanged": "Die Ziel-App oder der Meta-AI-Status hat sich geändert. Murmur hat das Diktat beendet, damit die richtige App sichtbar bleibt.",
+      "overlayUnavailable": "Murmur konnte sein Aufnahme-Overlay nicht anzeigen. Deshalb wurde das Meta-AI-Diktat nicht gestartet.",
+      "keyboardControlFailed": "Murmur konnte die Tastenkombination Fn gedrückt halten von Meta AI nicht sicher steuern. Beende ein laufendes Meta-Diktat, bevor du es erneut versuchst.",
+      "inspectionUnavailable": "Murmur konnte den Hintergrundstatus von Meta AI nicht prüfen. Das Diktat bleibt blockiert, bis der Status bestätigt werden kann.",
+      "indicatorMoveFailed": "Murmur konnte den Meta-Indikator nicht im Overlay halten. Deshalb wurde das Diktat beendet.",
+      "dictationDidNotStart": "Meta AI hat das Diktat nicht gestartet. Prüfe, ob du bei Meta angemeldet bist und Diktat mit Fn gedrückt halten aktiviert ist.",
+      "dictationEndedUnexpectedly": "Meta AI hat das Diktat beendet, bevor Murmur eine Stoppanfrage erhalten hat.",
+      "indicatorStuck": "Meta AI scheint noch zu diktieren. Murmur wartet auf das Ende und blockiert bis dahin ein neues Diktat.",
+      "exitReleaseFailed": "Murmur blieb geöffnet, weil es das Meta-AI-Diktat nicht sicher beenden konnte. Beende das Diktat und schließe Murmur erneut.",
+      "openFailed": "Meta AI konnte nicht geöffnet werden. Öffne die App manuell aus dem Programme-Ordner."
+    },
+    "metaApi": {
+      "saveFailed": "Der Meta Model API-Schlüssel konnte nicht gespeichert werden. Prüfe den Schlüssel und versuche es erneut.",
+      "removeFailed": "Der Meta Model API-Schlüssel konnte nicht entfernt werden. Wähle zuerst einen anderen Dienst und versuche es dann erneut."
+    }
   },
   "appLanguage": {
     "title": "Anwendungssprache",

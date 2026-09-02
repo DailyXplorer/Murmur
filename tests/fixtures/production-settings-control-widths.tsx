@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { Toaster } from "sonner";
 import type {
   AppSettings,
   AudioDevice,
@@ -50,28 +51,31 @@ const TEST_SETTINGS: AppSettings = {
 };
 
 const ProductionSettingsControlWidthsFixture: React.FC = () => (
-  <main className="min-h-screen bg-background px-8 py-10 text-text">
-    <section className="mx-auto flex w-[720px] flex-col gap-4">
-      <div data-testid="production-microphone">
-        <MicrophoneSelector />
-      </div>
-      <div data-testid="production-language">
-        <LanguageSelector />
-      </div>
-      <div data-testid="production-shortcut">
-        <GlobalShortcutInput shortcutId="transcribe" />
-      </div>
-      <div data-testid="production-history-limit">
-        <HistoryLimit />
-      </div>
-      <div data-testid="production-custom-words">
-        <CustomWords />
-      </div>
-      <div data-testid="production-transcription">
-        <TranscriptionSettings />
-      </div>
-    </section>
-  </main>
+  <>
+    <Toaster />
+    <main className="min-h-screen bg-background px-8 py-10 text-text">
+      <section className="mx-auto flex w-[720px] flex-col gap-4">
+        <div data-testid="production-microphone">
+          <MicrophoneSelector />
+        </div>
+        <div data-testid="production-language">
+          <LanguageSelector />
+        </div>
+        <div data-testid="production-shortcut">
+          <GlobalShortcutInput shortcutId="transcribe" />
+        </div>
+        <div data-testid="production-history-limit">
+          <HistoryLimit />
+        </div>
+        <div data-testid="production-custom-words">
+          <CustomWords />
+        </div>
+        <div data-testid="production-transcription">
+          <TranscriptionSettings />
+        </div>
+      </section>
+    </main>
+  </>
 );
 
 const renderFixture = async () => {
@@ -84,12 +88,29 @@ const renderFixture = async () => {
     if (command === "get_meta_api_status") {
       return { configured: metaConfigured };
     }
+    if (command === "get_meta_app_status") {
+      return {
+        installed: true,
+        dictation_enabled: true,
+        hold_fn_enabled: true,
+        accessibility_trusted: true,
+        runtime_state: "ready",
+        ready: true,
+      };
+    }
+    if (command === "change_transcription_provider_setting") return null;
     if (command === "save_meta_api_key") {
       metaConfigured = true;
       return null;
     }
     if (command === "clear_meta_api_key") {
       metaConfigured = false;
+      return null;
+    }
+    if (command === "open_meta_ai") {
+      if (new URLSearchParams(window.location.search).has("rejectMetaOpen")) {
+        throw new Error("Meta AI launch failed");
+      }
       return null;
     }
     throw new Error(`Unexpected Tauri command: ${command}`);

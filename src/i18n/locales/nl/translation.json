@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini gebruikt de lokale Antigravity-sessie op deze Mac. Experimenteel; updates van Antigravity kunnen een update van Murmur vereisen.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Gebruikt de officiële Meta Model API. De sleutel blijft in de macOS-sleutelhanger. Meta rekent 0,18 USD per audio-uur; gratis tegoed kan van toepassing zijn.",
+      "metaApp": "Meta AI-app (experimenteel)",
+      "metaAppDescription": "Open Meta AI één keer, schakel Dicteren met Fn ingedrukt houden in en sluit daarna het hoofdvenster. Murmur behoudt zijn eigen overlay terwijl Meta in de menubalk blijft.",
+      "metaAppNotInstalled": "Meta AI is niet geïnstalleerd",
+      "metaAppNeedsSetup": "Schakel Dicteren in en stel dit in op Fn ingedrukt houden in Meta AI.",
+      "metaAppNotRunning": "Open Meta AI en sluit daarna het hoofdvenster.",
+      "metaAppWindowOpen": "Sluit het Meta AI-venster en ga terug naar je doelapp.",
+      "metaAppAlreadyDictating": "Rond eerst de huidige Meta AI-dictatie af.",
+      "installMetaApp": "Installeren",
+      "openMetaApp": "Meta AI openen",
+      "metaAppDirectTitle": "Direct dicteren in de app",
+      "metaAppDirectDescription": "Meta AI typt rechtstreeks in de actieve app. De geschiedenis, tekstverwerking en uitvoerinstellingen van Murmur zijn daarom niet van toepassing.",
       "configured": "Geconfigureerd",
       "metaApiKeyPlaceholder": "Meta API-sleutel",
       "saveMetaApiKey": "Opslaan",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity is niet geïnstalleerd",
       "installAntigravity": "Installeren",
       "openAntigravity": "Antigravity openen",
-      "onboardingDescription": "Meld je aan bij Codex of Antigravity, of voeg een Meta API-sleutel toe voordat je doorgaat.",
+      "onboardingDescription": "Stel Codex, Antigravity, Meta AI of een Meta API-sleutel in voordat je doorgaat.",
       "groups": {
         "service": "Service",
+        "behavior": "Gedrag",
         "processing": "Tekstverwerking",
         "output": "Uitvoer"
       }
@@ -394,7 +406,24 @@
     "recordingFailed": "Opname starten mislukt: {{error}}",
     "pasteFailedTitle": "Tekst plakken mislukt",
     "pasteFailed": "Tekst kon niet worden geplakt in de actieve applicatie.",
-    "transcriptionFailedTitle": "Transcriptie mislukt"
+    "transcriptionFailedTitle": "Transcriptie mislukt",
+    "metaApp": {
+      "setupRequired": "Meta AI is niet klaar. Open de app, schakel Dicteren met Fn ingedrukt houden in, sluit het hoofdvenster en keer terug naar de doel-app.",
+      "targetChanged": "De doel-app of de status van Meta AI is gewijzigd. Murmur heeft dicteren gestopt zodat de juiste app zichtbaar blijft.",
+      "overlayUnavailable": "Murmur kon de opname-overlay niet tonen. Daarom is Meta AI-dicteren niet gestart.",
+      "keyboardControlFailed": "Murmur kon de sneltoets Fn ingedrukt houden van Meta AI niet veilig bedienen. Beëindig een lopend Meta-dicteerproces voordat je het opnieuw probeert.",
+      "inspectionUnavailable": "Murmur kon de achtergrondstatus van Meta AI niet controleren. Dicteren blijft geblokkeerd totdat de status kan worden bevestigd.",
+      "indicatorMoveFailed": "Murmur kon de Meta-indicator niet binnen de overlay houden. Daarom is dicteren gestopt.",
+      "dictationDidNotStart": "Meta AI is niet met dicteren begonnen. Controleer of je bij Meta bent aangemeld en Dicteren met Fn ingedrukt houden is ingeschakeld.",
+      "dictationEndedUnexpectedly": "Meta AI heeft het dicteren beëindigd voordat Murmur een stopverzoek ontving.",
+      "indicatorStuck": "Meta AI lijkt nog te dicteren. Murmur wacht tot dit eindigt en blokkeert tot dan een nieuw dicteerproces.",
+      "exitReleaseFailed": "Murmur bleef open omdat het Meta AI-dicteren niet veilig kon stoppen. Beëindig het dicteren en sluit Murmur opnieuw af.",
+      "openFailed": "Meta AI kon niet worden geopend. Open de app handmatig vanuit Programma’s."
+    },
+    "metaApi": {
+      "saveFailed": "De Meta Model API-sleutel kon niet worden opgeslagen. Controleer de sleutel en probeer het opnieuw.",
+      "removeFailed": "De Meta Model API-sleutel kon niet worden verwijderd. Kies eerst een andere service en probeer het daarna opnieuw."
+    }
   },
   "appLanguage": {
     "title": "Interfacetaal",

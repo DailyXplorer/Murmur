@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini はこの Mac のローカル Antigravity セッションを使います。試験的機能のため、Antigravity の更新後に Murmur の更新が必要になる場合があります。",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "公式の Meta Model API を使います。キーは macOS キーチェーンに保存されます。Meta の料金は音声 1 時間あたり 0.18 米ドルで、無料クレジットが適用される場合があります。",
+      "metaApp": "Meta AI アプリ（試験運用）",
+      "metaAppDescription": "Meta AI を一度開き、Fn キーを押したままで音声入力を有効にしてから、メインウィンドウを閉じてください。Meta はメニューバーに残り、Murmur は独自のオーバーレイを維持します。",
+      "metaAppNotInstalled": "Meta AI がインストールされていません",
+      "metaAppNeedsSetup": "Meta AI で音声入力を有効にし、「Fn キーを押したまま」に設定してください。",
+      "metaAppNotRunning": "Meta AI を開いてから、メインウィンドウを閉じてください。",
+      "metaAppWindowOpen": "Meta AI のウィンドウを閉じて、対象のアプリに戻ってください。",
+      "metaAppAlreadyDictating": "まず、進行中の Meta AI の音声入力を完了してください。",
+      "installMetaApp": "インストール",
+      "openMetaApp": "Meta AI を開く",
+      "metaAppDirectTitle": "アプリへの直接音声入力",
+      "metaAppDirectDescription": "Meta AI がアクティブなアプリへ直接入力するため、Murmur の履歴、テキスト処理、出力設定は適用されません。",
       "configured": "設定済み",
       "metaApiKeyPlaceholder": "Meta API キー",
       "saveMetaApiKey": "保存",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity がインストールされていません",
       "installAntigravity": "インストール",
       "openAntigravity": "Antigravity を開く",
-      "onboardingDescription": "続行する前に Codex または Antigravity にログインするか、Meta API キーを追加してください。",
+      "onboardingDescription": "続行する前に、Codex、Antigravity、Meta AI、または Meta API キーを設定してください。",
       "groups": {
         "service": "サービス",
+        "behavior": "動作",
         "processing": "テキスト処理",
         "output": "出力"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "録音の開始に失敗しました: {{error}}",
     "pasteFailedTitle": "テキストの貼り付けに失敗しました",
     "pasteFailed": "アクティブなアプリにテキストを貼り付けられませんでした。",
-    "transcriptionFailedTitle": "文字起こしに失敗しました"
+    "transcriptionFailedTitle": "文字起こしに失敗しました",
+    "metaApp": {
+      "setupRequired": "Meta AI の準備ができていません。アプリを開き、「Fn キーを押したまま」の音声入力を有効にし、メインウィンドウを閉じてから対象アプリに戻ってください。",
+      "targetChanged": "対象アプリまたは Meta AI の状態が変わりました。正しいアプリを表示したままにするため、Murmur は音声入力を停止しました。",
+      "overlayUnavailable": "Murmur が録音オーバーレイを表示できなかったため、Meta AI の音声入力は開始されませんでした。",
+      "keyboardControlFailed": "Murmur は Meta AI の「Fn キーを押したまま」ショートカットを安全に操作できませんでした。再試行する前に、進行中の Meta 音声入力を終了してください。",
+      "inspectionUnavailable": "Murmur は Meta AI のバックグラウンド状態を確認できませんでした。状態を確認できるまで音声入力はブロックされます。",
+      "indicatorMoveFailed": "Murmur は Meta のインジケーターをオーバーレイ内に保てなかったため、音声入力を停止しました。",
+      "dictationDidNotStart": "Meta AI が音声入力を開始しませんでした。Meta にサインイン済みで、「Fn キーを押したまま」の音声入力が有効か確認してください。",
+      "dictationEndedUnexpectedly": "Murmur が停止リクエストを受け取る前に、Meta AI が音声入力を終了しました。",
+      "indicatorStuck": "Meta AI はまだ音声入力中のようです。Murmur は終了を待ち、それまで新しい音声入力をブロックします。",
+      "exitReleaseFailed": "Meta AI の音声入力を安全に終了できなかったため、Murmur は開いたままです。音声入力を終了してから、もう一度終了してください。",
+      "openFailed": "Meta AI を開けませんでした。アプリケーションから手動で開いてください。"
+    },
+    "metaApi": {
+      "saveFailed": "Meta Model API キーを保存できませんでした。キーを確認してから、もう一度お試しください。",
+      "removeFailed": "Meta Model API キーを削除できませんでした。先に別のサービスを選択してから、もう一度お試しください。"
+    }
   },
   "appLanguage": {
     "title": "アプリの言語",

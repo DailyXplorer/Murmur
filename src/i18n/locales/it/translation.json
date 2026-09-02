@@ -340,6 +340,17 @@
       "geminiDescription": "Gemini usa la sessione locale di Antigravity su questo Mac. Funzione sperimentale; gli aggiornamenti di Antigravity possono richiedere un aggiornamento di Murmur.",
       "meta": "Meta (Muse Voice Transcribe)",
       "metaDescription": "Usa l’API ufficiale Meta Model. La chiave resta nel Portachiavi di macOS. Meta addebita 0,18 USD per ora di audio; potrebbero essere disponibili crediti gratuiti.",
+      "metaApp": "App Meta AI (sperimentale)",
+      "metaAppDescription": "Apri Meta AI una volta, attiva Dettatura con Tieni premuto Fn, poi chiudi la sua finestra principale. Murmur mantiene il proprio overlay mentre Meta resta nella barra dei menu.",
+      "metaAppNotInstalled": "Meta AI non è installata",
+      "metaAppNeedsSetup": "Attiva Dettatura e impostala su Tieni premuto Fn in Meta AI.",
+      "metaAppNotRunning": "Apri Meta AI, poi chiudi la sua finestra principale.",
+      "metaAppWindowOpen": "Chiudi la finestra di Meta AI e torna all'app di destinazione.",
+      "metaAppAlreadyDictating": "Prima termina la dettatura Meta AI in corso.",
+      "installMetaApp": "Installa",
+      "openMetaApp": "Apri Meta AI",
+      "metaAppDirectTitle": "Dettatura diretta nell’app",
+      "metaAppDirectDescription": "Meta AI scrive direttamente nell’app attiva, quindi la cronologia, l’elaborazione del testo e le impostazioni di output di Murmur non si applicano.",
       "configured": "Configurato",
       "metaApiKeyPlaceholder": "Chiave API Meta",
       "saveMetaApiKey": "Salva",
@@ -347,9 +358,10 @@
       "notInstalled": "Antigravity non è installato",
       "installAntigravity": "Installa",
       "openAntigravity": "Apri Antigravity",
-      "onboardingDescription": "Accedi a Codex o Antigravity, oppure aggiungi una chiave API Meta prima di continuare.",
+      "onboardingDescription": "Configura Codex, Antigravity, Meta AI o una chiave API Meta prima di continuare.",
       "groups": {
         "service": "Servizio",
+        "behavior": "Comportamento",
         "processing": "Elaborazione del testo",
         "output": "Output"
       }
@@ -391,7 +403,24 @@
     "recordingFailed": "Impossibile avviare la registrazione: {{error}}",
     "pasteFailedTitle": "Impossibile incollare il testo",
     "pasteFailed": "Non è stato possibile incollare il testo nell'applicazione attiva.",
-    "transcriptionFailedTitle": "Trascrizione non riuscita"
+    "transcriptionFailedTitle": "Trascrizione non riuscita",
+    "metaApp": {
+      "setupRequired": "Meta AI non è pronta. Aprila, attiva Dettatura con Tieni premuto Fn, chiudi la finestra principale e torna all’app di destinazione.",
+      "targetChanged": "L’app di destinazione o lo stato di Meta AI è cambiato. Murmur ha interrotto la dettatura per lasciare visibile l’app corretta.",
+      "overlayUnavailable": "Murmur non ha potuto mostrare il proprio overlay di registrazione, quindi la dettatura di Meta AI non è stata avviata.",
+      "keyboardControlFailed": "Murmur non ha potuto controllare in sicurezza la scorciatoia Tieni premuto Fn di Meta AI. Termina ogni dettatura Meta prima di riprovare.",
+      "inspectionUnavailable": "Murmur non ha potuto verificare lo stato in background di Meta AI. La dettatura resta bloccata finché lo stato non può essere confermato.",
+      "indicatorMoveFailed": "Murmur non ha potuto mantenere l’indicatore Meta nel proprio overlay, quindi la dettatura è stata interrotta.",
+      "dictationDidNotStart": "Meta AI non ha avviato la dettatura. Verifica di aver effettuato l’accesso a Meta e di aver attivato Dettatura con Tieni premuto Fn.",
+      "dictationEndedUnexpectedly": "Meta AI ha terminato la dettatura prima che Murmur ricevesse una richiesta di arresto.",
+      "indicatorStuck": "Meta AI sembra ancora in fase di dettatura. Murmur attenderà la fine e bloccherà una nuova dettatura fino ad allora.",
+      "exitReleaseFailed": "Murmur è rimasto aperto perché non ha potuto terminare in sicurezza la dettatura di Meta AI. Termina la dettatura ed esci di nuovo.",
+      "openFailed": "Non è stato possibile aprire Meta AI. Aprila manualmente dalla cartella Applicazioni."
+    },
+    "metaApi": {
+      "saveFailed": "Non è stato possibile salvare la chiave API Meta Model. Verifica la chiave e riprova.",
+      "removeFailed": "Non è stato possibile rimuovere la chiave API Meta Model. Seleziona prima un altro servizio, poi riprova."
+    }
   },
   "appLanguage": {
     "title": "Lingua Applicazione",
