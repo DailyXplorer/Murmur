@@ -75,6 +75,62 @@ test("persists either visible provider choice before onboarding completes", asyn
       page.evaluate(() => window.providerOnboardingFixture.provider()),
     )
     .toBe("gemini");
+  await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Auto Detect" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Antigravity detects the language automatically. Your Codex language selection is kept for when you switch back.",
+    ),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.providerOnboardingFixture.selectedLanguage()),
+    )
+    .toBe("fr");
+});
+
+test("keeps the provider step open when setup fails and routes transcription failures to recovery", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?codex=configured&gemini=configured`);
+  await waitForProviderStep(page);
+
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.failNextCompletion(),
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Choose a transcription service" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Couldn't finish setup. Refresh the status and try again."),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.emitTranscriptionFailure(),
+  );
+  await page
+    .getByRole("button", { name: "Review transcription service" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Transcription", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.failNextProviderChange(),
+  );
+  await page.getByRole("button", { name: "Codex", exact: true }).click();
+  await page.getByRole("option", { name: "Codex" }).click();
+  await expect(
+    page.getByText(
+      "Couldn't save the selected transcription service. Please retry.",
+    ),
+  ).toBeVisible();
 });
 
 test("fits the French provider choice at the native minimum window size", async ({
@@ -91,9 +147,9 @@ test("fits the French provider choice at the native minimum window size", async 
   ).toHaveCount(0);
   await expect
     .poll(() =>
-      page.evaluate(
-        () => document.documentElement.scrollHeight <= window.innerHeight,
-      ),
+      page
+        .getByTestId("provider-onboarding")
+        .evaluate((element) => element.scrollHeight <= element.clientHeight),
     )
     .toBe(true);
 });

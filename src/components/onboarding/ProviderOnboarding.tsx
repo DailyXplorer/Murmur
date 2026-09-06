@@ -123,7 +123,7 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     return (
       <div
         key={provider}
-        className={`rounded-lg border p-3 transition-colors ${
+        className={`rounded-lg border p-2 transition-colors ${
           isSelected
             ? "border-logo-primary bg-logo-primary/10"
             : "border-mid-gray/20 bg-white/5"
@@ -157,16 +157,16 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
                 </span>
               )}
             </span>
-            <span className="mt-1 block text-sm text-text/65">
+            <span className="mt-0.5 block text-sm text-text/65">
               {description}
             </span>
-            <span className="mt-2 block text-sm text-text/80">
+            <span className="mt-1 block text-sm text-text/80">
               {t(statusTranslationKey(status))}
             </span>
           </span>
         </button>
         {status.kind === "unavailable" && (
-          <div className="mt-3 flex flex-wrap gap-2 ps-7">
+          <div className="mt-2 flex flex-wrap gap-2 ps-6">
             {!isGemini ? (
               <Button
                 size="sm"
@@ -199,19 +199,22 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   };
 
   return (
-    <div className="h-[100dvh] min-h-screen w-screen overflow-y-auto p-4 sm:p-6">
-      <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-3">
-        <MurmurTextLogo width={180} />
-        <div className="w-full max-w-md">
-          <div className="mb-3 text-center">
+    <div
+      data-testid="provider-onboarding"
+      className="h-[100dvh] min-h-screen w-screen overflow-y-auto p-3 sm:p-6"
+    >
+      <div className="mx-auto flex min-h-full w-full max-w-xl flex-col items-center justify-center gap-2">
+        <MurmurTextLogo width={160} />
+        <div className="w-full max-w-xl">
+          <div className="mb-2 text-center">
             <h2 className="text-xl font-semibold text-text">
               {t("onboarding.provider.title")}
             </h2>
-            <p className="mt-2 text-pretty text-text/70">
+            <p className="mt-1 text-pretty text-sm text-text/70">
               {t("onboarding.provider.description")}
             </p>
           </div>
-          <div role="radiogroup" className="flex flex-col gap-3">
+          <div role="radiogroup" className="flex flex-col gap-2">
             {renderProvider(
               "codex",
               t("onboarding.providerLabels.codex"),
@@ -224,11 +227,11 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             )}
           </div>
           {!canComplete && selectedStatus.kind !== "checking" && (
-            <p className="mt-3 text-sm text-text/70" aria-live="polite">
+            <p className="mt-2 text-sm text-text/70" aria-live="polite">
               {t("onboarding.provider.selectionRequired")}
             </p>
           )}
-          <div className="mt-3 flex justify-end gap-2">
+          <div className="mt-2 flex justify-end gap-2">
             <Button
               variant="secondary"
               onClick={() => void refreshStatuses()}

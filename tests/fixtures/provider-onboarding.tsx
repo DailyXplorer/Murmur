@@ -13,6 +13,7 @@ let codexConfigured = query.get("codex") === "configured";
 let geminiInstalled = query.get("gemini") === "configured";
 let geminiConfigured = query.get("gemini") === "configured";
 let failNextCompletion = false;
+let failNextProviderChange = false;
 const writes: string[] = [];
 const calls: string[] = [];
 
@@ -24,6 +25,10 @@ let backendSettings: AppSettings = {
 };
 
 const updateProvider = (provider: unknown) => {
+  if (failNextProviderChange) {
+    failNextProviderChange = false;
+    throw new Error("The provider setting could not be saved");
+  }
   if (provider !== "codex" && provider !== "gemini") {
     throw new Error("Unexpected transcription provider");
   }
@@ -84,9 +89,11 @@ declare global {
     providerOnboardingFixture: {
       emitTranscriptionFailure: () => Promise<void>;
       failNextCompletion: () => void;
+      failNextProviderChange: () => void;
       calls: () => string[];
       initializationError: () => string | null;
       provider: () => TranscriptionProvider | undefined;
+      selectedLanguage: () => string | undefined;
       setCodexConfigured: (configured: boolean) => void;
       setGeminiConfigured: (configured: boolean) => void;
       writes: () => string[];
@@ -102,9 +109,13 @@ window.providerOnboardingFixture = {
   failNextCompletion: () => {
     failNextCompletion = true;
   },
+  failNextProviderChange: () => {
+    failNextProviderChange = true;
+  },
   calls: () => [...calls],
   initializationError: () => initializationError,
   provider: () => backendSettings.transcription_provider,
+  selectedLanguage: () => backendSettings.selected_language,
   setCodexConfigured: (configured) => {
     codexConfigured = configured;
   },
