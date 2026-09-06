@@ -14,6 +14,7 @@ mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
+mod operation;
 mod overlay;
 mod paste_tx;
 mod settings;
@@ -26,6 +27,7 @@ mod tray_i18n;
 mod utils;
 
 pub use cli::CliArgs;
+pub use operation::{OperationId, PastePermit, ProcessingOperation};
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, collect_events, Builder};
