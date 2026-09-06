@@ -236,18 +236,30 @@ fn flush_pending() {
     }
 }
 
-/// Makes the output claim before touching an older transaction. A queued
-/// callback whose operation was already cancelled must leave that transaction
-/// to its own bounded settlement instead of clearing it early.
-fn claim_before_pasteboard_mutation<F>(operation: &ProcessingOperation, mutation: F) -> bool
+#[derive(Debug, PartialEq)]
+enum PasteboardAdmission {
+    Claimed,
+    Cancelled,
+    TargetChanged,
+}
+
+/// Rejected callbacks must not settle an older transaction or publish text.
+fn claim_before_pasteboard_mutation<F>(
+    operation: &ProcessingOperation,
+    target_is_current: impl FnOnce() -> bool,
+    mutation: F,
+) -> PasteboardAdmission
 where
     F: FnOnce(),
 {
+    if !target_is_current() {
+        return PasteboardAdmission::TargetChanged;
+    }
     let Some(_permit) = operation.try_enter_paste() else {
-        return false;
+        return PasteboardAdmission::Cancelled;
     };
     mutation();
-    true
+    PasteboardAdmission::Claimed
 }
 
 fn same_pending<T>(current: Option<&Arc<Mutex<T>>>, candidate: &Arc<Mutex<T>>) -> bool {
@@ -386,8 +398,14 @@ pub(super) fn run(
     }
     let types = NSArray::from_retained_slice(&types);
 
-    if !claim_before_pasteboard_mutation(&operation, flush_pending) {
-        return ReliablePasteOutcome::Cancelled;
+    match claim_before_pasteboard_mutation(
+        &operation,
+        || frontmost_target().as_ref() == Some(&target),
+        flush_pending,
+    ) {
+        PasteboardAdmission::Claimed => {}
+        PasteboardAdmission::Cancelled => return ReliablePasteOutcome::Cancelled,
+        PasteboardAdmission::TargetChanged => return ReliablePasteOutcome::Skipped,
     }
 
     // declareTypes:owner: clears the pasteboard and puts our promise on it;
@@ -400,8 +418,7 @@ pub(super) fn run(
     }
     info!("[reliable-paste] published transcript as lazy promise (changeCount {change_count})");
 
-    // Mark injection *before* sending: enigo holds the chord for ~100ms and a
-    // fast target may legitimately read while the chord is still held.
+    // The target may read while Command is still held.
     if let Ok(mut st) = state.lock() {
         st.injected_at = Some(Instant::now());
     }
@@ -496,10 +513,40 @@ mod tests {
         assert!(operation.cancel());
 
         let pending_for_mutation = pending.clone();
-        assert!(!claim_before_pasteboard_mutation(&operation, move || {
-            pending_for_mutation.lock().unwrap().take();
-        }));
+        assert_eq!(
+            claim_before_pasteboard_mutation(
+                &operation,
+                || true,
+                move || {
+                    pending_for_mutation.lock().unwrap().take();
+                }
+            ),
+            PasteboardAdmission::Cancelled
+        );
         assert_eq!(*pending.lock().unwrap(), Some("live-pr64-transaction"));
+    }
+
+    #[test]
+    fn target_changed_before_publication_leaves_clipboard_and_pending_untouched() {
+        let operation = ProcessingOperation::new(OperationId(8));
+        let mut pending = Some("previous-transaction");
+        let mut clipboard = "original-clipboard";
+        let captured_target = "application-a";
+        let current_target = "application-b";
+
+        let admission = claim_before_pasteboard_mutation(
+            &operation,
+            || current_target == captured_target,
+            || {
+                pending.take();
+                clipboard = "transcript";
+            },
+        );
+
+        assert_eq!(admission, PasteboardAdmission::TargetChanged);
+        assert_eq!(pending, Some("previous-transaction"));
+        assert_eq!(clipboard, "original-clipboard");
+        assert!(operation.try_enter_paste().is_some());
     }
 
     #[test]
