@@ -497,8 +497,8 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
- * Reports whether Gemini transcription can use the local Antigravity install.
- * This check never starts Antigravity or reads the session token.
+ * Signature verification runs off the AppKit thread. This only reports local
+ * configuration, not whether the cloud will accept a transcription.
  */
 async getGeminiStatus() : Promise<GeminiStatus> {
     return await TAURI_INVOKE("get_gemini_status");
@@ -517,8 +517,8 @@ async openAntigravity() : Promise<Result<null, string>> {
 /**
  * Marks onboarding as complete in Murmur's settings store.
  * 
- * Keeps the selected provider when its session is usable, otherwise switches
- * to the available provider. Onboarding remains incomplete if neither works.
+ * The provider shown by onboarding must remain selected. Losing its local
+ * configuration cannot silently change where the next recording is sent.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {

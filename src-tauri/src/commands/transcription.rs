@@ -20,10 +20,18 @@ pub fn get_codex_auth_status() -> CodexAuthStatus {
 
 #[tauri::command]
 #[specta::specta]
-/// Reports whether Gemini transcription can use the local Antigravity install.
-/// This check never starts Antigravity or reads the session token.
-pub fn get_gemini_status() -> GeminiStatus {
-    crate::gemini_transcribe::status()
+/// Signature verification runs off the AppKit thread. This only reports local
+/// configuration, not whether the cloud will accept a transcription.
+pub async fn get_gemini_status() -> GeminiStatus {
+    tauri::async_runtime::spawn_blocking(crate::gemini_transcribe::status)
+        .await
+        .unwrap_or_else(|error| {
+            log::error!("Failed to inspect Antigravity: {error}");
+            GeminiStatus {
+                installed: false,
+                signed_in: false,
+            }
+        })
 }
 
 #[tauri::command]
@@ -37,31 +45,31 @@ pub fn open_antigravity() -> Result<(), String> {
 #[specta::specta]
 /// Marks onboarding as complete in Murmur's settings store.
 ///
-/// Keeps the selected provider when its session is usable, otherwise switches
-/// to the available provider. Onboarding remains incomplete if neither works.
-pub fn complete_onboarding(app: AppHandle) -> Result<(), String> {
-    let mut settings = crate::settings::get_settings(&app);
-    let codex_signed_in = crate::codex_transcribe::auth_status().signed_in;
-    let gemini_signed_in = {
+/// The provider shown by onboarding must remain selected. Losing its local
+/// configuration cannot silently change where the next recording is sent.
+pub async fn complete_onboarding(app: AppHandle) -> Result<(), String> {
+    let (codex_signed_in, gemini_signed_in) = tauri::async_runtime::spawn_blocking(|| {
+        let codex_signed_in = crate::codex_transcribe::auth_status().signed_in;
         let status = crate::gemini_transcribe::status();
-        status.installed && status.signed_in
-    };
+        (codex_signed_in, status.installed && status.signed_in)
+    })
+    .await
+    .map_err(|error| format!("Failed to inspect transcription configuration: {error}"))?;
+    let mut settings = crate::settings::get_settings(&app);
     settings.transcription_provider = select_onboarding_provider(
         settings.transcription_provider,
         codex_signed_in,
         gemini_signed_in,
     )
     .ok_or_else(|| {
-        "No usable transcription session was found. Sign in to Codex or Antigravity and retry."
+        "The selected transcription service is not configured. Sign in or choose another service and retry."
             .to_string()
     })?;
     settings.onboarding_completed = true;
-    crate::settings::write_settings(&app, settings);
-    Ok(())
+    crate::settings::write_settings_checked(&app, settings)
 }
 
-/// Keeps `selected` when that provider has a usable session, otherwise prefers
-/// Codex, then Gemini. Returns `None` when neither session is usable.
+/// Never substitutes another cloud destination for the user's chosen provider.
 fn select_onboarding_provider(
     selected: TranscriptionProvider,
     codex_signed_in: bool,
@@ -70,8 +78,6 @@ fn select_onboarding_provider(
     match selected {
         TranscriptionProvider::Codex if codex_signed_in => Some(TranscriptionProvider::Codex),
         TranscriptionProvider::Gemini if gemini_signed_in => Some(TranscriptionProvider::Gemini),
-        _ if codex_signed_in => Some(TranscriptionProvider::Codex),
-        _ if gemini_signed_in => Some(TranscriptionProvider::Gemini),
         _ => None,
     }
 }
@@ -93,16 +99,15 @@ mod tests {
         );
     }
 
-    /// Falls back to the other provider when the selected session is missing.
     #[test]
-    fn onboarding_selects_the_only_usable_provider() {
+    fn onboarding_does_not_replace_an_unavailable_selected_provider() {
         assert_eq!(
             select_onboarding_provider(TranscriptionProvider::Codex, false, true),
-            Some(TranscriptionProvider::Gemini)
+            None
         );
         assert_eq!(
             select_onboarding_provider(TranscriptionProvider::Gemini, true, false),
-            Some(TranscriptionProvider::Codex)
+            None
         );
     }
 
