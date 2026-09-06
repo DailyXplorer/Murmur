@@ -107,6 +107,11 @@ test("keeps the provider step open when setup fails and routes transcription fai
   await expect(
     page.getByText("Couldn't finish setup. Refresh the status and try again."),
   ).toBeVisible();
+  await expect(
+    page.getByText("Configuration changed before setup completed", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
 
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
@@ -142,6 +147,121 @@ test("keeps the provider step open when setup fails and routes transcription fai
   await page.getByRole("button", { name: "Codex", exact: true }).click();
   await expect(page.getByRole("option", { name: "Codex" })).toBeDisabled();
   await expect(page.getByRole("option", { name: "Antigravity" })).toBeEnabled();
+});
+
+test("keeps French provider onboarding recoverable after completion result and IPC failures", async ({
+  page,
+}) => {
+  const rawFailures = {
+    exception: "Configuration changed before setup completed",
+    result: "The provider status changed while completing setup",
+  } as const;
+
+  for (const mode of ["result", "exception"] as const) {
+    await page.goto(
+      `${fixturePath}?lang=fr&provider=gemini&codex=configured&gemini=configured`,
+    );
+    await expect(
+      page.getByRole("heading", {
+        name: "Choisir un service de transcription",
+      }),
+    ).toBeVisible();
+
+    const antigravity = page.getByRole("radio", { name: "Antigravity" });
+    await expect(antigravity).toBeChecked();
+    await page.evaluate(
+      (failureMode) =>
+        window.providerOnboardingFixture.failNextCompletion(failureMode),
+      mode,
+    );
+    await page.getByRole("button", { name: "Continuer" }).click();
+
+    await expect(
+      page.getByRole("heading", {
+        name: "Choisir un service de transcription",
+      }),
+    ).toBeVisible();
+    await expect(antigravity).toBeChecked();
+    await expect(
+      page.getByText(
+        "Impossible de terminer la configuration. Actualisez l’état et réessayez.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(rawFailures[mode], { exact: true }),
+    ).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Continuer" }).click();
+    await expect(page.getByRole("button", { name: "Général" })).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.providerOnboardingFixture.provider()),
+      )
+      .toBe("gemini");
+  }
+});
+
+test("disables completion while refreshing, ignores stale statuses, and recovers after a status failure", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?codex=configured&gemini=configured`);
+  await waitForProviderStep(page);
+  const continueButton = page.getByRole("button", { name: "Continue" });
+  await expect(continueButton).toBeEnabled();
+
+  const initialRefresh = await page.evaluate(() => {
+    const index = window.providerOnboardingFixture.deferStatusRefresh();
+    window.dispatchEvent(new Event("focus"));
+    return index;
+  });
+  await expect(continueButton).toBeDisabled();
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    initialRefresh,
+  );
+  await expect(continueButton).toBeEnabled();
+
+  const staleRefresh = await page.evaluate(() => {
+    const index = window.providerOnboardingFixture.deferStatusRefresh();
+    window.dispatchEvent(new Event("focus"));
+    return index;
+  });
+  await expect(continueButton).toBeDisabled();
+  const currentRefresh = await page.evaluate(() => {
+    window.providerOnboardingFixture.setCodexConfigured(false);
+    const index = window.providerOnboardingFixture.deferStatusRefresh();
+    window.dispatchEvent(new Event("focus"));
+    return index;
+  });
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    currentRefresh,
+  );
+  await expect(continueButton).toBeDisabled();
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    staleRefresh,
+  );
+  await expect(continueButton).toBeDisabled();
+
+  await page.evaluate(() => {
+    window.providerOnboardingFixture.setCodexConfigured(true);
+  });
+  const failedRefresh = await page.evaluate(() => {
+    const index = window.providerOnboardingFixture.deferStatusRefresh();
+    window.dispatchEvent(new Event("focus"));
+    return index;
+  });
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.rejectStatusRefresh(index),
+    failedRefresh,
+  );
+  await expect(
+    page.getByText("Status unavailable", { exact: true }),
+  ).toHaveCount(2);
+  await expect(continueButton).toBeDisabled();
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(continueButton).toBeEnabled();
 });
 
 test("preserves the persisted Antigravity choice when post-onboarding initialization fails", async ({

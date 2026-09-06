@@ -51,6 +51,7 @@ export const useProviderStatuses = () => {
 
   const refreshStatuses = useCallback(async () => {
     const sequence = ++requestSequence.current;
+    setStatuses(CHECKING_PROVIDER_STATUSES);
     const [codex, gemini] = await Promise.allSettled([
       commands.getCodexAuthStatus(),
       commands.getGeminiStatus(),

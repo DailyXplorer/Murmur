@@ -271,17 +271,14 @@ function App() {
       }
       const result = await commands.completeOnboarding();
       if (result.status === "error") {
-        toast.error(t("onboarding.provider.completionFailed"), {
-          description: result.error,
-        });
+        console.warn("Failed to complete onboarding:", result.error);
+        toast.error(t("onboarding.provider.completionFailed"));
         return false;
       }
       await refreshSettings();
     } catch (e) {
       console.warn("Failed to complete onboarding:", e);
-      toast.error(t("onboarding.provider.completionFailed"), {
-        description: e instanceof Error ? e.message : String(e),
-      });
+      toast.error(t("onboarding.provider.completionFailed"));
       return false;
     }
     configuredProviderRef.current = provider;
