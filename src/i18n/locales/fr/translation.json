@@ -36,6 +36,27 @@
         "checkFailed": "Échec de la vérification des autorisations. Veuillez réessayer.",
         "requestFailed": "Échec de la demande d'autorisation. Veuillez réessayer."
       }
+    },
+    "provider": {
+      "title": "Choisir un service de transcription",
+      "description": "Choisissez une configuration locale pour terminer. Murmur ne teste pas l’accès au service cloud.",
+      "antigravityDescription": "Utilise la configuration Antigravity détectée sur ce Mac.",
+      "experimental": "Expérimental",
+      "configured": "Configuration détectée",
+      "selectionRequired": "Choisissez un service de transcription configuré pour continuer.",
+      "retry": "Réessayer",
+      "continue": "Continuer",
+      "providerChangeFailed": "Impossible d’enregistrer le service de transcription sélectionné. Réessayez.",
+      "completionFailed": "Impossible de terminer la configuration. Actualisez l’état et réessayez.",
+      "openFailed": "Impossible d’ouvrir Antigravity.",
+      "installFailed": "Impossible d’ouvrir la page de téléchargement d’Antigravity.",
+      "setupCodex": "Ouvrir la configuration Codex",
+      "codexSetupFailed": "Impossible d’ouvrir la configuration Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Aucune configuration détectée"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Apparence"
       }
     },
+    "languageAutoOnly": "Antigravity détecte automatiquement la langue. Votre choix de langue Codex sera conservé si vous revenez à Codex.",
     "sound": {
       "title": "Son",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Gestion du presse-papiers",
-        "description": "Ne pas modifier le presse-papiers préserve le contenu actuel de votre presse-papiers après la transcription. Copier dans le presse-papiers laisse le résultat de la transcription dans votre presse-papiers après le collage.",
+        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. Après un collage réussi, « Effacer après le collage » supprime la transcription à la fin de la fenêtre de sécurité de 8 secondes ; « Conserver la transcription » la laisse disponible. Si le collage échoue, Murmur conserve la transcription afin de pouvoir la récupérer.",
         "options": {
-          "dontModify": "Ne pas modifier le presse-papiers",
-          "copyToClipboard": "Copier dans le presse-papiers"
+          "dontModify": "Effacer après le collage",
+          "copyToClipboard": "Conserver la transcription"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Ajouter une espace final",
         "description": "Ajouter une espace après la transcription collée"
       },
-      "pasteDelay": {
-        "title": "Délai de collage (avant)",
-        "description": "Délai (en millisecondes) après la copie du texte, avant l'envoi de la touche de collage. Augmentez si rien n'est collé."
-      },
-      "pasteDelayAfter": {
-        "title": "Délai de collage (après)",
-        "description": "Délai (en millisecondes) après la touche de collage, avant la restauration de votre presse-papiers précédent. Augmentez si l'ancien contenu du presse-papiers est collé à la place de la transcription."
-      },
-      "reliablePaste": {
-        "title": "Collage fiable (Beta)",
-        "description": "Restaure le presse-papiers uniquement après que l'application cible a réellement lu la transcription, au lieu d'attendre un délai fixe. Vise à corriger le collage de l'ancien contenu du presse-papiers lorsque le système est chargé. Nécessite une méthode de collage par presse-papiers."
-      },
       "recordingBuffer": {
         "title": "Tampon d'enregistrement supplémentaire",
         "description": "Temps supplémentaire (en millisecondes) pour continuer l'enregistrement après avoir relâché la touche, pour capturer l'audio restant. 0 = pas de tampon supplémentaire."
@@ -328,20 +338,15 @@
     "transcription": {
       "title": "Transcription",
       "sessionTitle": "Codex",
-      "sessionDescription": "L'audio est envoyé à la même transcription cloud que Codex. Connecte-toi à l'app Codex si ça apparaît déconnecté.",
-      "checking": "Vérification de la session…",
+      "sessionDescription": "L’audio est envoyé à la transcription cloud de Codex. Connectez-vous à l’app Codex pour la configurer.",
+      "checking": "Vérification de la configuration…",
       "statusUnavailable": "Statut indisponible",
-      "ready": "Connecté",
       "missing": "Non connecté",
       "providerTitle": "Service de transcription",
       "providerDescription": "Choisis le service de transcription utilisé pour les nouvelles dictées.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini utilise la session Antigravity locale de ce Mac. Fonction expérimentale ; une mise à jour d’Antigravity peut nécessiter une mise à jour de Murmur.",
       "notInstalled": "Antigravity n’est pas installé",
       "installAntigravity": "Installer",
       "openAntigravity": "Ouvrir Antigravity",
-      "onboardingDescription": "Connecte-toi à Codex ou à Antigravity avant de continuer.",
       "groups": {
         "service": "Service",
         "processing": "Traitement du texte",
@@ -387,6 +392,7 @@
     "pasteFailed": "Le texte n'a pas pu être collé dans l'application active.",
     "transcriptionFailedTitle": "Échec de la transcription"
   },
+  "transcriptionFailedAction": "Vérifier le service de transcription",
   "appLanguage": {
     "title": "Langue de l'application",
     "description": "Changer la langue de l'interface de Murmur"

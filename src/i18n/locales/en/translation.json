@@ -36,6 +36,27 @@
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
       }
+    },
+    "provider": {
+      "title": "Choose a transcription service",
+      "description": "Choose a local configuration to finish setup. Murmur does not test cloud service access.",
+      "antigravityDescription": "Uses the Antigravity configuration detected on this Mac.",
+      "experimental": "Experimental",
+      "configured": "Configuration detected",
+      "selectionRequired": "Choose a configured transcription service to continue.",
+      "retry": "Retry",
+      "continue": "Continue",
+      "providerChangeFailed": "Couldn't save the selected transcription service. Please retry.",
+      "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
+      "openFailed": "Couldn't open Antigravity.",
+      "installFailed": "Couldn't open the Antigravity download page.",
+      "setupCodex": "Open Codex setup",
+      "codexSetupFailed": "Couldn't open Codex setup."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Configuration not detected"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Appearance"
       }
     },
+    "languageAutoOnly": "Antigravity detects the language automatically. Your Codex language selection is kept for when you switch back.",
     "sound": {
       "title": "Sound",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Clipboard Handling",
-        "description": "Don't Modify Clipboard preserves your current clipboard contents after transcription. Copy to Clipboard leaves the transcription result in your clipboard after pasting.",
+        "description": "For secure Cmd+V pasting, previous clipboard data is never restored. After a successful paste, Clear After Paste removes the transcription when the 8-second safety window ends; Keep Transcription leaves it available. If pasting fails, Murmur keeps the transcription for recovery.",
         "options": {
-          "dontModify": "Don't Modify Clipboard",
-          "copyToClipboard": "Copy to Clipboard"
+          "dontModify": "Clear After Paste",
+          "copyToClipboard": "Keep Transcription"
         }
       },
       "autoSubmit": {
@@ -283,18 +305,6 @@
         "label": "Append Trailing Space",
         "description": "Add a space after pasted transcription"
       },
-      "pasteDelay": {
-        "title": "Paste Delay (Before)",
-        "description": "Delay (in milliseconds) after copying text, before sending the paste keystroke. Increase if nothing gets pasted."
-      },
-      "pasteDelayAfter": {
-        "title": "Paste Delay (After)",
-        "description": "Delay (in milliseconds) after the paste keystroke, before restoring your previous clipboard. Increase if your old clipboard content is being pasted instead of the transcription."
-      },
-      "reliablePaste": {
-        "title": "Reliable Paste (Beta)",
-        "description": "Restore the clipboard only after the target app actually reads the transcription, instead of after a fixed delay. Intended to fix old clipboard content being pasted under system load. Requires a clipboard paste method."
-      },
       "recordingBuffer": {
         "title": "Extra Recording Buffer",
         "description": "Extra time (in milliseconds) to keep recording after you release the key, to capture trailing audio. 0 = no extra buffer."
@@ -328,20 +338,15 @@
     "transcription": {
       "title": "Transcription",
       "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to the same cloud transcription Codex uses. Sign in to the Codex app if this shows as disconnected.",
-      "checking": "Checking session…",
+      "sessionDescription": "Audio is sent to Codex's cloud transcription. Sign in to the Codex app to configure it.",
+      "checking": "Checking configuration…",
       "statusUnavailable": "Status unavailable",
-      "ready": "Connected",
       "missing": "Not signed in",
       "providerTitle": "Transcription service",
       "providerDescription": "Choose the transcription service used for new dictations.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini uses the local Antigravity session on this Mac. Experimental; Antigravity updates may require a Murmur update.",
       "notInstalled": "Antigravity not installed",
       "installAntigravity": "Install",
       "openAntigravity": "Open Antigravity",
-      "onboardingDescription": "Sign in to Codex or Antigravity before continuing.",
       "groups": {
         "service": "Service",
         "processing": "Text Processing",
@@ -390,6 +395,7 @@
     "pasteFailed": "Text could not be pasted into the active application.",
     "transcriptionFailedTitle": "Transcription Failed"
   },
+  "transcriptionFailedAction": "Review transcription service",
   "appLanguage": {
     "title": "Application Language",
     "description": "Change the language of the Murmur interface"

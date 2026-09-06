@@ -3,11 +3,11 @@ use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, OverlayStyle};
+use crate::settings::{get_settings, OverlayStyle, TranscriptionProvider};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
-use crate::TranscriptionCoordinator;
+use crate::{ProcessingOperation, TranscriptionCoordinator};
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::oneshot;
 
 const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
@@ -31,12 +30,14 @@ struct RecordingErrorEvent {
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
 /// pipeline completes, even if the task unwinds.
-struct FinishGuard(AppHandle);
+struct FinishGuard {
+    app: AppHandle,
+    operation: ProcessingOperation,
+}
 impl Drop for FinishGuard {
     fn drop(&mut self) {
-        shortcut::unregister_cancel_shortcut(&self.0);
-        if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
-            c.notify_processing_finished();
+        if let Some(c) = self.app.try_state::<TranscriptionCoordinator>() {
+            c.notify_processing_finished(self.operation.id());
         }
     }
 }
@@ -70,6 +71,21 @@ impl PendingWav {
     fn commit(&mut self) {
         self.committed = true;
     }
+
+    /// Transfers deletion ownership to the blocking WAV writer. If the async
+    /// pipeline is cancelled or dropped while that writer still runs, this
+    /// guard remains alive in the worker and cannot remove the path underneath
+    /// an active `WavWriter`.
+    fn write(
+        self,
+        samples: Arc<Vec<f32>>,
+    ) -> tauri::async_runtime::JoinHandle<(Self, anyhow::Result<()>)> {
+        let path = self.path.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let result = crate::audio_toolkit::save_wav_file(&path, samples.as_slice());
+            (self, result)
+        })
+    }
 }
 
 impl Drop for PendingWav {
@@ -93,7 +109,13 @@ impl Drop for PendingWav {
 // Shortcut Action Trait
 pub trait ShortcutAction: Send + Sync {
     fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
-    fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
+    fn stop(
+        &self,
+        app: &AppHandle,
+        binding_id: &str,
+        shortcut_str: &str,
+        operation: ProcessingOperation,
+    );
 }
 
 // Transcribe Action
@@ -119,52 +141,19 @@ where
     }
 }
 
-type MainThreadAction = Box<dyn FnOnce() + Send + 'static>;
-
-#[derive(Debug, PartialEq, Eq)]
-enum MainThreadPasteOutcome {
-    Cancelled,
-    Attempted,
+fn operation_was_cancelled(
+    operation: &ProcessingOperation,
+    recording_manager: &AudioRecordingManager,
+    cancel_generation: u64,
+) -> bool {
+    operation.is_cancelled() || recording_manager.was_cancelled_since(cancel_generation)
 }
 
-/// Builds the closure sent to Tauri's main-thread queue and a receipt for its
-/// execution. The caller must await the receipt before committing history.
-fn prepare_main_thread_paste<C, P>(
-    is_cancelled: C,
-    paste: P,
-) -> (MainThreadAction, oneshot::Receiver<MainThreadPasteOutcome>)
-where
-    C: FnOnce() -> bool + Send + 'static,
-    P: FnOnce() + Send + 'static,
-{
-    let (completion_tx, completion_rx) = oneshot::channel();
-    let action = Box::new(move || {
-        let outcome = if is_cancelled() {
-            MainThreadPasteOutcome::Cancelled
-        } else {
-            paste();
-            MainThreadPasteOutcome::Attempted
-        };
-        let _ = completion_tx.send(outcome);
-    });
-
-    (action, completion_rx)
-}
-
-/// Waits for the queued main-thread closure before committing dependent state.
-/// A cancellation observed at that boundary leaves the WAV guard uncommitted.
-async fn commit_after_main_thread_paste<F>(
-    completion: oneshot::Receiver<MainThreadPasteOutcome>,
-    commit: F,
-) -> Result<MainThreadPasteOutcome, oneshot::error::RecvError>
-where
-    F: FnOnce(),
-{
-    let outcome = completion.await?;
-    if outcome == MainThreadPasteOutcome::Attempted {
-        commit();
-    }
-    Ok(outcome)
+/// History follows the irreversible paste boundary, not a later cancellation
+/// request. `Skipped` retains the completed text for recovery when its output
+/// failed, including a clipboard-only write failure.
+fn paste_outcome_commits_history(outcome: crate::clipboard::PasteOutcome) -> bool {
+    outcome != crate::clipboard::PasteOutcome::Cancelled
 }
 
 async fn maybe_convert_chinese_variant(
@@ -212,15 +201,32 @@ async fn maybe_convert_chinese_variant(
     }
 }
 
-pub(crate) async fn process_transcription_output(app: &AppHandle, transcription: &str) -> String {
+fn output_language_for_provider(
+    provider: TranscriptionProvider,
+    selected_language: &str,
+) -> Option<&str> {
+    (provider == TranscriptionProvider::Codex).then_some(selected_language)
+}
+
+pub(crate) async fn process_transcription_output(
+    app: &AppHandle,
+    transcription: &str,
+    provider: TranscriptionProvider,
+) -> String {
     let settings = get_settings(app);
     let mut final_text = transcription.to_string();
 
-    let effective_language = settings.selected_language;
-    if let Some(converted_text) =
-        maybe_convert_chinese_variant(&effective_language, transcription).await
+    // Gemini does not accept Murmur's language preference. Preserve the
+    // stored selection for a later Codex dictation, but do not let an old
+    // Chinese-variant preference rewrite Gemini output.
+    if let Some(effective_language) =
+        output_language_for_provider(provider, &settings.selected_language)
     {
-        final_text = converted_text;
+        if let Some(converted_text) =
+            maybe_convert_chinese_variant(effective_language, transcription).await
+        {
+            final_text = converted_text;
+        }
     }
 
     final_text
@@ -232,6 +238,12 @@ impl ShortcutAction for TranscribeAction {
         debug!("TranscribeAction::start called for binding: {}", binding_id);
 
         let rm = app.state::<Arc<AudioRecordingManager>>();
+        if rm.is_stopping() {
+            // The coordinator retries this press after the prior stop releases
+            // the recorder; recording UI must wait for admission.
+            debug!("Deferring recording start while a prior stop is active");
+            return;
+        }
 
         let kickoff_started = Instant::now();
         let rm_clone = Arc::clone(&rm);
@@ -359,7 +371,13 @@ impl ShortcutAction for TranscribeAction {
         );
     }
 
-    fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
+    fn stop(
+        &self,
+        app: &AppHandle,
+        binding_id: &str,
+        _shortcut_str: &str,
+        operation: ProcessingOperation,
+    ) {
         // Prevent a slow microphone from emitting a ready event or start chime
         // after the user has already requested stop.
         app.state::<Arc<AudioRecordingManager>>()
@@ -386,7 +404,10 @@ impl ShortcutAction for TranscribeAction {
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
-            let _guard = FinishGuard(ah.clone());
+            let _guard = FinishGuard {
+                app: ah.clone(),
+                operation: operation.clone(),
+            };
             debug!(
                 "Starting async transcription task for binding: {}",
                 binding_id
@@ -400,26 +421,22 @@ impl ShortcutAction for TranscribeAction {
                     samples.len()
                 );
 
-                if rm.was_cancelled_since(cancel_generation) {
+                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                     debug!("Transcription operation cancelled after recording stop");
-                    utils::hide_recording_overlay(&ah);
-                    change_tray_icon(&ah, TrayIconState::Idle);
                     return;
                 }
 
                 if samples.is_empty() {
                     debug!("Recording produced no audio samples; skipping persistence");
-                    utils::hide_recording_overlay(&ah);
-                    change_tray_icon(&ah, TrayIconState::Idle);
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
+                    let samples = Arc::new(samples);
                     let file_name = format!(
                         "murmur-{}.wav",
                         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
                     );
                     let wav_path = hm.recordings_dir().join(&file_name);
-                    let wav_path_for_verify = wav_path.clone();
                     let mut pending_wav = match PendingWav::reserve(wav_path.clone()) {
                         Ok(wav) => Some(wav),
                         Err(error) => {
@@ -431,37 +448,24 @@ impl ShortcutAction for TranscribeAction {
                             None
                         }
                     };
-                    let wav_handle = pending_wav.as_ref().map(|_| {
-                        let wav_path_for_save = wav_path.clone();
-                        let samples_for_wav = samples.clone();
-                        tauri::async_runtime::spawn_blocking(move || {
-                            crate::audio_toolkit::save_wav_file(
-                                &wav_path_for_save,
-                                &samples_for_wav,
-                            )
-                        })
-                    });
+                    let wav_handle = pending_wav
+                        .take()
+                        .map(|wav| wav.write(Arc::clone(&samples)));
 
+                    let provider = get_settings(&ah).transcription_provider;
                     let transcription_time = Instant::now();
-                    let transcription_result =
-                        match tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
-                            .await
-                        {
-                            Ok(result) => result,
-                            Err(error) => {
-                                Err(anyhow::anyhow!("Transcription worker panicked: {error}"))
-                            }
-                        };
+                    let transcription_result = tm
+                        .transcribe_with_provider(samples, operation.clone(), provider)
+                        .await;
 
                     // Await WAV save and verify
                     let wav_saved = match wav_handle {
                         None => false,
                         Some(wav_handle) => match wav_handle.await {
-                            Ok(Ok(())) => {
-                                match crate::audio_toolkit::verify_wav_file(
-                                    &wav_path_for_verify,
-                                    sample_count,
-                                ) {
+                            Ok((wav, Ok(()))) => {
+                                pending_wav = Some(wav);
+                                match crate::audio_toolkit::verify_wav_file(&wav_path, sample_count)
+                                {
                                     Ok(()) => true,
                                     Err(e) => {
                                         error!("WAV verification failed: {}", e);
@@ -469,7 +473,8 @@ impl ShortcutAction for TranscribeAction {
                                     }
                                 }
                             }
-                            Ok(Err(e)) => {
+                            Ok((wav, Err(e))) => {
+                                pending_wav = Some(wav);
                                 error!("Failed to save WAV file: {}", e);
                                 false
                             }
@@ -480,10 +485,8 @@ impl ShortcutAction for TranscribeAction {
                         },
                     };
 
-                    if rm.was_cancelled_since(cancel_generation) {
+                    if operation_was_cancelled(&operation, &rm, cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");
-                        utils::hide_recording_overlay(&ah);
-                        change_tray_icon(&ah, TrayIconState::Idle);
                         return;
                     }
 
@@ -496,22 +499,18 @@ impl ShortcutAction for TranscribeAction {
                             );
 
                             let Some(final_text) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription),
-                                || rm.was_cancelled_since(cancel_generation),
+                                process_transcription_output(&ah, &transcription, provider),
+                                || operation_was_cancelled(&operation, &rm, cancel_generation),
                             )
                             .await
                             else {
                                 debug!("Transcription operation cancelled during output handling");
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
                                 return;
                             };
 
                             if final_text.is_empty() {
-                                if rm.was_cancelled_since(cancel_generation) {
+                                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
 
@@ -528,38 +527,29 @@ impl ShortcutAction for TranscribeAction {
                                     }
                                 }
                             } else {
-                                let ah_clone = ah.clone();
-                                let rm_for_paste = Arc::clone(&rm);
-                                let text_for_paste = final_text.clone();
-                                let (paste_action, paste_completion) = prepare_main_thread_paste(
-                                    move || rm_for_paste.was_cancelled_since(cancel_generation),
-                                    move || {
-                                        let paste_time = Instant::now();
-                                        match utils::paste(text_for_paste, ah_clone.clone()) {
-                                            Ok(()) => debug!(
-                                                "Text pasted successfully in {:?}",
-                                                paste_time.elapsed()
-                                            ),
-                                            Err(error) => {
-                                                error!("Failed to paste transcription: {}", error);
-                                                let _ = ah_clone.emit("paste-error", ());
-                                            }
+                                // `clipboard::paste` owns its native
+                                // main-thread transactions and waits through
+                                // the cancellable delayed auto-submit. Once
+                                // injection has crossed its atomic boundary,
+                                // a late cancellation can only suppress
+                                // auto-submit; it must not discard history for
+                                // text the user already received.
+                                match crate::clipboard::paste(
+                                    final_text.clone(),
+                                    ah.clone(),
+                                    operation.clone(),
+                                )
+                                .await
+                                {
+                                    Ok(outcome) => {
+                                        if !paste_outcome_commits_history(outcome) {
+                                            debug!("Transcription operation cancelled before paste execution");
+                                            return;
                                         }
-                                    },
-                                );
-
-                                if let Err(error) = ah.run_on_main_thread(paste_action) {
-                                    error!("Failed to queue paste on main thread: {:?}", error);
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
-                                    return;
-                                }
-
-                                let paste_outcome =
-                                    match commit_after_main_thread_paste(paste_completion, || {
-                                        // The main-thread closure checked cancellation at the
-                                        // irreversible paste boundary. Only after it runs may
-                                        // the WAV be committed to history.
+                                        if outcome == crate::clipboard::PasteOutcome::Skipped {
+                                            error!("Transcription output could not be delivered");
+                                            let _ = ah.emit("paste-error", ());
+                                        }
                                         if wav_saved {
                                             match hm.save_entry(file_name, final_text) {
                                                 Ok(_) => {
@@ -575,40 +565,19 @@ impl ShortcutAction for TranscribeAction {
                                                 }
                                             }
                                         }
-                                    })
-                                    .await
-                                    {
-                                        Ok(outcome) => outcome,
-                                        Err(_) => {
-                                            error!(
-                                            "Main-thread paste closure was dropped before execution"
-                                        );
-                                            utils::hide_recording_overlay(&ah);
-                                            change_tray_icon(&ah, TrayIconState::Idle);
-                                            return;
-                                        }
-                                    };
-
-                                if paste_outcome == MainThreadPasteOutcome::Cancelled {
-                                    debug!(
-                                        "Transcription operation cancelled before paste execution"
-                                    );
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
-                                    return;
+                                    }
+                                    Err(error) => {
+                                        error!("Failed to paste transcription: {error}");
+                                        let _ = ah.emit("paste-error", ());
+                                    }
                                 }
                             }
-
-                            utils::hide_recording_overlay(&ah);
-                            change_tray_icon(&ah, TrayIconState::Idle);
                         }
                         Err(err) => {
-                            if rm.was_cancelled_since(cancel_generation) {
+                            if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                 debug!(
                                     "Transcription operation cancelled after transcription error"
                                 );
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
                                 return;
                             }
 
@@ -618,10 +587,8 @@ impl ShortcutAction for TranscribeAction {
                             let _ = ah.emit("transcription-error", err.to_string());
                             // Save entry with empty text so user can retry
                             if wav_saved {
-                                if rm.was_cancelled_since(cancel_generation) {
+                                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
 
@@ -636,15 +603,11 @@ impl ShortcutAction for TranscribeAction {
                                     }
                                 }
                             }
-                            utils::hide_recording_overlay(&ah);
-                            change_tray_icon(&ah, TrayIconState::Idle);
                         }
                     }
                 }
             } else {
                 debug!("No samples retrieved from recording stop");
-                utils::hide_recording_overlay(&ah);
-                change_tray_icon(&ah, TrayIconState::Idle);
             }
         });
 
@@ -667,7 +630,14 @@ impl ShortcutAction for CancelAction {
         }
     }
 
-    fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
+    fn stop(
+        &self,
+        _app: &AppHandle,
+        _binding_id: &str,
+        _shortcut_str: &str,
+        _operation: ProcessingOperation,
+    ) {
+    }
 }
 
 pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::new(|| {
@@ -686,12 +656,14 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_after_main_thread_paste, complete_unless_cancelled, prepare_main_thread_paste,
-        MainThreadAction, MainThreadPasteOutcome, PendingWav,
+        complete_unless_cancelled, output_language_for_provider, paste_outcome_commits_history,
+        PendingWav,
     };
+    use crate::clipboard::PasteOutcome;
+    use crate::settings::TranscriptionProvider;
     use std::fs;
     use std::future;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
@@ -735,6 +707,25 @@ mod tests {
     }
 
     #[test]
+    fn wav_writer_keeps_shared_samples_alive_and_cleans_uncommitted_output() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("shared-samples.wav");
+        let samples = Arc::new(vec![0.25_f32, -0.5, 0.0]);
+
+        let writer = PendingWav::reserve(wav_path.clone())
+            .unwrap()
+            .write(Arc::clone(&samples));
+        drop(samples);
+
+        let (wav, write_result) = tauri::async_runtime::block_on(writer).unwrap();
+        write_result.unwrap();
+        crate::audio_toolkit::verify_wav_file(&wav_path, 3).unwrap();
+
+        drop(wav);
+        assert!(!wav_path.exists());
+    }
+
+    #[test]
     fn committed_wav_survives_its_owner() {
         let directory = tempfile::tempdir().unwrap();
         let wav_path = directory.path().join("committed.wav");
@@ -773,37 +764,22 @@ mod tests {
     }
 
     #[test]
-    fn cancellation_before_queued_paste_keeps_history_and_wav_uncommitted() {
-        let directory = tempfile::tempdir().unwrap();
-        let wav_path = directory.path().join("queued.wav");
-        let mut wav = PendingWav::reserve(wav_path.clone()).unwrap();
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let paste_count = Arc::new(AtomicUsize::new(0));
-        let history_count = Arc::new(AtomicUsize::new(0));
-
-        let cancelled_for_action = Arc::clone(&cancelled);
-        let paste_count_for_action = Arc::clone(&paste_count);
-        let (queued_action, completion) = prepare_main_thread_paste(
-            move || cancelled_for_action.load(Ordering::Acquire),
-            move || {
-                paste_count_for_action.fetch_add(1, Ordering::AcqRel);
-            },
+    fn gemini_ignores_a_preserved_codex_chinese_variant_preference() {
+        assert_eq!(
+            output_language_for_provider(TranscriptionProvider::Gemini, "zh-Hant"),
+            None
         );
-        let mut main_thread_queue: Vec<MainThreadAction> = vec![queued_action];
+        assert_eq!(
+            output_language_for_provider(TranscriptionProvider::Codex, "zh-Hant"),
+            Some("zh-Hant")
+        );
+    }
 
-        cancelled.store(true, Ordering::Release);
-        main_thread_queue.pop().unwrap()();
-        let outcome =
-            tauri::async_runtime::block_on(commit_after_main_thread_paste(completion, || {
-                history_count.fetch_add(1, Ordering::AcqRel);
-                wav.commit();
-            }))
-            .unwrap();
-        drop(wav);
-
-        assert_eq!(outcome, MainThreadPasteOutcome::Cancelled);
-        assert_eq!(paste_count.load(Ordering::Acquire), 0);
-        assert_eq!(history_count.load(Ordering::Acquire), 0);
-        assert!(!wav_path.exists());
+    #[test]
+    fn pasted_or_recoverable_output_survives_late_cancellation() {
+        assert!(!paste_outcome_commits_history(PasteOutcome::Cancelled));
+        assert!(paste_outcome_commits_history(PasteOutcome::Injected));
+        assert!(paste_outcome_commits_history(PasteOutcome::IntentionalNone));
+        assert!(paste_outcome_commits_history(PasteOutcome::Skipped));
     }
 }

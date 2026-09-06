@@ -245,34 +245,60 @@ pub fn change_selected_language_setting(app: AppHandle, language: String) -> Res
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_transcription_provider_setting(
+pub async fn change_transcription_provider_setting(
     app: AppHandle,
     provider: TranscriptionProvider,
 ) -> Result<(), String> {
-    if provider == TranscriptionProvider::Gemini {
-        let status = crate::gemini_transcribe::status();
-        if !status.installed {
-            return Err(
-                "Antigravity is not installed. Install it before selecting Gemini transcription."
-                    .to_string(),
-            );
-        }
-        if !status.signed_in {
-            return Err(
-                "No Antigravity session was found. Open Antigravity, sign in, and retry."
-                    .to_string(),
-            );
-        }
-    }
+    // Credential reads and signature verification must stay off AppKit.
+    let availability = tauri::async_runtime::spawn_blocking(move || ProviderAvailability {
+        codex_signed_in: provider == TranscriptionProvider::Codex
+            && crate::codex_transcribe::auth_status().signed_in,
+        gemini: if provider == TranscriptionProvider::Gemini {
+            crate::gemini_transcribe::status()
+        } else {
+            crate::commands::transcription::GeminiStatus {
+                installed: false,
+                signed_in: false,
+            }
+        },
+    })
+    .await
+    .map_err(|error| format!("Failed to inspect transcription configuration: {error}"))?;
+    validate_provider_selection(provider, &availability)?;
 
     let mut value = settings::get_settings(&app);
     value.transcription_provider = provider;
-    settings::write_settings(&app, value);
+    settings::write_settings_checked(&app, value)?;
     let _ = app.emit(
         "settings-changed",
         serde_json::json!({"setting": "transcription_provider"}),
     );
     Ok(())
+}
+
+struct ProviderAvailability {
+    codex_signed_in: bool,
+    gemini: crate::commands::transcription::GeminiStatus,
+}
+
+fn validate_provider_selection(
+    provider: TranscriptionProvider,
+    availability: &ProviderAvailability,
+) -> Result<(), String> {
+    match provider {
+        TranscriptionProvider::Codex if availability.codex_signed_in => Ok(()),
+        TranscriptionProvider::Codex => {
+            Err("No ChatGPT/Codex session was found. Sign in to Codex and retry.".to_string())
+        }
+        TranscriptionProvider::Gemini if !availability.gemini.installed => Err(
+            "Antigravity is not installed. Install it before selecting Gemini transcription."
+                .to_string(),
+        ),
+        TranscriptionProvider::Gemini if !availability.gemini.signed_in => Err(
+            "No Antigravity session was found. Open Antigravity, sign in, and retry.".to_string(),
+        ),
+        TranscriptionProvider::Gemini => Ok(()),
+    }
 }
 
 #[tauri::command]
@@ -374,6 +400,7 @@ pub fn change_whats_new_last_seen_version_setting(
 #[tauri::command]
 #[specta::specta]
 pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), String> {
+    settings::validate_custom_words(&words)?;
     let mut value = settings::get_settings(&app);
     value.custom_words = words;
     settings::write_settings(&app, value);
@@ -395,6 +422,12 @@ pub fn change_word_correction_threshold_setting(
 #[tauri::command]
 #[specta::specta]
 pub fn change_extra_recording_buffer_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_EXTRA_RECORDING_BUFFER_MS {
+        return Err(format!(
+            "Recording buffer cannot exceed {} ms",
+            settings::MAX_EXTRA_RECORDING_BUFFER_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.extra_recording_buffer_ms = ms;
     settings::write_settings(&app, value);
@@ -404,6 +437,12 @@ pub fn change_extra_recording_buffer_setting(app: AppHandle, ms: u64) -> Result<
 #[tauri::command]
 #[specta::specta]
 pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_PASTE_DELAY_MS {
+        return Err(format!(
+            "Paste delay cannot exceed {} ms",
+            settings::MAX_PASTE_DELAY_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.paste_delay_ms = ms;
     settings::write_settings(&app, value);
@@ -413,6 +452,12 @@ pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), Stri
 #[tauri::command]
 #[specta::specta]
 pub fn change_paste_delay_after_ms_setting(app: AppHandle, ms: u64) -> Result<(), String> {
+    if ms > settings::MAX_PASTE_DELAY_MS {
+        return Err(format!(
+            "Paste delay cannot exceed {} ms",
+            settings::MAX_PASTE_DELAY_MS
+        ));
+    }
     let mut value = settings::get_settings(&app);
     value.paste_delay_after_ms = ms;
     settings::write_settings(&app, value);
@@ -422,6 +467,9 @@ pub fn change_paste_delay_after_ms_setting(app: AppHandle, ms: u64) -> Result<()
 #[tauri::command]
 #[specta::specta]
 pub fn change_reliable_paste_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if !enabled {
+        return Err("Reliable paste is required to protect clipboard contents".to_string());
+    }
     let mut value = settings::get_settings(&app);
     value.reliable_paste = enabled;
     settings::write_settings(&app, value);
@@ -544,4 +592,40 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
     settings::write_settings(&app, value);
     tray::set_tray_visibility(&app, enabled);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_provider_selection, ProviderAvailability};
+    use crate::commands::transcription::GeminiStatus;
+    use crate::settings::TranscriptionProvider;
+
+    #[test]
+    fn codex_selection_rejects_an_absent_session_without_falling_back_to_gemini() {
+        let availability = ProviderAvailability {
+            codex_signed_in: false,
+            gemini: GeminiStatus {
+                installed: true,
+                signed_in: true,
+            },
+        };
+
+        let error = validate_provider_selection(TranscriptionProvider::Codex, &availability)
+            .expect_err("Codex must require its own local session");
+
+        assert!(error.contains("ChatGPT/Codex session"));
+    }
+
+    #[test]
+    fn each_provider_accepts_only_its_own_available_configuration() {
+        let codex = ProviderAvailability {
+            codex_signed_in: true,
+            gemini: GeminiStatus {
+                installed: false,
+                signed_in: false,
+            },
+        };
+        assert!(validate_provider_selection(TranscriptionProvider::Codex, &codex).is_ok());
+        assert!(validate_provider_selection(TranscriptionProvider::Gemini, &codex).is_err());
+    }
 }

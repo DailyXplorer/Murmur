@@ -1,14 +1,20 @@
 use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
+use crate::{OperationId, ProcessingOperation};
 use log::{debug, error, warn};
 use std::sync::mpsc::{self, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
 const DEBOUNCE: Duration = Duration::from_millis(30);
 const RELEASE_GRACE: Duration = Duration::from_millis(50);
+const START_RETRY_DELAY: Duration = Duration::from_millis(25);
+pub(crate) const QUIT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
+const PROVIDER_QUIT_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_RECORDING_DURATION: Duration =
+    Duration::from_secs(crate::audio_toolkit::constants::MAX_RECORDING_SECONDS);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PttAction {
@@ -18,6 +24,21 @@ enum PttAction {
 }
 
 struct PendingRelease {
+    binding_id: String,
+    hotkey_string: String,
+    deadline: Instant,
+}
+
+/// A press that arrived while the prior recording still owns the recorder.
+/// Keep the user input and retry it after the trailing stop completes instead
+/// of recording a phantom start or requiring another keypress.
+struct PendingStart {
+    binding_id: String,
+    hotkey_string: String,
+    deadline: Instant,
+}
+
+struct ActiveRecording {
     binding_id: String,
     hotkey_string: String,
     deadline: Instant,
@@ -38,14 +59,163 @@ enum Command {
     /// async worker and the audio manager can still report recording active.
     Cancel,
     RemoteCancel,
-    ProcessingFinished,
+    Shutdown,
+    ProcessingFinished(OperationId),
+}
+
+/// Coordinates the short interval in which an irreversible Cmd+V has been
+/// posted but its modifier-release receipt is still outstanding. It is
+/// separate from provider state so quit can keep AppKit alive without waiting
+/// on a network request or a provider mutex.
+struct ShutdownDrain {
+    closing: std::sync::atomic::AtomicBool,
+    exit_allowed: std::sync::atomic::AtomicBool,
+    finished: Mutex<bool>,
+    finished_cv: Condvar,
+}
+
+impl ShutdownDrain {
+    fn new() -> Self {
+        Self {
+            closing: std::sync::atomic::AtomicBool::new(false),
+            exit_allowed: std::sync::atomic::AtomicBool::new(false),
+            finished: Mutex::new(false),
+            finished_cv: Condvar::new(),
+        }
+    }
+
+    fn begin(&self) -> bool {
+        !self.closing.swap(true, std::sync::atomic::Ordering::AcqRel)
+    }
+
+    fn is_closing(&self) -> bool {
+        self.closing.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    fn allow_exit(&self) -> bool {
+        self.exit_allowed.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    fn finish(&self) {
+        *self
+            .finished
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+        self.finished_cv.notify_all();
+    }
+
+    fn wait_bounded(&self, timeout: Duration) -> bool {
+        let finished = self
+            .finished
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let (finished, _) = self
+            .finished_cv
+            .wait_timeout_while(finished, timeout, |finished| !*finished)
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *finished
+    }
+
+    fn permit_exit(&self) {
+        self.exit_allowed
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
 }
 
 /// Pipeline lifecycle, owned exclusively by the coordinator thread.
 enum Stage {
     Idle,
-    Recording(String), // binding_id
-    Processing,
+    Recording(ActiveRecording),
+    Processing { operation: ProcessingOperation },
+}
+
+fn next_deadline(
+    stage: &Stage,
+    pending_release: Option<&PendingRelease>,
+    pending_start: Option<&PendingStart>,
+) -> Option<Instant> {
+    let recording_deadline = match stage {
+        Stage::Recording(recording) => Some(recording.deadline),
+        _ => None,
+    };
+    [
+        pending_release.map(|pending| pending.deadline),
+        pending_start.map(|pending| pending.deadline),
+        recording_deadline,
+    ]
+    .into_iter()
+    .flatten()
+    .min()
+}
+
+fn take_due_start(
+    stage: &Stage,
+    pending_start: &mut Option<PendingStart>,
+    now: Instant,
+) -> Option<(String, String)> {
+    if !matches!(stage, Stage::Idle) {
+        *pending_start = None;
+        return None;
+    }
+    pending_start
+        .as_ref()
+        .is_some_and(|pending| pending.deadline <= now)
+        .then(|| pending_start.take())
+        .flatten()
+        .map(|pending| (pending.binding_id, pending.hotkey_string))
+}
+
+/// A second toggle press means the user no longer wants the queued start.
+/// This runs only after the press has passed the normal debounce window.
+fn cancel_matching_pending_toggle_start(
+    pending_start: &mut Option<PendingStart>,
+    is_pressed: bool,
+    push_to_talk: bool,
+    binding_id: &str,
+) -> bool {
+    if !is_pressed || push_to_talk {
+        return false;
+    }
+
+    if pending_start
+        .as_ref()
+        .is_some_and(|pending| pending.binding_id == binding_id)
+    {
+        *pending_start = None;
+        return true;
+    }
+
+    false
+}
+
+fn take_due_stop(
+    stage: &Stage,
+    pending_release: &mut Option<PendingRelease>,
+    now: Instant,
+) -> Option<(String, String, bool)> {
+    if pending_release
+        .as_ref()
+        .is_some_and(|pending| pending.deadline <= now)
+    {
+        if let Some(pending) = pending_release.take() {
+            if matches!(stage, Stage::Recording(recording) if recording.binding_id == pending.binding_id)
+            {
+                return Some((pending.binding_id, pending.hotkey_string, false));
+            }
+        }
+    }
+
+    if let Stage::Recording(recording) = stage {
+        if recording.deadline <= now {
+            *pending_release = None;
+            return Some((
+                recording.binding_id.clone(),
+                recording.hotkey_string.clone(),
+                true,
+            ));
+        }
+    }
+    None
 }
 
 fn classify_ptt_event(
@@ -72,19 +242,27 @@ fn classify_ptt_event(
     }
 }
 
-fn cancellation_stage(stage: &Stage) -> crate::utils::CancellationStage {
-    if matches!(stage, Stage::Processing) {
-        crate::utils::CancellationStage::Processing
-    } else {
-        crate::utils::CancellationStage::NotProcessing
+fn finish_cancel(
+    stage: &mut Stage,
+    pending_release: &mut Option<PendingRelease>,
+    pending_start: &mut Option<PendingStart>,
+) {
+    *pending_release = None;
+    *pending_start = None;
+    *stage = Stage::Idle;
+}
+
+/// Returns whether cancellation may move the stage to Idle immediately.
+/// After a paste claim, wait for the modifier-release receipt.
+fn request_cancel(stage: &Stage) -> bool {
+    match stage {
+        Stage::Processing { operation } => operation.cancel(),
+        Stage::Idle | Stage::Recording(_) => true,
     }
 }
 
-fn finish_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>) {
-    *pending_release = None;
-    if !matches!(stage, Stage::Processing) {
-        *stage = Stage::Idle;
-    }
+fn is_current_processing(stage: &Stage, id: OperationId) -> bool {
+    matches!(stage, Stage::Processing { operation } if operation.id() == id)
 }
 
 fn queue_local_cancel(tx: &Sender<Command>) -> Result<(), mpsc::SendError<Command>> {
@@ -96,6 +274,7 @@ fn queue_local_cancel(tx: &Sender<Command>) -> Result<(), mpsc::SendError<Comman
 /// the async transcribe-paste pipeline.
 pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
+    shutdown_drain: Arc<ShutdownDrain>,
 }
 
 /// Returns whether `id` names the sole supported transcription shortcut.
@@ -106,33 +285,53 @@ pub fn is_transcribe_binding(id: &str) -> bool {
 impl TranscriptionCoordinator {
     pub fn new(app: AppHandle) -> Self {
         let (tx, rx) = mpsc::channel();
+        let shutdown_drain = Arc::new(ShutdownDrain::new());
+        let worker_shutdown_drain = Arc::clone(&shutdown_drain);
 
         thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut stage = Stage::Idle;
+                let mut next_operation_id = 1_u64;
                 let mut last_press: Option<Instant> = None;
                 let mut pending_release: Option<PendingRelease> = None;
+                let mut pending_start: Option<PendingStart> = None;
 
                 loop {
-                    let cmd = if let Some(pending) = &pending_release {
-                        match rx.recv_timeout(
-                            pending.deadline.saturating_duration_since(Instant::now()),
-                        ) {
+                    // Check deadlines before receiving so a continuously busy
+                    // channel cannot postpone the hard recording limit.
+                    if let Some((binding_id, hotkey_string, recording_limit)) =
+                        take_due_stop(&stage, &mut pending_release, Instant::now())
+                    {
+                        if recording_limit {
+                            warn!(
+                                "Recording reached the 15-minute duration limit; stopping safely"
+                            );
+                        }
+                        stop(
+                            &app,
+                            &mut stage,
+                            &mut next_operation_id,
+                            &binding_id,
+                            &hotkey_string,
+                        );
+                        continue;
+                    }
+
+                    if let Some((binding_id, hotkey_string)) =
+                        take_due_start(&stage, &mut pending_start, Instant::now())
+                    {
+                        if let Some(retry) = start(&app, &mut stage, &binding_id, &hotkey_string) {
+                            pending_start = Some(retry);
+                        }
+                        continue;
+                    }
+
+                    let cmd = if let Some(deadline) =
+                        next_deadline(&stage, pending_release.as_ref(), pending_start.as_ref())
+                    {
+                        match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
                             Ok(cmd) => cmd,
-                            Err(mpsc::RecvTimeoutError::Timeout) => {
-                                if let Some(pending) = pending_release.take() {
-                                    if matches!(&stage, Stage::Recording(id) if id == &pending.binding_id)
-                                    {
-                                        stop(
-                                            &app,
-                                            &mut stage,
-                                            &pending.binding_id,
-                                            &pending.hotkey_string,
-                                        );
-                                    }
-                                }
-                                continue;
-                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => continue,
                             Err(mpsc::RecvTimeoutError::Disconnected) => break,
                         }
                     } else {
@@ -149,11 +348,23 @@ impl TranscriptionCoordinator {
                             is_pressed,
                             push_to_talk,
                         } => {
+                            // A released push-to-talk key must not begin a
+                            // recording after a deferred start finally finds
+                            // the recorder idle.
+                            if push_to_talk
+                                && !is_pressed
+                                && pending_start
+                                    .as_ref()
+                                    .is_some_and(|pending| pending.binding_id == binding_id)
+                            {
+                                pending_start = None;
+                                continue;
+                            }
                             let pending_release_binding = pending_release
                                 .as_ref()
                                 .map(|pending| pending.binding_id.as_str());
                             let recording_binding = match &stage {
-                                Stage::Recording(id) => Some(id.as_str()),
+                                Stage::Recording(recording) => Some(recording.binding_id.as_str()),
                                 _ => None,
                             };
 
@@ -190,21 +401,47 @@ impl TranscriptionCoordinator {
                                 last_press = Some(now);
                             }
 
+                            if cancel_matching_pending_toggle_start(
+                                &mut pending_start,
+                                is_pressed,
+                                push_to_talk,
+                                &binding_id,
+                            ) {
+                                debug!("Cancelled queued start for '{binding_id}'");
+                                continue;
+                            }
+
                             if push_to_talk {
                                 if is_pressed && matches!(stage, Stage::Idle) {
-                                    start(&app, &mut stage, &binding_id, &hotkey_string);
+                                    pending_start =
+                                        start(&app, &mut stage, &binding_id, &hotkey_string);
                                 } else if !is_pressed
-                                    && matches!(&stage, Stage::Recording(id) if id == &binding_id)
+                                    && matches!(&stage, Stage::Recording(recording) if recording.binding_id == binding_id)
                                 {
-                                    stop(&app, &mut stage, &binding_id, &hotkey_string);
+                                    stop(
+                                        &app,
+                                        &mut stage,
+                                        &mut next_operation_id,
+                                        &binding_id,
+                                        &hotkey_string,
+                                    );
                                 }
                             } else if is_pressed {
                                 match &stage {
                                     Stage::Idle => {
-                                        start(&app, &mut stage, &binding_id, &hotkey_string);
+                                        pending_start =
+                                            start(&app, &mut stage, &binding_id, &hotkey_string);
                                     }
-                                    Stage::Recording(id) if id == &binding_id => {
-                                        stop(&app, &mut stage, &binding_id, &hotkey_string);
+                                    Stage::Recording(recording)
+                                        if recording.binding_id == binding_id =>
+                                    {
+                                        stop(
+                                            &app,
+                                            &mut stage,
+                                            &mut next_operation_id,
+                                            &binding_id,
+                                            &hotkey_string,
+                                        );
                                     }
                                     _ => {
                                         debug!("Ignoring press for '{binding_id}': pipeline busy")
@@ -221,15 +458,48 @@ impl TranscriptionCoordinator {
                             // to Processing before its worker releases the
                             // audio manager, so that manager can still report
                             // recording active here.
-                            let cancellation_stage = cancellation_stage(&stage);
-                            crate::utils::cancel_current_operation_from_coordinator(
-                                &app,
-                                cancellation_stage,
-                            );
-                            finish_cancel(&mut stage, &mut pending_release);
+                            let may_return_idle = request_cancel(&stage);
+                            crate::utils::cancel_current_operation_from_coordinator(&app);
+                            if may_return_idle {
+                                finish_cancel(&mut stage, &mut pending_release, &mut pending_start);
+                            } else {
+                                // A Cmd+V was already posted. The async paste
+                                // future will suppress delayed Enter and
+                                // FinishGuard will transition to Idle after
+                                // the modifier-release receipt.
+                                pending_release = None;
+                                pending_start = None;
+                            }
                         }
-                        Command::ProcessingFinished => {
-                            stage = Stage::Idle;
+                        Command::Shutdown => {
+                            pending_release = None;
+                            let may_return_idle = request_cancel(&stage);
+                            crate::utils::cancel_current_operation_from_coordinator(&app);
+                            if may_return_idle {
+                                finish_cancel(&mut stage, &mut pending_release, &mut pending_start);
+                                worker_shutdown_drain.finish();
+                            } else {
+                                pending_start = None;
+                            }
+                        }
+                        Command::ProcessingFinished(id) => {
+                            if is_current_processing(&stage, id) {
+                                stage = Stage::Idle;
+                                crate::shortcut::unregister_cancel_shortcut(&app);
+                                crate::tray::change_tray_icon(
+                                    &app,
+                                    crate::tray::TrayIconState::Idle,
+                                );
+                                crate::utils::hide_recording_overlay(&app);
+                                if worker_shutdown_drain.is_closing() {
+                                    worker_shutdown_drain.finish();
+                                }
+                            } else {
+                                debug!(
+                                    "Ignoring stale transcription completion for operation {}",
+                                    id.0
+                                );
+                            }
                         }
                     }
                 }
@@ -240,7 +510,7 @@ impl TranscriptionCoordinator {
             }
         });
 
-        Self { tx }
+        Self { tx, shutdown_drain }
     }
 
     /// Send a keyboard/signal input event for a transcribe binding.
@@ -252,6 +522,10 @@ impl TranscriptionCoordinator {
         is_pressed: bool,
         push_to_talk: bool,
     ) {
+        if self.shutdown_drain.is_closing() {
+            debug!("Ignoring transcription input while the application is closing");
+            return;
+        }
         if self
             .tx
             .send(Command::Input {
@@ -286,41 +560,113 @@ impl TranscriptionCoordinator {
         }
     }
 
-    pub fn notify_processing_finished(&self) {
-        if self.tx.send(Command::ProcessingFinished).is_err() {
+    pub fn notify_processing_finished(&self, id: OperationId) {
+        if self.tx.send(Command::ProcessingFinished(id)).is_err() {
             warn!("Transcription coordinator channel closed");
         }
     }
-}
 
-fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &str) {
-    let Some(action) = ACTION_MAP.get(binding_id) else {
-        warn!("No action in ACTION_MAP for '{binding_id}'");
-        return;
-    };
-    action.start(app, binding_id, hotkey_string);
-    if app
-        .try_state::<Arc<AudioRecordingManager>>()
-        .is_some_and(|a| a.is_recording())
-    {
-        *stage = Stage::Recording(binding_id.to_string());
-    } else {
-        debug!("Start for '{binding_id}' did not begin recording; staying idle");
+    /// Starts a bounded foreground drain before application exit. The first
+    /// request sends cancellation through the same serialized lifecycle; a
+    /// second ExitRequested event is allowed only after the receipt arrives or
+    /// the bounded timeout expires.
+    pub fn begin_shutdown(&self, app: AppHandle) {
+        if !self.shutdown_drain.begin() {
+            return;
+        }
+        if self.tx.send(Command::Shutdown).is_err() {
+            self.shutdown_drain.finish();
+        }
+
+        // Signal real transports before waiting for the last keyboard receipt.
+        // This call only flips atomics, snapshots a short registry, and queues
+        // Gemini cleanup off-main; it never acquires Gemini's runtime mutex.
+        let provider_shutdown = app
+            .try_state::<Arc<crate::managers::transcription::TranscriptionManager>>()
+            .map(|manager| manager.begin_shutdown());
+
+        let shutdown_drain = Arc::clone(&self.shutdown_drain);
+        thread::spawn(move || {
+            if !shutdown_drain.wait_bounded(QUIT_DRAIN_TIMEOUT) {
+                warn!("Timed out waiting for the foreground paste release during shutdown");
+            }
+            if let Some(provider_shutdown) = provider_shutdown {
+                if !provider_shutdown.wait_bounded(PROVIDER_QUIT_TIMEOUT) {
+                    warn!("Timed out waiting for owned Gemini provider cleanup during shutdown");
+                }
+            }
+            shutdown_drain.permit_exit();
+            app.exit(0);
+        });
+    }
+
+    pub fn allows_exit(&self) -> bool {
+        self.shutdown_drain.allow_exit()
     }
 }
 
-fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &str) {
+fn start(
+    app: &AppHandle,
+    stage: &mut Stage,
+    binding_id: &str,
+    hotkey_string: &str,
+) -> Option<PendingStart> {
+    let Some(action) = ACTION_MAP.get(binding_id) else {
+        warn!("No action in ACTION_MAP for '{binding_id}'");
+        return None;
+    };
+    action.start(app, binding_id, hotkey_string);
+    let audio = app.try_state::<Arc<AudioRecordingManager>>()?;
+    if audio.is_recording_started() {
+        *stage = Stage::Recording(ActiveRecording {
+            binding_id: binding_id.to_string(),
+            hotkey_string: hotkey_string.to_string(),
+            deadline: Instant::now() + MAX_RECORDING_DURATION,
+        });
+        None
+    } else if audio.is_stopping() {
+        debug!("Deferring start for '{binding_id}' until prior stop completes");
+        Some(PendingStart {
+            binding_id: binding_id.to_string(),
+            hotkey_string: hotkey_string.to_string(),
+            deadline: Instant::now() + START_RETRY_DELAY,
+        })
+    } else {
+        debug!("Start for '{binding_id}' did not begin recording; staying idle");
+        None
+    }
+}
+
+fn stop(
+    app: &AppHandle,
+    stage: &mut Stage,
+    next_operation_id: &mut u64,
+    binding_id: &str,
+    hotkey_string: &str,
+) {
     let Some(action) = ACTION_MAP.get(binding_id) else {
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
-    action.stop(app, binding_id, hotkey_string);
-    *stage = Stage::Processing;
+    let operation = ProcessingOperation::new(OperationId(*next_operation_id));
+    *next_operation_id = next_operation_id.wrapping_add(1);
+    *stage = Stage::Processing {
+        operation: operation.clone(),
+    };
+    action.stop(app, binding_id, hotkey_string, operation);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn recording_stage(deadline: Instant) -> Stage {
+        Stage::Recording(ActiveRecording {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "CLI".to_string(),
+            deadline,
+        })
+    }
 
     #[test]
     fn push_to_talk_release_while_recording_defers_release() {
@@ -386,62 +732,211 @@ mod tests {
 
     #[test]
     fn remote_cancel_after_toggle_returns_the_coordinator_to_idle() {
-        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
         let mut pending_release = Some(PendingRelease {
             binding_id: "transcribe".to_string(),
             hotkey_string: "CLI".to_string(),
             deadline: Instant::now(),
         });
 
-        finish_cancel(&mut stage, &mut pending_release);
+        finish_cancel(&mut stage, &mut pending_release, &mut None);
 
         assert!(matches!(stage, Stage::Idle));
         assert!(pending_release.is_none());
     }
 
     #[test]
-    fn remote_cancel_keeps_processing_stage_while_audio_is_still_stopping() {
-        let mut stage = Stage::Processing;
+    fn processing_cancel_returns_to_idle_while_audio_is_still_stopping() {
+        let mut stage = Stage::Processing {
+            operation: ProcessingOperation::new(OperationId(1)),
+        };
         let mut pending_release = None;
 
-        // `stop` moves the coordinator to Processing before its async worker
-        // stops the audio manager, so that manager can still report active.
-        finish_cancel(&mut stage, &mut pending_release);
+        finish_cancel(&mut stage, &mut pending_release, &mut None);
 
-        assert!(matches!(stage, Stage::Processing));
+        assert!(matches!(stage, Stage::Idle));
     }
 
     #[test]
-    fn local_cancel_during_processing_uses_stage_not_active_audio_for_ui_cleanup() {
-        let mut stage = Stage::Processing;
+    fn late_cancel_waits_for_paste_release_before_admitting_another_recording() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        assert!(operation.try_enter_paste().is_some());
+        let stage = Stage::Processing { operation };
+
+        assert!(!request_cancel(&stage));
+        assert!(matches!(stage, Stage::Processing { .. }));
+    }
+
+    #[test]
+    fn quit_waits_for_a_fake_modifier_release_receipt() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        assert!(operation.try_enter_paste().is_some());
+        let stage = Stage::Processing { operation };
+        assert!(!request_cancel(&stage));
+
+        let drain = Arc::new(ShutdownDrain::new());
+        assert!(drain.begin());
+        let waiting_drain = Arc::clone(&drain);
+        let (tx, rx) = mpsc::channel();
+        let waiter = thread::spawn(move || {
+            tx.send(waiting_drain.wait_bounded(Duration::from_secs(5)))
+                .unwrap();
+        });
+
+        assert!(matches!(
+            rx.recv_timeout(Duration::from_millis(10)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        drain.finish();
+        assert!(rx.recv().unwrap());
+        waiter.join().unwrap();
+    }
+
+    #[test]
+    fn local_cancel_during_processing_returns_to_idle_before_worker_finish() {
+        let mut stage = Stage::Processing {
+            operation: ProcessingOperation::new(OperationId(1)),
+        };
         let mut pending_release = None;
 
-        // `stop` enters Processing before its worker releases the audio
-        // manager. The cancellation must still be signalled, but none of the
-        // idle UI side effects may run before FinishGuard completes.
-        let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
-        assert!(effects.signal_audio_cancellation);
-        assert!(!effects.unregister_cancel_shortcut);
-        assert!(!effects.set_tray_idle);
-        assert!(!effects.hide_recording_overlay);
+        finish_cancel(&mut stage, &mut pending_release, &mut None);
+        assert!(matches!(stage, Stage::Idle));
+    }
 
-        finish_cancel(&mut stage, &mut pending_release);
-        assert!(matches!(stage, Stage::Processing));
+    #[test]
+    fn stale_completion_cannot_finish_a_later_operation() {
+        let first = OperationId(1);
+        let second = OperationId(2);
+        let stage = Stage::Processing {
+            operation: ProcessingOperation::new(second),
+        };
+
+        assert!(!is_current_processing(&stage, first));
+        assert!(is_current_processing(&stage, second));
     }
 
     #[test]
     fn local_cancel_during_recording_cleans_up_immediately() {
-        let mut stage = Stage::Recording("transcribe".to_string());
+        let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
         let mut pending_release = None;
 
-        let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
-        assert!(effects.signal_audio_cancellation);
-        assert!(effects.unregister_cancel_shortcut);
-        assert!(effects.set_tray_idle);
-        assert!(effects.hide_recording_overlay);
-
-        finish_cancel(&mut stage, &mut pending_release);
+        finish_cancel(&mut stage, &mut pending_release, &mut None);
         assert!(matches!(stage, Stage::Idle));
+    }
+
+    #[test]
+    fn receiver_uses_the_earliest_release_or_recording_deadline() {
+        let now = Instant::now();
+        let stage = recording_stage(now + Duration::from_secs(10));
+        let pending = PendingRelease {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: now + Duration::from_millis(50),
+        };
+        assert_eq!(
+            next_deadline(&stage, Some(&pending), None),
+            Some(pending.deadline)
+        );
+        assert_eq!(
+            next_deadline(&stage, None, None),
+            Some(now + Duration::from_secs(10))
+        );
+    }
+
+    #[test]
+    fn deferred_start_waits_for_idle_and_never_creates_a_phantom_recording() {
+        let now = Instant::now();
+        let mut pending = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: now,
+        });
+
+        // Cancellation can leave the coordinator Idle while audio is Stopping.
+        // Retrying remains a request until the recorder admits it.
+        assert_eq!(
+            take_due_start(&Stage::Idle, &mut pending, now),
+            Some(("transcribe".to_string(), "Option+Space".to_string()))
+        );
+        assert!(pending.is_none());
+
+        let mut stale = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: now,
+        });
+        assert_eq!(take_due_start(&recording_stage(now), &mut stale, now), None);
+        assert!(stale.is_none());
+    }
+
+    #[test]
+    fn toggle_press_cancels_a_matching_queued_start_after_debounce() {
+        let mut pending = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: Instant::now() + START_RETRY_DELAY,
+        });
+
+        // The coordinator calls this after admitting the press through its
+        // 30 ms debounce. It must cancel, rather than replace, this retry.
+        assert!(cancel_matching_pending_toggle_start(
+            &mut pending,
+            true,
+            false,
+            "transcribe"
+        ));
+        assert!(pending.is_none());
+        assert_eq!(
+            take_due_start(
+                &Stage::Idle,
+                &mut pending,
+                Instant::now() + START_RETRY_DELAY
+            ),
+            None,
+            "the cancelled retry must not start later"
+        );
+    }
+
+    #[test]
+    fn only_a_matching_toggle_press_cancels_a_queued_start() {
+        let mut pending = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: Instant::now() + START_RETRY_DELAY,
+        });
+
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut pending,
+            false,
+            false,
+            "transcribe"
+        ));
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut pending,
+            true,
+            true,
+            "transcribe"
+        ));
+        assert!(pending.is_some());
+
+        let mut no_pending = None;
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut no_pending,
+            true,
+            false,
+            "transcribe"
+        ));
+    }
+
+    #[test]
+    fn expired_recording_is_taken_before_queued_input() {
+        let now = Instant::now();
+        let stage = recording_stage(now - Duration::from_millis(1));
+        let mut pending_release = None;
+        assert_eq!(
+            take_due_stop(&stage, &mut pending_release, now),
+            Some(("transcribe".to_string(), "CLI".to_string(), true))
+        );
     }
 
     #[test]

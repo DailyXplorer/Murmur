@@ -477,11 +477,35 @@ pub fn is_no_input_device_error(error_message: &str) -> bool {
             && normalized.contains("coreaudio"))
 }
 
+fn append_recording_frame_with_limit(
+    samples: &[f32],
+    recording: bool,
+    out_buf: &mut Vec<f32>,
+    limit: usize,
+) -> bool {
+    if !recording {
+        return false;
+    }
+    let remaining = limit.saturating_sub(out_buf.len());
+    out_buf.extend_from_slice(&samples[..samples.len().min(remaining)]);
+    out_buf.len() >= limit
+}
+
+fn append_recording_frame(samples: &[f32], recording: bool, out_buf: &mut Vec<f32>) -> bool {
+    append_recording_frame_with_limit(
+        samples,
+        recording,
+        out_buf,
+        constants::MAX_RECORDING_SAMPLES,
+    )
+}
+
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
-        is_microphone_access_denied, is_no_input_device_error, run_consumer, AudioRecorder, Cmd,
+        append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
+        run_consumer, AudioRecorder, Cmd,
     };
     use std::{
         sync::{
@@ -566,6 +590,26 @@ mod tests {
         assert!(!is_no_input_device_error("permission denied"));
         assert!(!is_no_input_device_error("device not found"));
     }
+
+    #[test]
+    fn recording_frames_never_exceed_the_sample_limit() {
+        let mut samples = vec![1.0, 2.0];
+        assert!(append_recording_frame_with_limit(
+            &[3.0, 4.0],
+            true,
+            &mut samples,
+            3
+        ));
+        assert_eq!(samples, vec![1.0, 2.0, 3.0]);
+
+        assert!(append_recording_frame_with_limit(
+            &[5.0],
+            true,
+            &mut samples,
+            3
+        ));
+        assert_eq!(samples, vec![1.0, 2.0, 3.0]);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -585,6 +629,7 @@ fn run_consumer(
 
     let mut processed_samples = Vec::<f32>::new();
     let mut recording = false;
+    let mut capture_limit_logged = false;
 
     // ---------- latency instrumentation ---------------------------------- //
     // First-chunk arrival exposes the play()->samples-flowing gap; the
@@ -615,13 +660,6 @@ fn run_consumer(
         4000.0, // vocal_max_hz
     );
 
-    fn handle_frame(samples: &[f32], recording: bool, out_buf: &mut Vec<f32>) {
-        if !recording {
-            return;
-        }
-        out_buf.extend_from_slice(samples);
-    }
-
     // Poll commands even when a disconnected device stops producing samples
     // without closing its CoreAudio stream.
     loop {
@@ -651,6 +689,7 @@ fn run_consumer(
                     capture_ready_tx = Some(ready_tx);
                     stop_flag.store(false, Ordering::Relaxed);
                     processed_samples.clear();
+                    capture_limit_logged = false;
                     recording = true;
                     visualizer.reset();
                     frame_resampler.reset();
@@ -665,9 +704,16 @@ fn run_consumer(
 
                     // The chunk in hand arrived before the stop; it belongs to
                     // the recording, so feed it ahead of the drain below.
-                    if let Some(AudioChunk::Samples(raw)) = pending.take() {
+                    if let Some(AudioChunk::Samples(raw)) =
+                        pending.take().filter(|_| !capture_limit_logged)
+                    {
                         frame_resampler.push(&raw, &mut |frame: &[f32]| {
-                            handle_frame(frame, true, &mut processed_samples)
+                            if append_recording_frame(frame, true, &mut processed_samples)
+                                && !capture_limit_logged
+                            {
+                                log::warn!("Recording reached the 15-minute sample limit");
+                                capture_limit_logged = true;
+                            }
                         });
                     }
 
@@ -678,9 +724,21 @@ fn run_consumer(
                     loop {
                         match sample_rx.recv_timeout(Duration::from_secs(2)) {
                             Ok(AudioChunk::Samples(remaining)) => {
-                                frame_resampler.push(&remaining, &mut |frame: &[f32]| {
-                                    handle_frame(frame, true, &mut processed_samples)
-                                });
+                                if !capture_limit_logged {
+                                    frame_resampler.push(&remaining, &mut |frame: &[f32]| {
+                                        if append_recording_frame(
+                                            frame,
+                                            true,
+                                            &mut processed_samples,
+                                        ) && !capture_limit_logged
+                                        {
+                                            log::warn!(
+                                                "Recording reached the 15-minute sample limit"
+                                            );
+                                            capture_limit_logged = true;
+                                        }
+                                    });
+                                }
                             }
                             Ok(AudioChunk::EndOfStream) => break,
                             Err(_) => {
@@ -690,9 +748,16 @@ fn run_consumer(
                         }
                     }
 
-                    frame_resampler.finish(&mut |frame: &[f32]| {
-                        handle_frame(frame, true, &mut processed_samples)
-                    });
+                    if !capture_limit_logged {
+                        frame_resampler.finish(&mut |frame: &[f32]| {
+                            if append_recording_frame(frame, true, &mut processed_samples)
+                                && !capture_limit_logged
+                            {
+                                log::warn!("Recording reached the 15-minute sample limit");
+                                capture_limit_logged = true;
+                            }
+                        });
+                    }
 
                     let _ = reply_tx.send(std::mem::take(&mut processed_samples));
 
@@ -726,13 +791,10 @@ fn run_consumer(
         // ---------- recording-time processing ---------------------------- //
         // In always-on mode the capture stream stays open continuously for
         // zero-latency start, so while idle (not recording) there is nothing to
-        // do with a chunk: handle_frame returns early when not recording, which
-        // means the resampled output would be discarded, and the level meter has
-        // no idle consumer. Skip both the level-meter FFT and the resampler while
-        // idle to avoid doing unnecessary work whose output is thrown away. Both
-        // are reset on Cmd::Start (visualizer.reset() / frame_resampler.reset()),
-        // so they resume cleanly the moment recording begins.
-        if recording {
+        // do with a chunk. Skip both the level-meter FFT and resampler while
+        // idle, and after the hard sample cap, to avoid work whose output would
+        // be discarded. Both are reset on Cmd::Start.
+        if recording && !capture_limit_logged {
             if let Some(buckets) = visualizer.feed(&raw) {
                 if let Some(cb) = &level_cb {
                     cb(buckets);
@@ -740,7 +802,12 @@ fn run_consumer(
             }
 
             frame_resampler.push(&raw, &mut |frame: &[f32]| {
-                handle_frame(frame, recording, &mut processed_samples)
+                if append_recording_frame(frame, recording, &mut processed_samples)
+                    && !capture_limit_logged
+                {
+                    log::warn!("Recording reached the 15-minute sample limit");
+                    capture_limit_logged = true;
+                }
             });
         }
 

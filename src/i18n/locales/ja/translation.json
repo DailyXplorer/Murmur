@@ -36,6 +36,27 @@
         "checkFailed": "権限の確認に失敗しました。もう一度お試しください。",
         "requestFailed": "権限のリクエストに失敗しました。もう一度お試しください。"
       }
+    },
+    "provider": {
+      "title": "文字起こしサービスを選択",
+      "description": "セットアップを完了するには、設定済みのサービスを選択してください。Murmur はローカル設定を検出しますが、接続が有効かどうかは確認しません。",
+      "antigravityDescription": "この Mac で検出された Antigravity の設定を使用します。",
+      "experimental": "実験的",
+      "configured": "設定を検出しました",
+      "selectionRequired": "続行するには、設定済みの文字起こしサービスを選択してください。",
+      "retry": "再試行",
+      "continue": "続ける",
+      "providerChangeFailed": "選択した文字起こしサービスを保存できませんでした。もう一度お試しください。",
+      "completionFailed": "セットアップを完了できませんでした。状態を更新してもう一度お試しください。",
+      "openFailed": "Antigravity を開けませんでした。",
+      "installFailed": "Antigravity のダウンロードページを開けませんでした。",
+      "setupCodex": "Codex の設定を開く",
+      "codexSetupFailed": "Codex の設定を開けませんでした。"
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "設定が見つかりません"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "外観"
       }
     },
+    "languageAutoOnly": "Antigravity は言語を自動検出します。Codex に戻すと、Codex の言語選択がそのまま使われます。",
     "sound": {
       "title": "サウンド",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "クリップボードの処理",
-        "description": "クリップボードを変更しないを選択すると、文字起こし後も現在のクリップボード内容が保持されます。クリップボードにコピーを選択すると、貼り付け後も文字起こし結果がクリップボードに残ります。",
+        "description": "Cmd+V で安全にペーストするため、以前のクリップボードのデータは復元されません。ペーストに成功した場合、「ペースト後に消去」は 8 秒間の安全時間が終了すると文字起こしを削除し、「文字起こしを保持」はそのまま利用可能にします。ペーストに失敗した場合、Murmur は復元できるよう文字起こしを保持します。",
         "options": {
-          "dontModify": "クリップボードを変更しない",
-          "copyToClipboard": "クリップボードにコピー"
+          "dontModify": "ペースト後に消去",
+          "copyToClipboard": "文字起こしを保持"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "末尾にスペースを追加",
         "description": "貼り付けた文字起こしの後にスペースを追加"
       },
-      "pasteDelay": {
-        "title": "貼り付け遅延(前)",
-        "description": "テキストをコピーした後、貼り付けキーを送信する前の遅延(ミリ秒)。何も貼り付けられない場合は増やしてください。"
-      },
-      "pasteDelayAfter": {
-        "title": "貼り付け遅延(後)",
-        "description": "貼り付けキーを送信した後、以前のクリップボードを復元する前の遅延(ミリ秒)。文字起こしではなく古いクリップボードの内容が貼り付けられる場合は増やしてください。"
-      },
-      "reliablePaste": {
-        "title": "確実な貼り付け(Beta)",
-        "description": "固定の遅延ではなく、対象アプリが実際に文字起こしを読み取った後にのみクリップボードを復元します。システム負荷が高いときに古いクリップボードの内容が貼り付けられる問題を解決するための設定です。クリップボードを使う貼り付け方法が必要です。"
-      },
       "recordingBuffer": {
         "title": "追加録音バッファ",
         "description": "キーを離した後に録音を続ける追加時間(ミリ秒)。末尾の音声を捕捉するため。0 = 追加バッファなし。"
@@ -329,19 +339,14 @@
       "title": "文字起こし",
       "sessionTitle": "Codex",
       "sessionDescription": "音声は、Codex が使用するものと同じクラウド文字起こしサービスに送信されます。ここで接続されていないと表示される場合は、Codex アプリにサインインしてください。",
-      "checking": "セッションを確認中…",
+      "checking": "設定を確認中…",
       "statusUnavailable": "ステータスを取得できません",
-      "ready": "接続済み",
       "missing": "サインインしていません",
       "providerTitle": "文字起こしサービス",
       "providerDescription": "新しい音声入力に使う文字起こしサービスを選択します。",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini はこの Mac のローカル Antigravity セッションを使います。試験的機能のため、Antigravity の更新後に Murmur の更新が必要になる場合があります。",
       "notInstalled": "Antigravity がインストールされていません",
       "installAntigravity": "インストール",
       "openAntigravity": "Antigravity を開く",
-      "onboardingDescription": "続行する前に Codex または Antigravity にログインしてください。",
       "groups": {
         "service": "サービス",
         "processing": "テキスト処理",
@@ -387,6 +392,7 @@
     "pasteFailed": "アクティブなアプリにテキストを貼り付けられませんでした。",
     "transcriptionFailedTitle": "文字起こしに失敗しました"
   },
+  "transcriptionFailedAction": "文字起こしサービスを確認",
   "appLanguage": {
     "title": "アプリの言語",
     "description": "Murmur インターフェースの言語を変更"

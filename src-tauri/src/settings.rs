@@ -2,7 +2,7 @@ use log::{debug, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
@@ -117,8 +117,12 @@ pub enum PasteMethod {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ClipboardHandling {
+    /// Clear Murmur's promised transcript after a bounded paste window. The
+    /// legacy serialized name is retained for settings compatibility; prior
+    /// clipboard data is deliberately never restored.
     #[default]
     DontModify,
+    /// Materialize the transcription as the new clipboard value after paste.
     CopyToClipboard,
 }
 
@@ -290,10 +294,9 @@ pub struct AppSettings {
     pub paste_delay_ms: u64,
     #[serde(default = "default_paste_delay_after_ms")]
     pub paste_delay_after_ms: u64,
-    /// Debug-gated ("beta") receipt-sequenced paste: restore the clipboard only
-    /// after the target app actually reads the transcript, instead of after a
-    /// fixed delay. See `paste_tx`. macOS only.
-    #[serde(default)]
+    /// Required guarded paste path. Prior clipboard data is never restored;
+    /// AppKit does not identify the process reading promised data. macOS only.
+    #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
     #[serde(default = "default_filler_word_removal_enabled")]
     pub filler_word_removal_enabled: bool,
@@ -373,6 +376,10 @@ fn default_auto_submit() -> bool {
     false
 }
 
+fn default_reliable_paste() -> bool {
+    true
+}
+
 fn default_history_limit() -> usize {
     5
 }
@@ -405,6 +412,11 @@ fn default_show_tray_icon() -> bool {
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 const OBSOLETE_SETTINGS_KEYS: [&str; 2] = ["typing_tool", "external_script_path"];
+pub const MAX_PASTE_DELAY_MS: u64 = 500;
+pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
+pub const MAX_CUSTOM_WORDS: usize = 200;
+pub const MAX_CUSTOM_WORD_CHARS: usize = 50;
+pub const MAX_HISTORY_LIMIT: usize = 1_000;
 
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = "option+space";
@@ -471,7 +483,7 @@ pub fn get_default_settings() -> AppSettings {
         show_tray_icon: default_show_tray_icon(),
         paste_delay_ms: default_paste_delay_ms(),
         paste_delay_after_ms: default_paste_delay_after_ms(),
-        reliable_paste: false,
+        reliable_paste: default_reliable_paste(),
         filler_word_removal_enabled: default_filler_word_removal_enabled(),
         custom_filler_words: None,
         extra_recording_buffer_ms: 0,
@@ -498,13 +510,114 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
             .any(|key| settings.contains_key(*key))
     });
 
-    match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-        Ok(settings) => (settings, has_obsolete_keys),
-        Err(e) => {
-            warn!("Failed to parse stored settings ({e}); salvaging valid fields");
-            (salvage_settings(settings_value), true)
+    let (mut settings, mut updated) =
+        match serde_json::from_value::<AppSettings>(settings_value.clone()) {
+            Ok(settings) => (settings, has_obsolete_keys),
+            Err(e) => {
+                warn!("Failed to parse stored settings ({e}); salvaging valid fields");
+                (salvage_settings(settings_value), true)
+            }
+        };
+    updated |= normalize_settings(&mut settings);
+    (settings, updated)
+}
+
+fn normalize_custom_word(word: &str) -> String {
+    word.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn normalize_bounded_words(words: &[String]) -> Vec<String> {
+    let mut normalized_words = Vec::with_capacity(words.len().min(MAX_CUSTOM_WORDS));
+    let mut seen = HashSet::with_capacity(words.len().min(MAX_CUSTOM_WORDS));
+    for word in words.iter().take(MAX_CUSTOM_WORDS) {
+        let normalized = normalize_custom_word(word);
+        if normalized.is_empty()
+            || normalized.chars().count() > MAX_CUSTOM_WORD_CHARS
+            || !seen.insert(normalized.clone())
+        {
+            continue;
+        }
+        normalized_words.push(normalized);
+    }
+    normalized_words
+}
+
+pub fn validate_custom_words(words: &[String]) -> Result<(), String> {
+    if words.len() > MAX_CUSTOM_WORDS {
+        return Err(format!(
+            "Custom words cannot contain more than {MAX_CUSTOM_WORDS} entries"
+        ));
+    }
+
+    let mut seen = HashSet::with_capacity(words.len());
+    for word in words {
+        let normalized = normalize_custom_word(word);
+        if normalized.is_empty() {
+            return Err("Custom words cannot contain an empty entry".to_string());
+        }
+        if normalized != *word {
+            return Err("Custom words must be normalized before saving".to_string());
+        }
+        if word.chars().count() > MAX_CUSTOM_WORD_CHARS {
+            return Err(format!(
+                "Each custom word must contain at most {MAX_CUSTOM_WORD_CHARS} characters"
+            ));
+        }
+        if !seen.insert(word.as_str()) {
+            return Err("Custom words cannot contain duplicate entries".to_string());
         }
     }
+    Ok(())
+}
+
+/// Repairs persisted values before they can block the main thread or create
+/// unbounded matcher work. Logs name keys only because settings are private.
+fn normalize_settings(settings: &mut AppSettings) -> bool {
+    let mut updated = false;
+
+    if settings.paste_delay_ms > MAX_PASTE_DELAY_MS {
+        warn!("Resetting out-of-range setting 'paste_delay_ms'");
+        settings.paste_delay_ms = default_paste_delay_ms();
+        updated = true;
+    }
+    if settings.paste_delay_after_ms > MAX_PASTE_DELAY_MS {
+        warn!("Resetting out-of-range setting 'paste_delay_after_ms'");
+        settings.paste_delay_after_ms = default_paste_delay_after_ms();
+        updated = true;
+    }
+    if settings.extra_recording_buffer_ms > MAX_EXTRA_RECORDING_BUFFER_MS {
+        warn!("Resetting out-of-range setting 'extra_recording_buffer_ms'");
+        settings.extra_recording_buffer_ms = 0;
+        updated = true;
+    }
+    if settings.history_limit > MAX_HISTORY_LIMIT {
+        warn!("Resetting out-of-range setting 'history_limit'");
+        settings.history_limit = default_history_limit();
+        updated = true;
+    }
+    if !settings.reliable_paste {
+        warn!("Enabling required setting 'reliable_paste'");
+        settings.reliable_paste = true;
+        updated = true;
+    }
+
+    let normalized_words = normalize_bounded_words(&settings.custom_words);
+    if normalized_words != settings.custom_words {
+        warn!("Repairing invalid setting 'custom_words'");
+        settings.custom_words = normalized_words;
+        updated = true;
+    }
+
+    if let Some(custom_filler_words) = settings.custom_filler_words.as_ref() {
+        let normalized_filler_words = normalize_bounded_words(custom_filler_words);
+        if normalized_filler_words != *custom_filler_words {
+            warn!("Repairing invalid setting 'custom_filler_words'");
+            settings.custom_filler_words = Some(normalized_filler_words);
+            updated = true;
+        }
+    }
+
+    updated
 }
 
 /// Loads persisted settings, repairing invalid fields and obsolete values
@@ -576,7 +689,8 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
     })
 }
 
-pub fn write_settings(app: &AppHandle, settings: AppSettings) {
+pub fn write_settings(app: &AppHandle, mut settings: AppSettings) {
+    normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
@@ -587,7 +701,8 @@ pub fn write_settings(app: &AppHandle, settings: AppSettings) {
 /// Persist settings synchronously and restore the store cache if the write
 /// fails. Callers that need a transactional side effect should use this rather
 /// than the fire-and-forget write helper above.
-pub fn write_settings_checked(app: &AppHandle, settings: AppSettings) -> Result<(), String> {
+pub fn write_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
+    normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
@@ -809,6 +924,7 @@ mod tests {
         assert!(!settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
         assert!(settings.whats_new_last_seen_version.is_empty());
+        assert!(settings.reliable_paste);
     }
 
     #[test]
@@ -878,5 +994,47 @@ mod tests {
         let repaired = serde_json::to_value(settings).unwrap();
         assert!(repaired.get("typing_tool").is_none());
         assert!(repaired.get("external_script_path").is_none());
+    }
+
+    #[test]
+    fn stored_unbounded_values_are_repaired() {
+        let mut stored = default_settings_json();
+        stored["paste_delay_ms"] = serde_json::json!(u64::MAX);
+        stored["paste_delay_after_ms"] = serde_json::json!(MAX_PASTE_DELAY_MS + 1);
+        stored["extra_recording_buffer_ms"] = serde_json::json!(MAX_EXTRA_RECORDING_BUFFER_MS + 1);
+        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT + 1);
+        stored["custom_words"] = serde_json::json!([
+            "  Murmur   App  ",
+            "Murmur App",
+            "valid <markup>",
+            "x".repeat(MAX_CUSTOM_WORD_CHARS + 1)
+        ]);
+        stored["custom_filler_words"] =
+            serde_json::json!(["  um  ", "um", "x".repeat(MAX_CUSTOM_WORD_CHARS + 1)]);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated);
+        assert_eq!(settings.paste_delay_ms, default_paste_delay_ms());
+        assert_eq!(
+            settings.paste_delay_after_ms,
+            default_paste_delay_after_ms()
+        );
+        assert_eq!(settings.extra_recording_buffer_ms, 0);
+        assert_eq!(settings.history_limit, default_history_limit());
+        assert_eq!(
+            settings.custom_words,
+            vec!["Murmur App".to_string(), "valid <markup>".to_string()]
+        );
+        assert_eq!(settings.custom_filler_words, Some(vec!["um".to_string()]));
+    }
+
+    #[test]
+    fn custom_word_validation_rejects_unbounded_or_ambiguous_input() {
+        let too_many = vec!["word".to_string(); MAX_CUSTOM_WORDS + 1];
+        assert!(validate_custom_words(&too_many).is_err());
+        assert!(validate_custom_words(&["x".repeat(MAX_CUSTOM_WORD_CHARS + 1)]).is_err());
+        assert!(validate_custom_words(&[" two  spaces ".to_string()]).is_err());
+        assert!(validate_custom_words(&["same".to_string(), "same".to_string()]).is_err());
+        assert!(validate_custom_words(&["valid word".to_string()]).is_ok());
     }
 }

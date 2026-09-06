@@ -36,6 +36,27 @@
         "checkFailed": "בדיקת ההרשאות נכשלה. נסה שוב.",
         "requestFailed": "בקשת ההרשאה נכשלה. נסה שוב."
       }
+    },
+    "provider": {
+      "title": "בחירת שירות תמלול",
+      "description": "בחר שירות שהוגדר כדי להשלים את ההגדרה. Murmur מזהה תצורה מקומית ואינו מאמת חיבור פעיל.",
+      "antigravityDescription": "משתמש בתצורת Antigravity שזוהתה ב‑Mac זה.",
+      "experimental": "ניסיוני",
+      "configured": "זוהתה תצורה",
+      "selectionRequired": "בחר שירות תמלול מוגדר כדי להמשיך.",
+      "retry": "נסה שוב",
+      "continue": "המשך",
+      "providerChangeFailed": "לא ניתן לשמור את שירות התמלול שנבחר. נסה שוב.",
+      "completionFailed": "לא ניתן להשלים את ההגדרה. רענן את המצב ונסה שוב.",
+      "openFailed": "לא ניתן לפתוח את Antigravity.",
+      "installFailed": "לא ניתן לפתוח את דף ההורדה של Antigravity.",
+      "setupCodex": "פתיחת הגדרת Codex",
+      "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "לא זוהתה תצורה"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "מראה"
       }
     },
+    "languageAutoOnly": "Antigravity מזהה את השפה אוטומטית. בחירת השפה של Codex נשמרת כשתחזור אליו.",
     "sound": {
       "title": "שמע",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "התנהגות הלוח",
-        "description": "אל תשנה את הלוח ישמור על תוכן הלוח הנוכחי שלך אחרי התמלול. העתק ללוח ישאיר את תוצאת התמלול בלוח אחרי ההדבקה.",
+        "description": "לצורך הדבקה מאובטחת עם Cmd+V, נתוני הלוח הקודמים אינם משוחזרים לעולם. לאחר הדבקה מוצלחת, „נקה לאחר ההדבקה” מסיר את התמלול בתום חלון האבטחה של 8 שניות; „השאר את התמלול” משאיר אותו זמין. אם ההדבקה נכשלת, Murmur שומר את התמלול לצורך שחזור.",
         "options": {
-          "dontModify": "אל תשנה את הלוח",
-          "copyToClipboard": "העתק ללוח"
+          "dontModify": "נקה לאחר ההדבקה",
+          "copyToClipboard": "השאר את התמלול"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "הוסף רווח בסוף",
         "description": "הוסף רווח אחרי התמלול המודבק"
       },
-      "pasteDelay": {
-        "title": "השהיית הדבקה (לפני)",
-        "description": "השהיה (במילישניות) לאחר העתקת הטקסט, לפני שליחת צירוף ההדבקה. הגדל אם דבר אינו מודבק."
-      },
-      "pasteDelayAfter": {
-        "title": "השהיית הדבקה (אחרי)",
-        "description": "השהיה (במילישניות) לאחר צירוף ההדבקה, לפני שחזור הלוח הקודם. הגדל אם התוכן הישן של הלוח מודבק במקום התמלול."
-      },
-      "reliablePaste": {
-        "title": "הדבקה אמינה (Beta)",
-        "description": "שחזור הלוח רק אחרי שאפליקציית היעד קוראת בפועל את התמלול, במקום אחרי השהיה קבועה. נועד לתקן הדבקה של תוכן לוח ישן כשהמערכת עמוסה. דורש שיטת הדבקה דרך הלוח."
-      },
       "recordingBuffer": {
         "title": "באפר הקלטה נוסף",
         "description": "זמן נוסף (במילישניות) להמשך הקלטה אחרי שחרור המקש, כדי ללכוד סוף דיבור. 0 = בלי באפר נוסף."
@@ -329,19 +339,14 @@
       "title": "תמלול",
       "sessionTitle": "Codex",
       "sessionDescription": "השמע נשלח לאותו שירות תמלול בענן שבו Codex משתמש. יש להתחבר לאפליקציית Codex אם כאן מוצג שהחיבור נותק.",
-      "checking": "בודק את ההתחברות…",
+      "checking": "בודק את ההגדרה…",
       "statusUnavailable": "הסטטוס אינו זמין",
-      "ready": "מחובר",
       "missing": "לא מחובר",
       "providerTitle": "שירות תמלול",
       "providerDescription": "בחרו את שירות התמלול להכתבות חדשות.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini משתמש בהפעלה המקומית של Antigravity ב-Mac הזה. תכונה ניסיונית; עדכוני Antigravity עשויים לדרוש עדכון של Murmur.",
       "notInstalled": "Antigravity אינו מותקן",
       "installAntigravity": "התקנה",
       "openAntigravity": "פתיחת Antigravity",
-      "onboardingDescription": "יש להתחבר ל-Codex או ל-Antigravity לפני שממשיכים.",
       "groups": {
         "service": "שירות",
         "processing": "עיבוד טקסט",
@@ -387,6 +392,7 @@
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
     "transcriptionFailedTitle": "התמלול נכשל"
   },
+  "transcriptionFailedAction": "בדיקת שירות התמלול",
   "appLanguage": {
     "title": "שפת האפליקציה",
     "description": "שנה את שפת הממשק של Murmur"

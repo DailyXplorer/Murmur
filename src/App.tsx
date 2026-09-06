@@ -1,4 +1,10 @@
-import { useEffect, useState, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast, Toaster } from "sonner";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
@@ -10,16 +16,26 @@ import { RecordingErrorEvent } from "./lib/types/events";
 import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
 import Footer from "./components/footer";
-import { AccessibilityOnboarding } from "./components/onboarding";
+import {
+  AccessibilityOnboarding,
+  ProviderOnboarding,
+} from "./components/onboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
-import { commands } from "@/bindings";
+import { commands, type TranscriptionProvider } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
-type OnboardingStep = "accessibility" | "done";
+type OnboardingState =
+  | { kind: "permissions"; configuredProvider: TranscriptionProvider }
+  | { kind: "provider"; configuredProvider: TranscriptionProvider }
+  | { kind: "done" };
+
+const transcriptionProviderFromSettings = (
+  provider: TranscriptionProvider | undefined,
+): TranscriptionProvider => (provider === "gemini" ? "gemini" : "codex");
 
 const initializeKeyboardAutomation = async () => {
   const [enigoResult, shortcutsResult] = await Promise.all([
@@ -51,9 +67,8 @@ const renderSettingsContent = (section: SidebarSection) => {
 /** Settings window shell, including first-run onboarding. */
 function App() {
   const { t, i18n } = useTranslation();
-  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep | null>(
-    null,
-  );
+  const [onboardingState, setOnboardingState] =
+    useState<OnboardingState | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
   const { settings, updateSetting, refreshSettings } = useSettings();
@@ -65,6 +80,7 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
+  const configuredProviderRef = useRef<TranscriptionProvider>("codex");
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -75,7 +91,10 @@ function App() {
   }, [i18n.language]);
 
   useEffect(() => {
-    if (onboardingStep !== "done" || hasCompletedPostOnboardingInit.current) {
+    if (
+      onboardingState?.kind !== "done" ||
+      hasCompletedPostOnboardingInit.current
+    ) {
       return;
     }
 
@@ -96,7 +115,10 @@ function App() {
           return;
         }
         await revealMainWindowForPermissions();
-        setOnboardingStep("accessibility");
+        setOnboardingState({
+          kind: "permissions",
+          configuredProvider: configuredProviderRef.current,
+        });
       }
     };
 
@@ -105,7 +127,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [onboardingStep, refreshAudioDevices, refreshOutputDevices]);
+  }, [onboardingState, refreshAudioDevices, refreshOutputDevices]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -165,6 +187,10 @@ function App() {
     const unlisten = listen<string>("transcription-error", (event) => {
       toast.error(t("errors.transcriptionFailedTitle"), {
         description: event.payload,
+        action: {
+          label: t("transcriptionFailedAction"),
+          onClick: () => setCurrentSection("transcription"),
+        },
       });
     });
     return () => {
@@ -175,6 +201,12 @@ function App() {
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
+      const configuredProvider = transcriptionProviderFromSettings(
+        settingsResult.status === "ok"
+          ? settingsResult.data.transcription_provider
+          : undefined,
+      );
+      configuredProviderRef.current = configuredProvider;
       const hasCompletedOnboarding =
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
@@ -186,7 +218,7 @@ function App() {
           ]);
           if (!hasAccessibility || !hasMicrophone) {
             await revealMainWindowForPermissions();
-            setOnboardingStep("accessibility");
+            setOnboardingState({ kind: "permissions", configuredProvider });
             return;
           }
         } catch (e) {
@@ -198,50 +230,60 @@ function App() {
         } catch (e) {
           console.warn("Failed to initialize:", e);
           await revealMainWindowForPermissions();
-          setOnboardingStep("accessibility");
+          setOnboardingState({ kind: "permissions", configuredProvider });
           return;
         }
 
         hasCompletedPostOnboardingInit.current = true;
         refreshAudioDevices();
         refreshOutputDevices();
-        setOnboardingStep("done");
+        setOnboardingState({ kind: "done" });
       } else {
-        setOnboardingStep("accessibility");
+        setOnboardingState({ kind: "permissions", configuredProvider });
       }
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
-      setOnboardingStep("accessibility");
+      setOnboardingState({
+        kind: "permissions",
+        configuredProvider: "codex",
+      });
     }
   };
 
-  /** Completes onboarding after a usable transcription session is confirmed. */
-  const handleAccessibilityComplete = async () => {
+  const handlePermissionsComplete = useCallback(() => {
+    setOnboardingState((current) => {
+      if (current?.kind !== "permissions") return current;
+      return {
+        kind: "provider",
+        configuredProvider: current.configuredProvider,
+      };
+    });
+  }, []);
+
+  const handleProviderComplete = async (
+    provider: TranscriptionProvider,
+  ): Promise<boolean> => {
     try {
-      const [codex, gemini] = await Promise.all([
-        commands.getCodexAuthStatus(),
-        commands.getGeminiStatus().catch(() => null),
-      ]);
-      const hasUsableGeminiSession = gemini?.installed && gemini.signed_in;
-      if (!codex.signed_in && !hasUsableGeminiSession) {
-        toast.error(t("settings.transcription.missing"), {
-          description: t("settings.transcription.onboardingDescription"),
-        });
-        return;
+      const persisted = await updateSetting("transcription_provider", provider);
+      if (!persisted) {
+        toast.error(t("onboarding.provider.providerChangeFailed"));
+        return false;
       }
       const result = await commands.completeOnboarding();
       if (result.status === "error") {
-        toast.error(t("errors.transcriptionFailedTitle"), {
-          description: result.error,
-        });
-        return;
+        console.warn("Failed to complete onboarding:", result.error);
+        toast.error(t("onboarding.provider.completionFailed"));
+        return false;
       }
       await refreshSettings();
     } catch (e) {
       console.warn("Failed to complete onboarding:", e);
-      return;
+      toast.error(t("onboarding.provider.completionFailed"));
+      return false;
     }
-    setOnboardingStep("done");
+    configuredProviderRef.current = provider;
+    setOnboardingState({ kind: "done" });
+    return true;
   };
 
   const toaster = (
@@ -261,14 +303,21 @@ function App() {
     />
   );
 
-  if (onboardingStep === null) {
+  if (onboardingState === null) {
     return null;
   }
 
   let content: ReactNode;
-  if (onboardingStep === "accessibility") {
+  if (onboardingState.kind === "permissions") {
     content = (
-      <AccessibilityOnboarding onComplete={handleAccessibilityComplete} />
+      <AccessibilityOnboarding onComplete={handlePermissionsComplete} />
+    );
+  } else if (onboardingState.kind === "provider") {
+    content = (
+      <ProviderOnboarding
+        configuredProvider={onboardingState.configuredProvider}
+        onComplete={handleProviderComplete}
+      />
     );
   } else {
     content = (

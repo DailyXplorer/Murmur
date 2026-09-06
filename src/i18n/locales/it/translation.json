@@ -36,6 +36,27 @@
         "checkFailed": "Impossibile verificare i permessi. Riprova.",
         "requestFailed": "Impossibile richiedere il permesso. Riprova."
       }
+    },
+    "provider": {
+      "title": "Scegli un servizio di trascrizione",
+      "description": "Scegli un servizio configurato per completare la configurazione. Murmur rileva una configurazione locale, ma non verifica una connessione attiva.",
+      "antigravityDescription": "Usa la configurazione Antigravity rilevata su questo Mac.",
+      "experimental": "Sperimentale",
+      "configured": "Configurazione rilevata",
+      "selectionRequired": "Scegli un servizio di trascrizione configurato per continuare.",
+      "retry": "Riprova",
+      "continue": "Continua",
+      "providerChangeFailed": "Non è stato possibile salvare il servizio di trascrizione selezionato. Riprova.",
+      "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
+      "openFailed": "Non è stato possibile aprire Antigravity.",
+      "installFailed": "Non è stato possibile aprire la pagina di download di Antigravity.",
+      "setupCodex": "Apri la configurazione di Codex",
+      "codexSetupFailed": "Impossibile aprire la configurazione di Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Configurazione non rilevata"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Aspetto"
       }
     },
+    "languageAutoOnly": "Antigravity rileva automaticamente la lingua. La selezione della lingua di Codex verrà mantenuta quando tornerai a Codex.",
     "sound": {
       "title": "Suono",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Gestione Appunti",
-        "description": "Non Modificare gli Appunti mantiene il contenuto dei tuoi appunti dopo la trascrizione. Copia negli Appunti lascia il risultato della trascrizione negli appunti dopo aver incollato.",
+        "description": "Per incollare in modo sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. Dopo un incollamento riuscito, «Cancella dopo l'incollamento» rimuove la trascrizione al termine della finestra di sicurezza di 8 secondi; «Mantieni la trascrizione» la lascia disponibile. Se l'incollamento non riesce, Murmur conserva la trascrizione per consentirne il recupero.",
         "options": {
-          "dontModify": "Non Modificare gli Appunti",
-          "copyToClipboard": "Copia negli Appunti"
+          "dontModify": "Cancella dopo l'incollamento",
+          "copyToClipboard": "Mantieni la trascrizione"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Aggiungi Spazio Finale",
         "description": "Aggiungi uno spazio dopo la trascrizione incollata"
       },
-      "pasteDelay": {
-        "title": "Ritardo incolla (prima)",
-        "description": "Ritardo (in millisecondi) dopo aver copiato il testo, prima di inviare il tasto incolla. Aumentare se non viene incollato nulla."
-      },
-      "pasteDelayAfter": {
-        "title": "Ritardo incolla (dopo)",
-        "description": "Ritardo (in millisecondi) dopo il tasto incolla, prima di ripristinare gli appunti precedenti. Aumentare se viene incollato il vecchio contenuto degli appunti invece della trascrizione."
-      },
-      "reliablePaste": {
-        "title": "Incolla affidabile (Beta)",
-        "description": "Ripristina gli appunti solo dopo che l'app di destinazione ha effettivamente letto la trascrizione, anziché dopo un ritardo fisso. Serve a risolvere l'incollaggio del vecchio contenuto degli appunti quando il sistema è sotto carico. Richiede un metodo di incollaggio tramite appunti."
-      },
       "recordingBuffer": {
         "title": "Buffer di registrazione extra",
         "description": "Tempo extra (in millisecondi) per continuare a registrare dopo aver rilasciato il tasto, per catturare l'audio finale. 0 = nessun buffer extra."
@@ -329,19 +339,14 @@
       "title": "Trascrizione",
       "sessionTitle": "Codex",
       "sessionDescription": "L'audio viene inviato allo stesso servizio di trascrizione cloud usato da Codex. Accedi all'app Codex se qui risulta disconnesso.",
-      "checking": "Verifica della sessione…",
+      "checking": "Verifica della configurazione…",
       "statusUnavailable": "Stato non disponibile",
-      "ready": "Connesso",
       "missing": "Non hai effettuato l'accesso",
       "providerTitle": "Servizio di trascrizione",
       "providerDescription": "Scegli il servizio di trascrizione per le nuove dettature.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini usa la sessione locale di Antigravity su questo Mac. Funzione sperimentale; gli aggiornamenti di Antigravity possono richiedere un aggiornamento di Murmur.",
       "notInstalled": "Antigravity non è installato",
       "installAntigravity": "Installa",
       "openAntigravity": "Apri Antigravity",
-      "onboardingDescription": "Accedi a Codex o Antigravity prima di continuare.",
       "groups": {
         "service": "Servizio",
         "processing": "Elaborazione del testo",
@@ -387,6 +392,7 @@
     "pasteFailed": "Non è stato possibile incollare il testo nell'applicazione attiva.",
     "transcriptionFailedTitle": "Trascrizione non riuscita"
   },
+  "transcriptionFailedAction": "Controlla il servizio di trascrizione",
   "appLanguage": {
     "title": "Lingua Applicazione",
     "description": "Cambia la lingua dell'interfaccia di Murmur"

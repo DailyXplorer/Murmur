@@ -36,6 +36,27 @@
         "checkFailed": "İzinler kontrol edilemedi. Lütfen tekrar deneyin.",
         "requestFailed": "İzin isteği başarısız oldu. Lütfen tekrar deneyin."
       }
+    },
+    "provider": {
+      "title": "Bir transkripsiyon hizmeti seçin",
+      "description": "Kurulumu tamamlamak için yapılandırılmış bir hizmet seçin. Murmur yerel yapılandırmayı algılar, ancak etkin bir bağlantıyı doğrulamaz.",
+      "antigravityDescription": "Bu Mac'te algılanan Antigravity yapılandırmasını kullanır.",
+      "experimental": "Deneysel",
+      "configured": "Yapılandırma algılandı",
+      "selectionRequired": "Devam etmek için yapılandırılmış bir transkripsiyon hizmeti seçin.",
+      "retry": "Yeniden dene",
+      "continue": "Devam et",
+      "providerChangeFailed": "Seçilen transkripsiyon hizmeti kaydedilemedi. Lütfen yeniden deneyin.",
+      "completionFailed": "Kurulum tamamlanamadı. Durumu yenileyip yeniden deneyin.",
+      "openFailed": "Antigravity açılamadı.",
+      "installFailed": "Antigravity indirme sayfası açılamadı.",
+      "setupCodex": "Codex kurulumunu aç",
+      "codexSetupFailed": "Codex kurulumu açılamadı."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Yapılandırma algılanmadı"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Görünüm"
       }
     },
+    "languageAutoOnly": "Antigravity dili otomatik olarak algılar. Codex'e geri döndüğünüzde Codex dil seçiminiz korunur.",
     "sound": {
       "title": "Ses",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Pano Yönetimi",
-        "description": "Panoyu Değiştirme, transkripsiyon sonrası mevcut pano içeriğini korur. Panoya Kopyala ise yapıştırma işleminden sonra transkripsiyon sonucunu panoda bırakır.",
+        "description": "Cmd+V ile güvenli yapıştırma için önceki pano verileri asla geri yüklenmez. Başarılı bir yapıştırmadan sonra \"Yapıştırdıktan sonra temizle\", 8 saniyelik güvenlik süresi dolduğunda transkripsiyonu kaldırır; \"Transkripsiyonu koru\" kullanılabilir durumda bırakır. Yapıştırma başarısız olursa Murmur, kurtarma için transkripsiyonu korur.",
         "options": {
-          "dontModify": "Panoyu Değiştirme",
-          "copyToClipboard": "Panoya Kopyala"
+          "dontModify": "Yapıştırdıktan sonra temizle",
+          "copyToClipboard": "Transkripsiyonu koru"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Sonuna Boşluk Ekle",
         "description": "Yapıştırılan transkripsiyondan sonra boşluk ekler"
       },
-      "pasteDelay": {
-        "title": "Yapıştırma Gecikmesi (Önce)",
-        "description": "Metin kopyalandıktan sonra, yapıştırma tuşu gönderilmeden önceki gecikme (milisaniye cinsinden). Hiçbir şey yapıştırılmıyorsa artırın."
-      },
-      "pasteDelayAfter": {
-        "title": "Yapıştırma Gecikmesi (Sonra)",
-        "description": "Yapıştırma tuşundan sonra, önceki panonuz geri yüklenmeden önceki gecikme (milisaniye cinsinden). Transkripsiyon yerine eski pano içeriği yapıştırılıyorsa artırın."
-      },
-      "reliablePaste": {
-        "title": "Güvenilir Yapıştırma (Beta)",
-        "description": "Panoyu sabit bir gecikmenin ardından değil, hedef uygulama transkripsiyonu gerçekten okuduktan sonra geri yükler. Sistem yükü altında eski pano içeriğinin yapıştırılması sorununu gidermeyi amaçlar. Pano üzerinden çalışan bir yapıştırma yöntemi gerektirir."
-      },
       "recordingBuffer": {
         "title": "Ekstra Kayıt Tamponu",
         "description": "Tuşu bıraktıktan sonra arka plandaki sesi yakalamak için kaydı sürdürme süresi (milisaniye). 0 = ekstra tampon yok."
@@ -329,19 +339,14 @@
       "title": "Transkripsiyon",
       "sessionTitle": "Codex",
       "sessionDescription": "Ses, Codex'in kullandığı aynı bulut transkripsiyon hizmetine gönderilir. Burada bağlantı kesildi olarak görünüyorsa Codex uygulamasında oturum açın.",
-      "checking": "Oturum kontrol ediliyor…",
+      "checking": "Yapılandırma kontrol ediliyor…",
       "statusUnavailable": "Durum kullanılamıyor",
-      "ready": "Bağlı",
       "missing": "Oturum açılmadı",
       "providerTitle": "Transkripsiyon hizmeti",
       "providerDescription": "Yeni dikte işlemleri için transkripsiyon hizmetini seçin.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini bu Mac'teki yerel Antigravity oturumunu kullanır. Deneyseldir; Antigravity güncellemeleri Murmur güncellemesi gerektirebilir.",
       "notInstalled": "Antigravity yüklü değil",
       "installAntigravity": "Yükle",
       "openAntigravity": "Antigravity'yi aç",
-      "onboardingDescription": "Devam etmeden önce Codex veya Antigravity'de oturum açın.",
       "groups": {
         "service": "Hizmet",
         "processing": "Metin işleme",
@@ -387,6 +392,7 @@
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
     "transcriptionFailedTitle": "Transkripsiyon başarısız oldu"
   },
+  "transcriptionFailedAction": "Transkripsiyon hizmetini incele",
   "appLanguage": {
     "title": "Uygulama Dili",
     "description": "Murmur arayüzünün dilini değiştirin"

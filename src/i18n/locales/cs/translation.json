@@ -36,6 +36,27 @@
         "checkFailed": "Nepodařilo se zkontrolovat oprávnění. Zkuste to prosím znovu.",
         "requestFailed": "Nepodařilo se požádat o oprávnění. Zkuste to prosím znovu."
       }
+    },
+    "provider": {
+      "title": "Vyberte službu přepisu",
+      "description": "Vyberte nakonfigurovanou službu k dokončení nastavení. Murmur rozpozná místní konfiguraci, ale neověřuje živé připojení.",
+      "antigravityDescription": "Používá konfiguraci Antigravity zjištěnou na tomto Macu.",
+      "experimental": "Experimentální",
+      "configured": "Konfigurace rozpoznána",
+      "selectionRequired": "Pokračujte výběrem nakonfigurované služby přepisu.",
+      "retry": "Zkusit znovu",
+      "continue": "Pokračovat",
+      "providerChangeFailed": "Vybranou službu přepisu se nepodařilo uložit. Zkuste to znovu.",
+      "completionFailed": "Nastavení se nepodařilo dokončit. Obnovte stav a zkuste to znovu.",
+      "openFailed": "Antigravity se nepodařilo otevřít.",
+      "installFailed": "Stránku ke stažení Antigravity se nepodařilo otevřít.",
+      "setupCodex": "Otevřít nastavení Codexu",
+      "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Konfigurace nebyla rozpoznána"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Vzhled"
       }
     },
+    "languageAutoOnly": "Antigravity zjišťuje jazyk automaticky. Výběr jazyka pro Codex zůstane zachován, až se k němu vrátíte.",
     "sound": {
       "title": "Zvuk",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Práce se schránkou",
-        "description": "'Neměnit schránku' zachová po přepisu aktuální obsah schránky. 'Kopírovat do schránky' ponechá po vložení výsledek přepisu ve schránce.",
+        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. Po úspěšném vložení možnost „Vymazat po vložení“ odstraní přepis na konci 8sekundového bezpečnostního intervalu; „Ponechat přepis“ jej ponechá k dispozici. Pokud vložení selže, Murmur přepis zachová pro obnovení.",
         "options": {
-          "dontModify": "Neměnit schránku",
-          "copyToClipboard": "Kopírovat do schránky"
+          "dontModify": "Vymazat po vložení",
+          "copyToClipboard": "Ponechat přepis"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Přidat koncovou mezeru",
         "description": "Přidat mezeru po vloženém přepisu"
       },
-      "pasteDelay": {
-        "title": "Zpoždění vložení (před)",
-        "description": "Zpoždění (v milisekundách) po zkopírování textu, před odesláním klávesy pro vložení. Zvyšte, pokud se nic nevloží."
-      },
-      "pasteDelayAfter": {
-        "title": "Zpoždění vložení (po)",
-        "description": "Zpoždění (v milisekundách) po klávese pro vložení, před obnovením předchozí schránky. Zvyšte, pokud se místo přepisu vkládá starý obsah schránky."
-      },
-      "reliablePaste": {
-        "title": "Spolehlivé vložení (Beta)",
-        "description": "Obnoví schránku teprve poté, co cílová aplikace skutečně přečte přepis, místo po pevně daném zpoždění. Má odstranit vkládání starého obsahu schránky při zatížení systému. Vyžaduje způsob vložení přes schránku."
-      },
       "recordingBuffer": {
         "title": "Extra vyrovnávací paměť nahrávání",
         "description": "Extra čas (v milisekundách) pro pokračování nahrávání po uvolnění klávesy, pro zachycení zbývajícího zvuku. 0 = žádná extra vyrovnávací paměť."
@@ -329,19 +339,14 @@
       "title": "Přepis",
       "sessionTitle": "Codex",
       "sessionDescription": "Zvuk se odesílá do stejné cloudové služby pro přepis, kterou používá Codex. Pokud se zde zobrazuje odpojeno, přihlaste se do aplikace Codex.",
-      "checking": "Kontrola relace…",
+      "checking": "Kontrola konfigurace…",
       "statusUnavailable": "Stav není k dispozici",
-      "ready": "Připojeno",
       "missing": "Nejste přihlášeni",
       "providerTitle": "Služba přepisu",
       "providerDescription": "Vyberte službu přepisu pro nové diktáty.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini používá místní relaci Antigravity na tomto Macu. Experimentální funkce; aktualizace Antigravity mohou vyžadovat aktualizaci Murmur.",
       "notInstalled": "Antigravity není nainstalován",
       "installAntigravity": "Nainstalovat",
       "openAntigravity": "Otevřít Antigravity",
-      "onboardingDescription": "Než budete pokračovat, přihlaste se do Codexu nebo Antigravity.",
       "groups": {
         "service": "Služba",
         "processing": "Zpracování textu",
@@ -387,6 +392,7 @@
     "pasteFailed": "Text nebylo možné vložit do aktivní aplikace.",
     "transcriptionFailedTitle": "Přepis selhal"
   },
+  "transcriptionFailedAction": "Zkontrolovat službu přepisu",
   "appLanguage": {
     "title": "Jazyk aplikace",
     "description": "Změňte jazyk rozhraní Murmur"

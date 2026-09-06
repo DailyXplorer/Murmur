@@ -36,6 +36,27 @@
         "checkFailed": "فشل التحقق من الأذونات. يرجير المحاولة مرة أخرى.",
         "requestFailed": "فشل طلب الإذن. يرجى المحاولة مرة أخرى."
       }
+    },
+    "provider": {
+      "title": "اختر خدمة النسخ",
+      "description": "اختر خدمة مهيأة لإكمال الإعداد. يكتشف Murmur التهيئة المحلية ولا يتحقق من اتصال مباشر.",
+      "antigravityDescription": "يستخدم تهيئة Antigravity المكتشفة على هذا الـ Mac.",
+      "experimental": "تجريبي",
+      "configured": "تم اكتشاف التهيئة",
+      "selectionRequired": "اختر خدمة نسخ مهيأة للمتابعة.",
+      "retry": "إعادة المحاولة",
+      "continue": "متابعة",
+      "providerChangeFailed": "تعذر حفظ خدمة النسخ المحددة. يرجى إعادة المحاولة.",
+      "completionFailed": "تعذر إكمال الإعداد. حدّث الحالة وحاول مرة أخرى.",
+      "openFailed": "تعذر فتح Antigravity.",
+      "installFailed": "تعذر فتح صفحة تنزيل Antigravity.",
+      "setupCodex": "فتح إعداد Codex",
+      "codexSetupFailed": "تعذر فتح إعداد Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "لم يتم اكتشاف تهيئة"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "المظهر"
       }
     },
+    "languageAutoOnly": "يكتشف Antigravity اللغة تلقائيًا. يتم الاحتفاظ باختيار لغة Codex عند العودة إليه.",
     "sound": {
       "title": "الصوت",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "التعامل مع الحافظة",
-        "description": ".'عدم تعديل الحافظة' يحافظ على محتويات حافظتك الحالية بعد التفريغ. 'نسخ إلى الحافظة' يترك نتيجة التفريغ في حافظتك بعد اللصق",
+        "description": "للصق آمن عبر Cmd+V، لا تتم استعادة بيانات الحافظة السابقة مطلقًا. بعد نجاح اللصق، يزيل «المسح بعد اللصق» النص المُفرّغ عند انتهاء مهلة الأمان البالغة 8 ثوانٍ؛ أما «الاحتفاظ بالنص المُفرّغ» فيُبقيه متاحًا. إذا فشل اللصق، يحتفظ Murmur بالنص المُفرّغ لاستعادته.",
         "options": {
-          "dontModify": "عدم تعديل الحافظة",
-          "copyToClipboard": "نسخ إلى الحافظة"
+          "dontModify": "المسح بعد اللصق",
+          "copyToClipboard": "الاحتفاظ بالنص المُفرّغ"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "إضافة مسافة تابعة",
         "description": "إضافة مسافة بعد التفريغ الملصق"
       },
-      "pasteDelay": {
-        "title": "تأخير اللصق (قبل)",
-        "description": "التأخير (بالمللي ثانية) بعد نسخ النص وقبل إرسال ضغطة مفتاح اللصق. قم بزيادته إذا لم يتم لصق أي شيء."
-      },
-      "pasteDelayAfter": {
-        "title": "تأخير اللصق (بعد)",
-        "description": "التأخير (بالمللي ثانية) بعد ضغطة مفتاح اللصق وقبل استعادة محتوى الحافظة السابق. قم بزيادته إذا تم لصق محتوى الحافظة القديم بدلاً من النص المُفرَّغ."
-      },
-      "reliablePaste": {
-        "title": "لصق موثوق (Beta)",
-        "description": "استعادة الحافظة فقط بعد أن يقرأ التطبيق المستهدف النص المُفرَّغ فعلياً، بدلاً من الاعتماد على تأخير ثابت. يهدف إلى إصلاح لصق محتوى الحافظة القديم عند وجود حمل على النظام. يتطلب طريقة لصق تعتمد على الحافظة."
-      },
       "recordingBuffer": {
         "title": "مخزن التسجيل الإضافي",
         "description": "وقت إضافي (بالمللي ثانية) للاستمرار في التسجيل بعد تحرير المفتاح، لالتقاط الصوت المتبقي. 0 = لا مخزن إضافي."
@@ -329,19 +339,14 @@
       "title": "النسخ",
       "sessionTitle": "Codex",
       "sessionDescription": "يُرسل الصوت إلى خدمة النسخ السحابي نفسها التي يستخدمها Codex. سجّل الدخول إلى تطبيق Codex إذا ظهر هنا أنه غير متصل.",
-      "checking": "جارٍ التحقق من الجلسة…",
+      "checking": "جارٍ التحقق من الإعداد…",
       "statusUnavailable": "الحالة غير متاحة",
-      "ready": "متصل",
       "missing": "غير مسجّل الدخول",
       "providerTitle": "خدمة النسخ",
       "providerDescription": "اختر خدمة النسخ المستخدمة للإملاءات الجديدة.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "يستخدم Gemini جلسة Antigravity المحلية على هذا الـ Mac. ميزة تجريبية؛ قد تتطلب تحديثات Antigravity تحديث Murmur.",
       "notInstalled": "Antigravity غير مثبت",
       "installAntigravity": "تثبيت",
       "openAntigravity": "فتح Antigravity",
-      "onboardingDescription": "سجّل الدخول إلى Codex أو Antigravity قبل المتابعة.",
       "groups": {
         "service": "الخدمة",
         "processing": "معالجة النص",
@@ -387,6 +392,7 @@
     "pasteFailed": "تعذر لصق النص في التطبيق النشط.",
     "transcriptionFailedTitle": "فشل التفريغ النصي"
   },
+  "transcriptionFailedAction": "مراجعة خدمة النسخ",
   "appLanguage": {
     "title": "لغة التطبيق",
     "description": "تغيير لغة واجهة Murmur"

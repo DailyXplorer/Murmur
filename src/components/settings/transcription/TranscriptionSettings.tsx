@@ -1,9 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { commands } from "@/bindings";
-import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
+import { toast } from "sonner";
+import { commands, type TranscriptionProvider } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
+import {
+  isConfiguredProvider,
+  type ProviderStatus,
+  useProviderStatuses,
+} from "@/components/transcription/providerStatus";
 import { Button } from "../../ui/Button";
 import { Dropdown } from "../../ui/Dropdown";
 import { SettingsGroup } from "../../ui/SettingsGroup";
@@ -16,63 +21,91 @@ import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
 
-const EMPTY_CODEX_STATUS: CodexAuthStatus = { signed_in: false };
+const statusTranslationKey = (status: ProviderStatus): string => {
+  switch (status.kind) {
+    case "checking":
+      return "settings.transcription.checking";
+    case "configured":
+      return "onboarding.provider.configured";
+    case "unavailable":
+      return status.reason === "notInstalled"
+        ? "settings.transcription.notInstalled"
+        : "onboarding.providerLabels.unavailable";
+    case "error":
+      return "settings.transcription.statusUnavailable";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+};
+
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
-  const [codexStatus, setCodexStatus] = useState<CodexAuthStatus | null>(null);
-  const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null);
-  const [geminiStatusError, setGeminiStatusError] = useState(false);
-
-  const refreshStatuses = useCallback(async () => {
-    const [codex, gemini] = await Promise.allSettled([
-      commands.getCodexAuthStatus(),
-      commands.getGeminiStatus(),
-    ]);
-    setCodexStatus(
-      codex.status === "fulfilled" ? codex.value : EMPTY_CODEX_STATUS,
-    );
-    if (gemini.status === "fulfilled") {
-      setGeminiStatus(gemini.value);
-      setGeminiStatusError(false);
-    } else {
-      setGeminiStatusError(true);
-    }
-  }, []);
+  const { invalidatePendingRefreshes, refreshStatuses, statuses } =
+    useProviderStatuses();
 
   useEffect(() => {
     void refreshStatuses();
     const handleFocus = () => void refreshStatuses();
     window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [refreshStatuses]);
+    return () => {
+      invalidatePendingRefreshes();
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [invalidatePendingRefreshes, refreshStatuses]);
 
   const provider = settings?.transcription_provider ?? "codex";
   const providerOptions = useMemo(
     () => [
-      { value: "codex", label: t("settings.transcription.codex") },
+      {
+        value: "codex",
+        label: t("onboarding.providerLabels.codex"),
+        disabled: !isConfiguredProvider(statuses.codex),
+      },
       {
         value: "gemini",
-        label: t("settings.transcription.gemini"),
-        disabled:
-          geminiStatusError ||
-          !(geminiStatus?.installed && geminiStatus.signed_in),
+        label: t("onboarding.providerLabels.antigravity"),
+        disabled: !isConfiguredProvider(statuses.gemini),
       },
     ],
-    [geminiStatus?.installed, geminiStatus?.signed_in, geminiStatusError, t],
+    [statuses.codex, statuses.gemini, t],
   );
 
-  const sessionLabel = (signedIn: boolean | null | undefined) => {
-    if (signedIn == null) return t("settings.transcription.checking");
-    return signedIn
-      ? t("settings.transcription.ready")
-      : t("settings.transcription.missing");
-  };
+  const changeProvider = useCallback(
+    async (value: string) => {
+      if (value !== "codex" && value !== "gemini") return;
+      const selectedProvider: TranscriptionProvider = value;
+      const updated = await updateSetting(
+        "transcription_provider",
+        selectedProvider,
+      );
+      if (!updated) {
+        toast.error(t("onboarding.provider.providerChangeFailed"));
+      }
+    },
+    [t, updateSetting],
+  );
 
-  const openAntigravity = async () => {
-    const result = await commands.openAntigravity();
-    if (result.status === "error") console.error(result.error);
-  };
+  const openAntigravity = useCallback(async () => {
+    try {
+      const result = await commands.openAntigravity();
+      if (result.status === "error") throw new Error(result.error);
+    } catch (error) {
+      console.warn("Failed to open Antigravity:", error);
+      toast.error(t("onboarding.provider.openFailed"));
+    }
+  }, [t]);
+
+  const installAntigravity = useCallback(async () => {
+    try {
+      await openUrl("https://antigravity.google/");
+    } catch (error) {
+      console.warn("Failed to open the Antigravity download page:", error);
+      toast.error(t("onboarding.provider.installFailed"));
+    }
+  }, [t]);
 
   return (
     <SettingsPage label={t("sidebar.transcription")}>
@@ -85,52 +118,46 @@ export const TranscriptionSettings: React.FC = () => {
           <Dropdown
             options={providerOptions}
             selectedValue={provider}
-            onSelect={(value) => {
-              if (value !== "codex" && value !== "gemini") return;
-              void updateSetting("transcription_provider", value);
-            }}
+            onSelect={(value) => void changeProvider(value)}
             disabled={isUpdating("transcription_provider")}
           />
         </SettingContainer>
 
         <SettingContainer
-          title={t("settings.transcription.codex")}
+          title={t("onboarding.providerLabels.codex")}
           description={t("settings.transcription.sessionDescription")}
           grouped={true}
         >
           <span className="text-sm text-text/80">
-            {sessionLabel(codexStatus?.signed_in)}
+            {t(statusTranslationKey(statuses.codex))}
           </span>
         </SettingContainer>
 
         <SettingContainer
-          title={t("settings.transcription.gemini")}
-          description={t("settings.transcription.geminiDescription")}
+          title={t("onboarding.providerLabels.antigravity")}
+          description={t("onboarding.provider.antigravityDescription")}
           grouped={true}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
-              {geminiStatusError
-                ? t("settings.transcription.statusUnavailable")
-                : geminiStatus == null
-                  ? t("settings.transcription.checking")
-                  : !geminiStatus.installed
-                    ? t("settings.transcription.notInstalled")
-                    : sessionLabel(geminiStatus.signed_in)}
+            <span className="rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
+              {t("onboarding.provider.experimental")}
             </span>
-            {!geminiStatusError && geminiStatus && !geminiStatus.installed && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="shrink-0"
-                onClick={() => void openUrl("https://antigravity.google/")}
-              >
-                {t("settings.transcription.installAntigravity")}
-              </Button>
-            )}
-            {!geminiStatusError &&
-              geminiStatus?.installed &&
-              !geminiStatus.signed_in && (
+            <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
+              {t(statusTranslationKey(statuses.gemini))}
+            </span>
+            {statuses.gemini.kind === "unavailable" &&
+              statuses.gemini.reason === "notInstalled" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={() => void installAntigravity()}
+                >
+                  {t("settings.transcription.installAntigravity")}
+                </Button>
+              )}
+            {statuses.gemini.kind === "unavailable" &&
+              statuses.gemini.reason === "notSignedIn" && (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -142,6 +169,15 @@ export const TranscriptionSettings: React.FC = () => {
               )}
           </div>
         </SettingContainer>
+        <div className="flex justify-end px-4 pb-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void refreshStatuses()}
+          >
+            {t("onboarding.provider.retry")}
+          </Button>
+        </div>
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>

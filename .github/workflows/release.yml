@@ -3,7 +3,36 @@ name: "Release"
 on: workflow_dispatch
 
 jobs:
+  validate-release-source:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Checkout selected commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable main source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_SHA" = "$(git rev-parse refs/remotes/origin/main)"
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
   create-release:
+    needs: validate-release-source
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -13,6 +42,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.validate-release-source.outputs.sha }}
+          persist-credentials: false
 
       - name: Get version from tauri.conf.json
         id: get-version
@@ -31,6 +63,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `v${{ steps.get-version.outputs.version }}`,
+              target_commitish: '${{ needs.validate-release-source.outputs.sha }}',
               name: `v${{ steps.get-version.outputs.version }}`,
               draft: true,
               prerelease: false,
@@ -41,7 +74,7 @@ jobs:
   publish-tauri:
     permissions:
       contents: write
-    needs: create-release
+    needs: [validate-release-source, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -61,19 +94,33 @@ jobs:
       sign-binaries: true
       asset-prefix: "murmur"
       release-id: ${{ needs.create-release.outputs.release-id }}
+      ref: ${{ needs.validate-release-source.outputs.sha }}
+      environment: "release-signing"
       # Releases always build from scratch — never restore the Rust cache, so a
       # stale cached native lib can never be linked into a shipped artifact.
       no-cache: true
-    secrets: inherit
+    secrets:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   publish-release:
     permissions:
       contents: write
-    needs: [create-release, publish-tauri]
+    needs: [validate-release-source, create-release, publish-tauri]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.validate-release-source.outputs.sha }}
+          persist-credentials: false
 
       - name: Build and upload updater manifest
         env:

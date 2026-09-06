@@ -42,12 +42,16 @@ const obsoletePaths = [
   "src/components/ui/Badge.tsx",
   "src/components/ui/Select.tsx",
   "src/hooks/useOsType.ts",
+  "src-tauri/capabilities/default.json",
 ];
 
 const requiredPaths = [
   "src-tauri/icons/icon.png",
   "src-tauri/icons/tray/tray.svg",
   "src-tauri/resources/tray.png",
+  "src-tauri/capabilities/main.json",
+  "src-tauri/capabilities/recording-overlay.json",
+  "src-tauri/permissions/default.toml",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {
@@ -188,27 +192,97 @@ for (const text of [
   }
 }
 
-const capability = JSON.parse(read("src-tauri/capabilities/default.json")) as {
+type Capability = {
+  identifier: string;
+  windows: string[];
   permissions: unknown[];
 };
-const expectedPermissions = [
-  "core:default",
-  "macos-permissions:default",
-  "opener:default",
-  "process:default",
-  "updater:default",
-];
-const actualPermissions = capability.permissions
-  .filter((permission): permission is string => typeof permission === "string")
-  .sort();
-if (
-  capability.permissions.length !== expectedPermissions.length ||
-  actualPermissions.join("\n") !== expectedPermissions.sort().join("\n")
+
+function checkCapability(
+  relativePath: string,
+  identifier: string,
+  windows: string[],
+  expectedPermissions: string[],
 ) {
-  failures.push("frontend capabilities exceed the macOS UI plugin set");
+  const capability = JSON.parse(read(relativePath)) as Capability;
+  const actualPermissions = capability.permissions
+    .filter(
+      (permission): permission is string => typeof permission === "string",
+    )
+    .sort();
+  if (
+    capability.identifier !== identifier ||
+    capability.windows.join("\n") !== windows.join("\n") ||
+    capability.permissions.length !== expectedPermissions.length ||
+    actualPermissions.join("\n") !== expectedPermissions.sort().join("\n")
+  ) {
+    failures.push(`unexpected Tauri capability scope: ${relativePath}`);
+  }
+}
+
+checkCapability(
+  "src-tauri/capabilities/main.json",
+  "main",
+  ["main"],
+  [
+    "default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
+    "os:allow-locale",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "process:allow-restart",
+    "macos-permissions:allow-check-accessibility-permission",
+    "macos-permissions:allow-check-microphone-permission",
+    "macos-permissions:allow-request-microphone-permission",
+  ],
+);
+checkCapability(
+  "src-tauri/capabilities/recording-overlay.json",
+  "recording-overlay",
+  ["recording_overlay"],
+  [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "os:allow-locale",
+    "allow-get-app-settings",
+    "allow-cancel-operation",
+  ],
+);
+
+const commandManifest = read("src-tauri/build.rs")
+  .match(/const APP_COMMANDS:[\s\S]*?= &\[([\s\S]*?)\];/)?.[1]
+  ?.matchAll(/"([a-z0-9_]+)"/g);
+const invokeManifest = read("src-tauri/src/lib.rs")
+  .match(/\.commands\(collect_commands!\[([\s\S]*?)\]\)/)?.[1]
+  ?.matchAll(/(?:[a-z_]+::)*([a-z][a-z0-9_]*)\s*,/g);
+const permissionManifest = read("src-tauri/permissions/default.toml").matchAll(
+  /"allow-([a-z0-9-]+)"/g,
+);
+const commandSets = [
+  commandManifest && [...commandManifest].map((match) => match[1]),
+  invokeManifest && [...invokeManifest].map((match) => match[1]),
+  [...permissionManifest].map((match) => match[1].replaceAll("-", "_")),
+];
+if (
+  commandSets.some((commands) => !commands) ||
+  commandSets.some(
+    (commands) => commands && new Set(commands).size !== commands.length,
+  ) ||
+  commandSets
+    .map((commands) => [...(commands ?? [])].sort().join("\n"))
+    .some((commands, _index, all) => commands !== all[0])
+) {
+  failures.push(
+    "Tauri invoke handler, application ACL manifest, and default command permissions differ",
+  );
 }
 
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json")) as {
+  app: { security: { csp: unknown; devCsp: unknown } };
   bundle: { icon: string[]; targets: string[] };
 };
 const expectedIcons = [
@@ -222,6 +296,17 @@ if (tauriConfig.bundle.targets.join("\n") !== ["app", "dmg"].join("\n")) {
 }
 if (tauriConfig.bundle.icon.join("\n") !== expectedIcons.join("\n")) {
   failures.push("Tauri bundle icons are not restricted to the macOS set");
+}
+
+const expectedCsp =
+  "default-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost";
+const expectedDevCsp =
+  "default-src 'self' http://localhost:1420; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self' http://localhost:1420; style-src 'self' 'unsafe-inline' http://localhost:1420; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420";
+if (tauriConfig.app.security.csp !== expectedCsp) {
+  failures.push("Tauri production CSP differs from the reviewed policy");
+}
+if (tauriConfig.app.security.devCsp !== expectedDevCsp) {
+  failures.push("Tauri development CSP differs from the reviewed policy");
 }
 
 if (failures.length > 0) {

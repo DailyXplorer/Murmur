@@ -16,21 +16,43 @@ option requires an API key or local speech-recognition model.
 - Network access while transcribing
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
-`~/.codex/auth.json`. It never writes to that file. For Gemini, Murmur starts or
-reuses Antigravity's local language server and lets that server access its own
-session. Murmur does not read or copy the Antigravity token. Both integrations
-use internal services rather than public, documented APIs, so a Codex,
+`~/.codex/auth.json`. It never writes to that file. For Gemini, Murmur starts a
+Murmur-owned language server from the verified system Antigravity
+installation and lets that server access its own session. Murmur does not read
+or copy the Antigravity token. Both integrations use internal services rather
+than public, documented APIs, so a Codex,
 ChatGPT, or Antigravity update may require a Murmur update.
 
 ## Features
 
 - Global record, push-to-talk, and cancel shortcuts
-- Automatic language detection or explicit language selection
+- Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection
 - Optional filler-word removal for Codex and custom-word correction for both services
 - Transcription history with saved recordings
 - Recording overlay, audio feedback, tray controls, and automatic updates
+
+## Getting started
+
+Grant microphone and Accessibility permissions, then choose a transcription
+service. If it is unavailable, open Codex or Antigravity, sign in there, and
+return to Murmur to refresh its status. The setup screen links to the
+applications' download pages. The selected service must be configured before
+setup can finish.
+
+"Configured" means Murmur found the local session information required to
+attempt a transcription. It does not verify that the cloud service will
+accept the next request. A session can expire, and network or account limits
+can still prevent transcription.
+
+Gemini through Antigravity is experimental and detects the spoken language
+automatically. A language selected for Codex is preserved when switching to
+Gemini and applies again when switching back.
+
+Cancel stops a transcription before its result is inserted. If the text has
+already been pasted, cancellation still prevents a pending automatic Enter.
+The pasted text and its history entry remain available.
 
 ## CLI
 
@@ -92,6 +114,12 @@ For Gemini, Murmur sends audio to a loopback-only Antigravity service with an
 ephemeral CSRF token. It never logs that token. A language server started by
 Murmur stops after five minutes without a Gemini dictation. Murmur never stops
 an Antigravity process it did not start.
+
+Guarded paste replaces the clipboard without reading or restoring its previous
+contents. The clear-after-paste option clears only content Murmur still owns;
+copying something else prevents that cleanup. If insertion fails, Murmur keeps
+the transcription available for manual paste. Copy-to-clipboard mode retains
+the transcription after insertion.
 
 ## Origin
 

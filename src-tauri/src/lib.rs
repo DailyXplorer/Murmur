@@ -14,6 +14,7 @@ mod gemini_transcribe;
 mod helpers;
 mod input;
 mod managers;
+mod operation;
 mod overlay;
 mod paste_tx;
 mod settings;
@@ -26,6 +27,7 @@ mod tray_i18n;
 mod utils;
 
 pub use cli::CliArgs;
+pub use operation::{OperationId, PastePermit, ProcessingOperation};
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, collect_events, Builder};
@@ -379,7 +381,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
-    let text = match tm.transcribe(samples) {
+    let text = match tm.transcribe_sync(samples) {
         Ok(text) => text,
         Err(error) => {
             eprintln!("error: transcribe failed: {error}");
@@ -614,7 +616,7 @@ pub fn run(cli_args: CliArgs) {
                     handle
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
-                        .shutdown();
+                        .shutdown_and_wait(std::time::Duration::from_secs(3));
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();
@@ -730,6 +732,17 @@ pub fn run(cli_args: CliArgs) {
         .run(|app, event| match &event {
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+                    if !coordinator.allows_exit() {
+                        // A cancelled, already-posted Cmd+V still needs its
+                        // queued modifier-release receipt. Keep AppKit alive
+                        // for the coordinator's bounded foreground drain.
+                        api.prevent_exit();
+                        coordinator.begin_shutdown(app.clone());
+                    }
+                }
             }
             tauri::RunEvent::Exit => {
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {

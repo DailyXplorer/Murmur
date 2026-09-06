@@ -36,6 +36,27 @@
         "checkFailed": "檢查權限失敗，請重試",
         "requestFailed": "請求權限失敗，請重試"
       }
+    },
+    "provider": {
+      "title": "選擇轉錄服務",
+      "description": "選擇已設定的服務以完成設定。Murmur 會偵測本機設定，但不會驗證即時連線。",
+      "antigravityDescription": "使用此 Mac 上偵測到的 Antigravity 設定。",
+      "experimental": "實驗性",
+      "configured": "已偵測到設定",
+      "selectionRequired": "請選擇已設定的轉錄服務以繼續。",
+      "retry": "重試",
+      "continue": "繼續",
+      "providerChangeFailed": "無法儲存所選轉錄服務。請重試。",
+      "completionFailed": "無法完成設定。請重新整理狀態後再試一次。",
+      "openFailed": "無法開啟 Antigravity。",
+      "installFailed": "無法開啟 Antigravity 下載頁面。",
+      "setupCodex": "開啟 Codex 設定",
+      "codexSetupFailed": "無法開啟 Codex 設定。"
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "未偵測到設定"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "外觀"
       }
     },
+    "languageAutoOnly": "Antigravity 會自動偵測語言。切換回 Codex 時，會保留你的 Codex 語言選擇。",
     "sound": {
       "title": "聲音",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "剪貼簿處理",
-        "description": "不修改剪貼簿將在轉錄後保留目前剪貼簿內容。複製到剪貼簿會在貼上後將轉錄結果留在剪貼簿中",
+        "description": "為了透過 Cmd+V 安全貼上，先前的剪貼簿資料絕不會被還原。貼上成功後，「貼上後清除」會在 8 秒安全時限結束時移除轉錄內容；「保留轉錄內容」會讓其繼續可用。如果貼上失敗，Murmur 會保留轉錄內容以便復原。",
         "options": {
-          "dontModify": "不修改剪貼簿",
-          "copyToClipboard": "複製到剪貼簿"
+          "dontModify": "貼上後清除",
+          "copyToClipboard": "保留轉錄內容"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "附加尾部空格",
         "description": "在貼上的轉錄後新增空格"
       },
-      "pasteDelay": {
-        "title": "貼上延遲（前）",
-        "description": "複製文字後、發送貼上按鍵前的延遲（毫秒）。如果沒有貼上任何內容，請增加此值。"
-      },
-      "pasteDelayAfter": {
-        "title": "貼上延遲（後）",
-        "description": "發送貼上按鍵後、還原先前剪貼簿前的延遲（毫秒）。如果貼上的是舊的剪貼簿內容而非轉錄文字，請增加此值。"
-      },
-      "reliablePaste": {
-        "title": "可靠貼上（Beta）",
-        "description": "在目標應用程式真正讀取轉錄文字之後才還原剪貼簿，而不是等待固定延遲。用於解決系統負載較高時貼上舊剪貼簿內容的問題。需要使用剪貼簿類的貼上方式。"
-      },
       "recordingBuffer": {
         "title": "額外錄音緩衝",
         "description": "放開按鍵後繼續錄音的額外時間（毫秒），以捕捉尾音。0 = 無額外緩衝。"
@@ -329,19 +339,14 @@
       "title": "轉錄",
       "sessionTitle": "Codex",
       "sessionDescription": "音訊會傳送至 Codex 使用的同一個雲端轉錄服務。如果此處顯示未連線，請登入 Codex 應用程式。",
-      "checking": "正在檢查工作階段…",
+      "checking": "正在檢查設定…",
       "statusUnavailable": "無法取得狀態",
-      "ready": "已連線",
       "missing": "尚未登入",
       "providerTitle": "轉錄服務",
       "providerDescription": "選擇新語音輸入使用的轉錄服務。",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini 會使用這台 Mac 上的本機 Antigravity 工作階段。此功能仍在實驗階段；Antigravity 更新後可能需要更新 Murmur。",
       "notInstalled": "尚未安裝 Antigravity",
       "installAntigravity": "安裝",
       "openAntigravity": "開啟 Antigravity",
-      "onboardingDescription": "請先登入 Codex 或 Antigravity，再繼續操作。",
       "groups": {
         "service": "服務",
         "processing": "文字處理",
@@ -387,6 +392,7 @@
     "pasteFailed": "無法將文字貼上至目前作用中的應用程式。",
     "transcriptionFailedTitle": "轉錄失敗"
   },
+  "transcriptionFailedAction": "檢查轉錄服務",
   "appLanguage": {
     "title": "應用程式語言",
     "description": "變更 Murmur 介面的語言"

@@ -36,6 +36,27 @@
         "checkFailed": "Không thể kiểm tra quyền. Vui lòng thử lại.",
         "requestFailed": "Không thể yêu cầu quyền. Vui lòng thử lại."
       }
+    },
+    "provider": {
+      "title": "Chọn dịch vụ phiên âm",
+      "description": "Chọn một dịch vụ đã được cấu hình để hoàn tất thiết lập. Murmur phát hiện cấu hình cục bộ nhưng không xác minh kết nối đang hoạt động.",
+      "antigravityDescription": "Sử dụng cấu hình Antigravity được phát hiện trên máy Mac này.",
+      "experimental": "Thử nghiệm",
+      "configured": "Đã phát hiện cấu hình",
+      "selectionRequired": "Chọn một dịch vụ phiên âm đã được cấu hình để tiếp tục.",
+      "retry": "Thử lại",
+      "continue": "Tiếp tục",
+      "providerChangeFailed": "Không thể lưu dịch vụ phiên âm đã chọn. Vui lòng thử lại.",
+      "completionFailed": "Không thể hoàn tất thiết lập. Hãy làm mới trạng thái và thử lại.",
+      "openFailed": "Không thể mở Antigravity.",
+      "installFailed": "Không thể mở trang tải xuống Antigravity.",
+      "setupCodex": "Mở thiết lập Codex",
+      "codexSetupFailed": "Không thể mở thiết lập Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Không phát hiện cấu hình"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Giao diện"
       }
     },
+    "languageAutoOnly": "Antigravity tự động phát hiện ngôn ngữ. Lựa chọn ngôn ngữ Codex của bạn sẽ được giữ lại khi chuyển về Codex.",
     "sound": {
       "title": "Âm thanh",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Xử lý Clipboard",
-        "description": "Không sửa đổi Clipboard giữ nguyên nội dung clipboard hiện tại sau khi chuyển đổi. Sao chép vào Clipboard để lại kết quả chuyển đổi trong clipboard sau khi dán.",
+        "description": "Để dán an toàn bằng Cmd+V, dữ liệu bảng nhớ tạm trước đó không bao giờ được khôi phục. Sau khi dán thành công, \"Xóa sau khi dán\" sẽ xóa bản chép lời khi khoảng an toàn 8 giây kết thúc; \"Giữ bản chép lời\" sẽ giữ lại để sử dụng. Nếu thao tác dán thất bại, Murmur giữ bản chép lời để có thể khôi phục.",
         "options": {
-          "dontModify": "Không sửa đổi Clipboard",
-          "copyToClipboard": "Sao chép vào Clipboard"
+          "dontModify": "Xóa sau khi dán",
+          "copyToClipboard": "Giữ bản chép lời"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Thêm dấu cách cuối",
         "description": "Thêm một dấu cách sau bản ghi đã dán"
       },
-      "pasteDelay": {
-        "title": "Độ trễ dán (trước)",
-        "description": "Độ trễ (tính bằng mili giây) sau khi sao chép văn bản, trước khi gửi phím dán. Tăng nếu không có gì được dán."
-      },
-      "pasteDelayAfter": {
-        "title": "Độ trễ dán (sau)",
-        "description": "Độ trễ (tính bằng mili giây) sau khi gửi phím dán, trước khi khôi phục bảng nhớ tạm trước đó. Tăng nếu nội dung bảng nhớ tạm cũ được dán thay vì bản chép lời."
-      },
-      "reliablePaste": {
-        "title": "Dán đáng tin cậy (Beta)",
-        "description": "Chỉ khôi phục bảng nhớ tạm sau khi ứng dụng đích thực sự đọc bản chép lời, thay vì sau một độ trễ cố định. Nhằm khắc phục việc nội dung bảng nhớ tạm cũ bị dán khi hệ thống bị tải nặng. Cần một phương thức dán qua bảng nhớ tạm."
-      },
       "recordingBuffer": {
         "title": "Bộ đệm ghi âm thêm",
         "description": "Thời gian thêm (tính bằng mili giây) để tiếp tục ghi âm sau khi nhả phím, để thu âm thanh cuối. 0 = không có bộ đệm thêm."
@@ -329,19 +339,14 @@
       "title": "Phiên âm",
       "sessionTitle": "Codex",
       "sessionDescription": "Âm thanh được gửi đến cùng dịch vụ chép lời trên đám mây mà Codex sử dụng. Hãy đăng nhập vào ứng dụng Codex nếu ở đây hiển thị là đã ngắt kết nối.",
-      "checking": "Đang kiểm tra phiên…",
+      "checking": "Đang kiểm tra cấu hình…",
       "statusUnavailable": "Không thể lấy trạng thái",
-      "ready": "Đã kết nối",
       "missing": "Chưa đăng nhập",
       "providerTitle": "Dịch vụ phiên âm",
       "providerDescription": "Chọn dịch vụ chép lời cho các bản đọc mới.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini dùng phiên Antigravity cục bộ trên máy Mac này. Đây là tính năng thử nghiệm; bản cập nhật Antigravity có thể yêu cầu cập nhật Murmur.",
       "notInstalled": "Chưa cài đặt Antigravity",
       "installAntigravity": "Cài đặt",
       "openAntigravity": "Mở Antigravity",
-      "onboardingDescription": "Đăng nhập vào Codex hoặc Antigravity trước khi tiếp tục.",
       "groups": {
         "service": "Dịch vụ",
         "processing": "Xử lý văn bản",
@@ -387,6 +392,7 @@
     "pasteFailed": "Không thể dán văn bản vào ứng dụng đang hoạt động.",
     "transcriptionFailedTitle": "Phiên âm thất bại"
   },
+  "transcriptionFailedAction": "Xem lại dịch vụ phiên âm",
   "appLanguage": {
     "title": "Ngôn ngữ ứng dụng",
     "description": "Thay đổi ngôn ngữ giao diện của Murmur"
