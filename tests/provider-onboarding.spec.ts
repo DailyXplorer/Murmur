@@ -79,11 +79,19 @@ test("persists either visible provider choice before onboarding completes", asyn
   await expect(
     page.getByRole("button", { name: "Auto Detect" }),
   ).toBeDisabled();
+  const automaticLanguageDescription =
+    "Antigravity detects the language automatically. Your Codex language selection is kept for when you switch back.";
+  const automaticLanguageInfo = page.getByRole("button", {
+    name: automaticLanguageDescription,
+  });
+  await expect(automaticLanguageInfo).toBeVisible();
   await expect(
-    page.getByText(
-      "Antigravity detects the language automatically. Your Codex language selection is kept for when you switch back.",
-    ),
-  ).toBeVisible();
+    page.getByText(automaticLanguageDescription, { exact: true }),
+  ).toHaveCount(0);
+  await automaticLanguageInfo.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    automaticLanguageDescription,
+  );
   await expect
     .poll(() =>
       page.evaluate(() => window.providerOnboardingFixture.selectedLanguage()),
@@ -124,7 +132,9 @@ test("keeps the provider step open when setup fails and routes transcription fai
   await expect(
     page.getByRole("button", { name: "Transcription", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Retry", exact: true }),
+  ).toHaveCount(0);
 
   await page.evaluate(() =>
     window.providerOnboardingFixture.failNextProviderChange(),
