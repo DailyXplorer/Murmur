@@ -229,10 +229,8 @@ fn finish_cancel(
     *stage = Stage::Idle;
 }
 
-/// Returns whether the coordinator may admit another recording immediately.
-/// A claimed paste chord is irreversible but its modifier-release receipt is
-/// still pending; keep Processing until FinishGuard reports that receipt so a
-/// new shortcut cannot overlap the held Command key.
+/// Returns whether cancellation may move the stage to Idle immediately.
+/// After a paste claim, wait for the modifier-release receipt.
 fn request_cancel(stage: &Stage) -> bool {
     match stage {
         Stage::Processing { operation } => operation.cancel(),
@@ -732,9 +730,6 @@ mod tests {
         assert!(operation.try_enter_paste().is_some());
         let stage = Stage::Processing { operation };
 
-        // The request is retained for auto-submit suppression, but the
-        // coordinator must keep its busy stage until FinishGuard receives the
-        // Command-release receipt from the native paste task.
         assert!(!request_cancel(&stage));
         assert!(matches!(stage, Stage::Processing { .. }));
     }
@@ -755,8 +750,6 @@ mod tests {
                 .unwrap();
         });
 
-        // The fake native queue has not delivered its release receipt yet,
-        // so the exit worker remains blocked rather than tearing down AppKit.
         thread::sleep(Duration::from_millis(10));
         assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
         drain.finish();
@@ -824,9 +817,8 @@ mod tests {
             deadline: now,
         });
 
-        // A cancelling stop worker leaves the coordinator Idle while audio is
-        // still Stopping. The retry is a request only; it does not change the
-        // stage until AudioRecordingManager confirms a real recorder start.
+        // Cancellation can leave the coordinator Idle while audio is Stopping.
+        // Retrying remains a request until the recorder admits it.
         assert_eq!(
             take_due_start(&Stage::Idle, &mut pending, now),
             Some(("transcribe".to_string(), "Option+Space".to_string()))

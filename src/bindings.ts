@@ -515,8 +515,6 @@ async openAntigravity() : Promise<Result<null, string>> {
 }
 },
 /**
- * Marks onboarding as complete in Murmur's settings store.
- * 
  * The provider shown by onboarding must remain selected. Losing its local
  * configuration cannot silently change where the next recording is sent.
  */

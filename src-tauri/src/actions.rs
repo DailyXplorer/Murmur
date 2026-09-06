@@ -239,10 +239,8 @@ impl ShortcutAction for TranscribeAction {
 
         let rm = app.state::<Arc<AudioRecordingManager>>();
         if rm.is_stopping() {
-            // The coordinator retains this press and retries it after the
-            // trailing stop releases the recorder. Do not flash recording UI
-            // or register a cancel shortcut for a recording that has not
-            // actually started.
+            // The coordinator retries this press after the prior stop releases
+            // the recorder; recording UI must wait for admission.
             debug!("Deferring recording start while a prior stop is active");
             return;
         }
@@ -451,10 +449,6 @@ impl ShortcutAction for TranscribeAction {
                     };
                     let wav_handle = pending_wav.take().map(|wav| wav.write(samples.clone()));
 
-                    // Keep output post-processing aligned with the provider
-                    // selected for this request. In particular, an inactive
-                    // Gemini language control must not rewrite text with an
-                    // older Codex Chinese-variant preference.
                     let provider = get_settings(&ah).transcription_provider;
                     let transcription_time = Instant::now();
                     let transcription_result = tm

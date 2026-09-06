@@ -38,7 +38,6 @@ const statusTranslationKey = (status: ProviderStatus): string => {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-/** Explicit provider selection shown after macOS permission onboarding. */
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   configuredProvider,
   onComplete,

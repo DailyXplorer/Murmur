@@ -258,7 +258,6 @@ function App() {
     });
   }, []);
 
-  /** Persists the user's explicit choice before asking the backend to complete setup. */
   const handleProviderComplete = async (
     provider: TranscriptionProvider,
   ): Promise<boolean> => {

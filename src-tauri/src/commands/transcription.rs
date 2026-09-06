@@ -43,8 +43,6 @@ pub fn open_antigravity() -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-/// Marks onboarding as complete in Murmur's settings store.
-///
 /// The provider shown by onboarding must remain selected. Losing its local
 /// configuration cannot silently change where the next recording is sent.
 pub async fn complete_onboarding(app: AppHandle) -> Result<(), String> {
@@ -69,7 +67,6 @@ pub async fn complete_onboarding(app: AppHandle) -> Result<(), String> {
     crate::settings::write_settings_checked(&app, settings)
 }
 
-/// Never substitutes another cloud destination for the user's chosen provider.
 fn select_onboarding_provider(
     selected: TranscriptionProvider,
     codex_signed_in: bool,

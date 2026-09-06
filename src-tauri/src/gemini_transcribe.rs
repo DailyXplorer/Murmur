@@ -739,8 +739,6 @@ fn cancellation_requested(operation: &ProcessingOperation, shutdown: &ShutdownSi
 }
 
 /// Sleeps between startup probes without imposing a 150 ms cancellation lag.
-/// It receives no untrusted server data and is exercised with a fake wait in
-/// tests, so startup cancellation never needs an Antigravity installation.
 fn wait_for_startup_poll(
     operation: &ProcessingOperation,
     shutdown: &ShutdownSignal,
@@ -1266,8 +1264,6 @@ mod tests {
 
         let receipt = transcriber.begin_shutdown();
 
-        // A request holding RuntimeState delays cleanup, but begin_shutdown
-        // itself already returned and has broadcast cancellation.
         assert!(!receipt.wait_bounded(Duration::from_millis(10)));
         drop(busy_state);
         assert!(receipt.wait_bounded(Duration::from_secs(3)));

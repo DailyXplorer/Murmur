@@ -160,9 +160,7 @@ impl TranscriptionManager {
         Ok(processed)
     }
 
-    /// CLI callers intentionally run without a cancellable desktop operation.
-    /// The adapter keeps the command-line contract synchronous without
-    /// reintroducing a blocking network path into the desktop pipeline.
+    /// Keeps CLI calls synchronous and independent of desktop cancellation.
     pub fn transcribe_sync(&self, audio: Vec<f32>) -> Result<String> {
         let operation = ProcessingOperation::new(OperationId(0));
         tauri::async_runtime::block_on(self.transcribe(audio, operation))

@@ -64,9 +64,8 @@ pub fn handle_shortcut_event(
     if is_pressed {
         action.start(app, binding_id, hotkey_string);
     } else {
-        // Transcription bindings are intercepted by the coordinator above.
-        // Keep the generic action fallback source-compatible without giving it
-        // authority over any coordinator-owned foreground operation.
+        // Only non-transcription shortcuts reach this fallback. The coordinator
+        // owns the foreground transcription operation.
         action.stop(
             app,
             binding_id,
