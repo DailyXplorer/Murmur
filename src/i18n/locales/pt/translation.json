@@ -36,6 +36,27 @@
         "checkFailed": "Erro ao verificar permissões. Por favor, tente novamente.",
         "requestFailed": "Erro ao solicitar permissão. Por favor, tente novamente."
       }
+    },
+    "provider": {
+      "title": "Escolha um serviço de transcrição",
+      "description": "Escolha um serviço configurado para concluir a configuração. O Murmur detecta a configuração local, mas não verifica uma ligação ativa.",
+      "antigravityDescription": "Usa a configuração do Antigravity detetada neste Mac.",
+      "experimental": "Experimental",
+      "configured": "Configuração detetada",
+      "selectionRequired": "Escolha um serviço de transcrição configurado para continuar.",
+      "retry": "Tentar novamente",
+      "continue": "Continuar",
+      "providerChangeFailed": "Não foi possível guardar o serviço de transcrição selecionado. Tente novamente.",
+      "completionFailed": "Não foi possível concluir a configuração. Atualize o estado e tente novamente.",
+      "openFailed": "Não foi possível abrir o Antigravity.",
+      "installFailed": "Não foi possível abrir a página de transferência do Antigravity.",
+      "setupCodex": "Abrir a configuração do Codex",
+      "codexSetupFailed": "Não foi possível abrir a configuração do Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Não foi detetada nenhuma configuração"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Aparência"
       }
     },
+    "languageAutoOnly": "O Antigravity deteta o idioma automaticamente. A sua seleção de idioma do Codex será mantida quando voltar ao Codex.",
     "sound": {
       "title": "Som",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Manipulação da Área de Transferência",
-        "description": "Não Modificar Área de Transferência preserva o conteúdo atual da área de transferência após a transcrição. Copiar para Área de Transferência deixa o resultado da transcrição na área de transferência após colar.",
+        "description": "Para uma colagem segura com Cmd+V, os dados anteriores da Área de Transferência nunca são restaurados. Após uma colagem bem-sucedida, «Limpar após colar» remove a transcrição no fim da janela de segurança de 8 segundos; «Manter transcrição» deixa-a disponível. Se a colagem falhar, o Murmur mantém a transcrição para recuperação.",
         "options": {
-          "dontModify": "Não Modificar Área de Transferência",
-          "copyToClipboard": "Copiar para Área de Transferência"
+          "dontModify": "Limpar após colar",
+          "copyToClipboard": "Manter transcrição"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Adicionar Espaço Final",
         "description": "Adicionar um espaço após a transcrição colada"
       },
-      "pasteDelay": {
-        "title": "Atraso de colagem (antes)",
-        "description": "Atraso (em milissegundos) após copiar o texto, antes de enviar a tecla de colar. Aumente se nada for colado."
-      },
-      "pasteDelayAfter": {
-        "title": "Atraso de colagem (depois)",
-        "description": "Atraso (em milissegundos) após a tecla de colar, antes de restaurar a área de transferência anterior. Aumente se o conteúdo antigo da área de transferência estiver sendo colado em vez da transcrição."
-      },
-      "reliablePaste": {
-        "title": "Colagem confiável (Beta)",
-        "description": "Restaura a área de transferência somente depois que o aplicativo de destino realmente lê a transcrição, em vez de após um atraso fixo. Serve para corrigir a colagem do conteúdo antigo da área de transferência quando o sistema está sobrecarregado. Requer um método de colar via área de transferência."
-      },
       "recordingBuffer": {
         "title": "Buffer de gravação extra",
         "description": "Tempo extra (em milissegundos) para continuar gravando após soltar a tecla, para capturar áudio restante. 0 = sem buffer extra."
@@ -329,19 +339,14 @@
       "title": "Transcrição",
       "sessionTitle": "Codex",
       "sessionDescription": "O áudio é enviado para o mesmo serviço de transcrição na nuvem usado pelo Codex. Inicie sessão na aplicação Codex se aqui aparecer como desligado.",
-      "checking": "Verificando a sessão…",
+      "checking": "A verificar a configuração…",
       "statusUnavailable": "Estado indisponível",
-      "ready": "Conectado",
       "missing": "Sem sessão iniciada",
       "providerTitle": "Serviço de transcrição",
       "providerDescription": "Escolha o serviço de transcrição para novos ditados.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "O Gemini usa a sessão local do Antigravity neste Mac. Recurso experimental; atualizações do Antigravity podem exigir uma atualização do Murmur.",
       "notInstalled": "Antigravity não está instalado",
       "installAntigravity": "Instalar",
       "openAntigravity": "Abrir Antigravity",
-      "onboardingDescription": "Entre no Codex ou no Antigravity antes de continuar.",
       "groups": {
         "service": "Serviço",
         "processing": "Processamento de texto",
@@ -387,6 +392,7 @@
     "pasteFailed": "Não foi possível colar o texto no aplicativo ativo.",
     "transcriptionFailedTitle": "Falha na transcrição"
   },
+  "transcriptionFailedAction": "Rever serviço de transcrição",
   "appLanguage": {
     "title": "Idioma da Aplicação",
     "description": "Alterar o idioma da interface do Murmur"

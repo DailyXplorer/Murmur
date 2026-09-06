@@ -36,21 +36,46 @@ on:
         required: false
         type: boolean
         default: false
+      environment:
+        required: false
+        type: string
+        default: "unsigned-build"
+    secrets:
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      KEYCHAIN_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_ID_PASSWORD:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
 
 jobs:
   build:
     permissions:
       contents: write
     runs-on: ${{ inputs.platform }}
+    environment: ${{ inputs.environment }}
     env:
-      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
-      HAS_APPLE_NOTARIZATION: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
+      HAS_APPLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_NOTARIZATION: ${{ inputs.sign-binaries && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Get version from tauri.conf.json
         id: get-version
@@ -101,7 +126,7 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -118,31 +143,33 @@ jobs:
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Certificate imported."
 
-      - name: Configure Apple notarization
-        if: inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
-        env:
-          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD_SECRET: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
-        shell: bash
-        run: |
-          echo "APPLE_ID=$APPLE_ID_SECRET" >> "$GITHUB_ENV"
-          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET" >> "$GITHUB_ENV"
-          if [ -n "$APPLE_ID_PASSWORD_SECRET" ]; then
-            echo "APPLE_ID_PASSWORD=$APPLE_ID_PASSWORD_SECRET" >> "$GITHUB_ENV"
-          fi
-          if [ -n "$APPLE_PASSWORD_SECRET" ]; then
-            echo "APPLE_PASSWORD=$APPLE_PASSWORD_SECRET" >> "$GITHUB_ENV"
-          fi
-
       - name: Build with Tauri
+        if: env.HAS_APPLE_CERTIFICATE != 'true' || env.HAS_APPLE_NOTARIZATION != 'true'
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # The certificate import step above owns APPLE_CERTIFICATE. Passing an
           # empty value here makes Tauri try (and fail) to import it again.
           APPLE_SIGNING_IDENTITY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || '-' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        with:
+          tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
+          releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
+          releaseId: ${{ inputs.release-id }}
+          includeUpdaterJson: false
+          args: ${{ inputs.build-args }}
+
+      - name: Build and notarize with Tauri
+        if: env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:

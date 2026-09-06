@@ -3,6 +3,7 @@ use crate::managers::{
     history::{HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
 };
+use crate::{OperationId, ProcessingOperation};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -81,17 +82,20 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording has no audio samples".to_string());
     }
 
-    let tm = Arc::clone(&transcription_manager);
-    let transcription = tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
+    // History retry is deliberately independent of the foreground operation:
+    // cancelling a new dictation must never cancel a user-requested retry.
+    let retry_operation = ProcessingOperation::new(OperationId(0));
+    let provider = crate::settings::get_settings(&app).transcription_provider;
+    let transcription = transcription_manager
+        .transcribe_with_provider(Arc::new(samples), retry_operation, provider)
         .await
-        .map_err(|e| format!("Transcription task panicked: {}", e))?
         .map_err(|e| e.to_string())?;
 
     if transcription.is_empty() {
         return Err("Recording contains no speech".to_string());
     }
 
-    let processed = process_transcription_output(&app, &transcription).await;
+    let processed = process_transcription_output(&app, &transcription, provider).await;
     history_manager
         .update_transcription(id, processed)
         .map(|_| ())
@@ -105,6 +109,12 @@ pub async fn update_history_limit(
     history_manager: State<'_, Arc<HistoryManager>>,
     limit: usize,
 ) -> Result<(), String> {
+    if limit > crate::settings::MAX_HISTORY_LIMIT {
+        return Err(format!(
+            "History limit cannot exceed {} entries",
+            crate::settings::MAX_HISTORY_LIMIT
+        ));
+    }
     let mut settings = crate::settings::get_settings(&app);
     settings.history_limit = limit;
     crate::settings::write_settings(&app, settings);

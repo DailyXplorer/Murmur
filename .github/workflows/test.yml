@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
 
@@ -33,7 +33,7 @@ jobs:
           toolchain: 1.96.0
           components: clippy
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: "./src-tauri -> target"
 
@@ -50,3 +50,28 @@ jobs:
       - name: Run Clippy
         working-directory: src-tauri
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Audit Rust dependencies
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # RUSTSEC-2026-0235 is present only through rust_decimal's inactive
+          # optional rkyv feature. Fail before ignoring it if that ever changes
+          # for either architecture we ship.
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            if ! dependency_tree="$(cargo tree --locked --target "$target" --invert rkyv 2>&1)"; then
+              echo "$dependency_tree" >&2
+              exit 1
+            fi
+            if grep -q '^rkyv v' <<<"$dependency_tree"; then
+              echo "RUSTSEC-2026-0235 is now reachable on $target" >&2
+              exit 1
+            fi
+          done
+
+          cargo audit --ignore RUSTSEC-2026-0235

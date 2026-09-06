@@ -36,6 +36,27 @@
         "checkFailed": "Kunne ikke tjekke tilladelser. Prøv igen.",
         "requestFailed": "Kunne ikke anmode om tilladelse. Prøv igen."
       }
+    },
+    "provider": {
+      "title": "Vælg en transskriptionstjeneste",
+      "description": "Vælg en konfigureret tjeneste for at afslutte opsætningen. Murmur registrerer lokal konfiguration, men bekræfter ikke en aktiv forbindelse.",
+      "antigravityDescription": "Bruger Antigravity-konfigurationen, der er fundet på denne Mac.",
+      "experimental": "Eksperimentel",
+      "configured": "Konfiguration fundet",
+      "selectionRequired": "Vælg en konfigureret transskriptionstjeneste for at fortsætte.",
+      "retry": "Prøv igen",
+      "continue": "Fortsæt",
+      "providerChangeFailed": "Den valgte transskriptionstjeneste kunne ikke gemmes. Prøv igen.",
+      "completionFailed": "Opsætningen kunne ikke fuldføres. Opdater status, og prøv igen.",
+      "openFailed": "Antigravity kunne ikke åbnes.",
+      "installFailed": "Antigravity-downloadsiden kunne ikke åbnes.",
+      "setupCodex": "Åbn Codex-opsætning",
+      "codexSetupFailed": "Codex-opsætningen kunne ikke åbnes."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Konfiguration ikke fundet"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Udseende"
       }
     },
+    "languageAutoOnly": "Antigravity registrerer sproget automatisk. Dit Codex-sprogvalg bevares, når du skifter tilbage.",
     "sound": {
       "title": "Lyd",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Håndtering af udklipsholder",
-        "description": "Rør ikke ved udklipsholder bevarer dit nuværende udklipsholderindhold efter transskription. Kopiér til udklipsholder efterlader transskriptionsresultatet i din udklipsholder efter indsætning.",
+        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. Efter en vellykket indsættelse fjerner \"Ryd efter indsættelse\" transskriptionen, når sikkerhedsperioden på 8 sekunder udløber; \"Behold transskription\" lader den forblive tilgængelig. Hvis indsættelsen mislykkes, beholder Murmur transskriptionen, så den kan gendannes.",
         "options": {
-          "dontModify": "Rør ikke ved udklipsholder",
-          "copyToClipboard": "Kopiér til udklipsholder"
+          "dontModify": "Ryd efter indsættelse",
+          "copyToClipboard": "Behold transskription"
         }
       },
       "autoSubmit": {
@@ -283,18 +305,6 @@
         "label": "Tilføj efterfølgende mellemrum",
         "description": "Tilføj et mellemrum efter indsat transskription"
       },
-      "pasteDelay": {
-        "title": "Forsinkelse af indsættelse (før)",
-        "description": "Forsinkelse (i millisekunder) efter kopiering af tekst, før tastetrykket for indsætning sendes. Øg, hvis intet bliver indsat."
-      },
-      "pasteDelayAfter": {
-        "title": "Forsinkelse af indsættelse (efter)",
-        "description": "Forsinkelse (i millisekunder) efter tastetrykket for indsætning, før din tidligere udklipsholder gendannes. Øg, hvis dit gamle udklipsholderindhold bliver indsat i stedet for transskriptionen."
-      },
-      "reliablePaste": {
-        "title": "Pålidelig indsættelse (Beta)",
-        "description": "Gendan først din udklipsholder, når målappen faktisk har læst transskriptionen, i stedet for efter en fast forsinkelse. Skal afhjælpe, at gammelt udklipsholderindhold indsættes, når systemet er belastet. Kræver en indsætningsmetode via udklipsholderen."
-      },
       "recordingBuffer": {
         "title": "Ekstra optagelsesbuffer",
         "description": "Ekstra tid (i millisekunder) til at fortsætte optagelsen, efter du slipper tasten, for at fange efterfølgende lyd. 0 = ingen ekstra buffer."
@@ -329,19 +339,14 @@
       "title": "Transskription",
       "sessionTitle": "Codex",
       "sessionDescription": "Lyden sendes til den samme skybaserede transskriptionstjeneste, som Codex bruger. Log ind i Codex-appen, hvis dette vises som afbrudt.",
-      "checking": "Kontrollerer session…",
+      "checking": "Kontrollerer konfiguration…",
       "statusUnavailable": "Status er ikke tilgængelig",
-      "ready": "Forbundet",
       "missing": "Ikke logget ind",
       "providerTitle": "Transskriptionstjeneste",
       "providerDescription": "Vælg transskriptionstjenesten til nye dikteringer.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini bruger den lokale Antigravity-session på denne Mac. Eksperimentel; Antigravity-opdateringer kan kræve en Murmur-opdatering.",
       "notInstalled": "Antigravity er ikke installeret",
       "installAntigravity": "Installer",
       "openAntigravity": "Åbn Antigravity",
-      "onboardingDescription": "Log ind på Codex eller Antigravity, før du fortsætter.",
       "groups": {
         "service": "Tjeneste",
         "processing": "Tekstbehandling",
@@ -390,6 +395,7 @@
     "pasteFailed": "Teksten kunne ikke indsættes i det aktive program.",
     "transcriptionFailedTitle": "Transskription mislykkedes"
   },
+  "transcriptionFailedAction": "Gennemse transskriptionstjeneste",
   "appLanguage": {
     "title": "Applikationssprog",
     "description": "Skift sproget for Murmur-grænsefladen"

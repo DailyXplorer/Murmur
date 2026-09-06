@@ -36,6 +36,27 @@
         "checkFailed": "Misslyckades med att kontrollera behörigheter. Försök igen.",
         "requestFailed": "Misslyckades med att begära behörighet. Försök igen."
       }
+    },
+    "provider": {
+      "title": "Välj en transkriberingstjänst",
+      "description": "Välj en konfigurerad tjänst för att slutföra inställningen. Murmur upptäcker lokal konfiguration men verifierar inte en aktiv anslutning.",
+      "antigravityDescription": "Använder Antigravity-konfigurationen som upptäckts på den här Macen.",
+      "experimental": "Experimentell",
+      "configured": "Konfiguration hittad",
+      "selectionRequired": "Välj en konfigurerad transkriberingstjänst för att fortsätta.",
+      "retry": "Försök igen",
+      "continue": "Fortsätt",
+      "providerChangeFailed": "Den valda transkriberingstjänsten kunde inte sparas. Försök igen.",
+      "completionFailed": "Inställningen kunde inte slutföras. Uppdatera statusen och försök igen.",
+      "openFailed": "Det gick inte att öppna Antigravity.",
+      "installFailed": "Det gick inte att öppna Antigravitys nedladdningssida.",
+      "setupCodex": "Öppna Codex-konfigurationen",
+      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Ingen konfiguration hittades"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Utseende"
       }
     },
+    "languageAutoOnly": "Antigravity identifierar språket automatiskt. Ditt språkval för Codex behålls när du byter tillbaka.",
     "sound": {
       "title": "Ljud",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Hantering av urklipp",
-        "description": "Ändra inte urklipp bevarar ditt nuvarande urklippsinnehåll efter transkription. Kopiera till urklipp lämnar transkriptionsresultatet i ditt urklipp efter att ha klistrat in.",
+        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. Efter en lyckad inklistring tar ”Rensa efter inklistring” bort transkriberingen när säkerhetsperioden på 8 sekunder löper ut; ”Behåll transkriberingen” låter den vara tillgänglig. Om inklistringen misslyckas behåller Murmur transkriberingen så att den kan återställas.",
         "options": {
-          "dontModify": "Ändra inte urklipp",
-          "copyToClipboard": "Kopiera till urklipp"
+          "dontModify": "Rensa efter inklistring",
+          "copyToClipboard": "Behåll transkriberingen"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Lägg till avslutande mellanslag",
         "description": "Lägg till ett mellanslag efter klistrad transkription"
       },
-      "pasteDelay": {
-        "title": "Fördröjning vid klistra in (före)",
-        "description": "Fördröjning (i millisekunder) efter att text kopierats, innan tangenttryckningen för att klistra in skickas. Öka om ingenting klistras in."
-      },
-      "pasteDelayAfter": {
-        "title": "Fördröjning vid klistra in (efter)",
-        "description": "Fördröjning (i millisekunder) efter tangenttryckningen för att klistra in, innan ditt tidigare urklipp återställs. Öka om det gamla urklippsinnehållet klistras in i stället för transkriptionen."
-      },
-      "reliablePaste": {
-        "title": "Tillförlitlig inklistring (Beta)",
-        "description": "Återställ urklipp först när målappen faktiskt har läst transkriptionen, i stället för efter en fast fördröjning. Avsett att åtgärda att det gamla urklippsinnehållet klistras in när systemet är belastat. Kräver en klistra-in-metod via urklipp."
-      },
       "recordingBuffer": {
         "title": "Extra inspelningsbuffert",
         "description": "Extra tid (i millisekunder) för att fortsätta spela in efter att du släppt tangenten, för att fånga upp avslutande ljud. 0 = ingen extra buffert."
@@ -329,19 +339,14 @@
       "title": "Transkribering",
       "sessionTitle": "Codex",
       "sessionDescription": "Ljudet skickas till samma molnbaserade transkriberingstjänst som Codex använder. Logga in i Codex-appen om det visas som frånkopplat här.",
-      "checking": "Kontrollerar sessionen…",
+      "checking": "Kontrollerar konfiguration…",
       "statusUnavailable": "Status ej tillgänglig",
-      "ready": "Ansluten",
       "missing": "Inte inloggad",
       "providerTitle": "Transkriberingstjänst",
       "providerDescription": "Välj transkriberingstjänst för nya dikteringar.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini använder den lokala Antigravity-sessionen på denna Mac. Experimentell; Antigravity-uppdateringar kan kräva en Murmur-uppdatering.",
       "notInstalled": "Antigravity är inte installerat",
       "installAntigravity": "Installera",
       "openAntigravity": "Öppna Antigravity",
-      "onboardingDescription": "Logga in på Codex eller Antigravity innan du fortsätter.",
       "groups": {
         "service": "Tjänst",
         "processing": "Textbearbetning",
@@ -387,6 +392,7 @@
     "pasteFailed": "Texten kunde inte klistras in i det aktiva programmet.",
     "transcriptionFailedTitle": "Transkriptionen misslyckades"
   },
+  "transcriptionFailedAction": "Granska transkriberingstjänsten",
   "appLanguage": {
     "title": "Applikationsspråk",
     "description": "Ändra språket i Murmur-gränssnittet"

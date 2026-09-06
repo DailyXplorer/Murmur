@@ -247,6 +247,11 @@ pub struct AudioRecordingManager {
     close_generation: Arc<AtomicU64>,
     cancel_generation: Arc<AtomicU64>,
     recording_active: Arc<AtomicBool>,
+    /// True only while a recorder is accepting samples. `recording_active`
+    /// intentionally remains true through the trailing-buffer `Stopping`
+    /// state; callers that just attempted a new start need this narrower
+    /// signal so they cannot mistake an old stop for a new recording.
+    recording_started: Arc<AtomicBool>,
     /// Invalidates asynchronous first-sample UI/chime work when a recording is
     /// stopped or cancelled. This prevents a slow device from producing a late
     /// "ready" indication for a session the user already ended.
@@ -283,6 +288,7 @@ impl AudioRecordingManager {
             close_generation: Arc::new(AtomicU64::new(0)),
             cancel_generation: Arc::new(AtomicU64::new(0)),
             recording_active: Arc::new(AtomicBool::new(false)),
+            recording_started: Arc::new(AtomicBool::new(false)),
             capture_generation: Arc::new(AtomicU64::new(0)),
             cached_device: Arc::new(Mutex::new(None)),
         };
@@ -692,6 +698,10 @@ impl AudioRecordingManager {
             ),
             Ordering::SeqCst,
         );
+        self.recording_started.store(
+            matches!(*guard, RecordingState::Recording { .. }),
+            Ordering::SeqCst,
+        );
     }
 
     pub fn try_start_recording(&self, binding_id: &str) -> Result<RecordingReadiness, String> {
@@ -892,13 +902,26 @@ impl AudioRecordingManager {
     }
 
     pub fn stop_recording(&self, binding_id: &str, cancel_generation: u64) -> Option<Vec<f32>> {
-        self.invalidate_recording_readiness();
         let mut state = self.state.lock().unwrap();
+
+        // This check is deliberately inside the state lock and before any
+        // readiness invalidation or recorder transition. A cancelled stop
+        // worker can be scheduled after a newer recording reuses the same
+        // binding id; it must then be a no-op rather than stop that recording.
+        if !can_claim_stop(
+            &state,
+            binding_id,
+            cancel_generation,
+            self.cancel_generation(),
+        ) {
+            return None;
+        }
 
         match *state {
             RecordingState::Recording {
                 binding_id: ref active,
             } if active == binding_id => {
+                self.invalidate_recording_readiness();
                 self.set_state(&mut state, RecordingState::Stopping);
                 drop(state);
 
@@ -975,6 +998,21 @@ impl AudioRecordingManager {
         self.recording_active.load(Ordering::SeqCst)
     }
 
+    /// Returns true only after this manager has admitted an active recorder.
+    /// It is safe for the coordinator to use after `try_start_recording`; a
+    /// `Stopping` recorder belongs to an earlier operation and is not a
+    /// successful new start.
+    pub fn is_recording_started(&self) -> bool {
+        self.recording_started.load(Ordering::SeqCst)
+    }
+
+    /// A prior stop still owns the recorder. The coordinator retries a start
+    /// after this becomes false instead of treating it as an already-started
+    /// recording.
+    pub fn is_stopping(&self) -> bool {
+        self.is_recording() && !self.is_recording_started()
+    }
+
     /// Cancel any ongoing recording without returning audio samples
     pub fn cancel_recording(&self) {
         self.invalidate_recording_readiness();
@@ -1009,11 +1047,36 @@ impl AudioRecordingManager {
     }
 }
 
+/// Decides whether a stop worker still owns the currently active recording.
+/// Callers must hold the recording-state mutex while invoking this predicate.
+fn can_claim_stop(
+    state: &RecordingState,
+    binding_id: &str,
+    expected_cancel_generation: u64,
+    current_cancel_generation: u64,
+) -> bool {
+    expected_cancel_generation == current_cancel_generation
+        && matches!(state, RecordingState::Recording { binding_id: active } if active == binding_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::cell::RefCell;
     use std::sync::Arc;
+
+    #[test]
+    fn late_stop_cannot_claim_a_new_recording_with_the_same_binding() {
+        let newer_recording = RecordingState::Recording {
+            binding_id: "transcribe".to_string(),
+        };
+
+        // Cancellation A advances the generation before B begins. A's worker
+        // may run after B has reused the binding, but it cannot invalidate B's
+        // readiness, move B to Stopping, or call Recorder::stop.
+        assert!(!can_claim_stop(&newer_recording, "transcribe", 8, 9));
+        assert!(can_claim_stop(&newer_recording, "transcribe", 9, 9));
+    }
 
     #[test]
     fn input_changes_require_an_idle_recording_state() {

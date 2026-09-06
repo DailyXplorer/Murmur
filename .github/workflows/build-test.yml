@@ -5,7 +5,7 @@ on: workflow_dispatch
 jobs:
   build-test:
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +22,7 @@ jobs:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
-      sign-binaries: true
-      asset-prefix: "murmur-test"
+      sign-binaries: false
+      asset-prefix: "murmur-test-unsigned-not-notarized"
       upload-artifacts: true
-    secrets: inherit
+      ref: ${{ github.sha }}

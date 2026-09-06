@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 use crate::actions::ACTION_MAP;
 use crate::settings::get_settings;
 use crate::transcription_coordinator::is_transcribe_binding;
-use crate::TranscriptionCoordinator;
+use crate::{OperationId, ProcessingOperation, TranscriptionCoordinator};
 
 fn should_dispatch_cancel(is_pressed: bool) -> bool {
     is_pressed
@@ -64,7 +64,14 @@ pub fn handle_shortcut_event(
     if is_pressed {
         action.start(app, binding_id, hotkey_string);
     } else {
-        action.stop(app, binding_id, hotkey_string);
+        // Only non-transcription shortcuts reach this fallback. The coordinator
+        // owns the foreground transcription operation.
+        action.stop(
+            app,
+            binding_id,
+            hotkey_string,
+            ProcessingOperation::new(OperationId(0)),
+        );
     }
 }
 

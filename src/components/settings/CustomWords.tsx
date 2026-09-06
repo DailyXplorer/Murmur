@@ -12,11 +12,9 @@ interface CustomWordsProps {
   grouped?: boolean;
 }
 
-const normalizeCustomWord = (word: string) =>
-  word
-    .replace(/[<>"']/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+const MAX_CUSTOM_WORDS = 200;
+
+const normalizeCustomWord = (word: string) => word.replace(/\s+/g, " ").trim();
 
 export const CustomWords: React.FC<CustomWordsProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
@@ -25,9 +23,10 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
     const [newWord, setNewWord] = useState("");
     const customWords = getSetting("custom_words") || [];
     const normalizedWord = normalizeCustomWord(newWord);
+    const normalizedWordLength = Array.from(normalizedWord).length;
 
-    const handleAddWord = () => {
-      if (normalizedWord && normalizedWord.length <= 50) {
+    const handleAddWord = async () => {
+      if (normalizedWord && normalizedWordLength <= 50) {
         if (customWords.includes(normalizedWord)) {
           toast.error(
             t("settings.advanced.customWords.duplicate", {
@@ -36,8 +35,15 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           );
           return;
         }
-        updateSetting("custom_words", [...customWords, normalizedWord]);
-        setNewWord("");
+        if (
+          customWords.length < MAX_CUSTOM_WORDS &&
+          (await updateSetting("custom_words", [
+            ...customWords,
+            normalizedWord,
+          ]))
+        ) {
+          setNewWord("");
+        }
       }
     };
 
@@ -51,7 +57,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
     const handleKeyPress = (e: React.KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        handleAddWord();
+        void handleAddWord();
       }
     };
 
@@ -75,10 +81,11 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               disabled={isUpdating("custom_words")}
             />
             <Button
-              onClick={handleAddWord}
+              onClick={() => void handleAddWord()}
               disabled={
                 !normalizedWord ||
-                normalizedWord.length > 50 ||
+                normalizedWordLength > 50 ||
+                customWords.length >= MAX_CUSTOM_WORDS ||
                 isUpdating("custom_words")
               }
               variant="primary"

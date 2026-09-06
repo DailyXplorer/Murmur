@@ -36,6 +36,27 @@
         "checkFailed": "Berechtigungsprüfung fehlgeschlagen. Bitte erneut versuchen.",
         "requestFailed": "Berechtigungsanfrage fehlgeschlagen. Bitte erneut versuchen."
       }
+    },
+    "provider": {
+      "title": "Transkriptionsdienst auswählen",
+      "description": "Wähle einen eingerichteten Dienst, um die Einrichtung abzuschließen. Murmur erkennt eine lokale Konfiguration, prüft aber keine aktive Verbindung.",
+      "antigravityDescription": "Verwendet die auf diesem Mac erkannte Antigravity-Konfiguration.",
+      "experimental": "Experimentell",
+      "configured": "Konfiguration erkannt",
+      "selectionRequired": "Wähle einen eingerichteten Transkriptionsdienst, um fortzufahren.",
+      "retry": "Erneut versuchen",
+      "continue": "Weiter",
+      "providerChangeFailed": "Der ausgewählte Transkriptionsdienst konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
+      "openFailed": "Antigravity konnte nicht geöffnet werden.",
+      "installFailed": "Die Antigravity-Downloadseite konnte nicht geöffnet werden.",
+      "setupCodex": "Codex-Einrichtung öffnen",
+      "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Keine Konfiguration erkannt"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Darstellung"
       }
     },
+    "languageAutoOnly": "Antigravity erkennt die Sprache automatisch. Deine Codex-Sprachauswahl bleibt erhalten, wenn du zurückwechselst.",
     "sound": {
       "title": "Ton",
       "microphone": {
@@ -167,10 +189,10 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Zwischenablage nicht ändern bewahrt den aktuellen Inhalt nach der Transkription. In Zwischenablage kopieren hinterlässt das Transkriptionsergebnis in der Zwischenablage.",
+        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. Nach erfolgreichem Einfügen entfernt „Nach dem Einfügen löschen“ die Transkription am Ende des 8-sekündigen Sicherheitszeitraums; „Transkription behalten“ lässt sie verfügbar. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung bei.",
         "options": {
-          "dontModify": "Zwischenablage nicht ändern",
-          "copyToClipboard": "In Zwischenablage kopieren"
+          "dontModify": "Nach dem Einfügen löschen",
+          "copyToClipboard": "Transkription behalten"
         }
       },
       "autoSubmit": {
@@ -276,18 +298,6 @@
         "label": "Leerzeichen anhängen",
         "description": "Leerzeichen nach eingefügter Transkription hinzufügen"
       },
-      "pasteDelay": {
-        "title": "Einfügeverzögerung (vorher)",
-        "description": "Verzögerung (in Millisekunden) nach dem Kopieren des Textes, bevor der Einfüge-Tastendruck gesendet wird. Erhöhe den Wert, wenn nichts eingefügt wird."
-      },
-      "pasteDelayAfter": {
-        "title": "Einfügeverzögerung (nachher)",
-        "description": "Verzögerung (in Millisekunden) nach dem Einfüge-Tastendruck, bevor deine vorherige Zwischenablage wiederhergestellt wird. Erhöhe den Wert, wenn der alte Inhalt der Zwischenablage statt der Transkription eingefügt wird."
-      },
-      "reliablePaste": {
-        "title": "Zuverlässiges Einfügen (Beta)",
-        "description": "Die Zwischenablage erst wiederherstellen, wenn die Ziel-App die Transkription tatsächlich gelesen hat, statt nach einer festen Verzögerung. Soll verhindern, dass bei Systemlast der alte Inhalt der Zwischenablage eingefügt wird. Erfordert eine Einfügemethode über die Zwischenablage."
-      },
       "recordingBuffer": {
         "title": "Zusätzlicher Aufnahmepuffer",
         "description": "Zusätzliche Zeit (in Millisekunden), um nach dem Loslassen der Taste weiter aufzunehmen, um nachlaufendes Audio zu erfassen. 0 = kein zusätzlicher Puffer."
@@ -329,19 +339,14 @@
       "title": "Transkription",
       "sessionTitle": "Codex",
       "sessionDescription": "Audio wird an dieselbe Cloud-Transkription gesendet, die Codex verwendet. Melde dich in der Codex-App an, wenn hier „Nicht verbunden“ angezeigt wird.",
-      "checking": "Sitzung wird überprüft…",
+      "checking": "Konfiguration wird geprüft…",
       "statusUnavailable": "Status nicht verfügbar",
-      "ready": "Verbunden",
       "missing": "Nicht angemeldet",
       "providerTitle": "Transkriptionsdienst",
       "providerDescription": "Wähle den Transkriptionsdienst für neue Diktate.",
-      "codex": "Codex (GPT Transcribe)",
-      "gemini": "Gemini (Gemini 3.5 Transcribe)",
-      "geminiDescription": "Gemini verwendet die lokale Antigravity-Sitzung auf diesem Mac. Experimentell; nach Antigravity-Updates kann ein Murmur-Update nötig sein.",
       "notInstalled": "Antigravity ist nicht installiert",
       "installAntigravity": "Installieren",
       "openAntigravity": "Antigravity öffnen",
-      "onboardingDescription": "Melde dich bei Codex oder Antigravity an, bevor du fortfährst.",
       "groups": {
         "service": "Dienst",
         "processing": "Textverarbeitung",
@@ -387,6 +392,7 @@
     "pasteFailed": "Der Text konnte nicht in die aktive Anwendung eingefügt werden.",
     "transcriptionFailedTitle": "Transkription fehlgeschlagen"
   },
+  "transcriptionFailedAction": "Transkriptionsdienst prüfen",
   "appLanguage": {
     "title": "Anwendungssprache",
     "description": "Sprache der Murmur-Oberfläche ändern"

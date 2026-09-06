@@ -34,10 +34,10 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByPlaceholder("Add a word");
   const provider = page
     .getByTestId("production-transcription")
-    .getByRole("button", { name: "Gemini (Gemini 3.5 Transcribe)" });
+    .getByRole("button", { name: "Antigravity", exact: true });
   const geminiStatus = page
     .getByTestId("production-transcription")
-    .getByText("Connected", { exact: true })
+    .getByText("Configuration detected", { exact: true })
     .last();
 
   await expect(geminiStatus).toBeVisible();
@@ -58,7 +58,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     "history limit",
     "custom words",
     "provider",
-    "Gemini status",
+    "Antigravity status",
   ];
   const slotMeasurements = await Promise.all(
     slots.map((slot) =>
