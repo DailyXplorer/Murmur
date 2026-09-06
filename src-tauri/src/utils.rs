@@ -28,9 +28,16 @@ pub(crate) struct CancellationEffects {
 
 pub(crate) fn cancellation_effects(
     stage: CancellationStage,
-    audio_is_active: bool,
+    _audio_is_active: bool,
 ) -> CancellationEffects {
-    let clean_up_immediately = audio_is_active && matches!(stage, CancellationStage::NotProcessing);
+    // A processing operation now owns a cancellation token and completion
+    // identity. Once it is cancelled, its stale completion cannot reset a
+    // later recording, so UI state may return to idle immediately instead of
+    // waiting for a 90-second provider timeout.
+    let clean_up_immediately = matches!(
+        stage,
+        CancellationStage::NotProcessing | CancellationStage::Processing
+    );
 
     CancellationEffects {
         signal_audio_cancellation: true,
@@ -70,10 +77,8 @@ fn cancel_current_operation_impl(app: &AppHandle, stage: CancellationStage) {
         audio_manager.cancel_recording();
     }
 
-    // A direct recording cancellation has no processing task to clean up the
-    // dynamically registered shortcut. During processing the provider worker
-    // cannot be interrupted, so keep the overlay and tray in their truthful
-    // processing state until the pipeline observes this cancellation.
+    // Processing cancellation is safe to clean up immediately: the keyed
+    // coordinator ignores an old finish after a new recording begins.
     if effects.unregister_cancel_shortcut {
         shortcut::unregister_cancel_shortcut(app);
     }
@@ -95,14 +100,14 @@ mod tests {
     use super::{cancellation_effects, CancellationEffects, CancellationStage};
 
     #[test]
-    fn active_audio_during_processing_only_signals_cancellation() {
+    fn active_audio_during_processing_cleans_up_immediately() {
         assert_eq!(
             cancellation_effects(CancellationStage::Processing, true),
             CancellationEffects {
                 signal_audio_cancellation: true,
-                unregister_cancel_shortcut: false,
-                set_tray_idle: false,
-                hide_recording_overlay: false,
+                unregister_cancel_shortcut: true,
+                set_tray_idle: true,
+                hide_recording_overlay: true,
             }
         );
     }

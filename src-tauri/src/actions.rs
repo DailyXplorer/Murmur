@@ -7,7 +7,7 @@ use crate::settings::{get_settings, OverlayStyle};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
-use crate::TranscriptionCoordinator;
+use crate::{ProcessingOperation, TranscriptionCoordinator};
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -31,12 +31,14 @@ struct RecordingErrorEvent {
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
 /// pipeline completes, even if the task unwinds.
-struct FinishGuard(AppHandle);
+struct FinishGuard {
+    app: AppHandle,
+    operation: ProcessingOperation,
+}
 impl Drop for FinishGuard {
     fn drop(&mut self) {
-        shortcut::unregister_cancel_shortcut(&self.0);
-        if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
-            c.notify_processing_finished();
+        if let Some(c) = self.app.try_state::<TranscriptionCoordinator>() {
+            c.notify_processing_finished(self.operation.id());
         }
     }
 }
@@ -70,6 +72,21 @@ impl PendingWav {
     fn commit(&mut self) {
         self.committed = true;
     }
+
+    /// Transfers deletion ownership to the blocking WAV writer. If the async
+    /// pipeline is cancelled or dropped while that writer still runs, this
+    /// guard remains alive in the worker and cannot remove the path underneath
+    /// an active `WavWriter`.
+    fn write(
+        self,
+        samples: Vec<f32>,
+    ) -> tauri::async_runtime::JoinHandle<(Self, anyhow::Result<()>)> {
+        let path = self.path.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let result = crate::audio_toolkit::save_wav_file(&path, &samples);
+            (self, result)
+        })
+    }
 }
 
 impl Drop for PendingWav {
@@ -93,7 +110,13 @@ impl Drop for PendingWav {
 // Shortcut Action Trait
 pub trait ShortcutAction: Send + Sync {
     fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
-    fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
+    fn stop(
+        &self,
+        app: &AppHandle,
+        binding_id: &str,
+        shortcut_str: &str,
+        operation: ProcessingOperation,
+    );
 }
 
 // Transcribe Action
@@ -117,6 +140,14 @@ where
             return Some(result);
         }
     }
+}
+
+fn operation_was_cancelled(
+    operation: &ProcessingOperation,
+    recording_manager: &AudioRecordingManager,
+    cancel_generation: u64,
+) -> bool {
+    operation.is_cancelled() || recording_manager.was_cancelled_since(cancel_generation)
 }
 
 type MainThreadAction = Box<dyn FnOnce() + Send + 'static>;
@@ -359,7 +390,13 @@ impl ShortcutAction for TranscribeAction {
         );
     }
 
-    fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
+    fn stop(
+        &self,
+        app: &AppHandle,
+        binding_id: &str,
+        _shortcut_str: &str,
+        operation: ProcessingOperation,
+    ) {
         // Prevent a slow microphone from emitting a ready event or start chime
         // after the user has already requested stop.
         app.state::<Arc<AudioRecordingManager>>()
@@ -386,7 +423,10 @@ impl ShortcutAction for TranscribeAction {
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
-            let _guard = FinishGuard(ah.clone());
+            let _guard = FinishGuard {
+                app: ah.clone(),
+                operation: operation.clone(),
+            };
             debug!(
                 "Starting async transcription task for binding: {}",
                 binding_id
@@ -400,17 +440,13 @@ impl ShortcutAction for TranscribeAction {
                     samples.len()
                 );
 
-                if rm.was_cancelled_since(cancel_generation) {
+                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                     debug!("Transcription operation cancelled after recording stop");
-                    utils::hide_recording_overlay(&ah);
-                    change_tray_icon(&ah, TrayIconState::Idle);
                     return;
                 }
 
                 if samples.is_empty() {
                     debug!("Recording produced no audio samples; skipping persistence");
-                    utils::hide_recording_overlay(&ah);
-                    change_tray_icon(&ah, TrayIconState::Idle);
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
@@ -419,7 +455,6 @@ impl ShortcutAction for TranscribeAction {
                         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
                     );
                     let wav_path = hm.recordings_dir().join(&file_name);
-                    let wav_path_for_verify = wav_path.clone();
                     let mut pending_wav = match PendingWav::reserve(wav_path.clone()) {
                         Ok(wav) => Some(wav),
                         Err(error) => {
@@ -431,37 +466,19 @@ impl ShortcutAction for TranscribeAction {
                             None
                         }
                     };
-                    let wav_handle = pending_wav.as_ref().map(|_| {
-                        let wav_path_for_save = wav_path.clone();
-                        let samples_for_wav = samples.clone();
-                        tauri::async_runtime::spawn_blocking(move || {
-                            crate::audio_toolkit::save_wav_file(
-                                &wav_path_for_save,
-                                &samples_for_wav,
-                            )
-                        })
-                    });
+                    let wav_handle = pending_wav.take().map(|wav| wav.write(samples.clone()));
 
                     let transcription_time = Instant::now();
-                    let transcription_result =
-                        match tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
-                            .await
-                        {
-                            Ok(result) => result,
-                            Err(error) => {
-                                Err(anyhow::anyhow!("Transcription worker panicked: {error}"))
-                            }
-                        };
+                    let transcription_result = tm.transcribe(samples, operation.clone()).await;
 
                     // Await WAV save and verify
                     let wav_saved = match wav_handle {
                         None => false,
                         Some(wav_handle) => match wav_handle.await {
-                            Ok(Ok(())) => {
-                                match crate::audio_toolkit::verify_wav_file(
-                                    &wav_path_for_verify,
-                                    sample_count,
-                                ) {
+                            Ok((wav, Ok(()))) => {
+                                pending_wav = Some(wav);
+                                match crate::audio_toolkit::verify_wav_file(&wav_path, sample_count)
+                                {
                                     Ok(()) => true,
                                     Err(e) => {
                                         error!("WAV verification failed: {}", e);
@@ -469,7 +486,8 @@ impl ShortcutAction for TranscribeAction {
                                     }
                                 }
                             }
-                            Ok(Err(e)) => {
+                            Ok((wav, Err(e))) => {
+                                pending_wav = Some(wav);
                                 error!("Failed to save WAV file: {}", e);
                                 false
                             }
@@ -480,10 +498,8 @@ impl ShortcutAction for TranscribeAction {
                         },
                     };
 
-                    if rm.was_cancelled_since(cancel_generation) {
+                    if operation_was_cancelled(&operation, &rm, cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");
-                        utils::hide_recording_overlay(&ah);
-                        change_tray_icon(&ah, TrayIconState::Idle);
                         return;
                     }
 
@@ -497,21 +513,17 @@ impl ShortcutAction for TranscribeAction {
 
                             let Some(final_text) = complete_unless_cancelled(
                                 process_transcription_output(&ah, &transcription),
-                                || rm.was_cancelled_since(cancel_generation),
+                                || operation_was_cancelled(&operation, &rm, cancel_generation),
                             )
                             .await
                             else {
                                 debug!("Transcription operation cancelled during output handling");
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
                                 return;
                             };
 
                             if final_text.is_empty() {
-                                if rm.was_cancelled_since(cancel_generation) {
+                                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
 
@@ -532,7 +544,13 @@ impl ShortcutAction for TranscribeAction {
                                 let rm_for_paste = Arc::clone(&rm);
                                 let text_for_paste = final_text.clone();
                                 let (paste_action, paste_completion) = prepare_main_thread_paste(
-                                    move || rm_for_paste.was_cancelled_since(cancel_generation),
+                                    move || {
+                                        operation_was_cancelled(
+                                            &operation,
+                                            &rm_for_paste,
+                                            cancel_generation,
+                                        )
+                                    },
                                     move || {
                                         let paste_time = Instant::now();
                                         match utils::paste(text_for_paste, ah_clone.clone()) {
@@ -550,8 +568,6 @@ impl ShortcutAction for TranscribeAction {
 
                                 if let Err(error) = ah.run_on_main_thread(paste_action) {
                                     error!("Failed to queue paste on main thread: {:?}", error);
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
 
@@ -583,8 +599,6 @@ impl ShortcutAction for TranscribeAction {
                                             error!(
                                             "Main-thread paste closure was dropped before execution"
                                         );
-                                            utils::hide_recording_overlay(&ah);
-                                            change_tray_icon(&ah, TrayIconState::Idle);
                                             return;
                                         }
                                     };
@@ -593,22 +607,15 @@ impl ShortcutAction for TranscribeAction {
                                     debug!(
                                         "Transcription operation cancelled before paste execution"
                                     );
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
                             }
-
-                            utils::hide_recording_overlay(&ah);
-                            change_tray_icon(&ah, TrayIconState::Idle);
                         }
                         Err(err) => {
-                            if rm.was_cancelled_since(cancel_generation) {
+                            if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                 debug!(
                                     "Transcription operation cancelled after transcription error"
                                 );
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
                                 return;
                             }
 
@@ -618,10 +625,8 @@ impl ShortcutAction for TranscribeAction {
                             let _ = ah.emit("transcription-error", err.to_string());
                             // Save entry with empty text so user can retry
                             if wav_saved {
-                                if rm.was_cancelled_since(cancel_generation) {
+                                if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
-                                    utils::hide_recording_overlay(&ah);
-                                    change_tray_icon(&ah, TrayIconState::Idle);
                                     return;
                                 }
 
@@ -636,15 +641,11 @@ impl ShortcutAction for TranscribeAction {
                                     }
                                 }
                             }
-                            utils::hide_recording_overlay(&ah);
-                            change_tray_icon(&ah, TrayIconState::Idle);
                         }
                     }
                 }
             } else {
                 debug!("No samples retrieved from recording stop");
-                utils::hide_recording_overlay(&ah);
-                change_tray_icon(&ah, TrayIconState::Idle);
             }
         });
 
@@ -667,7 +668,14 @@ impl ShortcutAction for CancelAction {
         }
     }
 
-    fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
+    fn stop(
+        &self,
+        _app: &AppHandle,
+        _binding_id: &str,
+        _shortcut_str: &str,
+        _operation: ProcessingOperation,
+    ) {
+    }
 }
 
 pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::new(|| {

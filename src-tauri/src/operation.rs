@@ -69,11 +69,7 @@ impl ProcessingOperation {
         self.state
             .cancellation_requested
             .store(true, Ordering::Release);
-        // Keep the cancellation state for subscribers created after this
-        // transition too. `send` drops the value when there are no receivers
-        // yet, which can otherwise strand a later provider future forever.
-        self.state.cancelled_tx.send_replace(true);
-        match self.state.phase.compare_exchange(
+        let result = match self.state.phase.compare_exchange(
             ACTIVE,
             CANCELLED,
             Ordering::AcqRel,
@@ -82,7 +78,12 @@ impl ProcessingOperation {
             Ok(_) => true,
             Err(CANCELLED) => true,
             Err(_) => false,
-        }
+        };
+        // Keep the cancellation state for subscribers created after this
+        // transition too. `send` drops the value when there are no receivers
+        // yet, which can otherwise strand a later provider future forever.
+        self.state.cancelled_tx.send_replace(true);
+        result
     }
 
     pub fn is_cancelled(&self) -> bool {

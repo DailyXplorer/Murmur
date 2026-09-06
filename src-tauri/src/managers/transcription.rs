@@ -5,6 +5,7 @@ use crate::audio_toolkit::{
 use crate::codex_transcribe;
 use crate::gemini_transcribe::GeminiTranscriber;
 use crate::settings::{get_settings, TranscriptionProvider};
+use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
 use log::{debug, error, info};
 use tauri::AppHandle;
@@ -31,7 +32,11 @@ impl TranscriptionManager {
 
     /// Transcribes mono PCM samples and applies the configured local text
     /// normalization. An empty input produces an empty transcript.
-    pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
+    pub async fn transcribe(
+        &self,
+        audio: Vec<f32>,
+        operation: ProcessingOperation,
+    ) -> Result<String> {
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
             return Err(anyhow::anyhow!(
@@ -41,6 +46,9 @@ impl TranscriptionManager {
 
         if audio.is_empty() {
             return Ok(String::new());
+        }
+        if operation.is_cancelled() {
+            return Err(anyhow::anyhow!("Transcription cancelled"));
         }
 
         let settings = get_settings(&self.app_handle);
@@ -57,14 +65,27 @@ impl TranscriptionManager {
 
         let text = match provider {
             TranscriptionProvider::Codex => {
-                codex_transcribe::transcribe(&audio, language.as_deref())
+                codex_transcribe::transcribe(&audio, language.as_deref(), &operation).await
             }
-            TranscriptionProvider::Gemini => self.gemini.transcribe(&audio),
+            TranscriptionProvider::Gemini => {
+                let gemini = self.gemini.clone();
+                let audio = audio.clone();
+                let operation = operation.clone();
+                tauri::async_runtime::spawn_blocking(move || gemini.transcribe(&audio, &operation))
+                    .await
+                    .map_err(|error| {
+                        anyhow::anyhow!("Gemini transcription worker panicked: {error}")
+                    })?
+            }
         }
         .map_err(|err| {
             error!("{provider:?} transcription failed: {err}");
             err
         })?;
+
+        if operation.is_cancelled() {
+            return Err(anyhow::anyhow!("Transcription cancelled"));
+        }
 
         let mut processed = normalize_transcription_output(&text);
         processed = apply_custom_words(
@@ -98,6 +119,14 @@ impl TranscriptionManager {
             processed.len()
         );
         Ok(processed)
+    }
+
+    /// CLI callers intentionally run without a cancellable desktop operation.
+    /// The adapter keeps the command-line contract synchronous without
+    /// reintroducing a blocking network path into the desktop pipeline.
+    pub fn transcribe_sync(&self, audio: Vec<f32>) -> Result<String> {
+        let operation = ProcessingOperation::new(OperationId(0));
+        tauri::async_runtime::block_on(self.transcribe(audio, operation))
     }
 
     /// Releases provider resources before the application exits.

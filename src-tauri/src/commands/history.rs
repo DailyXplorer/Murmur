@@ -3,6 +3,7 @@ use crate::managers::{
     history::{HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
 };
+use crate::{OperationId, ProcessingOperation};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -81,10 +82,12 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording has no audio samples".to_string());
     }
 
-    let tm = Arc::clone(&transcription_manager);
-    let transcription = tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
+    // History retry is deliberately independent of the foreground operation:
+    // cancelling a new dictation must never cancel a user-requested retry.
+    let retry_operation = ProcessingOperation::new(OperationId(0));
+    let transcription = transcription_manager
+        .transcribe(samples, retry_operation)
         .await
-        .map_err(|e| format!("Transcription task panicked: {}", e))?
         .map_err(|e| e.to_string())?;
 
     if transcription.is_empty() {

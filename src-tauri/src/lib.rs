@@ -381,7 +381,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
-    let text = match tm.transcribe(samples) {
+    let text = match tm.transcribe_sync(samples) {
         Ok(text) => text,
         Err(error) => {
             eprintln!("error: transcribe failed: {error}");

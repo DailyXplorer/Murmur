@@ -17,6 +17,8 @@ use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Response, Status};
 
+use crate::ProcessingOperation;
+
 const SAMPLE_RATE: usize = 16_000;
 const AUDIO_CHUNK_SAMPLES: usize = SAMPLE_RATE;
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(600);
@@ -70,6 +72,7 @@ pub fn open_antigravity() -> Result<()> {
 }
 
 /// Streams dictation audio through a local Antigravity language server.
+#[derive(Clone)]
 pub struct GeminiTranscriber {
     state: Arc<Mutex<RuntimeState>>,
 }
@@ -84,9 +87,12 @@ impl GeminiTranscriber {
 
     /// Transcribes normalized mono PCM samples with a Murmur-owned server
     /// started from the verified system Antigravity installation.
-    pub fn transcribe(&self, samples: &[f32]) -> Result<String> {
+    pub fn transcribe(&self, samples: &[f32], operation: &ProcessingOperation) -> Result<String> {
         if samples.is_empty() {
             return Ok(String::new());
+        }
+        if operation.is_cancelled() {
+            return Err(anyhow!("Gemini transcription cancelled"));
         }
 
         let binary = verified_antigravity_binary()?;
@@ -102,13 +108,21 @@ impl GeminiTranscriber {
             .state
             .lock()
             .map_err(|_| anyhow!("Gemini transcription state is unavailable"))?;
-        state.ensure_connection(&runtime, &binary)?;
+        state.ensure_connection(&runtime, &binary, operation)?;
         let owned = state
             .owned
             .as_mut()
             .ok_or_else(|| anyhow!("verified Antigravity service is unavailable"))?;
-        let result = runtime.block_on(transcribe_over_grpc(owned, samples));
+        let result = runtime.block_on(transcribe_over_grpc(owned, samples, operation));
         owned.last_used = Instant::now();
+        if operation.is_cancelled() {
+            // Dropping tonic's in-flight stream only closes Murmur's local
+            // socket. The language server may still have an upstream request,
+            // so terminate our verified, owned process before reporting the
+            // operation as cancelled.
+            owned.stop();
+            return Err(anyhow!("Gemini transcription cancelled"));
+        }
         result.map_err(friendly_transcription_error)
     }
 
@@ -142,7 +156,11 @@ impl RuntimeState {
         &mut self,
         runtime: &tokio::runtime::Runtime,
         binary: &Path,
+        operation: &ProcessingOperation,
     ) -> Result<()> {
+        if operation.is_cancelled() {
+            return Err(anyhow!("Gemini transcription cancelled"));
+        }
         if let Some(owned) = self.owned.as_mut() {
             if owned.has_verified_identity()
                 && runtime.block_on(probe_connection(&owned.connection))
@@ -156,7 +174,7 @@ impl RuntimeState {
             }
         }
 
-        let owned = OwnedServer::start(binary, runtime)?;
+        let owned = OwnedServer::start(binary, runtime, operation)?;
         self.owned = Some(owned);
         Ok(())
     }
@@ -185,7 +203,7 @@ impl RuntimeState {
 }
 
 struct OwnedServer {
-    child: Child,
+    child: Option<Child>,
     connection: ConnectionInfo,
     last_used: Instant,
 }
@@ -194,7 +212,11 @@ impl OwnedServer {
     /// Starts a headless Antigravity language server and waits until it accepts
     /// transcription probes. Omits `--override_ide_version` when the bundle
     /// version cannot be read, instead of substituting Murmur's version.
-    fn start(binary: &Path, runtime: &tokio::runtime::Runtime) -> Result<Self> {
+    fn start(
+        binary: &Path,
+        runtime: &tokio::runtime::Runtime,
+        operation: &ProcessingOperation,
+    ) -> Result<Self> {
         let csrf = generate_csrf_token()?;
         let mut command = Command::new(binary);
         command.args([
@@ -225,7 +247,7 @@ impl OwnedServer {
             .with_context(|| format!("failed to start {}", binary.display()))?;
         if let Err(error) = verify_running_antigravity_process(child.id()) {
             let _ = child.kill();
-            let _ = child.wait();
+            reap_child_async(child);
             return Err(error);
         }
         let connection = ConnectionInfo {
@@ -234,19 +256,23 @@ impl OwnedServer {
             csrf,
         };
         let mut owned = Self {
-            child,
+            child: Some(child),
             connection,
             last_used: Instant::now(),
         };
 
         let started = Instant::now();
         while started.elapsed() < STARTUP_TIMEOUT {
+            if operation.is_cancelled() {
+                owned.stop();
+                return Err(anyhow!("Gemini transcription cancelled"));
+            }
             if !owned.is_running() {
                 return Err(anyhow!(
                     "Antigravity transcription service exited during startup. Open Antigravity, sign in again, and retry."
                 ));
             }
-            for (host, port) in owned_loopback_endpoints(owned.child.id())? {
+            for (host, port) in owned_loopback_endpoints(owned.child_pid()?)? {
                 // Re-check the Child handle after lsof and again after the
                 // probe. A PID is not an identity once the owned child exits.
                 if !owned.has_verified_identity() {
@@ -265,6 +291,8 @@ impl OwnedServer {
                     return Ok(owned);
                 }
             }
+            // Startup polling is bounded and observes cancellation before the
+            // next probe; this worker never runs on Tauri's main thread.
             thread::sleep(Duration::from_millis(150));
         }
 
@@ -275,7 +303,16 @@ impl OwnedServer {
     }
 
     fn is_running(&mut self) -> bool {
-        matches!(self.child.try_wait(), Ok(None))
+        self.child
+            .as_mut()
+            .is_some_and(|child| matches!(child.try_wait(), Ok(None)))
+    }
+
+    fn child_pid(&self) -> Result<u32> {
+        self.child
+            .as_ref()
+            .map(Child::id)
+            .ok_or_else(|| anyhow!("Antigravity transcription service has no child process"))
     }
 
     fn has_verified_identity(&mut self) -> bool {
@@ -292,26 +329,32 @@ impl OwnedServer {
         if !self.is_running() {
             return Err(anyhow!("Antigravity transcription service is not running"));
         }
-        verify_running_antigravity_process(self.child.id())
+        verify_running_antigravity_process(self.child_pid()?)
     }
 
     fn stop(&mut self) {
-        if !self.is_running() {
+        let Some(mut child) = self.child.take() else {
+            return;
+        };
+        if !matches!(child.try_wait(), Ok(None)) {
             return;
         }
 
-        let pid = self.child.id().to_string();
+        let pid = child.id().to_string();
         let _ = Command::new("/bin/kill").args(["-INT", &pid]).status();
         for _ in 0..20 {
-            if !self.is_running() {
+            if !matches!(child.try_wait(), Ok(None)) {
                 log::debug!("Stopped Murmur-owned Antigravity transcription service");
                 return;
             }
             thread::sleep(Duration::from_millis(100));
         }
 
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let _ = child.kill();
+        // `wait` is deliberately delegated after the bounded interrupt/kill
+        // protocol. A hung child can never keep cancellation, the coordinator,
+        // or the main thread blocked.
+        reap_child_async(child);
         log::warn!("Forced the Murmur-owned Antigravity transcription service to stop");
     }
 }
@@ -320,6 +363,12 @@ impl Drop for OwnedServer {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+fn reap_child_async(mut child: Child) {
+    thread::spawn(move || {
+        let _ = child.wait();
+    });
 }
 
 #[derive(Clone)]
@@ -572,13 +621,22 @@ async fn probe_connection_inner(connection: &ConnectionInfo) -> bool {
 }
 
 /// Bounds a full Gemini transcription attempt with `TRANSCRIPTION_TIMEOUT`.
-async fn transcribe_over_grpc(owned: &mut OwnedServer, samples: &[f32]) -> Result<String> {
-    tokio::time::timeout(
-        TRANSCRIPTION_TIMEOUT,
-        transcribe_over_grpc_inner(owned, samples),
-    )
-    .await
-    .map_err(|_| anyhow!("Gemini transcription timed out"))?
+async fn transcribe_over_grpc(
+    owned: &mut OwnedServer,
+    samples: &[f32],
+    operation: &ProcessingOperation,
+) -> Result<String> {
+    // Cancellation races the complete tonic interaction. Selecting at this
+    // boundary drops the current request, stream, and channel instead of
+    // waiting for the provider's 90-second timeout or discarding its text.
+    tokio::select! {
+        _ = operation.cancelled() => Err(anyhow!("Gemini transcription cancelled")),
+        result = tokio::time::timeout(
+            TRANSCRIPTION_TIMEOUT,
+            transcribe_over_grpc_inner(owned, samples),
+        ) => result
+            .map_err(|_| anyhow!("Gemini transcription timed out"))?,
+    }
 }
 
 /// Sends audio, ends the session, and reads the completed transcript.
@@ -981,8 +1039,9 @@ mod tests {
             .collect::<Vec<_>>();
 
         let transcriber = GeminiTranscriber::new();
+        let operation = ProcessingOperation::new(crate::OperationId(1));
         let transcript = transcriber
-            .transcribe(&samples)
+            .transcribe(&samples, &operation)
             .expect("live Gemini transcription should succeed");
         transcriber.shutdown();
         assert!(

@@ -1,5 +1,6 @@
 use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
+use crate::{OperationId, ProcessingOperation};
 use log::{debug, error, warn};
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
@@ -46,14 +47,14 @@ enum Command {
     /// async worker and the audio manager can still report recording active.
     Cancel,
     RemoteCancel,
-    ProcessingFinished,
+    ProcessingFinished(OperationId),
 }
 
 /// Pipeline lifecycle, owned exclusively by the coordinator thread.
 enum Stage {
     Idle,
     Recording(ActiveRecording),
-    Processing,
+    Processing { operation: ProcessingOperation },
 }
 
 fn next_deadline(stage: &Stage, pending_release: Option<&PendingRelease>) -> Option<Instant> {
@@ -127,7 +128,7 @@ fn classify_ptt_event(
 }
 
 fn cancellation_stage(stage: &Stage) -> crate::utils::CancellationStage {
-    if matches!(stage, Stage::Processing) {
+    if matches!(stage, Stage::Processing { .. }) {
         crate::utils::CancellationStage::Processing
     } else {
         crate::utils::CancellationStage::NotProcessing
@@ -136,9 +137,11 @@ fn cancellation_stage(stage: &Stage) -> crate::utils::CancellationStage {
 
 fn finish_cancel(stage: &mut Stage, pending_release: &mut Option<PendingRelease>) {
     *pending_release = None;
-    if !matches!(stage, Stage::Processing) {
-        *stage = Stage::Idle;
-    }
+    *stage = Stage::Idle;
+}
+
+fn is_current_processing(stage: &Stage, id: OperationId) -> bool {
+    matches!(stage, Stage::Processing { operation } if operation.id() == id)
 }
 
 fn queue_local_cancel(tx: &Sender<Command>) -> Result<(), mpsc::SendError<Command>> {
@@ -164,6 +167,7 @@ impl TranscriptionCoordinator {
         thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut stage = Stage::Idle;
+                let mut next_operation_id = 1_u64;
                 let mut last_press: Option<Instant> = None;
                 let mut pending_release: Option<PendingRelease> = None;
 
@@ -178,7 +182,13 @@ impl TranscriptionCoordinator {
                                 "Recording reached the 15-minute duration limit; stopping safely"
                             );
                         }
-                        stop(&app, &mut stage, &binding_id, &hotkey_string);
+                        stop(
+                            &app,
+                            &mut stage,
+                            &mut next_operation_id,
+                            &binding_id,
+                            &hotkey_string,
+                        );
                         continue;
                     }
 
@@ -251,7 +261,13 @@ impl TranscriptionCoordinator {
                                 } else if !is_pressed
                                     && matches!(&stage, Stage::Recording(recording) if recording.binding_id == binding_id)
                                 {
-                                    stop(&app, &mut stage, &binding_id, &hotkey_string);
+                                    stop(
+                                        &app,
+                                        &mut stage,
+                                        &mut next_operation_id,
+                                        &binding_id,
+                                        &hotkey_string,
+                                    );
                                 }
                             } else if is_pressed {
                                 match &stage {
@@ -261,7 +277,13 @@ impl TranscriptionCoordinator {
                                     Stage::Recording(recording)
                                         if recording.binding_id == binding_id =>
                                     {
-                                        stop(&app, &mut stage, &binding_id, &hotkey_string);
+                                        stop(
+                                            &app,
+                                            &mut stage,
+                                            &mut next_operation_id,
+                                            &binding_id,
+                                            &hotkey_string,
+                                        );
                                     }
                                     _ => {
                                         debug!("Ignoring press for '{binding_id}': pipeline busy")
@@ -279,14 +301,30 @@ impl TranscriptionCoordinator {
                             // audio manager, so that manager can still report
                             // recording active here.
                             let cancellation_stage = cancellation_stage(&stage);
+                            if let Stage::Processing { operation } = &stage {
+                                operation.cancel();
+                            }
                             crate::utils::cancel_current_operation_from_coordinator(
                                 &app,
                                 cancellation_stage,
                             );
                             finish_cancel(&mut stage, &mut pending_release);
                         }
-                        Command::ProcessingFinished => {
-                            stage = Stage::Idle;
+                        Command::ProcessingFinished(id) => {
+                            if is_current_processing(&stage, id) {
+                                stage = Stage::Idle;
+                                crate::shortcut::unregister_cancel_shortcut(&app);
+                                crate::tray::change_tray_icon(
+                                    &app,
+                                    crate::tray::TrayIconState::Idle,
+                                );
+                                crate::utils::hide_recording_overlay(&app);
+                            } else {
+                                debug!(
+                                    "Ignoring stale transcription completion for operation {}",
+                                    id.0
+                                );
+                            }
                         }
                     }
                 }
@@ -343,8 +381,8 @@ impl TranscriptionCoordinator {
         }
     }
 
-    pub fn notify_processing_finished(&self) {
-        if self.tx.send(Command::ProcessingFinished).is_err() {
+    pub fn notify_processing_finished(&self, id: OperationId) {
+        if self.tx.send(Command::ProcessingFinished(id)).is_err() {
             warn!("Transcription coordinator channel closed");
         }
     }
@@ -370,13 +408,23 @@ fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &s
     }
 }
 
-fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &str) {
+fn stop(
+    app: &AppHandle,
+    stage: &mut Stage,
+    next_operation_id: &mut u64,
+    binding_id: &str,
+    hotkey_string: &str,
+) {
     let Some(action) = ACTION_MAP.get(binding_id) else {
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
-    action.stop(app, binding_id, hotkey_string);
-    *stage = Stage::Processing;
+    let operation = ProcessingOperation::new(OperationId(*next_operation_id));
+    *next_operation_id = next_operation_id.wrapping_add(1);
+    *stage = Stage::Processing {
+        operation: operation.clone(),
+    };
+    action.stop(app, binding_id, hotkey_string, operation);
 }
 
 #[cfg(test)]
@@ -469,33 +517,44 @@ mod tests {
     }
 
     #[test]
-    fn remote_cancel_keeps_processing_stage_while_audio_is_still_stopping() {
-        let mut stage = Stage::Processing;
+    fn processing_cancel_returns_to_idle_while_audio_is_still_stopping() {
+        let mut stage = Stage::Processing {
+            operation: ProcessingOperation::new(OperationId(1)),
+        };
         let mut pending_release = None;
 
-        // `stop` moves the coordinator to Processing before its async worker
-        // stops the audio manager, so that manager can still report active.
         finish_cancel(&mut stage, &mut pending_release);
 
-        assert!(matches!(stage, Stage::Processing));
+        assert!(matches!(stage, Stage::Idle));
     }
 
     #[test]
     fn local_cancel_during_processing_uses_stage_not_active_audio_for_ui_cleanup() {
-        let mut stage = Stage::Processing;
+        let mut stage = Stage::Processing {
+            operation: ProcessingOperation::new(OperationId(1)),
+        };
         let mut pending_release = None;
 
-        // `stop` enters Processing before its worker releases the audio
-        // manager. The cancellation must still be signalled, but none of the
-        // idle UI side effects may run before FinishGuard completes.
         let effects = crate::utils::cancellation_effects(cancellation_stage(&stage), true);
         assert!(effects.signal_audio_cancellation);
-        assert!(!effects.unregister_cancel_shortcut);
-        assert!(!effects.set_tray_idle);
-        assert!(!effects.hide_recording_overlay);
+        assert!(effects.unregister_cancel_shortcut);
+        assert!(effects.set_tray_idle);
+        assert!(effects.hide_recording_overlay);
 
         finish_cancel(&mut stage, &mut pending_release);
-        assert!(matches!(stage, Stage::Processing));
+        assert!(matches!(stage, Stage::Idle));
+    }
+
+    #[test]
+    fn stale_completion_cannot_finish_a_later_operation() {
+        let first = OperationId(1);
+        let second = OperationId(2);
+        let stage = Stage::Processing {
+            operation: ProcessingOperation::new(second),
+        };
+
+        assert!(!is_current_processing(&stage, first));
+        assert!(is_current_processing(&stage, second));
     }
 
     #[test]
