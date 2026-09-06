@@ -746,12 +746,14 @@ mod tests {
         let waiting_drain = Arc::clone(&drain);
         let (tx, rx) = mpsc::channel();
         let waiter = thread::spawn(move || {
-            tx.send(waiting_drain.wait_bounded(Duration::from_millis(100)))
+            tx.send(waiting_drain.wait_bounded(Duration::from_secs(5)))
                 .unwrap();
         });
 
-        thread::sleep(Duration::from_millis(10));
-        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        assert!(matches!(
+            rx.recv_timeout(Duration::from_millis(10)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
         drain.finish();
         assert!(rx.recv().unwrap());
         waiter.join().unwrap();
