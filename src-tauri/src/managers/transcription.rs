@@ -3,11 +3,14 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::codex_transcribe;
-use crate::gemini_transcribe::GeminiTranscriber;
+use crate::gemini_transcribe::{GeminiTranscriber, ShutdownReceipt};
 use crate::settings::{get_settings, TranscriptionProvider};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
 use log::{debug, error, info};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 
 const SUPPORTED_LANGUAGES: &[&str] = &[
@@ -19,6 +22,22 @@ const SUPPORTED_LANGUAGES: &[&str] = &[
 pub struct TranscriptionManager {
     app_handle: AppHandle,
     gemini: GeminiTranscriber,
+    active_operations: Arc<Mutex<HashMap<u64, ProcessingOperation>>>,
+    next_active_operation: AtomicU64,
+    shutdown_requested: AtomicBool,
+}
+
+struct ActiveOperationGuard {
+    id: u64,
+    active_operations: Arc<Mutex<HashMap<u64, ProcessingOperation>>>,
+}
+
+impl Drop for ActiveOperationGuard {
+    fn drop(&mut self) {
+        if let Ok(mut operations) = self.active_operations.lock() {
+            operations.remove(&self.id);
+        }
+    }
 }
 
 impl TranscriptionManager {
@@ -27,6 +46,9 @@ impl TranscriptionManager {
         Self {
             app_handle: app_handle.clone(),
             gemini: GeminiTranscriber::new(),
+            active_operations: Arc::new(Mutex::new(HashMap::new())),
+            next_active_operation: AtomicU64::new(1),
+            shutdown_requested: AtomicBool::new(false),
         }
     }
 
@@ -37,6 +59,25 @@ impl TranscriptionManager {
         audio: Vec<f32>,
         operation: ProcessingOperation,
     ) -> Result<String> {
+        let provider = get_settings(&self.app_handle).transcription_provider;
+        self.transcribe_with_provider(audio, operation, provider)
+            .await
+    }
+
+    /// Runs a request against the provider chosen when that request starts.
+    /// UI changes while the network call is pending must not make downstream
+    /// output processing describe a different provider than the one used.
+    pub(crate) async fn transcribe_with_provider(
+        &self,
+        audio: Vec<f32>,
+        operation: ProcessingOperation,
+        provider: TranscriptionProvider,
+    ) -> Result<String> {
+        let _active_operation = self.register_active_operation(operation.clone());
+        if self.shutdown_requested.load(Ordering::Acquire) {
+            operation.cancel();
+            return Err(anyhow::anyhow!("Transcription manager is shutting down"));
+        }
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
             return Err(anyhow::anyhow!(
@@ -55,7 +96,6 @@ impl TranscriptionManager {
         let language =
             (settings.selected_language != "auto").then(|| settings.selected_language.clone());
 
-        let provider = settings.transcription_provider;
         debug!(
             "Sending {} samples to {:?} transcription (language={:?})",
             audio.len(),
@@ -69,7 +109,6 @@ impl TranscriptionManager {
             }
             TranscriptionProvider::Gemini => {
                 let gemini = self.gemini.clone();
-                let audio = audio.clone();
                 let operation = operation.clone();
                 tauri::async_runtime::spawn_blocking(move || gemini.transcribe(&audio, &operation))
                     .await
@@ -129,8 +168,45 @@ impl TranscriptionManager {
         tauri::async_runtime::block_on(self.transcribe(audio, operation))
     }
 
-    /// Releases provider resources before the application exits.
+    /// Signals all active transports and starts off-main Gemini cleanup.
+    /// The returned receipt is required by callers that are about to end the
+    /// process, so a Murmur-owned local server is not orphaned on exit.
+    pub fn begin_shutdown(&self) -> ShutdownReceipt {
+        // This registry is independent of Gemini's runtime-state mutex.
+        // Exit can therefore interrupt Codex HTTP and a Gemini gRPC request
+        // before any provider cleanup tries to acquire that mutex.
+        self.shutdown_requested.store(true, Ordering::Release);
+        let active_operations = self
+            .active_operations
+            .lock()
+            .map(|operations| operations.values().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for operation in active_operations {
+            operation.cancel();
+        }
+        self.gemini.begin_shutdown()
+    }
+
+    /// Releases provider resources without waiting. Tauri's terminal Exit
+    /// event uses this as a fallback; normal exit waits through the foreground
+    /// coordinator drain before reaching that event.
     pub fn shutdown(&self) {
-        self.gemini.shutdown();
+        let _ = self.begin_shutdown();
+    }
+
+    /// Bounded cleanup for non-AppKit callers such as the headless CLI worker.
+    pub fn shutdown_and_wait(&self, timeout: std::time::Duration) -> bool {
+        self.begin_shutdown().wait_bounded(timeout)
+    }
+
+    fn register_active_operation(&self, operation: ProcessingOperation) -> ActiveOperationGuard {
+        let id = self.next_active_operation.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut operations) = self.active_operations.lock() {
+            operations.insert(id, operation);
+        }
+        ActiveOperationGuard {
+            id,
+            active_operations: Arc::clone(&self.active_operations),
+        }
     }
 }

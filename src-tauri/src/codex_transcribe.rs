@@ -61,7 +61,13 @@ pub async fn transcribe(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
+    if operation.is_cancelled() {
+        return Err(anyhow!("Codex transcription cancelled"));
+    }
     let session = load_session()?;
+    if operation.is_cancelled() {
+        return Err(anyhow!("Codex transcription cancelled"));
+    }
     transcribe_with_session(&session, &wav, language, operation).await
 }
 

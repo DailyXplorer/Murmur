@@ -4,63 +4,23 @@ use log::info;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-pub use crate::clipboard::*;
 pub use crate::overlay::*;
 pub use crate::tray::*;
 
-/// The pipeline state supplied by the coordinator when it authorizes a
-/// cancellation. Audio state is deliberately not used to classify this: while
-/// the stop worker is running, it can briefly remain active during Processing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CancellationStage {
-    NotProcessing,
-    Processing,
-}
-
-/// Side effects permitted for a cancellation in a given authoritative stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CancellationEffects {
-    pub(crate) signal_audio_cancellation: bool,
-    pub(crate) unregister_cancel_shortcut: bool,
-    pub(crate) set_tray_idle: bool,
-    pub(crate) hide_recording_overlay: bool,
-}
-
-pub(crate) fn cancellation_effects(
-    stage: CancellationStage,
-    _audio_is_active: bool,
-) -> CancellationEffects {
-    // A processing operation now owns a cancellation token and completion
-    // identity. Once it is cancelled, its stale completion cannot reset a
-    // later recording, so UI state may return to idle immediately instead of
-    // waiting for a 90-second provider timeout.
-    let clean_up_immediately = matches!(
-        stage,
-        CancellationStage::NotProcessing | CancellationStage::Processing
-    );
-
-    CancellationEffects {
-        signal_audio_cancellation: true,
-        unregister_cancel_shortcut: clean_up_immediately,
-        set_tray_idle: clean_up_immediately,
-        hide_recording_overlay: clean_up_immediately,
-    }
-}
-
 /// Cancels from the coordinator thread after it has ordered the remote action.
-/// `stage` is the coordinator's authoritative state, which keeps the UI
-/// truthful while the stop task releases the audio manager asynchronously.
-pub(crate) fn cancel_current_operation_from_coordinator(app: &AppHandle, stage: CancellationStage) {
-    cancel_current_operation_impl(app, stage)
+/// The keyed coordinator ignores a stale completion, so UI and shortcut state
+/// may return to idle immediately while a recorder or provider is unwinding.
+pub(crate) fn cancel_current_operation_from_coordinator(app: &AppHandle) {
+    cancel_current_operation_impl(app)
 }
 
 /// Safe fallback for cancellation before the coordinator exists. Normal local
 /// cancellation is routed through `TranscriptionCoordinator::send_cancel`.
 pub(crate) fn cancel_current_operation_before_coordinator(app: &AppHandle) {
-    cancel_current_operation_impl(app, CancellationStage::NotProcessing)
+    cancel_current_operation_impl(app)
 }
 
-fn cancel_current_operation_impl(app: &AppHandle, stage: CancellationStage) {
+fn cancel_current_operation_impl(app: &AppHandle) {
     info!("Initiating operation cancellation...");
 
     let Some(audio_manager) = app.try_state::<Arc<AudioRecordingManager>>() else {
@@ -70,58 +30,9 @@ fn cancel_current_operation_impl(app: &AppHandle, stage: CancellationStage) {
         log::warn!("Ignoring cancellation before the audio manager is initialized");
         return;
     };
-    let recording_was_active = audio_manager.is_recording();
-    let effects = cancellation_effects(stage, recording_was_active);
-
-    if effects.signal_audio_cancellation {
-        audio_manager.cancel_recording();
-    }
-
-    // Processing cancellation is safe to clean up immediately: the keyed
-    // coordinator ignores an old finish after a new recording begins.
-    if effects.unregister_cancel_shortcut {
-        shortcut::unregister_cancel_shortcut(app);
-    }
-    if effects.set_tray_idle {
-        change_tray_icon(app, crate::tray::TrayIconState::Idle);
-    }
-    if effects.hide_recording_overlay {
-        hide_recording_overlay(app);
-    }
-    if effects.unregister_cancel_shortcut {
-        info!("Recording cancellation completed - returned to idle state");
-    } else {
-        info!("Processing cancellation requested - waiting for worker completion");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{cancellation_effects, CancellationEffects, CancellationStage};
-
-    #[test]
-    fn active_audio_during_processing_cleans_up_immediately() {
-        assert_eq!(
-            cancellation_effects(CancellationStage::Processing, true),
-            CancellationEffects {
-                signal_audio_cancellation: true,
-                unregister_cancel_shortcut: true,
-                set_tray_idle: true,
-                hide_recording_overlay: true,
-            }
-        );
-    }
-
-    #[test]
-    fn active_audio_during_recording_cleans_up_immediately() {
-        assert_eq!(
-            cancellation_effects(CancellationStage::NotProcessing, true),
-            CancellationEffects {
-                signal_audio_cancellation: true,
-                unregister_cancel_shortcut: true,
-                set_tray_idle: true,
-                hide_recording_overlay: true,
-            }
-        );
-    }
+    audio_manager.cancel_recording();
+    shortcut::unregister_cancel_shortcut(app);
+    change_tray_icon(app, crate::tray::TrayIconState::Idle);
+    hide_recording_overlay(app);
+    info!("Recording cancellation completed - returned to idle state");
 }

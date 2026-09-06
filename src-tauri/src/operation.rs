@@ -112,10 +112,6 @@ impl ProcessingOperation {
         }
     }
 
-    pub(crate) fn subscribe_cancel(&self) -> watch::Receiver<bool> {
-        self.state.cancelled_tx.subscribe()
-    }
-
     /// Claims the paste/history boundary if cancellation has not won already.
     /// The caller must invoke this at the actual publish/injection point, not
     /// while merely scheduling a delayed paste.

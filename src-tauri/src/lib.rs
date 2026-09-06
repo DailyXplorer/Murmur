@@ -616,7 +616,7 @@ pub fn run(cli_args: CliArgs) {
                     handle
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
-                        .shutdown();
+                        .shutdown_and_wait(std::time::Duration::from_secs(3));
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();
@@ -732,6 +732,17 @@ pub fn run(cli_args: CliArgs) {
         .run(|app, event| match &event {
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
+                    if !coordinator.allows_exit() {
+                        // A cancelled, already-posted Cmd+V still needs its
+                        // queued modifier-release receipt. Keep AppKit alive
+                        // for the coordinator's bounded foreground drain.
+                        api.prevent_exit();
+                        coordinator.begin_shutdown(app.clone());
+                    }
+                }
             }
             tauri::RunEvent::Exit => {
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {

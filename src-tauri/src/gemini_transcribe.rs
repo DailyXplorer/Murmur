@@ -4,12 +4,18 @@ use security_framework::os::macos::code_signing::{
     Flags as CodeSigningFlags, GuestAttributes, SecCode, SecRequirement,
 };
 use std::collections::BTreeSet;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex, Weak,
+};
 use std::thread;
 use std::time::{Duration, Instant};
+use tokio::sync::watch;
 use tonic::client::Grpc;
 use tonic::codec::ProstCodec;
 use tonic::codegen::http::uri::PathAndQuery;
@@ -27,6 +33,7 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const TRANSCRIPTION_TIMEOUT: Duration = Duration::from_secs(90);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const SUPERVISOR_INTERVAL: Duration = Duration::from_secs(5);
+const CHILD_REAP_TIMEOUT: Duration = Duration::from_secs(1);
 
 const ANTIGRAVITY_APP: &str = "/Applications/Antigravity.app";
 const ANTIGRAVITY_BINARY: &str =
@@ -75,6 +82,59 @@ pub fn open_antigravity() -> Result<()> {
 #[derive(Clone)]
 pub struct GeminiTranscriber {
     state: Arc<Mutex<RuntimeState>>,
+    shutdown: Arc<ShutdownSignal>,
+}
+
+/// Completion receipt for a shutdown that was scheduled away from AppKit.
+/// It resolves only after the owned-child cleanup task has released its state
+/// mutex and completed its bounded termination/reap sequence.
+pub struct ShutdownReceipt {
+    finished: Receiver<()>,
+}
+
+impl ShutdownReceipt {
+    pub fn wait_bounded(&self, timeout: Duration) -> bool {
+        self.finished.recv_timeout(timeout).is_ok()
+    }
+}
+
+/// Independent exit signal. It is intentionally outside RuntimeState because
+/// a gRPC transcription holds that mutex for ownership of the verified child.
+/// Shutdown must be able to interrupt that request before waiting for cleanup.
+struct ShutdownSignal {
+    requested: AtomicBool,
+    tx: watch::Sender<bool>,
+}
+
+impl ShutdownSignal {
+    fn new() -> Self {
+        let (tx, _) = watch::channel(false);
+        Self {
+            requested: AtomicBool::new(false),
+            tx,
+        }
+    }
+
+    fn request(&self) {
+        self.requested.store(true, Ordering::Release);
+        self.tx.send_replace(true);
+    }
+
+    fn is_requested(&self) -> bool {
+        self.requested.load(Ordering::Acquire)
+    }
+
+    async fn cancelled(&self) {
+        let mut requested = self.tx.subscribe();
+        if *requested.borrow() {
+            return;
+        }
+        while requested.changed().await.is_ok() {
+            if *requested.borrow() {
+                return;
+            }
+        }
+    }
 }
 
 impl GeminiTranscriber {
@@ -82,7 +142,10 @@ impl GeminiTranscriber {
     pub fn new() -> Self {
         let state = Arc::new(Mutex::new(RuntimeState::default()));
         spawn_supervisor(Arc::downgrade(&state));
-        Self { state }
+        Self {
+            state,
+            shutdown: Arc::new(ShutdownSignal::new()),
+        }
     }
 
     /// Transcribes normalized mono PCM samples with a Murmur-owned server
@@ -91,7 +154,7 @@ impl GeminiTranscriber {
         if samples.is_empty() {
             return Ok(String::new());
         }
-        if operation.is_cancelled() {
+        if cancellation_requested(operation, &self.shutdown) {
             return Err(anyhow!("Gemini transcription cancelled"));
         }
 
@@ -108,14 +171,19 @@ impl GeminiTranscriber {
             .state
             .lock()
             .map_err(|_| anyhow!("Gemini transcription state is unavailable"))?;
-        state.ensure_connection(&runtime, &binary, operation)?;
+        state.ensure_connection(&runtime, &binary, operation, &self.shutdown)?;
         let owned = state
             .owned
             .as_mut()
             .ok_or_else(|| anyhow!("verified Antigravity service is unavailable"))?;
-        let result = runtime.block_on(transcribe_over_grpc(owned, samples, operation));
+        let result = runtime.block_on(transcribe_over_grpc(
+            owned,
+            samples,
+            operation,
+            &self.shutdown,
+        ));
         owned.last_used = Instant::now();
-        if operation.is_cancelled() {
+        if cancellation_requested(operation, &self.shutdown) {
             // Dropping tonic's in-flight stream only closes Murmur's local
             // socket. The language server may still have an upstream request,
             // so terminate our verified, owned process before reporting the
@@ -126,13 +194,26 @@ impl GeminiTranscriber {
         result.map_err(friendly_transcription_error)
     }
 
-    /// Stops the language server started by this transcriber, if any.
-    pub fn shutdown(&self) {
-        let mut state = self
-            .state
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        state.stop_owned();
+    /// Starts a nonblocking shutdown and returns a receipt for bounded callers
+    /// (application exit and CLI) that must keep the process alive until the
+    /// verified child has been stopped.
+    pub fn begin_shutdown(&self) -> ShutdownReceipt {
+        self.shutdown.request();
+        let state = Arc::clone(&self.state);
+        // Run the bounded SIGINT/SIGKILL protocol off AppKit's event loop.
+        // If a request owns this mutex, its cancellation select releases it;
+        // this cleanup task then observes and stops any remaining child.
+        let (finished_tx, finished_rx) = mpsc::sync_channel(1);
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut state = state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.stop_owned();
+            let _ = finished_tx.send(());
+        });
+        ShutdownReceipt {
+            finished: finished_rx,
+        }
     }
 }
 
@@ -157,8 +238,9 @@ impl RuntimeState {
         runtime: &tokio::runtime::Runtime,
         binary: &Path,
         operation: &ProcessingOperation,
+        shutdown: &ShutdownSignal,
     ) -> Result<()> {
-        if operation.is_cancelled() {
+        if cancellation_requested(operation, shutdown) {
             return Err(anyhow!("Gemini transcription cancelled"));
         }
         if let Some(owned) = self.owned.as_mut() {
@@ -174,7 +256,7 @@ impl RuntimeState {
             }
         }
 
-        let owned = OwnedServer::start(binary, runtime, operation)?;
+        let owned = OwnedServer::start(binary, runtime, operation, shutdown)?;
         self.owned = Some(owned);
         Ok(())
     }
@@ -216,6 +298,7 @@ impl OwnedServer {
         binary: &Path,
         runtime: &tokio::runtime::Runtime,
         operation: &ProcessingOperation,
+        shutdown: &ShutdownSignal,
     ) -> Result<Self> {
         let csrf = generate_csrf_token()?;
         let mut command = Command::new(binary);
@@ -247,7 +330,7 @@ impl OwnedServer {
             .with_context(|| format!("failed to start {}", binary.display()))?;
         if let Err(error) = verify_running_antigravity_process(child.id()) {
             let _ = child.kill();
-            reap_child_async(child);
+            reap_child_bounded(child);
             return Err(error);
         }
         let connection = ConnectionInfo {
@@ -263,7 +346,7 @@ impl OwnedServer {
 
         let started = Instant::now();
         while started.elapsed() < STARTUP_TIMEOUT {
-            if operation.is_cancelled() {
+            if cancellation_requested(operation, shutdown) {
                 owned.stop();
                 return Err(anyhow!("Gemini transcription cancelled"));
             }
@@ -291,9 +374,12 @@ impl OwnedServer {
                     return Ok(owned);
                 }
             }
-            // Startup polling is bounded and observes cancellation before the
-            // next probe; this worker never runs on Tauri's main thread.
-            thread::sleep(Duration::from_millis(150));
+            // Startup polling is bounded and observes cancellation while it
+            // waits; this worker never runs on Tauri's main thread.
+            if wait_for_startup_poll(operation, shutdown, Duration::from_millis(150)).is_err() {
+                owned.stop();
+                return Err(anyhow!("Gemini transcription cancelled"));
+            }
         }
 
         owned.stop();
@@ -351,10 +437,11 @@ impl OwnedServer {
         }
 
         let _ = child.kill();
-        // `wait` is deliberately delegated after the bounded interrupt/kill
-        // protocol. A hung child can never keep cancellation, the coordinator,
-        // or the main thread blocked.
-        reap_child_async(child);
+        // A successful SIGKILL must be observed before an exit receipt is
+        // released, otherwise a headless process can leave an owned server
+        // behind. Bound the reap itself so a pathological kernel wait cannot
+        // keep a cancellation or quit path alive indefinitely.
+        reap_child_bounded(child);
         log::warn!("Forced the Murmur-owned Antigravity transcription service to stop");
     }
 }
@@ -365,10 +452,15 @@ impl Drop for OwnedServer {
     }
 }
 
-fn reap_child_async(mut child: Child) {
+fn reap_child_bounded(mut child: Child) {
+    let (reaped_tx, reaped_rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
         let _ = child.wait();
+        let _ = reaped_tx.send(());
     });
+    if reaped_rx.recv_timeout(CHILD_REAP_TIMEOUT).is_err() {
+        log::warn!("Timed out reaping forced Antigravity transcription service");
+    }
 }
 
 #[derive(Clone)]
@@ -625,17 +717,61 @@ async fn transcribe_over_grpc(
     owned: &mut OwnedServer,
     samples: &[f32],
     operation: &ProcessingOperation,
+    shutdown: &ShutdownSignal,
 ) -> Result<String> {
     // Cancellation races the complete tonic interaction. Selecting at this
     // boundary drops the current request, stream, and channel instead of
     // waiting for the provider's 90-second timeout or discarding its text.
-    tokio::select! {
-        _ = operation.cancelled() => Err(anyhow!("Gemini transcription cancelled")),
-        result = tokio::time::timeout(
+    cancel_network_wait(operation, shutdown, async {
+        let result = tokio::time::timeout(
             TRANSCRIPTION_TIMEOUT,
             transcribe_over_grpc_inner(owned, samples),
-        ) => result
-            .map_err(|_| anyhow!("Gemini transcription timed out"))?,
+        )
+        .await
+        .map_err(|_| anyhow!("Gemini transcription timed out"))?;
+        result
+    })
+    .await
+}
+
+fn cancellation_requested(operation: &ProcessingOperation, shutdown: &ShutdownSignal) -> bool {
+    operation.is_cancelled() || shutdown.is_requested()
+}
+
+/// Sleeps between startup probes without imposing a 150 ms cancellation lag.
+/// It receives no untrusted server data and is exercised with a fake wait in
+/// tests, so startup cancellation never needs an Antigravity installation.
+fn wait_for_startup_poll(
+    operation: &ProcessingOperation,
+    shutdown: &ShutdownSignal,
+    duration: Duration,
+) -> Result<()> {
+    let started = Instant::now();
+    while started.elapsed() < duration {
+        if cancellation_requested(operation, shutdown) {
+            return Err(anyhow!("Gemini transcription cancelled"));
+        }
+        let remaining = duration.saturating_sub(started.elapsed());
+        thread::sleep(remaining.min(Duration::from_millis(25)));
+    }
+    if cancellation_requested(operation, shutdown) {
+        return Err(anyhow!("Gemini transcription cancelled"));
+    }
+    Ok(())
+}
+
+async fn cancel_network_wait<T, F>(
+    operation: &ProcessingOperation,
+    shutdown: &ShutdownSignal,
+    future: F,
+) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
+    tokio::select! {
+        _ = operation.cancelled() => Err(anyhow!("Gemini transcription cancelled")),
+        _ = shutdown.cancelled() => Err(anyhow!("Gemini transcription cancelled")),
+        result = future => result,
     }
 }
 
@@ -941,6 +1077,43 @@ struct GetCapabilitiesResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OperationId;
+    use std::future;
+    use std::thread;
+
+    fn local_owned_server() -> (OwnedServer, u32) {
+        // `exec` makes the PID belong to sleep itself, so SIGINT tests the
+        // same owned-child protocol without touching Antigravity or a session.
+        let child = Command::new("/bin/sh")
+            .args(["-c", "exec /bin/sleep 30"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("local benign child should start");
+        let pid = child.id();
+        (
+            OwnedServer {
+                child: Some(child),
+                connection: ConnectionInfo {
+                    host: "127.0.0.1".to_string(),
+                    port: 1,
+                    csrf: "test".to_string(),
+                },
+                last_used: Instant::now(),
+            },
+            pid,
+        )
+    }
+
+    fn local_child_is_alive(pid: u32) -> bool {
+        Command::new("/bin/kill")
+            .args(["-0", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    }
 
     #[test]
     fn signature_verification_is_pinned_to_google_language_server() {
@@ -989,6 +1162,116 @@ mod tests {
             last_used + IDLE_TIMEOUT - Duration::from_millis(1)
         ));
         assert!(should_stop_owned(last_used, last_used + IDLE_TIMEOUT));
+    }
+
+    #[test]
+    fn cancelled_operation_never_probes_antigravity_startup() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        assert!(operation.cancel());
+
+        let result = GeminiTranscriber::new().transcribe(&[0.1], &operation);
+
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[test]
+    fn cancellation_drops_a_pending_gemini_result_without_a_live_server() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        let shutdown = ShutdownSignal::new();
+        let canceller = operation.clone();
+        let cancel_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            assert!(canceller.cancel());
+        });
+
+        let result = tauri::async_runtime::block_on(cancel_network_wait(
+            &operation,
+            &shutdown,
+            future::pending::<anyhow::Result<String>>(),
+        ));
+
+        cancel_thread.join().unwrap();
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[test]
+    fn shutdown_interrupts_a_pending_gemini_stream_without_a_live_server() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        let shutdown = Arc::new(ShutdownSignal::new());
+        let signal = Arc::clone(&shutdown);
+        let shutdown_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            signal.request();
+        });
+
+        let result = tauri::async_runtime::block_on(cancel_network_wait(
+            &operation,
+            &shutdown,
+            future::pending::<anyhow::Result<String>>(),
+        ));
+
+        shutdown_thread.join().unwrap();
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[test]
+    fn shutdown_interrupts_a_fake_startup_poll_without_antigravity() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        let shutdown = Arc::new(ShutdownSignal::new());
+        let signal = Arc::clone(&shutdown);
+        let shutdown_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            signal.request();
+        });
+
+        let result = wait_for_startup_poll(&operation, &shutdown, Duration::from_secs(1));
+
+        shutdown_thread.join().unwrap();
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[test]
+    fn shutdown_returns_while_gemini_runtime_state_is_busy() {
+        let transcriber = GeminiTranscriber::new();
+        let state = Arc::clone(&transcriber.state);
+        let busy_state = state.lock().unwrap();
+
+        let started = Instant::now();
+        let receipt = transcriber.begin_shutdown();
+
+        assert!(transcriber.shutdown.is_requested());
+        assert!(started.elapsed() < Duration::from_millis(100));
+        drop(busy_state);
+        assert!(receipt.wait_bounded(Duration::from_secs(3)));
+    }
+
+    #[test]
+    fn shutdown_receipt_reaps_an_idle_owned_local_child() {
+        let transcriber = GeminiTranscriber::new();
+        let (owned, pid) = local_owned_server();
+        transcriber.state.lock().unwrap().owned = Some(owned);
+
+        let receipt = transcriber.begin_shutdown();
+
+        assert!(receipt.wait_bounded(Duration::from_secs(3)));
+        assert!(!local_child_is_alive(pid));
+    }
+
+    #[test]
+    fn shutdown_receipt_waits_for_busy_state_then_reaps_owned_local_child() {
+        let transcriber = GeminiTranscriber::new();
+        let (owned, pid) = local_owned_server();
+        transcriber.state.lock().unwrap().owned = Some(owned);
+        let busy_state = transcriber.state.lock().unwrap();
+
+        let receipt = transcriber.begin_shutdown();
+
+        // A request holding RuntimeState delays cleanup, but begin_shutdown
+        // itself already returned and has broadcast cancellation.
+        assert!(!receipt.wait_bounded(Duration::from_millis(10)));
+        drop(busy_state);
+        assert!(receipt.wait_bounded(Duration::from_secs(3)));
+        assert!(!local_child_is_alive(pid));
     }
 
     /// Accepts IPv4, IPv6, and IPv4-mapped loopback hosts for gRPC endpoints.
@@ -1043,7 +1326,9 @@ mod tests {
         let transcript = transcriber
             .transcribe(&samples, &operation)
             .expect("live Gemini transcription should succeed");
-        transcriber.shutdown();
+        assert!(transcriber
+            .begin_shutdown()
+            .wait_bounded(Duration::from_secs(3)));
         assert!(
             transcriber
                 .state

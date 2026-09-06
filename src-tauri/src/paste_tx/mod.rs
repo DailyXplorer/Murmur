@@ -28,6 +28,7 @@
 use std::time::{Duration, Instant};
 
 mod macos;
+pub(crate) use macos::ReliablePasteReceipt;
 
 /// Bounded lifetime of the promised transcript. Reads never shorten it because
 /// AppKit does not reveal whether the intended target or a third party read.
@@ -89,6 +90,15 @@ pub(crate) enum WaitDecision {
     Finish,
 }
 
+/// Result of attempting the initial guarded-paste transaction. A successful
+/// return always means the transaction owns its later settlement; callers must
+/// not fall back and overwrite its recovery text.
+pub(crate) enum ReliablePasteOutcome {
+    Cancelled,
+    Injected(ReliablePasteReceipt),
+    Skipped,
+}
+
 /// Pure decision: keep the promise alive for its bounded lifetime, or finish.
 pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     if state.ownership_lost || state.cancelled {
@@ -105,23 +115,25 @@ pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     WaitDecision::KeepWaiting
 }
 
-/// Attempts the guarded promised-data paste. Returns `Err` before anything has
-/// been published when the macOS transaction cannot start, in which case the
-/// caller uses a non-restoring fallback. On `Ok`, publishing and chord
-/// injection have completed and settlement finishes asynchronously.
+/// Attempts the guarded promised-data paste. A `Skipped` result means the
+/// operation won the output boundary but no chord was injected, so callers
+/// must not start a second paste. On `Injected(_)`, settlement finishes
+/// asynchronously while the receipt covers the cancellable auto-submit delay.
 pub(crate) fn try_reliable_paste(
     text: &str,
     app_handle: &tauri::AppHandle,
     auto_submit: bool,
     auto_submit_key: crate::settings::AutoSubmitKey,
     clipboard_handling: crate::settings::ClipboardHandling,
-) -> Result<(), String> {
+    operation: crate::operation::ProcessingOperation,
+) -> ReliablePasteOutcome {
     macos::run(
         text,
         app_handle,
         auto_submit,
         auto_submit_key,
         clipboard_handling,
+        operation,
     )
 }
 

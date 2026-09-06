@@ -8,11 +8,10 @@
 //!
 //! Threading: publishing and chord injection happen on the calling (main)
 //! thread, because promised pasteboard data is serviced by AppKit on the main
-//! run loop. The (potentially seconds-long) wait runs on a worker thread; the
+//! run loop. The (potentially seconds-long) wait uses the async runtime; the
 //! guarded settlement is dispatched back to the main thread.
 
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use log::{error, info};
@@ -21,12 +20,14 @@ use objc2::{define_class, msg_send, AnyThread, DefinedClass};
 use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::{NSArray, NSInteger, NSObject, NSString};
 use tauri::AppHandle;
+use tokio::sync::oneshot;
 
-use super::{evaluate, TxState, WaitDecision};
+use super::{evaluate, ReliablePasteOutcome, TxState, WaitDecision};
 use crate::clipboard::{
     frontmost_target, send_paste_if_target_unchanged, send_return_if_target_unchanged,
-    FrontmostTarget,
+    FrontmostTarget, PasteReleaseReceipt,
 };
+use crate::operation::ProcessingOperation;
 use crate::settings::{AutoSubmitKey, ClipboardHandling};
 
 /// Concealment marker types declared alongside the text so that well-behaved
@@ -104,6 +105,15 @@ struct MacPending {
     /// The transcript, for `preserve_transcript` materialization at settle time.
     transcript: String,
     settled: bool,
+}
+
+/// Initial reliable-paste receipt. Its asynchronous method covers only the
+/// cancellable auto-submit delay; pasteboard settlement stays independent.
+pub(crate) struct ReliablePasteReceipt {
+    pending: Arc<Mutex<MacPending>>,
+    operation: ProcessingOperation,
+    release: PasteReleaseReceipt,
+    auto_submit: Option<(AutoSubmitKey, FrontmostTarget)>,
 }
 
 /// The transaction currently holding the clipboard, if any. A new paste
@@ -226,10 +236,21 @@ fn flush_pending() {
     }
 }
 
-fn same_pending(
-    current: Option<&Arc<Mutex<MacPending>>>,
-    candidate: &Arc<Mutex<MacPending>>,
-) -> bool {
+/// Makes the output claim before touching an older transaction. A queued
+/// callback whose operation was already cancelled must leave that transaction
+/// to its own bounded settlement instead of clearing it early.
+fn claim_before_pasteboard_mutation<F>(operation: &ProcessingOperation, mutation: F) -> bool
+where
+    F: FnOnce(),
+{
+    let Some(_permit) = operation.try_enter_paste() else {
+        return false;
+    };
+    mutation();
+    true
+}
+
+fn same_pending<T>(current: Option<&Arc<Mutex<T>>>, candidate: &Arc<Mutex<T>>) -> bool {
     current
         .map(|pending| Arc::ptr_eq(pending, candidate))
         .unwrap_or(false)
@@ -242,37 +263,10 @@ fn is_current_pending(candidate: &Arc<Mutex<MacPending>>) -> bool {
         .unwrap_or(false)
 }
 
-fn spawn_waiter(
-    pending: Arc<Mutex<MacPending>>,
-    app_handle: AppHandle,
-    auto_submit: Option<(AutoSubmitKey, FrontmostTarget)>,
-) {
-    thread::spawn(move || {
-        if let Some((auto_submit_key, target)) = auto_submit {
-            // Keep AppKit's main run loop free to fulfill the promised
-            // pasteboard data before submitting the target form.
-            thread::sleep(Duration::from_millis(50));
-            let pending_for_submit = pending.clone();
-            if let Err(error) = app_handle.run_on_main_thread(move || {
-                // A newer paste may have replaced this transaction while the
-                // delay elapsed. Focus identity alone cannot detect that when
-                // both pastes target the same application.
-                if !is_current_pending(&pending_for_submit) {
-                    info!("[reliable-paste] skipping auto-submit for superseded transaction");
-                    return;
-                }
-                if let Err(error) =
-                    send_return_if_target_unchanged(auto_submit_key, Some(target)).map(|_| ())
-                {
-                    error!("[reliable-paste] paste succeeded, but auto-submit failed: {error}");
-                }
-            }) {
-                error!("[reliable-paste] failed to queue auto-submit on main thread: {error}");
-            }
-        }
-
+fn spawn_waiter(pending: Arc<Mutex<MacPending>>, app_handle: AppHandle) {
+    tauri::async_runtime::spawn(async move {
         let outcome = loop {
-            thread::sleep(Duration::from_millis(15));
+            tokio::time::sleep(Duration::from_millis(15)).await;
             let (decision, state_snapshot) = {
                 let p = match pending.lock() {
                     Ok(p) => p,
@@ -320,16 +314,66 @@ fn spawn_waiter(
     });
 }
 
+impl ReliablePasteReceipt {
+    /// Keeps the pipeline cancellable until the delayed auto-submit has either
+    /// run or been suppressed. It intentionally does not wait for settlement.
+    pub(crate) async fn complete_auto_submit(self, app_handle: AppHandle) -> Result<(), String> {
+        self.release.wait().await?;
+        let Some((auto_submit_key, target)) = self.auto_submit else {
+            return Ok(());
+        };
+        if self.operation.cancellation_requested() {
+            return Ok(());
+        }
+
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+            _ = self.operation.cancelled() => return Ok(()),
+        }
+        if self.operation.cancellation_requested() {
+            return Ok(());
+        }
+
+        let (sender, mut receiver) = oneshot::channel();
+        let pending = self.pending.clone();
+        let operation = self.operation.clone();
+        app_handle
+            .run_on_main_thread(move || {
+                if !operation.cancellation_requested() {
+                    // A newer paste may have replaced this transaction while
+                    // the delay elapsed. Focus identity alone cannot detect
+                    // that when both pastes target the same application.
+                    if !is_current_pending(&pending) {
+                        info!("[reliable-paste] skipping auto-submit for superseded transaction");
+                    } else if let Err(error) =
+                        send_return_if_target_unchanged(auto_submit_key, Some(target)).map(|_| ())
+                    {
+                        error!("[reliable-paste] paste succeeded, but auto-submit failed: {error}");
+                    }
+                }
+                let _ = sender.send(());
+            })
+            .map_err(|error| format!("[reliable-paste] failed to queue auto-submit: {error}"))?;
+
+        tokio::select! {
+            result = &mut receiver => result
+                .map_err(|_| "[reliable-paste] queued auto-submit was dropped".to_string()),
+            _ = self.operation.cancelled() => Ok(()),
+        }
+    }
+}
+
 pub(super) fn run(
     text: &str,
     app_handle: &AppHandle,
     auto_submit: bool,
     auto_submit_key: AutoSubmitKey,
     clipboard_handling: ClipboardHandling,
-) -> Result<(), String> {
-    let target: FrontmostTarget = frontmost_target().ok_or("No stable frontmost paste target")?;
-    // Settle any previous transaction before publishing the next promise.
-    flush_pending();
+    operation: ProcessingOperation,
+) -> ReliablePasteOutcome {
+    let Some(target) = frontmost_target() else {
+        return ReliablePasteOutcome::Skipped;
+    };
 
     let state = Arc::new(Mutex::new(TxState::new()));
     let provider = MurmurPasteProvider::new(state.clone(), text.to_string());
@@ -342,12 +386,17 @@ pub(super) fn run(
     }
     let types = NSArray::from_retained_slice(&types);
 
+    if !claim_before_pasteboard_mutation(&operation, flush_pending) {
+        return ReliablePasteOutcome::Cancelled;
+    }
+
     // declareTypes:owner: clears the pasteboard and puts our promise on it;
     // the return value is the new changeCount.
     let change_count: NSInteger =
         unsafe { msg_send![&*pasteboard, declareTypes: &*types, owner: &*provider] };
     if change_count <= 0 {
-        return Err("declareTypes:owner: failed".to_string());
+        error!("[reliable-paste] declareTypes:owner: failed after output claim");
+        return ReliablePasteOutcome::Skipped;
     }
     info!("[reliable-paste] published transcript as lazy promise (changeCount {change_count})");
 
@@ -356,17 +405,17 @@ pub(super) fn run(
     if let Ok(mut st) = state.lock() {
         st.injected_at = Some(Instant::now());
     }
-    let paste_injected = match send_paste_if_target_unchanged(Some(target.clone())) {
-        Ok(true) => {
+    let release = match send_paste_if_target_unchanged(Some(target.clone()), app_handle) {
+        Ok(Some(receipt)) => {
             info!("[reliable-paste] Cmd+V sent");
-            true
+            Some(receipt)
         }
-        Ok(false) => {
+        Ok(None) => {
             if let Ok(mut st) = state.lock() {
                 st.injection_failed = true;
             }
             info!("[reliable-paste] target changed before Cmd+V; paste skipped");
-            false
+            None
         }
         Err(e) => {
             // Keep the transaction alive long enough to replace the promise
@@ -376,7 +425,7 @@ pub(super) fn run(
                 st.injection_failed = true;
             }
             error!("[reliable-paste] failed to send paste chord: {e}");
-            false
+            None
         }
     };
 
@@ -391,15 +440,24 @@ pub(super) fn run(
     if let Ok(mut slot) = PENDING.lock() {
         *slot = Some(pending.clone());
     }
-    let auto_submit = (paste_injected && auto_submit).then_some((auto_submit_key, target));
-    spawn_waiter(pending, app_handle.clone(), auto_submit);
+    spawn_waiter(pending.clone(), app_handle.clone());
 
-    Ok(())
+    if let Some(release) = release {
+        ReliablePasteOutcome::Injected(ReliablePasteReceipt {
+            pending,
+            operation,
+            release,
+            auto_submit: auto_submit.then_some((auto_submit_key, target)),
+        })
+    } else {
+        ReliablePasteOutcome::Skipped
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operation::OperationId;
 
     #[test]
     fn never_restores_prior_clipboard_data() {
@@ -432,16 +490,22 @@ mod tests {
     }
 
     #[test]
+    fn cancellation_before_queued_callback_leaves_live_pending_unsettled() {
+        let operation = ProcessingOperation::new(OperationId(7));
+        let pending = Arc::new(Mutex::new(Some("live-pr64-transaction")));
+        assert!(operation.cancel());
+
+        let pending_for_mutation = pending.clone();
+        assert!(!claim_before_pasteboard_mutation(&operation, move || {
+            pending_for_mutation.lock().unwrap().take();
+        }));
+        assert_eq!(*pending.lock().unwrap(), Some("live-pr64-transaction"));
+    }
+
+    #[test]
     fn auto_submit_guard_accepts_only_the_current_transaction() {
-        fn pending() -> Arc<Mutex<MacPending>> {
-            Arc::new(Mutex::new(MacPending {
-                state: Arc::new(Mutex::new(TxState::new())),
-                change_count: 0,
-                provider: None,
-                preserve_transcript: false,
-                transcript: String::new(),
-                settled: false,
-            }))
+        fn pending() -> Arc<Mutex<()>> {
+            Arc::new(Mutex::new(()))
         }
 
         let current = pending();
@@ -450,5 +514,11 @@ mod tests {
         assert!(same_pending(Some(&current), &current));
         assert!(!same_pending(Some(&current), &superseded));
         assert!(!same_pending(None, &current));
+    }
+
+    #[test]
+    fn reliable_paste_waiter_has_no_blocking_thread_sleep() {
+        let forbidden = ["thread", "::sleep"].concat();
+        assert!(!include_str!("macos.rs").contains(&forbidden));
     }
 }

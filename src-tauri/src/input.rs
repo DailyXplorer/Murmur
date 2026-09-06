@@ -175,7 +175,6 @@ fn send_key_chord_to_pid(
     pid: i32,
     keycode: u16,
     modifier: Option<TargetedModifier>,
-    hold_ms: u64,
 ) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
         .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
@@ -207,26 +206,48 @@ fn send_key_chord_to_pid(
     key_up.post_to_pid(pid);
 
     if let Some(event) = modifier_up {
-        std::thread::sleep(std::time::Duration::from_millis(hold_ms));
         event.post_to_pid(pid);
     }
     Ok(())
 }
 
-/// Sends Cmd+V directly to the process that was frontmost when the operation
-/// began. Unlike a global HID post, a focus switch cannot redirect the chord.
-pub fn send_paste_to_pid(pid: i32, hold_ms: u64) -> Result<(), String> {
-    send_key_chord_to_pid(
-        pid,
-        macos::command_v_keycode(),
-        Some(TargetedModifier::Command),
-        hold_ms,
-    )
+/// Posts Command+V without releasing Command. The caller must schedule
+/// `release_paste_modifier_to_pid` after the hardware-compatibility hold.
+/// Both calls must run on the macOS main thread.
+pub fn send_paste_to_pid(pid: i32) -> Result<(), String> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
+    let keycode = macos::command_v_keycode();
+    let (_, flags) = modifier_event(TargetedModifier::Command);
+    let modifier_down = keyboard_event(&source, KeyCode::COMMAND, true, flags)?;
+    let key_down = keyboard_event(&source, keycode, true, flags)?;
+    let key_up = keyboard_event(&source, keycode, false, flags)?;
+
+    modifier_down.post_to_pid(pid);
+    key_down.post_to_pid(pid);
+    key_up.post_to_pid(pid);
+    Ok(())
+}
+
+/// Releases the Command key for a previously posted targeted paste chord.
+/// This deliberately does not revalidate focus: a focus switch must not leave
+/// Command logically held in the process that received the original key-down.
+pub fn release_paste_modifier_to_pid(pid: i32) -> Result<(), String> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
+    let event = keyboard_event(
+        &source,
+        KeyCode::COMMAND,
+        false,
+        CGEventFlags::CGEventFlagNull,
+    )?;
+    event.post_to_pid(pid);
+    Ok(())
 }
 
 /// Sends Return, optionally with a modifier, directly to one process.
 pub fn send_return_to_pid(pid: i32, modifier: Option<TargetedModifier>) -> Result<(), String> {
-    send_key_chord_to_pid(pid, KeyCode::RETURN, modifier, 0)
+    send_key_chord_to_pid(pid, KeyCode::RETURN, modifier)
 }
 
 const MAX_UNICODE_EVENT_UNITS: usize = 20;
@@ -314,5 +335,11 @@ mod targeted_input_tests {
             assert!(chunks[0].starts_with('\u{200b}'));
             assert_eq!(chunks[0].trim_start_matches('\u{200b}'), input);
         }
+    }
+
+    #[test]
+    fn targeted_input_does_not_block_for_modifier_holds() {
+        let forbidden = ["thread", "::sleep"].concat();
+        assert!(!include_str!("input.rs").contains(&forbidden));
     }
 }

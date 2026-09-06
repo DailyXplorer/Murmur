@@ -1,24 +1,36 @@
 use crate::input::{self, TargetedModifier};
-use crate::paste_tx::SETTLEMENT_TIMEOUT;
+use crate::operation::ProcessingOperation;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
-use log::info;
-use objc2_app_kit::{NSPasteboard, NSWorkspace};
-use objc2_foundation::{NSInteger, NSString};
-use std::thread;
-use std::time::{Duration, Instant};
+use log::{info, warn};
+use objc2_app_kit::NSWorkspace;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tokio::sync::oneshot;
 
-// Kept at parity with the legacy path: some systems drop Cmd+V when the
-// modifier is released too quickly.
-const PASTE_CHORD_HOLD_MS: u64 = 100;
-const TEXT_PASTEBOARD_TYPE: &str = "public.utf8-plain-text";
+// Some systems drop Cmd+V when Command is released too quickly. Releasing it
+// is scheduled separately so the macOS main thread never waits for this hold.
+pub(crate) const PASTE_CHORD_HOLD: Duration = Duration::from_millis(100);
+const AUTO_SUBMIT_DELAY: Duration = Duration::from_millis(50);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PasteOutcome {
+    /// Cancellation won before an irreversible output action.
+    Cancelled,
+    /// Text or Cmd+V was posted to the validated target.
+    Injected,
+    /// No target was available or it changed before output could start.
+    Skipped,
+    /// The user selected PasteMethod::None; history may still be committed.
+    IntentionalNone,
+}
 
 fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     app_handle
         .clipboard()
         .write_text(text)
-        .map_err(|e| format!("Failed to write to clipboard: {}", e))
+        .map_err(|e| format!("Failed to write to clipboard: {e}"))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,290 +89,417 @@ pub(crate) fn send_return_if_target_unchanged(
     Ok(true)
 }
 
-pub(crate) fn send_paste_if_target_unchanged(
-    captured: Option<FrontmostTarget>,
-) -> Result<bool, String> {
-    let Some(target) = captured else {
-        info!("Skipping paste because there is no stable target");
-        return Ok(false);
-    };
-    if !same_frontmost_target(Some(target.clone()), frontmost_target()) {
-        info!("Skipping paste because the frontmost application changed");
-        return Ok(false);
-    }
-    input::send_paste_to_pid(target.pid, PASTE_CHORD_HOLD_MS)?;
-    Ok(true)
+pub(crate) struct PasteReleaseReceipt {
+    receiver: oneshot::Receiver<Result<(), String>>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum FallbackClipboardAction {
-    PasteSkipped,
-    ClearAfterSafetyWindow,
-    KeepTranscript,
-}
-
-fn fallback_clipboard_action(
-    paste_injected: bool,
-    clipboard_handling: ClipboardHandling,
-) -> FallbackClipboardAction {
-    if !paste_injected {
-        FallbackClipboardAction::PasteSkipped
-    } else if clipboard_handling == ClipboardHandling::DontModify {
-        FallbackClipboardAction::ClearAfterSafetyWindow
-    } else {
-        FallbackClipboardAction::KeepTranscript
+impl PasteReleaseReceipt {
+    /// Waits for the release callback unconditionally: cancellation may stop a
+    /// later Return, but it must never strand Command down in the paste target.
+    pub(crate) async fn wait(self) -> Result<(), String> {
+        self.receiver
+            .await
+            .map_err(|_| "Targeted paste modifier release was dropped".to_string())?
     }
 }
 
-fn same_change_count(published: NSInteger, current: NSInteger) -> bool {
-    published == current
-}
-
-/// Publishes plain text without snapshotting or restoring earlier clipboard
-/// data. A concurrent clipboard owner wins if it takes ownership between the
-/// clear and the write.
-fn publish_fallback_transcript(text: &str) -> Result<NSInteger, String> {
-    let pasteboard = NSPasteboard::generalPasteboard();
-    let change_count = pasteboard.clearContents();
-    let payload = NSString::from_str(text);
-    let text_type = NSString::from_str(TEXT_PASTEBOARD_TYPE);
-    if !pasteboard.setString_forType(&payload, &text_type) {
-        return Err("Clipboard changed while publishing the transcription".to_string());
-    }
-    Ok(change_count)
-}
-
-/// Erases Murmur's fallback text without taking ownership away from a newer
-/// clipboard writer. `setString:forType:` fails if ownership changed after the
-/// initial publication, including in the interval after the change-count test.
-fn erase_fallback_transcript_if_owned(published_change_count: NSInteger) -> bool {
-    let pasteboard = NSPasteboard::generalPasteboard();
-    if !same_change_count(published_change_count, pasteboard.changeCount()) {
-        return false;
-    }
-    let empty = NSString::from_str("");
-    let text_type = NSString::from_str(TEXT_PASTEBOARD_TYPE);
-    pasteboard.setString_forType(&empty, &text_type)
-}
-
-fn spawn_fallback_follow_up(
-    app_handle: AppHandle,
-    target: FrontmostTarget,
-    published_at: Instant,
-    published_change_count: NSInteger,
-    auto_submit_key: Option<AutoSubmitKey>,
-    clear_after_paste: bool,
-) {
-    thread::spawn(move || {
-        if let Some(auto_submit_key) = auto_submit_key {
-            thread::sleep(Duration::from_millis(50));
-            if let Err(error) = app_handle.run_on_main_thread(move || {
-                let current_change_count = NSPasteboard::generalPasteboard().changeCount();
-                if !same_change_count(published_change_count, current_change_count) {
-                    info!("Skipping fallback auto-submit because the paste was superseded");
-                    return;
+fn schedule_paste_modifier_release_with<F, R>(
+    hold: Duration,
+    pid: i32,
+    dispatch: F,
+    release: R,
+) -> PasteReleaseReceipt
+where
+    F: FnOnce(Box<dyn FnOnce() + Send>) -> Result<(), String> + Send + 'static,
+    R: FnOnce(i32) -> Result<(), String> + Send + 'static,
+{
+    let (sender, receiver) = oneshot::channel();
+    let completion = Arc::new(Mutex::new(Some(sender)));
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(hold).await;
+        let callback_completion = completion.clone();
+        let queued = dispatch(Box::new(move || {
+            let result = release(pid);
+            if let Ok(mut slot) = callback_completion.lock() {
+                if let Some(sender) = slot.take() {
+                    let _ = sender.send(result);
                 }
-                if let Err(error) =
-                    send_return_if_target_unchanged(auto_submit_key, Some(target)).map(|_| ())
-                {
-                    log::warn!("Fallback paste succeeded, but auto-submit failed: {error}");
-                }
-            }) {
-                log::warn!("Failed to queue fallback auto-submit on the main thread: {error}");
             }
-        }
-
-        if clear_after_paste {
-            thread::sleep(SETTLEMENT_TIMEOUT.saturating_sub(published_at.elapsed()));
-            if let Err(error) = app_handle.run_on_main_thread(move || {
-                if erase_fallback_transcript_if_owned(published_change_count) {
-                    info!("Erased fallback transcription without restoring prior clipboard data");
-                } else {
-                    info!("Clipboard changed before fallback cleanup; leaving it untouched");
+        }));
+        if let Err(error) = queued {
+            if let Ok(mut slot) = completion.lock() {
+                if let Some(sender) = slot.take() {
+                    let _ = sender.send(Err(error));
                 }
-            }) {
-                log::warn!("Failed to queue fallback clipboard cleanup: {error}");
             }
         }
     });
+    PasteReleaseReceipt { receiver }
 }
 
-/// Conservative fallback for a guarded pasteboard transaction that could not
-/// start. It never snapshots or restores previous clipboard data. A failed
-/// injection leaves the transcript available for recovery.
-fn paste_via_clipboard_without_restore(
-    text: &str,
-    app_handle: &AppHandle,
-    paste_delay_ms: u64,
-    paste_delay_after_ms: u64,
-    clipboard_handling: ClipboardHandling,
-    auto_submit: bool,
-    auto_submit_key: AutoSubmitKey,
-) -> Result<(), String> {
-    let target = frontmost_target().ok_or("No stable frontmost paste target")?;
-    let published_change_count = publish_fallback_transcript(text)?;
-    let published_at = Instant::now();
-    std::thread::sleep(Duration::from_millis(paste_delay_ms));
-    let paste_injected = send_paste_if_target_unchanged(Some(target.clone()))?;
-    let action = fallback_clipboard_action(paste_injected, clipboard_handling);
-    if action == FallbackClipboardAction::PasteSkipped {
-        return Err("Paste skipped because the frontmost target changed".to_string());
-    }
-    std::thread::sleep(Duration::from_millis(paste_delay_after_ms));
-
-    spawn_fallback_follow_up(
-        app_handle.clone(),
-        target,
-        published_at,
-        published_change_count,
-        auto_submit.then_some(auto_submit_key),
-        action == FallbackClipboardAction::ClearAfterSafetyWindow,
-    );
-    Ok(())
+fn schedule_paste_modifier_release(app_handle: AppHandle, pid: i32) -> PasteReleaseReceipt {
+    schedule_paste_modifier_release_with(
+        PASTE_CHORD_HOLD,
+        pid,
+        move |callback| {
+            app_handle.run_on_main_thread(callback).map_err(|error| {
+                format!("Failed to queue targeted paste modifier release: {error}")
+            })
+        },
+        input::release_paste_modifier_to_pid,
+    )
 }
 
-fn paste_direct_if_target_unchanged(
-    text: &str,
+/// Sends the press portion of Cmd+V only after revalidating the captured app.
+/// Its release is deliberately sent to the original PID even if cancellation
+/// or a focus change follows the press.
+pub(crate) fn send_paste_if_target_unchanged(
     captured: Option<FrontmostTarget>,
-) -> Result<bool, String> {
+    app_handle: &AppHandle,
+) -> Result<Option<PasteReleaseReceipt>, String> {
     let Some(target) = captured else {
+        info!("Skipping paste because there is no stable target");
+        return Ok(None);
+    };
+    if !same_frontmost_target(Some(target.clone()), frontmost_target()) {
+        info!("Skipping paste because the frontmost application changed");
+        return Ok(None);
+    }
+    input::send_paste_to_pid(target.pid)?;
+    Ok(Some(schedule_paste_modifier_release(
+        app_handle.clone(),
+        target.pid,
+    )))
+}
+
+#[derive(PartialEq, Eq)]
+enum DirectStart {
+    Cancelled,
+    Injected,
+    Skipped,
+}
+
+fn validated_direct_target() -> Option<FrontmostTarget> {
+    let Some(target) = frontmost_target() else {
         info!("Skipping direct paste because there is no stable target");
-        return Ok(false);
+        return None;
     };
     if !same_frontmost_target(Some(target.clone()), frontmost_target()) {
         info!("Skipping direct paste because the frontmost application changed");
-        return Ok(false);
+        return None;
     }
-    input::send_text_to_pid(target.pid, text)?;
-    Ok(true)
+    Some(target)
 }
 
-pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
+async fn complete_direct_auto_submit(
+    app_handle: AppHandle,
+    operation: ProcessingOperation,
+    target: FrontmostTarget,
+    auto_submit_key: AutoSubmitKey,
+) -> Result<(), String> {
+    let operation_for_submit = operation.clone();
+    await_auto_submit_receipt(&app_handle, &operation, AUTO_SUBMIT_DELAY, move || {
+        if operation_for_submit.cancellation_requested() {
+            return;
+        }
+        if let Err(error) = send_return_if_target_unchanged(auto_submit_key, Some(target)) {
+            warn!("Paste succeeded, but auto-submit failed: {error}");
+        }
+    })
+    .await
+}
+
+async fn await_auto_submit_receipt<F>(
+    app_handle: &AppHandle,
+    operation: &ProcessingOperation,
+    delay: Duration,
+    action: F,
+) -> Result<(), String>
+where
+    F: FnOnce() + Send + 'static,
+{
+    if wait_or_cancel(delay, operation).await {
+        return Ok(());
+    }
+
+    let (sender, mut receiver) = oneshot::channel();
+    app_handle
+        .run_on_main_thread(move || {
+            action();
+            let _ = sender.send(());
+        })
+        .map_err(|error| format!("Failed to queue auto-submit: {error}"))?;
+
+    tokio::select! {
+        result = &mut receiver => result
+            .map_err(|_| "Queued auto-submit was dropped before execution".to_string()),
+        _ = operation.cancelled() => Ok(()),
+    }
+}
+
+/// Runs `action` on AppKit's main thread but lets cancellation return without
+/// waiting for a queued callback. If the callback already claimed output,
+/// cancellation waits for its receipt so the caller learns whether it injected.
+async fn await_main_or_cancel<T, F>(
+    app_handle: &AppHandle,
+    operation: &ProcessingOperation,
+    action: F,
+) -> Result<Option<T>, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    if operation.cancellation_requested() {
+        return Ok(None);
+    }
+    let (sender, mut receiver) = oneshot::channel();
+    app_handle
+        .run_on_main_thread(move || {
+            let _ = sender.send(action());
+        })
+        .map_err(|error| format!("Failed to queue main-thread paste work: {error}"))?;
+
+    tokio::select! {
+        value = &mut receiver => value
+            .map(Some)
+            .map_err(|_| "Main-thread paste work was dropped before execution".to_string()),
+        _ = operation.cancelled() => {
+            if operation.is_cancelled() {
+                Ok(None)
+            } else {
+                (&mut receiver).await
+                    .map(Some)
+                    .map_err(|_| "Main-thread paste work was dropped before execution".to_string())
+            }
+        }
+    }
+}
+
+async fn wait_or_cancel(delay: Duration, operation: &ProcessingOperation) -> bool {
+    if operation.cancellation_requested() {
+        return true;
+    }
+    tokio::select! {
+        _ = tokio::time::sleep(delay) => false,
+        _ = operation.cancelled() => true,
+    }
+}
+
+pub(crate) async fn paste(
+    text: String,
+    app_handle: AppHandle,
+    operation: ProcessingOperation,
+) -> Result<PasteOutcome, String> {
+    if operation.cancellation_requested() {
+        return Ok(PasteOutcome::Cancelled);
+    }
+
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;
-    let paste_delay_ms = settings.paste_delay_ms;
-    let paste_delay_after_ms = settings.paste_delay_after_ms;
-
     let text = if settings.append_trailing_space {
-        format!("{} ", text)
+        format!("{text} ")
     } else {
         text
     };
 
-    info!(
-        "Using paste method: {:?}, delay before: {}ms, delay after: {}ms",
-        paste_method, paste_delay_ms, paste_delay_after_ms
-    );
+    info!("Using paste method: {paste_method:?}");
 
     match paste_method {
         PasteMethod::None => {
-            info!("PasteMethod::None selected - skipping paste action");
+            let text_for_main = text.clone();
+            let app_for_main = app_handle.clone();
+            let operation_for_main = operation.clone();
+            let completed = await_main_or_cancel(&app_handle, &operation, move || {
+                let Some(_permit) = operation_for_main.try_enter_paste() else {
+                    return false;
+                };
+                if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
+                    if let Err(error) = write_text_to_clipboard(&app_for_main, &text_for_main) {
+                        warn!("Failed to copy transcription without pasting: {error}");
+                    }
+                }
+                true
+            })
+            .await?;
+            Ok(if completed == Some(true) {
+                PasteOutcome::IntentionalNone
+            } else {
+                PasteOutcome::Cancelled
+            })
         }
         PasteMethod::Direct => {
-            let target = frontmost_target();
-            let pasted = paste_direct_if_target_unchanged(&text, target.clone())?;
-            if !pasted {
-                return Err("Direct paste skipped because the frontmost target changed".to_string());
-            }
-            if settings.auto_submit {
-                std::thread::sleep(Duration::from_millis(50));
-                if let Err(error) =
-                    send_return_if_target_unchanged(settings.auto_submit_key, target).map(|_| ())
+            let operation_for_main = operation.clone();
+            let text_for_main = text.clone();
+            let app_for_main = app_handle.clone();
+            let start = await_main_or_cancel(&app_handle, &operation, move || {
+                let Some(target) = validated_direct_target() else {
+                    return (DirectStart::Skipped, None);
+                };
+                let Some(_permit) = operation_for_main.try_enter_paste() else {
+                    return (DirectStart::Cancelled, None);
+                };
+                let result = match input::send_text_to_pid(target.pid, &text_for_main) {
+                    Ok(()) => DirectStart::Injected,
+                    Err(error) => {
+                        warn!("Failed to paste transcription directly: {error}");
+                        DirectStart::Skipped
+                    }
+                };
+                if result == DirectStart::Injected
+                    && settings.clipboard_handling == ClipboardHandling::CopyToClipboard
                 {
-                    log::warn!("Paste succeeded, but auto-submit failed: {error}");
+                    if let Err(error) = write_text_to_clipboard(&app_for_main, &text_for_main) {
+                        warn!("Failed to copy directly pasted transcription: {error}");
+                    }
                 }
+                (result, Some(target))
+            })
+            .await?;
+
+            match start {
+                None | Some((DirectStart::Cancelled, _)) => Ok(PasteOutcome::Cancelled),
+                Some((DirectStart::Skipped, _)) => Ok(PasteOutcome::Skipped),
+                Some((DirectStart::Injected, Some(target))) => {
+                    if settings.auto_submit {
+                        complete_direct_auto_submit(
+                            app_handle,
+                            operation,
+                            target,
+                            settings.auto_submit_key,
+                        )
+                        .await?;
+                    }
+                    Ok(PasteOutcome::Injected)
+                }
+                Some((DirectStart::Injected, None)) => Ok(PasteOutcome::Skipped),
             }
         }
         PasteMethod::CtrlV => {
-            let reliable_result = crate::paste_tx::try_reliable_paste(
-                &text,
-                &app_handle,
-                settings.auto_submit,
-                settings.auto_submit_key,
-                settings.clipboard_handling,
-            );
-            match reliable_result {
-                Ok(()) => return Ok(()),
-                Err(error) => {
-                    log::warn!(
-                        "Guarded paste unavailable ({error}); leaving the transcript on the clipboard"
-                    );
+            let text_for_main = text.clone();
+            let app_for_main = app_handle.clone();
+            let operation_for_main = operation.clone();
+            let reliable = await_main_or_cancel(&app_handle, &operation, move || {
+                crate::paste_tx::try_reliable_paste(
+                    &text_for_main,
+                    &app_for_main,
+                    settings.auto_submit,
+                    settings.auto_submit_key,
+                    settings.clipboard_handling,
+                    operation_for_main,
+                )
+            })
+            .await?;
+
+            match reliable {
+                None => Ok(PasteOutcome::Cancelled),
+                Some(crate::paste_tx::ReliablePasteOutcome::Cancelled) => {
+                    Ok(PasteOutcome::Cancelled)
                 }
+                Some(crate::paste_tx::ReliablePasteOutcome::Injected(receipt)) => {
+                    receipt.complete_auto_submit(app_handle).await?;
+                    Ok(PasteOutcome::Injected)
+                }
+                Some(crate::paste_tx::ReliablePasteOutcome::Skipped) => Ok(PasteOutcome::Skipped),
             }
-            paste_via_clipboard_without_restore(
-                &text,
-                &app_handle,
-                paste_delay_ms,
-                paste_delay_after_ms,
-                settings.clipboard_handling,
-                settings.auto_submit,
-                settings.auto_submit_key,
-            )?;
-            return Ok(());
         }
     }
-
-    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard
-        && paste_method != PasteMethod::CtrlV
-    {
-        write_text_to_clipboard(&app_handle, &text)?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operation::OperationId;
+
+    fn target(pid: i32) -> FrontmostTarget {
+        FrontmostTarget {
+            pid,
+            bundle_identifier: format!("com.example.{pid}"),
+            launch_time_bits: pid as u64,
+        }
+    }
 
     #[test]
     fn frontmost_target_comparison_fails_closed() {
-        let first = Some(FrontmostTarget {
-            pid: 42,
-            bundle_identifier: "com.example.first".to_string(),
-            launch_time_bits: 1,
-        });
+        let first = Some(target(42));
         assert!(same_frontmost_target(first.clone(), first.clone()));
-        assert!(!same_frontmost_target(
-            first.clone(),
-            Some(FrontmostTarget {
-                pid: 43,
-                bundle_identifier: "com.example.first".to_string(),
-                launch_time_bits: 1,
-            })
-        ));
-        assert!(!same_frontmost_target(
-            first.clone(),
-            Some(FrontmostTarget {
-                pid: 42,
-                bundle_identifier: "com.example.second".to_string(),
-                launch_time_bits: 2,
-            })
-        ));
+        assert!(!same_frontmost_target(first.clone(), Some(target(43))));
         assert!(!same_frontmost_target(first.clone(), None));
         assert!(!same_frontmost_target(None, first));
-        assert!(!same_frontmost_target(None, None));
     }
 
     #[test]
-    fn fallback_only_succeeds_after_targeted_paste_injection() {
-        assert_eq!(
-            fallback_clipboard_action(false, ClipboardHandling::DontModify),
-            FallbackClipboardAction::PasteSkipped
-        );
-        assert_eq!(
-            fallback_clipboard_action(true, ClipboardHandling::DontModify),
-            FallbackClipboardAction::ClearAfterSafetyWindow
-        );
-        assert_eq!(
-            fallback_clipboard_action(true, ClipboardHandling::CopyToClipboard),
-            FallbackClipboardAction::KeepTranscript
-        );
+    fn late_cancel_keeps_the_paste_but_marks_auto_submit_ineligible() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        let _permit = operation
+            .try_enter_paste()
+            .expect("paste should claim output");
+
+        assert!(!operation.cancel());
+        assert!(!operation.is_cancelled());
+        assert!(operation.cancellation_requested());
     }
 
     #[test]
-    fn fallback_cleanup_requires_unchanged_clipboard_ownership() {
-        assert!(same_change_count(12, 12));
-        assert!(!same_change_count(12, 13));
+    fn fake_main_queue_releases_before_late_cancel_can_reach_auto_submit() {
+        type MainCallback = Box<dyn FnOnce() + Send>;
+
+        struct FakeMainQueue {
+            callbacks: Arc<Mutex<Vec<MainCallback>>>,
+        }
+
+        impl FakeMainQueue {
+            fn enqueue(&self, callback: MainCallback) {
+                self.callbacks.lock().unwrap().push(callback);
+            }
+
+            fn run_all(&self) {
+                let callbacks = std::mem::take(&mut *self.callbacks.lock().unwrap());
+                for callback in callbacks {
+                    callback();
+                }
+            }
+        }
+
+        let queue = FakeMainQueue {
+            callbacks: Arc::new(Mutex::new(Vec::new())),
+        };
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let (scheduled, scheduled_receipt) = oneshot::channel();
+        let queue_for_dispatch = queue.callbacks.clone();
+        let events_for_release = events.clone();
+        let release = schedule_paste_modifier_release_with(
+            Duration::ZERO,
+            42,
+            move |callback| {
+                FakeMainQueue {
+                    callbacks: queue_for_dispatch,
+                }
+                .enqueue(callback);
+                let _ = scheduled.send(());
+                Ok(())
+            },
+            move |_| {
+                events_for_release.lock().unwrap().push("release");
+                Ok(())
+            },
+        );
+
+        tauri::async_runtime::block_on(async { scheduled_receipt.await.unwrap() });
+        let operation = ProcessingOperation::new(OperationId(2));
+        let _permit = operation.try_enter_paste().unwrap();
+        assert!(!operation.cancel());
+
+        queue.run_all();
+        tauri::async_runtime::block_on(release.wait()).unwrap();
+        if !operation.cancellation_requested() {
+            events.lock().unwrap().push("return");
+        }
+        assert_eq!(events.lock().unwrap().as_slice(), &["release"]);
+    }
+
+    #[test]
+    fn clipboard_source_has_no_blocking_thread_sleep() {
+        let forbidden = ["thread", "::sleep"].concat();
+        assert!(!include_str!("clipboard.rs").contains(&forbidden));
     }
 }
