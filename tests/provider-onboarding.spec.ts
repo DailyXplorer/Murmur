@@ -131,6 +131,42 @@ test("keeps the provider step open when setup fails and routes transcription fai
       "Couldn't save the selected transcription service. Please retry.",
     ),
   ).toBeVisible();
+
+  await page.evaluate(() => {
+    window.providerOnboardingFixture.setCodexConfigured(false);
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(
+    page.getByText("Configuration not detected", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Codex", exact: true }).click();
+  await expect(page.getByRole("option", { name: "Codex" })).toBeDisabled();
+  await expect(page.getByRole("option", { name: "Antigravity" })).toBeEnabled();
+});
+
+test("preserves the persisted Antigravity choice when post-onboarding initialization fails", async ({
+  page,
+}) => {
+  await page.goto(
+    `${fixturePath}?provider=gemini&codex=configured&gemini=configured`,
+  );
+  await waitForProviderStep(page);
+
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.failNextInitialization(),
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.providerOnboardingFixture
+            .calls()
+            .filter((command) => command === "initialize_enigo").length,
+      ),
+    )
+    .toBeGreaterThanOrEqual(3);
+  await expect(page.getByRole("radio", { name: "Antigravity" })).toBeChecked();
 });
 
 test("fits the French provider choice at the native minimum window size", async ({

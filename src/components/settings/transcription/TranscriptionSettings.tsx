@@ -62,14 +62,18 @@ export const TranscriptionSettings: React.FC = () => {
   const provider = settings?.transcription_provider ?? "codex";
   const providerOptions = useMemo(
     () => [
-      { value: "codex", label: t("onboarding.providerLabels.codex") },
+      {
+        value: "codex",
+        label: t("onboarding.providerLabels.codex"),
+        disabled: !isConfiguredProvider(statuses.codex),
+      },
       {
         value: "gemini",
         label: t("onboarding.providerLabels.antigravity"),
         disabled: !isConfiguredProvider(statuses.gemini),
       },
     ],
-    [statuses.gemini, t],
+    [statuses.codex, statuses.gemini, t],
   );
 
   const changeProvider = useCallback(

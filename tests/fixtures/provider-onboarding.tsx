@@ -13,6 +13,7 @@ let codexConfigured = query.get("codex") === "configured";
 let geminiInstalled = query.get("gemini") === "configured";
 let geminiConfigured = query.get("gemini") === "configured";
 let failNextCompletion = false;
+let failNextInitialization = false;
 let failNextProviderChange = false;
 const writes: string[] = [];
 const calls: string[] = [];
@@ -74,6 +75,11 @@ mockIPC(
       case "plugin:macos-permissions|check_microphone_permission":
         return true;
       case "initialize_enigo":
+        if (failNextInitialization) {
+          failNextInitialization = false;
+          throw new Error("Keyboard automation is temporarily unavailable");
+        }
+        return null;
       case "initialize_shortcuts":
       case "show_main_window_command":
         return null;
@@ -89,6 +95,7 @@ declare global {
     providerOnboardingFixture: {
       emitTranscriptionFailure: () => Promise<void>;
       failNextCompletion: () => void;
+      failNextInitialization: () => void;
       failNextProviderChange: () => void;
       calls: () => string[];
       initializationError: () => string | null;
@@ -108,6 +115,9 @@ window.providerOnboardingFixture = {
     emit("transcription-error", "The configured service rejected this audio."),
   failNextCompletion: () => {
     failNextCompletion = true;
+  },
+  failNextInitialization: () => {
+    failNextInitialization = true;
   },
   failNextProviderChange: () => {
     failNextProviderChange = true;

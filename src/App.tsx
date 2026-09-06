@@ -80,6 +80,7 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
+  const configuredProviderRef = useRef<TranscriptionProvider>("codex");
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -116,7 +117,7 @@ function App() {
         await revealMainWindowForPermissions();
         setOnboardingState({
           kind: "permissions",
-          configuredProvider: "codex",
+          configuredProvider: configuredProviderRef.current,
         });
       }
     };
@@ -205,6 +206,7 @@ function App() {
           ? settingsResult.data.transcription_provider
           : undefined,
       );
+      configuredProviderRef.current = configuredProvider;
       const hasCompletedOnboarding =
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
@@ -282,6 +284,7 @@ function App() {
       });
       return false;
     }
+    configuredProviderRef.current = provider;
     setOnboardingState({ kind: "done" });
     return true;
   };
