@@ -62,8 +62,8 @@ on:
 
 jobs:
   build:
-    permissions:
-      contents: write
+    # Inherit the caller's token permissions: ordinary builds use contents: read,
+    # while release.yml grants contents: write to upload release assets.
     runs-on: ${{ inputs.platform }}
     environment: ${{ inputs.environment }}
     env:
