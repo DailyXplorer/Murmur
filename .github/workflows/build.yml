@@ -143,8 +143,20 @@ jobs:
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Certificate imported."
 
+      - name: Build test bundles without updater signatures
+        if: ${{ !inputs.sign-binaries }}
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: "-"
+        with:
+          includeUpdaterJson: false
+          args: >-
+            ${{ inputs.build-args }}
+            --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
       - name: Build with Tauri
-        if: env.HAS_APPLE_CERTIFICATE != 'true' || env.HAS_APPLE_NOTARIZATION != 'true'
+        if: inputs.sign-binaries && (env.HAS_APPLE_CERTIFICATE != 'true' || env.HAS_APPLE_NOTARIZATION != 'true')
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,7 +173,7 @@ jobs:
           args: ${{ inputs.build-args }}
 
       - name: Build and notarize with Tauri
-        if: env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
+        if: inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
