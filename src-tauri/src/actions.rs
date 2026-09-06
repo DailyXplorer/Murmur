@@ -78,11 +78,11 @@ impl PendingWav {
     /// an active `WavWriter`.
     fn write(
         self,
-        samples: Vec<f32>,
+        samples: Arc<Vec<f32>>,
     ) -> tauri::async_runtime::JoinHandle<(Self, anyhow::Result<()>)> {
         let path = self.path.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            let result = crate::audio_toolkit::save_wav_file(&path, &samples);
+            let result = crate::audio_toolkit::save_wav_file(&path, samples.as_slice());
             (self, result)
         })
     }
@@ -431,6 +431,7 @@ impl ShortcutAction for TranscribeAction {
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
+                    let samples = Arc::new(samples);
                     let file_name = format!(
                         "murmur-{}.wav",
                         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
@@ -447,7 +448,9 @@ impl ShortcutAction for TranscribeAction {
                             None
                         }
                     };
-                    let wav_handle = pending_wav.take().map(|wav| wav.write(samples.clone()));
+                    let wav_handle = pending_wav
+                        .take()
+                        .map(|wav| wav.write(Arc::clone(&samples)));
 
                     let provider = get_settings(&ah).transcription_provider;
                     let transcription_time = Instant::now();
@@ -700,6 +703,25 @@ mod tests {
 
         drop(PendingWav::reserve(wav_path.clone()).unwrap());
 
+        assert!(!wav_path.exists());
+    }
+
+    #[test]
+    fn wav_writer_keeps_shared_samples_alive_and_cleans_uncommitted_output() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("shared-samples.wav");
+        let samples = Arc::new(vec![0.25_f32, -0.5, 0.0]);
+
+        let writer = PendingWav::reserve(wav_path.clone())
+            .unwrap()
+            .write(Arc::clone(&samples));
+        drop(samples);
+
+        let (wav, write_result) = tauri::async_runtime::block_on(writer).unwrap();
+        write_result.unwrap();
+        crate::audio_toolkit::verify_wav_file(&wav_path, 3).unwrap();
+
+        drop(wav);
         assert!(!wav_path.exists());
     }
 

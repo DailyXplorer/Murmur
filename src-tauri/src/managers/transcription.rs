@@ -60,7 +60,7 @@ impl TranscriptionManager {
         operation: ProcessingOperation,
     ) -> Result<String> {
         let provider = get_settings(&self.app_handle).transcription_provider;
-        self.transcribe_with_provider(audio, operation, provider)
+        self.transcribe_with_provider(Arc::new(audio), operation, provider)
             .await
     }
 
@@ -69,7 +69,7 @@ impl TranscriptionManager {
     /// output processing describe a different provider than the one used.
     pub(crate) async fn transcribe_with_provider(
         &self,
-        audio: Vec<f32>,
+        audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
         provider: TranscriptionProvider,
     ) -> Result<String> {
@@ -105,16 +105,17 @@ impl TranscriptionManager {
 
         let text = match provider {
             TranscriptionProvider::Codex => {
-                codex_transcribe::transcribe(&audio, language.as_deref(), &operation).await
+                codex_transcribe::transcribe(audio.as_slice(), language.as_deref(), &operation)
+                    .await
             }
             TranscriptionProvider::Gemini => {
                 let gemini = self.gemini.clone();
                 let operation = operation.clone();
-                tauri::async_runtime::spawn_blocking(move || gemini.transcribe(&audio, &operation))
-                    .await
-                    .map_err(|error| {
-                        anyhow::anyhow!("Gemini transcription worker panicked: {error}")
-                    })?
+                tauri::async_runtime::spawn_blocking(move || {
+                    gemini.transcribe(audio.as_slice(), &operation)
+                })
+                .await
+                .map_err(|error| anyhow::anyhow!("Gemini transcription worker panicked: {error}"))?
             }
         }
         .map_err(|err| {

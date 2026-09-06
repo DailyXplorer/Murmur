@@ -87,7 +87,7 @@ pub async fn retry_history_entry_transcription(
     let retry_operation = ProcessingOperation::new(OperationId(0));
     let provider = crate::settings::get_settings(&app).transcription_provider;
     let transcription = transcription_manager
-        .transcribe_with_provider(samples, retry_operation, provider)
+        .transcribe_with_provider(Arc::new(samples), retry_operation, provider)
         .await
         .map_err(|e| e.to_string())?;
 
