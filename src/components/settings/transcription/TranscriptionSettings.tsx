@@ -40,9 +40,6 @@ const statusTranslationKey = (status: ProviderStatus): string => {
   }
 };
 
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
@@ -96,9 +93,8 @@ export const TranscriptionSettings: React.FC = () => {
       const result = await commands.openAntigravity();
       if (result.status === "error") throw new Error(result.error);
     } catch (error) {
-      toast.error(t("onboarding.provider.openFailed"), {
-        description: errorMessage(error),
-      });
+      console.warn("Failed to open Antigravity:", error);
+      toast.error(t("onboarding.provider.openFailed"));
     }
   }, [t]);
 
@@ -106,9 +102,8 @@ export const TranscriptionSettings: React.FC = () => {
     try {
       await openUrl("https://antigravity.google/");
     } catch (error) {
-      toast.error(t("onboarding.provider.installFailed"), {
-        description: errorMessage(error),
-      });
+      console.warn("Failed to open the Antigravity download page:", error);
+      toast.error(t("onboarding.provider.installFailed"));
     }
   }, [t]);
 

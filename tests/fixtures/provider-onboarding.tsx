@@ -26,11 +26,14 @@ const appLanguage = query.get("lang") === "fr" ? "fr" : "en";
 const configuredProvider: TranscriptionProvider =
   query.get("provider") === "gemini" ? "gemini" : "codex";
 let codexConfigured = query.get("codex") === "configured";
-let geminiInstalled = query.get("gemini") === "configured";
+let geminiInstalled = ["configured", "installed"].includes(
+  query.get("gemini") ?? "",
+);
 let geminiConfigured = query.get("gemini") === "configured";
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
+let nextSetupActionFailure: CompletionFailureMode | null = null;
 let failNextInitialization = false;
 let failNextProviderChange = false;
 const writes: string[] = [];
@@ -117,6 +120,20 @@ mockIPC(
   (command, args) => {
     calls.push(command);
     switch (command) {
+      case "open_antigravity":
+      case "plugin:opener|open_url": {
+        const failure = nextSetupActionFailure;
+        nextSetupActionFailure = null;
+        if (failure === "result") {
+          return Promise.reject(
+            "The operating system refused to open this resource",
+          );
+        }
+        if (failure === "exception") {
+          throw new Error("The operating system refused to open this resource");
+        }
+        return null;
+      }
       case "get_app_settings":
       case "get_default_settings":
         return { ...backendSettings };
@@ -184,6 +201,7 @@ declare global {
       emitTranscriptionFailure: () => Promise<void>;
       deferStatusRefresh: () => number;
       failNextCompletion: (mode?: CompletionFailureMode) => void;
+      failNextSetupAction: (mode: CompletionFailureMode) => void;
       failNextInitialization: () => void;
       failNextProviderChange: () => void;
       calls: () => string[];
@@ -207,6 +225,9 @@ window.providerOnboardingFixture = {
   deferStatusRefresh,
   failNextCompletion: (mode = "exception") => {
     nextCompletionFailure = mode;
+  },
+  failNextSetupAction: (mode) => {
+    nextSetupActionFailure = mode;
   },
   failNextInitialization: () => {
     failNextInitialization = true;

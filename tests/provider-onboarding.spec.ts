@@ -309,3 +309,76 @@ test("fits the French provider choice at the native minimum window size", async 
     )
     .toBe(true);
 });
+
+for (const view of ["onboarding", "settings"] as const) {
+  test(`localizes French setup action failures in ${view} and allows retry`, async ({
+    page,
+  }) => {
+    const scenarios = [
+      {
+        query: "gemini=installed&codex=configured",
+        button: "Ouvrir Antigravity",
+        message: "Impossible d’ouvrir Antigravity.",
+        command: "open_antigravity",
+      },
+      {
+        query: "codex=configured",
+        button: "Installer",
+        message: "Impossible d’ouvrir la page de téléchargement d’Antigravity.",
+        command: "plugin:opener|open_url",
+      },
+      ...(view === "onboarding"
+        ? [
+            {
+              query: "gemini=configured",
+              button: "Ouvrir la configuration Codex",
+              message: "Impossible d’ouvrir la configuration Codex.",
+              command: "plugin:opener|open_url",
+            },
+          ]
+        : []),
+    ];
+    for (const scenario of scenarios) {
+      for (const mode of ["result", "exception"] as const) {
+        await page.goto(`${fixturePath}?lang=fr&${scenario.query}`);
+        if (view === "settings") {
+          await page.getByRole("button", { name: "Continuer" }).click();
+          await page
+            .getByRole("button", { name: "Transcription", exact: true })
+            .click();
+        }
+        await page.evaluate(
+          (failureMode) =>
+            window.providerOnboardingFixture.failNextSetupAction(failureMode),
+          mode,
+        );
+        const action = page.getByRole("button", {
+          name: scenario.button,
+          exact: true,
+        });
+        await action.click();
+        await expect(
+          page.getByText(scenario.message, { exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByText("The operating system refused to open this resource", {
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await action.click();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              (command) =>
+                window.providerOnboardingFixture
+                  .calls()
+                  .filter((call) => call === command).length,
+              scenario.command,
+            ),
+          )
+          .toBe(2);
+        await expect(action).toBeEnabled();
+      }
+    }
+  });
+}

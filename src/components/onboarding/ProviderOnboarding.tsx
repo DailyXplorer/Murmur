@@ -35,9 +35,6 @@ const statusTranslationKey = (status: ProviderStatus): string => {
   }
 };
 
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   configuredProvider,
   onComplete,
@@ -66,9 +63,8 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
         throw new Error(result.error);
       }
     } catch (error) {
-      toast.error(t("onboarding.provider.openFailed"), {
-        description: errorMessage(error),
-      });
+      console.warn("Failed to open Antigravity:", error);
+      toast.error(t("onboarding.provider.openFailed"));
     }
   }, [t]);
 
@@ -76,9 +72,8 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     try {
       await openUrl("https://antigravity.google/");
     } catch (error) {
-      toast.error(t("onboarding.provider.installFailed"), {
-        description: errorMessage(error),
-      });
+      console.warn("Failed to open the Antigravity download page:", error);
+      toast.error(t("onboarding.provider.installFailed"));
     }
   }, [t]);
 
@@ -86,9 +81,8 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     try {
       await openUrl("https://openai.com/codex/");
     } catch (error) {
-      toast.error(t("onboarding.provider.codexSetupFailed"), {
-        description: errorMessage(error),
-      });
+      console.warn("Failed to open Codex setup:", error);
+      toast.error(t("onboarding.provider.codexSetupFailed"));
     }
   }, [t]);
 

@@ -165,6 +165,29 @@ fn take_due_start(
         .map(|pending| (pending.binding_id, pending.hotkey_string))
 }
 
+/// A second toggle press means the user no longer wants the queued start.
+/// This runs only after the press has passed the normal debounce window.
+fn cancel_matching_pending_toggle_start(
+    pending_start: &mut Option<PendingStart>,
+    is_pressed: bool,
+    push_to_talk: bool,
+    binding_id: &str,
+) -> bool {
+    if !is_pressed || push_to_talk {
+        return false;
+    }
+
+    if pending_start
+        .as_ref()
+        .is_some_and(|pending| pending.binding_id == binding_id)
+    {
+        *pending_start = None;
+        return true;
+    }
+
+    false
+}
+
 fn take_due_stop(
     stage: &Stage,
     pending_release: &mut Option<PendingRelease>,
@@ -376,6 +399,16 @@ impl TranscriptionCoordinator {
                                     continue;
                                 }
                                 last_press = Some(now);
+                            }
+
+                            if cancel_matching_pending_toggle_start(
+                                &mut pending_start,
+                                is_pressed,
+                                push_to_talk,
+                                &binding_id,
+                            ) {
+                                debug!("Cancelled queued start for '{binding_id}'");
+                                continue;
                             }
 
                             if push_to_talk {
@@ -834,6 +867,65 @@ mod tests {
         });
         assert_eq!(take_due_start(&recording_stage(now), &mut stale, now), None);
         assert!(stale.is_none());
+    }
+
+    #[test]
+    fn toggle_press_cancels_a_matching_queued_start_after_debounce() {
+        let mut pending = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: Instant::now() + START_RETRY_DELAY,
+        });
+
+        // The coordinator calls this after admitting the press through its
+        // 30 ms debounce. It must cancel, rather than replace, this retry.
+        assert!(cancel_matching_pending_toggle_start(
+            &mut pending,
+            true,
+            false,
+            "transcribe"
+        ));
+        assert!(pending.is_none());
+        assert_eq!(
+            take_due_start(
+                &Stage::Idle,
+                &mut pending,
+                Instant::now() + START_RETRY_DELAY
+            ),
+            None,
+            "the cancelled retry must not start later"
+        );
+    }
+
+    #[test]
+    fn only_a_matching_toggle_press_cancels_a_queued_start() {
+        let mut pending = Some(PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline: Instant::now() + START_RETRY_DELAY,
+        });
+
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut pending,
+            false,
+            false,
+            "transcribe"
+        ));
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut pending,
+            true,
+            true,
+            "transcribe"
+        ));
+        assert!(pending.is_some());
+
+        let mut no_pending = None;
+        assert!(!cancel_matching_pending_toggle_start(
+            &mut no_pending,
+            true,
+            false,
+            "transcribe"
+        ));
     }
 
     #[test]
