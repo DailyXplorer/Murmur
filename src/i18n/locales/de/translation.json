@@ -36,6 +36,27 @@
         "checkFailed": "Berechtigungsprüfung fehlgeschlagen. Bitte erneut versuchen.",
         "requestFailed": "Berechtigungsanfrage fehlgeschlagen. Bitte erneut versuchen."
       }
+    },
+    "provider": {
+      "title": "Transkriptionsdienst auswählen",
+      "description": "Wähle einen eingerichteten Dienst, um die Einrichtung abzuschließen. Murmur erkennt eine lokale Konfiguration, prüft aber keine aktive Verbindung.",
+      "antigravityDescription": "Verwendet die auf diesem Mac erkannte Antigravity-Konfiguration.",
+      "experimental": "Experimentell",
+      "configured": "Konfiguration erkannt",
+      "selectionRequired": "Wähle einen eingerichteten Transkriptionsdienst, um fortzufahren.",
+      "retry": "Erneut versuchen",
+      "continue": "Weiter",
+      "providerChangeFailed": "Der ausgewählte Transkriptionsdienst konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
+      "openFailed": "Antigravity konnte nicht geöffnet werden.",
+      "installFailed": "Die Antigravity-Downloadseite konnte nicht geöffnet werden.",
+      "setupCodex": "Codex-Einrichtung öffnen",
+      "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Keine Konfiguration erkannt"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Darstellung"
       }
     },
+    "languageAutoOnly": "Antigravity erkennt die Sprache automatisch. Deine Codex-Sprachauswahl bleibt erhalten, wenn du zurückwechselst.",
     "sound": {
       "title": "Ton",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Der Text konnte nicht in die aktive Anwendung eingefügt werden.",
     "transcriptionFailedTitle": "Transkription fehlgeschlagen"
   },
+  "transcriptionFailedAction": "Transkriptionsdienst prüfen",
   "appLanguage": {
     "title": "Anwendungssprache",
     "description": "Sprache der Murmur-Oberfläche ändern"

@@ -36,6 +36,27 @@
         "checkFailed": "Error al verificar permisos. Por favor, inténtalo de nuevo.",
         "requestFailed": "Error al solicitar permiso. Por favor, inténtalo de nuevo."
       }
+    },
+    "provider": {
+      "title": "Elige un servicio de transcripción",
+      "description": "Elige un servicio configurado para terminar la configuración. Murmur detecta una configuración local, pero no verifica una conexión activa.",
+      "antigravityDescription": "Usa la configuración de Antigravity detectada en este Mac.",
+      "experimental": "Experimental",
+      "configured": "Configuración detectada",
+      "selectionRequired": "Elige un servicio de transcripción configurado para continuar.",
+      "retry": "Reintentar",
+      "continue": "Continuar",
+      "providerChangeFailed": "No se pudo guardar el servicio de transcripción seleccionado. Vuelve a intentarlo.",
+      "completionFailed": "No se pudo completar la configuración. Actualiza el estado y vuelve a intentarlo.",
+      "openFailed": "No se pudo abrir Antigravity.",
+      "installFailed": "No se pudo abrir la página de descarga de Antigravity.",
+      "setupCodex": "Abrir la configuración de Codex",
+      "codexSetupFailed": "No se pudo abrir la configuración de Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "No se detectó ninguna configuración"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Apariencia"
       }
     },
+    "languageAutoOnly": "Antigravity detecta el idioma automáticamente. Tu selección de idioma de Codex se conservará cuando vuelvas a Codex.",
     "sound": {
       "title": "Sonido",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "No se pudo pegar el texto en la aplicación activa.",
     "transcriptionFailedTitle": "Error de transcripción"
   },
+  "transcriptionFailedAction": "Revisar el servicio de transcripción",
   "appLanguage": {
     "title": "Idioma de la aplicación",
     "description": "Cambia el idioma de la interfaz de Murmur"

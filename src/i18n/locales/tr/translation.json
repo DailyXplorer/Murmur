@@ -36,6 +36,27 @@
         "checkFailed": "İzinler kontrol edilemedi. Lütfen tekrar deneyin.",
         "requestFailed": "İzin isteği başarısız oldu. Lütfen tekrar deneyin."
       }
+    },
+    "provider": {
+      "title": "Bir transkripsiyon hizmeti seçin",
+      "description": "Kurulumu tamamlamak için yapılandırılmış bir hizmet seçin. Murmur yerel yapılandırmayı algılar, ancak etkin bir bağlantıyı doğrulamaz.",
+      "antigravityDescription": "Bu Mac'te algılanan Antigravity yapılandırmasını kullanır.",
+      "experimental": "Deneysel",
+      "configured": "Yapılandırma algılandı",
+      "selectionRequired": "Devam etmek için yapılandırılmış bir transkripsiyon hizmeti seçin.",
+      "retry": "Yeniden dene",
+      "continue": "Devam et",
+      "providerChangeFailed": "Seçilen transkripsiyon hizmeti kaydedilemedi. Lütfen yeniden deneyin.",
+      "completionFailed": "Kurulum tamamlanamadı. Durumu yenileyip yeniden deneyin.",
+      "openFailed": "Antigravity açılamadı.",
+      "installFailed": "Antigravity indirme sayfası açılamadı.",
+      "setupCodex": "Codex kurulumunu aç",
+      "codexSetupFailed": "Codex kurulumu açılamadı."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Yapılandırma algılanmadı"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Görünüm"
       }
     },
+    "languageAutoOnly": "Antigravity dili otomatik olarak algılar. Codex'e geri döndüğünüzde Codex dil seçiminiz korunur.",
     "sound": {
       "title": "Ses",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
     "transcriptionFailedTitle": "Transkripsiyon başarısız oldu"
   },
+  "transcriptionFailedAction": "Transkripsiyon hizmetini incele",
   "appLanguage": {
     "title": "Uygulama Dili",
     "description": "Murmur arayüzünün dilini değiştirin"

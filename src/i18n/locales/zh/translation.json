@@ -36,6 +36,27 @@
         "checkFailed": "检查权限失败。请重试。",
         "requestFailed": "请求权限失败。请重试。"
       }
+    },
+    "provider": {
+      "title": "选择转写服务",
+      "description": "选择已配置的服务以完成设置。Murmur 会检测本地配置，但不会验证实时连接。",
+      "antigravityDescription": "使用此 Mac 上检测到的 Antigravity 配置。",
+      "experimental": "实验性",
+      "configured": "已检测到配置",
+      "selectionRequired": "请选择已配置的转写服务以继续。",
+      "retry": "重试",
+      "continue": "继续",
+      "providerChangeFailed": "无法保存所选转写服务。请重试。",
+      "completionFailed": "无法完成设置。请刷新状态后重试。",
+      "openFailed": "无法打开 Antigravity。",
+      "installFailed": "无法打开 Antigravity 下载页面。",
+      "setupCodex": "打开 Codex 设置",
+      "codexSetupFailed": "无法打开 Codex 设置。"
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "未检测到配置"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "外观"
       }
     },
+    "languageAutoOnly": "Antigravity 会自动检测语言。切换回 Codex 时，将保留你的 Codex 语言选择。",
     "sound": {
       "title": "声音",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "无法将文本粘贴到当前活动的应用程序中。",
     "transcriptionFailedTitle": "转录失败"
   },
+  "transcriptionFailedAction": "检查转写服务",
   "appLanguage": {
     "title": "应用语言",
     "description": "更改 Murmur 界面的语言"

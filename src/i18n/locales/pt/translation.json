@@ -36,6 +36,27 @@
         "checkFailed": "Erro ao verificar permissões. Por favor, tente novamente.",
         "requestFailed": "Erro ao solicitar permissão. Por favor, tente novamente."
       }
+    },
+    "provider": {
+      "title": "Escolha um serviço de transcrição",
+      "description": "Escolha um serviço configurado para concluir a configuração. O Murmur detecta a configuração local, mas não verifica uma ligação ativa.",
+      "antigravityDescription": "Usa a configuração do Antigravity detetada neste Mac.",
+      "experimental": "Experimental",
+      "configured": "Configuração detetada",
+      "selectionRequired": "Escolha um serviço de transcrição configurado para continuar.",
+      "retry": "Tentar novamente",
+      "continue": "Continuar",
+      "providerChangeFailed": "Não foi possível guardar o serviço de transcrição selecionado. Tente novamente.",
+      "completionFailed": "Não foi possível concluir a configuração. Atualize o estado e tente novamente.",
+      "openFailed": "Não foi possível abrir o Antigravity.",
+      "installFailed": "Não foi possível abrir a página de transferência do Antigravity.",
+      "setupCodex": "Abrir a configuração do Codex",
+      "codexSetupFailed": "Não foi possível abrir a configuração do Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Não foi detetada nenhuma configuração"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Aparência"
       }
     },
+    "languageAutoOnly": "O Antigravity deteta o idioma automaticamente. A sua seleção de idioma do Codex será mantida quando voltar ao Codex.",
     "sound": {
       "title": "Som",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Não foi possível colar o texto no aplicativo ativo.",
     "transcriptionFailedTitle": "Falha na transcrição"
   },
+  "transcriptionFailedAction": "Rever serviço de transcrição",
   "appLanguage": {
     "title": "Idioma da Aplicação",
     "description": "Alterar o idioma da interface do Murmur"

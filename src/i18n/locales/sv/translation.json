@@ -36,6 +36,27 @@
         "checkFailed": "Misslyckades med att kontrollera behörigheter. Försök igen.",
         "requestFailed": "Misslyckades med att begära behörighet. Försök igen."
       }
+    },
+    "provider": {
+      "title": "Välj en transkriberingstjänst",
+      "description": "Välj en konfigurerad tjänst för att slutföra inställningen. Murmur upptäcker lokal konfiguration men verifierar inte en aktiv anslutning.",
+      "antigravityDescription": "Använder Antigravity-konfigurationen som upptäckts på den här Macen.",
+      "experimental": "Experimentell",
+      "configured": "Konfiguration hittad",
+      "selectionRequired": "Välj en konfigurerad transkriberingstjänst för att fortsätta.",
+      "retry": "Försök igen",
+      "continue": "Fortsätt",
+      "providerChangeFailed": "Den valda transkriberingstjänsten kunde inte sparas. Försök igen.",
+      "completionFailed": "Inställningen kunde inte slutföras. Uppdatera statusen och försök igen.",
+      "openFailed": "Det gick inte att öppna Antigravity.",
+      "installFailed": "Det gick inte att öppna Antigravitys nedladdningssida.",
+      "setupCodex": "Öppna Codex-konfigurationen",
+      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Ingen konfiguration hittades"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Utseende"
       }
     },
+    "languageAutoOnly": "Antigravity identifierar språket automatiskt. Ditt språkval för Codex behålls när du byter tillbaka.",
     "sound": {
       "title": "Ljud",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Texten kunde inte klistras in i det aktiva programmet.",
     "transcriptionFailedTitle": "Transkriptionen misslyckades"
   },
+  "transcriptionFailedAction": "Granska transkriberingstjänsten",
   "appLanguage": {
     "title": "Applikationsspråk",
     "description": "Ändra språket i Murmur-gränssnittet"

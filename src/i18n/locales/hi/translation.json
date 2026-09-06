@@ -36,6 +36,27 @@
         "checkFailed": "अनुमतियां जांची नहीं जा सकीं. कृपया फिर से कोशिश करें.",
         "requestFailed": "अनुमति मांगी नहीं जा सकी. कृपया फिर से कोशिश करें."
       }
+    },
+    "provider": {
+      "title": "ट्रांसक्रिप्शन सेवा चुनें",
+      "description": "सेटअप पूरा करने के लिए कॉन्फ़िगर की गई सेवा चुनें। Murmur स्थानीय कॉन्फ़िगरेशन पहचानता है, लेकिन लाइव कनेक्शन सत्यापित नहीं करता।",
+      "antigravityDescription": "इस Mac पर मिली Antigravity कॉन्फ़िगरेशन का उपयोग करता है।",
+      "experimental": "प्रयोगात्मक",
+      "configured": "कॉन्फ़िगरेशन मिली",
+      "selectionRequired": "आगे बढ़ने के लिए कॉन्फ़िगर की गई ट्रांसक्रिप्शन सेवा चुनें।",
+      "retry": "फिर से कोशिश करें",
+      "continue": "जारी रखें",
+      "providerChangeFailed": "चुनी गई ट्रांसक्रिप्शन सेवा सहेजी नहीं जा सकी। फिर से कोशिश करें।",
+      "completionFailed": "सेटअप पूरा नहीं हो सका। स्थिति ताज़ा करें और फिर से कोशिश करें।",
+      "openFailed": "Antigravity खोला नहीं जा सका।",
+      "installFailed": "Antigravity डाउनलोड पेज खोला नहीं जा सका।",
+      "setupCodex": "Codex सेटअप खोलें",
+      "codexSetupFailed": "Codex सेटअप खोला नहीं जा सका।"
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "कॉन्फ़िगरेशन नहीं मिली"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "दिखावट"
       }
     },
+    "languageAutoOnly": "Antigravity भाषा को अपने आप पहचानता है। Codex भाषा चयन वापस आने पर सुरक्षित रहेगा।",
     "sound": {
       "title": "आवाज़",
       "microphone": {
@@ -378,6 +400,7 @@
     "pasteFailed": "खुले हुए ऐप्लिकेशन में टेक्स्ट पेस्ट नहीं किया जा सका.",
     "transcriptionFailedTitle": "ट्रांसक्रिप्शन नहीं हो सका"
   },
+  "transcriptionFailedAction": "ट्रांसक्रिप्शन सेवा देखें",
   "appLanguage": {
     "title": "ऐप्लिकेशन की भाषा",
     "description": "Murmur इंटरफ़ेस की भाषा बदलें"

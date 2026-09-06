@@ -36,6 +36,27 @@
         "checkFailed": "Machtigingen controleren mislukt. Probeer het opnieuw.",
         "requestFailed": "Machtiging aanvragen mislukt. Probeer het opnieuw."
       }
+    },
+    "provider": {
+      "title": "Kies een transcriptieservice",
+      "description": "Kies een geconfigureerde service om de installatie te voltooien. Murmur detecteert lokale configuratie, maar verifieert geen actieve verbinding.",
+      "antigravityDescription": "Gebruikt de Antigravity-configuratie die op deze Mac is gevonden.",
+      "experimental": "Experimenteel",
+      "configured": "Configuratie gedetecteerd",
+      "selectionRequired": "Kies een geconfigureerde transcriptieservice om door te gaan.",
+      "retry": "Opnieuw proberen",
+      "continue": "Doorgaan",
+      "providerChangeFailed": "De gekozen transcriptieservice kon niet worden opgeslagen. Probeer het opnieuw.",
+      "completionFailed": "De installatie kon niet worden voltooid. Vernieuw de status en probeer het opnieuw.",
+      "openFailed": "Antigravity kon niet worden geopend.",
+      "installFailed": "De downloadpagina van Antigravity kon niet worden geopend.",
+      "setupCodex": "Codex-configuratie openen",
+      "codexSetupFailed": "De Codex-configuratie kon niet worden geopend."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Geen configuratie gedetecteerd"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Weergave"
       }
     },
+    "languageAutoOnly": "Antigravity detecteert de taal automatisch. Je Codex-taalkeuze blijft behouden wanneer je terugschakelt.",
     "sound": {
       "title": "Geluid",
       "microphone": {
@@ -378,6 +400,7 @@
     "pasteFailed": "Tekst kon niet worden geplakt in de actieve applicatie.",
     "transcriptionFailedTitle": "Transcriptie mislukt"
   },
+  "transcriptionFailedAction": "Transcriptieservice bekijken",
   "appLanguage": {
     "title": "Interfacetaal",
     "description": "Wijzig de taal van de Murmur-interface"

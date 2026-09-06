@@ -36,6 +36,27 @@
         "checkFailed": "فشل التحقق من الأذونات. يرجير المحاولة مرة أخرى.",
         "requestFailed": "فشل طلب الإذن. يرجى المحاولة مرة أخرى."
       }
+    },
+    "provider": {
+      "title": "اختر خدمة النسخ",
+      "description": "اختر خدمة مهيأة لإكمال الإعداد. يكتشف Murmur التهيئة المحلية ولا يتحقق من اتصال مباشر.",
+      "antigravityDescription": "يستخدم تهيئة Antigravity المكتشفة على هذا الـ Mac.",
+      "experimental": "تجريبي",
+      "configured": "تم اكتشاف التهيئة",
+      "selectionRequired": "اختر خدمة نسخ مهيأة للمتابعة.",
+      "retry": "إعادة المحاولة",
+      "continue": "متابعة",
+      "providerChangeFailed": "تعذر حفظ خدمة النسخ المحددة. يرجى إعادة المحاولة.",
+      "completionFailed": "تعذر إكمال الإعداد. حدّث الحالة وحاول مرة أخرى.",
+      "openFailed": "تعذر فتح Antigravity.",
+      "installFailed": "تعذر فتح صفحة تنزيل Antigravity.",
+      "setupCodex": "فتح إعداد Codex",
+      "codexSetupFailed": "تعذر فتح إعداد Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "لم يتم اكتشاف تهيئة"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "المظهر"
       }
     },
+    "languageAutoOnly": "يكتشف Antigravity اللغة تلقائيًا. يتم الاحتفاظ باختيار لغة Codex عند العودة إليه.",
     "sound": {
       "title": "الصوت",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "تعذر لصق النص في التطبيق النشط.",
     "transcriptionFailedTitle": "فشل التفريغ النصي"
   },
+  "transcriptionFailedAction": "مراجعة خدمة النسخ",
   "appLanguage": {
     "title": "لغة التطبيق",
     "description": "تغيير لغة واجهة Murmur"

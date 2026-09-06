@@ -36,6 +36,27 @@
         "checkFailed": "Nie udało się sprawdzić uprawnień. Spróbuj ponownie.",
         "requestFailed": "Nie udało się poprosić o uprawnienie. Spróbuj ponownie."
       }
+    },
+    "provider": {
+      "title": "Wybierz usługę transkrypcji",
+      "description": "Wybierz skonfigurowaną usługę, aby ukończyć konfigurację. Murmur wykrywa lokalną konfigurację, ale nie sprawdza aktywnego połączenia.",
+      "antigravityDescription": "Używa konfiguracji Antigravity wykrytej na tym Macu.",
+      "experimental": "Eksperymentalne",
+      "configured": "Wykryto konfigurację",
+      "selectionRequired": "Wybierz skonfigurowaną usługę transkrypcji, aby kontynuować.",
+      "retry": "Spróbuj ponownie",
+      "continue": "Kontynuuj",
+      "providerChangeFailed": "Nie udało się zapisać wybranej usługi transkrypcji. Spróbuj ponownie.",
+      "completionFailed": "Nie udało się ukończyć konfiguracji. Odśwież stan i spróbuj ponownie.",
+      "openFailed": "Nie udało się otworzyć Antigravity.",
+      "installFailed": "Nie udało się otworzyć strony pobierania Antigravity.",
+      "setupCodex": "Otwórz konfigurację Codex",
+      "codexSetupFailed": "Nie udało się otworzyć konfiguracji Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Nie wykryto konfiguracji"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Wygląd"
       }
     },
+    "languageAutoOnly": "Antigravity automatycznie wykrywa język. Wybór języka dla Codex zostanie zachowany po powrocie.",
     "sound": {
       "title": "Dźwięk",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Nie można było wkleić tekstu do aktywnej aplikacji.",
     "transcriptionFailedTitle": "Transkrypcja nie powiodła się"
   },
+  "transcriptionFailedAction": "Sprawdź usługę transkrypcji",
   "appLanguage": {
     "title": "Język aplikacji",
     "description": "Zmień język interfejsu Murmur"

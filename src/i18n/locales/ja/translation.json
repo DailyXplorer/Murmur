@@ -36,6 +36,27 @@
         "checkFailed": "権限の確認に失敗しました。もう一度お試しください。",
         "requestFailed": "権限のリクエストに失敗しました。もう一度お試しください。"
       }
+    },
+    "provider": {
+      "title": "文字起こしサービスを選択",
+      "description": "セットアップを完了するには、設定済みのサービスを選択してください。Murmur はローカル設定を検出しますが、接続が有効かどうかは確認しません。",
+      "antigravityDescription": "この Mac で検出された Antigravity の設定を使用します。",
+      "experimental": "実験的",
+      "configured": "設定を検出しました",
+      "selectionRequired": "続行するには、設定済みの文字起こしサービスを選択してください。",
+      "retry": "再試行",
+      "continue": "続ける",
+      "providerChangeFailed": "選択した文字起こしサービスを保存できませんでした。もう一度お試しください。",
+      "completionFailed": "セットアップを完了できませんでした。状態を更新してもう一度お試しください。",
+      "openFailed": "Antigravity を開けませんでした。",
+      "installFailed": "Antigravity のダウンロードページを開けませんでした。",
+      "setupCodex": "Codex の設定を開く",
+      "codexSetupFailed": "Codex の設定を開けませんでした。"
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "設定が見つかりません"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "外観"
       }
     },
+    "languageAutoOnly": "Antigravity は言語を自動検出します。Codex に戻すと、Codex の言語選択がそのまま使われます。",
     "sound": {
       "title": "サウンド",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "アクティブなアプリにテキストを貼り付けられませんでした。",
     "transcriptionFailedTitle": "文字起こしに失敗しました"
   },
+  "transcriptionFailedAction": "文字起こしサービスを確認",
   "appLanguage": {
     "title": "アプリの言語",
     "description": "Murmur インターフェースの言語を変更"

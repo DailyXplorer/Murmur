@@ -36,6 +36,27 @@
         "checkFailed": "Не вдалося перевірити дозволи. Будь ласка, спробуйте ще раз.",
         "requestFailed": "Не вдалося запросити дозвіл. Будь ласка, спробуйте ще раз."
       }
+    },
+    "provider": {
+      "title": "Виберіть службу транскрипції",
+      "description": "Виберіть налаштовану службу, щоб завершити налаштування. Murmur виявляє локальну конфігурацію, але не перевіряє активне з’єднання.",
+      "antigravityDescription": "Використовує конфігурацію Antigravity, виявлену на цьому Mac.",
+      "experimental": "Експериментальна",
+      "configured": "Конфігурацію виявлено",
+      "selectionRequired": "Виберіть налаштовану службу транскрипції, щоб продовжити.",
+      "retry": "Спробувати знову",
+      "continue": "Продовжити",
+      "providerChangeFailed": "Не вдалося зберегти вибрану службу транскрипції. Спробуйте знову.",
+      "completionFailed": "Не вдалося завершити налаштування. Оновіть стан і спробуйте знову.",
+      "openFailed": "Не вдалося відкрити Antigravity.",
+      "installFailed": "Не вдалося відкрити сторінку завантаження Antigravity.",
+      "setupCodex": "Відкрити налаштування Codex",
+      "codexSetupFailed": "Не вдалося відкрити налаштування Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Конфігурацію не виявлено"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Вигляд"
       }
     },
+    "languageAutoOnly": "Antigravity автоматично визначає мову. Вибір мови Codex буде збережено, коли ви повернетеся до Codex.",
     "sound": {
       "title": "Звук",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Не вдалося вставити текст до активної програми.",
     "transcriptionFailedTitle": "Помилка транскрипції"
   },
+  "transcriptionFailedAction": "Перевірити службу транскрипції",
   "appLanguage": {
     "title": "Мова інтерфейсу",
     "description": "Змінити мову інтерфейсу Murmur"

@@ -36,6 +36,27 @@
         "checkFailed": "Không thể kiểm tra quyền. Vui lòng thử lại.",
         "requestFailed": "Không thể yêu cầu quyền. Vui lòng thử lại."
       }
+    },
+    "provider": {
+      "title": "Chọn dịch vụ phiên âm",
+      "description": "Chọn một dịch vụ đã được cấu hình để hoàn tất thiết lập. Murmur phát hiện cấu hình cục bộ nhưng không xác minh kết nối đang hoạt động.",
+      "antigravityDescription": "Sử dụng cấu hình Antigravity được phát hiện trên máy Mac này.",
+      "experimental": "Thử nghiệm",
+      "configured": "Đã phát hiện cấu hình",
+      "selectionRequired": "Chọn một dịch vụ phiên âm đã được cấu hình để tiếp tục.",
+      "retry": "Thử lại",
+      "continue": "Tiếp tục",
+      "providerChangeFailed": "Không thể lưu dịch vụ phiên âm đã chọn. Vui lòng thử lại.",
+      "completionFailed": "Không thể hoàn tất thiết lập. Hãy làm mới trạng thái và thử lại.",
+      "openFailed": "Không thể mở Antigravity.",
+      "installFailed": "Không thể mở trang tải xuống Antigravity.",
+      "setupCodex": "Mở thiết lập Codex",
+      "codexSetupFailed": "Không thể mở thiết lập Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Không phát hiện cấu hình"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Giao diện"
       }
     },
+    "languageAutoOnly": "Antigravity tự động phát hiện ngôn ngữ. Lựa chọn ngôn ngữ Codex của bạn sẽ được giữ lại khi chuyển về Codex.",
     "sound": {
       "title": "Âm thanh",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Không thể dán văn bản vào ứng dụng đang hoạt động.",
     "transcriptionFailedTitle": "Phiên âm thất bại"
   },
+  "transcriptionFailedAction": "Xem lại dịch vụ phiên âm",
   "appLanguage": {
     "title": "Ngôn ngữ ứng dụng",
     "description": "Thay đổi ngôn ngữ giao diện của Murmur"

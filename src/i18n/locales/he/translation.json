@@ -36,6 +36,27 @@
         "checkFailed": "בדיקת ההרשאות נכשלה. נסה שוב.",
         "requestFailed": "בקשת ההרשאה נכשלה. נסה שוב."
       }
+    },
+    "provider": {
+      "title": "בחירת שירות תמלול",
+      "description": "בחר שירות שהוגדר כדי להשלים את ההגדרה. Murmur מזהה תצורה מקומית ואינו מאמת חיבור פעיל.",
+      "antigravityDescription": "משתמש בתצורת Antigravity שזוהתה ב‑Mac זה.",
+      "experimental": "ניסיוני",
+      "configured": "זוהתה תצורה",
+      "selectionRequired": "בחר שירות תמלול מוגדר כדי להמשיך.",
+      "retry": "נסה שוב",
+      "continue": "המשך",
+      "providerChangeFailed": "לא ניתן לשמור את שירות התמלול שנבחר. נסה שוב.",
+      "completionFailed": "לא ניתן להשלים את ההגדרה. רענן את המצב ונסה שוב.",
+      "openFailed": "לא ניתן לפתוח את Antigravity.",
+      "installFailed": "לא ניתן לפתוח את דף ההורדה של Antigravity.",
+      "setupCodex": "פתיחת הגדרת Codex",
+      "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "לא זוהתה תצורה"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "מראה"
       }
     },
+    "languageAutoOnly": "Antigravity מזהה את השפה אוטומטית. בחירת השפה של Codex נשמרת כשתחזור אליו.",
     "sound": {
       "title": "שמע",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
     "transcriptionFailedTitle": "התמלול נכשל"
   },
+  "transcriptionFailedAction": "בדיקת שירות התמלול",
   "appLanguage": {
     "title": "שפת האפליקציה",
     "description": "שנה את שפת הממשק של Murmur"

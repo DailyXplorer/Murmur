@@ -36,6 +36,27 @@
         "checkFailed": "Impossibile verificare i permessi. Riprova.",
         "requestFailed": "Impossibile richiedere il permesso. Riprova."
       }
+    },
+    "provider": {
+      "title": "Scegli un servizio di trascrizione",
+      "description": "Scegli un servizio configurato per completare la configurazione. Murmur rileva una configurazione locale, ma non verifica una connessione attiva.",
+      "antigravityDescription": "Usa la configurazione Antigravity rilevata su questo Mac.",
+      "experimental": "Sperimentale",
+      "configured": "Configurazione rilevata",
+      "selectionRequired": "Scegli un servizio di trascrizione configurato per continuare.",
+      "retry": "Riprova",
+      "continue": "Continua",
+      "providerChangeFailed": "Non è stato possibile salvare il servizio di trascrizione selezionato. Riprova.",
+      "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
+      "openFailed": "Non è stato possibile aprire Antigravity.",
+      "installFailed": "Non è stato possibile aprire la pagina di download di Antigravity.",
+      "setupCodex": "Apri la configurazione di Codex",
+      "codexSetupFailed": "Impossibile aprire la configurazione di Codex."
+    },
+    "providerLabels": {
+      "codex": "Codex",
+      "antigravity": "Antigravity",
+      "unavailable": "Configurazione non rilevata"
     }
   },
   "settings": {
@@ -79,6 +100,7 @@
         "appearance": "Aspetto"
       }
     },
+    "languageAutoOnly": "Antigravity rileva automaticamente la lingua. La selezione della lingua di Codex verrà mantenuta quando tornerai a Codex.",
     "sound": {
       "title": "Suono",
       "microphone": {
@@ -375,6 +397,7 @@
     "pasteFailed": "Non è stato possibile incollare il testo nell'applicazione attiva.",
     "transcriptionFailedTitle": "Trascrizione non riuscita"
   },
+  "transcriptionFailedAction": "Controlla il servizio di trascrizione",
   "appLanguage": {
     "title": "Lingua Applicazione",
     "description": "Cambia la lingua dell'interfaccia di Murmur"
