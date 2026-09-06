@@ -20,7 +20,7 @@ pub(crate) enum PasteOutcome {
     Cancelled,
     /// Text or Cmd+V was posted to the validated target.
     Injected,
-    /// No target was available or it changed before output could start.
+    /// Requested output was not delivered; the transcript remains recoverable.
     Skipped,
     /// The user selected PasteMethod::None; history may still be committed.
     IntentionalNone,
@@ -31,6 +31,23 @@ fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), Str
         .clipboard()
         .write_text(text)
         .map_err(|e| format!("Failed to write to clipboard: {e}"))
+}
+
+fn complete_clipboard_only_output(
+    operation: &ProcessingOperation,
+    clipboard_handling: ClipboardHandling,
+    write: impl FnOnce() -> Result<(), String>,
+) -> PasteOutcome {
+    let Some(_permit) = operation.try_enter_paste() else {
+        return PasteOutcome::Cancelled;
+    };
+    if clipboard_handling == ClipboardHandling::CopyToClipboard {
+        if let Err(error) = write() {
+            warn!("Failed to copy transcription without pasting: {error}");
+            return PasteOutcome::Skipped;
+        }
+    }
+    PasteOutcome::IntentionalNone
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -310,22 +327,14 @@ pub(crate) async fn paste(
             let app_for_main = app_handle.clone();
             let operation_for_main = operation.clone();
             let completed = await_main_or_cancel(&app_handle, &operation, move || {
-                let Some(_permit) = operation_for_main.try_enter_paste() else {
-                    return false;
-                };
-                if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
-                    if let Err(error) = write_text_to_clipboard(&app_for_main, &text_for_main) {
-                        warn!("Failed to copy transcription without pasting: {error}");
-                    }
-                }
-                true
+                complete_clipboard_only_output(
+                    &operation_for_main,
+                    settings.clipboard_handling,
+                    || write_text_to_clipboard(&app_for_main, &text_for_main),
+                )
             })
             .await?;
-            Ok(if completed == Some(true) {
-                PasteOutcome::IntentionalNone
-            } else {
-                PasteOutcome::Cancelled
-            })
+            Ok(completed.unwrap_or(PasteOutcome::Cancelled))
         }
         PasteMethod::Direct => {
             let operation_for_main = operation.clone();
@@ -425,6 +434,55 @@ mod tests {
         assert!(!same_frontmost_target(first.clone(), Some(target(43))));
         assert!(!same_frontmost_target(first.clone(), None));
         assert!(!same_frontmost_target(None, first));
+    }
+
+    #[test]
+    fn clipboard_only_failure_is_reported_as_recoverable_output() {
+        let operation = ProcessingOperation::new(OperationId(10));
+        let outcome =
+            complete_clipboard_only_output(&operation, ClipboardHandling::CopyToClipboard, || {
+                Err("clipboard unavailable".to_string())
+            });
+
+        assert_eq!(outcome, PasteOutcome::Skipped);
+        assert!(!operation.cancel());
+    }
+
+    #[test]
+    fn clipboard_only_success_completes_without_paste() {
+        let operation = ProcessingOperation::new(OperationId(11));
+        let mut wrote_text = false;
+        let outcome =
+            complete_clipboard_only_output(&operation, ClipboardHandling::CopyToClipboard, || {
+                wrote_text = true;
+                Ok(())
+            });
+
+        assert_eq!(outcome, PasteOutcome::IntentionalNone);
+        assert!(wrote_text);
+    }
+
+    #[test]
+    fn clipboard_only_cancel_and_history_only_mode_never_write() {
+        let cancelled = ProcessingOperation::new(OperationId(12));
+        assert!(cancelled.cancel());
+        assert_eq!(
+            complete_clipboard_only_output(
+                &cancelled,
+                ClipboardHandling::CopyToClipboard,
+                || panic!("cancelled output must not touch the clipboard"),
+            ),
+            PasteOutcome::Cancelled
+        );
+
+        assert_eq!(
+            complete_clipboard_only_output(
+                &ProcessingOperation::new(OperationId(13)),
+                ClipboardHandling::DontModify,
+                || panic!("history-only output must not touch the clipboard"),
+            ),
+            PasteOutcome::IntentionalNone
+        );
     }
 
     #[test]

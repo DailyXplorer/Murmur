@@ -150,8 +150,8 @@ fn operation_was_cancelled(
 }
 
 /// History follows the irreversible paste boundary, not a later cancellation
-/// request. `Skipped` is recoverable output: the text was complete but its
-/// target disappeared, so retain it and surface a paste error.
+/// request. `Skipped` retains the completed text for recovery when its output
+/// failed, including a clipboard-only write failure.
 fn paste_outcome_commits_history(outcome: crate::clipboard::PasteOutcome) -> bool {
     outcome != crate::clipboard::PasteOutcome::Cancelled
 }
@@ -544,11 +544,7 @@ impl ShortcutAction for TranscribeAction {
                                             return;
                                         }
                                         if outcome == crate::clipboard::PasteOutcome::Skipped {
-                                            // A target can disappear after
-                                            // validation. Keep the completed
-                                            // transcript recoverable and tell
-                                            // the UI that it was not pasted.
-                                            error!("Paste skipped because its validated target was unavailable");
+                                            error!("Transcription output could not be delivered");
                                             let _ = ah.emit("paste-error", ());
                                         }
                                         if wav_saved {
