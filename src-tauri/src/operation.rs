@@ -5,7 +5,7 @@
 //! a clipboard value or history row belonging to a newer recording.
 
 use std::sync::{
-    atomic::{AtomicU8, Ordering},
+    atomic::{AtomicBool, AtomicU8, Ordering},
     Arc,
 };
 use tokio::sync::watch;
@@ -20,6 +20,7 @@ pub struct OperationId(pub u64);
 
 struct OperationState {
     phase: AtomicU8,
+    cancellation_requested: AtomicBool,
     cancelled_tx: watch::Sender<bool>,
 }
 
@@ -48,6 +49,7 @@ impl ProcessingOperation {
             id,
             state: Arc::new(OperationState {
                 phase: AtomicU8::new(ACTIVE),
+                cancellation_requested: AtomicBool::new(false),
                 cancelled_tx,
             }),
         }
@@ -57,23 +59,27 @@ impl ProcessingOperation {
         self.id
     }
 
-    /// Cancels while output is still reversible. Returns false once paste has
-    /// been claimed, because a physical output event may already be queued.
+    /// Requests cancellation and cancels while output is still reversible.
+    ///
+    /// The request is retained even when it arrives after output was claimed:
+    /// a posted paste chord cannot be retracted, but delayed auto-submit and
+    /// provider work that has not crossed its own boundary must still stop.
+    /// Returns false once paste has been claimed.
     pub fn cancel(&self) -> bool {
+        self.state
+            .cancellation_requested
+            .store(true, Ordering::Release);
+        // Keep the cancellation state for subscribers created after this
+        // transition too. `send` drops the value when there are no receivers
+        // yet, which can otherwise strand a later provider future forever.
+        self.state.cancelled_tx.send_replace(true);
         match self.state.phase.compare_exchange(
             ACTIVE,
             CANCELLED,
             Ordering::AcqRel,
             Ordering::Acquire,
         ) {
-            Ok(_) => {
-                // Keep the cancellation state for subscribers created after
-                // this transition too. `send` drops the value when there are
-                // no receivers yet, which can otherwise strand a later
-                // provider future forever.
-                self.state.cancelled_tx.send_replace(true);
-                true
-            }
+            Ok(_) => true,
             Err(CANCELLED) => true,
             Err(_) => false,
         }
@@ -81,6 +87,13 @@ impl ProcessingOperation {
 
     pub fn is_cancelled(&self) -> bool {
         self.state.phase.load(Ordering::Acquire) == CANCELLED
+    }
+
+    /// True for any cancellation request, including one that arrived after an
+    /// irreversible paste boundary. Native paste transactions must retain their
+    /// promised data/settlement in that case, but they must not auto-submit.
+    pub fn cancellation_requested(&self) -> bool {
+        self.state.cancellation_requested.load(Ordering::Acquire)
     }
 
     /// Wait for cancellation without polling. Provider implementations select
@@ -141,6 +154,7 @@ mod tests {
         assert!(permit.is_some());
         assert!(!operation.cancel());
         assert!(!operation.is_cancelled());
+        assert!(operation.cancellation_requested());
     }
 
     #[test]
