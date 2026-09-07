@@ -540,19 +540,24 @@ fn verify_antigravity_signature(binary: &Path) -> Result<()> {
 /// an unsigned or differently signed process is rejected before discovery or
 /// reuse of its listener.
 fn verify_running_antigravity_process(pid: u32) -> Result<()> {
-    let pid = i32::try_from(pid).context("Antigravity process ID is out of range")?;
     let requirement = SecRequirement::from_str(ANTIGRAVITY_CODE_REQUIREMENT)
         .context("failed to compile the Antigravity code requirement")?;
-    let mut attributes = GuestAttributes::new();
-    attributes.set_pid(pid);
-    let code =
-        SecCode::copy_guest_with_attribues(None, &attributes, CodeSigningFlags::NO_NETWORK_ACCESS)
-            .context("failed to inspect the running Antigravity transcription service")?;
+    let code = running_process_code(pid)?;
     code.check_validity(
         CodeSigningFlags::STRICT_VALIDATE | CodeSigningFlags::NO_NETWORK_ACCESS,
         &requirement,
     )
     .context("running Antigravity transcription service failed identity verification")
+}
+
+fn running_process_code(pid: u32) -> Result<SecCode> {
+    let pid = i32::try_from(pid).context("Antigravity process ID is out of range")?;
+    let mut attributes = GuestAttributes::new();
+    attributes.set_pid(pid);
+    // Process lookup rejects validation-only flags with errSecCSInvalidFlags.
+    // Keep STRICT_VALIDATE and NO_NETWORK_ACCESS on check_validity above.
+    SecCode::copy_guest_with_attribues(None, &attributes, CodeSigningFlags::NONE)
+        .context("failed to inspect the running Antigravity transcription service")
 }
 
 fn antigravity_token_path() -> Option<PathBuf> {
@@ -1141,8 +1146,20 @@ mod tests {
     }
 
     #[test]
+    fn can_inspect_a_running_process_before_checking_its_identity() {
+        running_process_code(std::process::id())
+            .expect("macOS should resolve the current process code object");
+    }
+
+    #[test]
     fn rejects_running_process_with_the_wrong_code_identity() {
-        assert!(verify_running_antigravity_process(std::process::id()).is_err());
+        let error = verify_running_antigravity_process(std::process::id())
+            .expect_err("the test executable must not satisfy Antigravity's identity");
+        assert_eq!(
+            error.to_string(),
+            "running Antigravity transcription service failed identity verification",
+            "rejection must come from identity validation, not a broken process lookup"
+        );
     }
 
     #[test]

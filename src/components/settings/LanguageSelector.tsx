@@ -158,7 +158,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           ? t("settings.languageAutoOnly")
           : t("settings.general.language.description")
       }
-      descriptionMode={isAntigravity ? "inline" : descriptionMode}
+      descriptionMode={descriptionMode}
       grouped={grouped}
       disabled={isAntigravity}
     >

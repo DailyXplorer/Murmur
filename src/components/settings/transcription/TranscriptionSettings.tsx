@@ -169,15 +169,6 @@ export const TranscriptionSettings: React.FC = () => {
               )}
           </div>
         </SettingContainer>
-        <div className="flex justify-end px-4 pb-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => void refreshStatuses()}
-          >
-            {t("onboarding.provider.retry")}
-          </Button>
-        </div>
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>
