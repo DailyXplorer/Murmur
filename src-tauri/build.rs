@@ -64,6 +64,7 @@ const APP_COMMANDS: &[&str] = &[
     "open_antigravity",
     "complete_onboarding",
     "get_history_entries",
+    "get_insights",
     "toggle_history_entry_saved",
     "get_audio_file_path",
     "delete_history_entry",
