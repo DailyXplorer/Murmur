@@ -592,12 +592,16 @@ impl ShortcutAction for TranscribeAction {
                                         false
                                     }
                                 };
-                                crate::insights::record_dictation(
-                                    &ah,
-                                    &final_text,
-                                    sample_count,
-                                    dictionary_fixes,
-                                );
+                                // Only a delivered dictation counts: the
+                                // frontmost app is then the one that got it.
+                                if delivered {
+                                    crate::insights::record_dictation(
+                                        &ah,
+                                        &final_text,
+                                        sample_count,
+                                        dictionary_fixes,
+                                    );
+                                }
                                 // The transcript is kept whatever happened to
                                 // the paste or the WAV: history first, then
                                 // the clipboard as the immediate way back.
