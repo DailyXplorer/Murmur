@@ -118,6 +118,15 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
         None::<&str>,
     )
     .expect("failed to create copy last transcript item");
+    // A dictation in progress owns the paste target until it finishes.
+    let paste_last_transcript_i = MenuItem::with_id(
+        app,
+        "paste_last_transcript",
+        &strings.paste_last_transcript,
+        state == TrayIconState::Idle,
+        None::<&str>,
+    )
+    .expect("failed to create paste last transcript item");
     let quit_i = MenuItem::with_id(app, "quit", &strings.quit, true, quit_accelerator)
         .expect("failed to create quit item");
     let separator = || PredefinedMenuItem::separator(app).expect("failed to create separator");
@@ -133,6 +142,7 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
                     &separator(),
                     &cancel_i,
                     &separator(),
+                    &paste_last_transcript_i,
                     &copy_last_transcript_i,
                     &separator(),
                     &settings_i,
@@ -148,6 +158,7 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
             &[
                 &version_i,
                 &separator(),
+                &paste_last_transcript_i,
                 &copy_last_transcript_i,
                 &separator(),
                 &settings_i,

@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} başka bir uygulama tarafından kullanılıyor. Murmur ayarlarında başka bir kısayol seçin.",
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
     "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
-    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı."
+    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
+    "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
+    "pasteLastTranscript": "Son dökümü yapıştır",
+    "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok."
   },
   "sidebar": {
     "general": "Genel",
@@ -28,7 +31,59 @@
     "history": "Geçmiş",
     "debug": "Hata Ayıklama",
     "about": "Hakkında",
-    "transcription": "Transkripsiyon"
+    "transcription": "Transkripsiyon",
+    "insights": "İstatistikler"
+  },
+  "insights": {
+    "error": "İstatistikler yüklenemedi.",
+    "privacy": "İstatistikler bu Mac'te hesaplanır ve burada kalır. Bunlar için dikte edilen metin saklanmaz.",
+    "wpm": {
+      "title": "Dakikada kelime",
+      "window": "Son 30 gün",
+      "empty": "Henüz yeterli süreli dikte yok",
+      "formula": "Son 30 günde dikte edilen toplam kelime sayısının bu diktelerin dakika cinsinden toplam kayıt süresine bölümü. Bir saniyeden kısa kayıtlar atlanır."
+    },
+    "words": {
+      "title": "Toplam kelime",
+      "empty": "Bu alanı doldurmak için dikte etmeye başlayın",
+      "equivalence": {
+        "emails": "≈ {{amount}} × tipik bir e-posta",
+        "pages": "≈ {{amount}} × bir kitap sayfası",
+        "stories": "≈ {{amount}} × bir öykü",
+        "novels": "≈ {{amount}} × bir roman"
+      }
+    },
+    "fixes": {
+      "title": "Düzeltmeler",
+      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz kelimeler ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
+      "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
+      "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
+    },
+    "apps": {
+      "title": "Uygulamaya göre kullanım",
+      "description": "Dikteleriniz uygulama kategorisine göre nereye gitti.",
+      "empty": "Uygulama kategorileri yalnızca yeni dikteler için kaydedilir. Bu bölümü doldurmak için herhangi bir uygulamada dikte edin.",
+      "totalApps": "Kullanılan uygulamalar",
+      "categories": {
+        "aiPrompts": "Yapay zekâ istemleri",
+        "personalMessages": "Kişisel mesajlar",
+        "workMessages": "İş mesajları",
+        "emails": "E-postalar",
+        "documents": "Belgeler",
+        "coding": "Kod ve terminal",
+        "other": "Diğer"
+      }
+    },
+    "streak": {
+      "title": "Seri",
+      "description": "Yerel saat diliminizde en az bir dikte yapılan günler.",
+      "current": "Mevcut seri",
+      "longest": "En uzun seri",
+      "heatmapLabel": "Son 20 haftada günlük dikteler",
+      "cellTitle": "{{date}} tarihindeki dikteler: {{value}}",
+      "less": "Az",
+      "more": "Çok"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transkripsiyon Kısayolu",
-            "description": "Sesinizi kaydetmek ve metne dönüştürmek için klavye kısayolu."
+            "description": "Konuşmak için basılı tutun, bitirmek için bırakın. Eller serbest kayıt için iki kez dokunun, durdurmak için bir kez basın."
           },
           "cancel": {
             "name": "İptal Kısayolu",
             "description": "Mevcut kaydı iptal etmek için klavye kısayolu."
+          },
+          "paste_last": {
+            "name": "Son dökümü yapıştır",
+            "description": "En son dökümünüzü kullandığınız uygulamaya yeniden yapıştırır."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Dil ara...",
         "noResults": "Dil bulunamadı",
         "auto": "Otomatik"
-      },
-      "pushToTalk": {
-        "label": "Bas Konuş",
-        "description": "Kaydetmek için basılı tutun, durdurmak için bırakın"
       },
       "groups": {
         "appearance": "Görünüm"
@@ -244,11 +299,17 @@
       "unsave": "Kaydedilenlerden kaldır",
       "delete": "Kaydı sil",
       "deleteError": "Kayıt silinemedi. Lütfen tekrar deneyin.",
-      "retranscribe": "Yeniden transkribe et",
+      "retranscribe": "Yeniden yazıya dök",
       "retranscribeError": "Yeniden transkripsiyon başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Transkribe ediliyor...",
-      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz.",
+      "transcriptionFailed": "Yazıya dökme başarısız oldu. Kayıt saklandı, tekrar deneyebilirsiniz.",
       "preferences": "Tercihler",
+      "noRecording": "Yazıya dökme başarısız oldu ve kayıt saklanmadı.",
+      "retry": "Tekrar dene",
+      "retrySuccess": "Yeniden yazıya döküldü.",
+      "copy": "Kopyala",
+      "recordingUnavailable": "Kayıt artık mevcut değil, bu yüzden yeniden yazıya dökülemez.",
+      "noSpeech": "Kayıtta konuşma bulunamadı.",
       "cleanupFailed": "Yapay zekâ temizlemesi kullanılamadı, bu yüzden ham döküm yapıştırıldı.",
       "showOriginal": "Orijinal dökümü göster",
       "hideOriginal": "Orijinal dökümü gizle"
@@ -451,7 +512,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribe ediliyor..."
+    "transcribing": "Transkribe ediliyor...",
+    "handsFree": "Eller serbest kayıt",
+    "handsFreeHint": "Durdurmak için {{shortcut}} tuşuna basın",
+    "limitWarning": "{{seconds}} sn içinde duracak"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} yenilikleri"

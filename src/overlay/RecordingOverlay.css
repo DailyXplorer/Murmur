@@ -338,6 +338,21 @@
     box-shadow: 0 0 0 7px transparent;
   }
 }
+/* Hands-free recording: a lock replaces the dot, in the same colours. */
+.slock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  flex: none;
+  color: var(--s-accent);
+  transition: opacity 180ms ease;
+}
+.slock.arming {
+  color: var(--s-muted);
+  opacity: 0.45;
+}
 .stimer {
   font-size: 12px;
   color: var(--s-faint);

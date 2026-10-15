@@ -1,33 +1,22 @@
 use crate::actions::ACTION_MAP;
+use crate::dictation_gesture::{Gesture, Intent, Key};
 use crate::managers::audio::AudioRecordingManager;
 use crate::{OperationId, ProcessingOperation};
 use log::{debug, error, warn};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
 const DEBOUNCE: Duration = Duration::from_millis(30);
-const RELEASE_GRACE: Duration = Duration::from_millis(50);
 const START_RETRY_DELAY: Duration = Duration::from_millis(25);
 pub(crate) const QUIT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 const PROVIDER_QUIT_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_RECORDING_DURATION: Duration =
     Duration::from_secs(crate::audio_toolkit::constants::MAX_RECORDING_SECONDS);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PttAction {
-    Passthrough,
-    DeferRelease,
-    CancelRelease,
-}
-
-struct PendingRelease {
-    binding_id: String,
-    hotkey_string: String,
-    deadline: Instant,
-}
+/// How long before the recording cap the user is told it will stop.
+pub(crate) const LIMIT_WARNING_LEAD: Duration = Duration::from_secs(60);
 
 /// A press that arrived while the prior recording still owns the recorder.
 /// Keep the user input and retry it after the trailing stop completes instead
@@ -42,15 +31,23 @@ struct ActiveRecording {
     binding_id: String,
     hotkey_string: String,
     deadline: Instant,
+    limit_warned: bool,
 }
 
 /// Commands processed sequentially by the coordinator thread.
 enum Command {
-    Input {
+    /// A press or release of the recording shortcut, stamped when it fired so
+    /// a busy queue cannot stretch a tap into a hold.
+    Key {
         binding_id: String,
         hotkey_string: String,
-        is_pressed: bool,
-        push_to_talk: bool,
+        key: Key,
+        at: Instant,
+    },
+    /// A remote toggle from the CLI or SIGUSR2.
+    Toggle {
+        binding_id: String,
+        hotkey_string: String,
     },
     /// Local cancellation from a shortcut, the tray, or the webview.
     ///
@@ -59,6 +56,9 @@ enum Command {
     /// async worker and the audio manager can still report recording active.
     Cancel,
     RemoteCancel,
+    /// Paste the latest transcription again. Admitted only while idle, so it
+    /// never interleaves with a dictation's own paste.
+    PasteLast,
     Shutdown,
     ProcessingFinished(OperationId),
 }
@@ -129,17 +129,25 @@ enum Stage {
     Processing { operation: ProcessingOperation },
 }
 
+fn limit_warning_at(recording: &ActiveRecording) -> Instant {
+    recording
+        .deadline
+        .checked_sub(LIMIT_WARNING_LEAD)
+        .unwrap_or(recording.deadline)
+}
+
 fn next_deadline(
     stage: &Stage,
-    pending_release: Option<&PendingRelease>,
+    gesture: Gesture,
     pending_start: Option<&PendingStart>,
 ) -> Option<Instant> {
     let recording_deadline = match stage {
-        Stage::Recording(recording) => Some(recording.deadline),
+        Stage::Recording(recording) if recording.limit_warned => Some(recording.deadline),
+        Stage::Recording(recording) => Some(limit_warning_at(recording)),
         _ => None,
     };
     [
-        pending_release.map(|pending| pending.deadline),
+        gesture.deadline(),
         pending_start.map(|pending| pending.deadline),
         recording_deadline,
     ]
@@ -165,89 +173,66 @@ fn take_due_start(
         .map(|pending| (pending.binding_id, pending.hotkey_string))
 }
 
-/// A second toggle press means the user no longer wants the queued start.
-/// This runs only after the press has passed the normal debounce window.
-fn cancel_matching_pending_toggle_start(
-    pending_start: &mut Option<PendingStart>,
-    is_pressed: bool,
-    push_to_talk: bool,
-    binding_id: &str,
-) -> bool {
-    if !is_pressed || push_to_talk {
-        return false;
-    }
-
-    if pending_start
-        .as_ref()
-        .is_some_and(|pending| pending.binding_id == binding_id)
-    {
-        *pending_start = None;
-        return true;
-    }
-
-    false
-}
-
-fn take_due_stop(
-    stage: &Stage,
-    pending_release: &mut Option<PendingRelease>,
-    now: Instant,
-) -> Option<(String, String, bool)> {
-    if pending_release
-        .as_ref()
-        .is_some_and(|pending| pending.deadline <= now)
-    {
-        if let Some(pending) = pending_release.take() {
-            if matches!(stage, Stage::Recording(recording) if recording.binding_id == pending.binding_id)
-            {
-                return Some((pending.binding_id, pending.hotkey_string, false));
-            }
-        }
-    }
-
-    if let Stage::Recording(recording) = stage {
-        if recording.deadline <= now {
-            *pending_release = None;
-            return Some((
-                recording.binding_id.clone(),
-                recording.hotkey_string.clone(),
-                true,
-            ));
-        }
-    }
-    None
-}
-
-fn classify_ptt_event(
-    pending_release_binding: Option<&str>,
-    is_pressed: bool,
-    push_to_talk: bool,
-    binding_id: &str,
-    recording_binding: Option<&str>,
-) -> PttAction {
-    if !push_to_talk {
-        return PttAction::Passthrough;
-    }
-
-    if is_pressed {
-        if pending_release_binding == Some(binding_id) {
-            PttAction::CancelRelease
-        } else {
-            PttAction::Passthrough
-        }
-    } else if recording_binding == Some(binding_id) && pending_release_binding.is_none() {
-        PttAction::DeferRelease
-    } else {
-        PttAction::Passthrough
+fn take_due_limit_stop(stage: &Stage, now: Instant) -> Option<(String, String)> {
+    match stage {
+        Stage::Recording(recording) if recording.deadline <= now => Some((
+            recording.binding_id.clone(),
+            recording.hotkey_string.clone(),
+        )),
+        _ => None,
     }
 }
 
-fn finish_cancel(
-    stage: &mut Stage,
-    pending_release: &mut Option<PendingRelease>,
-    pending_start: &mut Option<PendingStart>,
-) {
-    *pending_release = None;
+/// Returns true once per recording, when the cap is `LIMIT_WARNING_LEAD` away.
+fn take_due_limit_warning(stage: &mut Stage, now: Instant) -> bool {
+    match stage {
+        Stage::Recording(recording)
+            if !recording.limit_warned && limit_warning_at(recording) <= now =>
+        {
+            recording.limit_warned = true;
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What the coordinator handles next, once the recording cap is checked.
+enum Next {
+    Command(Command),
+    /// The double-tap window closed with no second press queued.
+    GestureExpired(Gesture),
+    /// Nothing is queued and no gesture deadline has passed.
+    Wait,
+    Closed,
+}
+
+/// Reads a queued command before it judges the gesture deadline. Key events
+/// carry the time they fired, so a second tap that queued while the coordinator
+/// was busy (for example opening a slow microphone) still lands inside the
+/// window. Only an empty queue proves that no second press came in time.
+fn next_step(rx: &Receiver<Command>, gesture: Gesture, now: Instant) -> Next {
+    match rx.try_recv() {
+        Ok(cmd) => Next::Command(cmd),
+        Err(mpsc::TryRecvError::Disconnected) => Next::Closed,
+        Err(mpsc::TryRecvError::Empty) => match gesture.on_deadline(now) {
+            (expired, Intent::Discard) => Next::GestureExpired(expired),
+            _ => Next::Wait,
+        },
+    }
+}
+
+fn is_bounce(last_press: Option<Instant>, at: Instant) -> bool {
+    last_press.is_some_and(|previous| at.saturating_duration_since(previous) < DEBOUNCE)
+}
+
+/// A gesture only means something while its recording exists or is queued.
+/// Otherwise (busy pipeline, microphone failure, finished recording) the next
+/// press must start afresh rather than stop a recording that is not there.
+fn gesture_has_recording(stage: &Stage, pending_start: Option<&PendingStart>) -> bool {
+    matches!(stage, Stage::Recording(_)) || pending_start.is_some()
+}
+
+fn finish_cancel(stage: &mut Stage, pending_start: &mut Option<PendingStart>) {
     *pending_start = None;
     *stage = Stage::Idle;
 }
@@ -269,6 +254,236 @@ fn queue_local_cancel(tx: &Sender<Command>) -> Result<(), mpsc::SendError<Comman
     tx.send(Command::Cancel)
 }
 
+/// State owned by the coordinator thread.
+struct Worker {
+    app: AppHandle,
+    shutdown_drain: Arc<ShutdownDrain>,
+    stage: Stage,
+    gesture: Gesture,
+    pending_start: Option<PendingStart>,
+    next_operation_id: u64,
+    last_press: Option<Instant>,
+}
+
+impl Worker {
+    fn run(mut self, rx: Receiver<Command>) {
+        loop {
+            // Check deadlines before receiving so a continuously busy
+            // channel cannot postpone the hard recording limit.
+            let now = Instant::now();
+            if let Some((binding_id, hotkey_string)) = take_due_limit_stop(&self.stage, now) {
+                warn!("Recording reached the 15-minute duration limit; stopping safely");
+                self.gesture = Gesture::Idle;
+                self.stop(&binding_id, &hotkey_string);
+                continue;
+            }
+
+            if take_due_limit_warning(&mut self.stage, now) {
+                crate::utils::warn_recording_limit(&self.app, LIMIT_WARNING_LEAD);
+                continue;
+            }
+
+            let cmd = match next_step(&rx, self.gesture, now) {
+                Next::Command(cmd) => cmd,
+                Next::GestureExpired(gesture) => {
+                    self.gesture = gesture;
+                    self.discard();
+                    continue;
+                }
+                Next::Closed => break,
+                Next::Wait => {
+                    if let Some((binding_id, hotkey_string)) =
+                        take_due_start(&self.stage, &mut self.pending_start, now)
+                    {
+                        self.pending_start =
+                            start(&self.app, &mut self.stage, &binding_id, &hotkey_string);
+                        if matches!(self.gesture, Gesture::HandsFree { .. }) {
+                            self.show_hands_free();
+                        }
+                        self.forget_gesture_without_recording();
+                        continue;
+                    }
+
+                    // Wake at the next deadline and come back through the
+                    // queue check above rather than judging it here.
+                    match next_deadline(&self.stage, self.gesture, self.pending_start.as_ref()) {
+                        Some(deadline) => match rx
+                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        {
+                            Ok(cmd) => cmd,
+                            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        },
+                        None => match rx.recv() {
+                            Ok(cmd) => cmd,
+                            Err(_) => break,
+                        },
+                    }
+                }
+            };
+            self.handle(cmd);
+        }
+    }
+
+    fn handle(&mut self, cmd: Command) {
+        match cmd {
+            Command::Key {
+                binding_id,
+                hotkey_string,
+                key,
+                at,
+            } => {
+                if key == Key::Press {
+                    if is_bounce(self.last_press, at) {
+                        debug!("Debounced press for '{binding_id}'");
+                        return;
+                    }
+                    self.last_press = Some(at);
+                }
+                let (gesture, intent) = self.gesture.on_key(key, at);
+                self.gesture = gesture;
+                self.apply(intent, &binding_id, &hotkey_string);
+            }
+            Command::Toggle {
+                binding_id,
+                hotkey_string,
+            } => {
+                let (gesture, intent) = self.gesture.on_toggle();
+                self.gesture = gesture;
+                self.apply(intent, &binding_id, &hotkey_string);
+            }
+            Command::Cancel | Command::RemoteCancel => {
+                self.gesture = Gesture::Idle;
+                // Remote single-instance actions share this queue with
+                // remote toggles, and local cancellations must make the
+                // same decision from this authoritative stage. In
+                // particular, `stop_recording` moves us to Processing
+                // before its worker releases the audio manager, so that
+                // manager can still report recording active here.
+                let may_return_idle = request_cancel(&self.stage);
+                crate::utils::cancel_current_operation_from_coordinator(&self.app);
+                if may_return_idle {
+                    finish_cancel(&mut self.stage, &mut self.pending_start);
+                } else {
+                    // A Cmd+V was already posted. The async paste future
+                    // will suppress delayed Enter and FinishGuard will
+                    // transition to Idle after the modifier-release
+                    // receipt.
+                    self.pending_start = None;
+                }
+            }
+            Command::PasteLast => {
+                if matches!(self.stage, Stage::Idle) {
+                    let operation = self.next_operation();
+                    self.stage = Stage::Processing {
+                        operation: operation.clone(),
+                    };
+                    crate::paste_last::spawn(&self.app, operation);
+                } else {
+                    debug!("Ignoring paste-last request: dictation in progress");
+                }
+            }
+            Command::Shutdown => {
+                self.gesture = Gesture::Idle;
+                let may_return_idle = request_cancel(&self.stage);
+                crate::utils::cancel_current_operation_from_coordinator(&self.app);
+                if may_return_idle {
+                    finish_cancel(&mut self.stage, &mut self.pending_start);
+                    self.shutdown_drain.finish();
+                } else {
+                    self.pending_start = None;
+                }
+            }
+            Command::ProcessingFinished(id) => {
+                if is_current_processing(&self.stage, id) {
+                    self.stage = Stage::Idle;
+                    crate::shortcut::unregister_cancel_shortcut(&self.app);
+                    crate::tray::change_tray_icon(&self.app, crate::tray::TrayIconState::Idle);
+                    crate::utils::hide_recording_overlay(&self.app);
+                    if self.shutdown_drain.is_closing() {
+                        self.shutdown_drain.finish();
+                    }
+                } else {
+                    debug!(
+                        "Ignoring stale transcription completion for operation {}",
+                        id.0
+                    );
+                }
+            }
+        }
+    }
+
+    fn apply(&mut self, intent: Intent, binding_id: &str, hotkey_string: &str) {
+        match intent {
+            Intent::None => {}
+            Intent::Start | Intent::StartHandsFree => {
+                if matches!(self.stage, Stage::Idle) {
+                    self.pending_start =
+                        start(&self.app, &mut self.stage, binding_id, hotkey_string);
+                    if intent == Intent::StartHandsFree {
+                        self.show_hands_free();
+                    }
+                } else {
+                    debug!("Ignoring press for '{binding_id}': pipeline busy");
+                }
+            }
+            Intent::LockHandsFree => self.show_hands_free(),
+            Intent::Stop => match &self.stage {
+                Stage::Recording(recording) if recording.binding_id == binding_id => {
+                    self.stop(binding_id, hotkey_string);
+                }
+                _ => self.pending_start = None,
+            },
+            Intent::Discard => self.discard(),
+            Intent::Restart => {
+                self.discard();
+                self.apply(Intent::Start, binding_id, hotkey_string);
+            }
+        }
+        self.forget_gesture_without_recording();
+    }
+
+    /// Drops a lone short tap's recording without uploading it.
+    fn discard(&mut self) {
+        self.pending_start = None;
+        if matches!(self.stage, Stage::Recording(_)) {
+            debug!("Discarding a single short tap");
+            crate::utils::cancel_current_operation_from_coordinator(&self.app);
+            self.stage = Stage::Idle;
+        }
+    }
+
+    fn show_hands_free(&self) {
+        if matches!(self.stage, Stage::Recording(_)) {
+            crate::utils::show_hands_free_overlay(&self.app);
+        }
+    }
+
+    fn forget_gesture_without_recording(&mut self) {
+        if !gesture_has_recording(&self.stage, self.pending_start.as_ref()) {
+            self.gesture = Gesture::Idle;
+        }
+    }
+
+    fn next_operation(&mut self) -> ProcessingOperation {
+        let operation = ProcessingOperation::new(OperationId(self.next_operation_id));
+        self.next_operation_id = self.next_operation_id.wrapping_add(1);
+        operation
+    }
+
+    fn stop(&mut self, binding_id: &str, hotkey_string: &str) {
+        let Some(action) = ACTION_MAP.get(binding_id) else {
+            warn!("No action in ACTION_MAP for '{binding_id}'");
+            return;
+        };
+        let operation = self.next_operation();
+        self.stage = Stage::Processing {
+            operation: operation.clone(),
+        };
+        action.stop(&self.app, binding_id, hotkey_string, operation);
+    }
+}
+
 /// Serialises all transcription lifecycle events through a single thread
 /// to eliminate race conditions between keyboard shortcuts, signals, and
 /// the async transcribe-paste pipeline.
@@ -286,258 +501,55 @@ impl TranscriptionCoordinator {
     pub fn new(app: AppHandle) -> Self {
         let (tx, rx) = mpsc::channel();
         let shutdown_drain = Arc::new(ShutdownDrain::new());
-        let worker_shutdown_drain = Arc::clone(&shutdown_drain);
+        let worker = Worker {
+            app,
+            shutdown_drain: Arc::clone(&shutdown_drain),
+            stage: Stage::Idle,
+            gesture: Gesture::Idle,
+            pending_start: None,
+            next_operation_id: 1,
+            last_press: None,
+        };
 
         thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let mut stage = Stage::Idle;
-                let mut next_operation_id = 1_u64;
-                let mut last_press: Option<Instant> = None;
-                let mut pending_release: Option<PendingRelease> = None;
-                let mut pending_start: Option<PendingStart> = None;
-
-                loop {
-                    // Check deadlines before receiving so a continuously busy
-                    // channel cannot postpone the hard recording limit.
-                    if let Some((binding_id, hotkey_string, recording_limit)) =
-                        take_due_stop(&stage, &mut pending_release, Instant::now())
-                    {
-                        if recording_limit {
-                            warn!(
-                                "Recording reached the 15-minute duration limit; stopping safely"
-                            );
-                        }
-                        stop(
-                            &app,
-                            &mut stage,
-                            &mut next_operation_id,
-                            &binding_id,
-                            &hotkey_string,
-                        );
-                        continue;
-                    }
-
-                    if let Some((binding_id, hotkey_string)) =
-                        take_due_start(&stage, &mut pending_start, Instant::now())
-                    {
-                        if let Some(retry) = start(&app, &mut stage, &binding_id, &hotkey_string) {
-                            pending_start = Some(retry);
-                        }
-                        continue;
-                    }
-
-                    let cmd = if let Some(deadline) =
-                        next_deadline(&stage, pending_release.as_ref(), pending_start.as_ref())
-                    {
-                        match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                            Ok(cmd) => cmd,
-                            Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                        }
-                    } else {
-                        match rx.recv() {
-                            Ok(cmd) => cmd,
-                            Err(_) => break,
-                        }
-                    };
-
-                    match cmd {
-                        Command::Input {
-                            binding_id,
-                            hotkey_string,
-                            is_pressed,
-                            push_to_talk,
-                        } => {
-                            // A released push-to-talk key must not begin a
-                            // recording after a deferred start finally finds
-                            // the recorder idle.
-                            if push_to_talk
-                                && !is_pressed
-                                && pending_start
-                                    .as_ref()
-                                    .is_some_and(|pending| pending.binding_id == binding_id)
-                            {
-                                pending_start = None;
-                                continue;
-                            }
-                            let pending_release_binding = pending_release
-                                .as_ref()
-                                .map(|pending| pending.binding_id.as_str());
-                            let recording_binding = match &stage {
-                                Stage::Recording(recording) => Some(recording.binding_id.as_str()),
-                                _ => None,
-                            };
-
-                            match classify_ptt_event(
-                                pending_release_binding,
-                                is_pressed,
-                                push_to_talk,
-                                &binding_id,
-                                recording_binding,
-                            ) {
-                                PttAction::CancelRelease => {
-                                    pending_release = None;
-                                    continue;
-                                }
-                                PttAction::DeferRelease => {
-                                    pending_release = Some(PendingRelease {
-                                        binding_id,
-                                        hotkey_string,
-                                        deadline: Instant::now() + RELEASE_GRACE,
-                                    });
-                                    continue;
-                                }
-                                PttAction::Passthrough => {}
-                            }
-
-                            // Debounce rapid-fire press events (key repeat / double-tap).
-                            // Push-to-talk releases may be deferred above to absorb X11 auto-repeat.
-                            if is_pressed {
-                                let now = Instant::now();
-                                if last_press.is_some_and(|t| now.duration_since(t) < DEBOUNCE) {
-                                    debug!("Debounced press for '{binding_id}'");
-                                    continue;
-                                }
-                                last_press = Some(now);
-                            }
-
-                            if cancel_matching_pending_toggle_start(
-                                &mut pending_start,
-                                is_pressed,
-                                push_to_talk,
-                                &binding_id,
-                            ) {
-                                debug!("Cancelled queued start for '{binding_id}'");
-                                continue;
-                            }
-
-                            if push_to_talk {
-                                if is_pressed && matches!(stage, Stage::Idle) {
-                                    pending_start =
-                                        start(&app, &mut stage, &binding_id, &hotkey_string);
-                                } else if !is_pressed
-                                    && matches!(&stage, Stage::Recording(recording) if recording.binding_id == binding_id)
-                                {
-                                    stop(
-                                        &app,
-                                        &mut stage,
-                                        &mut next_operation_id,
-                                        &binding_id,
-                                        &hotkey_string,
-                                    );
-                                }
-                            } else if is_pressed {
-                                match &stage {
-                                    Stage::Idle => {
-                                        pending_start =
-                                            start(&app, &mut stage, &binding_id, &hotkey_string);
-                                    }
-                                    Stage::Recording(recording)
-                                        if recording.binding_id == binding_id =>
-                                    {
-                                        stop(
-                                            &app,
-                                            &mut stage,
-                                            &mut next_operation_id,
-                                            &binding_id,
-                                            &hotkey_string,
-                                        );
-                                    }
-                                    _ => {
-                                        debug!("Ignoring press for '{binding_id}': pipeline busy")
-                                    }
-                                }
-                            }
-                        }
-                        Command::Cancel | Command::RemoteCancel => {
-                            pending_release = None;
-                            // Remote single-instance actions share this queue
-                            // with remote toggles, and local cancellations must
-                            // make the same decision from this authoritative
-                            // stage. In particular, `stop_recording` moves us
-                            // to Processing before its worker releases the
-                            // audio manager, so that manager can still report
-                            // recording active here.
-                            let may_return_idle = request_cancel(&stage);
-                            crate::utils::cancel_current_operation_from_coordinator(&app);
-                            if may_return_idle {
-                                finish_cancel(&mut stage, &mut pending_release, &mut pending_start);
-                            } else {
-                                // A Cmd+V was already posted. The async paste
-                                // future will suppress delayed Enter and
-                                // FinishGuard will transition to Idle after
-                                // the modifier-release receipt.
-                                pending_release = None;
-                                pending_start = None;
-                            }
-                        }
-                        Command::Shutdown => {
-                            pending_release = None;
-                            let may_return_idle = request_cancel(&stage);
-                            crate::utils::cancel_current_operation_from_coordinator(&app);
-                            if may_return_idle {
-                                finish_cancel(&mut stage, &mut pending_release, &mut pending_start);
-                                worker_shutdown_drain.finish();
-                            } else {
-                                pending_start = None;
-                            }
-                        }
-                        Command::ProcessingFinished(id) => {
-                            if is_current_processing(&stage, id) {
-                                stage = Stage::Idle;
-                                crate::shortcut::unregister_cancel_shortcut(&app);
-                                crate::tray::change_tray_icon(
-                                    &app,
-                                    crate::tray::TrayIconState::Idle,
-                                );
-                                crate::utils::hide_recording_overlay(&app);
-                                if worker_shutdown_drain.is_closing() {
-                                    worker_shutdown_drain.finish();
-                                }
-                            } else {
-                                debug!(
-                                    "Ignoring stale transcription completion for operation {}",
-                                    id.0
-                                );
-                            }
-                        }
-                    }
-                }
-                debug!("Transcription coordinator exited");
-            }));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| worker.run(rx)));
             if let Err(e) = result {
                 error!("Transcription coordinator panicked: {e:?}");
+            } else {
+                debug!("Transcription coordinator exited");
             }
         });
 
         Self { tx, shutdown_drain }
     }
 
-    /// Send a keyboard/signal input event for a transcribe binding.
-    /// For signal-based toggles, use `is_pressed: true` and `push_to_talk: false`.
-    pub fn send_input(
-        &self,
-        binding_id: &str,
-        hotkey_string: &str,
-        is_pressed: bool,
-        push_to_talk: bool,
-    ) {
+    fn send(&self, command: Command) {
         if self.shutdown_drain.is_closing() {
             debug!("Ignoring transcription input while the application is closing");
             return;
         }
-        if self
-            .tx
-            .send(Command::Input {
-                binding_id: binding_id.to_string(),
-                hotkey_string: hotkey_string.to_string(),
-                is_pressed,
-                push_to_talk,
-            })
-            .is_err()
-        {
+        if self.tx.send(command).is_err() {
             warn!("Transcription coordinator channel closed");
         }
+    }
+
+    /// Forwards a press or release of the recording shortcut.
+    pub fn send_key(&self, binding_id: &str, hotkey_string: &str, is_pressed: bool) {
+        self.send(Command::Key {
+            binding_id: binding_id.to_string(),
+            hotkey_string: hotkey_string.to_string(),
+            key: if is_pressed { Key::Press } else { Key::Release },
+            at: Instant::now(),
+        });
+    }
+
+    /// Starts a hands-free recording, or stops the current one, for the CLI
+    /// and SIGUSR2.
+    pub fn send_toggle(&self, binding_id: &str, source: &str) {
+        self.send(Command::Toggle {
+            binding_id: binding_id.to_string(),
+            hotkey_string: source.to_string(),
+        });
     }
 
     /// Queue a local cancellation after any earlier lifecycle event.
@@ -558,6 +570,10 @@ impl TranscriptionCoordinator {
         if self.tx.send(Command::RemoteCancel).is_err() {
             warn!("Transcription coordinator channel closed");
         }
+    }
+
+    pub fn send_paste_last(&self) {
+        self.send(Command::PasteLast);
     }
 
     pub fn notify_processing_finished(&self, id: OperationId) {
@@ -622,6 +638,7 @@ fn start(
             binding_id: binding_id.to_string(),
             hotkey_string: hotkey_string.to_string(),
             deadline: Instant::now() + MAX_RECORDING_DURATION,
+            limit_warned: false,
         });
         None
     } else if audio.is_stopping() {
@@ -637,25 +654,6 @@ fn start(
     }
 }
 
-fn stop(
-    app: &AppHandle,
-    stage: &mut Stage,
-    next_operation_id: &mut u64,
-    binding_id: &str,
-    hotkey_string: &str,
-) {
-    let Some(action) = ACTION_MAP.get(binding_id) else {
-        warn!("No action in ACTION_MAP for '{binding_id}'");
-        return;
-    };
-    let operation = ProcessingOperation::new(OperationId(*next_operation_id));
-    *next_operation_id = next_operation_id.wrapping_add(1);
-    *stage = Stage::Processing {
-        operation: operation.clone(),
-    };
-    action.stop(app, binding_id, hotkey_string, operation);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -665,84 +663,27 @@ mod tests {
             binding_id: "transcribe".to_string(),
             hotkey_string: "CLI".to_string(),
             deadline,
+            limit_warned: false,
         })
     }
 
-    #[test]
-    fn push_to_talk_release_while_recording_defers_release() {
-        assert_eq!(
-            classify_ptt_event(None, false, true, "transcribe", Some("transcribe")),
-            PttAction::DeferRelease
-        );
-    }
-
-    #[test]
-    fn push_to_talk_press_matching_pending_release_cancels_release() {
-        assert_eq!(
-            classify_ptt_event(
-                Some("transcribe"),
-                true,
-                true,
-                "transcribe",
-                Some("transcribe")
-            ),
-            PttAction::CancelRelease
-        );
-    }
-
-    #[test]
-    fn toggle_mode_press_and_release_pass_through() {
-        assert_eq!(
-            classify_ptt_event(
-                Some("transcribe"),
-                true,
-                false,
-                "transcribe",
-                Some("transcribe")
-            ),
-            PttAction::Passthrough
-        );
-        assert_eq!(
-            classify_ptt_event(None, false, false, "transcribe", Some("transcribe")),
-            PttAction::Passthrough
-        );
-    }
-
-    #[test]
-    fn press_for_different_binding_than_pending_release_passes_through() {
-        assert_eq!(
-            classify_ptt_event(
-                Some("transcribe"),
-                true,
-                true,
-                "different_binding",
-                Some("transcribe")
-            ),
-            PttAction::Passthrough
-        );
-    }
-
-    #[test]
-    fn press_matching_pending_release_cancels_without_recording_state() {
-        assert_eq!(
-            classify_ptt_event(Some("transcribe"), true, true, "transcribe", None),
-            PttAction::CancelRelease
-        );
+    fn pending_start(deadline: Instant) -> PendingStart {
+        PendingStart {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            deadline,
+        }
     }
 
     #[test]
     fn remote_cancel_after_toggle_returns_the_coordinator_to_idle() {
         let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
-        let mut pending_release = Some(PendingRelease {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "CLI".to_string(),
-            deadline: Instant::now(),
-        });
+        let mut pending = Some(pending_start(Instant::now()));
 
-        finish_cancel(&mut stage, &mut pending_release, &mut None);
+        finish_cancel(&mut stage, &mut pending);
 
         assert!(matches!(stage, Stage::Idle));
-        assert!(pending_release.is_none());
+        assert!(pending.is_none());
     }
 
     #[test]
@@ -750,9 +691,8 @@ mod tests {
         let mut stage = Stage::Processing {
             operation: ProcessingOperation::new(OperationId(1)),
         };
-        let mut pending_release = None;
 
-        finish_cancel(&mut stage, &mut pending_release, &mut None);
+        finish_cancel(&mut stage, &mut None);
 
         assert!(matches!(stage, Stage::Idle));
     }
@@ -793,17 +733,6 @@ mod tests {
     }
 
     #[test]
-    fn local_cancel_during_processing_returns_to_idle_before_worker_finish() {
-        let mut stage = Stage::Processing {
-            operation: ProcessingOperation::new(OperationId(1)),
-        };
-        let mut pending_release = None;
-
-        finish_cancel(&mut stage, &mut pending_release, &mut None);
-        assert!(matches!(stage, Stage::Idle));
-    }
-
-    #[test]
     fn stale_completion_cannot_finish_a_later_operation() {
         let first = OperationId(1);
         let second = OperationId(2);
@@ -816,41 +745,62 @@ mod tests {
     }
 
     #[test]
-    fn local_cancel_during_recording_cleans_up_immediately() {
-        let mut stage = recording_stage(Instant::now() + MAX_RECORDING_DURATION);
-        let mut pending_release = None;
-
-        finish_cancel(&mut stage, &mut pending_release, &mut None);
-        assert!(matches!(stage, Stage::Idle));
+    fn receiver_wakes_for_the_earliest_gesture_start_or_recording_deadline() {
+        let now = Instant::now();
+        let stage = recording_stage(now + Duration::from_secs(600));
+        let waiting = Gesture::AwaitingSecondTap {
+            deadline: now + Duration::from_millis(350),
+        };
+        assert_eq!(
+            next_deadline(&stage, waiting, None),
+            Some(now + Duration::from_millis(350))
+        );
+        let retry = pending_start(now + Duration::from_millis(25));
+        assert_eq!(
+            next_deadline(&stage, waiting, Some(&retry)),
+            Some(now + Duration::from_millis(25))
+        );
+        assert_eq!(next_deadline(&Stage::Idle, Gesture::Idle, None), None);
     }
 
     #[test]
-    fn receiver_uses_the_earliest_release_or_recording_deadline() {
+    fn recording_warns_a_minute_before_the_cap_then_stops_at_it() {
         let now = Instant::now();
-        let stage = recording_stage(now + Duration::from_secs(10));
-        let pending = PendingRelease {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "Option+Space".to_string(),
-            deadline: now + Duration::from_millis(50),
-        };
+        let deadline = now + Duration::from_secs(600);
+        let mut stage = recording_stage(deadline);
+        let warn_at = deadline - LIMIT_WARNING_LEAD;
+
         assert_eq!(
-            next_deadline(&stage, Some(&pending), None),
-            Some(pending.deadline)
+            next_deadline(&stage, Gesture::HandsFree { key_down: false }, None),
+            Some(warn_at)
+        );
+        assert!(!take_due_limit_warning(
+            &mut stage,
+            warn_at - Duration::from_millis(1)
+        ));
+        assert!(take_due_limit_warning(&mut stage, warn_at));
+        assert!(
+            !take_due_limit_warning(&mut stage, warn_at),
+            "the warning is shown once"
         );
         assert_eq!(
-            next_deadline(&stage, None, None),
-            Some(now + Duration::from_secs(10))
+            next_deadline(&stage, Gesture::HandsFree { key_down: false }, None),
+            Some(deadline)
+        );
+        assert_eq!(
+            take_due_limit_stop(&stage, deadline - Duration::from_millis(1)),
+            None
+        );
+        assert_eq!(
+            take_due_limit_stop(&stage, deadline),
+            Some(("transcribe".to_string(), "CLI".to_string()))
         );
     }
 
     #[test]
     fn deferred_start_waits_for_idle_and_never_creates_a_phantom_recording() {
         let now = Instant::now();
-        let mut pending = Some(PendingStart {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "Option+Space".to_string(),
-            deadline: now,
-        });
+        let mut pending = Some(pending_start(now));
 
         // Cancellation can leave the coordinator Idle while audio is Stopping.
         // Retrying remains a request until the recorder admits it.
@@ -860,83 +810,109 @@ mod tests {
         );
         assert!(pending.is_none());
 
-        let mut stale = Some(PendingStart {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "Option+Space".to_string(),
-            deadline: now,
-        });
+        let mut stale = Some(pending_start(now));
         assert_eq!(take_due_start(&recording_stage(now), &mut stale, now), None);
         assert!(stale.is_none());
     }
 
     #[test]
-    fn toggle_press_cancels_a_matching_queued_start_after_debounce() {
-        let mut pending = Some(PendingStart {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "Option+Space".to_string(),
-            deadline: Instant::now() + START_RETRY_DELAY,
-        });
-
-        // The coordinator calls this after admitting the press through its
-        // 30 ms debounce. It must cancel, rather than replace, this retry.
-        assert!(cancel_matching_pending_toggle_start(
-            &mut pending,
-            true,
-            false,
-            "transcribe"
-        ));
-        assert!(pending.is_none());
-        assert_eq!(
-            take_due_start(
-                &Stage::Idle,
-                &mut pending,
-                Instant::now() + START_RETRY_DELAY
-            ),
-            None,
-            "the cancelled retry must not start later"
-        );
-    }
-
-    #[test]
-    fn only_a_matching_toggle_press_cancels_a_queued_start() {
-        let mut pending = Some(PendingStart {
-            binding_id: "transcribe".to_string(),
-            hotkey_string: "Option+Space".to_string(),
-            deadline: Instant::now() + START_RETRY_DELAY,
-        });
-
-        assert!(!cancel_matching_pending_toggle_start(
-            &mut pending,
-            false,
-            false,
-            "transcribe"
-        ));
-        assert!(!cancel_matching_pending_toggle_start(
-            &mut pending,
-            true,
-            true,
-            "transcribe"
-        ));
-        assert!(pending.is_some());
-
-        let mut no_pending = None;
-        assert!(!cancel_matching_pending_toggle_start(
-            &mut no_pending,
-            true,
-            false,
-            "transcribe"
-        ));
-    }
-
-    #[test]
-    fn expired_recording_is_taken_before_queued_input() {
+    fn a_gesture_outlives_neither_its_recording_nor_its_queued_start() {
         let now = Instant::now();
-        let stage = recording_stage(now - Duration::from_millis(1));
-        let mut pending_release = None;
-        assert_eq!(
-            take_due_stop(&stage, &mut pending_release, now),
-            Some(("transcribe".to_string(), "CLI".to_string(), true))
+        assert!(gesture_has_recording(&recording_stage(now), None));
+        assert!(gesture_has_recording(
+            &Stage::Idle,
+            Some(&pending_start(now))
+        ));
+        assert!(!gesture_has_recording(&Stage::Idle, None));
+        assert!(!gesture_has_recording(
+            &Stage::Processing {
+                operation: ProcessingOperation::new(OperationId(1)),
+            },
+            None
+        ));
+    }
+
+    /// Feeds the queue through `next_step` the way `Worker::run` does, at a
+    /// fixed `now`, and returns the intents and the final gesture.
+    fn drain_at(
+        rx: &Receiver<Command>,
+        mut gesture: Gesture,
+        now: Instant,
+    ) -> (Vec<Intent>, Gesture) {
+        let mut intents = Vec::new();
+        loop {
+            match next_step(rx, gesture, now) {
+                Next::Command(Command::Key { key, at, .. }) => {
+                    let (next, intent) = gesture.on_key(key, at);
+                    gesture = next;
+                    intents.push(intent);
+                }
+                Next::GestureExpired(next) => {
+                    gesture = next;
+                    intents.push(Intent::Discard);
+                }
+                Next::Command(_) => unreachable!("only key commands are queued"),
+                Next::Wait | Next::Closed => break,
+            }
+        }
+        intents.retain(|intent| *intent != Intent::None);
+        (intents, gesture)
+    }
+
+    fn key_at(key: Key, at: Instant) -> Command {
+        Command::Key {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            key,
+            at,
+        }
+    }
+
+    #[test]
+    fn a_double_tap_queued_behind_a_slow_microphone_locks_hands_free() {
+        let t0 = Instant::now();
+        let (tx, rx) = mpsc::channel();
+        // The first press started a recording, and opening the microphone
+        // held the coordinator until 600 ms while the rest of the double tap
+        // queued up.
+        for (key, at_ms) in [(Key::Release, 80), (Key::Press, 200), (Key::Release, 260)] {
+            tx.send(key_at(key, t0 + Duration::from_millis(at_ms)))
+                .unwrap();
+        }
+
+        let (intents, gesture) = drain_at(
+            &rx,
+            Gesture::Pressed { since: t0 },
+            t0 + Duration::from_millis(600),
         );
+
+        assert_eq!(intents, [Intent::LockHandsFree]);
+        assert_eq!(gesture, Gesture::HandsFree { key_down: false });
+    }
+
+    #[test]
+    fn a_lone_tap_expires_only_once_the_queue_is_empty() {
+        let t0 = Instant::now();
+        let (tx, rx) = mpsc::channel();
+        tx.send(key_at(Key::Release, t0 + Duration::from_millis(80)))
+            .unwrap();
+
+        let (intents, gesture) = drain_at(
+            &rx,
+            Gesture::Pressed { since: t0 },
+            t0 + Duration::from_millis(600),
+        );
+
+        assert_eq!(intents, [Intent::Discard]);
+        assert_eq!(gesture, Gesture::Idle);
+    }
+
+    #[test]
+    fn presses_closer_than_the_debounce_are_bounces() {
+        let t0 = Instant::now();
+        assert!(!is_bounce(None, t0));
+        assert!(is_bounce(Some(t0), t0 + Duration::from_millis(29)));
+        assert!(!is_bounce(Some(t0), t0 + DEBOUNCE));
     }
 
     #[test]
@@ -950,177 +926,5 @@ mod tests {
         assert!(queue_local_cancel(&tx).is_ok());
         assert!(matches!(rx.try_recv(), Ok(Command::Cancel)));
         assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
-    }
-
-    // ---------------------------------------------------------------------
-    // Sequence-level regression coverage for issue #1539.
-    //
-    // Under X11 key auto-repeat, holding a push-to-talk key does not emit one
-    // long press. It emits the initial press followed by a stream of
-    // synthesized release/press pairs, then a single genuine release on key-up.
-    // Before the fix, every synthesized release passed straight through and
-    // stopped recording, so holding the key "rapidly toggled" recording on and
-    // off. The fix defers each release for a short grace window and cancels it
-    // when the matching auto-repeat press arrives.
-    //
-    // The unit tests above assert `classify_ptt_event` in isolation. The
-    // simulator below threads that classifier through the same `pending_release`
-    // / `stage` state transitions the coordinator loop performs (lines that
-    // handle `Command::Input` and the `recv_timeout` grace expiry), so a whole
-    // event burst can be exercised deterministically without a Tauri AppHandle
-    // or real timers.
-    // ---------------------------------------------------------------------
-
-    const BINDING: &str = "transcribe";
-
-    #[derive(Clone, Copy)]
-    enum Ev {
-        /// A key-down event (real initial press or a synthesized auto-repeat press).
-        Press,
-        /// A key-up event (synthesized auto-repeat release or the genuine key-up).
-        Release,
-        /// The `RELEASE_GRACE` window elapsed with no cancelling press arriving.
-        Grace,
-    }
-
-    #[derive(Debug, PartialEq, Eq)]
-    enum SimStage {
-        Idle,
-        Recording,
-        Processing,
-    }
-
-    struct SimResult {
-        starts: u32,
-        stops: u32,
-        stage: SimStage,
-    }
-
-    /// Mirror of the coordinator loop's decision logic for a single push-to-talk
-    /// binding: it calls the real `classify_ptt_event` and applies the exact same
-    /// Defer / Cancel / debounce / start / stop transitions.
-    fn simulate(events: &[Ev]) -> SimResult {
-        let mut stage = SimStage::Idle;
-        let mut pending: Option<String> = None;
-        let mut last_press_ms: Option<u64> = None;
-        let mut clock_ms: u64 = 0;
-        let mut starts = 0u32;
-        let mut stops = 0u32;
-        let debounce_ms = DEBOUNCE.as_millis() as u64;
-
-        for ev in events {
-            // Auto-repeat events arrive a few ms apart, well inside DEBOUNCE.
-            clock_ms += 5;
-
-            match ev {
-                Ev::Grace => {
-                    // Coordinator's `RecvTimeoutError::Timeout` arm: fire the
-                    // deferred release iff we are still recording that binding.
-                    if let Some(pending_binding) = pending.take() {
-                        if stage == SimStage::Recording && pending_binding == BINDING {
-                            stage = SimStage::Processing;
-                            stops += 1;
-                        }
-                    }
-                }
-                Ev::Press | Ev::Release => {
-                    let is_pressed = matches!(ev, Ev::Press);
-                    let pending_binding = pending.as_deref();
-                    let recording_binding = if stage == SimStage::Recording {
-                        Some(BINDING)
-                    } else {
-                        None
-                    };
-
-                    match classify_ptt_event(
-                        pending_binding,
-                        is_pressed,
-                        true, // push_to_talk
-                        BINDING,
-                        recording_binding,
-                    ) {
-                        PttAction::CancelRelease => {
-                            pending = None;
-                            continue;
-                        }
-                        PttAction::DeferRelease => {
-                            pending = Some(BINDING.to_string());
-                            continue;
-                        }
-                        PttAction::Passthrough => {}
-                    }
-
-                    if is_pressed {
-                        if last_press_ms.is_some_and(|t| clock_ms - t < debounce_ms) {
-                            continue;
-                        }
-                        last_press_ms = Some(clock_ms);
-                    }
-
-                    if is_pressed && stage == SimStage::Idle {
-                        stage = SimStage::Recording;
-                        starts += 1;
-                    } else if !is_pressed && stage == SimStage::Recording {
-                        stage = SimStage::Processing;
-                        stops += 1;
-                    }
-                }
-            }
-        }
-
-        SimResult {
-            starts,
-            stops,
-            stage,
-        }
-    }
-
-    /// Initial press plus several synthesized release/press pairs, as X11 emits
-    /// while a push-to-talk key is held down.
-    fn autorepeat_burst() -> Vec<Ev> {
-        let mut events = vec![Ev::Press];
-        for _ in 0..6 {
-            events.push(Ev::Release);
-            events.push(Ev::Press);
-        }
-        events
-    }
-
-    /// Regression for #1539: a burst of X11 auto-repeat release/press pairs must
-    /// not stop recording. Before the fix the first synthesized release stopped
-    /// recording immediately (stops == 1, stage left Recording), which produced
-    /// the rapid on/off toggling. With the fix the releases are coalesced and
-    /// recording stays continuously active for the whole burst.
-    #[test]
-    fn x11_autorepeat_burst_does_not_toggle_recording() {
-        let result = simulate(&autorepeat_burst());
-        assert_eq!(result.starts, 1, "recording should start exactly once");
-        assert_eq!(
-            result.stops, 0,
-            "synthesized auto-repeat releases must not stop recording mid-burst"
-        );
-        assert_eq!(
-            result.stage,
-            SimStage::Recording,
-            "recording must remain active across the entire auto-repeat burst"
-        );
-    }
-
-    /// Complements the burst test: once the key is genuinely released and the
-    /// grace window elapses with no re-press, recording stops exactly once. This
-    /// proves the debounce only coalesces synthesized releases and does not wedge
-    /// the coordinator or swallow the real key-up.
-    #[test]
-    fn genuine_release_after_grace_stops_recording_once() {
-        let mut events = autorepeat_burst();
-        events.push(Ev::Release); // genuine key-up
-        events.push(Ev::Grace); // grace window elapses, no cancelling press
-        let result = simulate(&events);
-        assert_eq!(result.starts, 1, "recording should start exactly once");
-        assert_eq!(
-            result.stops, 1,
-            "a genuine release should stop recording exactly once"
-        );
-        assert_eq!(result.stage, SimStage::Processing);
     }
 }

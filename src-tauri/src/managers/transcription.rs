@@ -11,6 +11,13 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 
+/// Final dictation text plus how many dictionary replacements produced it.
+#[derive(Debug, Default)]
+pub struct Transcript {
+    pub text: String,
+    pub dictionary_fixes: u32,
+}
+
 /// Routes audio through the selected cloud transcription provider.
 pub struct TranscriptionManager {
     app_handle: AppHandle,
@@ -55,6 +62,7 @@ impl TranscriptionManager {
         let provider = get_settings(&self.app_handle).transcription_provider;
         self.transcribe_with_provider(Arc::new(audio), operation, provider)
             .await
+            .map(|transcript| transcript.text)
     }
 
     /// Runs a request against the provider chosen when that request starts.
@@ -65,7 +73,7 @@ impl TranscriptionManager {
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
         provider: TranscriptionProvider,
-    ) -> Result<String> {
+    ) -> Result<Transcript> {
         let _active_operation = self.register_active_operation(operation.clone());
         if self.shutdown_requested.load(Ordering::Acquire) {
             operation.cancel();
@@ -79,7 +87,7 @@ impl TranscriptionManager {
         }
 
         if audio.is_empty() {
-            return Ok(String::new());
+            return Ok(Transcript::default());
         }
         if operation.is_cancelled() {
             return Err(anyhow::anyhow!("Transcription cancelled"));
@@ -128,9 +136,8 @@ impl TranscriptionManager {
             return Err(anyhow::anyhow!("Transcription cancelled"));
         }
 
-        let mut processed = normalize_transcription_output(&text);
-        processed = crate::dictionary::correct(
-            &processed,
+        let (processed, dictionary_fixes) = crate::dictionary::correct(
+            &normalize_transcription_output(&text),
             &settings.custom_words,
             &settings.learned_words,
             settings.word_correction_threshold,
@@ -140,7 +147,10 @@ impl TranscriptionManager {
             "{provider:?} transcription produced {} characters",
             processed.len()
         );
-        Ok(processed)
+        Ok(Transcript {
+            text: processed,
+            dictionary_fixes,
+        })
     }
 
     /// Keeps CLI calls synchronous and independent of desktop cancellation.

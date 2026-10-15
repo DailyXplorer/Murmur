@@ -148,8 +148,18 @@ fn find_best_match<'a>(
 /// # Returns
 /// The corrected text with custom words applied
 pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -> String {
+    apply_custom_words_counted(text, custom_words, threshold).0
+}
+
+/// [`apply_custom_words`] that also returns how many replacements changed
+/// the text, for the Insights "dictionary fixes" count.
+pub fn apply_custom_words_counted(
+    text: &str,
+    custom_words: &[String],
+    threshold: f64,
+) -> (String, u32) {
     if custom_words.is_empty() {
-        return text.to_string();
+        return (text.to_string(), 0);
     }
 
     // Pre-compute normalized comparison keys to avoid repeated allocations.
@@ -161,6 +171,7 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
 
     let words: Vec<&str> = text.split_whitespace().collect();
     let mut result = Vec::new();
+    let mut replacements = 0;
     let mut i = 0;
 
     while i < words.len() {
@@ -207,7 +218,11 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
             // Preserve case from first word.
             let corrected = preserve_case_pattern(ngram_words[0], replacement);
 
-            result.push(format!("{}{}{}", prefix, corrected, suffix));
+            let replaced = format!("{}{}{}", prefix, corrected, suffix);
+            if replaced != ngram_words.join(" ") {
+                replacements += 1;
+            }
+            result.push(replaced);
             i += n;
         } else {
             result.push(words[i].to_string());
@@ -215,7 +230,7 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
         }
     }
 
-    result.join(" ")
+    (result.join(" "), replacements)
 }
 
 /// Preserves the case pattern of the original word when applying a replacement
@@ -337,6 +352,18 @@ mod tests {
         let custom_words = vec!["hello".to_string(), "world".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
         assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn counted_custom_words_skip_matches_that_change_nothing() {
+        let custom_words = vec!["hello".to_string(), "Murmur".to_string()];
+        let (text, replacements) =
+            apply_custom_words_counted("helo from Murmur", &custom_words, 0.5);
+        assert_eq!((text.as_str(), replacements), ("hello from Murmur", 1));
+        assert_eq!(
+            apply_custom_words_counted("plain text", &[], 0.5),
+            ("plain text".to_string(), 0)
+        );
     }
 
     #[test]

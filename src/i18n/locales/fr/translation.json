@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} est utilisé par une autre application. Choisissez un autre raccourci dans les réglages de Murmur.",
     "errorMicrophoneStartup": "Le microphone toujours actif n'a pas pu démarrer. Murmur l'ouvrira au moment d'enregistrer.",
     "errorHistoryStartup": "Impossible d'ouvrir l'historique. La dictée fonctionne, mais rien n'y est enregistré.",
-    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté."
+    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté.",
+    "warningRecordingLimit": "L’enregistrement s’arrête dans 1 minute (limite de 15 minutes).",
+    "pasteLastTranscript": "Coller la dernière transcription",
+    "noticeNothingToPaste": "Aucune transcription à coller pour l’instant."
   },
   "sidebar": {
     "general": "Général",
@@ -28,7 +31,59 @@
     "history": "Historique",
     "debug": "Débogage",
     "about": "À propos",
-    "transcription": "Transcription"
+    "transcription": "Transcription",
+    "insights": "Statistiques"
+  },
+  "insights": {
+    "error": "Impossible de charger les statistiques.",
+    "privacy": "Les statistiques sont calculées sur ce Mac et y restent. Aucun texte dicté n'est conservé pour elles.",
+    "wpm": {
+      "title": "Mots par minute",
+      "window": "30 derniers jours",
+      "empty": "Pas encore assez de dictées chronométrées",
+      "formula": "Nombre total de mots dictés au cours des 30 derniers jours divisé par la durée totale d'enregistrement de ces dictées, en minutes. Les enregistrements de moins d'une seconde sont ignorés."
+    },
+    "words": {
+      "title": "Mots au total",
+      "empty": "Commencez à dicter pour remplir ce compteur",
+      "equivalence": {
+        "emails": "≈ {{amount}} × un e-mail type",
+        "pages": "≈ {{amount}} × une page de livre",
+        "stories": "≈ {{amount}} × une nouvelle",
+        "novels": "≈ {{amount}} × un roman"
+      }
+    },
+    "fixes": {
+      "title": "Corrections",
+      "description": "Mots que vous avez corrigés après le collage par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
+      "wordsCorrected": "Mots corrigés : {{value}}",
+      "dictionaryFixes": "Corrections du dictionnaire : {{value}}"
+    },
+    "apps": {
+      "title": "Utilisation par application",
+      "description": "Où sont allées vos dictées, par catégorie d'application.",
+      "empty": "Les catégories d'application ne sont enregistrées que pour les nouvelles dictées. Dictez dans n'importe quelle application pour remplir cette section.",
+      "totalApps": "Applications utilisées",
+      "categories": {
+        "aiPrompts": "Requêtes IA",
+        "personalMessages": "Messages personnels",
+        "workMessages": "Messages professionnels",
+        "emails": "E-mails",
+        "documents": "Documents",
+        "coding": "Code et terminal",
+        "other": "Autre"
+      }
+    },
+    "streak": {
+      "title": "Série",
+      "description": "Jours avec au moins une dictée, dans votre fuseau horaire local.",
+      "current": "Série en cours",
+      "longest": "Plus longue série",
+      "heatmapLabel": "Dictées par jour sur les 20 dernières semaines",
+      "cellTitle": "Dictées le {{date}} : {{value}}",
+      "less": "Moins",
+      "more": "Plus"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Raccourci de Transcription",
-            "description": "Le raccourci clavier pour enregistrer et transcrire votre voix."
+            "description": "Maintenez pour parler et relâchez pour terminer. Appuyez deux fois pour enregistrer en mains libres, puis une fois pour arrêter."
           },
           "cancel": {
             "name": "Raccourci d'Annulation",
             "description": "Le raccourci clavier pour annuler l'enregistrement en cours."
+          },
+          "paste_last": {
+            "name": "Coller la dernière transcription",
+            "description": "Colle à nouveau votre dernière transcription dans l’application que vous utilisez."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Rechercher des langues...",
         "noResults": "Aucune langue trouvée",
         "auto": "Automatique"
-      },
-      "pushToTalk": {
-        "label": "Appuyer pour parler",
-        "description": "Maintenez pour enregistrer, relâchez pour arrêter"
       },
       "groups": {
         "appearance": "Apparence"
@@ -244,11 +299,17 @@
       "unsave": "Retirer des favoris",
       "delete": "Supprimer l'entrée",
       "deleteError": "Échec de la suppression de l'entrée. Veuillez réessayer.",
-      "retranscribe": "Re-transcrire",
+      "retranscribe": "Retranscrire",
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
-      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
+      "transcriptionFailed": "La transcription a échoué. L’enregistrement a été conservé, vous pouvez réessayer.",
       "preferences": "Préférences",
+      "noRecording": "La transcription a échoué et aucun enregistrement n’a été conservé.",
+      "retry": "Réessayer",
+      "retrySuccess": "Retranscription terminée.",
+      "copy": "Copier",
+      "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
+      "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement.",
       "cleanupFailed": "Le nettoyage IA était indisponible : la transcription brute a été collée.",
       "showOriginal": "Afficher la transcription d’origine",
       "hideOriginal": "Masquer la transcription d’origine"
@@ -451,7 +512,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcription..."
+    "transcribing": "Transcription...",
+    "handsFree": "Enregistrement mains libres",
+    "handsFreeHint": "Appuyez sur {{shortcut}} pour arrêter",
+    "limitWarning": "Arrêt dans {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nouveautés de Murmur v{{version}}"

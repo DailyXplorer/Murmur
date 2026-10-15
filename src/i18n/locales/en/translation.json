@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} is used by another app. Choose another shortcut in Murmur settings.",
     "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
     "errorHistoryStartup": "History couldn't be opened. Dictation still works, but nothing is saved to History.",
-    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it."
+    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it.",
+    "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit).",
+    "pasteLastTranscript": "Paste Last Transcript",
+    "noticeNothingToPaste": "There is no transcription to paste yet."
   },
   "sidebar": {
     "general": "General",
@@ -28,7 +31,59 @@
     "history": "History",
     "debug": "Debug",
     "about": "About",
-    "transcription": "Transcription"
+    "transcription": "Transcription",
+    "insights": "Insights"
+  },
+  "insights": {
+    "error": "Insights could not be loaded.",
+    "privacy": "Insights are calculated on this Mac and stay here. No dictated text is stored for them.",
+    "wpm": {
+      "title": "Words per minute",
+      "window": "Last 30 days",
+      "empty": "Not enough timed dictations yet",
+      "formula": "Total words dictated in the last 30 days divided by the total recording time of those dictations, in minutes. Recordings shorter than one second are skipped."
+    },
+    "words": {
+      "title": "Total words",
+      "empty": "Start dictating to fill this in",
+      "equivalence": {
+        "emails": "≈ {{amount}} × a typical email",
+        "pages": "≈ {{amount}} × a book page",
+        "stories": "≈ {{amount}} × a short story",
+        "novels": "≈ {{amount}} × a novel"
+      }
+    },
+    "fixes": {
+      "title": "Fixes made",
+      "description": "Words you corrected after Murmur pasted, plus words your custom dictionary replaced automatically.",
+      "wordsCorrected": "Words corrected: {{value}}",
+      "dictionaryFixes": "Dictionary fixes: {{value}}"
+    },
+    "apps": {
+      "title": "Usage by app",
+      "description": "Where your dictations went, by app category.",
+      "empty": "App categories are recorded for new dictations only. Dictate in any app to see this fill in.",
+      "totalApps": "Total apps used",
+      "categories": {
+        "aiPrompts": "AI prompts",
+        "personalMessages": "Personal messages",
+        "workMessages": "Work messages",
+        "emails": "Emails",
+        "documents": "Documents",
+        "coding": "Coding & terminal",
+        "other": "Other"
+      }
+    },
+    "streak": {
+      "title": "Streak",
+      "description": "Days with at least one dictation, in your local time zone.",
+      "current": "Current streak",
+      "longest": "Longest streak",
+      "heatmapLabel": "Dictations per day over the last 20 weeks",
+      "cellTitle": "Dictations on {{date}}: {{value}}",
+      "less": "Less",
+      "more": "More"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transcribe Shortcut",
-            "description": "The keyboard shortcut to record and transcribe your voice."
+            "description": "Hold to talk and release to finish. Double-tap to record hands-free, then press once to stop."
           },
           "cancel": {
             "name": "Cancel Shortcut",
             "description": "The keyboard shortcut to cancel the current recording."
+          },
+          "paste_last": {
+            "name": "Paste Last Transcription",
+            "description": "Pastes your latest transcription again into the app you are using."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Search languages...",
         "noResults": "No languages found",
         "auto": "Auto"
-      },
-      "pushToTalk": {
-        "label": "Push To Talk",
-        "description": "Hold to record, release to stop"
       },
       "groups": {
         "appearance": "Appearance"
@@ -244,11 +299,17 @@
       "unsave": "Remove from saved",
       "delete": "Delete entry",
       "deleteError": "Failed to delete entry. Please try again.",
-      "retranscribe": "Re-transcribe",
+      "retranscribe": "Transcribe again",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
+      "transcriptionFailed": "Transcription failed. The recording was kept, so you can retry.",
       "preferences": "Preferences",
+      "noRecording": "Transcription failed and no recording was kept.",
+      "retry": "Retry",
+      "retrySuccess": "Transcribed again.",
+      "copy": "Copy",
+      "recordingUnavailable": "The recording is no longer available, so it can't be transcribed again.",
+      "noSpeech": "No speech was found in the recording.",
       "cleanupFailed": "AI cleanup was unavailable, so the raw transcript was pasted.",
       "showOriginal": "Show original transcript",
       "hideOriginal": "Hide original transcript"
@@ -454,6 +515,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribing..."
+    "transcribing": "Transcribing...",
+    "handsFree": "Hands-free recording",
+    "handsFreeHint": "Press {{shortcut}} to stop",
+    "limitWarning": "Stops in {{seconds}} s"
   }
 }

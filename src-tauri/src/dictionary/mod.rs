@@ -7,15 +7,17 @@ mod observer;
 
 pub use observer::{stop_observing, watch_pasted_text};
 
-use crate::audio_toolkit::apply_custom_words;
+use crate::audio_toolkit::apply_custom_words_counted;
+use crate::insights::InsightsManager;
 use crate::settings::{self, MAX_CUSTOM_WORDS};
 use learn::Correction;
-use log::{debug, info};
+use log::{debug, error, info};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
 pub struct LearnedWord {
@@ -41,37 +43,50 @@ pub fn prune_learned(learned: &mut Vec<LearnedWord>, custom_words: &[String]) ->
 /// fuzzy matched as before. A learned word is replaced only where its exact
 /// misheard form appears: fuzzy matching it would turn "cloud" into "Claude"
 /// from a single correction, so otherwise it is only a vocabulary hint for
-/// cleanup.
+/// cleanup. Also returns how many replacements were made, for the Insights
+/// "dictionary fixes" count: each replaced span counts once, since a word
+/// a learned entry replaced is not matched again against the typed words.
 pub fn correct(
     text: &str,
     custom_words: &[String],
     learned: &[LearnedWord],
     threshold: f64,
-) -> String {
+) -> (String, u32) {
     let typed: Vec<String> = custom_words
         .iter()
         .filter(|word| !learned.iter().any(|entry| &entry.word == *word))
         .cloned()
         .collect();
-    apply_custom_words(&apply_heard_as(text, learned), &typed, threshold)
+    let (heard, learned_fixes) = apply_heard_as(text, learned);
+    let (corrected, typed_fixes) = apply_custom_words_counted(&heard, &typed, threshold);
+    (corrected, learned_fixes + typed_fixes)
 }
 
 /// Replaces each learned mishearing with its word, whole words only and
 /// ignoring case. Entries whose misheard form is also said on purpose, such
 /// as an everyday word or a near-identical ordinary name, stay hints only;
-/// this also covers entries stored before those rules existed.
-fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> String {
+/// this also covers entries stored before those rules existed. Returns the
+/// text and the number of replacements.
+fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> (String, u32) {
     let safe = learned
         .iter()
         .filter(|entry| learn::replaces_safely(&entry.heard_as, &entry.word));
-    safe.fold(text.to_string(), |text, entry| {
+    safe.fold((text.to_string(), 0), |(text, fixes), entry| {
         let pattern = format!(r"(?i)\b{}\b", regex::escape(entry.heard_as.trim()));
-        match Regex::new(&pattern) {
-            Ok(heard) => heard
-                .replace_all(&text, regex::NoExpand(&entry.word))
-                .into_owned(),
-            Err(_) => text,
+        let Ok(heard) = Regex::new(&pattern) else {
+            return (text, fixes);
+        };
+        let found = heard
+            .find_iter(&text)
+            .filter(|found| found.as_str() != entry.word)
+            .count() as u32;
+        if found == 0 {
+            return (text, fixes);
         }
+        let replaced = heard
+            .replace_all(&text, regex::NoExpand(&entry.word))
+            .into_owned();
+        (replaced, fixes + found)
     })
 }
 
@@ -104,10 +119,16 @@ fn remember(app: &AppHandle, corrections: Vec<Correction>) {
     );
 }
 
-/// Hook for the insights record of corrections: called once per dictation
-/// the user edited after it was pasted, with the number of words changed.
-pub fn corrections_observed(_app: &AppHandle, words_corrected: u32) {
+/// Records in Insights that the user edited a pasted dictation, once per
+/// dictation, with the number of words changed. Runs on the watcher thread.
+fn corrections_observed(app: &AppHandle, words_corrected: u32) {
     debug!("User corrected {words_corrected} pasted word(s)");
+    let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
+        return;
+    };
+    if let Err(e) = insights.record_correction(words_corrected) {
+        error!("Failed to record corrected words in insights: {e}");
+    }
 }
 
 #[cfg(test)]
@@ -129,7 +150,7 @@ mod tests {
         ];
         assert_eq!(
             apply_heard_as("Clawd runs on Cooper Netties, not clawdia", &entries),
-            "Claude runs on Kubernetes, not clawdia"
+            ("Claude runs on Kubernetes, not clawdia".to_string(), 2)
         );
     }
 
@@ -138,7 +159,7 @@ mod tests {
         let entries = [learned("Claude", "cloud"), learned("Sarah's", "Sarah")];
         assert_eq!(
             apply_heard_as("cloud storage for Sarah", &entries),
-            "cloud storage for Sarah"
+            ("cloud storage for Sarah".to_string(), 0)
         );
     }
 
@@ -148,11 +169,11 @@ mod tests {
         let entries = [learned("Claude", "clawd")];
         assert_eq!(
             correct("ask clawd about cloud storage", &words, &entries, 0.18),
-            "ask Claude about cloud storage"
+            ("ask Claude about cloud storage".to_string(), 1)
         );
         assert_eq!(
             correct("open chat gpt", &words, &entries, 0.18),
-            "open ChatGPT"
+            ("open ChatGPT".to_string(), 1)
         );
     }
 
@@ -162,11 +183,11 @@ mod tests {
         let entries = [learned("Smyth", "Smith")];
         assert_eq!(
             correct("call Smith about the Smith account", &words, &entries, 0.18),
-            "call Smith about the Smith account"
+            ("call Smith about the Smith account".to_string(), 0)
         );
         assert_eq!(
             apply_heard_as("Clawd says hi", &[learned("Claude", "Clawd")]),
-            "Claude says hi"
+            ("Claude says hi".to_string(), 1)
         );
     }
 
@@ -175,7 +196,7 @@ mod tests {
         let entries = [learned("OpenAI", "open ai")];
         assert_eq!(
             apply_heard_as("ask open ai, then open the AI panel", &entries),
-            "ask OpenAI, then open the AI panel"
+            ("ask OpenAI, then open the AI panel".to_string(), 1)
         );
     }
 
@@ -183,7 +204,22 @@ mod tests {
     fn replacement_text_is_literal() {
         assert_eq!(
             apply_heard_as("pay dollar sign", &[learned("$1", "dollar sign")]),
-            "pay $1"
+            ("pay $1".to_string(), 1)
+        );
+    }
+
+    #[test]
+    fn each_dictionary_fix_counts_once() {
+        let words = vec!["Claude".to_string(), "ChargeBee".to_string()];
+        let entries = [learned("Claude", "clawd")];
+        assert_eq!(
+            correct(
+                "clawd and Clawd use Charge B, not Claude",
+                &words,
+                &entries,
+                0.18
+            ),
+            ("Claude and Claude use ChargeBee, not Claude".to_string(), 3)
         );
     }
 

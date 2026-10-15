@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} wordt door een andere app gebruikt. Kies een andere sneltoets in de instellingen van Murmur.",
     "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
     "errorHistoryStartup": "Geschiedenis kon niet worden geopend. Dicteren werkt, maar er wordt niets in Geschiedenis opgeslagen.",
-    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast."
+    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast.",
+    "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten).",
+    "pasteLastTranscript": "Laatste transcriptie plakken",
+    "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -28,7 +31,59 @@
     "history": "Geschiedenis",
     "debug": "Probleemoplossing",
     "about": "Over Murmur",
-    "transcription": "Transcriptie"
+    "transcription": "Transcriptie",
+    "insights": "Inzichten"
+  },
+  "insights": {
+    "error": "Inzichten konden niet worden geladen.",
+    "privacy": "Inzichten worden op deze Mac berekend en blijven hier. Er wordt geen gedicteerde tekst voor bewaard.",
+    "wpm": {
+      "title": "Woorden per minuut",
+      "window": "Laatste 30 dagen",
+      "empty": "Nog niet genoeg getimede dicteringen",
+      "formula": "Totaal aantal gedicteerde woorden in de laatste 30 dagen gedeeld door de totale opnametijd van die dicteringen, in minuten. Opnames korter dan één seconde worden overgeslagen."
+    },
+    "words": {
+      "title": "Woorden in totaal",
+      "empty": "Begin met dicteren om dit te vullen",
+      "equivalence": {
+        "emails": "≈ {{amount}} × een gemiddelde e-mail",
+        "pages": "≈ {{amount}} × een boekpagina",
+        "stories": "≈ {{amount}} × een kort verhaal",
+        "novels": "≈ {{amount}} × een roman"
+      }
+    },
+    "fixes": {
+      "title": "Correcties",
+      "description": "Woorden die je hebt gecorrigeerd nadat Murmur had geplakt, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
+      "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
+      "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
+    },
+    "apps": {
+      "title": "Gebruik per app",
+      "description": "Waar je dicteringen naartoe gingen, per app-categorie.",
+      "empty": "App-categorieën worden alleen voor nieuwe dicteringen vastgelegd. Dicteer in een willekeurige app om dit te vullen.",
+      "totalApps": "Gebruikte apps",
+      "categories": {
+        "aiPrompts": "AI-prompts",
+        "personalMessages": "Persoonlijke berichten",
+        "workMessages": "Werkberichten",
+        "emails": "E-mails",
+        "documents": "Documenten",
+        "coding": "Code & terminal",
+        "other": "Overig"
+      }
+    },
+    "streak": {
+      "title": "Reeks",
+      "description": "Dagen met minstens één dictering, in je lokale tijdzone.",
+      "current": "Huidige reeks",
+      "longest": "Langste reeks",
+      "heatmapLabel": "Dicteringen per dag in de laatste 20 weken",
+      "cellTitle": "Dicteringen op {{date}}: {{value}}",
+      "less": "Minder",
+      "more": "Meer"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Sneltoets voor dicteren",
-            "description": "De sneltoets om je stem op te nemen en te transcriberen."
+            "description": "Houd ingedrukt om te praten en laat los om te stoppen. Tik twee keer om handsfree op te nemen en druk daarna één keer om te stoppen."
           },
           "cancel": {
             "name": "Sneltoets voor annuleren",
             "description": "De sneltoets om de huidige opname te annuleren."
+          },
+          "paste_last": {
+            "name": "Laatste transcriptie plakken",
+            "description": "Plakt je laatste transcriptie opnieuw in de app die je gebruikt."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Talen zoeken...",
         "noResults": "Geen talen gevonden",
         "auto": "Automatisch"
-      },
-      "pushToTalk": {
-        "label": "Push-to-talk",
-        "description": "Ingedrukt houden om op te nemen, loslaten om te stoppen"
       },
       "groups": {
         "appearance": "Weergave"
@@ -247,8 +302,14 @@
       "retranscribe": "Opnieuw transcriberen",
       "retranscribeError": "Opnieuw transcriberen mislukt. Probeer het opnieuw.",
       "transcribing": "Transcriberen...",
-      "transcriptionFailed": "Transcriptie mislukt. Je kunt het opnieuw proberen via het herlaad-pictogram.",
+      "transcriptionFailed": "Transcriptie mislukt. De opname is bewaard, dus je kunt het opnieuw proberen.",
       "preferences": "Voorkeuren",
+      "noRecording": "Transcriptie mislukt en er is geen opname bewaard.",
+      "retry": "Opnieuw proberen",
+      "retrySuccess": "Opnieuw getranscribeerd.",
+      "copy": "Kopiëren",
+      "recordingUnavailable": "De opname is niet meer beschikbaar en kan dus niet opnieuw worden getranscribeerd.",
+      "noSpeech": "Er is geen spraak gevonden in de opname.",
       "cleanupFailed": "AI-opschoning was niet beschikbaar, dus het ruwe transcript is geplakt.",
       "showOriginal": "Origineel transcript tonen",
       "hideOriginal": "Origineel transcript verbergen"
@@ -454,6 +515,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcriberen..."
+    "transcribing": "Transcriberen...",
+    "handsFree": "Handsfree opnemen",
+    "handsFreeHint": "Druk op {{shortcut}} om te stoppen",
+    "limitWarning": "Stopt over {{seconds}} s"
   }
 }
