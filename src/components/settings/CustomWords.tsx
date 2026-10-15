@@ -22,6 +22,12 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const [newWord, setNewWord] = useState("");
     const customWords = getSetting("custom_words") || [];
+    const learnedWords = new Map(
+      (getSetting("learned_words") || []).map((entry) => [
+        entry.word,
+        entry.heard_as,
+      ]),
+    );
     const normalizedWord = normalizeCustomWord(newWord);
     const normalizedWordLength = Array.from(normalizedWord).length;
 
@@ -100,24 +106,44 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           <div
             className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
+            {learnedWords.size > 0 && (
+              <p className="pb-2 text-xs text-text/60">
+                {t("settings.advanced.customWords.learnedHint")}
+              </p>
+            )}
             <div className="flex flex-wrap justify-start gap-1">
-              {customWords.map((word) => (
-                <Button
-                  key={word}
-                  onClick={() => handleRemoveWord(word)}
-                  disabled={isUpdating("custom_words")}
-                  variant="secondary"
-                  size="sm"
-                  className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
-                  aria-label={t("settings.advanced.customWords.remove", {
-                    word,
-                  })}
-                  title={word}
-                >
-                  <span className="min-w-0 truncate">{word}</span>
-                  <XIcon className="shrink-0" size={12} />
-                </Button>
-              ))}
+              {customWords.map((word) => {
+                const heardAs = learnedWords.get(word);
+                return (
+                  <Button
+                    key={word}
+                    onClick={() => handleRemoveWord(word)}
+                    disabled={isUpdating("custom_words")}
+                    variant="secondary"
+                    size="sm"
+                    className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
+                    aria-label={t("settings.advanced.customWords.remove", {
+                      word,
+                    })}
+                    title={
+                      heardAs === undefined
+                        ? word
+                        : t("settings.advanced.customWords.learnedFrom", {
+                            word,
+                            heard: heardAs,
+                          })
+                    }
+                  >
+                    <span className="min-w-0 truncate">{word}</span>
+                    {heardAs !== undefined && (
+                      <span className="shrink-0 rounded bg-logo-primary/20 px-1 text-[10px] font-medium text-logo-primary">
+                        {t("settings.advanced.customWords.learned")}
+                      </span>
+                    )}
+                    <XIcon className="shrink-0" size={12} />
+                  </Button>
+                );
+              })}
             </div>
           </div>
         )}

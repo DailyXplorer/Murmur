@@ -1,7 +1,5 @@
-use crate::audio_toolkit::{
-    apply_custom_words_counted, detect_output_language, normalize_transcription_output,
-    remove_filler_words, OutputLanguageEvidence,
-};
+use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
+use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
 use crate::gemini_transcribe::{GeminiTranscriber, ShutdownReceipt};
 use crate::settings::{get_settings, TranscriptionProvider};
@@ -13,12 +11,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 
-const SUPPORTED_LANGUAGES: &[&str] = &[
-    "en", "fr", "de", "es", "it", "pt", "nl", "pl", "ru", "ja", "ko", "zh", "ar", "hi", "tr", "sv",
-    "da", "fi", "no", "cs", "ro", "hu", "el", "uk", "vi", "th", "id", "ms", "he", "ca",
-];
-
-/// Final dictation text plus how many custom-word replacements produced it.
+/// Final dictation text plus how many dictionary replacements produced it.
 #[derive(Debug, Default)]
 pub struct Transcript {
     pub text: String,
@@ -103,6 +96,14 @@ impl TranscriptionManager {
         let settings = get_settings(&self.app_handle);
         let language =
             (settings.selected_language != "auto").then(|| settings.selected_language.clone());
+        // The saved WAV keeps the original level; only the upload is raised.
+        let audio = match normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode)) {
+            Some(louder) => {
+                debug!("Raised the level of quiet speech before upload");
+                Arc::new(louder)
+            }
+            None => audio,
+        };
 
         debug!(
             "Sending {} samples to {:?} transcription (language={:?})",
@@ -135,31 +136,12 @@ impl TranscriptionManager {
             return Err(anyhow::anyhow!("Transcription cancelled"));
         }
 
-        let (mut processed, dictionary_fixes) = apply_custom_words_counted(
+        let (processed, dictionary_fixes) = crate::dictionary::correct(
             &normalize_transcription_output(&text),
             &settings.custom_words,
+            &settings.learned_words,
             settings.word_correction_threshold,
         );
-
-        if provider == TranscriptionProvider::Codex {
-            let language_evidence = if settings.selected_language == "auto" {
-                let supported_languages = SUPPORTED_LANGUAGES
-                    .iter()
-                    .map(|language| language.to_string())
-                    .collect::<Vec<_>>();
-                detect_output_language(&processed, &supported_languages)
-                    .map(OutputLanguageEvidence::TextDetected)
-                    .unwrap_or(OutputLanguageEvidence::Unknown)
-            } else {
-                OutputLanguageEvidence::UserSelected(settings.selected_language.clone())
-            };
-            processed = remove_filler_words(
-                &processed,
-                &language_evidence,
-                &settings.custom_filler_words,
-                settings.filler_word_removal_enabled,
-            );
-        }
 
         info!(
             "{provider:?} transcription produced {} characters",

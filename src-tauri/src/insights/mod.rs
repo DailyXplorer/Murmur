@@ -296,10 +296,8 @@ impl InsightsManager {
         summary_with_conn(&self.connection()?, Utc::now().timestamp(), &Local)
     }
 
-    /// Records words the user corrected by hand after a paste. The
-    /// auto-learned dictionary is the intended caller; until it lands the
-    /// Insights page shows zero words corrected.
-    #[allow(dead_code)]
+    /// Records words the user corrected by hand after a paste, as observed
+    /// by the dictionary's correction watcher.
     pub fn record_correction(&self, words_corrected: u32) -> Result<()> {
         if insert_correction(&self.connection()?, Utc::now().timestamp(), words_corrected)? {
             self.notify();

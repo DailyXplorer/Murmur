@@ -107,6 +107,8 @@ mod tests {
             saved: false,
             title: "Recording".to_string(),
             transcription_text: text.to_string(),
+            raw_text: None,
+            cleanup: None,
         }
     }
 

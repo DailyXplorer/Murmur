@@ -63,6 +63,9 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 - `settings.rs` - Application settings management
 - `overlay.rs` - Native macOS recording overlay window
 - `signal_handle.rs` - `send_transcription_input()` reusable function
+- `cleanup/` - AI cleanup prompt and the Codex responses client
+- `dictionary/` - Learned words and the post-paste correction watcher
+- `window_names.rs`, `accessibility.rs` - Name hints read from the frontmost window
 - `utils.rs` - Tray, window, and application helpers
 
 ### Frontend Structure (src/)
@@ -86,7 +89,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → Codex cloud transcription → Text output → Clipboard/Paste
+**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → Codex or Gemini transcription → dictionary → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste → correction learning (`dictionary/`)
 
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
 

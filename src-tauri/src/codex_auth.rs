@@ -43,7 +43,8 @@ const PERMANENT_REFRESH_CODES: [&str; 3] = [
     "refresh_token_invalidated",
 ];
 
-/// One Murmur refresh at a time. The GUI and `--transcribe-file` are separate
+/// One Murmur refresh at a time, held inside the detached refresh task so a
+/// dropped caller never releases it halfway. The GUI and `--transcribe-file` are separate
 /// processes and rely on the re-read checks instead, as Codex processes do.
 static REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -324,6 +325,10 @@ pub async fn recover_from_unauthorized(
     .await
 }
 
+/// Runs the refresh as a detached task. Once the refresh token is sent, the
+/// server has rotated it, so the new tokens must reach auth.json or every
+/// Codex client is signed out. A caller dropped by a timeout or a cancel only
+/// stops waiting; the task still finishes and saves the tokens.
 async fn refresh(
     path: &Path,
     endpoint: &str,
@@ -331,12 +336,36 @@ async fn refresh(
     reason: RefreshReason,
     now: DateTime<Utc>,
 ) -> Result<Session, TranscriptionError> {
+    let path = path.to_path_buf();
+    let endpoint = endpoint.to_string();
+    let seen_access_token = seen.access_token().map(str::to_string);
+    tauri::async_runtime::spawn(async move {
+        refresh_to_completion(&path, &endpoint, seen_access_token.as_deref(), reason, now).await
+    })
+    .await
+    .map_err(|error| {
+        TranscriptionError::new(
+            FailureKind::Other,
+            format!("Codex token refresh task failed: {error}"),
+        )
+    })?
+}
+
+async fn refresh_to_completion(
+    path: &Path,
+    endpoint: &str,
+    seen_access_token: Option<&str>,
+    reason: RefreshReason,
+    now: DateTime<Utc>,
+) -> Result<Session, TranscriptionError> {
+    // Concurrent callers queue here. Each one after the first finds the
+    // rotated tokens in the guarded reload, so only one request goes out.
     let _guard = REFRESH_LOCK.lock().await;
 
     // Guarded reload: if the tokens changed since `seen`, someone else (Codex,
     // or a concurrent Murmur request) refreshed already. Use their result.
     let base = AuthFile::read(path)?;
-    if base.access_token() != seen.access_token() {
+    if base.access_token() != seen_access_token {
         info!("Codex session changed on disk; using the refreshed tokens");
         return base.session();
     }
@@ -760,6 +789,80 @@ mod tests {
             .map(|entry| entry.unwrap().file_name())
             .collect();
         assert_eq!(leftovers, vec![std::ffi::OsString::from("auth.json")]);
+    }
+
+    #[test]
+    fn refresh_saves_the_tokens_when_the_caller_is_dropped_mid_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        let (arrived_tx, arrived_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let (endpoint, requests) = one_shot_server(
+            200,
+            r#"{"id_token":"new-id","access_token":"new-access","refresh_token":"rt-new"}"#,
+            move || {
+                arrived_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+            },
+        );
+
+        // Drop the caller once the refresh token has reached the server, as a
+        // cleanup timeout or a cancel would.
+        tauri::async_runtime::block_on(async {
+            tokio::select! {
+                _ = session_for_request_at(&path, &endpoint, now()) => {
+                    panic!("the refresh finished before the server replied")
+                }
+                _ = arrived_rx => {}
+            }
+        });
+        release_tx.send(()).unwrap();
+        requests.recv_timeout(Duration::from_secs(5)).unwrap();
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            if saved["tokens"]["refresh_token"] == "rt-new" {
+                assert_eq!(saved["tokens"]["access_token"], "new-access");
+                assert_eq!(saved["tokens"]["id_token"], "new-id");
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the rotated tokens were never saved"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn concurrent_refreshes_share_one_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        // The server accepts one connection only; a second refresh request
+        // would fail and fall back to the old token.
+        let (endpoint, requests) = one_shot_server(
+            200,
+            r#"{"id_token":"new-id","access_token":"new-access","refresh_token":"rt-new"}"#,
+            || thread::sleep(Duration::from_millis(100)),
+        );
+
+        let (first, second) = tauri::async_runtime::block_on(async {
+            tokio::join!(
+                session_for_request_at(&path, &endpoint, now()),
+                session_for_request_at(&path, &endpoint, now()),
+            )
+        });
+
+        let expected = Session {
+            access_token: "new-access".to_string(),
+            account_id: Some("acct_1".to_string()),
+        };
+        assert_eq!(first.unwrap(), expected);
+        assert_eq!(second.unwrap(), expected);
+        requests.recv_timeout(Duration::from_secs(5)).unwrap();
     }
 
     #[test]

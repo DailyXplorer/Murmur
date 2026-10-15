@@ -283,11 +283,10 @@
         "placeholder": "Wort hinzufügen",
         "add": "Hinzufügen",
         "remove": "{{word}} entfernen",
-        "duplicate": "\"{{word}}\" existiert bereits"
-      },
-      "fillerWordRemoval": {
-        "title": "Füllwörter entfernen",
-        "description": "Entfernt häufige Verzögerungslaute aus Codex-Transkriptionen. Gemini verarbeitet Füllwörter selbst."
+        "duplicate": "\"{{word}}\" existiert bereits",
+        "learned": "Gelernt",
+        "learnedFrom": "{{word}}: gelernt, als du „{{heard}}“ korrigiert hast",
+        "learnedHint": "Wenn du direkt nach dem Diktieren einen falsch geschriebenen Namen korrigierst, fügt Murmur ihn hier hinzu und markiert ihn als Gelernt. Klicke auf ein Wort, um es zu entfernen."
       }
     },
     "history": {
@@ -310,7 +309,10 @@
       "retrySuccess": "Erneut transkribiert.",
       "copy": "Kopieren",
       "recordingUnavailable": "Die Aufnahme ist nicht mehr verfügbar und kann daher nicht erneut transkribiert werden.",
-      "noSpeech": "In der Aufnahme wurde keine Sprache erkannt."
+      "noSpeech": "In der Aufnahme wurde keine Sprache erkannt.",
+      "cleanupFailed": "Die KI-Bereinigung war nicht verfügbar, daher wurde das Rohtranskript eingefügt.",
+      "showOriginal": "Originaltranskript anzeigen",
+      "hideOriginal": "Originaltranskript ausblenden"
     },
     "debug": {
       "title": "Debug",
@@ -430,7 +432,19 @@
         "processing": "Textverarbeitung",
         "output": "Ausgabe"
       },
-      "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an"
+      "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an",
+      "aiCleanup": {
+        "title": "KI-Bereinigung und Formatierung",
+        "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur die endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und diktierte Zeilenumbrüche. Übersetzt und umformuliert nie. Nutzt deine ChatGPT-Sitzung; bei Fehlern oder Zeitüberschreitung wird das Rohtranskript eingefügt."
+      },
+      "windowNames": {
+        "title": "Namen aus dem aktiven Fenster",
+        "description": "Beim Start des Diktats liest Murmur über die Bedienungshilfen den Text des vordersten Fensters und sendet nur die gefundenen Namen an die KI-Bereinigung, damit sie richtig geschrieben werden. Nichts wird gespeichert. Passwortfelder und Passwortmanager werden nie gelesen."
+      },
+      "whisperMode": {
+        "title": "Flüstermodus",
+        "description": "Erhöht die Empfindlichkeit für sehr leise Sprache weiter und teilt der KI-Bereinigung mit, dass die Sprache leise sein kann. Stille und Hintergrundgeräusche werden nie verstärkt."
+      }
     }
   },
   "footer": {

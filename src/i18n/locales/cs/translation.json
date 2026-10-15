@@ -283,11 +283,10 @@
         "placeholder": "Přidat slovo",
         "add": "Přidat",
         "remove": "Odebrat {{word}}",
-        "duplicate": "\"{{word}}\" již existuje"
-      },
-      "fillerWordRemoval": {
-        "title": "Odstranit výplňová slova",
-        "description": "Odstraňuje běžná slova vyjadřující váhání z přepisů Codexu. Gemini zpracovává výplňová slova sám."
+        "duplicate": "\"{{word}}\" již existuje",
+        "learned": "Naučené",
+        "learnedFrom": "{{word}}: naučené, když jste opravili „{{heard}}“",
+        "learnedHint": "Když hned po diktování opravíte špatně napsané jméno, Murmur ho sem přidá s označením Naučené. Klepnutím na slovo ho odeberete."
       }
     },
     "history": {
@@ -310,7 +309,10 @@
       "retrySuccess": "Znovu přepsáno.",
       "copy": "Kopírovat",
       "recordingUnavailable": "Nahrávka už není k dispozici, takže ji nelze znovu přepsat.",
-      "noSpeech": "V nahrávce nebyla nalezena žádná řeč."
+      "noSpeech": "V nahrávce nebyla nalezena žádná řeč.",
+      "cleanupFailed": "Úprava AI nebyla dostupná, proto byl vložen surový přepis.",
+      "showOriginal": "Zobrazit původní přepis",
+      "hideOriginal": "Skrýt původní přepis"
     },
     "debug": {
       "title": "Ladění",
@@ -430,7 +432,19 @@
         "processing": "Zpracování textu",
         "output": "Výstup"
       },
-      "sessionExpired": "Relace vypršela, přihlaste se znovu v Codex"
+      "sessionExpired": "Relace vypršela, přihlaste se znovu v Codex",
+      "aiCleanup": {
+        "title": "Úprava a formátování pomocí AI",
+        "description": "Odstraní vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opraví interpunkci a naformátuje seznamy a nadiktované zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Používá vaši relaci ChatGPT; pokud selže nebo trvá příliš dlouho, vloží se surový přepis."
+      },
+      "windowNames": {
+        "title": "Jména z aktivního okna",
+        "description": "Při zahájení diktování Murmur přečte text okna v popředí přes Zpřístupnění a úpravě AI pošle jen nalezená jména, aby byla napsaná správně. Nic se neukládá. Pole pro hesla a správci hesel se nikdy nečtou."
+      },
+      "whisperMode": {
+        "title": "Režim šepotu",
+        "description": "Dále zvýší citlivost pro velmi tichou řeč a sdělí úpravě AI, že řeč může být slabá. Ticho a šum v pozadí se nikdy nezesilují."
+      }
     }
   },
   "footer": {

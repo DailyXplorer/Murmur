@@ -283,11 +283,10 @@
         "placeholder": "Woord toevoegen",
         "add": "Toevoegen",
         "remove": "{{word}} verwijderen",
-        "duplicate": "\"{{word}}\" bestaat al"
-      },
-      "fillerWordRemoval": {
-        "title": "Opvulwoorden verwijderen",
-        "description": "Verwijdert veelvoorkomende aarzelwoorden uit Codex-transcripties. Gemini verwerkt opvulwoorden zelf."
+        "duplicate": "\"{{word}}\" bestaat al",
+        "learned": "Geleerd",
+        "learnedFrom": "{{word}}: geleerd toen je ‘{{heard}}’ verbeterde",
+        "learnedHint": "Als je vlak na het dicteren een verkeerd gespelde naam verbetert, voegt Murmur die hier toe met het label Geleerd. Klik op een woord om het te verwijderen."
       }
     },
     "history": {
@@ -310,7 +309,10 @@
       "retrySuccess": "Opnieuw getranscribeerd.",
       "copy": "Kopiëren",
       "recordingUnavailable": "De opname is niet meer beschikbaar en kan dus niet opnieuw worden getranscribeerd.",
-      "noSpeech": "Er is geen spraak gevonden in de opname."
+      "noSpeech": "Er is geen spraak gevonden in de opname.",
+      "cleanupFailed": "AI-opschoning was niet beschikbaar, dus het ruwe transcript is geplakt.",
+      "showOriginal": "Origineel transcript tonen",
+      "hideOriginal": "Origineel transcript verbergen"
     },
     "debug": {
       "title": "Probleemoplossing",
@@ -430,7 +432,19 @@
         "processing": "Tekstverwerking",
         "output": "Uitvoer"
       },
-      "sessionExpired": "Sessie verlopen, log opnieuw in bij Codex"
+      "sessionExpired": "Sessie verlopen, log opnieuw in bij Codex",
+      "aiCleanup": {
+        "title": "AI-opschoning en opmaak",
+        "description": "Verwijdert stopwoorden, houdt alleen je definitieve formulering over als je jezelf verbetert, herstelt interpunctie en maakt lijsten en gedicteerde regeleinden op. Vertaalt of herschrijft nooit. Gebruikt je ChatGPT-sessie; als het mislukt of te lang duurt, wordt het ruwe transcript geplakt."
+      },
+      "windowNames": {
+        "title": "Namen uit het actieve venster",
+        "description": "Als je begint met dicteren, leest Murmur via Toegankelijkheid de tekst van het voorste venster en stuurt alleen de gevonden namen naar de AI-opschoning, zodat ze goed gespeld worden. Er wordt niets bewaard. Wachtwoordvelden en wachtwoordmanagers worden nooit gelezen."
+      },
+      "whisperMode": {
+        "title": "Fluistermodus",
+        "description": "Verhoogt de gevoeligheid verder voor heel zachte spraak en laat de AI-opschoning weten dat de spraak zwak kan zijn. Stilte en achtergrondgeluid worden nooit versterkt."
+      }
     }
   },
   "footer": {

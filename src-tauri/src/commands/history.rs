@@ -1,4 +1,5 @@
 use crate::actions::process_transcription_output;
+use crate::cleanup::ProcessedText;
 use crate::managers::{
     history::{HistoryEntry, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
@@ -72,18 +73,18 @@ pub const NO_SPEECH_ERROR: &str = "Recording contains no speech";
 async fn retranscribe<Transcribe, Fut>(
     samples: Result<Vec<f32>, String>,
     transcribe: Transcribe,
-    save: impl FnOnce(String) -> Result<HistoryEntry, String>,
+    save: impl FnOnce(ProcessedText) -> Result<HistoryEntry, String>,
 ) -> Result<HistoryEntry, String>
 where
     Transcribe: FnOnce(Vec<f32>) -> Fut,
-    Fut: Future<Output = Result<String, String>>,
+    Fut: Future<Output = Result<ProcessedText, String>>,
 {
     let samples = samples
         .ok()
         .filter(|samples| !samples.is_empty())
         .ok_or_else(|| RECORDING_UNAVAILABLE_ERROR.to_string())?;
     let text = transcribe(samples).await?;
-    if text.trim().is_empty() {
+    if text.text.trim().is_empty() {
         return Err(NO_SPEECH_ERROR.to_string());
     }
     save(text)
@@ -102,7 +103,6 @@ pub async fn retry_history_entry_transcription(
         Err(e) => Err(e.to_string()),
     };
     let provider = crate::settings::get_settings(&app).transcription_provider;
-
     retranscribe(
         samples,
         move |samples| async move {
@@ -111,16 +111,28 @@ pub async fn retry_history_entry_transcription(
             // user-requested retry.
             let operation = ProcessingOperation::new(OperationId(0));
             let transcription = transcription_manager
-                .transcribe_with_provider(Arc::new(samples), operation, provider)
+                .transcribe_with_provider(Arc::new(samples), operation.clone(), provider)
                 .await
                 .map_err(|e| e.to_string())?
                 .text;
             // A retry is not delivered by paste, so it stays out of Insights,
             // which only counts delivered dictations.
             if transcription.is_empty() {
-                return Ok(transcription);
+                return Ok(ProcessedText::unprocessed(transcription));
             }
-            Ok(process_transcription_output(&app, &transcription, provider).await)
+            // A retry gets the same cleanup as the dictation it replaces; the
+            // raw transcript stays in the entry. The window the user dictated
+            // into is gone, so there are no window names to pass.
+            Ok(
+                process_transcription_output(
+                    &app,
+                    &transcription,
+                    provider,
+                    Vec::new(),
+                    &operation,
+                )
+                .await,
+            )
         },
         |text| {
             history_manager
@@ -197,6 +209,8 @@ mod tests {
             saved: true,
             title: "Recording".to_string(),
             transcription_text: text.to_string(),
+            raw_text: None,
+            cleanup: None,
         }
     }
 
@@ -224,11 +238,13 @@ mod tests {
             |samples| async move {
                 assert_eq!(samples, [0.1, -0.2]);
                 calls.transcribed.set(calls.transcribed.get() + 1);
-                provider.map(str::to_string).map_err(str::to_string)
+                provider
+                    .map(|text| ProcessedText::unprocessed(text.to_string()))
+                    .map_err(str::to_string)
             },
             |text| {
-                *calls.saved.borrow_mut() = Some(text.clone());
-                Ok(entry(&text))
+                *calls.saved.borrow_mut() = Some(text.text.clone());
+                Ok(entry(&text.text))
             },
         ))
     }

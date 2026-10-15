@@ -35,7 +35,7 @@ test.describe("settings information architecture", () => {
       /<AppLanguageSelector[\s\S]*<ThemeSelector[\s\S]*<AccentColorSelector/,
     );
     expect(transcription).toMatch(
-      /<FillerWordRemoval[\s\S]*<CustomWords[\s\S]*<AppendTrailingSpace/,
+      /<AiCleanup[\s\S]*<WindowNames[\s\S]*<WhisperMode[\s\S]*<CustomWords[\s\S]*<AppendTrailingSpace/,
     );
     expect(transcription).toMatch(
       /<PasteMethodSetting[\s\S]*<ClipboardHandlingSetting[\s\S]*<AutoSubmit/,
