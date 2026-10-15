@@ -4,7 +4,23 @@
     "checkUpdates": "Sprawdź aktualizacje...",
     "copyLastTranscript": "Kopiuj ostatnią transkrypcję",
     "quit": "Zamknij",
-    "cancel": "Anuluj"
+    "cancel": "Anuluj",
+    "errorNetwork": "Brak połączenia z usługą transkrypcji. Sprawdź połączenie.",
+    "errorTimeout": "Usługa transkrypcji odpowiadała zbyt długo. Spróbuj ponownie z historii.",
+    "errorRateLimited": "Zbyt wiele żądań. Odczekaj chwilę i spróbuj ponownie z historii.",
+    "errorServer": "Usługa transkrypcji ma problemy. Spróbuj ponownie z historii.",
+    "errorSessionExpired": "Sesja Codex wygasła. Otwórz Codex i zaloguj się ponownie.",
+    "errorSignedOut": "Nie zalogowano do Codex. Otwórz Codex i zaloguj się.",
+    "errorTooLarge": "To nagranie jest za długie dla usługi. Spróbuj krótszego.",
+    "errorTranscription": "Transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
+    "errorPaste": "Nie udało się wkleić. Tekst jest w schowku i w historii.",
+    "errorRecording": "Nie udało się rozpocząć nagrywania. Sprawdź mikrofon.",
+    "errorMicrophoneDenied": "Dostęp do mikrofonu jest wyłączony. Zezwól Murmur w Ustawieniach systemowych.",
+    "warningLongRecording": "Długie nagranie: wysyłanie może być wolne lub odrzucone.",
+    "errorShortcutUnavailable": "{{shortcut}} jest używany przez inną aplikację. Wybierz inny skrót w ustawieniach Murmur.",
+    "errorMicrophoneStartup": "Stale włączony mikrofon nie uruchomił się. Murmur otworzy go podczas nagrywania.",
+    "errorHistoryStartup": "Nie udało się otworzyć historii. Dyktowanie działa, ale nic nie jest zapisywane w historii.",
+    "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Nie udało się przywrócić oryginalnego skrótu",
           "set": "Nie udało się ustawić skrótu: {{error}}",
-          "reset": "Nie udało się zresetować skrótu do wartości domyślnej"
+          "reset": "Nie udało się zresetować skrótu do wartości domyślnej",
+          "registrationFailed": "Inna aplikacja używa tego skrótu. Wybierz inny."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Obsługa schowka",
-        "description": "Aby bezpiecznie wkleić za pomocą Cmd+V, poprzednie dane schowka nigdy nie są przywracane. Po udanym wklejeniu opcja „Wyczyść po wklejeniu” usuwa transkrypcję po upływie 8-sekundowego okresu bezpieczeństwa; „Zachowaj transkrypcję” pozostawia ją dostępną. Jeśli wklejanie się nie powiedzie, Murmur zachowuje transkrypcję do odzyskania.",
+        "description": "Murmur wkleja przez schowek. „Przywróć poprzedni schowek” przywraca to, co było skopiowane, po zakończeniu 8-sekundowego okna wklejania, chyba że w międzyczasie skopiowano coś innego. „Zachowaj transkrypcję” zostawia transkrypcję w schowku. Jeśli wklejanie się nie powiedzie, Murmur zachowuje transkrypcję w schowku do odzyskania.",
         "options": {
-          "dontModify": "Wyczyść po wklejeniu",
+          "dontModify": "Przywróć poprzedni schowek",
           "copyToClipboard": "Zachowaj transkrypcję"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Usługa",
         "processing": "Przetwarzanie tekstu",
         "output": "Wyjście"
-      }
+      },
+      "sessionExpired": "Sesja wygasła, zaloguj się ponownie w Codex"
     }
   },
   "footer": {

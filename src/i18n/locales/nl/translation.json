@@ -4,7 +4,23 @@
     "checkUpdates": "Controleren op updates...",
     "copyLastTranscript": "Laatste transcriptie kopiëren",
     "quit": "Afsluiten",
-    "cancel": "Annuleren"
+    "cancel": "Annuleren",
+    "errorNetwork": "De transcriptiedienst is niet bereikbaar. Controleer je verbinding.",
+    "errorTimeout": "De transcriptiedienst deed er te lang over. Probeer het opnieuw via Geschiedenis.",
+    "errorRateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw via Geschiedenis.",
+    "errorServer": "De transcriptiedienst heeft problemen. Probeer het opnieuw via Geschiedenis.",
+    "errorSessionExpired": "Je Codex-sessie is verlopen. Open Codex en log opnieuw in.",
+    "errorSignedOut": "Niet ingelogd bij Codex. Open Codex en log in.",
+    "errorTooLarge": "Deze opname is te lang voor de dienst. Probeer een kortere.",
+    "errorTranscription": "Transcriptie mislukt. Probeer het opnieuw via Geschiedenis.",
+    "errorPaste": "Plakken mislukt. De tekst staat op het klembord en in Geschiedenis.",
+    "errorRecording": "Opnemen kon niet starten. Controleer je microfoon.",
+    "errorMicrophoneDenied": "Microfoontoegang staat uit. Sta Murmur toe in Systeeminstellingen.",
+    "warningLongRecording": "Lange opname: uploaden kan traag zijn of geweigerd worden.",
+    "errorShortcutUnavailable": "{{shortcut}} wordt door een andere app gebruikt. Kies een andere sneltoets in de instellingen van Murmur.",
+    "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
+    "errorHistoryStartup": "Geschiedenis kon niet worden geopend. Dicteren werkt, maar er wordt niets in Geschiedenis opgeslagen.",
+    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Herstellen van originele sneltoets mislukt",
           "set": "Instellen van sneltoets mislukt: {{error}}",
-          "reset": "Sneltoets terugzetten naar standaardwaarde mislukt"
+          "reset": "Sneltoets terugzetten naar standaardwaarde mislukt",
+          "registrationFailed": "Een andere app gebruikt deze sneltoets. Kies een andere."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Klembordbeheer",
-        "description": "Voor veilig plakken met Cmd+V worden eerdere klembordgegevens nooit hersteld. Na geslaagd plakken verwijdert 'Wissen na plakken' de transcriptie aan het einde van het veiligheidsvenster van 8 seconden; 'Transcriptie behouden' laat deze beschikbaar. Als plakken mislukt, bewaart Murmur de transcriptie voor herstel.",
+        "description": "Murmur plakt via het klembord. 'Vorig klembord herstellen' zet terug wat je had gekopieerd zodra het plakvenster van 8 seconden voorbij is, tenzij je intussen iets anders hebt gekopieerd. 'Transcriptie behouden' laat de transcriptie op het klembord staan. Als plakken mislukt, houdt Murmur de transcriptie op het klembord zodat je die kunt terughalen.",
         "options": {
-          "dontModify": "Wissen na plakken",
+          "dontModify": "Vorig klembord herstellen",
           "copyToClipboard": "Transcriptie behouden"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Service",
         "processing": "Tekstverwerking",
         "output": "Uitvoer"
-      }
+      },
+      "sessionExpired": "Sessie verlopen, log opnieuw in bij Codex"
     }
   },
   "footer": {

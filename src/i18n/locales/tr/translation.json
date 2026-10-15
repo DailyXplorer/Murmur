@@ -4,7 +4,23 @@
     "checkUpdates": "Güncellemeleri Kontrol Et...",
     "copyLastTranscript": "Son Transkripti Kopyala",
     "quit": "Çıkış",
-    "cancel": "İptal"
+    "cancel": "İptal",
+    "errorNetwork": "Transkripsiyon hizmetine ulaşılamıyor. Bağlantınızı kontrol edin.",
+    "errorTimeout": "Transkripsiyon hizmeti çok uzun sürdü. Geçmiş'ten yeniden deneyin.",
+    "errorRateLimited": "Çok fazla istek. Biraz bekleyin, sonra Geçmiş'ten yeniden deneyin.",
+    "errorServer": "Transkripsiyon hizmetinde sorun var. Geçmiş'ten yeniden deneyin.",
+    "errorSessionExpired": "Codex oturumunuzun süresi doldu. Codex'i açıp yeniden oturum açın.",
+    "errorSignedOut": "Codex'te oturum açılmamış. Codex'i açıp oturum açın.",
+    "errorTooLarge": "Bu kayıt hizmet için çok uzun. Daha kısa bir kayıt deneyin.",
+    "errorTranscription": "Transkripsiyon başarısız oldu. Geçmiş'ten yeniden deneyin.",
+    "errorPaste": "Yapıştırılamadı. Metin panoda ve Geçmiş'te.",
+    "errorRecording": "Kayıt başlatılamadı. Mikrofonunuzu kontrol edin.",
+    "errorMicrophoneDenied": "Mikrofon erişimi kapalı. Sistem Ayarları'nda Murmur'a izin verin.",
+    "warningLongRecording": "Uzun kayıt: yükleme yavaş olabilir veya reddedilebilir.",
+    "errorShortcutUnavailable": "{{shortcut}} başka bir uygulama tarafından kullanılıyor. Murmur ayarlarında başka bir kısayol seçin.",
+    "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
+    "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
+    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı."
   },
   "sidebar": {
     "general": "Genel",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Orijinal kısayol geri yüklenemedi",
           "set": "Kısayol ayarlanamadı: {{error}}",
-          "reset": "Kısayol orijinal değerine sıfırlanamadı"
+          "reset": "Kısayol orijinal değerine sıfırlanamadı",
+          "registrationFailed": "Bu kısayolu başka bir uygulama kullanıyor. Farklı bir tane seçin."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Pano Yönetimi",
-        "description": "Cmd+V ile güvenli yapıştırma için önceki pano verileri asla geri yüklenmez. Başarılı bir yapıştırmadan sonra \"Yapıştırdıktan sonra temizle\", 8 saniyelik güvenlik süresi dolduğunda transkripsiyonu kaldırır; \"Transkripsiyonu koru\" kullanılabilir durumda bırakır. Yapıştırma başarısız olursa Murmur, kurtarma için transkripsiyonu korur.",
+        "description": "Murmur pano üzerinden yapıştırır. \"Önceki panoyu geri yükle\", 8 saniyelik yapıştırma süresi bittiğinde daha önce kopyaladığınızı geri koyar; bu arada başka bir şey kopyaladıysanız dokunmaz. \"Transkripsiyonu koru\" transkripsiyonu panoda bırakır. Yapıştırma başarısız olursa Murmur transkripsiyonu kurtarmak için panoda tutar.",
         "options": {
-          "dontModify": "Yapıştırdıktan sonra temizle",
+          "dontModify": "Önceki panoyu geri yükle",
           "copyToClipboard": "Transkripsiyonu koru"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Hizmet",
         "processing": "Metin işleme",
         "output": "Çıktı"
-      }
+      },
+      "sessionExpired": "Oturum süresi doldu, Codex'te yeniden oturum açın"
     }
   },
   "footer": {

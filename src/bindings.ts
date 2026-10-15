@@ -21,6 +21,12 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Shortcuts that failed to register at startup, keyed by binding id.
+ */
+async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("get_shortcut_registration_errors");
+},
 async changePttSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_ptt_setting", { enabled }) };
@@ -640,15 +646,23 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  */
 selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
- * Required guarded paste path. Prior clipboard data is never restored;
- * AppKit does not identify the process reading promised data. macOS only.
+ * Required guarded paste path. AppKit does not identify the process
+ * reading promised data, so settlement waits a bounded window. macOS only.
  */
 reliable_paste?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
-export type CodexAuthStatus = { signed_in: boolean }
+export type CodexAuthStatus = {
+/**
+ * A session exists and is either valid or refreshable.
+ */
+signed_in: boolean;
+/**
+ * A session exists, but it expired and cannot be refreshed.
+ */
+expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
