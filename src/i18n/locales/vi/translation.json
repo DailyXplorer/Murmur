@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} đang được ứng dụng khác dùng. Hãy chọn phím tắt khác trong cài đặt Murmur.",
     "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
     "errorHistoryStartup": "Không mở được Lịch sử. Đọc chính tả vẫn hoạt động nhưng không có gì được lưu vào Lịch sử.",
-    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh."
+    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh.",
+    "warningRecordingLimit": "Ghi âm sẽ dừng sau 1 phút (giới hạn 15 phút)."
   },
   "sidebar": {
     "general": "Chung",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Phím tắt chuyển đổi",
-            "description": "Phím tắt để ghi âm và chuyển đổi giọng nói của bạn."
+            "description": "Giữ để nói và thả ra để kết thúc. Nhấn đúp để ghi âm rảnh tay, sau đó nhấn một lần để dừng."
           },
           "cancel": {
             "name": "Phím tắt hủy",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Tìm kiếm ngôn ngữ...",
         "noResults": "Không tìm thấy ngôn ngữ",
         "auto": "Tự động"
-      },
-      "pushToTalk": {
-        "label": "Nhấn để nói",
-        "description": "Giữ để ghi âm, thả để dừng"
       },
       "groups": {
         "appearance": "Giao diện"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Đang chuyển đổi..."
+    "transcribing": "Đang chuyển đổi...",
+    "handsFree": "Ghi âm rảnh tay",
+    "handsFreeHint": "Nhấn {{shortcut}} để dừng",
+    "limitWarning": "Dừng sau {{seconds}} giây"
   },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"

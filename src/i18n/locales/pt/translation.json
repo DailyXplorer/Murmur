@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} está em uso por outro aplicativo. Escolha outro atalho nos ajustes do Murmur.",
     "errorMicrophoneStartup": "O microfone sempre ativo não pôde iniciar. O Murmur vai abri-lo quando você gravar.",
     "errorHistoryStartup": "Não foi possível abrir o histórico. O ditado funciona, mas nada é salvo no histórico.",
-    "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado."
+    "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado.",
+    "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos)."
   },
   "sidebar": {
     "general": "Geral",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Atalho de Transcrição",
-            "description": "O atalho de teclado para gravar e transcrever sua voz."
+            "description": "Mantenha pressionado para falar e solte para terminar. Toque duas vezes para gravar em mãos-livres e depois pressione uma vez para parar."
           },
           "cancel": {
             "name": "Atalho de Cancelar",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Buscar idiomas...",
         "noResults": "Nenhum idioma encontrado",
         "auto": "Automático"
-      },
-      "pushToTalk": {
-        "label": "Pressionar para Falar",
-        "description": "Segure para gravar, solte para parar"
       },
       "groups": {
         "appearance": "Aparência"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcrevendo..."
+    "transcribing": "Transcrevendo...",
+    "handsFree": "Gravação mãos-livres",
+    "handsFreeHint": "Pressione {{shortcut}} para parar",
+    "limitWarning": "Para em {{seconds}} s"
   },
   "whatsNew": {
     "title": "Novidades no Murmur v{{version}}"

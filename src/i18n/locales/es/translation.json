@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} lo usa otra aplicación. Elija otro atajo en los ajustes de Murmur.",
     "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
     "errorHistoryStartup": "No se pudo abrir el historial. El dictado funciona, pero no se guarda nada en el historial.",
-    "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado."
+    "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado.",
+    "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos)."
   },
   "sidebar": {
     "general": "General",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Atajo de transcripción",
-            "description": "El atajo de teclado para grabar y transcribir tu voz."
+            "description": "Mantén pulsado para hablar y suelta para terminar. Pulsa dos veces para grabar con manos libres y luego pulsa una vez para detener."
           },
           "cancel": {
             "name": "Atajo de cancelar",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Buscar idiomas...",
         "noResults": "No se encontraron idiomas",
         "auto": "Automático"
-      },
-      "pushToTalk": {
-        "label": "Presionar para hablar",
-        "description": "Mantén presionado para grabar, suelta para detener"
       },
       "groups": {
         "appearance": "Apariencia"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribiendo..."
+    "transcribing": "Transcribiendo...",
+    "handsFree": "Grabación manos libres",
+    "handsFreeHint": "Pulsa {{shortcut}} para detener",
+    "limitWarning": "Se detiene en {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nuevo en Murmur v{{version}}"

@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "يستخدم تطبيق آخر {{shortcut}}. اختر اختصارًا آخر في إعدادات Murmur.",
     "errorMicrophoneStartup": "تعذر تشغيل الميكروفون الدائم. سيفتحه Murmur عند التسجيل.",
     "errorHistoryStartup": "تعذر فتح السجل. الإملاء يعمل، لكن لن يُحفظ شيء في السجل.",
-    "noticeHistoryReset": "كان السجل تالفًا وتمت إعادة تعيينه. احتُفظ بالملف القديم بجانبه."
+    "noticeHistoryReset": "كان السجل تالفًا وتمت إعادة تعيينه. احتُفظ بالملف القديم بجانبه.",
+    "warningRecordingLimit": "سيتوقف التسجيل خلال دقيقة واحدة (الحد 15 دقيقة)."
   },
   "sidebar": {
     "general": "عام",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "اختصار التفريغ الصوتي",
-            "description": ".اختصار لوحة المفاتيح لتسجيل وتفريغ صوتك"
+            "description": "اضغط مطولاً للتحدث وحرّر للإنهاء. انقر مرتين للتسجيل بدون استخدام اليدين، ثم اضغط مرة واحدة للإيقاف."
           },
           "cancel": {
             "name": "اختصار الإلغاء",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "البحث عن اللغات...",
         "noResults": "لم يتم العثور على لغات",
         "auto": "تلقائي"
-      },
-      "pushToTalk": {
-        "label": "اضغط للتحدث",
-        "description": "استمر في الضغط للتسجيل، واترك للتوقف"
       },
       "groups": {
         "appearance": "المظهر"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "...جاري التفريغ"
+    "transcribing": "...جاري التفريغ",
+    "handsFree": "تسجيل بدون استخدام اليدين",
+    "handsFreeHint": "اضغط {{shortcut}} للإيقاف",
+    "limitWarning": "يتوقف خلال {{seconds}} ث"
   },
   "whatsNew": {
     "title": "الجديد في Murmur v{{version}}"

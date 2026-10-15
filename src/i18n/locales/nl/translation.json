@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} wordt door een andere app gebruikt. Kies een andere sneltoets in de instellingen van Murmur.",
     "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
     "errorHistoryStartup": "Geschiedenis kon niet worden geopend. Dicteren werkt, maar er wordt niets in Geschiedenis opgeslagen.",
-    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast."
+    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast.",
+    "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten)."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Sneltoets voor dicteren",
-            "description": "De sneltoets om je stem op te nemen en te transcriberen."
+            "description": "Houd ingedrukt om te praten en laat los om te stoppen. Tik twee keer om handsfree op te nemen en druk daarna één keer om te stoppen."
           },
           "cancel": {
             "name": "Sneltoets voor annuleren",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Talen zoeken...",
         "noResults": "Geen talen gevonden",
         "auto": "Automatisch"
-      },
-      "pushToTalk": {
-        "label": "Push-to-talk",
-        "description": "Ingedrukt houden om op te nemen, loslaten om te stoppen"
       },
       "groups": {
         "appearance": "Weergave"
@@ -440,6 +437,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcriberen..."
+    "transcribing": "Transcriberen...",
+    "handsFree": "Handsfree opnemen",
+    "handsFreeHint": "Druk op {{shortcut}} om te stoppen",
+    "limitWarning": "Stopt over {{seconds}} s"
   }
 }

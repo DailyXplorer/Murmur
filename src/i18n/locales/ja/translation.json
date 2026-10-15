@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} は別のアプリが使用しています。Murmur の設定で別のショートカットを選んでください。",
     "errorMicrophoneStartup": "常時オンのマイクを開始できませんでした。録音時に Murmur がマイクを開きます。",
     "errorHistoryStartup": "履歴を開けませんでした。音声入力は使えますが、履歴には保存されません。",
-    "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。"
+    "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。",
+    "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。"
   },
   "sidebar": {
     "general": "一般",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "文字起こしのショートカット",
-            "description": "音声を録音して文字起こしするためのキーボードショートカット。"
+            "description": "押している間は録音し、離すと終了します。ダブルタップでハンズフリー録音になり、もう一度押すと停止します。"
           },
           "cancel": {
             "name": "キャンセルのショートカット",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "言語を検索…",
         "noResults": "言語が見つかりません",
         "auto": "自動"
-      },
-      "pushToTalk": {
-        "label": "プッシュツートーク",
-        "description": "押し続けて録音、離して停止"
       },
       "groups": {
         "appearance": "外観"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "文字起こし中…"
+    "transcribing": "文字起こし中…",
+    "handsFree": "ハンズフリー録音",
+    "handsFreeHint": "{{shortcut}} を押して停止",
+    "limitWarning": "あと {{seconds}} 秒で停止"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} の新機能"
