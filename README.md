@@ -45,8 +45,15 @@ provider's terms for your account.
 - Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection
-- Optional filler-word removal for Codex and custom-word correction for both services
-- Transcription history with saved recordings; a failed or unsatisfying transcription can be sent again from its recording
+- AI cleanup through the Codex session, on by default: removes fillers, applies
+  self-corrections, fixes punctuation, and formats lists and spoken line breaks,
+  falling back to the raw transcript on any failure
+- A dictionary that also learns names you correct right after pasting
+- Names from the frontmost window as spelling hints, read through Accessibility
+  and never stored
+- Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
+- Transcription history with saved recordings, keeping the raw and cleaned text; a failed
+  or unsatisfying transcription can be sent again from its recording
 - Recording overlay, audio feedback, tray controls, and automatic updates
 
 ## Getting started

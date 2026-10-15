@@ -10,6 +10,8 @@ use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::cleanup::{CleanupOutcome, ProcessedText};
+
 pub const RECORDING_UNAVAILABLE_ERROR: &str = "Recording unavailable";
 
 /// Database migrations for transcription history.
@@ -47,6 +49,10 @@ static MIGRATIONS: &[M] = &[
           FROM transcription_history;
         DROP TABLE transcription_history;
         ALTER TABLE transcription_history_cloud_only RENAME TO transcription_history;",
+    ),
+    M::up(
+        "ALTER TABLE transcription_history ADD COLUMN raw_text TEXT;
+        ALTER TABLE transcription_history ADD COLUMN cleanup TEXT;",
     ),
 ];
 
@@ -113,7 +119,11 @@ pub struct HistoryEntry {
     pub timestamp: i64,
     pub saved: bool,
     pub title: String,
+    /// The text that was delivered.
     pub transcription_text: String,
+    /// The transcript before AI cleanup, when cleanup ran.
+    pub raw_text: Option<String>,
+    pub cleanup: Option<CleanupOutcome>,
 }
 
 pub struct HistoryManager {
@@ -204,6 +214,13 @@ fn open_or_reset_database(db_path: &Path, now: DateTime<Utc>) -> HistoryStartup 
     }
 }
 
+/// The raw transcript is kept only when cleanup changed the delivered text;
+/// a failed cleanup delivered the raw text itself.
+fn cleanup_columns(text: &ProcessedText) -> (Option<&str>, Option<CleanupOutcome>) {
+    let raw = (text.cleanup == Some(CleanupOutcome::Cleaned)).then_some(text.raw.as_str());
+    (raw, text.cleanup)
+}
+
 fn is_corruption(error: &anyhow::Error) -> bool {
     error.chain().any(|cause| {
         let sqlite_error = cause.downcast_ref::<rusqlite::Error>().or_else(|| {
@@ -277,6 +294,11 @@ impl HistoryManager {
             saved: row.get("saved")?,
             title: row.get("title")?,
             transcription_text: row.get("transcription_text")?,
+            raw_text: row.get("raw_text")?,
+            cleanup: row
+                .get::<_, Option<String>>("cleanup")?
+                .as_deref()
+                .and_then(CleanupOutcome::parse),
         })
     }
 
@@ -347,20 +369,26 @@ impl HistoryManager {
 
     /// Save a new history entry to the database.
     /// The WAV file should already have been written to the recordings directory.
-    pub fn save_entry(
-        &self,
-        file_name: String,
-        transcription_text: String,
-    ) -> Result<HistoryEntry> {
+    pub fn save_entry(&self, file_name: String, text: ProcessedText) -> Result<HistoryEntry> {
         let timestamp = Utc::now().timestamp();
         let title = self.format_timestamp_title(timestamp);
+        let (raw_text, cleanup) = cleanup_columns(&text);
+        let raw_text = raw_text.map(str::to_string);
 
         let conn = self.get_connection()?;
         conn.execute(
             "INSERT INTO transcription_history (
-                file_name, timestamp, saved, title, transcription_text
-            ) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![&file_name, timestamp, false, &title, &transcription_text,],
+                file_name, timestamp, saved, title, transcription_text, raw_text, cleanup
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                &file_name,
+                timestamp,
+                false,
+                &title,
+                &text.text,
+                raw_text,
+                cleanup.map(CleanupOutcome::as_str),
+            ],
         )?;
 
         let entry = HistoryEntry {
@@ -369,7 +397,9 @@ impl HistoryManager {
             timestamp,
             saved: false,
             title,
-            transcription_text,
+            transcription_text: text.text,
+            raw_text,
+            cleanup,
         };
 
         debug!("Saved history entry with id {}", entry.id);
@@ -397,15 +427,14 @@ impl HistoryManager {
     }
 
     /// Update an existing history entry with new transcription results (used by retry).
-    pub fn update_transcription(
-        &self,
-        id: i64,
-        transcription_text: String,
-    ) -> Result<HistoryEntry> {
+    pub fn update_transcription(&self, id: i64, text: ProcessedText) -> Result<HistoryEntry> {
+        let (raw_text, cleanup) = cleanup_columns(&text);
         let conn = self.get_connection()?;
         let updated = conn.execute(
-            "UPDATE transcription_history SET transcription_text = ?1 WHERE id = ?2",
-            params![transcription_text, id],
+            "UPDATE transcription_history
+                SET transcription_text = ?1, raw_text = ?2, cleanup = ?3
+              WHERE id = ?4",
+            params![text.text, raw_text, cleanup.map(CleanupOutcome::as_str), id],
         )?;
 
         if updated == 0 {
@@ -413,7 +442,7 @@ impl HistoryManager {
         }
 
         let entry = conn.query_row(
-            "SELECT id, file_name, timestamp, saved, title, transcription_text
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, raw_text, cleanup
                  FROM transcription_history WHERE id = ?1",
             params![id],
             Self::map_history_entry,
@@ -564,7 +593,7 @@ impl HistoryManager {
             (Some(cursor_id), Some(lim)) => {
                 let fetch_count = (lim + 1) as i64;
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, raw_text, cleanup
                      FROM transcription_history
                      WHERE id < ?1
                      ORDER BY id DESC
@@ -578,7 +607,7 @@ impl HistoryManager {
             (None, Some(lim)) => {
                 let fetch_count = (lim + 1) as i64;
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, raw_text, cleanup
                      FROM transcription_history
                      ORDER BY id DESC
                      LIMIT ?1",
@@ -590,7 +619,7 @@ impl HistoryManager {
             }
             (_, None) => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, file_name, timestamp, saved, title, transcription_text
+                    "SELECT id, file_name, timestamp, saved, title, transcription_text, raw_text, cleanup
                      FROM transcription_history
                      ORDER BY id DESC",
                 )?;
@@ -618,7 +647,9 @@ impl HistoryManager {
                 timestamp,
                 saved,
                 title,
-                transcription_text
+                transcription_text,
+                raw_text,
+                cleanup
              FROM transcription_history
              ORDER BY timestamp DESC
              LIMIT 1",
@@ -642,7 +673,9 @@ impl HistoryManager {
                 timestamp,
                 saved,
                 title,
-                transcription_text
+                transcription_text,
+                raw_text,
+                cleanup
              FROM transcription_history
              WHERE transcription_text != ''
              ORDER BY timestamp DESC
@@ -698,7 +731,9 @@ impl HistoryManager {
                 timestamp,
                 saved,
                 title,
-                transcription_text
+                transcription_text,
+                raw_text,
+                cleanup
              FROM transcription_history
              WHERE id = ?1",
         )?;
@@ -821,11 +856,80 @@ mod tests {
                 timestamp INTEGER NOT NULL,
                 saved BOOLEAN NOT NULL DEFAULT 0,
                 title TEXT NOT NULL,
-                transcription_text TEXT NOT NULL
+                transcription_text TEXT NOT NULL,
+                raw_text TEXT,
+                cleanup TEXT
             );",
         )
         .expect("create transcription_history table");
         conn
+    }
+
+    #[test]
+    fn cleanup_columns_keep_the_raw_transcript_only_when_cleanup_changed_it() {
+        let cleaned = ProcessedText {
+            text: "So, 3 pm.".to_string(),
+            raw: "so um 2 pm actually 3 pm".to_string(),
+            cleanup: Some(CleanupOutcome::Cleaned),
+        };
+        assert_eq!(
+            cleanup_columns(&cleaned),
+            (
+                Some("so um 2 pm actually 3 pm"),
+                Some(CleanupOutcome::Cleaned)
+            )
+        );
+        let failed = ProcessedText {
+            text: "raw".to_string(),
+            raw: "raw".to_string(),
+            cleanup: Some(CleanupOutcome::Failed),
+        };
+        assert_eq!(
+            cleanup_columns(&failed),
+            (None, Some(CleanupOutcome::Failed))
+        );
+        assert_eq!(
+            cleanup_columns(&ProcessedText::unprocessed("plain".to_string())),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn raw_text_and_cleanup_outcome_are_read_back() {
+        let conn = setup_conn();
+        conn.execute(
+            "INSERT INTO transcription_history
+                (file_name, timestamp, saved, title, transcription_text, raw_text, cleanup)
+             VALUES ('a.wav', 5, 0, 't', 'Clean.', 'um clean', 'cleaned')",
+            [],
+        )
+        .unwrap();
+        let entry = HistoryManager::get_latest_entry_with_conn(&conn)
+            .unwrap()
+            .unwrap();
+        assert_eq!(entry.transcription_text, "Clean.");
+        assert_eq!(entry.raw_text.as_deref(), Some("um clean"));
+        assert_eq!(entry.cleanup, Some(CleanupOutcome::Cleaned));
+    }
+
+    #[test]
+    fn migration_adds_cleanup_columns_to_an_existing_database() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("history.db");
+        init_database(&path).unwrap();
+        let conn = Connection::open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO transcription_history
+                (file_name, timestamp, saved, title, transcription_text)
+             VALUES ('a.wav', 5, 0, 't', 'old row')",
+            [],
+        )
+        .unwrap();
+        let entry = HistoryManager::get_latest_entry_with_conn(&conn)
+            .unwrap()
+            .unwrap();
+        assert_eq!(entry.raw_text, None);
+        assert_eq!(entry.cleanup, None);
     }
 
     fn insert_entry(conn: &Connection, timestamp: i64, text: &str) {
@@ -1204,7 +1308,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read migrated version");
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
 
         let columns = conn
             .prepare("PRAGMA table_info(transcription_history)")
@@ -1221,7 +1325,9 @@ mod tests {
                 "timestamp",
                 "saved",
                 "title",
-                "transcription_text"
+                "transcription_text",
+                "raw_text",
+                "cleanup"
             ]
         );
 
@@ -1245,7 +1351,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read migrated version");
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
 
         let columns = conn
             .prepare("PRAGMA table_info(transcription_history)")
@@ -1262,7 +1368,9 @@ mod tests {
                 "timestamp",
                 "saved",
                 "title",
-                "transcription_text"
+                "transcription_text",
+                "raw_text",
+                "cleanup"
             ]
         );
     }
@@ -1303,6 +1411,6 @@ mod tests {
         let final_version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read final version");
-        assert_eq!(final_version, 5);
+        assert_eq!(final_version, 6);
     }
 }

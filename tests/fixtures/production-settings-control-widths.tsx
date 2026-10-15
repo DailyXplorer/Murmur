@@ -41,7 +41,7 @@ const TEST_SETTINGS: AppSettings = {
   bindings: { transcribe: TRANSCRIBE_BINDING },
   clipboard_handling: "dont_modify",
   custom_words: ["Acme", LONG_CUSTOM_WORD],
-  filler_word_removal_enabled: false,
+  ai_cleanup_enabled: false,
   history_limit: 50,
   paste_method: "ctrl_v",
   selected_language: "auto",

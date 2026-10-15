@@ -232,6 +232,8 @@ mod tests {
             saved: false,
             title: "Recording".to_string(),
             transcription_text: transcription.to_string(),
+            raw_text: None,
+            cleanup: None,
         }
     }
 

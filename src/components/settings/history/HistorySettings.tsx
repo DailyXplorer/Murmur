@@ -486,8 +486,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const { t, i18n } = useTranslation();
   const [showCopied, setShowCopied] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
 
   const hasTranscription = entry.transcription_text.trim().length > 0;
+  const original = entry.cleanup === "cleaned" ? entry.raw_text : null;
   const hasRecording = entry.file_name.length > 0;
 
   const handleLoadAudio = useCallback(
@@ -631,6 +633,30 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               : t("settings.history.noRecording")}
       </p>
 
+      {!retrying && entry.cleanup === "failed" && (
+        <p className="-mt-3 text-xs text-text/50">
+          {t("settings.history.cleanupFailed")}
+        </p>
+      )}
+      {!retrying && original && (
+        <div className="-mt-3 flex flex-col gap-1">
+          <button
+            type="button"
+            className="self-start text-xs text-text/50 underline-offset-2 hover:underline"
+            onClick={() => setShowOriginal((shown) => !shown)}
+            aria-expanded={showOriginal}
+          >
+            {showOriginal
+              ? t("settings.history.hideOriginal")
+              : t("settings.history.showOriginal")}
+          </button>
+          {showOriginal && (
+            <p className="select-text cursor-text whitespace-pre-wrap break-words text-xs text-text/60">
+              {original}
+            </p>
+          )}
+        </div>
+      )}
       {!hasTranscription && hasRecording && !retrying && (
         <div>
           <Button

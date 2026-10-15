@@ -283,11 +283,10 @@
         "placeholder": "단어 추가",
         "add": "추가",
         "remove": "{{word}} 제거",
-        "duplicate": "\"{{word}}\"이(가) 이미 존재합니다"
-      },
-      "fillerWordRemoval": {
-        "title": "군더더기 표현 제거",
-        "description": "Codex 전사에서 흔한 머뭇거림 표현을 제거합니다. Gemini는 군더더기 표현을 자체적으로 처리합니다."
+        "duplicate": "\"{{word}}\"이(가) 이미 존재합니다",
+        "learned": "학습됨",
+        "learnedFrom": "{{word}}: “{{heard}}”을(를) 수정했을 때 학습됨",
+        "learnedHint": "받아쓰기 직후 잘못 쓴 이름을 고치면 Murmur가 여기에 학습됨으로 표시해 추가합니다. 단어를 클릭하면 삭제됩니다."
       }
     },
     "history": {
@@ -310,7 +309,10 @@
       "retrySuccess": "다시 받아썼습니다.",
       "copy": "복사",
       "recordingUnavailable": "녹음을 더 이상 사용할 수 없어 다시 받아쓸 수 없습니다.",
-      "noSpeech": "녹음에서 음성을 찾지 못했습니다."
+      "noSpeech": "녹음에서 음성을 찾지 못했습니다.",
+      "cleanupFailed": "AI 정리를 사용할 수 없어 원본 전사본을 붙여 넣었습니다.",
+      "showOriginal": "원본 전사본 보기",
+      "hideOriginal": "원본 전사본 숨기기"
     },
     "debug": {
       "title": "디버그",
@@ -430,7 +432,19 @@
         "processing": "텍스트 처리",
         "output": "출력"
       },
-      "sessionExpired": "세션 만료됨, Codex에서 다시 로그인하세요"
+      "sessionExpired": "세션 만료됨, Codex에서 다시 로그인하세요",
+      "aiCleanup": {
+        "title": "AI 정리 및 서식",
+        "description": "군말을 없애고, 스스로 정정할 때는 최종 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. ChatGPT 세션을 사용하며, 실패하거나 너무 오래 걸리면 원본 전사본을 붙여 넣습니다."
+      },
+      "windowNames": {
+        "title": "활성 윈도우의 이름",
+        "description": "받아쓰기를 시작하면 Murmur가 손쉬운 사용을 통해 맨 앞 윈도우의 텍스트를 읽고, 올바른 표기를 위해 찾은 이름만 AI 정리에 보냅니다. 아무것도 저장하지 않습니다. 암호 입력란과 암호 관리자는 읽지 않습니다."
+      },
+      "whisperMode": {
+        "title": "속삭임 모드",
+        "description": "아주 작은 목소리를 위해 감도를 더 높이고, 음성이 약할 수 있다고 AI 정리에 알립니다. 무음과 배경 소음은 증폭하지 않습니다."
+      }
     }
   },
   "footer": {
