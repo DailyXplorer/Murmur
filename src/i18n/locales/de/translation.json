@@ -12,7 +12,59 @@
     "history": "Verlauf",
     "debug": "Debug",
     "about": "Info",
-    "transcription": "Transkription"
+    "transcription": "Transkription",
+    "insights": "Statistiken"
+  },
+  "insights": {
+    "error": "Statistiken konnten nicht geladen werden.",
+    "privacy": "Statistiken werden auf diesem Mac berechnet und bleiben hier. Dafür wird kein diktierter Text gespeichert.",
+    "wpm": {
+      "title": "Wörter pro Minute",
+      "window": "Letzte 30 Tage",
+      "empty": "Noch nicht genug gemessene Diktate",
+      "formula": "Alle in den letzten 30 Tagen diktierten Wörter geteilt durch die gesamte Aufnahmezeit dieser Diktate in Minuten. Aufnahmen unter einer Sekunde werden übersprungen."
+    },
+    "words": {
+      "title": "Wörter insgesamt",
+      "empty": "Beginne zu diktieren, um diesen Wert zu füllen",
+      "equivalence": {
+        "emails": "≈ {{amount}} × eine typische E-Mail",
+        "pages": "≈ {{amount}} × eine Buchseite",
+        "stories": "≈ {{amount}} × eine Kurzgeschichte",
+        "novels": "≈ {{amount}} × ein Roman"
+      }
+    },
+    "fixes": {
+      "title": "Korrekturen",
+      "description": "Wörter, die du nach dem Einfügen durch Murmur korrigiert hast, plus Wörter, die dein eigenes Wörterbuch automatisch ersetzt hat.",
+      "wordsCorrected": "Korrigierte Wörter: {{value}}",
+      "dictionaryFixes": "Wörterbuch-Korrekturen: {{value}}"
+    },
+    "apps": {
+      "title": "Nutzung nach App",
+      "description": "Wohin deine Diktate gingen, nach App-Kategorie.",
+      "empty": "App-Kategorien werden nur für neue Diktate erfasst. Diktiere in einer beliebigen App, damit sich dieser Bereich füllt.",
+      "totalApps": "Genutzte Apps",
+      "categories": {
+        "aiPrompts": "KI-Prompts",
+        "personalMessages": "Private Nachrichten",
+        "workMessages": "Arbeitsnachrichten",
+        "emails": "E-Mails",
+        "documents": "Dokumente",
+        "coding": "Code & Terminal",
+        "other": "Sonstiges"
+      }
+    },
+    "streak": {
+      "title": "Serie",
+      "description": "Tage mit mindestens einem Diktat, in deiner lokalen Zeitzone.",
+      "current": "Aktuelle Serie",
+      "longest": "Längste Serie",
+      "heatmapLabel": "Diktate pro Tag in den letzten 20 Wochen",
+      "cellTitle": "Diktate am {{date}}: {{value}}",
+      "less": "Weniger",
+      "more": "Mehr"
+    }
   },
   "onboarding": {
     "permissions": {

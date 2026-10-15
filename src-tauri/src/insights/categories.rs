@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 /// Where a dictation was sent, grouped the way the Insights page reports it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Type)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Type,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AppCategory {
     AiPrompts,
@@ -29,7 +31,10 @@ const BUNDLE_RULES: &[(&str, AppCategory)] = &[
     ("com.apple.MobileSMS", AppCategory::PersonalMessages),
     ("ru.keepcoder.Telegram", AppCategory::PersonalMessages),
     ("org.telegram.desktop", AppCategory::PersonalMessages),
-    ("org.whispersystems.signal-desktop", AppCategory::PersonalMessages),
+    (
+        "org.whispersystems.signal-desktop",
+        AppCategory::PersonalMessages,
+    ),
     ("com.hnc.Discord", AppCategory::PersonalMessages),
     ("com.facebook.archon*", AppCategory::PersonalMessages),
     ("com.tinyspeck.slackmacgap", AppCategory::WorkMessages),

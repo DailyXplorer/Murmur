@@ -12,7 +12,59 @@
     "history": "Lịch sử",
     "debug": "Gỡ lỗi",
     "about": "Giới thiệu",
-    "transcription": "Phiên âm"
+    "transcription": "Phiên âm",
+    "insights": "Thống kê"
+  },
+  "insights": {
+    "error": "Không thể tải thống kê.",
+    "privacy": "Thống kê được tính trên máy Mac này và chỉ lưu tại đây. Không có văn bản đọc chính tả nào được lưu cho chúng.",
+    "wpm": {
+      "title": "Từ mỗi phút",
+      "window": "30 ngày qua",
+      "empty": "Chưa đủ lượt đọc chính tả có thời lượng",
+      "formula": "Tổng số từ đọc chính tả trong 30 ngày qua chia cho tổng thời gian ghi âm của các lượt đó, tính bằng phút. Các bản ghi ngắn hơn một giây bị bỏ qua."
+    },
+    "words": {
+      "title": "Tổng số từ",
+      "empty": "Bắt đầu đọc chính tả để điền số liệu này",
+      "equivalence": {
+        "emails": "≈ {{amount}} × một email thông thường",
+        "pages": "≈ {{amount}} × một trang sách",
+        "stories": "≈ {{amount}} × một truyện ngắn",
+        "novels": "≈ {{amount}} × một cuốn tiểu thuyết"
+      }
+    },
+    "fixes": {
+      "title": "Lần sửa",
+      "description": "Những từ bạn đã sửa sau khi Murmur dán, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
+      "wordsCorrected": "Từ đã sửa: {{value}}",
+      "dictionaryFixes": "Sửa bằng từ điển: {{value}}"
+    },
+    "apps": {
+      "title": "Sử dụng theo ứng dụng",
+      "description": "Nơi các lượt đọc chính tả của bạn được gửi tới, theo loại ứng dụng.",
+      "empty": "Loại ứng dụng chỉ được ghi lại cho các lượt đọc chính tả mới. Hãy đọc chính tả trong bất kỳ ứng dụng nào để điền phần này.",
+      "totalApps": "Số ứng dụng đã dùng",
+      "categories": {
+        "aiPrompts": "Câu lệnh AI",
+        "personalMessages": "Tin nhắn cá nhân",
+        "workMessages": "Tin nhắn công việc",
+        "emails": "Email",
+        "documents": "Tài liệu",
+        "coding": "Lập trình và terminal",
+        "other": "Khác"
+      }
+    },
+    "streak": {
+      "title": "Chuỗi ngày",
+      "description": "Những ngày có ít nhất một lượt đọc chính tả, theo múi giờ địa phương của bạn.",
+      "current": "Chuỗi hiện tại",
+      "longest": "Chuỗi dài nhất",
+      "heatmapLabel": "Số lượt đọc chính tả mỗi ngày trong 20 tuần qua",
+      "cellTitle": "Lượt đọc chính tả ngày {{date}}: {{value}}",
+      "less": "Ít",
+      "more": "Nhiều"
+    }
   },
   "onboarding": {
     "permissions": {

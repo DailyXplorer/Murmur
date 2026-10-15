@@ -124,7 +124,10 @@ mod tests {
             host_of("http://user:pw@claude.ai:8443/chat").as_deref(),
             Some("claude.ai")
         );
-        assert_eq!(host_of("https://chatgpt.com").as_deref(), Some("chatgpt.com"));
+        assert_eq!(
+            host_of("https://chatgpt.com").as_deref(),
+            Some("chatgpt.com")
+        );
     }
 
     #[test]
