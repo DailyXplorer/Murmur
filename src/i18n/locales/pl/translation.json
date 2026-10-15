@@ -251,8 +251,14 @@
       "retranscribe": "Transkrybuj ponownie",
       "retranscribeError": "Nie udało się ponownie transkrybować. Spróbuj ponownie.",
       "transcribing": "Transkrybuję...",
-      "transcriptionFailed": "Transkrypcja nie powiodła się. Możesz transkrybować ponownie za pomocą ikony ponowienia.",
-      "preferences": "Preferencje"
+      "transcriptionFailed": "Transkrypcja nie powiodła się. Nagranie zostało zachowane, więc możesz spróbować ponownie.",
+      "preferences": "Preferencje",
+      "noRecording": "Transkrypcja nie powiodła się i nie zachowano nagrania.",
+      "retry": "Ponów",
+      "retrySuccess": "Ponownie przetranskrybowano.",
+      "copy": "Kopiuj",
+      "recordingUnavailable": "Nagranie nie jest już dostępne, więc nie można go ponownie przetranskrybować.",
+      "noSpeech": "W nagraniu nie wykryto mowy."
     },
     "debug": {
       "title": "Debugowanie",

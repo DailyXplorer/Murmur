@@ -46,7 +46,7 @@ provider's terms for your account.
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection
 - Optional filler-word removal for Codex and custom-word correction for both services
-- Transcription history with saved recordings
+- Transcription history with saved recordings; a failed or unsatisfying transcription can be sent again from its recording
 - Recording overlay, audio feedback, tray controls, and automatic updates
 
 ## Getting started

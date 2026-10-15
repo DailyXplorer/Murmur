@@ -374,11 +374,13 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
-  const retryHistoryEntry = async (id: number) => {
+  const retryHistoryEntry = async (id: number): Promise<HistoryEntry> => {
     const result = await commands.retryHistoryEntryTranscription(id);
     if (result.status !== "ok") {
       throw new Error(String(result.error));
     }
+    setEntries((prev) => upsertHistoryEntry(prev, result.data, false));
+    return result.data;
   };
 
   const openRecordingsFolder = async () => {
@@ -417,6 +419,7 @@ export const HistorySettings: React.FC = () => {
                 entry={entry}
                 onToggleSaved={() => toggleSaved(entry.id)}
                 onCopyText={() => copyToClipboard(entry.transcription_text)}
+                copyText={copyToClipboard}
                 getAudioUrl={getAudioUrl}
                 deleteAudio={deleteAudioEntry}
                 retryTranscription={retryHistoryEntry}
@@ -461,15 +464,21 @@ interface HistoryEntryProps {
   entry: HistoryEntry;
   onToggleSaved: () => void;
   onCopyText: () => void;
+  copyText: (text: string) => Promise<void>;
   getAudioUrl: (id: number) => Promise<string | null>;
   deleteAudio: (id: number) => Promise<void>;
-  retryTranscription: (id: number) => Promise<void>;
+  retryTranscription: (id: number) => Promise<HistoryEntry>;
 }
+
+// Error strings returned by retry_history_entry_transcription.
+const RECORDING_UNAVAILABLE_ERROR = "Recording unavailable";
+const NO_SPEECH_ERROR = "Recording contains no speech";
 
 const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   entry,
   onToggleSaved,
   onCopyText,
+  copyText,
   getAudioUrl,
   deleteAudio,
   retryTranscription,
@@ -479,6 +488,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const [retrying, setRetrying] = useState(false);
 
   const hasTranscription = entry.transcription_text.trim().length > 0;
+  const hasRecording = entry.file_name.length > 0;
 
   const handleLoadAudio = useCallback(
     () => getAudioUrl(entry.id),
@@ -504,13 +514,28 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
+  // The target app may have changed since the dictation, so a retry offers
+  // Copy instead of pasting.
   const handleRetranscribe = async () => {
     try {
       setRetrying(true);
-      await retryTranscription(entry.id);
+      const updated = await retryTranscription(entry.id);
+      toast.success(t("settings.history.retrySuccess"), {
+        action: {
+          label: t("settings.history.copy"),
+          onClick: () => void copyText(updated.transcription_text),
+        },
+      });
     } catch (error) {
       console.error("Failed to re-transcribe:", error);
-      toast.error(t("settings.history.retranscribeError"));
+      const reason = error instanceof Error ? error.message : "";
+      toast.error(
+        reason === RECORDING_UNAVAILABLE_ERROR
+          ? t("settings.history.recordingUnavailable")
+          : reason === NO_SPEECH_ERROR
+            ? t("settings.history.noSpeech")
+            : t("settings.history.retranscribeError"),
+      );
     } finally {
       setRetrying(false);
     }
@@ -552,7 +577,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           </IconButton>
           <IconButton
             onClick={handleRetranscribe}
-            disabled={retrying}
+            disabled={retrying || !hasRecording}
             title={t("settings.history.retranscribe")}
           >
             <ArrowCounterClockwiseIcon
@@ -601,8 +626,24 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           ? t("settings.history.transcribing")
           : hasTranscription
             ? entry.transcription_text
-            : t("settings.history.transcriptionFailed")}
+            : hasRecording
+              ? t("settings.history.transcriptionFailed")
+              : t("settings.history.noRecording")}
       </p>
+
+      {!hasTranscription && hasRecording && !retrying && (
+        <div>
+          <Button
+            onClick={handleRetranscribe}
+            variant="secondary"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <ArrowCounterClockwiseIcon size={15} aria-hidden="true" />
+            <span>{t("settings.history.retry")}</span>
+          </Button>
+        </div>
+      )}
 
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />
     </div>

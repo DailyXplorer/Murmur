@@ -248,11 +248,17 @@
       "unsave": "הסר משמורים",
       "delete": "מחק רשומה",
       "deleteError": "מחיקת הרשומה נכשלה. נסה שוב.",
-      "retranscribe": "תמלל מחדש",
+      "retranscribe": "תמלול מחדש",
       "retranscribeError": "תמלול מחדש נכשל. נסה שוב.",
       "transcribing": "מתמלל...",
-      "transcriptionFailed": "התמלול נכשל. אפשר לתמלל מחדש באמצעות אייקון הניסיון החוזר.",
-      "preferences": "העדפות"
+      "transcriptionFailed": "התמלול נכשל. ההקלטה נשמרה, כך שאפשר לנסות שוב.",
+      "preferences": "העדפות",
+      "noRecording": "התמלול נכשל ולא נשמרה הקלטה.",
+      "retry": "ניסיון חוזר",
+      "retrySuccess": "התמלול בוצע מחדש.",
+      "copy": "העתקה",
+      "recordingUnavailable": "ההקלטה כבר אינה זמינה, ולכן אי אפשר לתמלל אותה מחדש.",
+      "noSpeech": "לא נמצא דיבור בהקלטה."
     },
     "debug": {
       "title": "ניפוי שגיאות",

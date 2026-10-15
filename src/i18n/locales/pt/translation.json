@@ -248,11 +248,17 @@
       "unsave": "Remover dos salvos",
       "delete": "Excluir entrada",
       "deleteError": "Falha ao excluir entrada. Por favor, tente novamente.",
-      "retranscribe": "Re-transcrever",
+      "retranscribe": "Transcrever novamente",
       "retranscribeError": "Falha ao re-transcrever. Por favor, tente novamente.",
       "transcribing": "Transcrevendo...",
-      "transcriptionFailed": "A transcrição falhou. Você pode re-transcrever usando o ícone de tentar novamente.",
-      "preferences": "Preferências"
+      "transcriptionFailed": "A transcrição falhou. A gravação foi mantida, então você pode tentar de novo.",
+      "preferences": "Preferências",
+      "noRecording": "A transcrição falhou e nenhuma gravação foi mantida.",
+      "retry": "Tentar novamente",
+      "retrySuccess": "Transcrito novamente.",
+      "copy": "Copiar",
+      "recordingUnavailable": "A gravação não está mais disponível, então não pode ser transcrita novamente.",
+      "noSpeech": "Nenhuma fala foi encontrada na gravação."
     },
     "debug": {
       "title": "Depuração",

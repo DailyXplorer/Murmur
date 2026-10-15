@@ -248,11 +248,17 @@
       "unsave": "Remove from saved",
       "delete": "Delete entry",
       "deleteError": "Failed to delete entry. Please try again.",
-      "retranscribe": "Re-transcribe",
+      "retranscribe": "Transcribe again",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
-      "preferences": "Preferences"
+      "transcriptionFailed": "Transcription failed. The recording was kept, so you can retry.",
+      "preferences": "Preferences",
+      "noRecording": "Transcription failed and no recording was kept.",
+      "retry": "Retry",
+      "retrySuccess": "Transcribed again.",
+      "copy": "Copy",
+      "recordingUnavailable": "The recording is no longer available, so it can't be transcribed again.",
+      "noSpeech": "No speech was found in the recording."
     },
     "debug": {
       "title": "Debug",

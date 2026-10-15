@@ -248,11 +248,17 @@
       "unsave": "保存から削除",
       "delete": "エントリーを削除",
       "deleteError": "エントリーの削除に失敗しました。もう一度お試しください。",
-      "retranscribe": "再文字起こし",
+      "retranscribe": "もう一度文字起こし",
       "retranscribeError": "再文字起こしに失敗しました。もう一度お試しください。",
       "transcribing": "文字起こし中…",
-      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。",
-      "preferences": "環境設定"
+      "transcriptionFailed": "文字起こしに失敗しました。録音は保存されているので、再試行できます。",
+      "preferences": "環境設定",
+      "noRecording": "文字起こしに失敗し、録音は保存されていません。",
+      "retry": "再試行",
+      "retrySuccess": "もう一度文字起こししました。",
+      "copy": "コピー",
+      "recordingUnavailable": "録音が見つからないため、もう一度文字起こしできません。",
+      "noSpeech": "録音に音声が見つかりませんでした。"
     },
     "debug": {
       "title": "デバッグ",

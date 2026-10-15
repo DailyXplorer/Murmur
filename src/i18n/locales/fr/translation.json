@@ -248,11 +248,17 @@
       "unsave": "Retirer des favoris",
       "delete": "Supprimer l'entrée",
       "deleteError": "Échec de la suppression de l'entrée. Veuillez réessayer.",
-      "retranscribe": "Re-transcrire",
+      "retranscribe": "Retranscrire",
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
-      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
-      "preferences": "Préférences"
+      "transcriptionFailed": "La transcription a échoué. L’enregistrement a été conservé, vous pouvez réessayer.",
+      "preferences": "Préférences",
+      "noRecording": "La transcription a échoué et aucun enregistrement n’a été conservé.",
+      "retry": "Réessayer",
+      "retrySuccess": "Retranscription terminée.",
+      "copy": "Copier",
+      "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
+      "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement."
     },
     "debug": {
       "title": "Débogage",

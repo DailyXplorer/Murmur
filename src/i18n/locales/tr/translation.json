@@ -248,11 +248,17 @@
       "unsave": "Kaydedilenlerden kaldır",
       "delete": "Kaydı sil",
       "deleteError": "Kayıt silinemedi. Lütfen tekrar deneyin.",
-      "retranscribe": "Yeniden transkribe et",
+      "retranscribe": "Yeniden yazıya dök",
       "retranscribeError": "Yeniden transkripsiyon başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Transkribe ediliyor...",
-      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz.",
-      "preferences": "Tercihler"
+      "transcriptionFailed": "Yazıya dökme başarısız oldu. Kayıt saklandı, tekrar deneyebilirsiniz.",
+      "preferences": "Tercihler",
+      "noRecording": "Yazıya dökme başarısız oldu ve kayıt saklanmadı.",
+      "retry": "Tekrar dene",
+      "retrySuccess": "Yeniden yazıya döküldü.",
+      "copy": "Kopyala",
+      "recordingUnavailable": "Kayıt artık mevcut değil, bu yüzden yeniden yazıya dökülemez.",
+      "noSpeech": "Kayıtta konuşma bulunamadı."
     },
     "debug": {
       "title": "Hata Ayıklama",
