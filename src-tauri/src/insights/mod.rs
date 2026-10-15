@@ -175,7 +175,11 @@ fn backfill_from_history(
     Ok(imported)
 }
 
-fn summary_with_conn<Tz: TimeZone>(conn: &Connection, now: i64, tz: &Tz) -> Result<InsightsSummary> {
+fn summary_with_conn<Tz: TimeZone>(
+    conn: &Connection,
+    now: i64,
+    tz: &Tz,
+) -> Result<InsightsSummary> {
     struct Row {
         stat: DictationStat,
         bundle_id: Option<String>,
@@ -303,7 +307,12 @@ impl InsightsManager {
         Ok(())
     }
 
-    fn record_dictation(&self, words: u32, sample_count: usize, dictionary_fixes: u32) -> Result<()> {
+    fn record_dictation(
+        &self,
+        words: u32,
+        sample_count: usize,
+        dictionary_fixes: u32,
+    ) -> Result<()> {
         let target = frontmost::current();
         let speaking_ms = (sample_count as u64 * 1000 / u64::from(TARGET_SAMPLE_RATE)) as u32;
         insert_dictation(
@@ -367,7 +376,10 @@ mod tests {
     }
 
     fn ts(y: i32, m: u32, d: u32, h: u32) -> i64 {
-        Paris.with_ymd_and_hms(y, m, d, h, 0, 0).unwrap().timestamp()
+        Paris
+            .with_ymd_and_hms(y, m, d, h, 0, 0)
+            .unwrap()
+            .timestamp()
     }
 
     #[test]
@@ -385,15 +397,27 @@ mod tests {
         ];
         let duration = |file: &str| (file == "murmur-1.wav").then_some(1_500);
 
-        assert_eq!(backfill_from_history(&mut conn, &rows, duration).unwrap(), 2);
-        assert_eq!(backfill_from_history(&mut conn, &rows, duration).unwrap(), 0);
+        assert_eq!(
+            backfill_from_history(&mut conn, &rows, duration).unwrap(),
+            2
+        );
+        assert_eq!(
+            backfill_from_history(&mut conn, &rows, duration).unwrap(),
+            0
+        );
 
         let summary = summary_with_conn(&conn, ts(2026, 10, 15, 12), &Paris).unwrap();
         assert_eq!(summary.total_dictations, 2);
         assert_eq!(summary.total_words, 5);
         assert_eq!(summary.words_per_minute, Some(120));
         assert_eq!(summary.categorized_dictations, 0);
-        assert_eq!(summary.streaks, Streaks { current: 1, longest: 1 });
+        assert_eq!(
+            summary.streaks,
+            Streaks {
+                current: 1,
+                longest: 1
+            }
+        );
     }
 
     #[test]
@@ -409,8 +433,18 @@ mod tests {
             dictionary_fixes: fixes,
         };
         for d in [
-            dictation(ts(2026, 10, 13, 9), Some("com.tinyspeck.slackmacgap"), None, 0),
-            dictation(ts(2026, 10, 14, 9), Some("com.apple.Safari"), Some("mail.google.com"), 2),
+            dictation(
+                ts(2026, 10, 13, 9),
+                Some("com.tinyspeck.slackmacgap"),
+                None,
+                0,
+            ),
+            dictation(
+                ts(2026, 10, 14, 9),
+                Some("com.apple.Safari"),
+                Some("mail.google.com"),
+                2,
+            ),
             dictation(ts(2026, 10, 15, 9), Some("com.apple.mail"), None, 1),
             dictation(ts(2026, 10, 15, 10), None, None, 0),
         ] {
@@ -428,13 +462,25 @@ mod tests {
         assert_eq!(
             summary.categories,
             [
-                CategoryUsage { category: AppCategory::Emails, count: 2 },
-                CategoryUsage { category: AppCategory::WorkMessages, count: 1 },
+                CategoryUsage {
+                    category: AppCategory::Emails,
+                    count: 2
+                },
+                CategoryUsage {
+                    category: AppCategory::WorkMessages,
+                    count: 1
+                },
             ]
         );
         assert_eq!(summary.categorized_dictations, 3);
         assert_eq!(summary.apps_used, 3);
-        assert_eq!(summary.streaks, Streaks { current: 3, longest: 3 });
+        assert_eq!(
+            summary.streaks,
+            Streaks {
+                current: 3,
+                longest: 3
+            }
+        );
         let last = summary.heatmap.last().unwrap();
         assert_eq!((last.date.as_str(), last.count), ("2026-10-15", 2));
     }

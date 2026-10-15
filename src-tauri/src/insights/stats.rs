@@ -78,9 +78,7 @@ pub fn dictations_per_day<Tz: TimeZone>(
     let mut days = BTreeMap::new();
     for ts in timestamps {
         if let Some(utc) = DateTime::from_timestamp(ts, 0) {
-            *days
-                .entry(utc.with_timezone(tz).date_naive())
-                .or_insert(0) += 1;
+            *days.entry(utc.with_timezone(tz).date_naive()).or_insert(0) += 1;
         }
     }
     days
@@ -155,7 +153,9 @@ mod tests {
     }
 
     fn utc(y: i32, m: u32, d: u32, h: u32, min: u32) -> i64 {
-        Utc.with_ymd_and_hms(y, m, d, h, min, 0).unwrap().timestamp()
+        Utc.with_ymd_and_hms(y, m, d, h, min, 0)
+            .unwrap()
+            .timestamp()
     }
 
     fn days(list: &[(NaiveDate, u32)]) -> BTreeMap<NaiveDate, u32> {
@@ -175,8 +175,16 @@ mod tests {
     #[test]
     fn words_per_minute_weights_by_recording_time() {
         let dictations = [
-            DictationStat { at: 100, words: 60, speaking_ms: Some(30_000) },
-            DictationStat { at: 200, words: 90, speaking_ms: Some(60_000) },
+            DictationStat {
+                at: 100,
+                words: 60,
+                speaking_ms: Some(30_000),
+            },
+            DictationStat {
+                at: 200,
+                words: 90,
+                speaking_ms: Some(60_000),
+            },
         ];
         assert_eq!(words_per_minute(&dictations, 0), Some(100));
     }
@@ -184,10 +192,26 @@ mod tests {
     #[test]
     fn words_per_minute_ignores_old_short_and_unknown_durations() {
         let dictations = [
-            DictationStat { at: 10, words: 500, speaking_ms: Some(60_000) },
-            DictationStat { at: 100, words: 50, speaking_ms: Some(500) },
-            DictationStat { at: 100, words: 50, speaking_ms: None },
-            DictationStat { at: 100, words: 75, speaking_ms: Some(30_000) },
+            DictationStat {
+                at: 10,
+                words: 500,
+                speaking_ms: Some(60_000),
+            },
+            DictationStat {
+                at: 100,
+                words: 50,
+                speaking_ms: Some(500),
+            },
+            DictationStat {
+                at: 100,
+                words: 50,
+                speaking_ms: None,
+            },
+            DictationStat {
+                at: 100,
+                words: 75,
+                speaking_ms: Some(30_000),
+            },
         ];
         assert_eq!(words_per_minute(&dictations, 50), Some(150));
         assert_eq!(words_per_minute(&dictations[1..3], 50), None);
@@ -200,19 +224,26 @@ mod tests {
         // dictation on March 8 instead of March 7.
         let per_day = dictations_per_day(
             [
-                utc(2026, 3, 8, 4, 30),  // Mar 7 23:30 EST
-                utc(2026, 3, 9, 3, 30),  // Mar 8 23:30 EDT
-                utc(2026, 3, 9, 4, 30),  // Mar 9 00:30 EDT
+                utc(2026, 3, 8, 4, 30), // Mar 7 23:30 EST
+                utc(2026, 3, 9, 3, 30), // Mar 8 23:30 EDT
+                utc(2026, 3, 9, 4, 30), // Mar 9 00:30 EDT
             ],
             &New_York,
         );
         assert_eq!(
             per_day,
-            days(&[(date(2026, 3, 7), 1), (date(2026, 3, 8), 1), (date(2026, 3, 9), 1)])
+            days(&[
+                (date(2026, 3, 7), 1),
+                (date(2026, 3, 8), 1),
+                (date(2026, 3, 9), 1)
+            ])
         );
         assert_eq!(
             streaks(&per_day, date(2026, 3, 9)),
-            Streaks { current: 3, longest: 3 }
+            Streaks {
+                current: 3,
+                longest: 3
+            }
         );
     }
 
@@ -251,17 +282,29 @@ mod tests {
         ]);
         assert_eq!(
             streaks(&per_day, date(2026, 1, 11)),
-            Streaks { current: 2, longest: 4 }
+            Streaks {
+                current: 2,
+                longest: 4
+            }
         );
         assert_eq!(
             streaks(&per_day, date(2026, 1, 12)),
-            Streaks { current: 2, longest: 4 }
+            Streaks {
+                current: 2,
+                longest: 4
+            }
         );
         assert_eq!(
             streaks(&per_day, date(2026, 1, 13)),
-            Streaks { current: 0, longest: 4 }
+            Streaks {
+                current: 0,
+                longest: 4
+            }
         );
-        assert_eq!(streaks(&BTreeMap::new(), date(2026, 1, 1)), Streaks::default());
+        assert_eq!(
+            streaks(&BTreeMap::new(), date(2026, 1, 1)),
+            Streaks::default()
+        );
     }
 
     #[test]
@@ -279,7 +322,9 @@ mod tests {
         assert_eq!(cells.len(), 19 * 7 + 5);
         assert_eq!(cells.first().unwrap().date, "2026-05-31");
         assert_eq!(
-            NaiveDate::parse_from_str(&cells[0].date, "%Y-%m-%d").unwrap().weekday(),
+            NaiveDate::parse_from_str(&cells[0].date, "%Y-%m-%d")
+                .unwrap()
+                .weekday(),
             chrono::Weekday::Sun
         );
         let tail: Vec<(&str, u32, u8)> = cells[cells.len() - 3..]
@@ -288,7 +333,11 @@ mod tests {
             .collect();
         assert_eq!(
             tail,
-            [("2026-10-13", 1, 1), ("2026-10-14", 2, 1), ("2026-10-15", 8, 4)]
+            [
+                ("2026-10-13", 1, 1),
+                ("2026-10-14", 2, 1),
+                ("2026-10-15", 8, 4)
+            ]
         );
         assert_eq!(cells[0].level, 0);
     }

@@ -12,7 +12,59 @@
     "history": "Histórico",
     "debug": "Depuração",
     "about": "Sobre",
-    "transcription": "Transcrição"
+    "transcription": "Transcrição",
+    "insights": "Estatísticas"
+  },
+  "insights": {
+    "error": "Não foi possível carregar as estatísticas.",
+    "privacy": "As estatísticas são calculadas neste Mac e ficam aqui. Nenhum texto ditado é guardado para elas.",
+    "wpm": {
+      "title": "Palavras por minuto",
+      "window": "Últimos 30 dias",
+      "empty": "Ainda não há ditados cronometrados suficientes",
+      "formula": "Total de palavras ditadas nos últimos 30 dias dividido pelo tempo total de gravação desses ditados, em minutos. Gravações com menos de um segundo são ignoradas."
+    },
+    "words": {
+      "title": "Total de palavras",
+      "empty": "Comece a ditar para preencher este valor",
+      "equivalence": {
+        "emails": "≈ {{amount}} × um e-mail típico",
+        "pages": "≈ {{amount}} × uma página de livro",
+        "stories": "≈ {{amount}} × um conto",
+        "novels": "≈ {{amount}} × um romance"
+      }
+    },
+    "fixes": {
+      "title": "Correções",
+      "description": "Palavras que você corrigiu depois que o Murmur colou o texto, mais as palavras que seu dicionário personalizado substituiu automaticamente.",
+      "wordsCorrected": "Palavras corrigidas: {{value}}",
+      "dictionaryFixes": "Correções do dicionário: {{value}}"
+    },
+    "apps": {
+      "title": "Uso por aplicativo",
+      "description": "Para onde foram seus ditados, por categoria de aplicativo.",
+      "empty": "As categorias de aplicativo são registradas apenas para novos ditados. Dite em qualquer aplicativo para preencher esta seção.",
+      "totalApps": "Aplicativos usados",
+      "categories": {
+        "aiPrompts": "Prompts de IA",
+        "personalMessages": "Mensagens pessoais",
+        "workMessages": "Mensagens de trabalho",
+        "emails": "E-mails",
+        "documents": "Documentos",
+        "coding": "Código e terminal",
+        "other": "Outros"
+      }
+    },
+    "streak": {
+      "title": "Sequência",
+      "description": "Dias com pelo menos um ditado, no seu fuso horário local.",
+      "current": "Sequência atual",
+      "longest": "Maior sequência",
+      "heatmapLabel": "Ditados por dia nas últimas 20 semanas",
+      "cellTitle": "Ditados em {{date}}: {{value}}",
+      "less": "Menos",
+      "more": "Mais"
+    }
   },
   "onboarding": {
     "permissions": {
