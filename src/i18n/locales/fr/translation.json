@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} est utilisé par une autre application. Choisissez un autre raccourci dans les réglages de Murmur.",
     "errorMicrophoneStartup": "Le microphone toujours actif n'a pas pu démarrer. Murmur l'ouvrira au moment d'enregistrer.",
     "errorHistoryStartup": "Impossible d'ouvrir l'historique. La dictée fonctionne, mais rien n'y est enregistré.",
-    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté."
+    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté.",
+    "warningRecordingLimit": "L’enregistrement s’arrête dans 1 minute (limite de 15 minutes)."
   },
   "sidebar": {
     "general": "Général",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Raccourci de Transcription",
-            "description": "Le raccourci clavier pour enregistrer et transcrire votre voix."
+            "description": "Maintenez pour parler et relâchez pour terminer. Appuyez deux fois pour enregistrer en mains libres, puis une fois pour arrêter."
           },
           "cancel": {
             "name": "Raccourci d'Annulation",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Rechercher des langues...",
         "noResults": "Aucune langue trouvée",
         "auto": "Automatique"
-      },
-      "pushToTalk": {
-        "label": "Appuyer pour parler",
-        "description": "Maintenez pour enregistrer, relâchez pour arrêter"
       },
       "groups": {
         "appearance": "Apparence"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcription..."
+    "transcribing": "Transcription...",
+    "handsFree": "Enregistrement mains libres",
+    "handsFreeHint": "Appuyez sur {{shortcut}} pour arrêter",
+    "limitWarning": "Arrêt dans {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nouveautés de Murmur v{{version}}"

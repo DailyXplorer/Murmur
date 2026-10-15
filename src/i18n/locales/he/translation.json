@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} נמצא בשימוש של יישום אחר. בחר קיצור אחר בהגדרות של Murmur.",
     "errorMicrophoneStartup": "המיקרופון הפעיל תמיד לא הופעל. Murmur יפתח אותו בזמן ההקלטה.",
     "errorHistoryStartup": "לא ניתן לפתוח את ההיסטוריה. ההכתבה פועלת, אך דבר אינו נשמר בהיסטוריה.",
-    "noticeHistoryReset": "ההיסטוריה נפגמה ואופסה. הקובץ הישן נשמר לצידה."
+    "noticeHistoryReset": "ההיסטוריה נפגמה ואופסה. הקובץ הישן נשמר לצידה.",
+    "warningRecordingLimit": "ההקלטה תיעצר בעוד דקה (מגבלה של 15 דקות)."
   },
   "sidebar": {
     "general": "כללי",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "קיצור מקשים לתמלול",
-            "description": "קיצור המקלדת להקלטה ולתמלול הקול שלך."
+            "description": "החזיקו כדי לדבר ושחררו כדי לסיים. הקישו פעמיים להקלטה ללא ידיים, ואז הקישו פעם אחת כדי לעצור."
           },
           "cancel": {
             "name": "קיצור מקשים לביטול",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "חפש שפות...",
         "noResults": "לא נמצאו שפות",
         "auto": "אוטומטי"
-      },
-      "pushToTalk": {
-        "label": "לחץ כדי לדבר",
-        "description": "החזק כדי להקליט, שחרר כדי לעצור"
       },
       "groups": {
         "appearance": "מראה"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "מתמלל..."
+    "transcribing": "מתמלל...",
+    "handsFree": "הקלטה ללא ידיים",
+    "handsFreeHint": "הקישו {{shortcut}} כדי לעצור",
+    "limitWarning": "נעצר בעוד {{seconds}} שנ׳"
   },
   "whatsNew": {
     "title": "חדש ב-Murmur v{{version}}"

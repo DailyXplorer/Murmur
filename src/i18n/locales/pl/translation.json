@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} jest używany przez inną aplikację. Wybierz inny skrót w ustawieniach Murmur.",
     "errorMicrophoneStartup": "Stale włączony mikrofon nie uruchomił się. Murmur otworzy go podczas nagrywania.",
     "errorHistoryStartup": "Nie udało się otworzyć historii. Dyktowanie działa, ale nic nie jest zapisywane w historii.",
-    "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok."
+    "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok.",
+    "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut)."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Skrót transkrypcji",
-            "description": "Skrót klawiaturowy do nagrywania i transkrypcji głosu."
+            "description": "Przytrzymaj, aby mówić, i puść, aby zakończyć. Naciśnij dwukrotnie, aby nagrywać bez trzymania klawisza, a potem naciśnij raz, aby zatrzymać."
           },
           "cancel": {
             "name": "Skrót anulowania",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Szukaj języka...",
         "noResults": "Nie znaleziono języków",
         "auto": "Automatycznie"
-      },
-      "pushToTalk": {
-        "label": "Naciśnij i mów",
-        "description": "Przytrzymaj, aby nagrywać, puść, aby zatrzymać"
       },
       "groups": {
         "appearance": "Wygląd"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkrypcja..."
+    "transcribing": "Transkrypcja...",
+    "handsFree": "Nagrywanie bez trzymania klawisza",
+    "handsFreeHint": "Naciśnij {{shortcut}}, aby zatrzymać",
+    "limitWarning": "Koniec za {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nowości w Murmur v{{version}}"

@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} používá jiná aplikace. Zvolte jinou zkratku v nastavení Murmur.",
     "errorMicrophoneStartup": "Stále zapnutý mikrofon se nespustil. Murmur ho otevře při nahrávání.",
     "errorHistoryStartup": "Historii nelze otevřít. Diktování funguje, ale nic se do historie neukládá.",
-    "noticeHistoryReset": "Historie byla poškozená a byla obnovena. Starý soubor zůstal vedle ní."
+    "noticeHistoryReset": "Historie byla poškozená a byla obnovena. Starý soubor zůstal vedle ní.",
+    "warningRecordingLimit": "Nahrávání se zastaví za 1 minutu (limit 15 minut)."
   },
   "sidebar": {
     "general": "Obecné",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Zkratka přepisu",
-            "description": "Klávesová zkratka pro nahrávání a přepis vašeho hlasu."
+            "description": "Podržte pro mluvení a uvolněním dokončete. Dvojitým stisknutím nahráváte bez držení klávesy, jedním stisknutím pak zastavíte."
           },
           "cancel": {
             "name": "Zkratka zrušení",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Hledat jazyky...",
         "noResults": "Žádné jazyky nenalezeny",
         "auto": "Automaticky"
-      },
-      "pushToTalk": {
-        "label": "Stisk a mluv",
-        "description": "Podržte pro nahrávání, uvolněte pro zastavení"
       },
       "groups": {
         "appearance": "Vzhled"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Přepisuji..."
+    "transcribing": "Přepisuji...",
+    "handsFree": "Nahrávání bez držení klávesy",
+    "handsFreeHint": "Zastavíte stisknutím {{shortcut}}",
+    "limitWarning": "Zastaví se za {{seconds}} s"
   },
   "whatsNew": {
     "title": "Novinky v Murmur v{{version}}"

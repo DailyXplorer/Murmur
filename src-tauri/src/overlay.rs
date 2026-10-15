@@ -270,6 +270,32 @@ pub fn show_recording_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "recording");
 }
 
+/// Marks the visible recording as hands-free: the overlay shows a lock and
+/// which shortcut stops it.
+pub fn show_hands_free_overlay(app_handle: &AppHandle) {
+    if !OVERLAY_ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let _ = handle.emit_to("recording_overlay", "overlay-hands-free", ());
+    });
+}
+
+/// Warns that the recording stops at the duration cap in `remaining`: a
+/// countdown in the overlay, or a notification when the overlay is off.
+pub fn warn_recording_limit(app_handle: &AppHandle, remaining: std::time::Duration) {
+    if !OVERLAY_ENABLED.load(Ordering::Relaxed) {
+        crate::user_alert::show(app_handle, crate::user_alert::Alert::RecordingLimitSoon);
+        return;
+    }
+    let handle = app_handle.clone();
+    let seconds = remaining.as_secs();
+    let _ = app_handle.run_on_main_thread(move || {
+        let _ = handle.emit_to("recording_overlay", "recording-limit-warning", seconds);
+    });
+}
+
 /// Shows the transcribing overlay window
 pub fn show_transcribing_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "transcribing");

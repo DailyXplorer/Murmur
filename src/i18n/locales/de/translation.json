@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} wird von einer anderen App verwendet. Wähle in den Murmur-Einstellungen ein anderes Kürzel.",
     "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
     "errorHistoryStartup": "Der Verlauf konnte nicht geöffnet werden. Diktieren funktioniert, aber nichts wird im Verlauf gespeichert.",
-    "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben."
+    "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben.",
+    "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten)."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Transkriptions-Tastenkürzel",
-            "description": "Das Tastenkürzel zum Aufnehmen und Transkribieren deiner Stimme."
+            "description": "Gedrückt halten zum Sprechen, loslassen zum Beenden. Doppelt tippen für freihändige Aufnahme, dann einmal drücken zum Beenden."
           },
           "cancel": {
             "name": "Abbrechen-Tastenkürzel",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Sprachen suchen...",
         "noResults": "Keine Sprachen gefunden",
         "auto": "Automatisch"
-      },
-      "pushToTalk": {
-        "label": "Push-to-Talk",
-        "description": "Gedrückt halten zum Aufnehmen, loslassen zum Stoppen"
       },
       "groups": {
         "appearance": "Darstellung"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribiere..."
+    "transcribing": "Transkribiere...",
+    "handsFree": "Freihändige Aufnahme",
+    "handsFreeHint": "Zum Beenden {{shortcut}} drücken",
+    "limitWarning": "Endet in {{seconds}} s"
   },
   "whatsNew": {
     "title": "Neu in Murmur v{{version}}"

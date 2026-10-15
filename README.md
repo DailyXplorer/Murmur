@@ -40,7 +40,8 @@ provider's terms for your account.
 
 ## Features
 
-- Global record, push-to-talk, and cancel shortcuts
+- One recording shortcut: hold it to talk, or double-tap it to record hands-free and press it once to stop
+- Cancel shortcut
 - Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection

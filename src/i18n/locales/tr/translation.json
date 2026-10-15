@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} başka bir uygulama tarafından kullanılıyor. Murmur ayarlarında başka bir kısayol seçin.",
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
     "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
-    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı."
+    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
+    "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı)."
   },
   "sidebar": {
     "general": "Genel",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Transkripsiyon Kısayolu",
-            "description": "Sesinizi kaydetmek ve metne dönüştürmek için klavye kısayolu."
+            "description": "Konuşmak için basılı tutun, bitirmek için bırakın. Eller serbest kayıt için iki kez dokunun, durdurmak için bir kez basın."
           },
           "cancel": {
             "name": "İptal Kısayolu",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Dil ara...",
         "noResults": "Dil bulunamadı",
         "auto": "Otomatik"
-      },
-      "pushToTalk": {
-        "label": "Bas Konuş",
-        "description": "Kaydetmek için basılı tutun, durdurmak için bırakın"
       },
       "groups": {
         "appearance": "Görünüm"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribe ediliyor..."
+    "transcribing": "Transkribe ediliyor...",
+    "handsFree": "Eller serbest kayıt",
+    "handsFreeHint": "Durdurmak için {{shortcut}} tuşuna basın",
+    "limitWarning": "{{seconds}} sn içinde duracak"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} yenilikleri"

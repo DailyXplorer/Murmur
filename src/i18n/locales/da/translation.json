@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} bruges af en anden app. Vælg en anden genvej i Murmurs indstillinger.",
     "errorMicrophoneStartup": "Den altid tændte mikrofon kunne ikke starte. Murmur åbner den, når du optager.",
     "errorHistoryStartup": "Historikken kunne ikke åbnes. Diktering virker, men intet gemmes i historikken.",
-    "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af."
+    "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af.",
+    "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter)."
   },
   "sidebar": {
     "general": "Generelt",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Transskriptionsgenvej",
-            "description": "Tastaturgenvejen til at optage og transskribere din stemme."
+            "description": "Hold nede for at tale, og slip for at afslutte. Dobbelttryk for at optage håndfrit, og tryk derefter én gang for at stoppe."
           },
           "cancel": {
             "name": "Annulleringsgenvej",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Søg efter sprog...",
         "noResults": "Ingen sprog fundet",
         "auto": "Automatisk"
-      },
-      "pushToTalk": {
-        "label": "Tryk-for-at-tale",
-        "description": "Hold nede for at optage, slip for at stoppe"
       },
       "groups": {
         "appearance": "Udseende"
@@ -440,6 +437,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transskriberer..."
+    "transcribing": "Transskriberer...",
+    "handsFree": "Håndfri optagelse",
+    "handsFreeHint": "Tryk på {{shortcut}} for at stoppe",
+    "limitWarning": "Stopper om {{seconds}} s"
   }
 }

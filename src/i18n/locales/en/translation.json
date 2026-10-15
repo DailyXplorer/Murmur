@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} is used by another app. Choose another shortcut in Murmur settings.",
     "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
     "errorHistoryStartup": "History couldn't be opened. Dictation still works, but nothing is saved to History.",
-    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it."
+    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it.",
+    "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit)."
   },
   "sidebar": {
     "general": "General",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Transcribe Shortcut",
-            "description": "The keyboard shortcut to record and transcribe your voice."
+            "description": "Hold to talk and release to finish. Double-tap to record hands-free, then press once to stop."
           },
           "cancel": {
             "name": "Cancel Shortcut",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Search languages...",
         "noResults": "No languages found",
         "auto": "Auto"
-      },
-      "pushToTalk": {
-        "label": "Push To Talk",
-        "description": "Hold to record, release to stop"
       },
       "groups": {
         "appearance": "Appearance"
@@ -440,6 +437,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribing..."
+    "transcribing": "Transcribing...",
+    "handsFree": "Hands-free recording",
+    "handsFreeHint": "Press {{shortcut}} to stop",
+    "limitWarning": "Stops in {{seconds}} s"
   }
 }

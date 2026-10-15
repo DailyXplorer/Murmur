@@ -20,7 +20,8 @@
     "errorShortcutUnavailable": "{{shortcut}} används av en annan app. Välj ett annat kortkommando i Murmurs inställningar.",
     "errorMicrophoneStartup": "Den alltid påslagna mikrofonen kunde inte starta. Murmur öppnar den när du spelar in.",
     "errorHistoryStartup": "Historiken kunde inte öppnas. Diktering fungerar, men inget sparas i historiken.",
-    "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid."
+    "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid.",
+    "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter)."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -88,7 +89,7 @@
         "bindings": {
           "transcribe": {
             "name": "Kortkommando för transkribering",
-            "description": "Kortkommandot för att spela in och transkribera din röst."
+            "description": "Håll ned för att prata och släpp för att avsluta. Dubbeltryck för att spela in handsfree och tryck sedan en gång för att stoppa."
           },
           "cancel": {
             "name": "Kortkommando för att avbryta",
@@ -108,10 +109,6 @@
         "searchPlaceholder": "Sök språk...",
         "noResults": "Inga språk hittades",
         "auto": "Automatiskt"
-      },
-      "pushToTalk": {
-        "label": "Tryck för att tala",
-        "description": "Håll ned för att spela in, släpp för att stoppa"
       },
       "groups": {
         "appearance": "Utseende"
@@ -437,7 +434,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkriberar..."
+    "transcribing": "Transkriberar...",
+    "handsFree": "Handsfree-inspelning",
+    "handsFreeHint": "Tryck på {{shortcut}} för att stoppa",
+    "limitWarning": "Stoppas om {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nytt i Murmur v{{version}}"
