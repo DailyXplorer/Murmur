@@ -33,6 +33,36 @@ type OnboardingState =
   | { kind: "provider"; configuredProvider: TranscriptionProvider }
   | { kind: "done" };
 
+/** Mirrors `FailureKind` in src-tauri/src/transcription_error.rs. */
+type FailureKind =
+  | "network"
+  | "timeout"
+  | "rate_limited"
+  | "server_error"
+  | "session_expired"
+  | "signed_out"
+  | "too_large"
+  | "rejected"
+  | "other";
+
+interface TranscriptionErrorEvent {
+  kind: FailureKind;
+  detail: string;
+}
+
+/** The same messages the overlay and notifications show. */
+const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
+  network: "tray.errorNetwork",
+  timeout: "tray.errorTimeout",
+  rate_limited: "tray.errorRateLimited",
+  server_error: "tray.errorServer",
+  session_expired: "tray.errorSessionExpired",
+  signed_out: "tray.errorSignedOut",
+  too_large: "tray.errorTooLarge",
+  rejected: "tray.errorTranscription",
+  other: "tray.errorTranscription",
+};
+
 const transcriptionProviderFromSettings = (
   provider: TranscriptionProvider | undefined,
 ): TranscriptionProvider => (provider === "gemini" ? "gemini" : "codex");
@@ -184,15 +214,18 @@ function App() {
   }, [t]);
 
   useEffect(() => {
-    const unlisten = listen<string>("transcription-error", (event) => {
-      toast.error(t("errors.transcriptionFailedTitle"), {
-        description: event.payload,
-        action: {
-          label: t("transcriptionFailedAction"),
-          onClick: () => setCurrentSection("transcription"),
-        },
-      });
-    });
+    const unlisten = listen<TranscriptionErrorEvent>(
+      "transcription-error",
+      (event) => {
+        toast.error(t("errors.transcriptionFailedTitle"), {
+          description: t(FAILURE_MESSAGE_KEYS[event.payload.kind]),
+          action: {
+            label: t("transcriptionFailedAction"),
+            onClick: () => setCurrentSection("transcription"),
+          },
+        });
+      },
+    );
     return () => {
       unlisten.then((fn) => fn());
     };

@@ -4,7 +4,23 @@
     "checkUpdates": "Nach Updates suchen...",
     "copyLastTranscript": "Letzte Transkription kopieren",
     "quit": "Beenden",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "errorNetwork": "Der Transkriptionsdienst ist nicht erreichbar. Prüfe deine Verbindung.",
+    "errorTimeout": "Der Transkriptionsdienst hat zu lange gebraucht. Versuche es im Verlauf erneut.",
+    "errorRateLimited": "Zu viele Anfragen. Warte kurz und versuche es dann im Verlauf erneut.",
+    "errorServer": "Der Transkriptionsdienst hat Probleme. Versuche es im Verlauf erneut.",
+    "errorSessionExpired": "Deine Codex-Sitzung ist abgelaufen. Öffne Codex und melde dich erneut an.",
+    "errorSignedOut": "Nicht bei Codex angemeldet. Öffne Codex und melde dich an.",
+    "errorTooLarge": "Diese Aufnahme ist zu lang für den Dienst. Versuche eine kürzere.",
+    "errorTranscription": "Transkription fehlgeschlagen. Versuche es im Verlauf erneut.",
+    "errorPaste": "Einfügen nicht möglich. Der Text ist in der Zwischenablage und im Verlauf.",
+    "errorRecording": "Aufnahme konnte nicht starten. Prüfe dein Mikrofon.",
+    "errorMicrophoneDenied": "Der Mikrofonzugriff ist aus. Erlaube Murmur in den Systemeinstellungen.",
+    "warningLongRecording": "Lange Aufnahme: Das Hochladen kann langsam sein oder abgelehnt werden.",
+    "errorShortcutUnavailable": "{{shortcut}} wird von einer anderen App verwendet. Wähle in den Murmur-Einstellungen ein anderes Kürzel.",
+    "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
+    "errorHistoryStartup": "Der Verlauf konnte nicht geöffnet werden. Diktieren funktioniert, aber nichts wird im Verlauf gespeichert.",
+    "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Ursprüngliches Tastenkürzel konnte nicht wiederhergestellt werden",
           "set": "Tastenkürzel konnte nicht gesetzt werden: {{error}}",
-          "reset": "Tastenkürzel konnte nicht auf Originalwert zurückgesetzt werden"
+          "reset": "Tastenkürzel konnte nicht auf Originalwert zurückgesetzt werden",
+          "registrationFailed": "Eine andere App verwendet dieses Kürzel. Wähle ein anderes."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Für sicheres Einfügen mit Cmd+V werden frühere Zwischenablagedaten niemals wiederhergestellt. Nach erfolgreichem Einfügen entfernt „Nach dem Einfügen löschen“ die Transkription am Ende des 8-sekündigen Sicherheitszeitraums; „Transkription behalten“ lässt sie verfügbar. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung bei.",
+        "description": "Murmur fügt über die Zwischenablage ein. „Vorherige Zwischenablage wiederherstellen“ legt zurück, was du kopiert hattest, sobald das 8-Sekunden-Fenster zum Einfügen endet, außer du hast inzwischen etwas anderes kopiert. „Transkription behalten“ lässt die Transkription in der Zwischenablage. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung in der Zwischenablage.",
         "options": {
-          "dontModify": "Nach dem Einfügen löschen",
+          "dontModify": "Vorherige Zwischenablage wiederherstellen",
           "copyToClipboard": "Transkription behalten"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Dienst",
         "processing": "Textverarbeitung",
         "output": "Ausgabe"
-      }
+      },
+      "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an"
     }
   },
   "footer": {

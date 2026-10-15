@@ -40,7 +40,7 @@ const writes: string[] = [];
 const calls: string[] = [];
 
 type DeferredStatusRefresh = {
-  codex: Deferred<{ signed_in: boolean }>;
+  codex: Deferred<{ signed_in: boolean; expired: boolean }>;
   codexConfigured: boolean;
   gemini: Deferred<{ installed: boolean; signed_in: boolean }>;
   geminiConfigured: boolean;
@@ -67,7 +67,8 @@ const deferStatusRefresh = (): number => {
 const deferredStatusResponse = (
   provider: "codex" | "gemini",
 ): Promise<
-  { signed_in: boolean } | { installed: boolean; signed_in: boolean }
+  | { signed_in: boolean; expired: boolean }
+  | { installed: boolean; signed_in: boolean }
 > | null => {
   const deferred = deferredStatusRefreshes[activeDeferredStatusRefresh];
   if (!deferred || deferred.requested.has(provider)) return null;
@@ -82,7 +83,10 @@ const deferredStatusResponse = (
 const resolveStatusRefresh = (index: number) => {
   const deferred = deferredStatusRefreshes[index];
   if (!deferred) throw new Error(`Unknown deferred status refresh: ${index}`);
-  deferred.codex.resolve({ signed_in: deferred.codexConfigured });
+  deferred.codex.resolve({
+    signed_in: deferred.codexConfigured,
+    expired: false,
+  });
   deferred.gemini.resolve({
     installed: deferred.geminiInstalled,
     signed_in: deferred.geminiConfigured,
@@ -142,7 +146,7 @@ mockIPC(
       case "get_codex_auth_status": {
         const response = deferredStatusResponse("codex");
         if (response) return response;
-        return { signed_in: codexConfigured };
+        return { signed_in: codexConfigured, expired: false };
       }
       case "get_gemini_status": {
         const response = deferredStatusResponse("gemini");
@@ -221,7 +225,10 @@ let initializationError: string | null = null;
 
 window.providerOnboardingFixture = {
   emitTranscriptionFailure: () =>
-    emit("transcription-error", "The configured service rejected this audio."),
+    emit("transcription-error", {
+      kind: "rejected",
+      detail: "The configured service rejected this audio.",
+    }),
   deferStatusRefresh,
   failNextCompletion: (mode = "exception") => {
     nextCompletionFailure = mode;

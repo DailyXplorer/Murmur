@@ -4,7 +4,23 @@
     "checkUpdates": "Buscar actualizaciones...",
     "copyLastTranscript": "Copiar la última transcripción",
     "quit": "Salir",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "errorNetwork": "No se puede acceder al servicio de transcripción. Compruebe su conexión.",
+    "errorTimeout": "El servicio de transcripción tardó demasiado. Reinténtelo desde el historial.",
+    "errorRateLimited": "Demasiadas solicitudes. Espere un momento y reinténtelo desde el historial.",
+    "errorServer": "El servicio de transcripción tiene problemas. Reinténtelo desde el historial.",
+    "errorSessionExpired": "Su sesión de Codex ha caducado. Abra Codex e inicie sesión de nuevo.",
+    "errorSignedOut": "No ha iniciado sesión en Codex. Abra Codex e inicie sesión.",
+    "errorTooLarge": "Esta grabación es demasiado larga para el servicio. Pruebe con una más corta.",
+    "errorTranscription": "La transcripción falló. Reinténtelo desde el historial.",
+    "errorPaste": "No se pudo pegar. El texto está en el portapapeles y en el historial.",
+    "errorRecording": "No se pudo iniciar la grabación. Compruebe su micrófono.",
+    "errorMicrophoneDenied": "El acceso al micrófono está desactivado. Permita Murmur en Ajustes del Sistema.",
+    "warningLongRecording": "Grabación larga: la subida puede ser lenta o rechazada.",
+    "errorShortcutUnavailable": "{{shortcut}} lo usa otra aplicación. Elija otro atajo en los ajustes de Murmur.",
+    "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
+    "errorHistoryStartup": "No se pudo abrir el historial. El dictado funciona, pero no se guarda nada en el historial.",
+    "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado."
   },
   "sidebar": {
     "general": "General",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Error al restaurar el atajo original",
           "set": "Error al configurar el atajo: {{error}}",
-          "reset": "Error al restablecer el atajo al valor original"
+          "reset": "Error al restablecer el atajo al valor original",
+          "registrationFailed": "Otra aplicación usa este atajo. Elija uno diferente."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Manejo del portapapeles",
-        "description": "Para pegar de forma segura con Cmd+V, los datos anteriores del portapapeles nunca se restauran. Tras un pegado correcto, «Borrar después de pegar» elimina la transcripción al finalizar el intervalo de seguridad de 8 segundos; «Conservar la transcripción» la deja disponible. Si el pegado falla, Murmur conserva la transcripción para poder recuperarla.",
+        "description": "Murmur pega a través del portapapeles. «Restaurar el portapapeles anterior» devuelve lo que había copiado cuando termina la ventana de pegado de 8 segundos, salvo que haya copiado otra cosa entretanto. «Conservar la transcripción» deja la transcripción en el portapapeles. Si el pegado falla, Murmur conserva la transcripción en el portapapeles para recuperarla.",
         "options": {
-          "dontModify": "Borrar después de pegar",
+          "dontModify": "Restaurar el portapapeles anterior",
           "copyToClipboard": "Conservar la transcripción"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Servicio",
         "processing": "Procesamiento de texto",
         "output": "Salida"
-      }
+      },
+      "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex"
     }
   },
   "footer": {

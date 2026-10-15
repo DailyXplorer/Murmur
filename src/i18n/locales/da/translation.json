@@ -4,7 +4,23 @@
     "checkUpdates": "Tjek for opdateringer...",
     "copyLastTranscript": "Kopiér seneste transskription",
     "quit": "Afslut",
-    "cancel": "Annuller"
+    "cancel": "Annuller",
+    "errorNetwork": "Transskriptionstjenesten kan ikke nås. Tjek din forbindelse.",
+    "errorTimeout": "Transskriptionstjenesten var for længe om det. Prøv igen fra historikken.",
+    "errorRateLimited": "For mange forespørgsler. Vent et øjeblik, og prøv igen fra historikken.",
+    "errorServer": "Transskriptionstjenesten har problemer. Prøv igen fra historikken.",
+    "errorSessionExpired": "Din Codex-session er udløbet. Åbn Codex, og log ind igen.",
+    "errorSignedOut": "Ikke logget ind på Codex. Åbn Codex, og log ind.",
+    "errorTooLarge": "Denne optagelse er for lang til tjenesten. Prøv en kortere.",
+    "errorTranscription": "Transskriptionen mislykkedes. Prøv igen fra historikken.",
+    "errorPaste": "Kunne ikke indsætte. Teksten ligger i udklipsholderen og i historikken.",
+    "errorRecording": "Optagelsen kunne ikke starte. Tjek din mikrofon.",
+    "errorMicrophoneDenied": "Mikrofonadgang er slået fra. Tillad Murmur i Systemindstillinger.",
+    "warningLongRecording": "Lang optagelse: upload kan være langsom eller blive afvist.",
+    "errorShortcutUnavailable": "{{shortcut}} bruges af en anden app. Vælg en anden genvej i Murmurs indstillinger.",
+    "errorMicrophoneStartup": "Den altid tændte mikrofon kunne ikke starte. Murmur åbner den, når du optager.",
+    "errorHistoryStartup": "Historikken kunne ikke åbnes. Diktering virker, men intet gemmes i historikken.",
+    "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af."
   },
   "sidebar": {
     "general": "Generelt",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Kunne ikke gendanne den oprindelige genvej",
           "set": "Kunne ikke indstille genvej: {{error}}",
-          "reset": "Kunne ikke nulstille genvej til oprindelig indstilling"
+          "reset": "Kunne ikke nulstille genvej til oprindelig indstilling",
+          "registrationFailed": "En anden app bruger denne genvej. Vælg en anden."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Håndtering af udklipsholder",
-        "description": "Ved sikker Cmd+V-indsættelse gendannes tidligere udklipsholderdata aldrig. Efter en vellykket indsættelse fjerner \"Ryd efter indsættelse\" transskriptionen, når sikkerhedsperioden på 8 sekunder udløber; \"Behold transskription\" lader den forblive tilgængelig. Hvis indsættelsen mislykkes, beholder Murmur transskriptionen, så den kan gendannes.",
+        "description": "Murmur indsætter via udklipsholderen. \"Gendan forrige udklipsholder\" lægger det, du havde kopieret, tilbage, når indsætningsvinduet på 8 sekunder slutter, medmindre du har kopieret noget andet imens. \"Behold transskription\" lader transskriptionen blive i udklipsholderen. Hvis indsætningen mislykkes, beholder Murmur transskriptionen i udklipsholderen, så den kan hentes.",
         "options": {
-          "dontModify": "Ryd efter indsættelse",
+          "dontModify": "Gendan forrige udklipsholder",
           "copyToClipboard": "Behold transskription"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Tjeneste",
         "processing": "Tekstbehandling",
         "output": "Output"
-      }
+      },
+      "sessionExpired": "Sessionen er udløbet, log ind igen i Codex"
     }
   },
   "footer": {

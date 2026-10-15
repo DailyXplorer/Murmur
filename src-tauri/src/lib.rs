@@ -26,6 +26,7 @@ mod transcription_coordinator;
 mod transcription_error;
 mod tray;
 mod tray_i18n;
+mod user_alert;
 mod utils;
 
 pub use cli::CliArgs;
@@ -590,6 +591,7 @@ pub fn run(cli_args: CliArgs) {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_macos_permissions::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
