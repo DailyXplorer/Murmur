@@ -11,6 +11,8 @@ const TARGET_SPEECH_DBFS: f32 = -20.0;
 /// Below this a gain change is inaudible to the recogniser; leave audio as is.
 const MIN_USEFUL_GAIN_DB: f32 = 3.0;
 const MIN_SPEECH_FRAMES: usize = 10;
+/// Frames below this hold no signal at all, not even a microphone's hiss.
+const DIGITAL_SILENCE_DBFS: f32 = -100.0;
 /// Speech must stand this far above the noise floor to be treated as speech.
 const SPEECH_OVER_NOISE_DB: f32 = 9.0;
 /// Amplified background must stay below this, whatever the speech level.
@@ -73,10 +75,17 @@ struct GainPlan {
 
 fn plan(samples: &[f32], profile: GainProfile) -> Option<GainPlan> {
     let levels = frame_levels(samples);
-    if levels.len() < MIN_SPEECH_FRAMES {
+    // Zero padding of short clips and mic warm-up are not room noise: left
+    // in, they put the noise floor at -180 dBFS and disable both the
+    // relative gate and the noise cap.
+    let mut sorted: Vec<f32> = levels
+        .iter()
+        .copied()
+        .filter(|level| *level > DIGITAL_SILENCE_DBFS)
+        .collect();
+    if sorted.len() < MIN_SPEECH_FRAMES {
         return None;
     }
-    let mut sorted = levels.clone();
     sorted.sort_by(f32::total_cmp);
     let noise_floor = percentile(&sorted, 0.1);
     let speech_threshold = profile.gate_dbfs.max(noise_floor + SPEECH_OVER_NOISE_DB);
@@ -208,6 +217,48 @@ mod tests {
         let room = noise(RATE * 2, 0.003, 9);
         assert_eq!(normalize_quiet_speech(&room, GainProfile::new(false)), None);
         assert_eq!(normalize_quiet_speech(&room, GainProfile::new(true)), None);
+    }
+
+    /// What the recorder hands over for a clip under a second: the samples
+    /// followed by exact zeros up to 1.25 s.
+    fn padded(mut samples: Vec<f32>) -> Vec<f32> {
+        samples.resize(RATE * 5 / 4, 0.0);
+        samples
+    }
+
+    #[test]
+    fn padded_room_noise_is_left_alone() {
+        // 0.8 s of fan noise at about -55 dBFS, an accidental tap.
+        let room = noise(RATE * 4 / 5, 0.0031, 4);
+        assert!((rms_dbfs(&room) - -55.0).abs() < 0.5);
+        assert_eq!(
+            normalize_quiet_speech(&padded(room.clone()), GainProfile::new(true)),
+            None
+        );
+        let mut warm_up = vec![0.0; RATE / 2];
+        warm_up.extend(&room);
+        assert_eq!(
+            normalize_quiet_speech(&warm_up, GainProfile::new(true)),
+            None
+        );
+        let louder_room = noise(RATE * 4 / 5, 0.0055, 5);
+        assert_eq!(
+            normalize_quiet_speech(&padded(louder_room), GainProfile::new(false)),
+            None
+        );
+    }
+
+    #[test]
+    fn padded_quiet_speech_is_still_raised() {
+        let mut input = noise(RATE / 5, 0.0005, 6);
+        let speech = tone(RATE / 2, 0.01);
+        input.extend(
+            speech
+                .iter()
+                .zip(noise(RATE / 2, 0.0005, 7))
+                .map(|(s, n)| s + n),
+        );
+        assert!(normalize_quiet_speech(&padded(input), GainProfile::new(false)).is_some());
     }
 
     #[test]

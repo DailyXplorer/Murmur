@@ -1,5 +1,5 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
-use crate::audio_toolkit::{apply_custom_words, normalize_transcription_output};
+use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
 use crate::gemini_transcribe::{GeminiTranscriber, ShutdownReceipt};
 use crate::settings::{get_settings, TranscriptionProvider};
@@ -129,10 +129,10 @@ impl TranscriptionManager {
         }
 
         let mut processed = normalize_transcription_output(&text);
-        processed = crate::dictionary::apply_heard_as(&processed, &settings.learned_words);
-        processed = apply_custom_words(
+        processed = crate::dictionary::correct(
             &processed,
             &settings.custom_words,
+            &settings.learned_words,
             settings.word_correction_threshold,
         );
 
