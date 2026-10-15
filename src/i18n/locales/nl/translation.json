@@ -31,7 +31,59 @@
     "history": "Geschiedenis",
     "debug": "Probleemoplossing",
     "about": "Over Murmur",
-    "transcription": "Transcriptie"
+    "transcription": "Transcriptie",
+    "insights": "Inzichten"
+  },
+  "insights": {
+    "error": "Inzichten konden niet worden geladen.",
+    "privacy": "Inzichten worden op deze Mac berekend en blijven hier. Er wordt geen gedicteerde tekst voor bewaard.",
+    "wpm": {
+      "title": "Woorden per minuut",
+      "window": "Laatste 30 dagen",
+      "empty": "Nog niet genoeg getimede dicteringen",
+      "formula": "Totaal aantal gedicteerde woorden in de laatste 30 dagen gedeeld door de totale opnametijd van die dicteringen, in minuten. Opnames korter dan één seconde worden overgeslagen."
+    },
+    "words": {
+      "title": "Woorden in totaal",
+      "empty": "Begin met dicteren om dit te vullen",
+      "equivalence": {
+        "emails": "≈ {{amount}} × een gemiddelde e-mail",
+        "pages": "≈ {{amount}} × een boekpagina",
+        "stories": "≈ {{amount}} × een kort verhaal",
+        "novels": "≈ {{amount}} × een roman"
+      }
+    },
+    "fixes": {
+      "title": "Correcties",
+      "description": "Woorden die je hebt gecorrigeerd nadat Murmur had geplakt, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
+      "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
+      "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
+    },
+    "apps": {
+      "title": "Gebruik per app",
+      "description": "Waar je dicteringen naartoe gingen, per app-categorie.",
+      "empty": "App-categorieën worden alleen voor nieuwe dicteringen vastgelegd. Dicteer in een willekeurige app om dit te vullen.",
+      "totalApps": "Gebruikte apps",
+      "categories": {
+        "aiPrompts": "AI-prompts",
+        "personalMessages": "Persoonlijke berichten",
+        "workMessages": "Werkberichten",
+        "emails": "E-mails",
+        "documents": "Documenten",
+        "coding": "Code & terminal",
+        "other": "Overig"
+      }
+    },
+    "streak": {
+      "title": "Reeks",
+      "description": "Dagen met minstens één dictering, in je lokale tijdzone.",
+      "current": "Huidige reeks",
+      "longest": "Langste reeks",
+      "heatmapLabel": "Dicteringen per dag in de laatste 20 weken",
+      "cellTitle": "Dicteringen op {{date}}: {{value}}",
+      "less": "Minder",
+      "more": "Meer"
+    }
   },
   "onboarding": {
     "permissions": {

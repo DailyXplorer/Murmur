@@ -31,7 +31,59 @@
     "history": "履歴",
     "debug": "デバッグ",
     "about": "概要",
-    "transcription": "文字起こし"
+    "transcription": "文字起こし",
+    "insights": "インサイト"
+  },
+  "insights": {
+    "error": "インサイトを読み込めませんでした。",
+    "privacy": "インサイトはこの Mac 上で計算され、外部に送信されません。インサイトのために音声入力したテキストが保存されることはありません。",
+    "wpm": {
+      "title": "1分あたりの単語数",
+      "window": "過去30日間",
+      "empty": "時間を計測した音声入力がまだ足りません",
+      "formula": "過去30日間に音声入力した単語の合計を、それらの録音時間の合計（分）で割った値です。1秒未満の録音は除外されます。"
+    },
+    "words": {
+      "title": "合計単語数",
+      "empty": "音声入力を始めるとここに表示されます",
+      "equivalence": {
+        "emails": "≈ 一般的なメール {{amount}} 通分",
+        "pages": "≈ 本 {{amount}} ページ分",
+        "stories": "≈ 短編小説 {{amount}} 本分",
+        "novels": "≈ 長編小説 {{amount}} 冊分"
+      }
+    },
+    "fixes": {
+      "title": "修正",
+      "description": "Murmur が貼り付けた後にあなたが修正した単語と、カスタム辞書が自動的に置き換えた単語の合計です。",
+      "wordsCorrected": "修正した単語: {{value}}",
+      "dictionaryFixes": "辞書による修正: {{value}}"
+    },
+    "apps": {
+      "title": "アプリ別の利用状況",
+      "description": "音声入力の送り先をアプリのカテゴリ別に表示します。",
+      "empty": "アプリのカテゴリは新しい音声入力からのみ記録されます。任意のアプリで音声入力するとここに表示されます。",
+      "totalApps": "使用したアプリ数",
+      "categories": {
+        "aiPrompts": "AI プロンプト",
+        "personalMessages": "個人メッセージ",
+        "workMessages": "仕事のメッセージ",
+        "emails": "メール",
+        "documents": "ドキュメント",
+        "coding": "コーディングとターミナル",
+        "other": "その他"
+      }
+    },
+    "streak": {
+      "title": "連続記録",
+      "description": "ローカルのタイムゾーンで、1回以上音声入力した日です。",
+      "current": "現在の連続日数",
+      "longest": "最長の連続日数",
+      "heatmapLabel": "過去20週間の1日あたりの音声入力回数",
+      "cellTitle": "{{date}} の音声入力: {{value}}",
+      "less": "少",
+      "more": "多"
+    }
   },
   "onboarding": {
     "permissions": {

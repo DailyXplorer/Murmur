@@ -286,7 +286,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       disabled={disabled}
       layout="horizontal"
     >
-      <div className="flex min-w-0 flex-col items-end gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 items-center space-x-1">
           {editingShortcutId === shortcutId ? (
             <div

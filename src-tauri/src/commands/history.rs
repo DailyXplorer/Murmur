@@ -113,7 +113,10 @@ pub async fn retry_history_entry_transcription(
             let transcription = transcription_manager
                 .transcribe_with_provider(Arc::new(samples), operation, provider)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string())?
+                .text;
+            // A retry is not delivered by paste, so it stays out of Insights,
+            // which only counts delivered dictations.
             if transcription.is_empty() {
                 return Ok(transcription);
             }

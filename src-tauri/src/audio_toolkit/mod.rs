@@ -9,5 +9,6 @@ pub use audio::{
 };
 pub use lang_id::detect_output_language;
 pub use text::{
-    apply_custom_words, normalize_transcription_output, remove_filler_words, OutputLanguageEvidence,
+    apply_custom_words, apply_custom_words_counted, normalize_transcription_output,
+    remove_filler_words, OutputLanguageEvidence,
 };

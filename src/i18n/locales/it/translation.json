@@ -31,7 +31,59 @@
     "history": "Cronologia",
     "debug": "Debug",
     "about": "Informazioni",
-    "transcription": "Trascrizione"
+    "transcription": "Trascrizione",
+    "insights": "Statistiche"
+  },
+  "insights": {
+    "error": "Impossibile caricare le statistiche.",
+    "privacy": "Le statistiche vengono calcolate su questo Mac e restano qui. Nessun testo dettato viene salvato per esse.",
+    "wpm": {
+      "title": "Parole al minuto",
+      "window": "Ultimi 30 giorni",
+      "empty": "Non ci sono ancora abbastanza dettature cronometrate",
+      "formula": "Parole totali dettate negli ultimi 30 giorni divise per il tempo totale di registrazione di quelle dettature, in minuti. Le registrazioni più brevi di un secondo vengono ignorate."
+    },
+    "words": {
+      "title": "Parole totali",
+      "empty": "Inizia a dettare per vedere questo valore",
+      "equivalence": {
+        "emails": "≈ {{amount}} × un'email tipica",
+        "pages": "≈ {{amount}} × una pagina di libro",
+        "stories": "≈ {{amount}} × un racconto breve",
+        "novels": "≈ {{amount}} × un romanzo"
+      }
+    },
+    "fixes": {
+      "title": "Correzioni",
+      "description": "Parole che hai corretto dopo che Murmur ha incollato il testo, più le parole sostituite automaticamente dal tuo dizionario personalizzato.",
+      "wordsCorrected": "Parole corrette: {{value}}",
+      "dictionaryFixes": "Correzioni del dizionario: {{value}}"
+    },
+    "apps": {
+      "title": "Utilizzo per app",
+      "description": "Dove sono finite le tue dettature, per categoria di app.",
+      "empty": "Le categorie di app vengono registrate solo per le nuove dettature. Detta in qualsiasi app per vedere questa sezione.",
+      "totalApps": "App utilizzate",
+      "categories": {
+        "aiPrompts": "Prompt IA",
+        "personalMessages": "Messaggi personali",
+        "workMessages": "Messaggi di lavoro",
+        "emails": "Email",
+        "documents": "Documenti",
+        "coding": "Codice e terminale",
+        "other": "Altro"
+      }
+    },
+    "streak": {
+      "title": "Serie",
+      "description": "Giorni con almeno una dettatura, nel tuo fuso orario locale.",
+      "current": "Serie attuale",
+      "longest": "Serie più lunga",
+      "heatmapLabel": "Dettature al giorno nelle ultime 20 settimane",
+      "cellTitle": "Dettature del {{date}}: {{value}}",
+      "less": "Meno",
+      "more": "Più"
+    }
   },
   "onboarding": {
     "permissions": {
