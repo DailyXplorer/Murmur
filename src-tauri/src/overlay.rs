@@ -30,6 +30,17 @@ tauri_panel! {
 // the window must fit the widest state plus a little slack.
 const OVERLAY_WIDTH: f64 = 256.0;
 const OVERLAY_HEIGHT: f64 = 46.0;
+// Error card: --ov-error-w wide, up to two lines of text.
+const ERROR_OVERLAY_WIDTH: f64 = 340.0;
+const ERROR_OVERLAY_HEIGHT: f64 = 72.0;
+const ERROR_DISPLAY_TIME: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Bumped by every show or hide request, so a delayed hide only applies when
+/// nothing replaced the overlay in the meantime.
+static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
+/// While an error message is on screen, routine hides (pipeline finished,
+/// cancel) leave it up; only its own timer or a new recording replaces it.
+static ERROR_SHOWING: AtomicBool = AtomicBool::new(false);
 
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
@@ -162,45 +173,82 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    ERROR_SHOWING.store(false, Ordering::SeqCst);
     let handle = app_handle.clone();
     let state = state.to_string();
-    let _ = app_handle.run_on_main_thread(move || show_overlay_state_on_main(&handle, &state));
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        {
+            let _ = window.emit("show-overlay", state);
+        }
+    });
 }
 
-fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
-    let (width, height) = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
-    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        let size_started = std::time::Instant::now();
-        let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
-        let size_elapsed = size_started.elapsed();
-
-        let pos_started = std::time::Instant::now();
-        let set_pos_elapsed =
-            if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
-                let set_pos_started = std::time::Instant::now();
-                let _ = overlay_window
-                    .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
-                set_pos_started.elapsed()
-            } else {
-                std::time::Duration::ZERO
-            };
-        let pos_calc_elapsed = pos_started.elapsed() - set_pos_elapsed;
-
-        let show_started = std::time::Instant::now();
-        let _ = overlay_window.show();
-        let show_elapsed = show_started.elapsed();
-
-        log::debug!(
-            "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
-            state,
-            size_elapsed,
-            pos_calc_elapsed,
-            set_pos_elapsed,
-            show_elapsed
-        );
-
-        let _ = overlay_window.emit("show-overlay", state);
+/// Shows a short error message in the overlay for a few seconds. Returns
+/// false when the overlay is disabled, so the caller can fall back to a
+/// notification.
+pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
+    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
+        return false;
     }
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    ERROR_SHOWING.store(true, Ordering::SeqCst);
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) =
+            present_overlay_window(&handle, "error", ERROR_OVERLAY_WIDTH, ERROR_OVERLAY_HEIGHT)
+        {
+            let _ = window.emit("show-overlay-error", message);
+        }
+    });
+    let handle = app_handle.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(ERROR_DISPLAY_TIME);
+        if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
+            ERROR_SHOWING.store(false, Ordering::SeqCst);
+            hide_recording_overlay(&handle);
+        }
+    });
+    true
+}
+
+fn present_overlay_window(
+    app_handle: &AppHandle,
+    state: &str,
+    width: f64,
+    height: f64,
+) -> Option<tauri::webview::WebviewWindow> {
+    let overlay_window = app_handle.get_webview_window("recording_overlay")?;
+    let size_started = std::time::Instant::now();
+    let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+    let size_elapsed = size_started.elapsed();
+
+    let pos_started = std::time::Instant::now();
+    let set_pos_elapsed =
+        if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
+            let set_pos_started = std::time::Instant::now();
+            let _ = overlay_window
+                .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+            set_pos_started.elapsed()
+        } else {
+            std::time::Duration::ZERO
+        };
+    let pos_calc_elapsed = pos_started.elapsed() - set_pos_elapsed;
+
+    let show_started = std::time::Instant::now();
+    let _ = overlay_window.show();
+    let show_elapsed = show_started.elapsed();
+
+    log::debug!(
+        "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
+        state,
+        size_elapsed,
+        pos_calc_elapsed,
+        set_pos_elapsed,
+        show_elapsed
+    );
+    Some(overlay_window)
 }
 
 /// Notify the visible recording overlay that the input stream has delivered its
@@ -246,12 +294,18 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 
 /// Hides the recording overlay window with fade-out animation
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
+    if ERROR_SHOWING.load(Ordering::SeqCst) {
+        return;
+    }
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.emit("hide-overlay", ());
         let window_clone = overlay_window.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(300));
-            let _ = window_clone.hide();
+            if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
+                let _ = window_clone.hide();
+            }
         });
     }
 }

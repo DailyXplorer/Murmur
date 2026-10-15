@@ -4,7 +4,23 @@
     "checkUpdates": "Verifica aggiornamenti...",
     "copyLastTranscript": "Copia l'ultima trascrizione",
     "quit": "Esci",
-    "cancel": "Annulla"
+    "cancel": "Annulla",
+    "errorNetwork": "Impossibile raggiungere il servizio di trascrizione. Controlla la connessione.",
+    "errorTimeout": "Il servizio di trascrizione ha impiegato troppo tempo. Riprova dalla cronologia.",
+    "errorRateLimited": "Troppe richieste. Attendi un momento, poi riprova dalla cronologia.",
+    "errorServer": "Il servizio di trascrizione ha dei problemi. Riprova dalla cronologia.",
+    "errorSessionExpired": "La sessione di Codex è scaduta. Apri Codex e accedi di nuovo.",
+    "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",
+    "errorTooLarge": "Questa registrazione è troppo lunga per il servizio. Provane una più breve.",
+    "errorTranscription": "Trascrizione non riuscita. Riprova dalla cronologia.",
+    "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",
+    "errorRecording": "Impossibile avviare la registrazione. Controlla il microfono.",
+    "errorMicrophoneDenied": "L'accesso al microfono è disattivato. Consenti Murmur in Impostazioni di Sistema.",
+    "warningLongRecording": "Registrazione lunga: il caricamento può essere lento o rifiutato.",
+    "errorShortcutUnavailable": "{{shortcut}} è usata da un'altra app. Scegli un'altra scorciatoia nelle impostazioni di Murmur.",
+    "errorMicrophoneStartup": "Il microfono sempre attivo non si è avviato. Murmur lo aprirà quando registri.",
+    "errorHistoryStartup": "Impossibile aprire la cronologia. La dettatura funziona, ma non viene salvato nulla nella cronologia.",
+    "noticeHistoryReset": "La cronologia era danneggiata ed è stata reimpostata. Il vecchio file è stato conservato accanto."
   },
   "sidebar": {
     "general": "Generale",
@@ -134,7 +150,8 @@
         "errors": {
           "restore": "Errore nel ripristino della scorciatoia originale",
           "set": "Errore nella configurazione della scorciatoia: {{error}}",
-          "reset": "Errore nella reinizializzazione della scorciatoia al valore originale"
+          "reset": "Errore nella reinizializzazione della scorciatoia al valore originale",
+          "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa."
         }
       },
       "language": {
@@ -241,9 +258,9 @@
       },
       "clipboardHandling": {
         "title": "Gestione Appunti",
-        "description": "Per incollare in modo sicuro con Cmd+V, i dati precedenti degli Appunti non vengono mai ripristinati. Dopo un incollamento riuscito, «Cancella dopo l'incollamento» rimuove la trascrizione al termine della finestra di sicurezza di 8 secondi; «Mantieni la trascrizione» la lascia disponibile. Se l'incollamento non riesce, Murmur conserva la trascrizione per consentirne il recupero.",
+        "description": "Murmur incolla tramite gli appunti. \"Ripristina appunti precedenti\" rimette ciò che avevi copiato al termine della finestra di incollaggio di 8 secondi, a meno che nel frattempo tu non abbia copiato altro. \"Mantieni la trascrizione\" lascia la trascrizione negli appunti. Se l'incollaggio non riesce, Murmur mantiene la trascrizione negli appunti per recuperarla.",
         "options": {
-          "dontModify": "Cancella dopo l'incollamento",
+          "dontModify": "Ripristina appunti precedenti",
           "copyToClipboard": "Mantieni la trascrizione"
         }
       },
@@ -403,7 +420,8 @@
         "service": "Servizio",
         "processing": "Elaborazione del testo",
         "output": "Output"
-      }
+      },
+      "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex"
     }
   },
   "footer": {

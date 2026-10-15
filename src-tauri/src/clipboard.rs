@@ -33,6 +33,20 @@ fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), Str
         .map_err(|e| format!("Failed to write to clipboard: {e}"))
 }
 
+/// Puts an undelivered transcript on the clipboard so the user can paste it
+/// by hand. Runs on the main thread, like every other pasteboard write.
+pub(crate) fn copy_for_recovery(app_handle: &AppHandle, text: String) {
+    let app = app_handle.clone();
+    let queued = app_handle.run_on_main_thread(move || {
+        if let Err(error) = write_text_to_clipboard(&app, &text) {
+            warn!("Failed to keep the undelivered transcript on the clipboard: {error}");
+        }
+    });
+    if let Err(error) = queued {
+        warn!("Failed to queue the clipboard recovery write: {error}");
+    }
+}
+
 fn complete_clipboard_only_output(
     operation: &ProcessingOperation,
     clipboard_handling: ClipboardHandling,
