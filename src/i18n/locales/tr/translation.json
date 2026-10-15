@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} başka bir uygulama tarafından kullanılıyor. Murmur ayarlarında başka bir kısayol seçin.",
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
     "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
-    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı."
+    "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
+    "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
+    "pasteLastTranscript": "Son dökümü yapıştır",
+    "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok."
   },
   "sidebar": {
     "general": "Genel",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transkripsiyon Kısayolu",
-            "description": "Sesinizi kaydetmek ve metne dönüştürmek için klavye kısayolu."
+            "description": "Konuşmak için basılı tutun, bitirmek için bırakın. Eller serbest kayıt için iki kez dokunun, durdurmak için bir kez basın."
           },
           "cancel": {
             "name": "İptal Kısayolu",
             "description": "Mevcut kaydı iptal etmek için klavye kısayolu."
+          },
+          "paste_last": {
+            "name": "Son dökümü yapıştır",
+            "description": "En son dökümünüzü kullandığınız uygulamaya yeniden yapıştırır."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Dil ara...",
         "noResults": "Dil bulunamadı",
         "auto": "Otomatik"
-      },
-      "pushToTalk": {
-        "label": "Bas Konuş",
-        "description": "Kaydetmek için basılı tutun, durdurmak için bırakın"
       },
       "groups": {
         "appearance": "Görünüm"
@@ -297,11 +300,17 @@
       "unsave": "Kaydedilenlerden kaldır",
       "delete": "Kaydı sil",
       "deleteError": "Kayıt silinemedi. Lütfen tekrar deneyin.",
-      "retranscribe": "Yeniden transkribe et",
+      "retranscribe": "Yeniden yazıya dök",
       "retranscribeError": "Yeniden transkripsiyon başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Transkribe ediliyor...",
-      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz.",
-      "preferences": "Tercihler"
+      "transcriptionFailed": "Yazıya dökme başarısız oldu. Kayıt saklandı, tekrar deneyebilirsiniz.",
+      "preferences": "Tercihler",
+      "noRecording": "Yazıya dökme başarısız oldu ve kayıt saklanmadı.",
+      "retry": "Tekrar dene",
+      "retrySuccess": "Yeniden yazıya döküldü.",
+      "copy": "Kopyala",
+      "recordingUnavailable": "Kayıt artık mevcut değil, bu yüzden yeniden yazıya dökülemez.",
+      "noSpeech": "Kayıtta konuşma bulunamadı."
     },
     "debug": {
       "title": "Hata Ayıklama",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribe ediliyor..."
+    "transcribing": "Transkribe ediliyor...",
+    "handsFree": "Eller serbest kayıt",
+    "handsFreeHint": "Durdurmak için {{shortcut}} tuşuna basın",
+    "limitWarning": "{{seconds}} sn içinde duracak"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} yenilikleri"

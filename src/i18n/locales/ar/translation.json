@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "يستخدم تطبيق آخر {{shortcut}}. اختر اختصارًا آخر في إعدادات Murmur.",
     "errorMicrophoneStartup": "تعذر تشغيل الميكروفون الدائم. سيفتحه Murmur عند التسجيل.",
     "errorHistoryStartup": "تعذر فتح السجل. الإملاء يعمل، لكن لن يُحفظ شيء في السجل.",
-    "noticeHistoryReset": "كان السجل تالفًا وتمت إعادة تعيينه. احتُفظ بالملف القديم بجانبه."
+    "noticeHistoryReset": "كان السجل تالفًا وتمت إعادة تعيينه. احتُفظ بالملف القديم بجانبه.",
+    "warningRecordingLimit": "سيتوقف التسجيل خلال دقيقة واحدة (الحد 15 دقيقة).",
+    "pasteLastTranscript": "لصق آخر نص",
+    "noticeNothingToPaste": "لا يوجد نص منسوخ للصق بعد."
   },
   "sidebar": {
     "general": "عام",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "اختصار التفريغ الصوتي",
-            "description": ".اختصار لوحة المفاتيح لتسجيل وتفريغ صوتك"
+            "description": "اضغط مطولاً للتحدث وحرّر للإنهاء. انقر مرتين للتسجيل بدون استخدام اليدين، ثم اضغط مرة واحدة للإيقاف."
           },
           "cancel": {
             "name": "اختصار الإلغاء",
             "description": ".اختصار لوحة المفاتيح لإلغاء التسجيل الحالي"
+          },
+          "paste_last": {
+            "name": "لصق آخر نسخ",
+            "description": "يلصق آخر نص منسوخ مرة أخرى في التطبيق الذي تستخدمه."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "البحث عن اللغات...",
         "noResults": "لم يتم العثور على لغات",
         "auto": "تلقائي"
-      },
-      "pushToTalk": {
-        "label": "اضغط للتحدث",
-        "description": "استمر في الضغط للتسجيل، واترك للتوقف"
       },
       "groups": {
         "appearance": "المظهر"
@@ -297,11 +300,17 @@
       "unsave": "إزالة من المحفوظات",
       "delete": "حذف الإدخال",
       "deleteError": ".فشل حذف الإدخال. يرجى المحاولة مرة أخرى",
-      "retranscribe": "إعادة النسخ",
+      "retranscribe": "النسخ مرة أخرى",
       "retranscribeError": "فشلت إعادة النسخ. يرجى المحاولة مرة أخرى.",
       "transcribing": "جارٍ النسخ...",
-      "transcriptionFailed": "فشل النسخ. يمكنك إعادة النسخ باستخدام أيقونة إعادة المحاولة.",
-      "preferences": "التفضيلات"
+      "transcriptionFailed": "فشل النسخ. تم الاحتفاظ بالتسجيل، لذا يمكنك إعادة المحاولة.",
+      "preferences": "التفضيلات",
+      "noRecording": "فشل النسخ ولم يتم الاحتفاظ بأي تسجيل.",
+      "retry": "إعادة المحاولة",
+      "retrySuccess": "تم النسخ مرة أخرى.",
+      "copy": "نسخ",
+      "recordingUnavailable": "لم يعد التسجيل متاحاً، لذا لا يمكن نسخه مرة أخرى.",
+      "noSpeech": "لم يُعثر على أي كلام في التسجيل."
     },
     "debug": {
       "title": "تصحيح الأخطاء",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "...جاري التفريغ"
+    "transcribing": "...جاري التفريغ",
+    "handsFree": "تسجيل بدون استخدام اليدين",
+    "handsFreeHint": "اضغط {{shortcut}} للإيقاف",
+    "limitWarning": "يتوقف خلال {{seconds}} ث"
   },
   "whatsNew": {
     "title": "الجديد في Murmur v{{version}}"

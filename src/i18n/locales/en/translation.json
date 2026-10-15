@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} is used by another app. Choose another shortcut in Murmur settings.",
     "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
     "errorHistoryStartup": "History couldn't be opened. Dictation still works, but nothing is saved to History.",
-    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it."
+    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it.",
+    "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit).",
+    "pasteLastTranscript": "Paste Last Transcript",
+    "noticeNothingToPaste": "There is no transcription to paste yet."
   },
   "sidebar": {
     "general": "General",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transcribe Shortcut",
-            "description": "The keyboard shortcut to record and transcribe your voice."
+            "description": "Hold to talk and release to finish. Double-tap to record hands-free, then press once to stop."
           },
           "cancel": {
             "name": "Cancel Shortcut",
             "description": "The keyboard shortcut to cancel the current recording."
+          },
+          "paste_last": {
+            "name": "Paste Last Transcription",
+            "description": "Pastes your latest transcription again into the app you are using."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Search languages...",
         "noResults": "No languages found",
         "auto": "Auto"
-      },
-      "pushToTalk": {
-        "label": "Push To Talk",
-        "description": "Hold to record, release to stop"
       },
       "groups": {
         "appearance": "Appearance"
@@ -297,11 +300,17 @@
       "unsave": "Remove from saved",
       "delete": "Delete entry",
       "deleteError": "Failed to delete entry. Please try again.",
-      "retranscribe": "Re-transcribe",
+      "retranscribe": "Transcribe again",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
-      "preferences": "Preferences"
+      "transcriptionFailed": "Transcription failed. The recording was kept, so you can retry.",
+      "preferences": "Preferences",
+      "noRecording": "Transcription failed and no recording was kept.",
+      "retry": "Retry",
+      "retrySuccess": "Transcribed again.",
+      "copy": "Copy",
+      "recordingUnavailable": "The recording is no longer available, so it can't be transcribed again.",
+      "noSpeech": "No speech was found in the recording."
     },
     "debug": {
       "title": "Debug",
@@ -492,6 +501,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribing..."
+    "transcribing": "Transcribing...",
+    "handsFree": "Hands-free recording",
+    "handsFreeHint": "Press {{shortcut}} to stop",
+    "limitWarning": "Stops in {{seconds}} s"
   }
 }

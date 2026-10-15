@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} est utilisé par une autre application. Choisissez un autre raccourci dans les réglages de Murmur.",
     "errorMicrophoneStartup": "Le microphone toujours actif n'a pas pu démarrer. Murmur l'ouvrira au moment d'enregistrer.",
     "errorHistoryStartup": "Impossible d'ouvrir l'historique. La dictée fonctionne, mais rien n'y est enregistré.",
-    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté."
+    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté.",
+    "warningRecordingLimit": "L’enregistrement s’arrête dans 1 minute (limite de 15 minutes).",
+    "pasteLastTranscript": "Coller la dernière transcription",
+    "noticeNothingToPaste": "Aucune transcription à coller pour l’instant."
   },
   "sidebar": {
     "general": "Général",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Raccourci de Transcription",
-            "description": "Le raccourci clavier pour enregistrer et transcrire votre voix."
+            "description": "Maintenez pour parler et relâchez pour terminer. Appuyez deux fois pour enregistrer en mains libres, puis une fois pour arrêter."
           },
           "cancel": {
             "name": "Raccourci d'Annulation",
             "description": "Le raccourci clavier pour annuler l'enregistrement en cours."
+          },
+          "paste_last": {
+            "name": "Coller la dernière transcription",
+            "description": "Colle à nouveau votre dernière transcription dans l’application que vous utilisez."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Rechercher des langues...",
         "noResults": "Aucune langue trouvée",
         "auto": "Automatique"
-      },
-      "pushToTalk": {
-        "label": "Appuyer pour parler",
-        "description": "Maintenez pour enregistrer, relâchez pour arrêter"
       },
       "groups": {
         "appearance": "Apparence"
@@ -297,11 +300,17 @@
       "unsave": "Retirer des favoris",
       "delete": "Supprimer l'entrée",
       "deleteError": "Échec de la suppression de l'entrée. Veuillez réessayer.",
-      "retranscribe": "Re-transcrire",
+      "retranscribe": "Retranscrire",
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
-      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
-      "preferences": "Préférences"
+      "transcriptionFailed": "La transcription a échoué. L’enregistrement a été conservé, vous pouvez réessayer.",
+      "preferences": "Préférences",
+      "noRecording": "La transcription a échoué et aucun enregistrement n’a été conservé.",
+      "retry": "Réessayer",
+      "retrySuccess": "Retranscription terminée.",
+      "copy": "Copier",
+      "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
+      "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement."
     },
     "debug": {
       "title": "Débogage",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcription..."
+    "transcribing": "Transcription...",
+    "handsFree": "Enregistrement mains libres",
+    "handsFreeHint": "Appuyez sur {{shortcut}} pour arrêter",
+    "limitWarning": "Arrêt dans {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nouveautés de Murmur v{{version}}"

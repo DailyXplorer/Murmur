@@ -11,6 +11,7 @@ mod clipboard;
 mod codex_auth;
 mod codex_transcribe;
 mod commands;
+mod dictation_gesture;
 mod gemini_transcribe;
 mod helpers;
 mod input;
@@ -18,6 +19,7 @@ mod insights;
 mod managers;
 mod operation;
 mod overlay;
+mod paste_last;
 mod paste_tx;
 mod settings;
 mod shortcut;
@@ -301,6 +303,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             "copy_last_transcript" => {
                 tray::copy_last_transcript(app);
             }
+            "paste_last_transcript" => {
+                paste_last::request(app);
+            }
             "cancel" => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
                     coordinator.send_cancel();
@@ -454,7 +459,6 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_binding,
             shortcut::reset_binding,
             shortcut::get_shortcut_registration_errors,
-            shortcut::change_ptt_setting,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,

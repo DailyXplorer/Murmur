@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} đang được ứng dụng khác dùng. Hãy chọn phím tắt khác trong cài đặt Murmur.",
     "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
     "errorHistoryStartup": "Không mở được Lịch sử. Đọc chính tả vẫn hoạt động nhưng không có gì được lưu vào Lịch sử.",
-    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh."
+    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh.",
+    "warningRecordingLimit": "Ghi âm sẽ dừng sau 1 phút (giới hạn 15 phút).",
+    "pasteLastTranscript": "Dán bản chép lời gần nhất",
+    "noticeNothingToPaste": "Chưa có bản chép lời nào để dán."
   },
   "sidebar": {
     "general": "Chung",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Phím tắt chuyển đổi",
-            "description": "Phím tắt để ghi âm và chuyển đổi giọng nói của bạn."
+            "description": "Giữ để nói và thả ra để kết thúc. Nhấn đúp để ghi âm rảnh tay, sau đó nhấn một lần để dừng."
           },
           "cancel": {
             "name": "Phím tắt hủy",
             "description": "Phím tắt để hủy bản ghi hiện tại."
+          },
+          "paste_last": {
+            "name": "Dán bản chép lời gần nhất",
+            "description": "Dán lại bản chép lời gần nhất vào ứng dụng bạn đang dùng."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Tìm kiếm ngôn ngữ...",
         "noResults": "Không tìm thấy ngôn ngữ",
         "auto": "Tự động"
-      },
-      "pushToTalk": {
-        "label": "Nhấn để nói",
-        "description": "Giữ để ghi âm, thả để dừng"
       },
       "groups": {
         "appearance": "Giao diện"
@@ -297,11 +300,17 @@
       "unsave": "Xóa khỏi đã lưu",
       "delete": "Xóa mục",
       "deleteError": "Không thể xóa mục. Vui lòng thử lại.",
-      "retranscribe": "Phiên âm lại",
+      "retranscribe": "Chép lời lại",
       "retranscribeError": "Không thể phiên âm lại. Vui lòng thử lại.",
       "transcribing": "Đang phiên âm...",
-      "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại.",
-      "preferences": "Tùy chọn"
+      "transcriptionFailed": "Chép lời thất bại. Bản ghi âm vẫn được giữ, bạn có thể thử lại.",
+      "preferences": "Tùy chọn",
+      "noRecording": "Chép lời thất bại và không có bản ghi âm nào được giữ lại.",
+      "retry": "Thử lại",
+      "retrySuccess": "Đã chép lời lại.",
+      "copy": "Sao chép",
+      "recordingUnavailable": "Bản ghi âm không còn nữa nên không thể chép lời lại.",
+      "noSpeech": "Không tìm thấy giọng nói trong bản ghi âm."
     },
     "debug": {
       "title": "Gỡ lỗi",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Đang chuyển đổi..."
+    "transcribing": "Đang chuyển đổi...",
+    "handsFree": "Ghi âm rảnh tay",
+    "handsFreeHint": "Nhấn {{shortcut}} để dừng",
+    "limitWarning": "Dừng sau {{seconds}} giây"
   },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"

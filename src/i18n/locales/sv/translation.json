@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} används av en annan app. Välj ett annat kortkommando i Murmurs inställningar.",
     "errorMicrophoneStartup": "Den alltid påslagna mikrofonen kunde inte starta. Murmur öppnar den när du spelar in.",
     "errorHistoryStartup": "Historiken kunde inte öppnas. Diktering fungerar, men inget sparas i historiken.",
-    "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid."
+    "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid.",
+    "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter).",
+    "pasteLastTranscript": "Klistra in senaste transkriptionen",
+    "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Kortkommando för transkribering",
-            "description": "Kortkommandot för att spela in och transkribera din röst."
+            "description": "Håll ned för att prata och släpp för att avsluta. Dubbeltryck för att spela in handsfree och tryck sedan en gång för att stoppa."
           },
           "cancel": {
             "name": "Kortkommando för att avbryta",
             "description": "Kortkommandot för att avbryta den aktuella inspelningen."
+          },
+          "paste_last": {
+            "name": "Klistra in senaste transkriptionen",
+            "description": "Klistrar in din senaste transkription igen i appen du använder."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Sök språk...",
         "noResults": "Inga språk hittades",
         "auto": "Automatiskt"
-      },
-      "pushToTalk": {
-        "label": "Tryck för att tala",
-        "description": "Håll ned för att spela in, släpp för att stoppa"
       },
       "groups": {
         "appearance": "Utseende"
@@ -300,8 +303,14 @@
       "retranscribe": "Transkribera igen",
       "retranscribeError": "Misslyckades med att transkribera igen. Försök igen.",
       "transcribing": "Transkriberar...",
-      "transcriptionFailed": "Transkribering misslyckades. Du kan transkribera igen med hjälp av ikonen för nytt försök.",
-      "preferences": "Inställningar"
+      "transcriptionFailed": "Transkriptionen misslyckades. Inspelningen sparades, så du kan försöka igen.",
+      "preferences": "Inställningar",
+      "noRecording": "Transkriptionen misslyckades och ingen inspelning sparades.",
+      "retry": "Försök igen",
+      "retrySuccess": "Transkriberat igen.",
+      "copy": "Kopiera",
+      "recordingUnavailable": "Inspelningen är inte längre tillgänglig och kan därför inte transkriberas igen.",
+      "noSpeech": "Inget tal hittades i inspelningen."
     },
     "debug": {
       "title": "Felsökning",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkriberar..."
+    "transcribing": "Transkriberar...",
+    "handsFree": "Handsfree-inspelning",
+    "handsFreeHint": "Tryck på {{shortcut}} för att stoppa",
+    "limitWarning": "Stoppas om {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nytt i Murmur v{{version}}"

@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} está em uso por outro aplicativo. Escolha outro atalho nos ajustes do Murmur.",
     "errorMicrophoneStartup": "O microfone sempre ativo não pôde iniciar. O Murmur vai abri-lo quando você gravar.",
     "errorHistoryStartup": "Não foi possível abrir o histórico. O ditado funciona, mas nada é salvo no histórico.",
-    "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado."
+    "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado.",
+    "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos).",
+    "pasteLastTranscript": "Colar a última transcrição",
+    "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar."
   },
   "sidebar": {
     "general": "Geral",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Atalho de Transcrição",
-            "description": "O atalho de teclado para gravar e transcrever sua voz."
+            "description": "Mantenha pressionado para falar e solte para terminar. Toque duas vezes para gravar em mãos-livres e depois pressione uma vez para parar."
           },
           "cancel": {
             "name": "Atalho de Cancelar",
             "description": "O atalho de teclado para cancelar a gravação atual."
+          },
+          "paste_last": {
+            "name": "Colar a última transcrição",
+            "description": "Cola novamente a sua última transcrição no app que você está usando."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Buscar idiomas...",
         "noResults": "Nenhum idioma encontrado",
         "auto": "Automático"
-      },
-      "pushToTalk": {
-        "label": "Pressionar para Falar",
-        "description": "Segure para gravar, solte para parar"
       },
       "groups": {
         "appearance": "Aparência"
@@ -297,11 +300,17 @@
       "unsave": "Remover dos salvos",
       "delete": "Excluir entrada",
       "deleteError": "Falha ao excluir entrada. Por favor, tente novamente.",
-      "retranscribe": "Re-transcrever",
+      "retranscribe": "Transcrever novamente",
       "retranscribeError": "Falha ao re-transcrever. Por favor, tente novamente.",
       "transcribing": "Transcrevendo...",
-      "transcriptionFailed": "A transcrição falhou. Você pode re-transcrever usando o ícone de tentar novamente.",
-      "preferences": "Preferências"
+      "transcriptionFailed": "A transcrição falhou. A gravação foi mantida, então você pode tentar de novo.",
+      "preferences": "Preferências",
+      "noRecording": "A transcrição falhou e nenhuma gravação foi mantida.",
+      "retry": "Tentar novamente",
+      "retrySuccess": "Transcrito novamente.",
+      "copy": "Copiar",
+      "recordingUnavailable": "A gravação não está mais disponível, então não pode ser transcrita novamente.",
+      "noSpeech": "Nenhuma fala foi encontrada na gravação."
     },
     "debug": {
       "title": "Depuração",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcrevendo..."
+    "transcribing": "Transcrevendo...",
+    "handsFree": "Gravação mãos-livres",
+    "handsFreeHint": "Pressione {{shortcut}} para parar",
+    "limitWarning": "Para em {{seconds}} s"
   },
   "whatsNew": {
     "title": "Novidades no Murmur v{{version}}"

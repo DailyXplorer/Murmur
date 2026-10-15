@@ -6,7 +6,6 @@ import { ShortcutInput } from "../ShortcutInput";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { OutputDeviceSelector } from "../OutputDeviceSelector";
-import { PushToTalk } from "../PushToTalk";
 import { AudioFeedback } from "../AudioFeedback";
 import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
@@ -18,8 +17,7 @@ import { AccentColorSelector } from "../AccentColorSelector";
 
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { audioFeedbackEnabled, getSetting } = useSettings();
-  const pushToTalk = getSetting("push_to_talk");
+  const { audioFeedbackEnabled } = useSettings();
   return (
     <SettingsPage label={t("sidebar.general")}>
       <SettingsGroup title={t("settings.general.groups.appearance")}>
@@ -29,8 +27,8 @@ export const GeneralSettings: React.FC = () => {
       </SettingsGroup>
       <SettingsGroup title={t("settings.general.title")}>
         <ShortcutInput shortcutId="transcribe" grouped={true} />
-        <PushToTalk descriptionMode="tooltip" grouped={true} />
-        {!pushToTalk && <ShortcutInput shortcutId="cancel" grouped={true} />}
+        <ShortcutInput shortcutId="cancel" grouped={true} />
+        <ShortcutInput shortcutId="paste_last" grouped={true} />
         <LanguageSelector
           descriptionMode="tooltip"
           grouped={true}

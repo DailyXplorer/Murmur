@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} は別のアプリが使用しています。Murmur の設定で別のショートカットを選んでください。",
     "errorMicrophoneStartup": "常時オンのマイクを開始できませんでした。録音時に Murmur がマイクを開きます。",
     "errorHistoryStartup": "履歴を開けませんでした。音声入力は使えますが、履歴には保存されません。",
-    "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。"
+    "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。",
+    "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。",
+    "pasteLastTranscript": "最後の文字起こしを貼り付け",
+    "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。"
   },
   "sidebar": {
     "general": "一般",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "文字起こしのショートカット",
-            "description": "音声を録音して文字起こしするためのキーボードショートカット。"
+            "description": "押している間は録音し、離すと終了します。ダブルタップでハンズフリー録音になり、もう一度押すと停止します。"
           },
           "cancel": {
             "name": "キャンセルのショートカット",
             "description": "現在の録音をキャンセルするためのキーボードショートカット。"
+          },
+          "paste_last": {
+            "name": "最後の文字起こしを貼り付け",
+            "description": "最新の文字起こしを、使用中のアプリにもう一度貼り付けます。"
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "言語を検索…",
         "noResults": "言語が見つかりません",
         "auto": "自動"
-      },
-      "pushToTalk": {
-        "label": "プッシュツートーク",
-        "description": "押し続けて録音、離して停止"
       },
       "groups": {
         "appearance": "外観"
@@ -297,11 +300,17 @@
       "unsave": "保存から削除",
       "delete": "エントリーを削除",
       "deleteError": "エントリーの削除に失敗しました。もう一度お試しください。",
-      "retranscribe": "再文字起こし",
+      "retranscribe": "もう一度文字起こし",
       "retranscribeError": "再文字起こしに失敗しました。もう一度お試しください。",
       "transcribing": "文字起こし中…",
-      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。",
-      "preferences": "環境設定"
+      "transcriptionFailed": "文字起こしに失敗しました。録音は保存されているので、再試行できます。",
+      "preferences": "環境設定",
+      "noRecording": "文字起こしに失敗し、録音は保存されていません。",
+      "retry": "再試行",
+      "retrySuccess": "もう一度文字起こししました。",
+      "copy": "コピー",
+      "recordingUnavailable": "録音が見つからないため、もう一度文字起こしできません。",
+      "noSpeech": "録音に音声が見つかりませんでした。"
     },
     "debug": {
       "title": "デバッグ",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "文字起こし中…"
+    "transcribing": "文字起こし中…",
+    "handsFree": "ハンズフリー録音",
+    "handsFreeHint": "{{shortcut}} を押して停止",
+    "limitWarning": "あと {{seconds}} 秒で停止"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} の新機能"

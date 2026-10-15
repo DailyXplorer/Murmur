@@ -111,7 +111,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 Settings are stored using Tauri's store plugin with reactive updates:
 
-- Keyboard shortcuts (configurable, supports push-to-talk)
+- Keyboard shortcuts (configurable; the recording shortcut is hold-to-talk or double-tap hands-free, see `dictation_gesture.rs`)
 - Audio devices (microphone/output selection)
 - Codex / ChatGPT session for cloud transcription
 - Audio feedback and overlay options

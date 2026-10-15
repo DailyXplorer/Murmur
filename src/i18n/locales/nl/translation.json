@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} wordt door een andere app gebruikt. Kies een andere sneltoets in de instellingen van Murmur.",
     "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
     "errorHistoryStartup": "Geschiedenis kon niet worden geopend. Dicteren werkt, maar er wordt niets in Geschiedenis opgeslagen.",
-    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast."
+    "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast.",
+    "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten).",
+    "pasteLastTranscript": "Laatste transcriptie plakken",
+    "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Sneltoets voor dicteren",
-            "description": "De sneltoets om je stem op te nemen en te transcriberen."
+            "description": "Houd ingedrukt om te praten en laat los om te stoppen. Tik twee keer om handsfree op te nemen en druk daarna één keer om te stoppen."
           },
           "cancel": {
             "name": "Sneltoets voor annuleren",
             "description": "De sneltoets om de huidige opname te annuleren."
+          },
+          "paste_last": {
+            "name": "Laatste transcriptie plakken",
+            "description": "Plakt je laatste transcriptie opnieuw in de app die je gebruikt."
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "Talen zoeken...",
         "noResults": "Geen talen gevonden",
         "auto": "Automatisch"
-      },
-      "pushToTalk": {
-        "label": "Push-to-talk",
-        "description": "Ingedrukt houden om op te nemen, loslaten om te stoppen"
       },
       "groups": {
         "appearance": "Weergave"
@@ -300,8 +303,14 @@
       "retranscribe": "Opnieuw transcriberen",
       "retranscribeError": "Opnieuw transcriberen mislukt. Probeer het opnieuw.",
       "transcribing": "Transcriberen...",
-      "transcriptionFailed": "Transcriptie mislukt. Je kunt het opnieuw proberen via het herlaad-pictogram.",
-      "preferences": "Voorkeuren"
+      "transcriptionFailed": "Transcriptie mislukt. De opname is bewaard, dus je kunt het opnieuw proberen.",
+      "preferences": "Voorkeuren",
+      "noRecording": "Transcriptie mislukt en er is geen opname bewaard.",
+      "retry": "Opnieuw proberen",
+      "retrySuccess": "Opnieuw getranscribeerd.",
+      "copy": "Kopiëren",
+      "recordingUnavailable": "De opname is niet meer beschikbaar en kan dus niet opnieuw worden getranscribeerd.",
+      "noSpeech": "Er is geen spraak gevonden in de opname."
     },
     "debug": {
       "title": "Probleemoplossing",
@@ -492,6 +501,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcriberen..."
+    "transcribing": "Transcriberen...",
+    "handsFree": "Handsfree opnemen",
+    "handsFreeHint": "Druk op {{shortcut}} om te stoppen",
+    "limitWarning": "Stopt over {{seconds}} s"
   }
 }
