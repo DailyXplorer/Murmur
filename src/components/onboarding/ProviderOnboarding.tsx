@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { commands, type TranscriptionProvider } from "@/bindings";
 import {
   isConfiguredProvider,
-  type ProviderStatus,
+  statusTranslationKey,
   useProviderStatuses,
 } from "@/components/transcription/providerStatus";
 import { Button } from "../ui/Button";
@@ -15,25 +15,6 @@ interface ProviderOnboardingProps {
   configuredProvider: TranscriptionProvider;
   onComplete: (provider: TranscriptionProvider) => Promise<boolean>;
 }
-
-const statusTranslationKey = (status: ProviderStatus): string => {
-  switch (status.kind) {
-    case "checking":
-      return "settings.transcription.checking";
-    case "configured":
-      return "onboarding.provider.configured";
-    case "unavailable":
-      return status.reason === "notInstalled"
-        ? "settings.transcription.notInstalled"
-        : "onboarding.providerLabels.unavailable";
-    case "error":
-      return "settings.transcription.statusUnavailable";
-    default: {
-      const _exhaustive: never = status;
-      return _exhaustive;
-    }
-  }
-};
 
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   configuredProvider,

@@ -4,7 +4,23 @@
     "checkUpdates": "Verificar Atualizações...",
     "copyLastTranscript": "Copiar última transcrição",
     "quit": "Sair",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "errorNetwork": "Não foi possível acessar o serviço de transcrição. Verifique sua conexão.",
+    "errorTimeout": "O serviço de transcrição demorou demais. Tente novamente pelo histórico.",
+    "errorRateLimited": "Solicitações demais. Aguarde um momento e tente novamente pelo histórico.",
+    "errorServer": "O serviço de transcrição está com problemas. Tente novamente pelo histórico.",
+    "errorSessionExpired": "Sua sessão do Codex expirou. Abra o Codex e entre novamente.",
+    "errorSignedOut": "Sem sessão no Codex. Abra o Codex e entre.",
+    "errorTooLarge": "Esta gravação é longa demais para o serviço. Tente uma mais curta.",
+    "errorTranscription": "A transcrição falhou. Tente novamente pelo histórico.",
+    "errorPaste": "Não foi possível colar. O texto está na área de transferência e no histórico.",
+    "errorRecording": "Não foi possível iniciar a gravação. Verifique seu microfone.",
+    "errorMicrophoneDenied": "O acesso ao microfone está desativado. Permita o Murmur em Ajustes do Sistema.",
+    "warningLongRecording": "Gravação longa: o envio pode ser lento ou recusado.",
+    "errorShortcutUnavailable": "{{shortcut}} está em uso por outro aplicativo. Escolha outro atalho nos ajustes do Murmur.",
+    "errorMicrophoneStartup": "O microfone sempre ativo não pôde iniciar. O Murmur vai abri-lo quando você gravar.",
+    "errorHistoryStartup": "Não foi possível abrir o histórico. O ditado funciona, mas nada é salvo no histórico.",
+    "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado."
   },
   "sidebar": {
     "general": "Geral",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Falha ao restaurar atalho original",
           "set": "Falha ao definir atalho: {{error}}",
-          "reset": "Falha ao redefinir atalho para o valor original"
+          "reset": "Falha ao redefinir atalho para o valor original",
+          "registrationFailed": "Outro aplicativo está usando este atalho. Escolha um diferente."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Manipulação da Área de Transferência",
-        "description": "Para uma colagem segura com Cmd+V, os dados anteriores da Área de Transferência nunca são restaurados. Após uma colagem bem-sucedida, «Limpar após colar» remove a transcrição no fim da janela de segurança de 8 segundos; «Manter transcrição» deixa-a disponível. Se a colagem falhar, o Murmur mantém a transcrição para recuperação.",
+        "description": "O Murmur cola pela área de transferência. \"Restaurar área de transferência anterior\" devolve o que você tinha copiado quando termina a janela de colagem de 8 segundos, a menos que você tenha copiado outra coisa nesse meio-tempo. \"Manter transcrição\" deixa a transcrição na área de transferência. Se a colagem falhar, o Murmur mantém a transcrição na área de transferência para recuperação.",
         "options": {
-          "dontModify": "Limpar após colar",
+          "dontModify": "Restaurar área de transferência anterior",
           "copyToClipboard": "Manter transcrição"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Serviço",
         "processing": "Processamento de texto",
         "output": "Saída"
-      }
+      },
+      "sessionExpired": "Sessão expirada, entre novamente no Codex"
     }
   },
   "footer": {

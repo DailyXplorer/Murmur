@@ -4,7 +4,23 @@
     "checkUpdates": "檢查更新...",
     "copyLastTranscript": "複製最新轉錄",
     "quit": "結束",
-    "cancel": "取消"
+    "cancel": "取消",
+    "errorNetwork": "無法連線至轉錄服務。請檢查網路連線。",
+    "errorTimeout": "轉錄服務回應時間過長。請從歷史記錄重試。",
+    "errorRateLimited": "請求過多。請稍候，再從歷史記錄重試。",
+    "errorServer": "轉錄服務發生問題。請從歷史記錄重試。",
+    "errorSessionExpired": "你的 Codex 工作階段已過期。請開啟 Codex 並重新登入。",
+    "errorSignedOut": "尚未登入 Codex。請開啟 Codex 並登入。",
+    "errorTooLarge": "此錄音對該服務來說太長。請嘗試較短的錄音。",
+    "errorTranscription": "轉錄失敗。請從歷史記錄重試。",
+    "errorPaste": "無法貼上。文字已在剪貼簿和歷史記錄中。",
+    "errorRecording": "無法開始錄音。請檢查麥克風。",
+    "errorMicrophoneDenied": "麥克風存取已關閉。請在系統設定中允許 Murmur。",
+    "warningLongRecording": "錄音較長：上傳可能較慢或遭拒。",
+    "errorShortcutUnavailable": "{{shortcut}} 已被其他 App 使用。請在 Murmur 設定中選擇其他快速鍵。",
+    "errorMicrophoneStartup": "常開麥克風無法啟動。錄音時 Murmur 會開啟它。",
+    "errorHistoryStartup": "無法開啟歷史記錄。聽寫仍可使用，但不會儲存到歷史記錄。",
+    "noticeHistoryReset": "歷史記錄已損毀並已重設。舊檔案保留在旁邊。"
   },
   "sidebar": {
     "general": "一般",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "無法還原原始快捷鍵",
           "set": "無法設定快捷鍵: {{error}}",
-          "reset": "無法將快捷鍵重設為原始值"
+          "reset": "無法將快捷鍵重設為原始值",
+          "registrationFailed": "其他 App 正在使用此快速鍵。請選擇其他快速鍵。"
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "剪貼簿處理",
-        "description": "為了透過 Cmd+V 安全貼上，先前的剪貼簿資料絕不會被還原。貼上成功後，「貼上後清除」會在 8 秒安全時限結束時移除轉錄內容；「保留轉錄內容」會讓其繼續可用。如果貼上失敗，Murmur 會保留轉錄內容以便復原。",
+        "description": "Murmur 透過剪貼簿貼上。「還原先前的剪貼簿」會在 8 秒貼上時間結束後放回你先前複製的內容，除非你在這段期間複製了其他內容。「保留轉錄內容」會將轉錄內容留在剪貼簿中。如果貼上失敗，Murmur 會將轉錄內容保留在剪貼簿中以便復原。",
         "options": {
-          "dontModify": "貼上後清除",
+          "dontModify": "還原先前的剪貼簿",
           "copyToClipboard": "保留轉錄內容"
         }
       },
@@ -351,7 +368,8 @@
         "service": "服務",
         "processing": "文字處理",
         "output": "輸出"
-      }
+      },
+      "sessionExpired": "工作階段已過期，請在 Codex 中重新登入"
     }
   },
   "footer": {

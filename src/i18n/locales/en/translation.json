@@ -4,7 +4,23 @@
     "checkUpdates": "Check for Updates...",
     "copyLastTranscript": "Copy Last Transcript",
     "quit": "Quit",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "errorNetwork": "Can't reach the transcription service. Check your connection.",
+    "errorTimeout": "The transcription service took too long. Retry from History.",
+    "errorRateLimited": "Too many requests. Wait a moment, then retry from History.",
+    "errorServer": "The transcription service is having problems. Retry from History.",
+    "errorSessionExpired": "Your Codex session expired. Open Codex and sign in again.",
+    "errorSignedOut": "Not signed in to Codex. Open Codex and sign in.",
+    "errorTooLarge": "This recording is too long for the service. Try a shorter one.",
+    "errorTranscription": "Transcription failed. Retry from History.",
+    "errorPaste": "Couldn't paste. The text is on your clipboard and in History.",
+    "errorRecording": "Couldn't start recording. Check your microphone.",
+    "errorMicrophoneDenied": "Microphone access is off. Allow Murmur in System Settings.",
+    "warningLongRecording": "Long recording: the upload may be slow or rejected.",
+    "errorShortcutUnavailable": "{{shortcut}} is used by another app. Choose another shortcut in Murmur settings.",
+    "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
+    "errorHistoryStartup": "History couldn't be opened. Dictation still works, but nothing is saved to History.",
+    "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it."
   },
   "sidebar": {
     "general": "General",
@@ -82,7 +98,8 @@
         "errors": {
           "restore": "Failed to restore original shortcut",
           "set": "Failed to set shortcut: {{error}}",
-          "reset": "Failed to reset shortcut to original value"
+          "reset": "Failed to reset shortcut to original value",
+          "registrationFailed": "Another app is using this shortcut. Choose a different one."
         }
       },
       "language": {
@@ -189,9 +206,9 @@
       },
       "clipboardHandling": {
         "title": "Clipboard Handling",
-        "description": "For secure Cmd+V pasting, previous clipboard data is never restored. After a successful paste, Clear After Paste removes the transcription when the 8-second safety window ends; Keep Transcription leaves it available. If pasting fails, Murmur keeps the transcription for recovery.",
+        "description": "Murmur pastes through the clipboard. Restore Previous Clipboard puts back what you had copied when the 8-second paste window ends, unless you copied something else meanwhile. Keep Transcription leaves the transcription on the clipboard. If pasting fails, Murmur keeps the transcription on the clipboard for recovery.",
         "options": {
-          "dontModify": "Clear After Paste",
+          "dontModify": "Restore Previous Clipboard",
           "copyToClipboard": "Keep Transcription"
         }
       },
@@ -351,7 +368,8 @@
         "service": "Service",
         "processing": "Text Processing",
         "output": "Output"
-      }
+      },
+      "sessionExpired": "Session expired, sign in again in Codex"
     }
   },
   "footer": {
