@@ -28,7 +28,59 @@
     "history": "History",
     "debug": "Debug",
     "about": "About",
-    "transcription": "Transcription"
+    "transcription": "Transcription",
+    "insights": "Insights"
+  },
+  "insights": {
+    "error": "Insights could not be loaded.",
+    "privacy": "Insights are calculated on this Mac and stay here. No dictated text is stored for them.",
+    "wpm": {
+      "title": "Words per minute",
+      "window": "Last 30 days",
+      "empty": "Not enough timed dictations yet",
+      "formula": "Total words dictated in the last 30 days divided by the total recording time of those dictations, in minutes. Recordings shorter than one second are skipped."
+    },
+    "words": {
+      "title": "Total words",
+      "empty": "Start dictating to fill this in",
+      "equivalence": {
+        "emails": "≈ {{amount}} × a typical email",
+        "pages": "≈ {{amount}} × a book page",
+        "stories": "≈ {{amount}} × a short story",
+        "novels": "≈ {{amount}} × a novel"
+      }
+    },
+    "fixes": {
+      "title": "Fixes made",
+      "description": "Words you corrected after Murmur pasted, plus words your custom dictionary replaced automatically.",
+      "wordsCorrected": "Words corrected: {{value}}",
+      "dictionaryFixes": "Dictionary fixes: {{value}}"
+    },
+    "apps": {
+      "title": "Usage by app",
+      "description": "Where your dictations went, by app category.",
+      "empty": "App categories are recorded for new dictations only. Dictate in any app to see this fill in.",
+      "totalApps": "Total apps used",
+      "categories": {
+        "aiPrompts": "AI prompts",
+        "personalMessages": "Personal messages",
+        "workMessages": "Work messages",
+        "emails": "Emails",
+        "documents": "Documents",
+        "coding": "Coding & terminal",
+        "other": "Other"
+      }
+    },
+    "streak": {
+      "title": "Streak",
+      "description": "Days with at least one dictation, in your local time zone.",
+      "current": "Current streak",
+      "longest": "Longest streak",
+      "heatmapLabel": "Dictations per day over the last 20 weeks",
+      "cellTitle": "Dictations on {{date}}: {{value}}",
+      "less": "Less",
+      "more": "More"
+    }
   },
   "onboarding": {
     "permissions": {

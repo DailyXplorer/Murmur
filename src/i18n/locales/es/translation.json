@@ -28,7 +28,59 @@
     "history": "Historial",
     "debug": "Depuración",
     "about": "Acerca de",
-    "transcription": "Transcripción"
+    "transcription": "Transcripción",
+    "insights": "Estadísticas"
+  },
+  "insights": {
+    "error": "No se pudieron cargar las estadísticas.",
+    "privacy": "Las estadísticas se calculan en este Mac y se quedan aquí. No se guarda ningún texto dictado para ellas.",
+    "wpm": {
+      "title": "Palabras por minuto",
+      "window": "Últimos 30 días",
+      "empty": "Aún no hay suficientes dictados con duración",
+      "formula": "Total de palabras dictadas en los últimos 30 días dividido entre el tiempo total de grabación de esos dictados, en minutos. Se omiten las grabaciones de menos de un segundo."
+    },
+    "words": {
+      "title": "Palabras en total",
+      "empty": "Empieza a dictar para completar este dato",
+      "equivalence": {
+        "emails": "≈ {{amount}} × un correo típico",
+        "pages": "≈ {{amount}} × una página de libro",
+        "stories": "≈ {{amount}} × un relato corto",
+        "novels": "≈ {{amount}} × una novela"
+      }
+    },
+    "fixes": {
+      "title": "Correcciones",
+      "description": "Palabras que corregiste después de que Murmur pegara el texto, más las palabras que tu diccionario personalizado reemplazó automáticamente.",
+      "wordsCorrected": "Palabras corregidas: {{value}}",
+      "dictionaryFixes": "Correcciones del diccionario: {{value}}"
+    },
+    "apps": {
+      "title": "Uso por aplicación",
+      "description": "A dónde fueron tus dictados, por categoría de aplicación.",
+      "empty": "Las categorías de aplicación solo se registran para los dictados nuevos. Dicta en cualquier aplicación para ver esta sección.",
+      "totalApps": "Aplicaciones usadas",
+      "categories": {
+        "aiPrompts": "Prompts de IA",
+        "personalMessages": "Mensajes personales",
+        "workMessages": "Mensajes de trabajo",
+        "emails": "Correos",
+        "documents": "Documentos",
+        "coding": "Código y terminal",
+        "other": "Otros"
+      }
+    },
+    "streak": {
+      "title": "Racha",
+      "description": "Días con al menos un dictado, en tu zona horaria local.",
+      "current": "Racha actual",
+      "longest": "Racha más larga",
+      "heatmapLabel": "Dictados por día en las últimas 20 semanas",
+      "cellTitle": "Dictados el {{date}}: {{value}}",
+      "less": "Menos",
+      "more": "Más"
+    }
   },
   "onboarding": {
     "permissions": {

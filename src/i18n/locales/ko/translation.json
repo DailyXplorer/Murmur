@@ -28,7 +28,59 @@
     "history": "히스토리",
     "debug": "디버그",
     "about": "정보",
-    "transcription": "받아쓰기"
+    "transcription": "받아쓰기",
+    "insights": "인사이트"
+  },
+  "insights": {
+    "error": "인사이트를 불러오지 못했습니다.",
+    "privacy": "인사이트는 이 Mac에서 계산되며 외부로 나가지 않습니다. 인사이트를 위해 받아쓴 텍스트를 저장하지 않습니다.",
+    "wpm": {
+      "title": "분당 단어 수",
+      "window": "최근 30일",
+      "empty": "아직 시간이 기록된 받아쓰기가 충분하지 않습니다",
+      "formula": "최근 30일 동안 받아쓴 전체 단어 수를 해당 받아쓰기의 총 녹음 시간(분)으로 나눈 값입니다. 1초보다 짧은 녹음은 제외됩니다."
+    },
+    "words": {
+      "title": "총 단어 수",
+      "empty": "받아쓰기를 시작하면 여기에 표시됩니다",
+      "equivalence": {
+        "emails": "≈ 일반적인 이메일 {{amount}}통 분량",
+        "pages": "≈ 책 {{amount}}쪽 분량",
+        "stories": "≈ 단편 소설 {{amount}}편 분량",
+        "novels": "≈ 장편 소설 {{amount}}권 분량"
+      }
+    },
+    "fixes": {
+      "title": "수정",
+      "description": "Murmur가 붙여 넣은 뒤 직접 수정한 단어와 사용자 사전이 자동으로 바꾼 단어를 합한 값입니다.",
+      "wordsCorrected": "수정한 단어: {{value}}",
+      "dictionaryFixes": "사전 수정: {{value}}"
+    },
+    "apps": {
+      "title": "앱별 사용량",
+      "description": "받아쓰기가 어디로 갔는지 앱 카테고리별로 보여 줍니다.",
+      "empty": "앱 카테고리는 새 받아쓰기부터만 기록됩니다. 아무 앱에서나 받아쓰면 여기에 표시됩니다.",
+      "totalApps": "사용한 앱 수",
+      "categories": {
+        "aiPrompts": "AI 프롬프트",
+        "personalMessages": "개인 메시지",
+        "workMessages": "업무 메시지",
+        "emails": "이메일",
+        "documents": "문서",
+        "coding": "코딩 및 터미널",
+        "other": "기타"
+      }
+    },
+    "streak": {
+      "title": "연속 기록",
+      "description": "현지 시간대 기준으로 받아쓰기를 한 번 이상 한 날입니다.",
+      "current": "현재 연속 기록",
+      "longest": "최장 연속 기록",
+      "heatmapLabel": "최근 20주간 일별 받아쓰기",
+      "cellTitle": "{{date}} 받아쓰기: {{value}}",
+      "less": "적음",
+      "more": "많음"
+    }
   },
   "onboarding": {
     "permissions": {
