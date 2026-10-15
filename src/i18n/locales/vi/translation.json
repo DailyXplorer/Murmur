@@ -4,7 +4,23 @@
     "checkUpdates": "Kiểm tra cập nhật...",
     "copyLastTranscript": "Sao chép bản chép lời mới nhất",
     "quit": "Thoát",
-    "cancel": "Hủy"
+    "cancel": "Hủy",
+    "errorNetwork": "Không kết nối được dịch vụ chép lời. Hãy kiểm tra kết nối.",
+    "errorTimeout": "Dịch vụ chép lời phản hồi quá lâu. Hãy thử lại từ Lịch sử.",
+    "errorRateLimited": "Quá nhiều yêu cầu. Hãy đợi một chút rồi thử lại từ Lịch sử.",
+    "errorServer": "Dịch vụ chép lời đang gặp sự cố. Hãy thử lại từ Lịch sử.",
+    "errorSessionExpired": "Phiên Codex đã hết hạn. Hãy mở Codex và đăng nhập lại.",
+    "errorSignedOut": "Chưa đăng nhập Codex. Hãy mở Codex và đăng nhập.",
+    "errorTooLarge": "Bản ghi này quá dài đối với dịch vụ. Hãy thử bản ngắn hơn.",
+    "errorTranscription": "Chép lời thất bại. Hãy thử lại từ Lịch sử.",
+    "errorPaste": "Không dán được. Văn bản có trong bảng nhớ tạm và trong Lịch sử.",
+    "errorRecording": "Không thể bắt đầu ghi âm. Hãy kiểm tra micrô.",
+    "errorMicrophoneDenied": "Quyền truy cập micrô đang tắt. Hãy cho phép Murmur trong Cài đặt hệ thống.",
+    "warningLongRecording": "Bản ghi dài: việc tải lên có thể chậm hoặc bị từ chối.",
+    "errorShortcutUnavailable": "{{shortcut}} đang được ứng dụng khác dùng. Hãy chọn phím tắt khác trong cài đặt Murmur.",
+    "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
+    "errorHistoryStartup": "Không mở được Lịch sử. Đọc chính tả vẫn hoạt động nhưng không có gì được lưu vào Lịch sử.",
+    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh."
   },
   "sidebar": {
     "general": "Chung",
@@ -134,7 +150,8 @@
         "errors": {
           "restore": "Không thể khôi phục phím tắt gốc",
           "set": "Không thể đặt phím tắt: {{error}}",
-          "reset": "Không thể đặt lại phím tắt về giá trị gốc"
+          "reset": "Không thể đặt lại phím tắt về giá trị gốc",
+          "registrationFailed": "Ứng dụng khác đang dùng phím tắt này. Hãy chọn phím tắt khác."
         }
       },
       "language": {
@@ -241,9 +258,9 @@
       },
       "clipboardHandling": {
         "title": "Xử lý Clipboard",
-        "description": "Để dán an toàn bằng Cmd+V, dữ liệu bảng nhớ tạm trước đó không bao giờ được khôi phục. Sau khi dán thành công, \"Xóa sau khi dán\" sẽ xóa bản chép lời khi khoảng an toàn 8 giây kết thúc; \"Giữ bản chép lời\" sẽ giữ lại để sử dụng. Nếu thao tác dán thất bại, Murmur giữ bản chép lời để có thể khôi phục.",
+        "description": "Murmur dán thông qua bảng nhớ tạm. \"Khôi phục bảng nhớ tạm trước đó\" đặt lại nội dung bạn đã sao chép khi khoảng dán 8 giây kết thúc, trừ khi bạn đã sao chép thứ khác trong lúc đó. \"Giữ bản chép lời\" để bản chép lời trong bảng nhớ tạm. Nếu dán thất bại, Murmur giữ bản chép lời trong bảng nhớ tạm để khôi phục.",
         "options": {
-          "dontModify": "Xóa sau khi dán",
+          "dontModify": "Khôi phục bảng nhớ tạm trước đó",
           "copyToClipboard": "Giữ bản chép lời"
         }
       },
@@ -403,7 +420,8 @@
         "service": "Dịch vụ",
         "processing": "Xử lý văn bản",
         "output": "Đầu ra"
-      }
+      },
+      "sessionExpired": "Phiên đã hết hạn, hãy đăng nhập lại trong Codex"
     }
   },
   "footer": {

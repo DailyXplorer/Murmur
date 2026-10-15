@@ -268,7 +268,11 @@ pub struct AudioRecordingManager {
 impl AudioRecordingManager {
     /* ---------- construction ------------------------------------------------ */
 
-    pub fn new(app: &tauri::AppHandle) -> Result<Self, anyhow::Error> {
+    /// Builds the manager. If the always-on microphone cannot open (unplugged,
+    /// busy or denied at login), the manager falls back to on-demand capture
+    /// for this session and returns the error so the caller can tell the user.
+    /// The persisted preference is left as is, so the next launch tries again.
+    pub fn new(app: &tauri::AppHandle) -> (Self, Option<anyhow::Error>) {
         let settings = get_settings(app);
         let mode = if settings.always_on_microphone {
             MicrophoneMode::AlwaysOn
@@ -295,13 +299,19 @@ impl AudioRecordingManager {
 
         // The persisted AlwaysOn value was committed by a previous successful
         // transition, so startup opens the stream without writing or emitting
-        // it again. If opening fails, construction fails and no live manager
-        // exposes an uncommitted runtime mode.
+        // it again.
+        let mut startup_error = None;
         if matches!(mode, MicrophoneMode::AlwaysOn) {
-            manager.start_microphone_stream()?;
+            if let Err(error) = manager.start_microphone_stream() {
+                error!("Always-on microphone failed to open at startup: {error:#}");
+                if let Ok(mut mode) = manager.mode.lock() {
+                    *mode = MicrophoneMode::OnDemand;
+                }
+                startup_error = Some(error);
+            }
         }
 
-        Ok(manager)
+        (manager, startup_error)
     }
 
     /* ---------- helper methods --------------------------------------------- */

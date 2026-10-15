@@ -5,7 +5,10 @@ import { commands } from "@/bindings";
 export type ProviderStatus =
   | { kind: "checking" }
   | { kind: "configured" }
-  | { kind: "unavailable"; reason: "notInstalled" | "notSignedIn" }
+  | {
+      kind: "unavailable";
+      reason: "notInstalled" | "notSignedIn" | "sessionExpired";
+    }
   | { kind: "error" };
 
 export interface ProviderStatuses {
@@ -22,9 +25,11 @@ const codexStatusFrom = (
   result: PromiseSettledResult<CodexAuthStatus>,
 ): ProviderStatus => {
   if (result.status === "rejected") return { kind: "error" };
-  return result.value.signed_in
-    ? { kind: "configured" }
-    : { kind: "unavailable", reason: "notSignedIn" };
+  if (result.value.signed_in) return { kind: "configured" };
+  return {
+    kind: "unavailable",
+    reason: result.value.expired ? "sessionExpired" : "notSignedIn",
+  };
 };
 
 const geminiStatusFrom = (
@@ -74,3 +79,31 @@ export const useProviderStatuses = () => {
 
 export const isConfiguredProvider = (status: ProviderStatus): boolean =>
   status.kind === "configured";
+
+export const statusTranslationKey = (status: ProviderStatus): string => {
+  switch (status.kind) {
+    case "checking":
+      return "settings.transcription.checking";
+    case "configured":
+      return "onboarding.provider.configured";
+    case "unavailable":
+      switch (status.reason) {
+        case "notInstalled":
+          return "settings.transcription.notInstalled";
+        case "sessionExpired":
+          return "settings.transcription.sessionExpired";
+        case "notSignedIn":
+          return "onboarding.providerLabels.unavailable";
+        default: {
+          const _exhaustive: never = status.reason;
+          return _exhaustive;
+        }
+      }
+    case "error":
+      return "settings.transcription.statusUnavailable";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+};

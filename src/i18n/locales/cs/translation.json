@@ -4,7 +4,23 @@
     "checkUpdates": "Zkontrolovat aktualizace...",
     "copyLastTranscript": "Zkopírovat poslední přepis",
     "quit": "Ukončit",
-    "cancel": "Zrušit"
+    "cancel": "Zrušit",
+    "errorNetwork": "Službu přepisu nelze zastihnout. Zkontrolujte připojení.",
+    "errorTimeout": "Služba přepisu odpovídala příliš dlouho. Zkuste to znovu z historie.",
+    "errorRateLimited": "Příliš mnoho požadavků. Chvíli počkejte a zkuste to znovu z historie.",
+    "errorServer": "Služba přepisu má potíže. Zkuste to znovu z historie.",
+    "errorSessionExpired": "Relace Codex vypršela. Otevřete Codex a znovu se přihlaste.",
+    "errorSignedOut": "Nejste přihlášeni do Codex. Otevřete Codex a přihlaste se.",
+    "errorTooLarge": "Tato nahrávka je pro službu příliš dlouhá. Zkuste kratší.",
+    "errorTranscription": "Přepis se nezdařil. Zkuste to znovu z historie.",
+    "errorPaste": "Vložení se nezdařilo. Text je ve schránce a v historii.",
+    "errorRecording": "Nahrávání se nepodařilo spustit. Zkontrolujte mikrofon.",
+    "errorMicrophoneDenied": "Přístup k mikrofonu je vypnutý. Povolte Murmur v Nastavení systému.",
+    "warningLongRecording": "Dlouhá nahrávka: odeslání může být pomalé nebo odmítnuté.",
+    "errorShortcutUnavailable": "{{shortcut}} používá jiná aplikace. Zvolte jinou zkratku v nastavení Murmur.",
+    "errorMicrophoneStartup": "Stále zapnutý mikrofon se nespustil. Murmur ho otevře při nahrávání.",
+    "errorHistoryStartup": "Historii nelze otevřít. Diktování funguje, ale nic se do historie neukládá.",
+    "noticeHistoryReset": "Historie byla poškozená a byla obnovena. Starý soubor zůstal vedle ní."
   },
   "sidebar": {
     "general": "Obecné",
@@ -134,7 +150,8 @@
         "errors": {
           "restore": "Nepodařilo se obnovit původní zkratku",
           "set": "Nepodařilo se nastavit zkratku: {{error}}",
-          "reset": "Nepodařilo se vrátit zkratku na původní hodnotu"
+          "reset": "Nepodařilo se vrátit zkratku na původní hodnotu",
+          "registrationFailed": "Tuto zkratku používá jiná aplikace. Zvolte jinou."
         }
       },
       "language": {
@@ -241,9 +258,9 @@
       },
       "clipboardHandling": {
         "title": "Práce se schránkou",
-        "description": "Pro bezpečné vložení přes Cmd+V se předchozí data ze schránky nikdy neobnovují. Po úspěšném vložení možnost „Vymazat po vložení“ odstraní přepis na konci 8sekundového bezpečnostního intervalu; „Ponechat přepis“ jej ponechá k dispozici. Pokud vložení selže, Murmur přepis zachová pro obnovení.",
+        "description": "Murmur vkládá přes schránku. „Obnovit předchozí schránku“ vrátí, co jste měli zkopírováno, jakmile skončí 8sekundové okno pro vložení, pokud jste mezitím nezkopírovali něco jiného. „Ponechat přepis“ nechá přepis ve schránce. Pokud vložení selže, Murmur ponechá přepis ve schránce pro obnovení.",
         "options": {
-          "dontModify": "Vymazat po vložení",
+          "dontModify": "Obnovit předchozí schránku",
           "copyToClipboard": "Ponechat přepis"
         }
       },
@@ -403,7 +420,8 @@
         "service": "Služba",
         "processing": "Zpracování textu",
         "output": "Výstup"
-      }
+      },
+      "sessionExpired": "Relace vypršela, přihlaste se znovu v Codex"
     }
   },
   "footer": {

@@ -4,7 +4,23 @@
     "checkUpdates": "Rechercher des mises à jour...",
     "copyLastTranscript": "Copier la dernière transcription",
     "quit": "Quitter",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "errorNetwork": "Impossible de joindre le service de transcription. Vérifiez votre connexion.",
+    "errorTimeout": "Le service de transcription a mis trop de temps. Réessayez depuis l'historique.",
+    "errorRateLimited": "Trop de requêtes. Patientez un instant, puis réessayez depuis l'historique.",
+    "errorServer": "Le service de transcription rencontre des problèmes. Réessayez depuis l'historique.",
+    "errorSessionExpired": "Votre session Codex a expiré. Ouvrez Codex et reconnectez-vous.",
+    "errorSignedOut": "Non connecté à Codex. Ouvrez Codex et connectez-vous.",
+    "errorTooLarge": "Cet enregistrement est trop long pour le service. Essayez plus court.",
+    "errorTranscription": "La transcription a échoué. Réessayez depuis l'historique.",
+    "errorPaste": "Collage impossible. Le texte est dans le presse-papiers et dans l'historique.",
+    "errorRecording": "Impossible de démarrer l'enregistrement. Vérifiez votre microphone.",
+    "errorMicrophoneDenied": "L'accès au microphone est désactivé. Autorisez Murmur dans Réglages du système.",
+    "warningLongRecording": "Enregistrement long : l'envoi peut être lent ou refusé.",
+    "errorShortcutUnavailable": "{{shortcut}} est utilisé par une autre application. Choisissez un autre raccourci dans les réglages de Murmur.",
+    "errorMicrophoneStartup": "Le microphone toujours actif n'a pas pu démarrer. Murmur l'ouvrira au moment d'enregistrer.",
+    "errorHistoryStartup": "Impossible d'ouvrir l'historique. La dictée fonctionne, mais rien n'y est enregistré.",
+    "noticeHistoryReset": "L'historique était endommagé et a été réinitialisé. L'ancien fichier a été conservé à côté."
   },
   "sidebar": {
     "general": "Général",
@@ -134,7 +150,8 @@
         "errors": {
           "restore": "Échec de la restauration du raccourci original",
           "set": "Échec de la définition du raccourci : {{error}}",
-          "reset": "Échec de la réinitialisation du raccourci à sa valeur d'origine"
+          "reset": "Échec de la réinitialisation du raccourci à sa valeur d'origine",
+          "registrationFailed": "Une autre application utilise ce raccourci. Choisissez-en un autre."
         }
       },
       "language": {
@@ -241,9 +258,9 @@
       },
       "clipboardHandling": {
         "title": "Gestion du presse-papiers",
-        "description": "Pour un collage sécurisé via Cmd+V, les données précédentes du presse-papiers ne sont jamais restaurées. Après un collage réussi, « Effacer après le collage » supprime la transcription à la fin de la fenêtre de sécurité de 8 secondes ; « Conserver la transcription » la laisse disponible. Si le collage échoue, Murmur conserve la transcription afin de pouvoir la récupérer.",
+        "description": "Murmur colle via le presse-papiers. « Restaurer le presse-papiers » remet ce que vous aviez copié à la fin de la fenêtre de collage de 8 secondes, sauf si vous avez copié autre chose entre-temps. « Conserver la transcription » laisse la transcription dans le presse-papiers. Si le collage échoue, Murmur garde la transcription dans le presse-papiers pour la récupérer.",
         "options": {
-          "dontModify": "Effacer après le collage",
+          "dontModify": "Restaurer le presse-papiers",
           "copyToClipboard": "Conserver la transcription"
         }
       },
@@ -403,7 +420,8 @@
         "service": "Service",
         "processing": "Traitement du texte",
         "output": "Sortie"
-      }
+      },
+      "sessionExpired": "Session expirée, reconnectez-vous dans Codex"
     }
   },
   "footer": {

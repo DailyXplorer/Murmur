@@ -6,7 +6,7 @@ import { commands, type TranscriptionProvider } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
 import {
   isConfiguredProvider,
-  type ProviderStatus,
+  statusTranslationKey,
   useProviderStatuses,
 } from "@/components/transcription/providerStatus";
 import { Button } from "../../ui/Button";
@@ -20,25 +20,6 @@ import { AppendTrailingSpace } from "../AppendTrailingSpace";
 import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
-
-const statusTranslationKey = (status: ProviderStatus): string => {
-  switch (status.kind) {
-    case "checking":
-      return "settings.transcription.checking";
-    case "configured":
-      return "onboarding.provider.configured";
-    case "unavailable":
-      return status.reason === "notInstalled"
-        ? "settings.transcription.notInstalled"
-        : "onboarding.providerLabels.unavailable";
-    case "error":
-      return "settings.transcription.statusUnavailable";
-    default: {
-      const _exhaustive: never = status;
-      return _exhaustive;
-    }
-  }
-};
 
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();

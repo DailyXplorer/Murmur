@@ -16,12 +16,27 @@ option requires an API key or local speech-recognition model.
 - Network access while transcribing
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
-`~/.codex/auth.json`. It never writes to that file. For Gemini, Murmur starts a
-Murmur-owned language server from the verified system Antigravity
-installation and lets that server access its own session. Murmur does not read
-or copy the Antigravity token. Both integrations use internal services rather
-than public, documented APIs, so a Codex,
-ChatGPT, or Antigravity update may require a Murmur update.
+`~/.codex/auth.json`. When the access token is about to expire, or when the
+service rejects it, Murmur refreshes the session the same way the Codex CLI
+does and writes the new tokens back to that file. It changes only the token
+fields and `last_refresh`, keeps the file private (mode 600), and replaces it
+in one step. If Codex updated the file while Murmur was refreshing, Murmur
+keeps the Codex version. When the refresh token itself has expired, sign in to
+Codex again.
+
+For Gemini, Murmur starts a Murmur-owned language server from the verified
+system Antigravity installation and lets that server access its own session.
+Murmur does not read or copy the Antigravity token.
+
+### Private interfaces
+
+Both integrations use internal services rather than public, documented APIs:
+the ChatGPT transcription endpoint that the Codex apps use, and the
+Antigravity language server. Neither service promises stability, so a Codex,
+ChatGPT, or Antigravity update can break transcription without notice until
+Murmur is updated. Murmur identifies itself to the transcription endpoint the
+way the Codex desktop app does. Use of these services stays subject to the
+provider's terms for your account.
 
 ## Features
 
@@ -41,10 +56,34 @@ return to Murmur to refresh its status. The setup screen links to the
 applications' download pages. The selected service must be configured before
 setup can finish.
 
-"Configured" means Murmur found the local session information required to
-attempt a transcription. It does not verify that the cloud service will
-accept the next request. A session can expire, and network or account limits
-can still prevent transcription.
+"Configured" means Murmur found a local session that is valid or that it can
+refresh. A Codex session that expired and has no usable refresh token shows as
+"Session expired". Configured does not prove that the cloud service will
+accept the next request, because network or account limits can still prevent
+transcription.
+
+When a dictation fails, the recording overlay shows the reason for a few
+seconds. If the overlay is turned off, Murmur posts a macOS notification
+instead. With Codex, Murmur retries a dictation twice after a timeout, a dropped
+connection, or a server error. It does not retry an expired session, a rate
+limit, or another rejected request. A finished transcription is always kept
+in History, even when pasting or saving the recording fails.
+
+Recordings longer than about 13 minutes exceed 25 MB of audio. The Codex
+transcription endpoint publishes no size limit, and the public OpenAI
+transcription API rejects uploads above 25 MB, so Murmur warns before it
+uploads a recording of that size. The upload timeout grows with the recording
+length.
+
+### Permissions after updating to the stable signature
+
+Releases are signed with a stable Murmur certificate, so macOS keeps the
+Accessibility and microphone permissions from one update to the next. Earlier
+releases were signed ad hoc. After the first update from an ad hoc release,
+grant Accessibility and microphone access to Murmur once more. If the
+Accessibility switch already looks enabled but Murmur keeps waiting, use the
+repair button on the permissions screen, or follow the reset steps in
+[BUILD.md](BUILD.md#macos-accessibility-remains-enabled-after-a-local-rebuild).
 
 Gemini through Antigravity is experimental and detects the spoken language
 automatically. A language selected for Codex is preserved when switching to
@@ -96,7 +135,7 @@ runtime pipeline is:
 microphone -> WAV/audio samples -> selected cloud transcription -> cleanup -> clipboard/paste
 ```
 
-The backend owns audio capture, authentication-cache reading, transcription,
+The backend owns audio capture, the Codex session and its refresh, transcription,
 history, shortcuts, and macOS integration. The frontend owns onboarding,
 settings, history, and the recording overlay.
 
@@ -106,20 +145,22 @@ Audio sent for transcription leaves the computer and is handled by ChatGPT or
 Google, depending on the selected service. Do not describe Murmur as offline
 or local-only.
 
-The Codex authentication cache is sensitive. Murmur reads only the access token
-and account identifier needed for a request, does not log them, and does not
-persist a copy.
+The Codex authentication cache is sensitive. Murmur reads the tokens needed
+for a request or a refresh, never logs them, and keeps no copy of its own.
+The only write is the token refresh described in
+[Requirements](#requirements).
 
 For Gemini, Murmur sends audio to a loopback-only Antigravity service with an
 ephemeral CSRF token. It never logs that token. A language server started by
 Murmur stops after five minutes without a Gemini dictation. Murmur never stops
 an Antigravity process it did not start.
 
-Guarded paste replaces the clipboard without reading or restoring its previous
-contents. The clear-after-paste option clears only content Murmur still owns;
-copying something else prevents that cleanup. If insertion fails, Murmur keeps
-the transcription available for manual paste. Copy-to-clipboard mode retains
-the transcription after insertion.
+Guarded paste saves the clipboard before it places the transcription there.
+By default, Murmur puts the saved items back, with every format they had, once
+the 8-second paste window ends. If you copy something else during that window,
+Murmur leaves your new clipboard alone. If insertion fails, Murmur keeps the
+transcription on the clipboard for manual paste. The Keep Transcription option
+leaves the transcription on the clipboard after insertion.
 
 ## Origin
 

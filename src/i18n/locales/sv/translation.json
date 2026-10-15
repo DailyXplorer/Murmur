@@ -4,7 +4,23 @@
     "checkUpdates": "Sök efter uppdateringar...",
     "copyLastTranscript": "Kopiera senaste transkriptionen",
     "quit": "Avsluta",
-    "cancel": "Avbryt"
+    "cancel": "Avbryt",
+    "errorNetwork": "Transkriberingstjänsten går inte att nå. Kontrollera anslutningen.",
+    "errorTimeout": "Transkriberingstjänsten tog för lång tid. Försök igen från historiken.",
+    "errorRateLimited": "För många förfrågningar. Vänta en stund och försök igen från historiken.",
+    "errorServer": "Transkriberingstjänsten har problem. Försök igen från historiken.",
+    "errorSessionExpired": "Din Codex-session har gått ut. Öppna Codex och logga in igen.",
+    "errorSignedOut": "Inte inloggad i Codex. Öppna Codex och logga in.",
+    "errorTooLarge": "Inspelningen är för lång för tjänsten. Prova en kortare.",
+    "errorTranscription": "Transkriberingen misslyckades. Försök igen från historiken.",
+    "errorPaste": "Det gick inte att klistra in. Texten finns i urklipp och i historiken.",
+    "errorRecording": "Inspelningen kunde inte starta. Kontrollera mikrofonen.",
+    "errorMicrophoneDenied": "Mikrofonåtkomst är avstängd. Tillåt Murmur i Systeminställningar.",
+    "warningLongRecording": "Lång inspelning: uppladdningen kan bli långsam eller nekas.",
+    "errorShortcutUnavailable": "{{shortcut}} används av en annan app. Välj ett annat kortkommando i Murmurs inställningar.",
+    "errorMicrophoneStartup": "Den alltid påslagna mikrofonen kunde inte starta. Murmur öppnar den när du spelar in.",
+    "errorHistoryStartup": "Historiken kunde inte öppnas. Diktering fungerar, men inget sparas i historiken.",
+    "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -134,7 +150,8 @@
         "errors": {
           "restore": "Misslyckades med att återställa ursprungligt kortkommando",
           "set": "Misslyckades med att ställa in kortkommando: {{error}}",
-          "reset": "Misslyckades med att återställa kortkommando till ursprungsvärdet"
+          "reset": "Misslyckades med att återställa kortkommando till ursprungsvärdet",
+          "registrationFailed": "En annan app använder det här kortkommandot. Välj ett annat."
         }
       },
       "language": {
@@ -241,9 +258,9 @@
       },
       "clipboardHandling": {
         "title": "Hantering av urklipp",
-        "description": "För säker inklistring med Cmd+V återställs tidigare urklippsdata aldrig. Efter en lyckad inklistring tar ”Rensa efter inklistring” bort transkriberingen när säkerhetsperioden på 8 sekunder löper ut; ”Behåll transkriberingen” låter den vara tillgänglig. Om inklistringen misslyckas behåller Murmur transkriberingen så att den kan återställas.",
+        "description": "Murmur klistrar in via urklipp. ”Återställ tidigare urklipp” lägger tillbaka det du hade kopierat när inklistringsfönstret på 8 sekunder tar slut, om du inte har kopierat något annat under tiden. ”Behåll transkriberingen” lämnar transkriberingen i urklipp. Om inklistringen misslyckas behåller Murmur transkriberingen i urklipp så att den kan återhämtas.",
         "options": {
-          "dontModify": "Rensa efter inklistring",
+          "dontModify": "Återställ tidigare urklipp",
           "copyToClipboard": "Behåll transkriberingen"
         }
       },
@@ -403,7 +420,8 @@
         "service": "Tjänst",
         "processing": "Textbearbetning",
         "output": "Utdata"
-      }
+      },
+      "sessionExpired": "Sessionen har gått ut, logga in igen i Codex"
     }
   },
   "footer": {

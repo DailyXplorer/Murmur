@@ -12,8 +12,9 @@ pub struct GeminiStatus {
 
 #[tauri::command]
 #[specta::specta]
-/// Returns whether the local Codex authentication cache contains a usable
-/// ChatGPT session. This check never refreshes or writes credentials.
+/// Returns whether the local Codex authentication cache contains a ChatGPT
+/// session that is valid or refreshable, and whether it expired for good.
+/// This check never refreshes or writes credentials.
 pub fn get_codex_auth_status() -> CodexAuthStatus {
     crate::codex_transcribe::auth_status()
 }

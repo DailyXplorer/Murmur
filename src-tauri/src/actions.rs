@@ -5,7 +5,9 @@ use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{get_settings, OverlayStyle, TranscriptionProvider};
 use crate::shortcut;
+use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
+use crate::user_alert::{self, Alert};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
 use crate::{ProcessingOperation, TranscriptionCoordinator};
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
@@ -26,6 +28,12 @@ const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
 struct RecordingErrorEvent {
     error_type: String,
     detail: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct TranscriptionErrorEvent {
+    kind: FailureKind,
+    detail: String,
 }
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
@@ -154,6 +162,27 @@ fn operation_was_cancelled(
 /// failed, including a clipboard-only write failure.
 fn paste_outcome_commits_history(outcome: crate::clipboard::PasteOutcome) -> bool {
     outcome != crate::clipboard::PasteOutcome::Cancelled
+}
+
+/// Commits a history row. `recording` names the verified WAV, if any. A
+/// transcript whose recording could not be saved is still kept, with an empty
+/// file name, so it never depends on the WAV write.
+fn save_history(
+    hm: &HistoryManager,
+    recording: Option<&str>,
+    pending_wav: &mut Option<PendingWav>,
+    text: String,
+) {
+    match hm.save_entry(recording.unwrap_or_default().to_string(), text) {
+        Ok(_) => {
+            if recording.is_some() {
+                if let Some(wav) = pending_wav.as_mut() {
+                    wav.commit();
+                }
+            }
+        }
+        Err(error) => error!("Failed to save history entry: {error}"),
+    }
 }
 
 async fn maybe_convert_chinese_variant(
@@ -348,13 +377,22 @@ impl ShortcutAction for TranscribeAction {
             utils::hide_recording_overlay(app);
             change_tray_icon(app, TrayIconState::Idle);
             if let Some(err) = recording_error {
-                let error_type = if is_microphone_access_denied(&err) {
+                let microphone_denied = is_microphone_access_denied(&err);
+                let error_type = if microphone_denied {
                     "microphone_permission_denied"
                 } else if is_no_input_device_error(&err) {
                     "no_input_device"
                 } else {
                     "unknown"
                 };
+                user_alert::show(
+                    app,
+                    if microphone_denied {
+                        Alert::MicrophoneDenied
+                    } else {
+                        Alert::RecordingFailed
+                    },
+                );
                 let _ = app.emit(
                     "recording-error",
                     RecordingErrorEvent {
@@ -453,6 +491,12 @@ impl ShortcutAction for TranscribeAction {
                         .map(|wav| wav.write(Arc::clone(&samples)));
 
                     let provider = get_settings(&ah).transcription_provider;
+                    if provider == TranscriptionProvider::Codex
+                        && crate::codex_transcribe::upload_size_for_samples(sample_count)
+                            > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
+                    {
+                        user_alert::show(&ah, Alert::LongRecording);
+                    }
                     let transcription_time = Instant::now();
                     let transcription_result = tm
                         .transcribe_with_provider(samples, operation.clone(), provider)
@@ -511,23 +555,15 @@ impl ShortcutAction for TranscribeAction {
                                 return;
                             };
 
+                            let recording = wav_saved.then_some(file_name.as_str());
                             if final_text.is_empty() {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
                                     return;
                                 }
 
-                                if wav_saved {
-                                    match hm.save_entry(file_name, final_text) {
-                                        Ok(_) => {
-                                            if let Some(wav) = pending_wav.as_mut() {
-                                                wav.commit();
-                                            }
-                                        }
-                                        Err(error) => {
-                                            error!("Failed to save history entry: {}", error)
-                                        }
-                                    }
+                                if recording.is_some() {
+                                    save_history(&hm, recording, &mut pending_wav, final_text);
                                 }
                             } else {
                                 // `clipboard::paste` owns its native
@@ -537,48 +573,40 @@ impl ShortcutAction for TranscribeAction {
                                 // a late cancellation can only suppress
                                 // auto-submit; it must not discard history for
                                 // text the user already received.
-                                match crate::clipboard::paste(
+                                let delivered = match crate::clipboard::paste(
                                     final_text.clone(),
                                     ah.clone(),
                                     operation.clone(),
                                 )
                                 .await
                                 {
+                                    Ok(outcome) if !paste_outcome_commits_history(outcome) => {
+                                        debug!("Transcription operation cancelled before paste execution");
+                                        return;
+                                    }
                                     Ok(outcome) => {
-                                        if !paste_outcome_commits_history(outcome) {
-                                            debug!("Transcription operation cancelled before paste execution");
-                                            return;
-                                        }
-                                        if outcome == crate::clipboard::PasteOutcome::Skipped {
-                                            error!("Transcription output could not be delivered");
-                                            let _ = ah.emit("paste-error", ());
-                                        }
-                                        crate::insights::record_dictation(
-                                            &ah,
-                                            &final_text,
-                                            sample_count,
-                                            dictionary_fixes,
-                                        );
-                                        if wav_saved {
-                                            match hm.save_entry(file_name, final_text) {
-                                                Ok(_) => {
-                                                    if let Some(wav) = pending_wav.as_mut() {
-                                                        wav.commit();
-                                                    }
-                                                }
-                                                Err(error) => {
-                                                    error!(
-                                                        "Failed to save history entry: {}",
-                                                        error
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        outcome != crate::clipboard::PasteOutcome::Skipped
                                     }
                                     Err(error) => {
                                         error!("Failed to paste transcription: {error}");
-                                        let _ = ah.emit("paste-error", ());
+                                        false
                                     }
+                                };
+                                crate::insights::record_dictation(
+                                    &ah,
+                                    &final_text,
+                                    sample_count,
+                                    dictionary_fixes,
+                                );
+                                // The transcript is kept whatever happened to
+                                // the paste or the WAV: history first, then
+                                // the clipboard as the immediate way back.
+                                save_history(&hm, recording, &mut pending_wav, final_text.clone());
+                                if !delivered {
+                                    error!("Transcription output could not be delivered");
+                                    crate::clipboard::copy_for_recovery(&ah, final_text);
+                                    let _ = ah.emit("paste-error", ());
+                                    user_alert::show(&ah, Alert::PasteFailed);
                                 }
                             }
                         }
@@ -590,27 +618,28 @@ impl ShortcutAction for TranscribeAction {
                                 return;
                             }
 
-                            error!("Transcription failed: {}", err);
-                            // Surface the failure to the UI (toast). The full
-                            // message is also in murmur.log via the line above.
-                            let _ = ah.emit("transcription-error", err.to_string());
+                            error!("Transcription failed: {:#}", err);
+                            let kind = TranscriptionError::kind_of(&err);
+                            let _ = ah.emit(
+                                "transcription-error",
+                                TranscriptionErrorEvent {
+                                    kind,
+                                    detail: format!("{err:#}"),
+                                },
+                            );
+                            user_alert::show(&ah, Alert::Transcription(kind));
                             // Save entry with empty text so user can retry
                             if wav_saved {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
                                     return;
                                 }
-
-                                match hm.save_entry(file_name, String::new()) {
-                                    Ok(_) => {
-                                        if let Some(wav) = pending_wav.as_mut() {
-                                            wav.commit();
-                                        }
-                                    }
-                                    Err(save_err) => {
-                                        error!("Failed to save failed history entry: {}", save_err)
-                                    }
-                                }
+                                save_history(
+                                    &hm,
+                                    Some(file_name.as_str()),
+                                    &mut pending_wav,
+                                    String::new(),
+                                );
                             }
                         }
                     }

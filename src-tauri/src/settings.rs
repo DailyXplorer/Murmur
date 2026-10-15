@@ -117,9 +117,9 @@ pub enum PasteMethod {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ClipboardHandling {
-    /// Clear Murmur's promised transcript after a bounded paste window. The
-    /// legacy serialized name is retained for settings compatibility; prior
-    /// clipboard data is deliberately never restored.
+    /// Put the user's previous clipboard back after a bounded paste window,
+    /// unless they copied something else meanwhile. The legacy serialized
+    /// name is retained for settings compatibility.
     #[default]
     DontModify,
     /// Materialize the transcription as the new clipboard value after paste.
@@ -294,8 +294,8 @@ pub struct AppSettings {
     pub paste_delay_ms: u64,
     #[serde(default = "default_paste_delay_after_ms")]
     pub paste_delay_after_ms: u64,
-    /// Required guarded paste path. Prior clipboard data is never restored;
-    /// AppKit does not identify the process reading promised data. macOS only.
+    /// Required guarded paste path. AppKit does not identify the process
+    /// reading promised data, so settlement waits a bounded window. macOS only.
     #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
     #[serde(default = "default_filler_word_removal_enabled")]
