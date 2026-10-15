@@ -57,12 +57,13 @@ pub fn correct(
 }
 
 /// Replaces each learned mishearing with its word, whole words only and
-/// ignoring case. Entries stored before a mishearing had to be an unusual
-/// form are skipped.
+/// ignoring case. Entries whose misheard form is also said on purpose, such
+/// as an everyday word or a near-identical ordinary name, stay hints only;
+/// this also covers entries stored before those rules existed.
 fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> String {
     let safe = learned
         .iter()
-        .filter(|entry| learn::is_safe_mishearing(&entry.heard_as));
+        .filter(|entry| learn::replaces_safely(&entry.heard_as, &entry.word));
     safe.fold(text.to_string(), |text, entry| {
         let pattern = format!(r"(?i)\b{}\b", regex::escape(entry.heard_as.trim()));
         match Regex::new(&pattern) {
@@ -152,6 +153,29 @@ mod tests {
         assert_eq!(
             correct("open chat gpt", &words, &entries, 0.18),
             "open ChatGPT"
+        );
+    }
+
+    #[test]
+    fn a_near_identical_ordinary_name_stays_a_vocabulary_hint() {
+        let words = vec!["Smyth".to_string()];
+        let entries = [learned("Smyth", "Smith")];
+        assert_eq!(
+            correct("call Smith about the Smith account", &words, &entries, 0.18),
+            "call Smith about the Smith account"
+        );
+        assert_eq!(
+            apply_heard_as("Clawd says hi", &[learned("Claude", "Clawd")]),
+            "Claude says hi"
+        );
+    }
+
+    #[test]
+    fn a_joined_pair_of_common_words_is_replaced_as_a_sequence() {
+        let entries = [learned("OpenAI", "open ai")];
+        assert_eq!(
+            apply_heard_as("ask open ai, then open the AI panel", &entries),
+            "ask OpenAI, then open the AI panel"
         );
     }
 
