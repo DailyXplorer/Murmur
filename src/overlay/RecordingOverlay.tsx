@@ -7,7 +7,7 @@ import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 
-type OverlayState = "recording" | "transcribing";
+type OverlayState = "recording" | "transcribing" | "error";
 
 const WAVE_BARS = 9;
 
@@ -16,6 +16,7 @@ const RecordingOverlay: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>("recording");
   const [captureReady, setCaptureReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [levels, setLevels] = useState<number[]>(Array(WAVE_BARS).fill(0));
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
@@ -52,6 +53,14 @@ const RecordingOverlay: React.FC = () => {
         })
         .catch(() => undefined);
       setState(overlayState);
+      setIsVisible(true);
+    }).then(storeUnlistener, () => undefined);
+
+    // The backend localizes the message, so it matches the notification
+    // shown when the overlay is off.
+    void listen<string>("show-overlay-error", (event) => {
+      setErrorMessage(event.payload);
+      setState("error");
       setIsVisible(true);
     }).then(storeUnlistener, () => undefined);
 
@@ -127,6 +136,22 @@ const RecordingOverlay: React.FC = () => {
 
   const working = state === "transcribing";
   const workLabel = t("overlay.transcribing");
+
+  if (state === "error") {
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className="scard compact cerror" role="alert">
+          <div className="serror">
+            <span className="serror-dot" aria-hidden="true" />
+            <span className="serror-text">{errorMessage}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

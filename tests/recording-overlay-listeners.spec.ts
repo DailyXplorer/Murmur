@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const expectedListenerCounts = {
   "show-overlay": 2,
+  "show-overlay-error": 2,
   "hide-overlay": 2,
   "recording-ready": 2,
   "mic-level": 2,
@@ -147,7 +148,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         window.recordingOverlayListenerHarness.pendingCount(),
       ),
     )
-    .toBe(8);
+    .toBe(10);
 
   const initialSummary = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.summary(),
@@ -219,6 +220,10 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         "recording",
       ),
       hide: window.recordingOverlayListenerHarness.dispatch("hide-overlay"),
+      error: window.recordingOverlayListenerHarness.dispatch(
+        "show-overlay-error",
+        "failed",
+      ),
       ready: window.recordingOverlayListenerHarness.dispatch("recording-ready"),
       level: window.recordingOverlayListenerHarness.dispatch("mic-level", [4]),
       callbacks: listenerIds.map((id) =>
@@ -238,6 +243,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
   expect(postCleanupDispatch).toEqual({
     show: 0,
     hide: 0,
+    error: 0,
     ready: 0,
     level: 0,
     callbacks: summary.successfulListenerIds.map(() => false),

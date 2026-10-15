@@ -18,12 +18,13 @@
 //!    or early cleanup because it may come from a clipboard manager.
 //! 2. Auto-submit never depends on a read. Cmd+V and Return are posted directly
 //!    to the captured PID, with the full app identity revalidated before each.
-//! 3. Murmur only clears or materializes its transcript while it still owns
-//!    the clipboard. If the user copied something else, their action wins.
+//! 3. Murmur only restores or materializes anything while it still owns the
+//!    clipboard. If the user copied something else, their action wins.
 //!
-//! Settlement uses a bounded lifetime that is never shortened by reads. Since
-//! the callback carries no reader identity, earlier clipboard data is never
-//! restored, with or without a read.
+//! Settlement uses a bounded lifetime that is never shortened by reads, so a
+//! slow target has had the full window to read the transcript before the
+//! user's previous clipboard (every item and type, saved before publishing)
+//! is put back.
 
 use std::time::{Duration, Instant};
 
@@ -86,7 +87,7 @@ impl TxState {
 
 pub(crate) enum WaitDecision {
     KeepWaiting,
-    /// Stop waiting and settle the transaction without restoring prior data.
+    /// Stop waiting and settle the transaction.
     Finish,
 }
 
