@@ -6,7 +6,6 @@ permissions = [
   "allow-change-binding",
   "allow-reset-binding",
   "allow-get-shortcut-registration-errors",
-  "allow-change-ptt-setting",
   "allow-change-audio-feedback-setting",
   "allow-change-audio-feedback-volume-setting",
   "allow-change-sound-theme-setting",

@@ -201,15 +201,6 @@ pub fn resume_all_bindings(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.push_to_talk = enabled;
-    settings::write_settings(&app, value);
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_audio_feedback_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut value = settings::get_settings(&app);
     value.audio_feedback = enabled;

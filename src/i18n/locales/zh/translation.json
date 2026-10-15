@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} 已被其他应用占用。请在 Murmur 设置中选择其他快捷键。",
     "errorMicrophoneStartup": "常开麦克风无法启动。录音时 Murmur 会打开它。",
     "errorHistoryStartup": "无法打开历史记录。听写仍可使用，但不会保存到历史记录。",
-    "noticeHistoryReset": "历史记录已损坏并已重置。旧文件保留在旁边。"
+    "noticeHistoryReset": "历史记录已损坏并已重置。旧文件保留在旁边。",
+    "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。",
+    "pasteLastTranscript": "粘贴上一条转录",
+    "noticeNothingToPaste": "还没有可粘贴的转录。"
   },
   "sidebar": {
     "general": "通用",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "转录快捷键",
-            "description": "用于录制和转录语音的键盘快捷键。"
+            "description": "按住说话，松开结束。双击可免按住录音，再按一次即可停止。"
           },
           "cancel": {
             "name": "取消快捷键",
             "description": "用于取消当前录制的键盘快捷键。"
+          },
+          "paste_last": {
+            "name": "粘贴上一条转录",
+            "description": "将最近一次转录再次粘贴到当前使用的应用中。"
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "搜索语言...",
         "noResults": "未找到语言",
         "auto": "自动"
-      },
-      "pushToTalk": {
-        "label": "按住说话",
-        "description": "按住录制，松开停止"
       },
       "groups": {
         "appearance": "外观"
@@ -300,8 +303,14 @@
       "retranscribe": "重新转录",
       "retranscribeError": "重新转录失败。请重试。",
       "transcribing": "转录中...",
-      "transcriptionFailed": "转录失败。您可以使用重试图标重新转录。",
-      "preferences": "偏好设置"
+      "transcriptionFailed": "转录失败。录音已保留，可以重试。",
+      "preferences": "偏好设置",
+      "noRecording": "转录失败，且未保留录音。",
+      "retry": "重试",
+      "retrySuccess": "已重新转录。",
+      "copy": "复制",
+      "recordingUnavailable": "录音已不可用，无法重新转录。",
+      "noSpeech": "录音中未检测到语音。"
     },
     "debug": {
       "title": "调试",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "正在转录..."
+    "transcribing": "正在转录...",
+    "handsFree": "免按住录音",
+    "handsFreeHint": "按 {{shortcut}} 停止",
+    "limitWarning": "{{seconds}} 秒后停止"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"

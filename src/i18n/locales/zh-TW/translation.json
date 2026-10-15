@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} 已被其他 App 使用。請在 Murmur 設定中選擇其他快速鍵。",
     "errorMicrophoneStartup": "常開麥克風無法啟動。錄音時 Murmur 會開啟它。",
     "errorHistoryStartup": "無法開啟歷史記錄。聽寫仍可使用，但不會儲存到歷史記錄。",
-    "noticeHistoryReset": "歷史記錄已損毀並已重設。舊檔案保留在旁邊。"
+    "noticeHistoryReset": "歷史記錄已損毀並已重設。舊檔案保留在旁邊。",
+    "warningRecordingLimit": "錄音將在 1 分鐘後停止（上限 15 分鐘）。",
+    "pasteLastTranscript": "貼上上一則轉錄",
+    "noticeNothingToPaste": "目前還沒有可貼上的轉錄。"
   },
   "sidebar": {
     "general": "一般",
@@ -140,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "轉錄快捷鍵",
-            "description": "用於錄製和轉錄語音的鍵盤快捷鍵"
+            "description": "按住說話，放開結束。按兩下可免按住錄音，再按一次即可停止。"
           },
           "cancel": {
             "name": "取消快捷鍵",
             "description": "用於取消目前錄製的鍵盤快捷鍵"
+          },
+          "paste_last": {
+            "name": "貼上上一則轉錄",
+            "description": "將最近一次轉錄再次貼到目前使用的應用程式中。"
           }
         },
         "errors": {
@@ -160,10 +167,6 @@
         "searchPlaceholder": "搜尋語言...",
         "noResults": "未找到語言",
         "auto": "自動"
-      },
-      "pushToTalk": {
-        "label": "按住說話",
-        "description": "按住錄製，放開停止"
       },
       "groups": {
         "appearance": "外觀"
@@ -300,8 +303,14 @@
       "retranscribe": "重新轉錄",
       "retranscribeError": "重新轉錄失敗，請重試。",
       "transcribing": "轉錄中...",
-      "transcriptionFailed": "轉錄失敗。您可以使用重試圖示重新轉錄。",
-      "preferences": "偏好設定"
+      "transcriptionFailed": "轉錄失敗。錄音已保留，可以重試。",
+      "preferences": "偏好設定",
+      "noRecording": "轉錄失敗，且未保留錄音。",
+      "retry": "重試",
+      "retrySuccess": "已重新轉錄。",
+      "copy": "複製",
+      "recordingUnavailable": "錄音已無法使用，因此無法重新轉錄。",
+      "noSpeech": "錄音中未偵測到語音。"
     },
     "debug": {
       "title": "偵錯",
@@ -489,7 +498,10 @@
     }
   },
   "overlay": {
-    "transcribing": "正在轉錄..."
+    "transcribing": "正在轉錄...",
+    "handsFree": "免按住錄音",
+    "handsFreeHint": "按 {{shortcut}} 停止",
+    "limitWarning": "{{seconds}} 秒後停止"
   },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"
