@@ -20,7 +20,7 @@ interface DescriptionTooltipProps {
 
 const TOOLTIP_HIDE_DELAY_MS = 150;
 
-const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
+export const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
   description,
   position,
 }) => {

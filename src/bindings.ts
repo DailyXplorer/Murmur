@@ -593,6 +593,14 @@ async isLaptop() : Promise<Result<boolean, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async getInsights() : Promise<Result<InsightsSummary, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_insights") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -600,9 +608,11 @@ async isLaptop() : Promise<Result<boolean, string>> {
 
 
 export const events = __makeEvents__<{
-historyUpdatePayload: HistoryUpdatePayload
+historyUpdatePayload: HistoryUpdatePayload,
+insightsUpdated: InsightsUpdated
 }>({
-historyUpdatePayload: "history-update-payload"
+historyUpdatePayload: "history-update-payload",
+insightsUpdated: "insights-updated"
 })
 
 /** user-defined constants **/
@@ -642,9 +652,14 @@ selected_channel?: number | null; clamshell_microphone?: string | null; selected
  * reading promised data, so settlement waits a bounded window. macOS only.
  */
 reliable_paste?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
+/**
+ * Where a dictation was sent, grouped the way the Insights page reports it.
+ */
+export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+export type CategoryUsage = { category: AppCategory; count: number }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CodexAuthStatus = {
 /**
@@ -657,8 +672,31 @@ signed_in: boolean;
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
+export type HeatmapDay = {
+/**
+ * Local calendar date, `YYYY-MM-DD`.
+ */
+date: string; count: number;
+/**
+ * Intensity bucket from 0 (no dictation) to 4 (busiest day in range).
+ */
+level: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
+export type InsightsSummary = { total_dictations: number; total_words: number;
+/**
+ * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
+ */
+words_per_minute: number | null; words_corrected: number; dictionary_fixes: number;
+/**
+ * Non-empty categories, most used first.
+ */
+categories: CategoryUsage[];
+/**
+ * Dictations whose receiving app is known (recorded since this feature).
+ */
+categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
+export type InsightsUpdated = null
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
@@ -667,6 +705,7 @@ export type PasteMethod = "ctrl_v" | "direct" | "none"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
+export type Streaks = { current: number; longest: number }
 /**
  * UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
  * and `Dark` force one of the two palettes Murmur already ships.

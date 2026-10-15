@@ -31,7 +31,59 @@
     "history": "Historik",
     "debug": "Fejlfinding",
     "about": "Om",
-    "transcription": "Transskription"
+    "transcription": "Transskription",
+    "insights": "Statistik"
+  },
+  "insights": {
+    "error": "Statistikken kunne ikke indlæses.",
+    "privacy": "Statistikken beregnes på denne Mac og bliver her. Der gemmes ingen dikteret tekst til den.",
+    "wpm": {
+      "title": "Ord pr. minut",
+      "window": "Seneste 30 dage",
+      "empty": "Endnu ikke nok tidsmålte dikteringer",
+      "formula": "Det samlede antal dikterede ord de seneste 30 dage divideret med den samlede optagetid for disse dikteringer, i minutter. Optagelser under ét sekund springes over."
+    },
+    "words": {
+      "title": "Ord i alt",
+      "empty": "Begynd at diktere for at udfylde dette",
+      "equivalence": {
+        "emails": "≈ {{amount}} × en typisk e-mail",
+        "pages": "≈ {{amount}} × en bogside",
+        "stories": "≈ {{amount}} × en novelle",
+        "novels": "≈ {{amount}} × en roman"
+      }
+    },
+    "fixes": {
+      "title": "Rettelser",
+      "description": "Ord, du rettede, efter Murmur indsatte teksten, plus ord, din egen ordbog erstattede automatisk.",
+      "wordsCorrected": "Rettede ord: {{value}}",
+      "dictionaryFixes": "Ordbogsrettelser: {{value}}"
+    },
+    "apps": {
+      "title": "Brug pr. app",
+      "description": "Hvor dine dikteringer endte, efter appkategori.",
+      "empty": "Appkategorier registreres kun for nye dikteringer. Diktér i en hvilken som helst app for at udfylde dette.",
+      "totalApps": "Brugte apps",
+      "categories": {
+        "aiPrompts": "AI-prompts",
+        "personalMessages": "Personlige beskeder",
+        "workMessages": "Arbejdsbeskeder",
+        "emails": "E-mails",
+        "documents": "Dokumenter",
+        "coding": "Kode og terminal",
+        "other": "Andet"
+      }
+    },
+    "streak": {
+      "title": "Stime",
+      "description": "Dage med mindst én diktering, i din lokale tidszone.",
+      "current": "Nuværende stime",
+      "longest": "Længste stime",
+      "heatmapLabel": "Dikteringer pr. dag de seneste 20 uger",
+      "cellTitle": "Dikteringer {{date}}: {{value}}",
+      "less": "Mindre",
+      "more": "Mere"
+    }
   },
   "onboarding": {
     "permissions": {

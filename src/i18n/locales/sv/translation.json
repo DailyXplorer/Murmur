@@ -31,7 +31,59 @@
     "history": "Historik",
     "debug": "Felsökning",
     "about": "Om",
-    "transcription": "Transkribering"
+    "transcription": "Transkribering",
+    "insights": "Statistik"
+  },
+  "insights": {
+    "error": "Statistiken kunde inte läsas in.",
+    "privacy": "Statistiken beräknas på den här Macen och stannar här. Ingen dikterad text sparas för den.",
+    "wpm": {
+      "title": "Ord per minut",
+      "window": "Senaste 30 dagarna",
+      "empty": "Inte tillräckligt många tidsatta dikteringar än",
+      "formula": "Totalt antal dikterade ord de senaste 30 dagarna delat med den totala inspelningstiden för dessa dikteringar, i minuter. Inspelningar kortare än en sekund hoppas över."
+    },
+    "words": {
+      "title": "Totalt antal ord",
+      "empty": "Börja diktera för att fylla i det här",
+      "equivalence": {
+        "emails": "≈ {{amount}} × ett vanligt mejl",
+        "pages": "≈ {{amount}} × en boksida",
+        "stories": "≈ {{amount}} × en novell",
+        "novels": "≈ {{amount}} × en roman"
+      }
+    },
+    "fixes": {
+      "title": "Rättelser",
+      "description": "Ord som du rättade efter att Murmur klistrat in, plus ord som din egen ordlista ersatte automatiskt.",
+      "wordsCorrected": "Rättade ord: {{value}}",
+      "dictionaryFixes": "Ordlisterättelser: {{value}}"
+    },
+    "apps": {
+      "title": "Användning per app",
+      "description": "Vart dina dikteringar gick, per appkategori.",
+      "empty": "Appkategorier registreras bara för nya dikteringar. Diktera i valfri app för att fylla i det här.",
+      "totalApps": "Använda appar",
+      "categories": {
+        "aiPrompts": "AI-prompter",
+        "personalMessages": "Personliga meddelanden",
+        "workMessages": "Jobbmeddelanden",
+        "emails": "Mejl",
+        "documents": "Dokument",
+        "coding": "Kod och terminal",
+        "other": "Övrigt"
+      }
+    },
+    "streak": {
+      "title": "Svit",
+      "description": "Dagar med minst en diktering, i din lokala tidszon.",
+      "current": "Nuvarande svit",
+      "longest": "Längsta svit",
+      "heatmapLabel": "Dikteringar per dag de senaste 20 veckorna",
+      "cellTitle": "Dikteringar {{date}}: {{value}}",
+      "less": "Mindre",
+      "more": "Mer"
+    }
   },
   "onboarding": {
     "permissions": {

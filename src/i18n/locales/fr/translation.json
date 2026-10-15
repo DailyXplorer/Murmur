@@ -31,7 +31,59 @@
     "history": "Historique",
     "debug": "Débogage",
     "about": "À propos",
-    "transcription": "Transcription"
+    "transcription": "Transcription",
+    "insights": "Statistiques"
+  },
+  "insights": {
+    "error": "Impossible de charger les statistiques.",
+    "privacy": "Les statistiques sont calculées sur ce Mac et y restent. Aucun texte dicté n'est conservé pour elles.",
+    "wpm": {
+      "title": "Mots par minute",
+      "window": "30 derniers jours",
+      "empty": "Pas encore assez de dictées chronométrées",
+      "formula": "Nombre total de mots dictés au cours des 30 derniers jours divisé par la durée totale d'enregistrement de ces dictées, en minutes. Les enregistrements de moins d'une seconde sont ignorés."
+    },
+    "words": {
+      "title": "Mots au total",
+      "empty": "Commencez à dicter pour remplir ce compteur",
+      "equivalence": {
+        "emails": "≈ {{amount}} × un e-mail type",
+        "pages": "≈ {{amount}} × une page de livre",
+        "stories": "≈ {{amount}} × une nouvelle",
+        "novels": "≈ {{amount}} × un roman"
+      }
+    },
+    "fixes": {
+      "title": "Corrections",
+      "description": "Mots que vous avez corrigés après le collage par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
+      "wordsCorrected": "Mots corrigés : {{value}}",
+      "dictionaryFixes": "Corrections du dictionnaire : {{value}}"
+    },
+    "apps": {
+      "title": "Utilisation par application",
+      "description": "Où sont allées vos dictées, par catégorie d'application.",
+      "empty": "Les catégories d'application ne sont enregistrées que pour les nouvelles dictées. Dictez dans n'importe quelle application pour remplir cette section.",
+      "totalApps": "Applications utilisées",
+      "categories": {
+        "aiPrompts": "Requêtes IA",
+        "personalMessages": "Messages personnels",
+        "workMessages": "Messages professionnels",
+        "emails": "E-mails",
+        "documents": "Documents",
+        "coding": "Code et terminal",
+        "other": "Autre"
+      }
+    },
+    "streak": {
+      "title": "Série",
+      "description": "Jours avec au moins une dictée, dans votre fuseau horaire local.",
+      "current": "Série en cours",
+      "longest": "Plus longue série",
+      "heatmapLabel": "Dictées par jour sur les 20 dernières semaines",
+      "cellTitle": "Dictées le {{date}} : {{value}}",
+      "less": "Moins",
+      "more": "Plus"
+    }
   },
   "onboarding": {
     "permissions": {

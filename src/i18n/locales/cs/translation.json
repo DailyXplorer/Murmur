@@ -31,7 +31,59 @@
     "history": "Historie",
     "debug": "Ladění",
     "about": "O aplikaci",
-    "transcription": "Přepis"
+    "transcription": "Přepis",
+    "insights": "Statistiky"
+  },
+  "insights": {
+    "error": "Statistiky se nepodařilo načíst.",
+    "privacy": "Statistiky se počítají na tomto Macu a zůstávají na něm. Neukládá se pro ně žádný diktovaný text.",
+    "wpm": {
+      "title": "Slova za minutu",
+      "window": "Posledních 30 dní",
+      "empty": "Zatím není dost diktátů se změřenou délkou",
+      "formula": "Celkový počet slov nadiktovaných za posledních 30 dní vydělený celkovou délkou nahrávek těchto diktátů v minutách. Nahrávky kratší než jedna sekunda se přeskakují."
+    },
+    "words": {
+      "title": "Celkem slov",
+      "empty": "Začněte diktovat a tato hodnota se vyplní",
+      "equivalence": {
+        "emails": "≈ {{amount}} × běžný e-mail",
+        "pages": "≈ {{amount}} × stránka knihy",
+        "stories": "≈ {{amount}} × povídka",
+        "novels": "≈ {{amount}} × román"
+      }
+    },
+    "fixes": {
+      "title": "Opravy",
+      "description": "Slova, která jste opravili po vložení textu Murmurem, plus slova, která váš vlastní slovník automaticky nahradil.",
+      "wordsCorrected": "Opravená slova: {{value}}",
+      "dictionaryFixes": "Opravy slovníkem: {{value}}"
+    },
+    "apps": {
+      "title": "Využití podle aplikace",
+      "description": "Kam vaše diktáty putovaly, podle kategorie aplikace.",
+      "empty": "Kategorie aplikací se zaznamenávají jen u nových diktátů. Diktujte v libovolné aplikaci a tato sekce se vyplní.",
+      "totalApps": "Použité aplikace",
+      "categories": {
+        "aiPrompts": "AI prompty",
+        "personalMessages": "Osobní zprávy",
+        "workMessages": "Pracovní zprávy",
+        "emails": "E-maily",
+        "documents": "Dokumenty",
+        "coding": "Kód a terminál",
+        "other": "Ostatní"
+      }
+    },
+    "streak": {
+      "title": "Série",
+      "description": "Dny s alespoň jedním diktátem ve vašem místním časovém pásmu.",
+      "current": "Aktuální série",
+      "longest": "Nejdelší série",
+      "heatmapLabel": "Diktáty za den za posledních 20 týdnů",
+      "cellTitle": "Diktáty {{date}}: {{value}}",
+      "less": "Méně",
+      "more": "Více"
+    }
   },
   "onboarding": {
     "permissions": {
