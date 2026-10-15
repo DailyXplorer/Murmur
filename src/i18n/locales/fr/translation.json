@@ -228,11 +228,10 @@
         "placeholder": "Ajouter un mot",
         "add": "Ajouter",
         "remove": "Supprimer {{word}}",
-        "duplicate": "\"{{word}}\" existe déjà"
-      },
-      "fillerWordRemoval": {
-        "title": "Supprimer les mots de remplissage",
-        "description": "Supprime les hésitations courantes des transcriptions Codex. Gemini gère lui-même les mots de remplissage."
+        "duplicate": "\"{{word}}\" existe déjà",
+        "learned": "Appris",
+        "learnedFrom": "{{word}} : appris quand vous avez corrigé « {{heard}} »",
+        "learnedHint": "Quand vous corrigez un nom mal orthographié juste après une dictée, Murmur l’ajoute ici avec la mention Appris. Cliquez sur un mot pour le retirer."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
       "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
-      "preferences": "Préférences"
+      "preferences": "Préférences",
+      "cleanupFailed": "Le nettoyage IA était indisponible : la transcription brute a été collée.",
+      "showOriginal": "Afficher la transcription d’origine",
+      "hideOriginal": "Masquer la transcription d’origine"
     },
     "debug": {
       "title": "Débogage",
@@ -369,7 +371,19 @@
         "processing": "Traitement du texte",
         "output": "Sortie"
       },
-      "sessionExpired": "Session expirée, reconnectez-vous dans Codex"
+      "sessionExpired": "Session expirée, reconnectez-vous dans Codex",
+      "aiCleanup": {
+        "title": "Nettoyage et mise en forme par IA",
+        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. Utilise votre session ChatGPT ; en cas d’échec ou de lenteur, la transcription brute est collée."
+      },
+      "windowNames": {
+        "title": "Noms de la fenêtre active",
+        "description": "Au début de la dictée, Murmur lit le texte de la fenêtre au premier plan via l’Accessibilité et n’envoie au nettoyage IA que les noms qu’il y trouve, pour bien les orthographier. Rien n’est conservé. Les champs de mot de passe et les gestionnaires de mots de passe ne sont jamais lus."
+      },
+      "whisperMode": {
+        "title": "Mode chuchotement",
+        "description": "Augmente encore la sensibilité pour une voix très basse et signale au nettoyage IA que la parole peut être faible. Le silence et le bruit de fond ne sont jamais amplifiés."
+      }
     }
   },
   "footer": {

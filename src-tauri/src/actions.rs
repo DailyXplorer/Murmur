@@ -1,5 +1,6 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error};
+use crate::cleanup::{ProcessedText, PromptContext};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
@@ -171,7 +172,7 @@ fn save_history(
     hm: &HistoryManager,
     recording: Option<&str>,
     pending_wav: &mut Option<PendingWav>,
-    text: String,
+    text: ProcessedText,
 ) {
     match hm.save_entry(recording.unwrap_or_default().to_string(), text) {
         Ok(_) => {
@@ -237,11 +238,16 @@ fn output_language_for_provider(
     (provider == TranscriptionProvider::Codex).then_some(selected_language)
 }
 
+/// Converts the Chinese variant, then runs AI cleanup when it is on and a
+/// Codex session exists, whichever provider transcribed. `names` come from
+/// the window the user dictated into.
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
     provider: TranscriptionProvider,
-) -> String {
+    names: Vec<String>,
+    operation: &ProcessingOperation,
+) -> ProcessedText {
     let settings = get_settings(app);
     let mut final_text = transcription.to_string();
 
@@ -258,7 +264,18 @@ pub(crate) async fn process_transcription_output(
         }
     }
 
-    final_text
+    if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
+        return ProcessedText::unprocessed(final_text);
+    }
+    let context = PromptContext {
+        vocabulary: settings.custom_words.clone(),
+        names,
+        language: output_language_for_provider(provider, &settings.selected_language)
+            .filter(|language| *language != "auto")
+            .map(str::to_string),
+        faint_speech: settings.whisper_mode,
+    };
+    crate::cleanup::clean(final_text, &context, operation).await
 }
 
 impl ShortcutAction for TranscribeAction {
@@ -318,6 +335,10 @@ impl ShortcutAction for TranscribeAction {
                     "Recording request accepted in {:?}; waiting for first microphone samples",
                     recording_start_time.elapsed()
                 );
+                crate::dictionary::stop_observing();
+                if settings.window_names_enabled && settings.ai_cleanup_enabled {
+                    crate::window_names::capture();
+                }
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);
@@ -452,6 +473,7 @@ impl ShortcutAction for TranscribeAction {
             );
 
             let stop_recording_time = Instant::now();
+            let window_names = crate::window_names::collect();
             if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
@@ -542,8 +564,14 @@ impl ShortcutAction for TranscribeAction {
                                 transcription.chars().count()
                             );
 
-                            let Some(final_text) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, provider),
+                            let Some(processed) = complete_unless_cancelled(
+                                process_transcription_output(
+                                    &ah,
+                                    &transcription,
+                                    provider,
+                                    window_names,
+                                    &operation,
+                                ),
                                 || operation_was_cancelled(&operation, &rm, cancel_generation),
                             )
                             .await
@@ -551,6 +579,7 @@ impl ShortcutAction for TranscribeAction {
                                 debug!("Transcription operation cancelled during output handling");
                                 return;
                             };
+                            let final_text = processed.text.clone();
 
                             let recording = wav_saved.then_some(file_name.as_str());
                             if final_text.is_empty() {
@@ -560,7 +589,7 @@ impl ShortcutAction for TranscribeAction {
                                 }
 
                                 if recording.is_some() {
-                                    save_history(&hm, recording, &mut pending_wav, final_text);
+                                    save_history(&hm, recording, &mut pending_wav, processed);
                                 }
                             } else {
                                 // `clipboard::paste` owns its native
@@ -582,6 +611,12 @@ impl ShortcutAction for TranscribeAction {
                                         return;
                                     }
                                     Ok(outcome) => {
+                                        if outcome == crate::clipboard::PasteOutcome::Injected {
+                                            crate::dictionary::watch_pasted_text(
+                                                &ah,
+                                                final_text.clone(),
+                                            );
+                                        }
                                         outcome != crate::clipboard::PasteOutcome::Skipped
                                     }
                                     Err(error) => {
@@ -592,7 +627,7 @@ impl ShortcutAction for TranscribeAction {
                                 // The transcript is kept whatever happened to
                                 // the paste or the WAV: history first, then
                                 // the clipboard as the immediate way back.
-                                save_history(&hm, recording, &mut pending_wav, final_text.clone());
+                                save_history(&hm, recording, &mut pending_wav, processed);
                                 if !delivered {
                                     error!("Transcription output could not be delivered");
                                     crate::clipboard::copy_for_recovery(&ah, final_text);
@@ -629,7 +664,7 @@ impl ShortcutAction for TranscribeAction {
                                     &hm,
                                     Some(file_name.as_str()),
                                     &mut pending_wav,
-                                    String::new(),
+                                    ProcessedText::unprocessed(String::new()),
                                 );
                             }
                         }

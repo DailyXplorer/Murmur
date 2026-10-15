@@ -228,11 +228,10 @@
         "placeholder": "Adicionar uma palavra",
         "add": "Adicionar",
         "remove": "Remover {{word}}",
-        "duplicate": "\"{{word}}\" já existe"
-      },
-      "fillerWordRemoval": {
-        "title": "Remover palavras de preenchimento",
-        "description": "Remove hesitações comuns das transcrições do Codex. O Gemini trata as palavras de preenchimento por conta própria."
+        "duplicate": "\"{{word}}\" já existe",
+        "learned": "Aprendida",
+        "learnedFrom": "{{word}}: aprendida quando você corrigiu “{{heard}}”",
+        "learnedHint": "Quando você corrige um nome mal escrito logo após ditar, o Murmur o adiciona aqui marcado como Aprendida. Clique em uma palavra para removê-la."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Falha ao re-transcrever. Por favor, tente novamente.",
       "transcribing": "Transcrevendo...",
       "transcriptionFailed": "A transcrição falhou. Você pode re-transcrever usando o ícone de tentar novamente.",
-      "preferences": "Preferências"
+      "preferences": "Preferências",
+      "cleanupFailed": "A limpeza com IA estava indisponível, então a transcrição bruta foi colada.",
+      "showOriginal": "Mostrar transcrição original",
+      "hideOriginal": "Ocultar transcrição original"
     },
     "debug": {
       "title": "Depuração",
@@ -369,7 +371,19 @@
         "processing": "Processamento de texto",
         "output": "Saída"
       },
-      "sessionExpired": "Sessão expirada, entre novamente no Codex"
+      "sessionExpired": "Sessão expirada, entre novamente no Codex",
+      "aiCleanup": {
+        "title": "Limpeza e formatação com IA",
+        "description": "Remove palavras de preenchimento, mantém apenas a formulação final quando você se corrige, ajusta a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem reescreve. Usa sua sessão do ChatGPT; se falhar ou demorar demais, a transcrição bruta é colada."
+      },
+      "windowNames": {
+        "title": "Nomes da janela ativa",
+        "description": "Ao começar a ditar, o Murmur lê o texto da janela em primeiro plano pela Acessibilidade e envia para a limpeza com IA apenas os nomes encontrados, para escrevê-los corretamente. Nada é guardado. Campos de senha e gerenciadores de senhas nunca são lidos."
+      },
+      "whisperMode": {
+        "title": "Modo sussurro",
+        "description": "Aumenta ainda mais a sensibilidade para fala muito baixa e avisa a limpeza com IA que a fala pode estar fraca. Silêncio e ruído de fundo nunca são amplificados."
+      }
     }
   },
   "footer": {

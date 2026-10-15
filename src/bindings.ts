@@ -259,9 +259,25 @@ async changeLazyStreamCloseSetting(enabled: boolean) : Promise<Result<null, stri
     else return { status: "error", error: String(e) };
 }
 },
-async changeFillerWordRemovalEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+async changeAiCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("change_filler_word_removal_enabled_setting", { enabled }) };
+    return { status: "ok", data: await TAURI_INVOKE("change_ai_cleanup_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_window_names_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeWhisperModeSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_whisper_mode_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -649,10 +665,34 @@ selected_channel?: number | null; clamshell_microphone?: string | null; selected
  * Required guarded paste path. AppKit does not identify the process
  * reading promised data, so settlement waits a bounded window. macOS only.
  */
-reliable_paste?: boolean; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
+reliable_paste?: boolean;
+/**
+ * AI cleanup and formatting of each transcript through the Codex session.
+ */
+ai_cleanup_enabled?: boolean;
+/**
+ * Dictionary words learned from corrections; each is also in `custom_words`.
+ */
+learned_words?: LearnedWord[];
+/**
+ * Offer names visible in the frontmost window to the cleanup step.
+ */
+window_names_enabled?: boolean;
+/**
+ * More input gain for quiet speech, and a hint that speech was faint.
+ */
+whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+/**
+ * What happened to a transcript, as kept in history.
+ */
+export type CleanupOutcome = "cleaned" |
+/**
+ * Cleanup was attempted and the raw transcript was used instead.
+ */
+"failed"
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CodexAuthStatus = {
 /**
@@ -665,8 +705,21 @@ signed_in: boolean;
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
-export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
+export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string;
+/**
+ * The text that was delivered.
+ */
+transcription_text: string;
+/**
+ * The transcript before AI cleanup, when cleanup ran.
+ */
+raw_text: string | null; cleanup: CleanupOutcome | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
+export type LearnedWord = { word: string;
+/**
+ * How Murmur wrote it before the user corrected it.
+ */
+heard_as: string }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"

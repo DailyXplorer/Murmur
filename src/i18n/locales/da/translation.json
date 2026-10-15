@@ -228,11 +228,10 @@
         "placeholder": "Tilføj et ord",
         "add": "Tilføj",
         "remove": "Fjern {{word}}",
-        "duplicate": "\"{{word}}\" findes allerede"
-      },
-      "fillerWordRemoval": {
-        "title": "Fjern fyldord",
-        "description": "Fjerner almindelige tøveord fra Codex-transskriptioner. Gemini håndterer selv fyldord."
+        "duplicate": "\"{{word}}\" findes allerede",
+        "learned": "Lært",
+        "learnedFrom": "{{word}}: lært, da du rettede “{{heard}}”",
+        "learnedHint": "Når du retter et forkert stavet navn lige efter diktering, tilføjer Murmur det her, markeret som Lært. Klik på et ord for at fjerne det."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Kunne ikke transskribere igen. Prøv igen.",
       "transcribing": "Transskriberer...",
       "transcriptionFailed": "Transskription mislykkedes. Du kan transskribere igen ved hjælp af genforsøgsikonet.",
-      "preferences": "Indstillinger"
+      "preferences": "Indstillinger",
+      "cleanupFailed": "AI-oprydningen var ikke tilgængelig, så den rå transskription blev indsat.",
+      "showOriginal": "Vis oprindelig transskription",
+      "hideOriginal": "Skjul oprindelig transskription"
     },
     "debug": {
       "title": "Fejlfinding",
@@ -369,7 +371,19 @@
         "processing": "Tekstbehandling",
         "output": "Output"
       },
-      "sessionExpired": "Sessionen er udløbet, log ind igen i Codex"
+      "sessionExpired": "Sessionen er udløbet, log ind igen i Codex",
+      "aiCleanup": {
+        "title": "AI-oprydning og formatering",
+        "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Oversætter eller omskriver aldrig. Bruger din ChatGPT-session; hvis det fejler eller tager for lang tid, indsættes den rå transskription."
+      },
+      "windowNames": {
+        "title": "Navne fra det aktive vindue",
+        "description": "Når du begynder at diktere, læser Murmur teksten i det forreste vindue via Tilgængelighed og sender kun de fundne navne til AI-oprydningen, så de staves rigtigt. Intet gemmes. Adgangskodefelter og adgangskodeadministratorer læses aldrig."
+      },
+      "whisperMode": {
+        "title": "Hviskefunktion",
+        "description": "Øger følsomheden yderligere for meget lav tale og fortæller AI-oprydningen, at talen kan være svag. Stilhed og baggrundsstøj forstærkes aldrig."
+      }
     }
   },
   "footer": {

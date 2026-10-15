@@ -228,11 +228,10 @@
         "placeholder": "Add a word",
         "add": "Add",
         "remove": "Remove {{word}}",
-        "duplicate": "\"{{word}}\" already exists"
-      },
-      "fillerWordRemoval": {
-        "title": "Remove Filler Words",
-        "description": "Removes common hesitation words from Codex transcriptions. Gemini handles filler words itself."
+        "duplicate": "\"{{word}}\" already exists",
+        "learned": "Learned",
+        "learnedFrom": "{{word}}: learned when you corrected “{{heard}}”",
+        "learnedHint": "When you fix a misspelled name right after dictating, Murmur adds it here, marked Learned. Click a word to remove it."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
       "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "cleanupFailed": "AI cleanup was unavailable, so the raw transcript was pasted.",
+      "showOriginal": "Show original transcript",
+      "hideOriginal": "Hide original transcript"
     },
     "debug": {
       "title": "Debug",
@@ -369,7 +371,19 @@
         "processing": "Text Processing",
         "output": "Output"
       },
-      "sessionExpired": "Session expired, sign in again in Codex"
+      "sessionExpired": "Session expired, sign in again in Codex",
+      "aiCleanup": {
+        "title": "AI Cleanup and Formatting",
+        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. Uses your ChatGPT session; if it fails or takes too long, the raw transcript is pasted."
+      },
+      "windowNames": {
+        "title": "Names From the Active Window",
+        "description": "When you start dictating, Murmur reads the text of the frontmost window through Accessibility and sends only the names it finds to AI cleanup, so they are spelled right. Nothing is stored. Password fields and password managers are never read."
+      },
+      "whisperMode": {
+        "title": "Whisper Mode",
+        "description": "Raises sensitivity further for very quiet speech and tells AI cleanup that speech may be faint. Silence and background noise are never amplified."
+      }
     }
   },
   "footer": {

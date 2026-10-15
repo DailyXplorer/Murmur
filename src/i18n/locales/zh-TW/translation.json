@@ -228,11 +228,10 @@
         "placeholder": "新增詞彙",
         "add": "新增",
         "remove": "刪除 {{word}}",
-        "duplicate": "「{{word}}」已存在"
-      },
-      "fillerWordRemoval": {
-        "title": "移除填充詞",
-        "description": "從 Codex 轉錄中移除常見的填充詞。Gemini 會自行處理填充詞。"
+        "duplicate": "「{{word}}」已存在",
+        "learned": "已學習",
+        "learnedFrom": "{{word}}：在你更正「{{heard}}」時學習",
+        "learnedHint": "聽寫後立即更正拼錯的名稱時，Murmur 會將其加入這裡並標示為已學習。點一下單字即可移除。"
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "重新轉錄失敗，請重試。",
       "transcribing": "轉錄中...",
       "transcriptionFailed": "轉錄失敗。您可以使用重試圖示重新轉錄。",
-      "preferences": "偏好設定"
+      "preferences": "偏好設定",
+      "cleanupFailed": "AI 清理無法使用，因此貼上了原始轉錄文字。",
+      "showOriginal": "顯示原始轉錄",
+      "hideOriginal": "隱藏原始轉錄"
     },
     "debug": {
       "title": "偵錯",
@@ -369,7 +371,19 @@
         "processing": "文字處理",
         "output": "輸出"
       },
-      "sessionExpired": "工作階段已過期，請在 Codex 中重新登入"
+      "sessionExpired": "工作階段已過期，請在 Codex 中重新登入",
+      "aiCleanup": {
+        "title": "AI 清理與排版",
+        "description": "移除贅字，自我更正時只保留最後的說法，修正標點，並將清單與口述的換行排版好。絕不翻譯或改寫。使用你的 ChatGPT 工作階段；若失敗或耗時過長，將貼上原始轉錄文字。"
+      },
+      "windowNames": {
+        "title": "目前視窗中的名稱",
+        "description": "開始聽寫時，Murmur 會透過輔助使用功能讀取最前方視窗的文字，只把找到的名稱傳給 AI 清理，以便拼寫正確。不會儲存任何內容。絕不讀取密碼欄位和密碼管理工具。"
+      },
+      "whisperMode": {
+        "title": "耳語模式",
+        "description": "進一步提高對極小聲音的靈敏度，並告知 AI 清理語音可能較弱。靜音與背景噪音不會被放大。"
+      }
     }
   },
   "footer": {

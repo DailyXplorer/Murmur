@@ -2,15 +2,18 @@
 compile_error!("Murmur supports macOS only.");
 
 mod accent;
+mod accessibility;
 mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod autostart;
+mod cleanup;
 pub mod cli;
 mod clipboard;
 mod codex_auth;
 mod codex_transcribe;
 mod commands;
+mod dictionary;
 mod gemini_transcribe;
 mod helpers;
 mod input;
@@ -28,6 +31,7 @@ mod tray;
 mod tray_i18n;
 mod user_alert;
 mod utils;
+mod window_names;
 
 pub use cli::CliArgs;
 pub use operation::{OperationId, PastePermit, ProcessingOperation};
@@ -475,7 +479,9 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_mute_while_recording_setting,
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
-            shortcut::change_filler_word_removal_enabled_setting,
+            commands::cleanup::change_ai_cleanup_setting,
+            commands::cleanup::change_window_names_setting,
+            commands::cleanup::change_whisper_mode_setting,
             shortcut::change_app_language_setting,
             shortcut::change_update_checks_setting,
             shortcut::change_show_whats_new_on_update_setting,
