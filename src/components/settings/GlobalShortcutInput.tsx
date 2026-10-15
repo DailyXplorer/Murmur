@@ -9,6 +9,7 @@ import { ResetButton } from "../ui/ResetButton";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import { commands } from "@/bindings";
+import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
 interface GlobalShortcutInputProps {
@@ -33,9 +34,27 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     null,
   );
   const [originalBinding, setOriginalBinding] = useState<string>("");
+  const [registrationFailed, setRegistrationFailed] = useState(false);
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
 
   const bindings = getSetting("bindings") || {};
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () =>
+      commands
+        .getShortcutRegistrationErrors()
+        .then((errors) => {
+          if (active) setRegistrationFailed(errors[shortcutId] !== undefined);
+        })
+        .catch(() => undefined);
+    void refresh();
+    const unlisten = listen("shortcut-registration-errors-changed", refresh);
+    return () => {
+      active = false;
+      void unlisten.then((fn) => fn());
+    };
+  }, [shortcutId]);
 
   useEffect(() => {
     // Only add event listeners when we're in editing mode
@@ -267,36 +286,46 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       disabled={disabled}
       layout="horizontal"
     >
-      <div className="flex min-w-0 items-center space-x-1">
-        {editingShortcutId === shortcutId ? (
-          <div
-            ref={(ref) => setShortcutRef(shortcutId, ref)}
-            role="status"
-            aria-live="polite"
-            className="min-w-0 flex-1 truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
+      <div className="flex min-w-0 flex-col items-end gap-1">
+        <div className="flex min-w-0 items-center space-x-1">
+          {editingShortcutId === shortcutId ? (
+            <div
+              ref={(ref) => setShortcutRef(shortcutId, ref)}
+              role="status"
+              aria-live="polite"
+              className="min-w-0 flex-1 truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
+            >
+              {formatCurrentKeys()}
+            </div>
+          ) : (
+            <button
+              type="button"
+              aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
+              disabled={disabled || isUpdating(`binding_${shortcutId}`)}
+              className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                void startRecording(shortcutId);
+              }}
+            >
+              {formatKeyCombination(binding.current_binding)}
+            </button>
+          )}
+          <ResetButton
+            className="shrink-0"
+            onClick={() => resetBinding(shortcutId)}
+            disabled={isUpdating(`binding_${shortcutId}`)}
+            ariaLabel={`${t("common.reset")}: ${translatedName}`}
+          />
+        </div>
+        {registrationFailed && (
+          <p
+            role="alert"
+            className="text-end text-xs text-red-600 dark:text-red-400"
           >
-            {formatCurrentKeys()}
-          </div>
-        ) : (
-          <button
-            type="button"
-            aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
-            disabled={disabled || isUpdating(`binding_${shortcutId}`)}
-            className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={(event) => {
-              event.stopPropagation();
-              void startRecording(shortcutId);
-            }}
-          >
-            {formatKeyCombination(binding.current_binding)}
-          </button>
+            {t("settings.general.shortcut.errors.registrationFailed")}
+          </p>
         )}
-        <ResetButton
-          className="shrink-0"
-          onClick={() => resetBinding(shortcutId)}
-          disabled={isUpdating(`binding_${shortcutId}`)}
-          ariaLabel={`${t("common.reset")}: ${translatedName}`}
-        />
       </div>
     </SettingContainer>
   );

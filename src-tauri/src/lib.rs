@@ -37,7 +37,7 @@ use tauri_specta::{collect_commands, collect_events, Builder};
 
 use env_filter::Builder as EnvFilterBuilder;
 use managers::audio::AudioRecordingManager;
-use managers::history::HistoryManager;
+use managers::history::{HistoryManager, HistoryStartup};
 use managers::transcription::TranscriptionManager;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
@@ -231,11 +231,28 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     // Initialize the managers.
     let transcription_manager = Arc::new(TranscriptionManager::new(app_handle));
-    let recording_manager = Arc::new(
-        AudioRecordingManager::new(app_handle).expect("Failed to initialize recording manager"),
-    );
-    let history_manager =
-        Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+    let (recording_manager, microphone_error) = AudioRecordingManager::new(app_handle);
+    let recording_manager = Arc::new(recording_manager);
+    if microphone_error.is_some() {
+        user_alert::show(
+            app_handle,
+            user_alert::Alert::MicrophoneUnavailableAtStartup,
+        );
+    }
+    // Only an unresolvable app data directory can fail here; a broken
+    // database is handled inside and reported below.
+    let (history_manager, history_startup) =
+        HistoryManager::new(app_handle).expect("Failed to resolve the app data directory");
+    let history_manager = Arc::new(history_manager);
+    match history_startup {
+        HistoryStartup::Ready => {}
+        HistoryStartup::Reset { .. } => {
+            user_alert::show(app_handle, user_alert::Alert::HistoryReset)
+        }
+        HistoryStartup::Unavailable => {
+            user_alert::show(app_handle, user_alert::Alert::HistoryUnavailable)
+        }
+    }
 
     app_handle.manage(recording_manager.clone());
     app_handle.manage(transcription_manager.clone());
@@ -428,6 +445,7 @@ pub fn run(cli_args: CliArgs) {
         .commands(collect_commands![
             shortcut::change_binding,
             shortcut::reset_binding,
+            shortcut::get_shortcut_registration_errors,
             shortcut::change_ptt_setting,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,

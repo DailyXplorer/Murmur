@@ -21,6 +21,12 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Shortcuts that failed to register at startup, keyed by binding id.
+ */
+async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("get_shortcut_registration_errors");
+},
 async changePttSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_ptt_setting", { enabled }) };

@@ -9,13 +9,73 @@ use crate::settings::{
     PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider,
 };
 use crate::tray;
+use crate::user_alert::{self, Alert};
 use log::{debug, warn};
 use serde::Serialize;
 use specta::Type;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
+const REGISTRATION_ERRORS_CHANGED: &str = "shortcut-registration-errors-changed";
+
+/// Bindings macOS refused at startup, by binding id, with the reason. An entry
+/// is cleared once the user picks a shortcut that registers.
+#[derive(Default)]
+pub struct ShortcutRegistrationErrors(Mutex<HashMap<String, String>>);
+
+impl ShortcutRegistrationErrors {
+    fn snapshot(&self) -> HashMap<String, String> {
+        self.0
+            .lock()
+            .map(|errors| errors.clone())
+            .unwrap_or_default()
+    }
+}
+
 pub fn init_shortcuts(app: &AppHandle) {
-    tauri_impl::init_shortcuts(app);
+    app.manage(ShortcutRegistrationErrors::default());
+    let failures = tauri_impl::init_shortcuts(app);
+    if failures.is_empty() {
+        return;
+    }
+    if let Ok(mut errors) = app.state::<ShortcutRegistrationErrors>().0.lock() {
+        for (id, _, error) in &failures {
+            errors.insert(id.clone(), error.clone());
+        }
+    }
+    for (_, binding, _) in failures {
+        user_alert::show(
+            app,
+            Alert::ShortcutUnavailable {
+                shortcut: binding.current_binding,
+            },
+        );
+    }
+    let _ = app.emit(REGISTRATION_ERRORS_CHANGED, ());
+}
+
+fn clear_registration_error(app: &AppHandle, id: &str) {
+    let Some(errors) = app.try_state::<ShortcutRegistrationErrors>() else {
+        return;
+    };
+    let removed = errors
+        .0
+        .lock()
+        .map(|mut errors| errors.remove(id).is_some())
+        .unwrap_or(false);
+    if removed {
+        let _ = app.emit(REGISTRATION_ERRORS_CHANGED, ());
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+/// Shortcuts that failed to register at startup, keyed by binding id.
+pub fn get_shortcut_registration_errors(app: AppHandle) -> HashMap<String, String> {
+    app.try_state::<ShortcutRegistrationErrors>()
+        .map(|errors| errors.snapshot())
+        .unwrap_or_default()
 }
 
 pub fn register_cancel_shortcut(app: &AppHandle) {
@@ -88,6 +148,7 @@ pub fn change_binding(
         });
     }
 
+    clear_registration_error(&app, &id);
     current.bindings.insert(id, updated.clone());
     settings::write_settings(&app, current);
     Ok(BindingResponse {

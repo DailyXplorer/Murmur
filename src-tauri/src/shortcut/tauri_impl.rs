@@ -412,8 +412,10 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
     Ok(updated)
 }
 
-/// Initialize shortcuts using Tauri's global-shortcut plugin
-pub fn init_shortcuts(app: &AppHandle) {
+/// Initialize shortcuts using Tauri's global-shortcut plugin. Returns the
+/// bindings that could not be registered, keyed by binding id.
+pub fn init_shortcuts(app: &AppHandle) -> Vec<(String, ShortcutBinding, String)> {
+    let mut failures = Vec::new();
     let default_bindings = settings::get_default_settings().bindings;
     let user_settings = settings::load_or_create_app_settings(app);
 
@@ -428,10 +430,12 @@ pub fn init_shortcuts(app: &AppHandle) {
             .cloned()
             .unwrap_or(default_binding);
 
-        if let Err(e) = register_shortcut(app, binding) {
+        if let Err(e) = register_shortcut(app, binding.clone()) {
             error!("Failed to register shortcut {} during init: {}", id, e);
+            failures.push((id, binding, e));
         }
     }
+    failures
 }
 
 /// Validate a shortcut string for the Tauri global-shortcut implementation.
