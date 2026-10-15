@@ -49,6 +49,9 @@ pub enum Intent {
     Stop,
     /// Drop the recording without transcribing it.
     Discard,
+    /// Drop the tap's recording and start a new one: the press came too late
+    /// to be a second tap, so it begins a gesture of its own.
+    Restart,
 }
 
 impl Gesture {
@@ -71,7 +74,7 @@ impl Gesture {
                 if at < deadline {
                     (Gesture::HandsFree { key_down: true }, Intent::LockHandsFree)
                 } else {
-                    (Gesture::Idle, Intent::Discard)
+                    (Gesture::Pressed { since: at }, Intent::Restart)
                 }
             }
             (Gesture::HandsFree { key_down: true }, Key::Release) => {
@@ -211,10 +214,12 @@ mod tests {
     }
 
     #[test]
-    fn second_press_on_the_window_edge_discards_the_tap() {
+    fn second_press_on_the_window_edge_discards_the_tap_and_starts_afresh() {
         let mut run = Run::new();
         run.press(0).release(100).press(450);
-        assert_eq!(run.intents, [Intent::Start, Intent::Discard]);
+        assert_eq!(run.intents, [Intent::Start, Intent::Restart]);
+        run.release(1_500);
+        assert_eq!(run.intents, [Intent::Start, Intent::Restart, Intent::Stop]);
         assert_eq!(run.gesture, Gesture::Idle);
     }
 
