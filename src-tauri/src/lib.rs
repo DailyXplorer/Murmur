@@ -13,13 +13,16 @@ mod clipboard;
 mod codex_auth;
 mod codex_transcribe;
 mod commands;
+mod dictation_gesture;
 mod dictionary;
 mod gemini_transcribe;
 mod helpers;
 mod input;
+mod insights;
 mod managers;
 mod operation;
 mod overlay;
+mod paste_last;
 mod paste_tx;
 mod settings;
 mod shortcut;
@@ -261,6 +264,13 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(recording_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    // Insights are optional: a broken stats database must not stop dictation.
+    match insights::InsightsManager::new(app_handle, &history_manager) {
+        Ok(insights_manager) => {
+            app_handle.manage(Arc::new(insights_manager));
+        }
+        Err(e) => log::error!("Failed to initialize insights: {e}"),
+    }
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -296,6 +306,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "copy_last_transcript" => {
                 tray::copy_last_transcript(app);
+            }
+            "paste_last_transcript" => {
+                paste_last::request(app);
             }
             "cancel" => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
@@ -450,7 +463,6 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_binding,
             shortcut::reset_binding,
             shortcut::get_shortcut_registration_errors,
-            shortcut::change_ptt_setting,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,
@@ -522,8 +534,12 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
+            insights::get_insights,
         ])
-        .events(collect_events![managers::history::HistoryUpdatePayload]);
+        .events(collect_events![
+            managers::history::HistoryUpdatePayload,
+            insights::InsightsUpdated
+        ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     {

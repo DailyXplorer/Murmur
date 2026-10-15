@@ -557,7 +557,10 @@ impl ShortcutAction for TranscribeAction {
                     }
 
                     match transcription_result {
-                        Ok(transcription) => {
+                        Ok(crate::managers::transcription::Transcript {
+                            text: transcription,
+                            dictionary_fixes,
+                        }) => {
                             debug!(
                                 "Transcription completed in {:?} ({} characters)",
                                 transcription_time.elapsed(),
@@ -624,6 +627,16 @@ impl ShortcutAction for TranscribeAction {
                                         false
                                     }
                                 };
+                                // Only a delivered dictation counts: the
+                                // frontmost app is then the one that got it.
+                                if delivered {
+                                    crate::insights::record_dictation(
+                                        &ah,
+                                        &final_text,
+                                        sample_count,
+                                        dictionary_fixes,
+                                    );
+                                }
                                 // The transcript is kept whatever happened to
                                 // the paste or the WAV: history first, then
                                 // the clipboard as the immediate way back.
@@ -713,6 +726,10 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     map.insert(
         "cancel".to_string(),
         Arc::new(CancelAction) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        crate::paste_last::BINDING_ID.to_string(),
+        Arc::new(crate::paste_last::PasteLastAction) as Arc<dyn ShortcutAction>,
     );
     map
 });

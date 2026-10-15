@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} lo usa otra aplicación. Elija otro atajo en los ajustes de Murmur.",
     "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
     "errorHistoryStartup": "No se pudo abrir el historial. El dictado funciona, pero no se guarda nada en el historial.",
-    "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado."
+    "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado.",
+    "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos).",
+    "pasteLastTranscript": "Pegar la última transcripción",
+    "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar."
   },
   "sidebar": {
     "general": "General",
@@ -28,7 +31,59 @@
     "history": "Historial",
     "debug": "Depuración",
     "about": "Acerca de",
-    "transcription": "Transcripción"
+    "transcription": "Transcripción",
+    "insights": "Estadísticas"
+  },
+  "insights": {
+    "error": "No se pudieron cargar las estadísticas.",
+    "privacy": "Las estadísticas se calculan en este Mac y se quedan aquí. No se guarda ningún texto dictado para ellas.",
+    "wpm": {
+      "title": "Palabras por minuto",
+      "window": "Últimos 30 días",
+      "empty": "Aún no hay suficientes dictados con duración",
+      "formula": "Total de palabras dictadas en los últimos 30 días dividido entre el tiempo total de grabación de esos dictados, en minutos. Se omiten las grabaciones de menos de un segundo."
+    },
+    "words": {
+      "title": "Palabras en total",
+      "empty": "Empieza a dictar para completar este dato",
+      "equivalence": {
+        "emails": "≈ {{amount}} × un correo típico",
+        "pages": "≈ {{amount}} × una página de libro",
+        "stories": "≈ {{amount}} × un relato corto",
+        "novels": "≈ {{amount}} × una novela"
+      }
+    },
+    "fixes": {
+      "title": "Correcciones",
+      "description": "Palabras que corregiste después de que Murmur pegara el texto, más las palabras que tu diccionario personalizado reemplazó automáticamente.",
+      "wordsCorrected": "Palabras corregidas: {{value}}",
+      "dictionaryFixes": "Correcciones del diccionario: {{value}}"
+    },
+    "apps": {
+      "title": "Uso por aplicación",
+      "description": "A dónde fueron tus dictados, por categoría de aplicación.",
+      "empty": "Las categorías de aplicación solo se registran para los dictados nuevos. Dicta en cualquier aplicación para ver esta sección.",
+      "totalApps": "Aplicaciones usadas",
+      "categories": {
+        "aiPrompts": "Prompts de IA",
+        "personalMessages": "Mensajes personales",
+        "workMessages": "Mensajes de trabajo",
+        "emails": "Correos",
+        "documents": "Documentos",
+        "coding": "Código y terminal",
+        "other": "Otros"
+      }
+    },
+    "streak": {
+      "title": "Racha",
+      "description": "Días con al menos un dictado, en tu zona horaria local.",
+      "current": "Racha actual",
+      "longest": "Racha más larga",
+      "heatmapLabel": "Dictados por día en las últimas 20 semanas",
+      "cellTitle": "Dictados el {{date}}: {{value}}",
+      "less": "Menos",
+      "more": "Más"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Atajo de transcripción",
-            "description": "El atajo de teclado para grabar y transcribir tu voz."
+            "description": "Mantén pulsado para hablar y suelta para terminar. Pulsa dos veces para grabar con manos libres y luego pulsa una vez para detener."
           },
           "cancel": {
             "name": "Atajo de cancelar",
             "description": "El atajo de teclado para cancelar la grabación actual."
+          },
+          "paste_last": {
+            "name": "Pegar la última transcripción",
+            "description": "Vuelve a pegar tu última transcripción en la aplicación que estás usando."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Buscar idiomas...",
         "noResults": "No se encontraron idiomas",
         "auto": "Automático"
-      },
-      "pushToTalk": {
-        "label": "Presionar para hablar",
-        "description": "Mantén presionado para grabar, suelta para detener"
       },
       "groups": {
         "appearance": "Apariencia"
@@ -244,11 +299,17 @@
       "unsave": "Eliminar de guardados",
       "delete": "Eliminar entrada",
       "deleteError": "Error al eliminar la entrada. Por favor, intenta de nuevo.",
-      "retranscribe": "Re-transcribir",
+      "retranscribe": "Transcribir de nuevo",
       "retranscribeError": "No se pudo re-transcribir. Por favor, inténtalo de nuevo.",
       "transcribing": "Transcribiendo...",
-      "transcriptionFailed": "La transcripción falló. Puedes re-transcribir usando el icono de reintentar.",
+      "transcriptionFailed": "La transcripción falló. Se conservó la grabación, así que puedes reintentarlo.",
       "preferences": "Preferencias",
+      "noRecording": "La transcripción falló y no se conservó ninguna grabación.",
+      "retry": "Reintentar",
+      "retrySuccess": "Transcrito de nuevo.",
+      "copy": "Copiar",
+      "recordingUnavailable": "La grabación ya no está disponible, así que no se puede volver a transcribir.",
+      "noSpeech": "No se encontró voz en la grabación.",
       "cleanupFailed": "La limpieza con IA no estaba disponible, así que se pegó la transcripción sin procesar.",
       "showOriginal": "Mostrar transcripción original",
       "hideOriginal": "Ocultar transcripción original"
@@ -451,7 +512,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transcribiendo..."
+    "transcribing": "Transcribiendo...",
+    "handsFree": "Grabación manos libres",
+    "handsFreeHint": "Pulsa {{shortcut}} para detener",
+    "limitWarning": "Se detiene en {{seconds}} s"
   },
   "whatsNew": {
     "title": "Nuevo en Murmur v{{version}}"

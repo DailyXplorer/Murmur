@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { ChartBarIcon } from "@phosphor-icons/react/dist/csr/ChartBar";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ClockCounterClockwise";
 import { CloudIcon } from "@phosphor-icons/react/dist/csr/Cloud";
 import { FlaskIcon } from "@phosphor-icons/react/dist/csr/Flask";
@@ -14,6 +15,7 @@ import {
   GeneralSettings,
   AdvancedSettings,
   HistorySettings,
+  InsightsSettings,
   DebugSettings,
   AboutSettings,
   TranscriptionSettings,
@@ -45,6 +47,12 @@ export const SECTIONS_CONFIG = {
     component: HistorySettings,
     enabled: () => true,
   },
+  insights: {
+    labelKey: "sidebar.insights",
+    icon: ChartBarIcon,
+    component: InsightsSettings,
+    enabled: () => true,
+  },
   advanced: {
     labelKey: "sidebar.advanced",
     icon: GearSixIcon,
@@ -71,6 +79,7 @@ const SECTION_ORDER: readonly SidebarSection[] = [
   "general",
   "transcription",
   "history",
+  "insights",
   "advanced",
   "debug",
   "about",

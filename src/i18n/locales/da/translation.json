@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} bruges af en anden app. Vælg en anden genvej i Murmurs indstillinger.",
     "errorMicrophoneStartup": "Den altid tændte mikrofon kunne ikke starte. Murmur åbner den, når du optager.",
     "errorHistoryStartup": "Historikken kunne ikke åbnes. Diktering virker, men intet gemmes i historikken.",
-    "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af."
+    "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af.",
+    "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter).",
+    "pasteLastTranscript": "Indsæt seneste transskription",
+    "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte."
   },
   "sidebar": {
     "general": "Generelt",
@@ -28,7 +31,59 @@
     "history": "Historik",
     "debug": "Fejlfinding",
     "about": "Om",
-    "transcription": "Transskription"
+    "transcription": "Transskription",
+    "insights": "Statistik"
+  },
+  "insights": {
+    "error": "Statistikken kunne ikke indlæses.",
+    "privacy": "Statistikken beregnes på denne Mac og bliver her. Der gemmes ingen dikteret tekst til den.",
+    "wpm": {
+      "title": "Ord pr. minut",
+      "window": "Seneste 30 dage",
+      "empty": "Endnu ikke nok tidsmålte dikteringer",
+      "formula": "Det samlede antal dikterede ord de seneste 30 dage divideret med den samlede optagetid for disse dikteringer, i minutter. Optagelser under ét sekund springes over."
+    },
+    "words": {
+      "title": "Ord i alt",
+      "empty": "Begynd at diktere for at udfylde dette",
+      "equivalence": {
+        "emails": "≈ {{amount}} × en typisk e-mail",
+        "pages": "≈ {{amount}} × en bogside",
+        "stories": "≈ {{amount}} × en novelle",
+        "novels": "≈ {{amount}} × en roman"
+      }
+    },
+    "fixes": {
+      "title": "Rettelser",
+      "description": "Ord, du rettede, efter Murmur indsatte teksten, plus ord, din egen ordbog erstattede automatisk.",
+      "wordsCorrected": "Rettede ord: {{value}}",
+      "dictionaryFixes": "Ordbogsrettelser: {{value}}"
+    },
+    "apps": {
+      "title": "Brug pr. app",
+      "description": "Hvor dine dikteringer endte, efter appkategori.",
+      "empty": "Appkategorier registreres kun for nye dikteringer. Diktér i en hvilken som helst app for at udfylde dette.",
+      "totalApps": "Brugte apps",
+      "categories": {
+        "aiPrompts": "AI-prompts",
+        "personalMessages": "Personlige beskeder",
+        "workMessages": "Arbejdsbeskeder",
+        "emails": "E-mails",
+        "documents": "Dokumenter",
+        "coding": "Kode og terminal",
+        "other": "Andet"
+      }
+    },
+    "streak": {
+      "title": "Stime",
+      "description": "Dage med mindst én diktering, i din lokale tidszone.",
+      "current": "Nuværende stime",
+      "longest": "Længste stime",
+      "heatmapLabel": "Dikteringer pr. dag de seneste 20 uger",
+      "cellTitle": "Dikteringer {{date}}: {{value}}",
+      "less": "Mindre",
+      "more": "Mere"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transskriptionsgenvej",
-            "description": "Tastaturgenvejen til at optage og transskribere din stemme."
+            "description": "Hold nede for at tale, og slip for at afslutte. Dobbelttryk for at optage håndfrit, og tryk derefter én gang for at stoppe."
           },
           "cancel": {
             "name": "Annulleringsgenvej",
             "description": "Tastaturgenvejen til at annullere den aktuelle optagelse."
+          },
+          "paste_last": {
+            "name": "Indsæt seneste transskription",
+            "description": "Indsætter din seneste transskription igen i den app, du bruger."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Søg efter sprog...",
         "noResults": "Ingen sprog fundet",
         "auto": "Automatisk"
-      },
-      "pushToTalk": {
-        "label": "Tryk-for-at-tale",
-        "description": "Hold nede for at optage, slip for at stoppe"
       },
       "groups": {
         "appearance": "Udseende"
@@ -244,11 +299,17 @@
       "unsave": "Fjern fra gemte",
       "delete": "Slet post",
       "deleteError": "Kunne ikke slette posten. Prøv igen.",
-      "retranscribe": "Transskribér igen",
+      "retranscribe": "Transskriber igen",
       "retranscribeError": "Kunne ikke transskribere igen. Prøv igen.",
       "transcribing": "Transskriberer...",
-      "transcriptionFailed": "Transskription mislykkedes. Du kan transskribere igen ved hjælp af genforsøgsikonet.",
+      "transcriptionFailed": "Transskriptionen mislykkedes. Optagelsen blev gemt, så du kan prøve igen.",
       "preferences": "Indstillinger",
+      "noRecording": "Transskriptionen mislykkedes, og der blev ikke gemt nogen optagelse.",
+      "retry": "Prøv igen",
+      "retrySuccess": "Transskriberet igen.",
+      "copy": "Kopiér",
+      "recordingUnavailable": "Optagelsen er ikke længere tilgængelig, så den kan ikke transskriberes igen.",
+      "noSpeech": "Der blev ikke fundet tale i optagelsen.",
       "cleanupFailed": "AI-oprydningen var ikke tilgængelig, så den rå transskription blev indsat.",
       "showOriginal": "Vis oprindelig transskription",
       "hideOriginal": "Skjul oprindelig transskription"
@@ -454,6 +515,9 @@
     }
   },
   "overlay": {
-    "transcribing": "Transskriberer..."
+    "transcribing": "Transskriberer...",
+    "handsFree": "Håndfri optagelse",
+    "handsFreeHint": "Tryk på {{shortcut}} for at stoppe",
+    "limitWarning": "Stopper om {{seconds}} s"
   }
 }

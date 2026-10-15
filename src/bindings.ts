@@ -27,14 +27,6 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
 async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: string }>> {
     return await TAURI_INVOKE("get_shortcut_registration_errors");
 },
-async changePttSetting(enabled: boolean) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_ptt_setting", { enabled }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_audio_feedback_setting", { enabled }) };
@@ -580,7 +572,7 @@ async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async retryHistoryEntryTranscription(id: number) : Promise<Result<null, string>> {
+async retryHistoryEntryTranscription(id: number) : Promise<Result<HistoryEntry, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id }) };
 } catch (e) {
@@ -617,6 +609,14 @@ async isLaptop() : Promise<Result<boolean, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async getInsights() : Promise<Result<InsightsSummary, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_insights") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -624,9 +624,11 @@ async isLaptop() : Promise<Result<boolean, string>> {
 
 
 export const events = __makeEvents__<{
-historyUpdatePayload: HistoryUpdatePayload
+historyUpdatePayload: HistoryUpdatePayload,
+insightsUpdated: InsightsUpdated
 }>({
-historyUpdatePayload: "history-update-payload"
+historyUpdatePayload: "history-update-payload",
+insightsUpdated: "insights-updated"
 })
 
 /** user-defined constants **/
@@ -651,7 +653,7 @@ export type AppSettings = {
  * Defaults to empty on partial stores; the load path merges in the
  * default bindings for any missing keys before the settings are used.
  */
-bindings?: Partial<{ [key in string]: ShortcutBinding }>; push_to_talk?: boolean; audio_feedback?: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; show_whats_new_on_update?: boolean; 
+bindings?: Partial<{ [key in string]: ShortcutBinding }>; audio_feedback?: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; show_whats_new_on_update?: boolean; 
 /**
  * The app version whose What's New the user has already seen.
  */
@@ -682,9 +684,14 @@ window_names_enabled?: boolean;
  * More input gain for quiet speech, and a hint that speech was faint.
  */
 whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
+/**
+ * Where a dictation was sent, grouped the way the Insights page reports it.
+ */
+export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
  */
@@ -705,6 +712,15 @@ signed_in: boolean;
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
+export type HeatmapDay = {
+/**
+ * Local calendar date, `YYYY-MM-DD`.
+ */
+date: string; count: number;
+/**
+ * Intensity bucket from 0 (no dictation) to 4 (busiest day in range).
+ */
+level: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string;
 /**
  * The text that was delivered.
@@ -715,6 +731,20 @@ transcription_text: string;
  */
 raw_text: string | null; cleanup: CleanupOutcome | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
+export type InsightsSummary = { total_dictations: number; total_words: number;
+/**
+ * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
+ */
+words_per_minute: number | null; words_corrected: number; dictionary_fixes: number;
+/**
+ * Non-empty categories, most used first.
+ */
+categories: CategoryUsage[];
+/**
+ * Dictations whose receiving app is known (recorded since this feature).
+ */
+categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
+export type InsightsUpdated = null
 export type LearnedWord = { word: string;
 /**
  * How Murmur wrote it before the user corrected it.
@@ -728,6 +758,7 @@ export type PasteMethod = "ctrl_v" | "direct" | "none"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
+export type Streaks = { current: number; longest: number }
 /**
  * UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
  * and `Dark` force one of the two palettes Murmur already ships.

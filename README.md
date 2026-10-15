@@ -40,7 +40,8 @@ provider's terms for your account.
 
 ## Features
 
-- Global record, push-to-talk, and cancel shortcuts
+- One recording shortcut: hold it to talk, or double-tap it to record hands-free and press it once to stop
+- Cancel shortcut, and a shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection
@@ -51,7 +52,8 @@ provider's terms for your account.
 - Names from the frontmost window as spelling hints, read through Accessibility
   and never stored
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
-- Transcription history with saved recordings, keeping the raw and cleaned text
+- Transcription history with saved recordings, keeping the raw and cleaned text; a failed
+  or unsatisfying transcription can be sent again from its recording
 - Recording overlay, audio feedback, tray controls, and automatic updates
 
 ## Getting started

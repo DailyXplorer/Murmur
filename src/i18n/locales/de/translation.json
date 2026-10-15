@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} wird von einer anderen App verwendet. Wähle in den Murmur-Einstellungen ein anderes Kürzel.",
     "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
     "errorHistoryStartup": "Der Verlauf konnte nicht geöffnet werden. Diktieren funktioniert, aber nichts wird im Verlauf gespeichert.",
-    "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben."
+    "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben.",
+    "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten).",
+    "pasteLastTranscript": "Letzte Transkription einfügen",
+    "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -28,7 +31,59 @@
     "history": "Verlauf",
     "debug": "Debug",
     "about": "Info",
-    "transcription": "Transkription"
+    "transcription": "Transkription",
+    "insights": "Statistiken"
+  },
+  "insights": {
+    "error": "Statistiken konnten nicht geladen werden.",
+    "privacy": "Statistiken werden auf diesem Mac berechnet und bleiben hier. Dafür wird kein diktierter Text gespeichert.",
+    "wpm": {
+      "title": "Wörter pro Minute",
+      "window": "Letzte 30 Tage",
+      "empty": "Noch nicht genug gemessene Diktate",
+      "formula": "Alle in den letzten 30 Tagen diktierten Wörter geteilt durch die gesamte Aufnahmezeit dieser Diktate in Minuten. Aufnahmen unter einer Sekunde werden übersprungen."
+    },
+    "words": {
+      "title": "Wörter insgesamt",
+      "empty": "Beginne zu diktieren, um diesen Wert zu füllen",
+      "equivalence": {
+        "emails": "≈ {{amount}} × eine typische E-Mail",
+        "pages": "≈ {{amount}} × eine Buchseite",
+        "stories": "≈ {{amount}} × eine Kurzgeschichte",
+        "novels": "≈ {{amount}} × ein Roman"
+      }
+    },
+    "fixes": {
+      "title": "Korrekturen",
+      "description": "Wörter, die du nach dem Einfügen durch Murmur korrigiert hast, plus Wörter, die dein eigenes Wörterbuch automatisch ersetzt hat.",
+      "wordsCorrected": "Korrigierte Wörter: {{value}}",
+      "dictionaryFixes": "Wörterbuch-Korrekturen: {{value}}"
+    },
+    "apps": {
+      "title": "Nutzung nach App",
+      "description": "Wohin deine Diktate gingen, nach App-Kategorie.",
+      "empty": "App-Kategorien werden nur für neue Diktate erfasst. Diktiere in einer beliebigen App, damit sich dieser Bereich füllt.",
+      "totalApps": "Genutzte Apps",
+      "categories": {
+        "aiPrompts": "KI-Prompts",
+        "personalMessages": "Private Nachrichten",
+        "workMessages": "Arbeitsnachrichten",
+        "emails": "E-Mails",
+        "documents": "Dokumente",
+        "coding": "Code & Terminal",
+        "other": "Sonstiges"
+      }
+    },
+    "streak": {
+      "title": "Serie",
+      "description": "Tage mit mindestens einem Diktat, in deiner lokalen Zeitzone.",
+      "current": "Aktuelle Serie",
+      "longest": "Längste Serie",
+      "heatmapLabel": "Diktate pro Tag in den letzten 20 Wochen",
+      "cellTitle": "Diktate am {{date}}: {{value}}",
+      "less": "Weniger",
+      "more": "Mehr"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Transkriptions-Tastenkürzel",
-            "description": "Das Tastenkürzel zum Aufnehmen und Transkribieren deiner Stimme."
+            "description": "Gedrückt halten zum Sprechen, loslassen zum Beenden. Doppelt tippen für freihändige Aufnahme, dann einmal drücken zum Beenden."
           },
           "cancel": {
             "name": "Abbrechen-Tastenkürzel",
             "description": "Das Tastenkürzel zum Abbrechen der aktuellen Aufnahme."
+          },
+          "paste_last": {
+            "name": "Letzte Transkription einfügen",
+            "description": "Fügt deine letzte Transkription erneut in die App ein, die du gerade verwendest."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Sprachen suchen...",
         "noResults": "Keine Sprachen gefunden",
         "auto": "Automatisch"
-      },
-      "pushToTalk": {
-        "label": "Push-to-Talk",
-        "description": "Gedrückt halten zum Aufnehmen, loslassen zum Stoppen"
       },
       "groups": {
         "appearance": "Darstellung"
@@ -247,8 +302,14 @@
       "retranscribe": "Erneut transkribieren",
       "retranscribeError": "Erneute Transkription fehlgeschlagen. Bitte versuche es erneut.",
       "transcribing": "Transkribiere...",
-      "transcriptionFailed": "Transkription fehlgeschlagen. Du kannst über das Wiederholen-Symbol erneut transkribieren.",
+      "transcriptionFailed": "Transkription fehlgeschlagen. Die Aufnahme wurde behalten, du kannst es erneut versuchen.",
       "preferences": "Einstellungen",
+      "noRecording": "Transkription fehlgeschlagen, und es wurde keine Aufnahme behalten.",
+      "retry": "Erneut versuchen",
+      "retrySuccess": "Erneut transkribiert.",
+      "copy": "Kopieren",
+      "recordingUnavailable": "Die Aufnahme ist nicht mehr verfügbar und kann daher nicht erneut transkribiert werden.",
+      "noSpeech": "In der Aufnahme wurde keine Sprache erkannt.",
       "cleanupFailed": "Die KI-Bereinigung war nicht verfügbar, daher wurde das Rohtranskript eingefügt.",
       "showOriginal": "Originaltranskript anzeigen",
       "hideOriginal": "Originaltranskript ausblenden"
@@ -451,7 +512,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Transkribiere..."
+    "transcribing": "Transkribiere...",
+    "handsFree": "Freihändige Aufnahme",
+    "handsFreeHint": "Zum Beenden {{shortcut}} drücken",
+    "limitWarning": "Endet in {{seconds}} s"
   },
   "whatsNew": {
     "title": "Neu in Murmur v{{version}}"

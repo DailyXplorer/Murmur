@@ -215,8 +215,6 @@ pub struct AppSettings {
     /// default bindings for any missing keys before the settings are used.
     #[serde(default)]
     pub bindings: HashMap<String, ShortcutBinding>,
-    #[serde(default = "default_push_to_talk")]
-    pub push_to_talk: bool,
     #[serde(default)]
     pub audio_feedback: bool,
     #[serde(default = "default_audio_feedback_volume")]
@@ -314,10 +312,6 @@ pub struct AppSettings {
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
-}
-
-fn default_push_to_talk() -> bool {
-    true
 }
 
 fn default_always_on_microphone() -> bool {
@@ -423,9 +417,13 @@ fn default_show_tray_icon() -> bool {
 }
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
-const OBSOLETE_SETTINGS_KEYS: [&str; 4] = [
+/// `push_to_talk` chose between hold and toggle; one shortcut now does both.
+/// The filler-removal keys are superseded by AI cleanup (see
+/// `parse_stored_settings`).
+const OBSOLETE_SETTINGS_KEYS: [&str; 5] = [
     "typing_tool",
     "external_script_path",
+    "push_to_talk",
     "filler_word_removal_enabled",
     "custom_filler_words",
 ];
@@ -459,10 +457,19 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+    bindings.insert(
+        crate::paste_last::BINDING_ID.to_string(),
+        ShortcutBinding {
+            id: crate::paste_last::BINDING_ID.to_string(),
+            name: "Paste last transcription".to_string(),
+            description: "Pastes the latest transcription again.".to_string(),
+            default_binding: crate::paste_last::DEFAULT_BINDING.to_string(),
+            current_binding: crate::paste_last::DEFAULT_BINDING.to_string(),
+        },
+    );
 
     AppSettings {
         bindings,
-        push_to_talk: default_push_to_talk(),
         audio_feedback: false,
         audio_feedback_volume: default_audio_feedback_volume(),
         sound_theme: default_sound_theme(),
@@ -784,7 +791,6 @@ mod tests {
     fn empty_store_parses_with_defaults() {
         let settings: AppSettings = serde_json::from_value(serde_json::json!({}))
             .expect("all AppSettings fields need serde defaults");
-        assert!(settings.push_to_talk);
         assert!(!settings.audio_feedback);
         assert!(settings.ai_cleanup_enabled);
         assert!(settings.window_names_enabled);
@@ -991,6 +997,31 @@ mod tests {
             let repaired = serde_json::to_value(settings).unwrap();
             assert!(repaired.get("typing_tool").is_none());
             assert!(repaired.get("external_script_path").is_none());
+        }
+    }
+
+    #[test]
+    fn either_old_recording_mode_migrates_silently_to_the_one_shortcut() {
+        for push_to_talk in [true, false] {
+            let mut stored = default_settings_json();
+            let stored = stored.as_object_mut().unwrap();
+            stored.insert("push_to_talk".into(), serde_json::json!(push_to_talk));
+            stored.insert("selected_language".into(), serde_json::json!("fr"));
+            let mut transcribe = stored["bindings"]["transcribe"].clone();
+            transcribe["current_binding"] = serde_json::json!("ctrl+shift+d");
+            stored["bindings"]["transcribe"] = transcribe;
+
+            let (settings, updated) =
+                parse_stored_settings(&serde_json::Value::Object(stored.clone()));
+            assert!(updated, "push_to_talk={push_to_talk} must be rewritten");
+            assert_eq!(settings.selected_language, "fr");
+            assert_eq!(
+                settings.bindings["transcribe"].current_binding,
+                "ctrl+shift+d"
+            );
+
+            let repaired = serde_json::to_value(settings).unwrap();
+            assert!(repaired.get("push_to_talk").is_none());
         }
     }
 

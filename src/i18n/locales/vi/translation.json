@@ -20,7 +20,10 @@
     "errorShortcutUnavailable": "{{shortcut}} đang được ứng dụng khác dùng. Hãy chọn phím tắt khác trong cài đặt Murmur.",
     "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
     "errorHistoryStartup": "Không mở được Lịch sử. Đọc chính tả vẫn hoạt động nhưng không có gì được lưu vào Lịch sử.",
-    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh."
+    "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh.",
+    "warningRecordingLimit": "Ghi âm sẽ dừng sau 1 phút (giới hạn 15 phút).",
+    "pasteLastTranscript": "Dán bản chép lời gần nhất",
+    "noticeNothingToPaste": "Chưa có bản chép lời nào để dán."
   },
   "sidebar": {
     "general": "Chung",
@@ -28,7 +31,59 @@
     "history": "Lịch sử",
     "debug": "Gỡ lỗi",
     "about": "Giới thiệu",
-    "transcription": "Phiên âm"
+    "transcription": "Phiên âm",
+    "insights": "Thống kê"
+  },
+  "insights": {
+    "error": "Không thể tải thống kê.",
+    "privacy": "Thống kê được tính trên máy Mac này và chỉ lưu tại đây. Không có văn bản đọc chính tả nào được lưu cho chúng.",
+    "wpm": {
+      "title": "Từ mỗi phút",
+      "window": "30 ngày qua",
+      "empty": "Chưa đủ lượt đọc chính tả có thời lượng",
+      "formula": "Tổng số từ đọc chính tả trong 30 ngày qua chia cho tổng thời gian ghi âm của các lượt đó, tính bằng phút. Các bản ghi ngắn hơn một giây bị bỏ qua."
+    },
+    "words": {
+      "title": "Tổng số từ",
+      "empty": "Bắt đầu đọc chính tả để điền số liệu này",
+      "equivalence": {
+        "emails": "≈ {{amount}} × một email thông thường",
+        "pages": "≈ {{amount}} × một trang sách",
+        "stories": "≈ {{amount}} × một truyện ngắn",
+        "novels": "≈ {{amount}} × một cuốn tiểu thuyết"
+      }
+    },
+    "fixes": {
+      "title": "Lần sửa",
+      "description": "Những từ bạn đã sửa sau khi Murmur dán, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
+      "wordsCorrected": "Từ đã sửa: {{value}}",
+      "dictionaryFixes": "Sửa bằng từ điển: {{value}}"
+    },
+    "apps": {
+      "title": "Sử dụng theo ứng dụng",
+      "description": "Nơi các lượt đọc chính tả của bạn được gửi tới, theo loại ứng dụng.",
+      "empty": "Loại ứng dụng chỉ được ghi lại cho các lượt đọc chính tả mới. Hãy đọc chính tả trong bất kỳ ứng dụng nào để điền phần này.",
+      "totalApps": "Số ứng dụng đã dùng",
+      "categories": {
+        "aiPrompts": "Câu lệnh AI",
+        "personalMessages": "Tin nhắn cá nhân",
+        "workMessages": "Tin nhắn công việc",
+        "emails": "Email",
+        "documents": "Tài liệu",
+        "coding": "Lập trình và terminal",
+        "other": "Khác"
+      }
+    },
+    "streak": {
+      "title": "Chuỗi ngày",
+      "description": "Những ngày có ít nhất một lượt đọc chính tả, theo múi giờ địa phương của bạn.",
+      "current": "Chuỗi hiện tại",
+      "longest": "Chuỗi dài nhất",
+      "heatmapLabel": "Số lượt đọc chính tả mỗi ngày trong 20 tuần qua",
+      "cellTitle": "Lượt đọc chính tả ngày {{date}}: {{value}}",
+      "less": "Ít",
+      "more": "Nhiều"
+    }
   },
   "onboarding": {
     "permissions": {
@@ -88,11 +143,15 @@
         "bindings": {
           "transcribe": {
             "name": "Phím tắt chuyển đổi",
-            "description": "Phím tắt để ghi âm và chuyển đổi giọng nói của bạn."
+            "description": "Giữ để nói và thả ra để kết thúc. Nhấn đúp để ghi âm rảnh tay, sau đó nhấn một lần để dừng."
           },
           "cancel": {
             "name": "Phím tắt hủy",
             "description": "Phím tắt để hủy bản ghi hiện tại."
+          },
+          "paste_last": {
+            "name": "Dán bản chép lời gần nhất",
+            "description": "Dán lại bản chép lời gần nhất vào ứng dụng bạn đang dùng."
           }
         },
         "errors": {
@@ -108,10 +167,6 @@
         "searchPlaceholder": "Tìm kiếm ngôn ngữ...",
         "noResults": "Không tìm thấy ngôn ngữ",
         "auto": "Tự động"
-      },
-      "pushToTalk": {
-        "label": "Nhấn để nói",
-        "description": "Giữ để ghi âm, thả để dừng"
       },
       "groups": {
         "appearance": "Giao diện"
@@ -244,11 +299,17 @@
       "unsave": "Xóa khỏi đã lưu",
       "delete": "Xóa mục",
       "deleteError": "Không thể xóa mục. Vui lòng thử lại.",
-      "retranscribe": "Phiên âm lại",
+      "retranscribe": "Chép lời lại",
       "retranscribeError": "Không thể phiên âm lại. Vui lòng thử lại.",
       "transcribing": "Đang phiên âm...",
-      "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại.",
+      "transcriptionFailed": "Chép lời thất bại. Bản ghi âm vẫn được giữ, bạn có thể thử lại.",
       "preferences": "Tùy chọn",
+      "noRecording": "Chép lời thất bại và không có bản ghi âm nào được giữ lại.",
+      "retry": "Thử lại",
+      "retrySuccess": "Đã chép lời lại.",
+      "copy": "Sao chép",
+      "recordingUnavailable": "Bản ghi âm không còn nữa nên không thể chép lời lại.",
+      "noSpeech": "Không tìm thấy giọng nói trong bản ghi âm.",
       "cleanupFailed": "Không dùng được bước dọn dẹp AI, nên bản chép thô đã được dán.",
       "showOriginal": "Hiện bản chép gốc",
       "hideOriginal": "Ẩn bản chép gốc"
@@ -451,7 +512,10 @@
     }
   },
   "overlay": {
-    "transcribing": "Đang chuyển đổi..."
+    "transcribing": "Đang chuyển đổi...",
+    "handsFree": "Ghi âm rảnh tay",
+    "handsFreeHint": "Nhấn {{shortcut}} để dừng",
+    "limitWarning": "Dừng sau {{seconds}} giây"
   },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"
