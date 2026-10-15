@@ -5,6 +5,7 @@ description = "Allows application commands from the main settings window."
 permissions = [
   "allow-change-binding",
   "allow-reset-binding",
+  "allow-get-shortcut-registration-errors",
   "allow-change-ptt-setting",
   "allow-change-audio-feedback-setting",
   "allow-change-audio-feedback-volume-setting",

@@ -122,66 +122,149 @@ pub struct HistoryManager {
     db_path: PathBuf,
 }
 
+/// What opening the history database at startup produced.
+#[derive(Debug, PartialEq, Eq)]
+pub enum HistoryStartup {
+    Ready,
+    /// The file was not a readable database. It was renamed to this path and
+    /// an empty database replaced it.
+    Reset {
+        moved_to: PathBuf,
+    },
+    /// History is unusable this session (for example, the file is locked).
+    /// Dictation still works; saves fail and are logged.
+    Unavailable,
+}
+
 impl HistoryManager {
-    pub fn new(app_handle: &AppHandle) -> Result<Self> {
+    /// Never fails on a broken database: it is moved aside or, failing that,
+    /// reported through `HistoryStartup` so the app keeps running.
+    pub fn new(app_handle: &AppHandle) -> Result<(Self, HistoryStartup)> {
         let app_data_dir = app_handle.path().app_data_dir()?;
         let recordings_dir = app_data_dir.join("recordings");
         let db_path = app_data_dir.join("history.db");
 
         if !recordings_dir.exists() {
-            fs::create_dir_all(&recordings_dir)?;
-            debug!("Created recordings directory: {:?}", recordings_dir);
+            if let Err(error) = fs::create_dir_all(&recordings_dir) {
+                error!("Failed to create recordings directory: {error}");
+            } else {
+                debug!("Created recordings directory: {:?}", recordings_dir);
+            }
         }
 
+        let startup = open_or_reset_database(&db_path, Utc::now());
         let manager = Self {
             app_handle: app_handle.clone(),
             recordings_dir,
             db_path,
         };
+        Ok((manager, startup))
+    }
+}
 
-        // Initialize database and run migrations synchronously
-        manager.init_database()?;
-
-        Ok(manager)
+/// Opens and migrates the database. A file SQLite cannot read as a database is
+/// renamed to `history.db.corrupt-<timestamp>` and replaced by an empty one.
+fn open_or_reset_database(db_path: &Path, now: DateTime<Utc>) -> HistoryStartup {
+    let first_error = match init_database(db_path) {
+        Ok(()) => return HistoryStartup::Ready,
+        Err(error) => error,
+    };
+    if !is_corruption(&first_error) {
+        error!("History database is unavailable: {first_error:#}");
+        return HistoryStartup::Unavailable;
     }
 
-    fn init_database(&self) -> Result<()> {
-        info!("Initializing database at {:?}", self.db_path);
-
-        let mut conn = Connection::open(&self.db_path)?;
-
-        migrate_from_tauri_plugin_sql(&conn)?;
-
-        // Create migrations object and run to latest version
-        let migrations = Migrations::new(MIGRATIONS.to_vec());
-
-        // Validate migrations in debug builds
-        #[cfg(debug_assertions)]
-        migrations.validate().expect("Invalid migrations");
-
-        // Get current version before migration
-        let version_before: i32 =
-            conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        debug!("Database version before migration: {}", version_before);
-
-        // Apply any pending migrations
-        migrations.to_latest(&mut conn)?;
-
-        // Get version after migration
-        let version_after: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-
-        if version_after > version_before {
-            info!(
-                "Database migrated from version {} to {}",
-                version_before, version_after
+    let moved_to = db_path.with_file_name(format!(
+        "history.db.corrupt-{}",
+        now.format("%Y%m%d-%H%M%S")
+    ));
+    error!(
+        "History database is corrupt ({first_error:#}); moving it to {}",
+        moved_to.display()
+    );
+    if let Err(error) = fs::rename(db_path, &moved_to) {
+        error!("Failed to move the corrupt history database aside: {error}");
+        return HistoryStartup::Unavailable;
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{suffix}", db_path.display()));
+        if sidecar.exists() {
+            let _ = fs::rename(
+                &sidecar,
+                PathBuf::from(format!("{}{suffix}", moved_to.display())),
             );
-        } else {
-            debug!("Database already at latest version {}", version_after);
         }
+    }
+    match init_database(db_path) {
+        Ok(()) => HistoryStartup::Reset { moved_to },
+        Err(error) => {
+            error!("Failed to recreate the history database: {error:#}");
+            HistoryStartup::Unavailable
+        }
+    }
+}
 
-        Ok(())
+fn is_corruption(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        let sqlite_error = cause.downcast_ref::<rusqlite::Error>().or_else(|| {
+            match cause.downcast_ref::<rusqlite_migration::Error>() {
+                Some(rusqlite_migration::Error::RusqliteError { err, .. }) => Some(err),
+                _ => None,
+            }
+        });
+        matches!(
+            sqlite_error.and_then(rusqlite::Error::sqlite_error_code),
+            Some(rusqlite::ErrorCode::NotADatabase | rusqlite::ErrorCode::DatabaseCorrupt)
+        )
+    })
+}
+
+fn init_database(db_path: &Path) -> Result<()> {
+    info!("Initializing database at {:?}", db_path);
+
+    let mut conn = Connection::open(db_path)?;
+    // Reading the schema fails fast on a file that is not a database.
+    let integrity: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
+    if integrity != "ok" {
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            Some(integrity),
+        )
+        .into());
     }
 
+    migrate_from_tauri_plugin_sql(&conn)?;
+
+    // Create migrations object and run to latest version
+    let migrations = Migrations::new(MIGRATIONS.to_vec());
+
+    // Validate migrations in debug builds
+    #[cfg(debug_assertions)]
+    migrations.validate().expect("Invalid migrations");
+
+    // Get current version before migration
+    let version_before: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    debug!("Database version before migration: {}", version_before);
+
+    // Apply any pending migrations
+    migrations.to_latest(&mut conn)?;
+
+    // Get version after migration
+    let version_after: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+
+    if version_after > version_before {
+        info!(
+            "Database migrated from version {} to {}",
+            version_before, version_after
+        );
+    } else {
+        debug!("Database already at latest version {}", version_after);
+    }
+
+    Ok(())
+}
+
+impl HistoryManager {
     fn get_connection(&self) -> Result<Connection> {
         Ok(Connection::open(&self.db_path)?)
     }
@@ -675,6 +758,59 @@ impl HistoryManager {
 mod tests {
     use super::*;
     use rusqlite::{params, Connection};
+
+    fn startup_time() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-10-15T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    #[test]
+    fn corrupt_database_is_moved_aside_and_recreated() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let db_path = temp.path().join("history.db");
+        std::fs::write(
+            &db_path,
+            b"this is not a sqlite database at all, just bytes",
+        )
+        .expect("write corrupt database");
+
+        let startup = open_or_reset_database(&db_path, startup_time());
+
+        let moved_to = temp.path().join("history.db.corrupt-20261015-120000");
+        assert_eq!(
+            startup,
+            HistoryStartup::Reset {
+                moved_to: moved_to.clone()
+            }
+        );
+        assert_eq!(
+            std::fs::read(&moved_to).expect("read moved database"),
+            b"this is not a sqlite database at all, just bytes"
+        );
+        let conn = Connection::open(&db_path).expect("open recreated database");
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM transcription_history", [], |row| {
+                row.get(0)
+            })
+            .expect("query recreated history table");
+        assert_eq!(rows, 0);
+    }
+
+    #[test]
+    fn healthy_database_is_opened_in_place() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let db_path = temp.path().join("history.db");
+        assert_eq!(
+            open_or_reset_database(&db_path, startup_time()),
+            HistoryStartup::Ready
+        );
+        assert_eq!(
+            open_or_reset_database(&db_path, startup_time()),
+            HistoryStartup::Ready
+        );
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
 
     fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().expect("open in-memory db");
