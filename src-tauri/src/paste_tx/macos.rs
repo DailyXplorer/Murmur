@@ -95,8 +95,70 @@ impl MurmurPasteProvider {
     }
 }
 
+/// Limits on saving the previous clipboard. Reading a type the source app
+/// provided lazily makes that app render it synchronously on our main thread,
+/// right before the paste, so the save must stay small and quick.
+#[derive(Debug, Clone, Copy)]
+struct CaptureBudget {
+    max_bytes: usize,
+    max_duration: Duration,
+}
+
+const CAPTURE_BUDGET: CaptureBudget = CaptureBudget {
+    max_bytes: 32 * 1024 * 1024,
+    max_duration: Duration::from_millis(150),
+};
+
+/// Why the previous clipboard was not saved. Settlement then erases the
+/// transcript instead of restoring.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CaptureLimit {
+    Bytes,
+    Time,
+}
+
+/// Promises and expensive renderings that the source app produces on demand.
+/// Like Maccy, which drops PDF and the Office OLE/link types when it saves a
+/// copy, these are skipped whenever the item has another representation.
+const COSTLY_TYPE_PREFIXES: [&str; 2] = [
+    "com.apple.pasteboard.promised-",
+    "com.microsoft.ole.source.",
+];
+const COSTLY_TYPES: [&str; 7] = [
+    "com.apple.NSFilePromiseItemMetaData",
+    "com.microsoft.Link-Source",
+    "com.microsoft.ObjectLink",
+    "com.adobe.pdf",
+    "public.tiff",
+    "NSTIFFPboardType",
+    "com.apple.pict",
+];
+
+fn is_costly_type(data_type: &str) -> bool {
+    COSTLY_TYPES.contains(&data_type)
+        || COSTLY_TYPE_PREFIXES
+            .iter()
+            .any(|prefix| data_type.starts_with(prefix))
+}
+
+/// The types of one item worth saving. Costly types go only when a type that
+/// is neither costly nor a `dyn.` alias (which may just alias the costly one)
+/// can stand in for them.
+fn types_to_capture(types: Vec<String>) -> Vec<String> {
+    let has_substitute = types
+        .iter()
+        .any(|data_type| !is_costly_type(data_type) && !data_type.starts_with("dyn."));
+    if !has_substitute {
+        return types;
+    }
+    types
+        .into_iter()
+        .filter(|data_type| !is_costly_type(data_type))
+        .collect()
+}
+
 /// The clipboard as it was before Murmur published a transcript: every item,
-/// with the data of every type it offered, so restoring it is lossless.
+/// with the data of every type worth saving.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct SavedClipboard {
     items: Vec<Vec<(String, Vec<u8>)>>,
@@ -104,26 +166,52 @@ struct SavedClipboard {
 
 impl SavedClipboard {
     /// Must run on the main thread.
-    fn capture(pasteboard: &NSPasteboard) -> Self {
-        let mut items = Vec::new();
-        for item in pasteboard
+    fn capture(pasteboard: &NSPasteboard, budget: CaptureBudget) -> Result<Self, CaptureLimit> {
+        let items: Vec<Retained<NSPasteboardItem>> = pasteboard
             .pasteboardItems()
+            .map(|items| items.to_vec())
+            .unwrap_or_default();
+        let item_types = items
             .iter()
-            .flat_map(|items| items.iter())
-        {
-            let entries: Vec<_> = item
-                .types()
-                .iter()
-                .filter_map(|data_type| {
-                    let data = item.dataForType(&data_type)?;
-                    Some((data_type.to_string(), data.to_vec()))
-                })
-                .collect();
+            .map(|item| item.types().iter().map(|t| t.to_string()).collect())
+            .collect();
+        Self::capture_with(item_types, budget, |index, data_type| {
+            items[index]
+                .dataForType(&NSString::from_str(data_type))
+                .map(|data| data.to_vec())
+        })
+    }
+
+    /// Reads the types of each item through `read`, checking both budgets
+    /// between reads. A single read cannot be interrupted.
+    fn capture_with(
+        item_types: Vec<Vec<String>>,
+        budget: CaptureBudget,
+        mut read: impl FnMut(usize, &str) -> Option<Vec<u8>>,
+    ) -> Result<Self, CaptureLimit> {
+        let started = Instant::now();
+        let mut total_bytes = 0usize;
+        let mut items = Vec::new();
+        for (index, types) in item_types.into_iter().enumerate() {
+            let mut entries = Vec::new();
+            for data_type in types_to_capture(types) {
+                if started.elapsed() >= budget.max_duration {
+                    return Err(CaptureLimit::Time);
+                }
+                let Some(bytes) = read(index, &data_type) else {
+                    continue;
+                };
+                total_bytes = total_bytes.saturating_add(bytes.len());
+                if total_bytes > budget.max_bytes {
+                    return Err(CaptureLimit::Bytes);
+                }
+                entries.push((data_type, bytes));
+            }
             if !entries.is_empty() {
                 items.push(entries);
             }
         }
-        Self { items }
+        Ok(Self { items })
     }
 
     /// Replaces the clipboard with the saved items. Must run on the main thread.
@@ -161,7 +249,8 @@ struct MacPending {
     /// The transcript, for `preserve_transcript` materialization at settle time.
     transcript: String,
     /// The user's clipboard from before the paste, restored at settlement.
-    previous: SavedClipboard,
+    /// When it was over budget, settlement erases the transcript instead.
+    previous: Result<SavedClipboard, CaptureLimit>,
     settled: bool,
 }
 
@@ -252,13 +341,23 @@ fn settle(pending: &Arc<Mutex<MacPending>>) {
                 finish_settlement(&mut p);
                 return;
             }
-            if p.previous.restore(&pasteboard) {
-                info!(
+            match &p.previous {
+                Ok(previous) if previous.restore(&pasteboard) => info!(
                     "[reliable-paste] restored the previous clipboard ({} items)",
-                    p.previous.items.len()
-                );
-            } else {
-                error!("[reliable-paste] failed to restore the previous clipboard");
+                    previous.items.len()
+                ),
+                Ok(_) => error!("[reliable-paste] failed to restore the previous clipboard"),
+                // Replacing our promised values in place avoids the
+                // check-then-clear race: setString fails if another process
+                // takes ownership first.
+                Err(_) if materialize_promised_data(&pasteboard, "") => {
+                    info!(
+                        "[reliable-paste] erased transcript; the previous clipboard was not saved"
+                    )
+                }
+                Err(_) => {
+                    info!("[reliable-paste] clipboard changed during cleanup; leaving it untouched")
+                }
             }
         }
     }
@@ -468,12 +567,17 @@ pub(super) fn run(
     }
 
     // After flush_pending, so an earlier Murmur paste has already put the
-    // user's own clipboard back and that is what gets saved.
+    // user's own clipboard back and that is what gets saved. It cannot move
+    // off this path: saving earlier would miss a copy made during
+    // transcription, and declareTypes below discards the source's promises.
     let previous = if clipboard_handling == ClipboardHandling::CopyToClipboard {
-        SavedClipboard::default()
+        Ok(SavedClipboard::default())
     } else {
-        SavedClipboard::capture(&pasteboard)
+        SavedClipboard::capture(&pasteboard, CAPTURE_BUDGET)
     };
+    if let Err(limit) = &previous {
+        info!("[reliable-paste] previous clipboard not saved ({limit:?} budget exceeded); it will be erased after the paste");
+    }
 
     // declareTypes:owner: clears the pasteboard and puts our promise on it;
     // the return value is the new changeCount.
@@ -575,7 +679,7 @@ mod tests {
         assert!(materialize_promised_data(&pasteboard, "transcript"));
         assert!(saved.restore(&pasteboard));
 
-        let restored = SavedClipboard::capture(&pasteboard);
+        let restored = SavedClipboard::capture(&pasteboard, CAPTURE_BUDGET).unwrap();
         release(&pasteboard);
         assert_eq!(restored.items.len(), 2);
         for (saved_item, restored_item) in saved.items.iter().zip(&restored.items) {
@@ -593,9 +697,99 @@ mod tests {
 
         assert!(SavedClipboard::default().restore(&pasteboard));
 
-        let restored = SavedClipboard::capture(&pasteboard);
+        let restored = SavedClipboard::capture(&pasteboard, CAPTURE_BUDGET).unwrap();
         release(&pasteboard);
         assert_eq!(restored, SavedClipboard::default());
+    }
+
+    #[test]
+    fn previous_clipboard_over_the_byte_budget_is_not_restorable() {
+        let pasteboard = NSPasteboard::pasteboardWithUniqueName();
+        let saved = SavedClipboard {
+            items: vec![vec![("com.example.large".to_string(), vec![7; 4096])]],
+        };
+        assert!(saved.restore(&pasteboard));
+        let budget = CaptureBudget {
+            max_bytes: 1024,
+            ..CAPTURE_BUDGET
+        };
+
+        let captured = SavedClipboard::capture(&pasteboard, budget);
+        release(&pasteboard);
+        assert_eq!(captured, Err(CaptureLimit::Bytes));
+    }
+
+    #[test]
+    fn byte_budget_counts_every_item() {
+        let item_types = vec![
+            vec!["public.utf8-plain-text".to_string()],
+            vec!["public.png".to_string()],
+        ];
+        let budget = CaptureBudget {
+            max_bytes: 10,
+            ..CAPTURE_BUDGET
+        };
+
+        let fits =
+            SavedClipboard::capture_with(item_types.clone(), budget, |_, _| Some(vec![0; 5]));
+        assert_eq!(fits.map(|saved| saved.items.len()), Ok(2));
+        let over = SavedClipboard::capture_with(item_types, budget, |_, _| Some(vec![0; 6]));
+        assert_eq!(over, Err(CaptureLimit::Bytes));
+    }
+
+    #[test]
+    fn exhausted_time_budget_is_not_restorable_and_reads_nothing() {
+        let budget = CaptureBudget {
+            max_duration: Duration::ZERO,
+            ..CAPTURE_BUDGET
+        };
+        let mut reads = 0;
+
+        let captured = SavedClipboard::capture_with(
+            vec![vec!["public.utf8-plain-text".to_string()]],
+            budget,
+            |_, _| {
+                reads += 1;
+                Some(b"text".to_vec())
+            },
+        );
+        assert_eq!(captured, Err(CaptureLimit::Time));
+        assert_eq!(reads, 0);
+        assert_eq!(
+            SavedClipboard::capture_with(Vec::new(), budget, |_, _| None),
+            Ok(SavedClipboard::default())
+        );
+    }
+
+    #[test]
+    fn costly_types_are_skipped_only_when_a_cheaper_type_exists() {
+        fn types(names: &[&str]) -> Vec<String> {
+            names.iter().map(|name| name.to_string()).collect()
+        }
+
+        // A spreadsheet range: text and HTML stand in for PDF and TIFF.
+        assert_eq!(
+            types_to_capture(types(&[
+                "public.utf8-plain-text",
+                "com.adobe.pdf",
+                "public.html",
+                "public.tiff",
+                "com.microsoft.Link-Source",
+                "com.microsoft.ole.source.excel",
+                "com.apple.pasteboard.promised-file-url",
+            ])),
+            types(&["public.utf8-plain-text", "public.html"])
+        );
+        // An image offered only as TIFF (plus its legacy alias) is kept whole.
+        assert_eq!(
+            types_to_capture(types(&["public.tiff", "dyn.ah62d4rv4gk81n65yru"])),
+            types(&["public.tiff", "dyn.ah62d4rv4gk81n65yru"])
+        );
+        // A cheaper image type replaces TIFF.
+        assert_eq!(
+            types_to_capture(types(&["public.png", "public.tiff"])),
+            types(&["public.png"])
+        );
     }
 
     fn release(pasteboard: &NSPasteboard) {
