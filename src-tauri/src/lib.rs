@@ -14,6 +14,7 @@ mod commands;
 mod gemini_transcribe;
 mod helpers;
 mod input;
+mod insights;
 mod managers;
 mod operation;
 mod overlay;
@@ -257,6 +258,13 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(recording_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    // Insights are optional: a broken stats database must not stop dictation.
+    match insights::InsightsManager::new(app_handle, &history_manager) {
+        Ok(insights_manager) => {
+            app_handle.manage(Arc::new(insights_manager));
+        }
+        Err(e) => log::error!("Failed to initialize insights: {e}"),
+    }
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -516,8 +524,12 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
+            insights::get_insights,
         ])
-        .events(collect_events![managers::history::HistoryUpdatePayload]);
+        .events(collect_events![
+            managers::history::HistoryUpdatePayload,
+            insights::InsightsUpdated
+        ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     {

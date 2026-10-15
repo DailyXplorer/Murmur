@@ -28,7 +28,59 @@
     "history": "Historia",
     "debug": "Debugowanie",
     "about": "O programie",
-    "transcription": "Transkrypcja"
+    "transcription": "Transkrypcja",
+    "insights": "Statystyki"
+  },
+  "insights": {
+    "error": "Nie udało się wczytać statystyk.",
+    "privacy": "Statystyki są obliczane na tym Macu i tu pozostają. Nie zapisuje się dla nich żadnego dyktowanego tekstu.",
+    "wpm": {
+      "title": "Słowa na minutę",
+      "window": "Ostatnie 30 dni",
+      "empty": "Za mało dyktowań z zarejestrowanym czasem",
+      "formula": "Łączna liczba słów podyktowanych w ciągu ostatnich 30 dni podzielona przez łączny czas nagrania tych dyktowań, w minutach. Nagrania krótsze niż sekunda są pomijane."
+    },
+    "words": {
+      "title": "Łącznie słów",
+      "empty": "Zacznij dyktować, aby to uzupełnić",
+      "equivalence": {
+        "emails": "≈ {{amount}} × typowy e-mail",
+        "pages": "≈ {{amount}} × strona książki",
+        "stories": "≈ {{amount}} × opowiadanie",
+        "novels": "≈ {{amount}} × powieść"
+      }
+    },
+    "fixes": {
+      "title": "Poprawki",
+      "description": "Słowa poprawione przez Ciebie po wklejeniu przez Murmur oraz słowa automatycznie zastąpione przez Twój słownik.",
+      "wordsCorrected": "Poprawione słowa: {{value}}",
+      "dictionaryFixes": "Poprawki słownika: {{value}}"
+    },
+    "apps": {
+      "title": "Użycie według aplikacji",
+      "description": "Dokąd trafiły Twoje dyktowania, według kategorii aplikacji.",
+      "empty": "Kategorie aplikacji są zapisywane tylko dla nowych dyktowań. Dyktuj w dowolnej aplikacji, aby wypełnić tę sekcję.",
+      "totalApps": "Używane aplikacje",
+      "categories": {
+        "aiPrompts": "Prompty AI",
+        "personalMessages": "Wiadomości prywatne",
+        "workMessages": "Wiadomości służbowe",
+        "emails": "E-maile",
+        "documents": "Dokumenty",
+        "coding": "Kod i terminal",
+        "other": "Inne"
+      }
+    },
+    "streak": {
+      "title": "Seria",
+      "description": "Dni z co najmniej jednym dyktowaniem, w Twojej lokalnej strefie czasowej.",
+      "current": "Obecna seria",
+      "longest": "Najdłuższa seria",
+      "heatmapLabel": "Dyktowania dziennie w ciągu ostatnich 20 tygodni",
+      "cellTitle": "Dyktowania {{date}}: {{value}}",
+      "less": "Mniej",
+      "more": "Więcej"
+    }
   },
   "onboarding": {
     "permissions": {

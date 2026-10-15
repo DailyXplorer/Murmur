@@ -89,7 +89,8 @@ pub async fn retry_history_entry_transcription(
     let transcription = transcription_manager
         .transcribe_with_provider(Arc::new(samples), retry_operation, provider)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+        .text;
 
     if transcription.is_empty() {
         return Err("Recording contains no speech".to_string());

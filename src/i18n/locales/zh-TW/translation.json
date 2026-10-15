@@ -28,7 +28,59 @@
     "history": "歷史紀錄",
     "debug": "偵錯",
     "about": "關於",
-    "transcription": "轉錄"
+    "transcription": "轉錄",
+    "insights": "數據洞察"
+  },
+  "insights": {
+    "error": "無法載入數據洞察。",
+    "privacy": "數據洞察在這台 Mac 上計算並保留在本機，不會為此儲存任何聽寫文字。",
+    "wpm": {
+      "title": "每分鐘字數",
+      "window": "最近 30 天",
+      "empty": "有時長的聽寫還不夠",
+      "formula": "最近 30 天聽寫的總字數除以這些聽寫的總錄音時長（分鐘）。短於一秒的錄音不計入。"
+    },
+    "words": {
+      "title": "總字數",
+      "empty": "開始聽寫後這裡會顯示資料",
+      "equivalence": {
+        "emails": "≈ {{amount}} 封一般郵件",
+        "pages": "≈ {{amount}} 頁書",
+        "stories": "≈ {{amount}} 篇短篇小說",
+        "novels": "≈ {{amount}} 部長篇小說"
+      }
+    },
+    "fixes": {
+      "title": "修正",
+      "description": "Murmur 貼上後你手動修改的字詞，加上自訂詞典自動替換的字詞。",
+      "wordsCorrected": "修正的字詞：{{value}}",
+      "dictionaryFixes": "詞典修正：{{value}}"
+    },
+    "apps": {
+      "title": "依應用程式統計",
+      "description": "依應用程式類別顯示你的聽寫去向。",
+      "empty": "應用程式類別只會為新的聽寫記錄。在任何應用程式中聽寫即可填入此區塊。",
+      "totalApps": "使用過的應用程式",
+      "categories": {
+        "aiPrompts": "AI 提示詞",
+        "personalMessages": "私人訊息",
+        "workMessages": "工作訊息",
+        "emails": "郵件",
+        "documents": "文件",
+        "coding": "程式設計與終端機",
+        "other": "其他"
+      }
+    },
+    "streak": {
+      "title": "連續紀錄",
+      "description": "依本地時區計算，至少有一次聽寫的天數。",
+      "current": "目前連續天數",
+      "longest": "最長連續天數",
+      "heatmapLabel": "最近 20 週每天的聽寫次數",
+      "cellTitle": "{{date}} 的聽寫：{{value}}",
+      "less": "少",
+      "more": "多"
+    }
   },
   "onboarding": {
     "permissions": {

@@ -28,7 +28,59 @@
     "history": "Geçmiş",
     "debug": "Hata Ayıklama",
     "about": "Hakkında",
-    "transcription": "Transkripsiyon"
+    "transcription": "Transkripsiyon",
+    "insights": "İstatistikler"
+  },
+  "insights": {
+    "error": "İstatistikler yüklenemedi.",
+    "privacy": "İstatistikler bu Mac'te hesaplanır ve burada kalır. Bunlar için dikte edilen metin saklanmaz.",
+    "wpm": {
+      "title": "Dakikada kelime",
+      "window": "Son 30 gün",
+      "empty": "Henüz yeterli süreli dikte yok",
+      "formula": "Son 30 günde dikte edilen toplam kelime sayısının bu diktelerin dakika cinsinden toplam kayıt süresine bölümü. Bir saniyeden kısa kayıtlar atlanır."
+    },
+    "words": {
+      "title": "Toplam kelime",
+      "empty": "Bu alanı doldurmak için dikte etmeye başlayın",
+      "equivalence": {
+        "emails": "≈ {{amount}} × tipik bir e-posta",
+        "pages": "≈ {{amount}} × bir kitap sayfası",
+        "stories": "≈ {{amount}} × bir öykü",
+        "novels": "≈ {{amount}} × bir roman"
+      }
+    },
+    "fixes": {
+      "title": "Düzeltmeler",
+      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz kelimeler ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
+      "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
+      "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
+    },
+    "apps": {
+      "title": "Uygulamaya göre kullanım",
+      "description": "Dikteleriniz uygulama kategorisine göre nereye gitti.",
+      "empty": "Uygulama kategorileri yalnızca yeni dikteler için kaydedilir. Bu bölümü doldurmak için herhangi bir uygulamada dikte edin.",
+      "totalApps": "Kullanılan uygulamalar",
+      "categories": {
+        "aiPrompts": "Yapay zekâ istemleri",
+        "personalMessages": "Kişisel mesajlar",
+        "workMessages": "İş mesajları",
+        "emails": "E-postalar",
+        "documents": "Belgeler",
+        "coding": "Kod ve terminal",
+        "other": "Diğer"
+      }
+    },
+    "streak": {
+      "title": "Seri",
+      "description": "Yerel saat diliminizde en az bir dikte yapılan günler.",
+      "current": "Mevcut seri",
+      "longest": "En uzun seri",
+      "heatmapLabel": "Son 20 haftada günlük dikteler",
+      "cellTitle": "{{date}} tarihindeki dikteler: {{value}}",
+      "less": "Az",
+      "more": "Çok"
+    }
   },
   "onboarding": {
     "permissions": {
