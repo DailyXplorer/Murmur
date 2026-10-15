@@ -196,6 +196,31 @@ fn take_due_limit_warning(stage: &mut Stage, now: Instant) -> bool {
     }
 }
 
+/// What the coordinator handles next, once the recording cap is checked.
+enum Next {
+    Command(Command),
+    /// The double-tap window closed with no second press queued.
+    GestureExpired(Gesture),
+    /// Nothing is queued and no gesture deadline has passed.
+    Wait,
+    Closed,
+}
+
+/// Reads a queued command before it judges the gesture deadline. Key events
+/// carry the time they fired, so a second tap that queued while the coordinator
+/// was busy (for example opening a slow microphone) still lands inside the
+/// window. Only an empty queue proves that no second press came in time.
+fn next_step(rx: &Receiver<Command>, gesture: Gesture, now: Instant) -> Next {
+    match rx.try_recv() {
+        Ok(cmd) => Next::Command(cmd),
+        Err(mpsc::TryRecvError::Disconnected) => Next::Closed,
+        Err(mpsc::TryRecvError::Empty) => match gesture.on_deadline(now) {
+            (expired, Intent::Discard) => Next::GestureExpired(expired),
+            _ => Next::Wait,
+        },
+    }
+}
+
 fn is_bounce(last_press: Option<Instant>, at: Instant) -> bool {
     last_press.is_some_and(|previous| at.saturating_duration_since(previous) < DEBOUNCE)
 }
@@ -258,122 +283,131 @@ impl Worker {
                 continue;
             }
 
-            let (gesture, intent) = self.gesture.on_deadline(now);
-            if intent != Intent::None {
-                self.gesture = gesture;
-                self.discard();
-                continue;
-            }
-
-            if let Some((binding_id, hotkey_string)) =
-                take_due_start(&self.stage, &mut self.pending_start, now)
-            {
-                self.pending_start = start(&self.app, &mut self.stage, &binding_id, &hotkey_string);
-                if matches!(self.gesture, Gesture::HandsFree { .. }) {
-                    self.show_hands_free();
+            let cmd = match next_step(&rx, self.gesture, now) {
+                Next::Command(cmd) => cmd,
+                Next::GestureExpired(gesture) => {
+                    self.gesture = gesture;
+                    self.discard();
+                    continue;
                 }
-                self.forget_gesture_without_recording();
-                continue;
-            }
+                Next::Closed => break,
+                Next::Wait => {
+                    if let Some((binding_id, hotkey_string)) =
+                        take_due_start(&self.stage, &mut self.pending_start, now)
+                    {
+                        self.pending_start =
+                            start(&self.app, &mut self.stage, &binding_id, &hotkey_string);
+                        if matches!(self.gesture, Gesture::HandsFree { .. }) {
+                            self.show_hands_free();
+                        }
+                        self.forget_gesture_without_recording();
+                        continue;
+                    }
 
-            let cmd = if let Some(deadline) =
-                next_deadline(&self.stage, self.gesture, self.pending_start.as_ref())
-            {
-                match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                    Ok(cmd) => cmd,
-                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                }
-            } else {
-                match rx.recv() {
-                    Ok(cmd) => cmd,
-                    Err(_) => break,
+                    // Wake at the next deadline and come back through the
+                    // queue check above rather than judging it here.
+                    match next_deadline(&self.stage, self.gesture, self.pending_start.as_ref()) {
+                        Some(deadline) => match rx
+                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        {
+                            Ok(cmd) => cmd,
+                            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        },
+                        None => match rx.recv() {
+                            Ok(cmd) => cmd,
+                            Err(_) => break,
+                        },
+                    }
                 }
             };
+            self.handle(cmd);
+        }
+    }
 
-            match cmd {
-                Command::Key {
-                    binding_id,
-                    hotkey_string,
-                    key,
-                    at,
-                } => {
-                    if key == Key::Press {
-                        if is_bounce(self.last_press, at) {
-                            debug!("Debounced press for '{binding_id}'");
-                            continue;
-                        }
-                        self.last_press = Some(at);
+    fn handle(&mut self, cmd: Command) {
+        match cmd {
+            Command::Key {
+                binding_id,
+                hotkey_string,
+                key,
+                at,
+            } => {
+                if key == Key::Press {
+                    if is_bounce(self.last_press, at) {
+                        debug!("Debounced press for '{binding_id}'");
+                        return;
                     }
-                    let (gesture, intent) = self.gesture.on_key(key, at);
-                    self.gesture = gesture;
-                    self.apply(intent, &binding_id, &hotkey_string);
+                    self.last_press = Some(at);
                 }
-                Command::Toggle {
-                    binding_id,
-                    hotkey_string,
-                } => {
-                    let (gesture, intent) = self.gesture.on_toggle();
-                    self.gesture = gesture;
-                    self.apply(intent, &binding_id, &hotkey_string);
+                let (gesture, intent) = self.gesture.on_key(key, at);
+                self.gesture = gesture;
+                self.apply(intent, &binding_id, &hotkey_string);
+            }
+            Command::Toggle {
+                binding_id,
+                hotkey_string,
+            } => {
+                let (gesture, intent) = self.gesture.on_toggle();
+                self.gesture = gesture;
+                self.apply(intent, &binding_id, &hotkey_string);
+            }
+            Command::Cancel | Command::RemoteCancel => {
+                self.gesture = Gesture::Idle;
+                // Remote single-instance actions share this queue with
+                // remote toggles, and local cancellations must make the
+                // same decision from this authoritative stage. In
+                // particular, `stop_recording` moves us to Processing
+                // before its worker releases the audio manager, so that
+                // manager can still report recording active here.
+                let may_return_idle = request_cancel(&self.stage);
+                crate::utils::cancel_current_operation_from_coordinator(&self.app);
+                if may_return_idle {
+                    finish_cancel(&mut self.stage, &mut self.pending_start);
+                } else {
+                    // A Cmd+V was already posted. The async paste future
+                    // will suppress delayed Enter and FinishGuard will
+                    // transition to Idle after the modifier-release
+                    // receipt.
+                    self.pending_start = None;
                 }
-                Command::Cancel | Command::RemoteCancel => {
-                    self.gesture = Gesture::Idle;
-                    // Remote single-instance actions share this queue with
-                    // remote toggles, and local cancellations must make the
-                    // same decision from this authoritative stage. In
-                    // particular, `stop_recording` moves us to Processing
-                    // before its worker releases the audio manager, so that
-                    // manager can still report recording active here.
-                    let may_return_idle = request_cancel(&self.stage);
-                    crate::utils::cancel_current_operation_from_coordinator(&self.app);
-                    if may_return_idle {
-                        finish_cancel(&mut self.stage, &mut self.pending_start);
-                    } else {
-                        // A Cmd+V was already posted. The async paste future
-                        // will suppress delayed Enter and FinishGuard will
-                        // transition to Idle after the modifier-release
-                        // receipt.
-                        self.pending_start = None;
-                    }
+            }
+            Command::PasteLast => {
+                if matches!(self.stage, Stage::Idle) {
+                    let operation = self.next_operation();
+                    self.stage = Stage::Processing {
+                        operation: operation.clone(),
+                    };
+                    crate::paste_last::spawn(&self.app, operation);
+                } else {
+                    debug!("Ignoring paste-last request: dictation in progress");
                 }
-                Command::PasteLast => {
-                    if matches!(self.stage, Stage::Idle) {
-                        let operation = self.next_operation();
-                        self.stage = Stage::Processing {
-                            operation: operation.clone(),
-                        };
-                        crate::paste_last::spawn(&self.app, operation);
-                    } else {
-                        debug!("Ignoring paste-last request: dictation in progress");
-                    }
+            }
+            Command::Shutdown => {
+                self.gesture = Gesture::Idle;
+                let may_return_idle = request_cancel(&self.stage);
+                crate::utils::cancel_current_operation_from_coordinator(&self.app);
+                if may_return_idle {
+                    finish_cancel(&mut self.stage, &mut self.pending_start);
+                    self.shutdown_drain.finish();
+                } else {
+                    self.pending_start = None;
                 }
-                Command::Shutdown => {
-                    self.gesture = Gesture::Idle;
-                    let may_return_idle = request_cancel(&self.stage);
-                    crate::utils::cancel_current_operation_from_coordinator(&self.app);
-                    if may_return_idle {
-                        finish_cancel(&mut self.stage, &mut self.pending_start);
+            }
+            Command::ProcessingFinished(id) => {
+                if is_current_processing(&self.stage, id) {
+                    self.stage = Stage::Idle;
+                    crate::shortcut::unregister_cancel_shortcut(&self.app);
+                    crate::tray::change_tray_icon(&self.app, crate::tray::TrayIconState::Idle);
+                    crate::utils::hide_recording_overlay(&self.app);
+                    if self.shutdown_drain.is_closing() {
                         self.shutdown_drain.finish();
-                    } else {
-                        self.pending_start = None;
                     }
-                }
-                Command::ProcessingFinished(id) => {
-                    if is_current_processing(&self.stage, id) {
-                        self.stage = Stage::Idle;
-                        crate::shortcut::unregister_cancel_shortcut(&self.app);
-                        crate::tray::change_tray_icon(&self.app, crate::tray::TrayIconState::Idle);
-                        crate::utils::hide_recording_overlay(&self.app);
-                        if self.shutdown_drain.is_closing() {
-                            self.shutdown_drain.finish();
-                        }
-                    } else {
-                        debug!(
-                            "Ignoring stale transcription completion for operation {}",
-                            id.0
-                        );
-                    }
+                } else {
+                    debug!(
+                        "Ignoring stale transcription completion for operation {}",
+                        id.0
+                    );
                 }
             }
         }
@@ -401,6 +435,10 @@ impl Worker {
                 _ => self.pending_start = None,
             },
             Intent::Discard => self.discard(),
+            Intent::Restart => {
+                self.discard();
+                self.apply(Intent::Start, binding_id, hotkey_string);
+            }
         }
         self.forget_gesture_without_recording();
     }
@@ -792,6 +830,81 @@ mod tests {
             },
             None
         ));
+    }
+
+    /// Feeds the queue through `next_step` the way `Worker::run` does, at a
+    /// fixed `now`, and returns the intents and the final gesture.
+    fn drain_at(
+        rx: &Receiver<Command>,
+        mut gesture: Gesture,
+        now: Instant,
+    ) -> (Vec<Intent>, Gesture) {
+        let mut intents = Vec::new();
+        loop {
+            match next_step(rx, gesture, now) {
+                Next::Command(Command::Key { key, at, .. }) => {
+                    let (next, intent) = gesture.on_key(key, at);
+                    gesture = next;
+                    intents.push(intent);
+                }
+                Next::GestureExpired(next) => {
+                    gesture = next;
+                    intents.push(Intent::Discard);
+                }
+                Next::Command(_) => unreachable!("only key commands are queued"),
+                Next::Wait | Next::Closed => break,
+            }
+        }
+        intents.retain(|intent| *intent != Intent::None);
+        (intents, gesture)
+    }
+
+    fn key_at(key: Key, at: Instant) -> Command {
+        Command::Key {
+            binding_id: "transcribe".to_string(),
+            hotkey_string: "Option+Space".to_string(),
+            key,
+            at,
+        }
+    }
+
+    #[test]
+    fn a_double_tap_queued_behind_a_slow_microphone_locks_hands_free() {
+        let t0 = Instant::now();
+        let (tx, rx) = mpsc::channel();
+        // The first press started a recording, and opening the microphone
+        // held the coordinator until 600 ms while the rest of the double tap
+        // queued up.
+        for (key, at_ms) in [(Key::Release, 80), (Key::Press, 200), (Key::Release, 260)] {
+            tx.send(key_at(key, t0 + Duration::from_millis(at_ms)))
+                .unwrap();
+        }
+
+        let (intents, gesture) = drain_at(
+            &rx,
+            Gesture::Pressed { since: t0 },
+            t0 + Duration::from_millis(600),
+        );
+
+        assert_eq!(intents, [Intent::LockHandsFree]);
+        assert_eq!(gesture, Gesture::HandsFree { key_down: false });
+    }
+
+    #[test]
+    fn a_lone_tap_expires_only_once_the_queue_is_empty() {
+        let t0 = Instant::now();
+        let (tx, rx) = mpsc::channel();
+        tx.send(key_at(Key::Release, t0 + Duration::from_millis(80)))
+            .unwrap();
+
+        let (intents, gesture) = drain_at(
+            &rx,
+            Gesture::Pressed { since: t0 },
+            t0 + Duration::from_millis(600),
+        );
+
+        assert_eq!(intents, [Intent::Discard]);
+        assert_eq!(gesture, Gesture::Idle);
     }
 
     #[test]
