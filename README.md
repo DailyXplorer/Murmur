@@ -41,7 +41,7 @@ provider's terms for your account.
 ## Features
 
 - One recording shortcut: hold it to talk, or double-tap it to record hands-free and press it once to stop
-- Cancel shortcut
+- Cancel shortcut, and a shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection

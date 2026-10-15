@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Il microfono sempre attivo non si è avviato. Murmur lo aprirà quando registri.",
     "errorHistoryStartup": "Impossibile aprire la cronologia. La dettatura funziona, ma non viene salvato nulla nella cronologia.",
     "noticeHistoryReset": "La cronologia era danneggiata ed è stata reimpostata. Il vecchio file è stato conservato accanto.",
-    "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti)."
+    "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti).",
+    "pasteLastTranscript": "Incolla l'ultima trascrizione",
+    "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare."
   },
   "sidebar": {
     "general": "Generale",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Scorciatoia Annulla",
             "description": "La scorciatoia da tastiera per annullare la registrazione in corso."
+          },
+          "paste_last": {
+            "name": "Incolla l'ultima trascrizione",
+            "description": "Incolla di nuovo l'ultima trascrizione nell'app che stai usando."
           }
         },
         "errors": {

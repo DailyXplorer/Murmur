@@ -18,6 +18,7 @@ mod input;
 mod managers;
 mod operation;
 mod overlay;
+mod paste_last;
 mod paste_tx;
 mod settings;
 mod shortcut;
@@ -293,6 +294,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "copy_last_transcript" => {
                 tray::copy_last_transcript(app);
+            }
+            "paste_last_transcript" => {
+                paste_last::request(app);
             }
             "cancel" => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {

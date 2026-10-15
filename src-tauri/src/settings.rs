@@ -437,6 +437,16 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+    bindings.insert(
+        crate::paste_last::BINDING_ID.to_string(),
+        ShortcutBinding {
+            id: crate::paste_last::BINDING_ID.to_string(),
+            name: "Paste last transcription".to_string(),
+            description: "Pastes the latest transcription again.".to_string(),
+            default_binding: crate::paste_last::DEFAULT_BINDING.to_string(),
+            current_binding: crate::paste_last::DEFAULT_BINDING.to_string(),
+        },
+    );
 
     AppSettings {
         bindings,

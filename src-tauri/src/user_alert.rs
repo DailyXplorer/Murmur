@@ -17,6 +17,7 @@ pub enum Alert {
     MicrophoneDenied,
     LongRecording,
     RecordingLimitSoon,
+    NothingToPaste,
     ShortcutUnavailable { shortcut: String },
     MicrophoneUnavailableAtStartup,
     HistoryUnavailable,
@@ -53,6 +54,7 @@ impl Alert {
             Self::MicrophoneDenied => strings.error_microphone_denied.clone(),
             Self::LongRecording => strings.warning_long_recording.clone(),
             Self::RecordingLimitSoon => strings.warning_recording_limit.clone(),
+            Self::NothingToPaste => strings.notice_nothing_to_paste.clone(),
             Self::ShortcutUnavailable { shortcut } => strings
                 .error_shortcut_unavailable
                 .replace("{{shortcut}}", &display_shortcut(shortcut)),

@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Den alltid påslagna mikrofonen kunde inte starta. Murmur öppnar den när du spelar in.",
     "errorHistoryStartup": "Historiken kunde inte öppnas. Diktering fungerar, men inget sparas i historiken.",
     "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid.",
-    "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter)."
+    "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter).",
+    "pasteLastTranscript": "Klistra in senaste transkriptionen",
+    "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Kortkommando för att avbryta",
             "description": "Kortkommandot för att avbryta den aktuella inspelningen."
+          },
+          "paste_last": {
+            "name": "Klistra in senaste transkriptionen",
+            "description": "Klistrar in din senaste transkription igen i appen du använder."
           }
         },
         "errors": {

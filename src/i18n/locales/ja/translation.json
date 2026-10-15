@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "常時オンのマイクを開始できませんでした。録音時に Murmur がマイクを開きます。",
     "errorHistoryStartup": "履歴を開けませんでした。音声入力は使えますが、履歴には保存されません。",
     "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。",
-    "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。"
+    "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。",
+    "pasteLastTranscript": "最後の文字起こしを貼り付け",
+    "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。"
   },
   "sidebar": {
     "general": "一般",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "キャンセルのショートカット",
             "description": "現在の録音をキャンセルするためのキーボードショートカット。"
+          },
+          "paste_last": {
+            "name": "最後の文字起こしを貼り付け",
+            "description": "最新の文字起こしを、使用中のアプリにもう一度貼り付けます。"
           }
         },
         "errors": {

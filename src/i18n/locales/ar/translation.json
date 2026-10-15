@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "تعذر تشغيل الميكروفون الدائم. سيفتحه Murmur عند التسجيل.",
     "errorHistoryStartup": "تعذر فتح السجل. الإملاء يعمل، لكن لن يُحفظ شيء في السجل.",
     "noticeHistoryReset": "كان السجل تالفًا وتمت إعادة تعيينه. احتُفظ بالملف القديم بجانبه.",
-    "warningRecordingLimit": "سيتوقف التسجيل خلال دقيقة واحدة (الحد 15 دقيقة)."
+    "warningRecordingLimit": "سيتوقف التسجيل خلال دقيقة واحدة (الحد 15 دقيقة).",
+    "pasteLastTranscript": "لصق آخر نص",
+    "noticeNothingToPaste": "لا يوجد نص منسوخ للصق بعد."
   },
   "sidebar": {
     "general": "عام",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "اختصار الإلغاء",
             "description": ".اختصار لوحة المفاتيح لإلغاء التسجيل الحالي"
+          },
+          "paste_last": {
+            "name": "لصق آخر نسخ",
+            "description": "يلصق آخر نص منسوخ مرة أخرى في التطبيق الذي تستخدمه."
           }
         },
         "errors": {

@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "항상 켜진 마이크를 시작하지 못했습니다. 녹음할 때 Murmur가 마이크를 엽니다.",
     "errorHistoryStartup": "기록을 열 수 없습니다. 음성 입력은 작동하지만 기록에는 저장되지 않습니다.",
     "noticeHistoryReset": "기록이 손상되어 초기화했습니다. 이전 파일은 같은 위치에 보관했습니다.",
-    "warningRecordingLimit": "녹음이 1분 후에 중지됩니다(15분 제한)."
+    "warningRecordingLimit": "녹음이 1분 후에 중지됩니다(15분 제한).",
+    "pasteLastTranscript": "마지막 받아쓰기 붙여넣기",
+    "noticeNothingToPaste": "아직 붙여넣을 받아쓰기가 없습니다."
   },
   "sidebar": {
     "general": "일반",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "취소 단축키",
             "description": "현재 녹음을 취소하는 키보드 단축키입니다."
+          },
+          "paste_last": {
+            "name": "마지막 받아쓰기 붙여넣기",
+            "description": "가장 최근 받아쓰기를 사용 중인 앱에 다시 붙여넣습니다."
           }
         },
         "errors": {

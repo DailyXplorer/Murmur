@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
     "errorHistoryStartup": "Der Verlauf konnte nicht geöffnet werden. Diktieren funktioniert, aber nichts wird im Verlauf gespeichert.",
     "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben.",
-    "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten)."
+    "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten).",
+    "pasteLastTranscript": "Letzte Transkription einfügen",
+    "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Abbrechen-Tastenkürzel",
             "description": "Das Tastenkürzel zum Abbrechen der aktuellen Aufnahme."
+          },
+          "paste_last": {
+            "name": "Letzte Transkription einfügen",
+            "description": "Fügt deine letzte Transkription erneut in die App ein, die du gerade verwendest."
           }
         },
         "errors": {

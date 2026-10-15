@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Den altid tændte mikrofon kunne ikke starte. Murmur åbner den, når du optager.",
     "errorHistoryStartup": "Historikken kunne ikke åbnes. Diktering virker, men intet gemmes i historikken.",
     "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af.",
-    "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter)."
+    "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter).",
+    "pasteLastTranscript": "Indsæt seneste transskription",
+    "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte."
   },
   "sidebar": {
     "general": "Generelt",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Annulleringsgenvej",
             "description": "Tastaturgenvejen til at annullere den aktuelle optagelse."
+          },
+          "paste_last": {
+            "name": "Indsæt seneste transskription",
+            "description": "Indsætter din seneste transskription igen i den app, du bruger."
           }
         },
         "errors": {

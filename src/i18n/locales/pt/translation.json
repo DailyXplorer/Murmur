@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "O microfone sempre ativo não pôde iniciar. O Murmur vai abri-lo quando você gravar.",
     "errorHistoryStartup": "Não foi possível abrir o histórico. O ditado funciona, mas nada é salvo no histórico.",
     "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado.",
-    "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos)."
+    "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos).",
+    "pasteLastTranscript": "Colar a última transcrição",
+    "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar."
   },
   "sidebar": {
     "general": "Geral",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Atalho de Cancelar",
             "description": "O atalho de teclado para cancelar a gravação atual."
+          },
+          "paste_last": {
+            "name": "Colar a última transcrição",
+            "description": "Cola novamente a sua última transcrição no app que você está usando."
           }
         },
         "errors": {
