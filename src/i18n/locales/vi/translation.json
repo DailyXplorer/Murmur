@@ -228,11 +228,10 @@
         "placeholder": "Thêm một từ",
         "add": "Thêm",
         "remove": "Xóa {{word}}",
-        "duplicate": "\"{{word}}\" đã tồn tại"
-      },
-      "fillerWordRemoval": {
-        "title": "Loại bỏ từ đệm",
-        "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời của Codex. Gemini tự xử lý các từ đệm."
+        "duplicate": "\"{{word}}\" đã tồn tại",
+        "learned": "Đã học",
+        "learnedFrom": "{{word}}: đã học khi bạn sửa “{{heard}}”",
+        "learnedHint": "Khi bạn sửa một tên viết sai ngay sau khi đọc, Murmur thêm tên đó vào đây với nhãn Đã học. Nhấp vào một từ để xóa."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Không thể phiên âm lại. Vui lòng thử lại.",
       "transcribing": "Đang phiên âm...",
       "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại.",
-      "preferences": "Tùy chọn"
+      "preferences": "Tùy chọn",
+      "cleanupFailed": "Không dùng được bước dọn dẹp AI, nên bản chép thô đã được dán.",
+      "showOriginal": "Hiện bản chép gốc",
+      "hideOriginal": "Ẩn bản chép gốc"
     },
     "debug": {
       "title": "Gỡ lỗi",
@@ -369,7 +371,19 @@
         "processing": "Xử lý văn bản",
         "output": "Đầu ra"
       },
-      "sessionExpired": "Phiên đã hết hạn, hãy đăng nhập lại trong Codex"
+      "sessionExpired": "Phiên đã hết hạn, hãy đăng nhập lại trong Codex",
+      "aiCleanup": {
+        "title": "Dọn dẹp và định dạng bằng AI",
+        "description": "Loại bỏ từ đệm, chỉ giữ cách nói cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Dùng phiên ChatGPT của bạn; nếu thất bại hoặc mất quá lâu, bản chép thô sẽ được dán."
+      },
+      "windowNames": {
+        "title": "Tên từ cửa sổ đang hoạt động",
+        "description": "Khi bạn bắt đầu đọc, Murmur đọc văn bản của cửa sổ phía trước qua Trợ năng và chỉ gửi các tên tìm thấy cho bước dọn dẹp AI để viết đúng chính tả. Không lưu gì cả. Không bao giờ đọc ô mật khẩu và trình quản lý mật khẩu."
+      },
+      "whisperMode": {
+        "title": "Chế độ thì thầm",
+        "description": "Tăng thêm độ nhạy cho giọng nói rất nhỏ và báo cho bước dọn dẹp AI rằng giọng nói có thể yếu. Không bao giờ khuếch đại sự im lặng và tiếng ồn nền."
+      }
     }
   },
   "footer": {

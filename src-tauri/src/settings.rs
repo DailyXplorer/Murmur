@@ -298,10 +298,18 @@ pub struct AppSettings {
     /// reading promised data, so settlement waits a bounded window. macOS only.
     #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
-    #[serde(default = "default_filler_word_removal_enabled")]
-    pub filler_word_removal_enabled: bool,
+    /// AI cleanup and formatting of each transcript through the Codex session.
+    #[serde(default = "default_ai_cleanup_enabled")]
+    pub ai_cleanup_enabled: bool,
+    /// Dictionary words learned from corrections; each is also in `custom_words`.
     #[serde(default)]
-    pub custom_filler_words: Option<Vec<String>>,
+    pub learned_words: Vec<crate::dictionary::LearnedWord>,
+    /// Offer names visible in the frontmost window to the cleanup step.
+    #[serde(default = "default_window_names_enabled")]
+    pub window_names_enabled: bool,
+    /// More input gain for quiet speech, and a hint that speech was faint.
+    #[serde(default)]
+    pub whisper_mode: bool,
     #[serde(default)]
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_overlay_style")]
@@ -348,7 +356,11 @@ fn default_overlay_style() -> OverlayStyle {
     OverlayStyle::Minimal
 }
 
-fn default_filler_word_removal_enabled() -> bool {
+fn default_ai_cleanup_enabled() -> bool {
+    true
+}
+
+fn default_window_names_enabled() -> bool {
     true
 }
 
@@ -411,7 +423,12 @@ fn default_show_tray_icon() -> bool {
 }
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
-const OBSOLETE_SETTINGS_KEYS: [&str; 2] = ["typing_tool", "external_script_path"];
+const OBSOLETE_SETTINGS_KEYS: [&str; 4] = [
+    "typing_tool",
+    "external_script_path",
+    "filler_word_removal_enabled",
+    "custom_filler_words",
+];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
 pub const MAX_CUSTOM_WORDS: usize = 200;
@@ -484,8 +501,10 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_ms: default_paste_delay_ms(),
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: default_reliable_paste(),
-        filler_word_removal_enabled: default_filler_word_removal_enabled(),
-        custom_filler_words: None,
+        ai_cleanup_enabled: default_ai_cleanup_enabled(),
+        learned_words: Vec::new(),
+        window_names_enabled: default_window_names_enabled(),
+        whisper_mode: false,
         extra_recording_buffer_ms: 0,
         overlay_style: default_overlay_style(),
     }
@@ -518,6 +537,16 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
                 (salvage_settings(settings_value), true)
             }
         };
+    // AI cleanup supersedes local filler removal: whoever turned that off
+    // asked for their words untouched.
+    if let Some(filler_removal) = settings_value
+        .get("filler_word_removal_enabled")
+        .and_then(serde_json::Value::as_bool)
+    {
+        if settings_value.get("ai_cleanup_enabled").is_none() {
+            settings.ai_cleanup_enabled = filler_removal;
+        }
+    }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
 }
@@ -608,13 +637,8 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
         updated = true;
     }
 
-    if let Some(custom_filler_words) = settings.custom_filler_words.as_ref() {
-        let normalized_filler_words = normalize_bounded_words(custom_filler_words);
-        if normalized_filler_words != *custom_filler_words {
-            warn!("Repairing invalid setting 'custom_filler_words'");
-            settings.custom_filler_words = Some(normalized_filler_words);
-            updated = true;
-        }
+    if crate::dictionary::prune_learned(&mut settings.learned_words, &settings.custom_words) {
+        updated = true;
     }
 
     updated
@@ -762,7 +786,9 @@ mod tests {
             .expect("all AppSettings fields need serde defaults");
         assert!(settings.push_to_talk);
         assert!(!settings.audio_feedback);
-        assert!(settings.filler_word_removal_enabled);
+        assert!(settings.ai_cleanup_enabled);
+        assert!(settings.window_names_enabled);
+        assert!(!settings.whisper_mode);
         assert_eq!(settings.accent_color, AccentColor::Pink);
         assert_eq!(
             settings.transcription_provider,
@@ -1009,8 +1035,10 @@ mod tests {
             "valid <markup>",
             "x".repeat(MAX_CUSTOM_WORD_CHARS + 1)
         ]);
-        stored["custom_filler_words"] =
-            serde_json::json!(["  um  ", "um", "x".repeat(MAX_CUSTOM_WORD_CHARS + 1)]);
+        stored["learned_words"] = serde_json::json!([
+            { "word": "Murmur App", "heard_as": "murmur up" },
+            { "word": "Deleted", "heard_as": "deleted" }
+        ]);
 
         let (settings, updated) = parse_stored_settings(&stored);
         assert!(updated);
@@ -1025,7 +1053,39 @@ mod tests {
             settings.custom_words,
             vec!["Murmur App".to_string(), "valid <markup>".to_string()]
         );
-        assert_eq!(settings.custom_filler_words, Some(vec!["um".to_string()]));
+        assert_eq!(
+            settings.learned_words,
+            vec![crate::dictionary::LearnedWord {
+                word: "Murmur App".to_string(),
+                heard_as: "murmur up".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn filler_removal_choice_carries_over_to_ai_cleanup() {
+        let mut stored = default_settings_json();
+        let map = stored.as_object_mut().unwrap();
+        map.remove("ai_cleanup_enabled");
+        map.insert(
+            "filler_word_removal_enabled".into(),
+            serde_json::json!(false),
+        );
+        map.insert("custom_filler_words".into(), serde_json::json!(["um"]));
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated);
+        assert!(!settings.ai_cleanup_enabled);
+        let rewritten = serde_json::to_value(&settings).unwrap();
+        assert!(rewritten.get("filler_word_removal_enabled").is_none());
+        assert!(rewritten.get("custom_filler_words").is_none());
+
+        let (settings, _) = parse_stored_settings(&rewritten);
+        assert!(!settings.ai_cleanup_enabled);
+
+        let mut fresh = default_settings_json();
+        fresh.as_object_mut().unwrap().remove("ai_cleanup_enabled");
+        assert!(parse_stored_settings(&fresh).0.ai_cleanup_enabled);
     }
 
     #[test]

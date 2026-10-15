@@ -59,10 +59,6 @@ rustfft = "6.4.0"
 strsim = "0.11.0"
 natural = "0.5.0"
 regex = "1"
-# Text-based language ID (filler-word removal fallback); isolang bridges the
-# ISO 639-1 transcription codes to whatlang's 639-3 codes.
-whatlang = "0.16"
-isolang = "2"
 chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
 ferrous-opencc = "0.2.3"
@@ -81,6 +77,7 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
+core-foundation = "0.10"
 security-framework = "3.7.0"
 
 [dev-dependencies]

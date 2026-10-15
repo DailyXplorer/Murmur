@@ -228,11 +228,10 @@
         "placeholder": "Aggiungi una parola",
         "add": "Aggiungi",
         "remove": "Rimuovi {{word}}",
-        "duplicate": "\"{{word}}\" esiste già"
-      },
-      "fillerWordRemoval": {
-        "title": "Rimuovi le parole riempitive",
-        "description": "Rimuove le parole di esitazione più comuni dalle trascrizioni Codex. Gemini gestisce autonomamente i riempitivi."
+        "duplicate": "\"{{word}}\" esiste già",
+        "learned": "Appresa",
+        "learnedFrom": "{{word}}: appresa quando hai corretto «{{heard}}»",
+        "learnedHint": "Quando correggi un nome scritto male subito dopo aver dettato, Murmur lo aggiunge qui come Appresa. Fai clic su una parola per rimuoverla."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Impossibile ri-trascrivere. Riprova.",
       "transcribing": "Trascrizione in corso...",
       "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione.",
-      "preferences": "Preferenze"
+      "preferences": "Preferenze",
+      "cleanupFailed": "La pulizia IA non era disponibile, quindi è stata incollata la trascrizione grezza.",
+      "showOriginal": "Mostra trascrizione originale",
+      "hideOriginal": "Nascondi trascrizione originale"
     },
     "debug": {
       "title": "Debug",
@@ -369,7 +371,19 @@
         "processing": "Elaborazione del testo",
         "output": "Output"
       },
-      "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex"
+      "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex",
+      "aiCleanup": {
+        "title": "Pulizia e formattazione con IA",
+        "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce né riscrive mai. Usa la tua sessione ChatGPT; se non riesce o impiega troppo, viene incollata la trascrizione grezza."
+      },
+      "windowNames": {
+        "title": "Nomi dalla finestra attiva",
+        "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia IA solo i nomi trovati, per scriverli correttamente. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
+      },
+      "whisperMode": {
+        "title": "Modalità sussurro",
+        "description": "Aumenta ulteriormente la sensibilità per una voce molto bassa e segnala alla pulizia IA che il parlato può essere debole. Silenzio e rumore di fondo non vengono mai amplificati."
+      }
     }
   },
   "footer": {

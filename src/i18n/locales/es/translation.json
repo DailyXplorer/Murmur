@@ -228,11 +228,10 @@
         "placeholder": "Agregar una palabra",
         "add": "Agregar",
         "remove": "Eliminar {{word}}",
-        "duplicate": "\"{{word}}\" ya existe"
-      },
-      "fillerWordRemoval": {
-        "title": "Eliminar muletillas",
-        "description": "Elimina las muletillas más comunes de las transcripciones de Codex. Gemini gestiona las muletillas por sí mismo."
+        "duplicate": "\"{{word}}\" ya existe",
+        "learned": "Aprendida",
+        "learnedFrom": "{{word}}: aprendida cuando corregiste «{{heard}}»",
+        "learnedHint": "Cuando corriges un nombre mal escrito justo después de dictar, Murmur lo añade aquí marcado como Aprendida. Haz clic en una palabra para quitarla."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "No se pudo re-transcribir. Por favor, inténtalo de nuevo.",
       "transcribing": "Transcribiendo...",
       "transcriptionFailed": "La transcripción falló. Puedes re-transcribir usando el icono de reintentar.",
-      "preferences": "Preferencias"
+      "preferences": "Preferencias",
+      "cleanupFailed": "La limpieza con IA no estaba disponible, así que se pegó la transcripción sin procesar.",
+      "showOriginal": "Mostrar transcripción original",
+      "hideOriginal": "Ocultar transcripción original"
     },
     "debug": {
       "title": "Depuración",
@@ -369,7 +371,19 @@
         "processing": "Procesamiento de texto",
         "output": "Salida"
       },
-      "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex"
+      "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex",
+      "aiCleanup": {
+        "title": "Limpieza y formato con IA",
+        "description": "Elimina muletillas, conserva solo tu formulación final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Usa tu sesión de ChatGPT; si falla o tarda demasiado, se pega la transcripción sin procesar."
+      },
+      "windowNames": {
+        "title": "Nombres de la ventana activa",
+        "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza con IA solo los nombres que encuentra, para escribirlos bien. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."
+      },
+      "whisperMode": {
+        "title": "Modo susurro",
+        "description": "Aumenta aún más la sensibilidad para voz muy baja e indica a la limpieza con IA que el habla puede ser débil. El silencio y el ruido de fondo nunca se amplifican."
+      }
     }
   },
   "footer": {

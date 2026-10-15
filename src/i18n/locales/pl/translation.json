@@ -228,11 +228,10 @@
         "placeholder": "Dodaj słowo",
         "add": "Dodaj",
         "remove": "Usuń {{word}}",
-        "duplicate": "\"{{word}}\" już istnieje"
-      },
-      "fillerWordRemoval": {
-        "title": "Usuń wyrazy wypełniające",
-        "description": "Usuwa typowe słowa wyrażające wahanie z transkrypcji Codex. Gemini sam obsługuje wypełniacze."
+        "duplicate": "\"{{word}}\" już istnieje",
+        "learned": "Nauczone",
+        "learnedFrom": "{{word}}: nauczone, gdy poprawiłeś „{{heard}}”",
+        "learnedHint": "Gdy zaraz po dyktowaniu poprawisz błędnie zapisaną nazwę, Murmur doda ją tutaj z oznaczeniem Nauczone. Kliknij słowo, aby je usunąć."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Nie udało się ponownie transkrybować. Spróbuj ponownie.",
       "transcribing": "Transkrybuję...",
       "transcriptionFailed": "Transkrypcja nie powiodła się. Możesz transkrybować ponownie za pomocą ikony ponowienia.",
-      "preferences": "Preferencje"
+      "preferences": "Preferencje",
+      "cleanupFailed": "Porządkowanie AI było niedostępne, więc wklejono surową transkrypcję.",
+      "showOriginal": "Pokaż oryginalną transkrypcję",
+      "hideOriginal": "Ukryj oryginalną transkrypcję"
     },
     "debug": {
       "title": "Debugowanie",
@@ -369,7 +371,19 @@
         "processing": "Przetwarzanie tekstu",
         "output": "Wyjście"
       },
-      "sessionExpired": "Sesja wygasła, zaloguj się ponownie w Codex"
+      "sessionExpired": "Sesja wygasła, zaloguj się ponownie w Codex",
+      "aiCleanup": {
+        "title": "Porządkowanie i formatowanie AI",
+        "description": "Usuwa wtrącenia, zostawia tylko ostateczne sformułowanie, gdy się poprawiasz, poprawia interpunkcję i formatuje listy oraz dyktowane nowe wiersze. Nigdy nie tłumaczy ani nie przeredagowuje. Korzysta z Twojej sesji ChatGPT; jeśli się nie uda lub potrwa zbyt długo, wklejana jest surowa transkrypcja."
+      },
+      "windowNames": {
+        "title": "Nazwy z aktywnego okna",
+        "description": "Gdy zaczynasz dyktować, Murmur odczytuje tekst okna na pierwszym planie przez Dostępność i wysyła do porządkowania AI tylko znalezione nazwy, aby zapisać je poprawnie. Nic nie jest zapisywane. Pola haseł i menedżery haseł nigdy nie są odczytywane."
+      },
+      "whisperMode": {
+        "title": "Tryb szeptu",
+        "description": "Jeszcze bardziej zwiększa czułość dla bardzo cichej mowy i informuje porządkowanie AI, że mowa może być słaba. Cisza i szum tła nigdy nie są wzmacniane."
+      }
     }
   },
   "footer": {

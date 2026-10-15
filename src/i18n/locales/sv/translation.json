@@ -228,11 +228,10 @@
         "placeholder": "Lägg till ett ord",
         "add": "Lägg till",
         "remove": "Ta bort {{word}}",
-        "duplicate": "\"{{word}}\" finns redan"
-      },
-      "fillerWordRemoval": {
-        "title": "Ta bort utfyllnadsord",
-        "description": "Tar bort vanliga tvekljud från Codex-transkriberingar. Gemini hanterar utfyllnadsord själv."
+        "duplicate": "\"{{word}}\" finns redan",
+        "learned": "Inlärt",
+        "learnedFrom": "{{word}}: inlärt när du rättade ”{{heard}}”",
+        "learnedHint": "När du rättar ett felstavat namn direkt efter diktering lägger Murmur till det här, markerat som Inlärt. Klicka på ett ord för att ta bort det."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Misslyckades med att transkribera igen. Försök igen.",
       "transcribing": "Transkriberar...",
       "transcriptionFailed": "Transkribering misslyckades. Du kan transkribera igen med hjälp av ikonen för nytt försök.",
-      "preferences": "Inställningar"
+      "preferences": "Inställningar",
+      "cleanupFailed": "AI-städningen var inte tillgänglig, så den råa transkriptionen klistrades in.",
+      "showOriginal": "Visa ursprunglig transkription",
+      "hideOriginal": "Dölj ursprunglig transkription"
     },
     "debug": {
       "title": "Felsökning",
@@ -369,7 +371,19 @@
         "processing": "Textbearbetning",
         "output": "Utdata"
       },
-      "sessionExpired": "Sessionen har gått ut, logga in igen i Codex"
+      "sessionExpired": "Sessionen har gått ut, logga in igen i Codex",
+      "aiCleanup": {
+        "title": "AI-städning och formatering",
+        "description": "Tar bort utfyllnadsord, behåller bara din slutliga formulering när du rättar dig själv, rättar skiljetecken och formaterar listor och dikterade radbrytningar. Översätter eller skriver aldrig om. Använder din ChatGPT-session; om det misslyckas eller tar för lång tid klistras den råa transkriptionen in."
+      },
+      "windowNames": {
+        "title": "Namn från det aktiva fönstret",
+        "description": "När du börjar diktera läser Murmur texten i det främsta fönstret via Hjälpmedel och skickar bara de namn som hittas till AI-städningen, så att de stavas rätt. Inget sparas. Lösenordsfält och lösenordshanterare läses aldrig."
+      },
+      "whisperMode": {
+        "title": "Viskläge",
+        "description": "Höjer känsligheten ytterligare för mycket tyst tal och talar om för AI-städningen att talet kan vara svagt. Tystnad och bakgrundsljud förstärks aldrig."
+      }
     }
   },
   "footer": {

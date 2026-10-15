@@ -14,8 +14,10 @@ import { Dropdown } from "../../ui/Dropdown";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsPage } from "../../ui/SettingsPage";
-import { FillerWordRemoval } from "../FillerWordRemoval";
+import { AiCleanup } from "../AiCleanup";
 import { CustomWords } from "../CustomWords";
+import { WindowNames } from "../WindowNames";
+import { WhisperMode } from "../WhisperMode";
 import { AppendTrailingSpace } from "../AppendTrailingSpace";
 import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
@@ -153,7 +155,9 @@ export const TranscriptionSettings: React.FC = () => {
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>
-        <FillerWordRemoval descriptionMode="tooltip" grouped={true} />
+        <AiCleanup descriptionMode="tooltip" grouped={true} />
+        <WindowNames descriptionMode="tooltip" grouped={true} />
+        <WhisperMode descriptionMode="tooltip" grouped={true} />
         <CustomWords descriptionMode="tooltip" grouped={true} />
         <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>

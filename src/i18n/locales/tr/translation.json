@@ -228,11 +228,10 @@
         "placeholder": "Kelime ekle",
         "add": "Ekle",
         "remove": "{{word}} Kaldır",
-        "duplicate": "\"{{word}}\" zaten mevcut"
-      },
-      "fillerWordRemoval": {
-        "title": "Dolgu Sözcüklerini Kaldır",
-        "description": "Codex transkripsiyonlarındaki yaygın duraksama sözcüklerini kaldırır. Gemini dolgu sözcüklerini kendisi işler."
+        "duplicate": "\"{{word}}\" zaten mevcut",
+        "learned": "Öğrenildi",
+        "learnedFrom": "{{word}}: “{{heard}}” sözcüğünü düzelttiğinizde öğrenildi",
+        "learnedHint": "Dikteden hemen sonra yanlış yazılmış bir adı düzelttiğinizde Murmur onu buraya Öğrenildi etiketiyle ekler. Kaldırmak için bir sözcüğe tıklayın."
       }
     },
     "history": {
@@ -249,7 +248,10 @@
       "retranscribeError": "Yeniden transkripsiyon başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Transkribe ediliyor...",
       "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar transkribe edebilirsiniz.",
-      "preferences": "Tercihler"
+      "preferences": "Tercihler",
+      "cleanupFailed": "Yapay zekâ temizlemesi kullanılamadı, bu yüzden ham döküm yapıştırıldı.",
+      "showOriginal": "Orijinal dökümü göster",
+      "hideOriginal": "Orijinal dökümü gizle"
     },
     "debug": {
       "title": "Hata Ayıklama",
@@ -369,7 +371,19 @@
         "processing": "Metin işleme",
         "output": "Çıktı"
       },
-      "sessionExpired": "Oturum süresi doldu, Codex'te yeniden oturum açın"
+      "sessionExpired": "Oturum süresi doldu, Codex'te yeniden oturum açın",
+      "aiCleanup": {
+        "title": "Yapay zekâ ile temizleme ve biçimlendirme",
+        "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ve dikte edilen satır sonlarını biçimlendirir. Asla çeviri yapmaz veya yeniden yazmaz. ChatGPT oturumunuzu kullanır; başarısız olursa veya çok uzun sürerse ham döküm yapıştırılır."
+      },
+      "windowNames": {
+        "title": "Etkin penceredeki adlar",
+        "description": "Dikteye başladığınızda Murmur en öndeki pencerenin metnini Erişilebilirlik ile okur ve doğru yazılmaları için yalnızca bulduğu adları yapay zekâ temizlemesine gönderir. Hiçbir şey saklanmaz. Parola alanları ve parola yöneticileri asla okunmaz."
+      },
+      "whisperMode": {
+        "title": "Fısıltı modu",
+        "description": "Çok alçak ses için hassasiyeti daha da artırır ve yapay zekâ temizlemesine konuşmanın zayıf olabileceğini bildirir. Sessizlik ve arka plan gürültüsü asla yükseltilmez."
+      }
     }
   },
   "footer": {
