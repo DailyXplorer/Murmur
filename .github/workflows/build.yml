@@ -59,6 +59,15 @@ on:
         required: false
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
         required: false
+      # Stable self-signed certificate (scripts/create-signing-cert.sh). Used
+      # when no Developer ID certificate is configured, so macOS keeps
+      # Accessibility and microphone grants across updates.
+      MACOS_CERT_P12_BASE64:
+        required: false
+      MACOS_CERT_PASSWORD:
+        required: false
+      MACOS_SIGNING_IDENTITY:
+        required: false
 
 jobs:
   build:
@@ -69,6 +78,7 @@ jobs:
     env:
       HAS_APPLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE != '' }}
       HAS_APPLE_NOTARIZATION: ${{ inputs.sign-binaries && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
+      HAS_STABLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE == '' && secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_SIGNING_IDENTITY != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -143,6 +153,41 @@ jobs:
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Certificate imported."
 
+      - name: Import stable signing certificate
+        if: env.HAS_STABLE_CERTIFICATE == 'true'
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/murmur-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 32)"
+          certificate="$RUNNER_TEMP/murmur-signing.p12"
+
+          printf '%s' "$MACOS_CERT_P12_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          rm -f "$certificate"
+
+          # codesign looks identities up through the user search list.
+          existing=$(security list-keychains -d user | tr -d '"')
+          # shellcheck disable=SC2086
+          security list-keychains -d user -s "$keychain" $existing
+
+          # A self-signed certificate is not trusted, so `find-identity -v`
+          # hides it; codesign still signs with it. Check it is present.
+          if ! security find-identity -p codesigning "$keychain" | grep -qF "\"$MACOS_SIGNING_IDENTITY\""; then
+            echo "Signing identity not found in the imported certificate" >&2
+            exit 1
+          fi
+          echo "STABLE_SIGNING_IDENTITY=$MACOS_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "STABLE_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
       - name: Build test bundles without updater signatures
         if: ${{ !inputs.sign-binaries }}
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
@@ -160,9 +205,10 @@ jobs:
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The certificate import step above owns APPLE_CERTIFICATE. Passing an
-          # empty value here makes Tauri try (and fail) to import it again.
-          APPLE_SIGNING_IDENTITY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || '-' }}
+          # The certificate import steps above own the keychain. Passing an
+          # empty APPLE_CERTIFICATE here makes Tauri try (and fail) to import
+          # it again. Without any certificate the build falls back to ad hoc.
+          APPLE_SIGNING_IDENTITY: ${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || env.HAS_STABLE_CERTIFICATE == 'true' && env.STABLE_SIGNING_IDENTITY || '-' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
@@ -211,6 +257,11 @@ jobs:
               echo "OK: $libname"
             fi
           done <<< "$RPATH_DEPS"
+
+      - name: Remove stable signing keychain
+        if: always() && env.STABLE_SIGNING_KEYCHAIN != ''
+        shell: bash
+        run: security delete-keychain "$STABLE_SIGNING_KEYCHAIN" || true
 
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts
