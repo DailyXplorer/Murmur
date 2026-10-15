@@ -3,6 +3,7 @@
 //! place: cleanup can make dictation better, never lose it.
 
 mod prompt;
+mod reply;
 mod responses;
 
 pub use prompt::PromptContext;
@@ -145,10 +146,10 @@ async fn clean_with_session(
         model,
         instructions: prompt::INSTRUCTIONS,
         user_message: &user_message,
-        max_output_chars: prompt::max_output_chars(raw.chars().count()),
+        max_output_chars: reply::max_output_chars(raw.chars().count()),
     };
     let output = responses::complete(url, session, &request, operation).await?;
-    prompt::accept_output(raw, &output, context).ok_or_else(|| CompletionError::Failed {
+    reply::accept_output(raw, &output, context).ok_or_else(|| CompletionError::Failed {
         kind: FailureKind::Other,
         detail: "reply does not look like an edit of the dictation".to_string(),
     })

@@ -7,11 +7,13 @@
 //! misheard side is an everyday word or first name ("cloud" -> "Claude",
 //! "John" -> "Joan"), an added suffix, or a word the user kept elsewhere in
 //! the same text: those were said on purpose and must never be rewritten.
+//! A near-identical ordinary name ("Smith" -> "Smyth") is learned as a
+//! vocabulary hint, but its misheard form is never replaced.
 
 use natural::phonetics::soundex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
-use strsim::normalized_levenshtein;
+use strsim::{levenshtein, normalized_levenshtein};
 
 /// Above this many words the diff is skipped; nobody fixes a name in an essay
 /// by retyping it, and the alignment is quadratic.
@@ -90,7 +92,7 @@ pub fn review(inserted: &str, edited: &str) -> Review {
             .join(" ");
         let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
         if looks_like_a_term(word, sentence_start)
-            && is_safe_mishearing(&heard_as)
+            && !said_on_purpose(&heard_as, word)
             && sounds_alike(&heard_as, word)
             && !only_inflected(&heard_as, word)
             && !kept_elsewhere(&heard_as, &new)
@@ -233,12 +235,44 @@ fn is_common_word(word: &str) -> bool {
         .contains(word.to_lowercase().as_str())
 }
 
-/// Whether `heard_as` may be rewritten wherever it appears. A misheard form
-/// made only of everyday words or first names is also something the user
-/// says on purpose, so it is never one.
-pub fn is_safe_mishearing(heard_as: &str) -> bool {
+/// A misheard form made only of everyday words or first names is also
+/// something the user says on purpose, so nothing is learned from it. Two or
+/// more of them spelling the word's exact letters ("open ai" -> "OpenAI") are
+/// the exception: that sequence only ever means the joined word.
+fn said_on_purpose(heard_as: &str, word: &str) -> bool {
     let words: Vec<&str> = heard_as.split_whitespace().collect();
-    !words.is_empty() && !words.iter().all(|word| is_common_word(word))
+    let joined_spelling = words.len() > 1 && letters(heard_as) == letters(word);
+    words.iter().all(|word| is_common_word(word)) && !joined_spelling
+}
+
+/// Whether `heard_as` may be rewritten into `word` wherever it appears.
+/// Swapping one ordinary name for a near-identical one ("Smith" -> "Smyth")
+/// is right for one person and wrong for every other, so such a word stays
+/// a vocabulary hint for cleanup. A misheard form that is no real word
+/// ("Clawd" -> "Claude") is replaced.
+pub fn replaces_safely(heard_as: &str, word: &str) -> bool {
+    !said_on_purpose(heard_as, word) && !is_name_variant(heard_as.trim(), word.trim())
+}
+
+fn is_name_variant(heard: &str, word: &str) -> bool {
+    let plain_name = |name: &str| {
+        let mut chars = name.chars();
+        chars.next().is_some_and(char::is_uppercase)
+            && chars.all(|c| c.is_alphabetic() && c.is_lowercase())
+    };
+    plain_name(heard)
+        && plain_name(word)
+        && levenshtein(&heard.to_lowercase(), &word.to_lowercase()) <= 2
+        && (is_common_word(heard) || is_dictionary_word(heard))
+}
+
+/// Looks the word up in the system word list, which includes surnames such
+/// as "Smith". Without the list every candidate counts as a real word, so
+/// nothing is rewritten by mistake.
+fn is_dictionary_word(word: &str) -> bool {
+    std::fs::read_to_string("/usr/share/dict/words").map_or(true, |words| {
+        words.lines().any(|entry| entry.eq_ignore_ascii_case(word))
+    })
 }
 
 /// "Sarah" -> "Sarah's" or "report" -> "reports" changes the grammar of a
@@ -345,6 +379,28 @@ mod tests {
     fn an_added_suffix_is_not_a_new_word() {
         assert!(learned("Sarah report is due", "Sarah's report is due").is_empty());
         assert!(learned("ping Kuberneet now", "ping Kuberneets now").is_empty());
+    }
+
+    #[test]
+    fn a_near_identical_ordinary_name_is_learned_as_a_hint_only() {
+        assert_eq!(
+            learned("meet Smith tomorrow", "meet Smyth tomorrow"),
+            vec![pair("Smyth", "Smith")]
+        );
+        assert!(!replaces_safely("Smith", "Smyth"));
+        assert!(replaces_safely("Clawd", "Claude"));
+        assert!(replaces_safely("cooper netties", "Kubernetes"));
+    }
+
+    #[test]
+    fn a_joined_pair_of_common_words_is_learned() {
+        assert_eq!(
+            learned(
+                "we switched to open ai last week",
+                "we switched to OpenAI last week"
+            ),
+            vec![pair("OpenAI", "open ai")]
+        );
     }
 
     #[test]
