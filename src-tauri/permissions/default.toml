@@ -68,6 +68,7 @@ permissions = [
   "allow-open-antigravity",
   "allow-complete-onboarding",
   "allow-get-history-entries",
+  "allow-get-insights",
   "allow-toggle-history-entry-saved",
   "allow-get-audio-file-path",
   "allow-delete-history-entry",
