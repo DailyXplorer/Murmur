@@ -3,9 +3,14 @@
 //! and a word is learned only when one or two pasted words were replaced by
 //! a similar-sounding or similarly spelled term that looks like a name.
 //! Like Wispr Flow, ordinary lowercase words are never learned: changing
-//! "their" to "there" is grammar, not vocabulary.
+//! "their" to "there" is grammar, not vocabulary. Nor is a correction whose
+//! misheard side is an everyday word or first name ("cloud" -> "Claude",
+//! "John" -> "Joan"), an added suffix, or a word the user kept elsewhere in
+//! the same text: those were said on purpose and must never be rewritten.
 
 use natural::phonetics::soundex;
+use std::collections::HashSet;
+use std::sync::OnceLock;
 use strsim::normalized_levenshtein;
 
 /// Above this many words the diff is skipped; nobody fixes a name in an essay
@@ -85,7 +90,10 @@ pub fn review(inserted: &str, edited: &str) -> Review {
             .join(" ");
         let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
         if looks_like_a_term(word, sentence_start)
+            && is_safe_mishearing(&heard_as)
             && sounds_alike(&heard_as, word)
+            && !only_inflected(&heard_as, word)
+            && !kept_elsewhere(&heard_as, &new)
             && !review.learned.iter().any(|known| known.word == word)
         {
             review.learned.push(Correction {
@@ -217,6 +225,47 @@ fn sounds_alike(heard: &str, word: &str) -> bool {
         || (ascii_letters(&heard) && ascii_letters(&word) && soundex(&heard, &word))
 }
 
+/// Everyday English and French words and common first names, lowercase.
+fn is_common_word(word: &str) -> bool {
+    static WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    WORDS
+        .get_or_init(|| include_str!("common_words.txt").lines().collect())
+        .contains(word.to_lowercase().as_str())
+}
+
+/// Whether `heard_as` may be rewritten wherever it appears. A misheard form
+/// made only of everyday words or first names is also something the user
+/// says on purpose, so it is never one.
+pub fn is_safe_mishearing(heard_as: &str) -> bool {
+    let words: Vec<&str> = heard_as.split_whitespace().collect();
+    !words.is_empty() && !words.iter().all(|word| is_common_word(word))
+}
+
+/// "Sarah" -> "Sarah's" or "report" -> "reports" changes the grammar of a
+/// word the user already had.
+fn only_inflected(heard: &str, word: &str) -> bool {
+    let (heard, word) = (letters(heard), letters(word));
+    let (short, long) = if heard.len() <= word.len() {
+        (heard, word)
+    } else {
+        (word, heard)
+    };
+    short != long && long.starts_with(&short) && long.chars().count() - short.chars().count() <= 2
+}
+
+/// A misheard form the user left untouched elsewhere in the text is one
+/// they meant.
+fn kept_elsewhere(heard_as: &str, edited: &[&str]) -> bool {
+    let heard: Vec<String> = heard_as.split_whitespace().map(letters).collect();
+    !heard.is_empty()
+        && edited.windows(heard.len()).any(|window| {
+            window
+                .iter()
+                .map(|word| letters(word))
+                .eq(heard.iter().cloned())
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +325,35 @@ mod tests {
         assert_eq!(review.words_corrected, 1);
         assert!(review.learned.is_empty());
         assert!(learned("Their right.", "There right.").is_empty());
+    }
+
+    #[test]
+    fn a_common_word_is_never_learned_as_a_mishearing() {
+        assert!(learned("talk to the cloud", "talk to the Claude").is_empty());
+        assert!(learned("ask and about it", "ask Ann about it").is_empty());
+        assert!(learned("please mark it", "please Marc it").is_empty());
+        assert!(learned("envoie le au bureau", "envoie le au Burrow").is_empty());
+    }
+
+    #[test]
+    fn swapping_one_name_for_another_is_a_content_edit() {
+        assert!(learned("meet John at 3", "meet Joan at 3").is_empty());
+        assert!(learned("ask Mark about it", "ask Marc about it").is_empty());
+    }
+
+    #[test]
+    fn an_added_suffix_is_not_a_new_word() {
+        assert!(learned("Sarah report is due", "Sarah's report is due").is_empty());
+        assert!(learned("ping Kuberneet now", "ping Kuberneets now").is_empty());
+    }
+
+    #[test]
+    fn a_heard_as_the_user_kept_elsewhere_is_not_a_mishearing() {
+        assert!(learned(
+            "I told Clawd and Clawd agreed",
+            "I told Claude and Clawd agreed"
+        )
+        .is_empty());
     }
 
     #[test]

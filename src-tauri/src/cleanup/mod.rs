@@ -148,7 +148,7 @@ async fn clean_with_session(
         max_output_chars: prompt::max_output_chars(raw.chars().count()),
     };
     let output = responses::complete(url, session, &request, operation).await?;
-    prompt::accept_output(raw, &output).ok_or_else(|| CompletionError::Failed {
+    prompt::accept_output(raw, &output, context).ok_or_else(|| CompletionError::Failed {
         kind: FailureKind::Other,
         detail: "reply does not look like an edit of the dictation".to_string(),
     })

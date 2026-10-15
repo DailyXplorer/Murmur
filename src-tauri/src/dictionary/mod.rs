@@ -7,6 +7,7 @@ mod observer;
 
 pub use observer::{stop_observing, watch_pasted_text};
 
+use crate::audio_toolkit::apply_custom_words;
 use crate::settings::{self, MAX_CUSTOM_WORDS};
 use learn::Correction;
 use log::{debug, info};
@@ -36,10 +37,33 @@ pub fn prune_learned(learned: &mut Vec<LearnedWord>, custom_words: &[String]) ->
     learned.len() != before
 }
 
+/// Applies the dictionary to a transcript. Words the user typed in are
+/// fuzzy matched as before. A learned word is replaced only where its exact
+/// misheard form appears: fuzzy matching it would turn "cloud" into "Claude"
+/// from a single correction, so otherwise it is only a vocabulary hint for
+/// cleanup.
+pub fn correct(
+    text: &str,
+    custom_words: &[String],
+    learned: &[LearnedWord],
+    threshold: f64,
+) -> String {
+    let typed: Vec<String> = custom_words
+        .iter()
+        .filter(|word| !learned.iter().any(|entry| &entry.word == *word))
+        .cloned()
+        .collect();
+    apply_custom_words(&apply_heard_as(text, learned), &typed, threshold)
+}
+
 /// Replaces each learned mishearing with its word, whole words only and
-/// ignoring case.
-pub fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> String {
-    learned.iter().fold(text.to_string(), |text, entry| {
+/// ignoring case. Entries stored before a mishearing had to be an unusual
+/// form are skipped.
+fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> String {
+    let safe = learned
+        .iter()
+        .filter(|entry| learn::is_safe_mishearing(&entry.heard_as));
+    safe.fold(text.to_string(), |text, entry| {
         let pattern = format!(r"(?i)\b{}\b", regex::escape(entry.heard_as.trim()));
         match Regex::new(&pattern) {
             Ok(heard) => heard
@@ -105,6 +129,29 @@ mod tests {
         assert_eq!(
             apply_heard_as("Clawd runs on Cooper Netties, not clawdia", &entries),
             "Claude runs on Kubernetes, not clawdia"
+        );
+    }
+
+    #[test]
+    fn a_stored_common_word_mishearing_is_never_replaced() {
+        let entries = [learned("Claude", "cloud"), learned("Sarah's", "Sarah")];
+        assert_eq!(
+            apply_heard_as("cloud storage for Sarah", &entries),
+            "cloud storage for Sarah"
+        );
+    }
+
+    #[test]
+    fn a_learned_word_is_not_fuzzy_matched_onto_ordinary_words() {
+        let words = vec!["Claude".to_string(), "ChatGPT".to_string()];
+        let entries = [learned("Claude", "clawd")];
+        assert_eq!(
+            correct("ask clawd about cloud storage", &words, &entries, 0.18),
+            "ask Claude about cloud storage"
+        );
+        assert_eq!(
+            correct("open chat gpt", &words, &entries, 0.18),
+            "open ChatGPT"
         );
     }
 
