@@ -16,9 +16,10 @@ use std::time::{Duration, Instant};
 
 use log::{error, info};
 use objc2::rc::Retained;
+use objc2::runtime::ProtocolObject;
 use objc2::{define_class, msg_send, AnyThread, DefinedClass};
-use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
-use objc2_foundation::{NSArray, NSInteger, NSObject, NSString};
+use objc2_app_kit::{NSPasteboard, NSPasteboardItem, NSPasteboardTypeString, NSPasteboardWriting};
+use objc2_foundation::{NSArray, NSData, NSInteger, NSObject, NSString};
 use tauri::AppHandle;
 use tokio::sync::oneshot;
 
@@ -94,16 +95,73 @@ impl MurmurPasteProvider {
     }
 }
 
+/// The clipboard as it was before Murmur published a transcript: every item,
+/// with the data of every type it offered, so restoring it is lossless.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct SavedClipboard {
+    items: Vec<Vec<(String, Vec<u8>)>>,
+}
+
+impl SavedClipboard {
+    /// Must run on the main thread.
+    fn capture(pasteboard: &NSPasteboard) -> Self {
+        let mut items = Vec::new();
+        for item in pasteboard
+            .pasteboardItems()
+            .iter()
+            .flat_map(|items| items.iter())
+        {
+            let entries: Vec<_> = item
+                .types()
+                .iter()
+                .filter_map(|data_type| {
+                    let data = item.dataForType(&data_type)?;
+                    Some((data_type.to_string(), data.to_vec()))
+                })
+                .collect();
+            if !entries.is_empty() {
+                items.push(entries);
+            }
+        }
+        Self { items }
+    }
+
+    /// Replaces the clipboard with the saved items. Must run on the main thread.
+    fn restore(&self, pasteboard: &NSPasteboard) -> bool {
+        pasteboard.clearContents();
+        if self.items.is_empty() {
+            return true;
+        }
+        let items: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> = self
+            .items
+            .iter()
+            .map(|entries| {
+                let item = NSPasteboardItem::new();
+                for (data_type, bytes) in entries {
+                    item.setData_forType(
+                        &NSData::with_bytes(bytes),
+                        &NSString::from_str(data_type),
+                    );
+                }
+                ProtocolObject::from_retained(item)
+            })
+            .collect();
+        pasteboard.writeObjects(&NSArray::from_retained_slice(&items))
+    }
+}
+
 struct MacPending {
     state: Arc<Mutex<TxState>>,
     change_count: NSInteger,
     provider: Option<Retained<MurmurPasteProvider>>,
     /// ClipboardHandling::CopyToClipboard settles by materializing every
     /// promised type so the transcript outlives the provider. Otherwise Murmur
-    /// clears its promise after settlement.
+    /// puts the previous clipboard back after settlement.
     preserve_transcript: bool,
     /// The transcript, for `preserve_transcript` materialization at settle time.
     transcript: String,
+    /// The user's clipboard from before the paste, restored at settlement.
+    previous: SavedClipboard,
     settled: bool,
 }
 
@@ -146,10 +204,10 @@ fn finish_settlement(pending: &mut MacPending) {
     pending.provider = None;
 }
 
-/// Settles a transaction exactly once by keeping or clearing the transcript.
-/// Earlier clipboard values are never restored. Auto-submit happens only in
-/// the targeted event path and never depends on an AppKit read callback.
-/// Must run on the main thread.
+/// Settles a transaction exactly once by keeping the transcript or putting
+/// the previous clipboard back. Nothing is written once someone else owns the
+/// clipboard. Auto-submit happens only in the targeted event path and never
+/// depends on an AppKit read callback. Must run on the main thread.
 fn settle(pending: &Arc<Mutex<MacPending>>) {
     let mut p = match pending.lock() {
         Ok(p) => p,
@@ -187,19 +245,20 @@ fn settle(pending: &Arc<Mutex<MacPending>>) {
                 info!("[reliable-paste] clipboard changed during materialization; leaving it untouched");
             }
         }
-        ClipboardSettlement::ClearClipboard => {
+        ClipboardSettlement::RestorePrevious => {
             let pasteboard = NSPasteboard::generalPasteboard();
             if pasteboard.changeCount() != p.change_count {
-                info!("[reliable-paste] clipboard changed before cleanup; leaving it untouched");
+                info!("[reliable-paste] clipboard changed before restore; leaving it untouched");
                 finish_settlement(&mut p);
                 return;
             }
-            // Replacing our promised values in place avoids the check-then-clear
-            // race: setString fails if another process takes ownership first.
-            if materialize_promised_data(&pasteboard, "") {
-                info!("[reliable-paste] erased transcript without restoring prior clipboard data");
+            if p.previous.restore(&pasteboard) {
+                info!(
+                    "[reliable-paste] restored the previous clipboard ({} items)",
+                    p.previous.items.len()
+                );
             } else {
-                info!("[reliable-paste] clipboard changed during cleanup; leaving it untouched");
+                error!("[reliable-paste] failed to restore the previous clipboard");
             }
         }
     }
@@ -209,7 +268,7 @@ fn settle(pending: &Arc<Mutex<MacPending>>) {
 
 #[derive(Debug, PartialEq, Eq)]
 enum ClipboardSettlement {
-    ClearClipboard,
+    RestorePrevious,
     KeepTranscript,
     LeaveUntouched,
 }
@@ -220,7 +279,7 @@ fn decide_settlement(still_ours: bool, preserve_transcript: bool) -> ClipboardSe
     } else if preserve_transcript {
         ClipboardSettlement::KeepTranscript
     } else {
-        ClipboardSettlement::ClearClipboard
+        ClipboardSettlement::RestorePrevious
     }
 }
 
@@ -408,6 +467,14 @@ pub(super) fn run(
         PasteboardAdmission::TargetChanged => return ReliablePasteOutcome::Skipped,
     }
 
+    // After flush_pending, so an earlier Murmur paste has already put the
+    // user's own clipboard back and that is what gets saved.
+    let previous = if clipboard_handling == ClipboardHandling::CopyToClipboard {
+        SavedClipboard::default()
+    } else {
+        SavedClipboard::capture(&pasteboard)
+    };
+
     // declareTypes:owner: clears the pasteboard and puts our promise on it;
     // the return value is the new changeCount.
     let change_count: NSInteger =
@@ -452,6 +519,7 @@ pub(super) fn run(
         provider: Some(provider),
         preserve_transcript: clipboard_handling == ClipboardHandling::CopyToClipboard,
         transcript: text.to_string(),
+        previous,
         settled: false,
     }));
     if let Ok(mut slot) = PENDING.lock() {
@@ -477,15 +545,61 @@ mod tests {
     use crate::operation::OperationId;
 
     #[test]
-    fn never_restores_prior_clipboard_data() {
+    fn restores_the_previous_clipboard_only_while_murmur_still_owns_it() {
         assert_eq!(
             decide_settlement(true, false),
-            ClipboardSettlement::ClearClipboard
+            ClipboardSettlement::RestorePrevious
         );
         assert_eq!(
             decide_settlement(false, false),
             ClipboardSettlement::LeaveUntouched
         );
+    }
+
+    #[test]
+    fn saved_clipboard_round_trips_every_item_and_type() {
+        // A private pasteboard, so the test never touches the user's clipboard.
+        let pasteboard = NSPasteboard::pasteboardWithUniqueName();
+        let saved = SavedClipboard {
+            items: vec![
+                vec![
+                    ("public.utf8-plain-text".to_string(), b"first".to_vec()),
+                    ("public.html".to_string(), b"<b>first</b>".to_vec()),
+                ],
+                vec![("com.example.custom".to_string(), vec![0, 1, 2, 255])],
+            ],
+        };
+        assert!(saved.restore(&pasteboard));
+
+        pasteboard.clearContents();
+        assert!(materialize_promised_data(&pasteboard, "transcript"));
+        assert!(saved.restore(&pasteboard));
+
+        let restored = SavedClipboard::capture(&pasteboard);
+        release(&pasteboard);
+        assert_eq!(restored.items.len(), 2);
+        for (saved_item, restored_item) in saved.items.iter().zip(&restored.items) {
+            for entry in saved_item {
+                assert!(restored_item.contains(entry), "missing {:?}", entry.0);
+            }
+        }
+    }
+
+    #[test]
+    fn empty_previous_clipboard_restores_to_empty() {
+        let pasteboard = NSPasteboard::pasteboardWithUniqueName();
+        pasteboard.clearContents();
+        assert!(materialize_promised_data(&pasteboard, "transcript"));
+
+        assert!(SavedClipboard::default().restore(&pasteboard));
+
+        let restored = SavedClipboard::capture(&pasteboard);
+        release(&pasteboard);
+        assert_eq!(restored, SavedClipboard::default());
+    }
+
+    fn release(pasteboard: &NSPasteboard) {
+        let _: () = unsafe { msg_send![pasteboard, releaseGlobally] };
     }
 
     #[test]
