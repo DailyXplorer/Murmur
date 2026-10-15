@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
     "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
     "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
-    "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı)."
+    "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
+    "pasteLastTranscript": "Son dökümü yapıştır",
+    "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok."
   },
   "sidebar": {
     "general": "Genel",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "İptal Kısayolu",
             "description": "Mevcut kaydı iptal etmek için klavye kısayolu."
+          },
+          "paste_last": {
+            "name": "Son dökümü yapıştır",
+            "description": "En son dökümünüzü kullandığınız uygulamaya yeniden yapıştırır."
           }
         },
         "errors": {

@@ -56,6 +56,9 @@ enum Command {
     /// async worker and the audio manager can still report recording active.
     Cancel,
     RemoteCancel,
+    /// Paste the latest transcription again. Admitted only while idle, so it
+    /// never interleaves with a dictation's own paste.
+    PasteLast,
     Shutdown,
     ProcessingFinished(OperationId),
 }
@@ -334,6 +337,17 @@ impl Worker {
                         self.pending_start = None;
                     }
                 }
+                Command::PasteLast => {
+                    if matches!(self.stage, Stage::Idle) {
+                        let operation = self.next_operation();
+                        self.stage = Stage::Processing {
+                            operation: operation.clone(),
+                        };
+                        crate::paste_last::spawn(&self.app, operation);
+                    } else {
+                        debug!("Ignoring paste-last request: dictation in progress");
+                    }
+                }
                 Command::Shutdown => {
                     self.gesture = Gesture::Idle;
                     let may_return_idle = request_cancel(&self.stage);
@@ -413,14 +427,22 @@ impl Worker {
         }
     }
 
+    fn next_operation(&mut self) -> ProcessingOperation {
+        let operation = ProcessingOperation::new(OperationId(self.next_operation_id));
+        self.next_operation_id = self.next_operation_id.wrapping_add(1);
+        operation
+    }
+
     fn stop(&mut self, binding_id: &str, hotkey_string: &str) {
-        stop(
-            &self.app,
-            &mut self.stage,
-            &mut self.next_operation_id,
-            binding_id,
-            hotkey_string,
-        );
+        let Some(action) = ACTION_MAP.get(binding_id) else {
+            warn!("No action in ACTION_MAP for '{binding_id}'");
+            return;
+        };
+        let operation = self.next_operation();
+        self.stage = Stage::Processing {
+            operation: operation.clone(),
+        };
+        action.stop(&self.app, binding_id, hotkey_string, operation);
     }
 }
 
@@ -512,6 +534,10 @@ impl TranscriptionCoordinator {
         }
     }
 
+    pub fn send_paste_last(&self) {
+        self.send(Command::PasteLast);
+    }
+
     pub fn notify_processing_finished(&self, id: OperationId) {
         if self.tx.send(Command::ProcessingFinished(id)).is_err() {
             warn!("Transcription coordinator channel closed");
@@ -588,25 +614,6 @@ fn start(
         debug!("Start for '{binding_id}' did not begin recording; staying idle");
         None
     }
-}
-
-fn stop(
-    app: &AppHandle,
-    stage: &mut Stage,
-    next_operation_id: &mut u64,
-    binding_id: &str,
-    hotkey_string: &str,
-) {
-    let Some(action) = ACTION_MAP.get(binding_id) else {
-        warn!("No action in ACTION_MAP for '{binding_id}'");
-        return;
-    };
-    let operation = ProcessingOperation::new(OperationId(*next_operation_id));
-    *next_operation_id = next_operation_id.wrapping_add(1);
-    *stage = Stage::Processing {
-        operation: operation.clone(),
-    };
-    action.stop(app, binding_id, hotkey_string, operation);
 }
 
 #[cfg(test)]

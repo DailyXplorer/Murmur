@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Stále zapnutý mikrofon se nespustil. Murmur ho otevře při nahrávání.",
     "errorHistoryStartup": "Historii nelze otevřít. Diktování funguje, ale nic se do historie neukládá.",
     "noticeHistoryReset": "Historie byla poškozená a byla obnovena. Starý soubor zůstal vedle ní.",
-    "warningRecordingLimit": "Nahrávání se zastaví za 1 minutu (limit 15 minut)."
+    "warningRecordingLimit": "Nahrávání se zastaví za 1 minutu (limit 15 minut).",
+    "pasteLastTranscript": "Vložit poslední přepis",
+    "noticeNothingToPaste": "Zatím není co vložit."
   },
   "sidebar": {
     "general": "Obecné",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Zkratka zrušení",
             "description": "Klávesová zkratka pro zrušení aktuálního nahrávání."
+          },
+          "paste_last": {
+            "name": "Vložit poslední přepis",
+            "description": "Znovu vloží váš poslední přepis do aplikace, kterou právě používáte."
           }
         },
         "errors": {

@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
     "errorHistoryStartup": "Geschiedenis kon niet worden geopend. Dicteren werkt, maar er wordt niets in Geschiedenis opgeslagen.",
     "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast.",
-    "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten)."
+    "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten).",
+    "pasteLastTranscript": "Laatste transcriptie plakken",
+    "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Sneltoets voor annuleren",
             "description": "De sneltoets om de huidige opname te annuleren."
+          },
+          "paste_last": {
+            "name": "Laatste transcriptie plakken",
+            "description": "Plakt je laatste transcriptie opnieuw in de app die je gebruikt."
           }
         },
         "errors": {

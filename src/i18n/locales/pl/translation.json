@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "Stale włączony mikrofon nie uruchomił się. Murmur otworzy go podczas nagrywania.",
     "errorHistoryStartup": "Nie udało się otworzyć historii. Dyktowanie działa, ale nic nie jest zapisywane w historii.",
     "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok.",
-    "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut)."
+    "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut).",
+    "pasteLastTranscript": "Wklej ostatnią transkrypcję",
+    "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Skrót anulowania",
             "description": "Skrót klawiaturowy do anulowania bieżącego nagrywania."
+          },
+          "paste_last": {
+            "name": "Wklej ostatnią transkrypcję",
+            "description": "Ponownie wkleja ostatnią transkrypcję do aplikacji, której używasz."
           }
         },
         "errors": {

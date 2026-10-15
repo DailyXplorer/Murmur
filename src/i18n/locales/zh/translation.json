@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "常开麦克风无法启动。录音时 Murmur 会打开它。",
     "errorHistoryStartup": "无法打开历史记录。听写仍可使用，但不会保存到历史记录。",
     "noticeHistoryReset": "历史记录已损坏并已重置。旧文件保留在旁边。",
-    "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。"
+    "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。",
+    "pasteLastTranscript": "粘贴上一条转录",
+    "noticeNothingToPaste": "还没有可粘贴的转录。"
   },
   "sidebar": {
     "general": "通用",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "取消快捷键",
             "description": "用于取消当前录制的键盘快捷键。"
+          },
+          "paste_last": {
+            "name": "粘贴上一条转录",
+            "description": "将最近一次转录再次粘贴到当前使用的应用中。"
           }
         },
         "errors": {

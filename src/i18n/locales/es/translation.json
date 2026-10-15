@@ -21,7 +21,9 @@
     "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
     "errorHistoryStartup": "No se pudo abrir el historial. El dictado funciona, pero no se guarda nada en el historial.",
     "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado.",
-    "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos)."
+    "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos).",
+    "pasteLastTranscript": "Pegar la última transcripción",
+    "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar."
   },
   "sidebar": {
     "general": "General",
@@ -94,6 +96,10 @@
           "cancel": {
             "name": "Atajo de cancelar",
             "description": "El atajo de teclado para cancelar la grabación actual."
+          },
+          "paste_last": {
+            "name": "Pegar la última transcripción",
+            "description": "Vuelve a pegar tu última transcripción en la aplicación que estás usando."
           }
         },
         "errors": {
