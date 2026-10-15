@@ -1,35 +1,30 @@
 use anyhow::{anyhow, Context, Result};
-use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 use hound::WavSpec;
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use std::fs;
+use log::warn;
+use serde::Deserialize;
 use std::io::Cursor;
-use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::codex_auth::{self, Session};
+use crate::transcription_error::{retry_delay, FailureKind, TranscriptionError};
 use crate::ProcessingOperation;
+
+pub use crate::codex_auth::CodexAuthStatus;
 
 const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcribe";
 const SAMPLE_RATE: u32 = 16_000;
+const WAV_BYTES_PER_SAMPLE: usize = 2;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct CodexAuthStatus {
-    pub signed_in: bool,
-}
+/// The Codex CLI only ever uploaded `audio/wav` to this endpoint, so Murmur
+/// sends uncompressed WAV. The endpoint publishes no size limit; the public
+/// OpenAI transcription API caps uploads at 25 MB (about 13.6 minutes here),
+/// so longer recordings get a warning before upload.
+pub const UPLOAD_SOFT_LIMIT_BYTES: usize = 25 * 1024 * 1024;
 
-#[derive(Debug, Deserialize)]
-struct AuthFile {
-    #[serde(default)]
-    tokens: Option<AuthTokens>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AuthTokens {
-    access_token: String,
-    #[serde(default)]
-    account_id: Option<String>,
-}
+/// Covers connect, upload and response. Long recordings get one extra second
+/// per 64 KiB, which assumes at least ~512 kbit/s of upstream bandwidth.
+const BASE_REQUEST_TIMEOUT_SECS: u64 = 60;
+const TIMEOUT_BYTES_PER_EXTRA_SECOND: u64 = 64 * 1024;
 
 #[derive(Debug, Deserialize)]
 struct TranscribeJson {
@@ -37,15 +32,23 @@ struct TranscribeJson {
     transcript: Option<String>,
 }
 
-struct Session {
-    access_token: String,
-    account_id: Option<String>,
+enum RequestError {
+    Cancelled,
+    Failed(TranscriptionError),
 }
 
 pub fn auth_status() -> CodexAuthStatus {
-    CodexAuthStatus {
-        signed_in: load_session().is_ok(),
-    }
+    codex_auth::auth_status()
+}
+
+pub fn upload_size_for_samples(sample_count: usize) -> usize {
+    44 + sample_count * WAV_BYTES_PER_SAMPLE
+}
+
+fn request_timeout(upload_bytes: usize) -> Duration {
+    Duration::from_secs(
+        BASE_REQUEST_TIMEOUT_SECS + upload_bytes as u64 / TIMEOUT_BYTES_PER_EXTRA_SECOND,
+    )
 }
 
 pub async fn transcribe(
@@ -61,23 +64,47 @@ pub async fn transcribe(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
-    if operation.is_cancelled() {
-        return Err(anyhow!("Codex transcription cancelled"));
-    }
-    let session = load_session()?;
-    if operation.is_cancelled() {
-        return Err(anyhow!("Codex transcription cancelled"));
-    }
-    transcribe_with_session(&session, &wav, language, operation).await
-}
+    let auth_path = codex_auth::auth_path()?;
+    let mut session = codex_auth::session_for_request(&auth_path).await?;
+    let mut recovered_from_unauthorized = false;
+    let mut retries = 0;
 
-async fn transcribe_with_session(
-    session: &Session,
-    wav: &[u8],
-    language: Option<&str>,
-    operation: &ProcessingOperation,
-) -> Result<String> {
-    transcribe_with_session_at(TRANSCRIBE_URL, session, wav, language, operation).await
+    loop {
+        if operation.is_cancelled() {
+            return Err(anyhow!("Codex transcription cancelled"));
+        }
+        let error =
+            match transcribe_with_session_at(TRANSCRIBE_URL, &session, &wav, language, operation)
+                .await
+            {
+                Ok(text) => return Ok(text),
+                Err(RequestError::Cancelled) => {
+                    return Err(anyhow!("Codex transcription cancelled"))
+                }
+                Err(RequestError::Failed(error)) => error,
+            };
+
+        // Like Codex: on the first 401, refresh once and resend once.
+        if error.kind == FailureKind::SessionExpired && !recovered_from_unauthorized {
+            recovered_from_unauthorized = true;
+            session = codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+            continue;
+        }
+
+        let Some(delay) = retry_delay(error.kind, retries) else {
+            return Err(error.into());
+        };
+        retries += 1;
+        warn!(
+            "Codex transcription attempt failed ({:?}); retrying in {} ms",
+            error.kind,
+            delay.as_millis()
+        );
+        tokio::select! {
+            _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
+            _ = tokio::time::sleep(delay) => {}
+        }
+    }
 }
 
 async fn transcribe_with_session_at(
@@ -86,21 +113,30 @@ async fn transcribe_with_session_at(
     wav: &[u8],
     language: Option<&str>,
     operation: &ProcessingOperation,
-) -> Result<String> {
+) -> Result<String, RequestError> {
+    let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
     let client = reqwest::Client::builder()
         .user_agent(user_agent())
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(90))
+        .timeout(request_timeout(wav.len()))
         .build()
-        .context("failed to build transcription HTTP client")?;
+        .map_err(|error| {
+            failed(
+                FailureKind::Other,
+                format!("failed to build transcription HTTP client: {error}"),
+            )
+        })?;
 
-    let mut form = reqwest::multipart::Form::new().part(
-        "file",
-        reqwest::multipart::Part::bytes(wav.to_vec())
-            .file_name("codex.wav")
-            .mime_str("audio/wav")
-            .context("invalid wav content type")?,
-    );
+    let part = reqwest::multipart::Part::bytes(wav.to_vec())
+        .file_name("codex.wav")
+        .mime_str("audio/wav")
+        .map_err(|error| {
+            failed(
+                FailureKind::Other,
+                format!("invalid wav content type: {error}"),
+            )
+        })?;
+    let mut form = reqwest::multipart::Form::new().part("file", part);
 
     if let Some(language) = language.filter(|code| !code.is_empty() && *code != "auto") {
         form = form.text("language", api_language(language).to_string());
@@ -118,26 +154,31 @@ async fn transcribe_with_session_at(
     }
 
     let response = tokio::select! {
-        _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
-        response = request.send() => response.context("Codex transcription request failed")?,
+        _ = operation.cancelled() => return Err(RequestError::Cancelled),
+        response = request.send() => response.map_err(|error| failed(
+            FailureKind::from_transport(&error),
+            format!("Codex transcription request failed: {error}"),
+        ))?,
     };
     let status = response.status();
     let body = tokio::select! {
-        _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
-        body = response.text() => body.context("failed to read Codex transcription response")?,
+        _ = operation.cancelled() => return Err(RequestError::Cancelled),
+        body = response.text() => body.map_err(|error| failed(
+            FailureKind::from_transport(&error),
+            format!("failed to read Codex transcription response: {error}"),
+        ))?,
     };
 
     if !status.is_success() {
-        return if status.as_u16() == 401 {
-            Err(anyhow!(
-                "Codex transcription session expired. Open Codex, sign in again, and retry."
-            ))
-        } else {
-            Err(anyhow!("Codex transcription failed with HTTP {status}"))
-        };
+        let kind = FailureKind::from_status(status.as_u16());
+        let excerpt: String = body.chars().take(200).collect();
+        return Err(failed(
+            kind,
+            format!("Codex transcription failed with HTTP {status}: {excerpt}"),
+        ));
     }
 
-    parse_transcript(&body)
+    parse_transcript(&body).map_err(|error| failed(FailureKind::Other, error.to_string()))
 }
 
 fn parse_transcript(body: &str) -> Result<String> {
@@ -165,49 +206,7 @@ fn api_language(language: &str) -> &str {
     }
 }
 
-fn load_session() -> Result<Session> {
-    let path = auth_path()?;
-    let raw = fs::read_to_string(&path).with_context(|| {
-        format!(
-            "Codex/ChatGPT session not found at {}. Open the Codex app and sign in.",
-            path.display()
-        )
-    })?;
-    let auth = parse_auth_file(&raw, &path)?;
-
-    if let Some(tokens) = auth.tokens.filter(|tokens| !tokens.access_token.is_empty()) {
-        let account_id = tokens
-            .account_id
-            .clone()
-            .or_else(|| chatgpt_account_id_from_jwt(&tokens.access_token));
-        return Ok(Session {
-            access_token: tokens.access_token,
-            account_id,
-        });
-    }
-
-    Err(anyhow!(
-        "A ChatGPT subscription session is required. Sign in to Codex with ChatGPT and configure Codex to store credentials in auth.json."
-    ))
-}
-
-fn parse_auth_file(raw: &str, path: &std::path::Path) -> Result<AuthFile> {
-    serde_json::from_str(raw).with_context(|| format!("failed to parse {}", path.display()))
-}
-
-fn auth_path() -> Result<PathBuf> {
-    if let Some(codex_home) = std::env::var_os("CODEX_HOME") {
-        return Ok(PathBuf::from(codex_home).join("auth.json"));
-    }
-    let home = user_home().ok_or_else(|| anyhow!("User home directory is not set"))?;
-    Ok(home.join(".codex").join("auth.json"))
-}
-
-fn user_home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
-}
-
-fn user_agent() -> String {
+pub(crate) fn user_agent() -> String {
     let arch = if cfg!(target_arch = "aarch64") {
         "arm64"
     } else {
@@ -236,43 +235,6 @@ fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
         writer.finalize().context("failed to finalize WAV")?;
     }
     Ok(cursor.into_inner())
-}
-
-fn chatgpt_account_id_from_jwt(token: &str) -> Option<String> {
-    jwt_payload(token)?
-        .get("https://api.openai.com/auth")
-        .and_then(|auth| auth.get("chatgpt_account_id"))
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-}
-
-fn jwt_payload(token: &str) -> Option<serde_json::Value> {
-    let payload = token.split('.').nth(1)?;
-    let decoded = decode_base64url(payload)?;
-    serde_json::from_slice(&decoded).ok()
-}
-
-fn decode_base64url(input: &str) -> Option<Vec<u8>> {
-    let padding_start = input.find('=').unwrap_or(input.len());
-    let padding = &input[padding_start..];
-    let remainder = input.len() % 4;
-
-    if !padding.bytes().all(|byte| byte == b'=') || padding.len() > 2 {
-        return None;
-    }
-    if !padding.is_empty() && remainder != 0 {
-        return None;
-    }
-    if padding.is_empty() && remainder == 1 {
-        return None;
-    }
-
-    let mut normalized = input.to_string();
-    if padding.is_empty() {
-        normalized.extend(std::iter::repeat_n('=', (4 - remainder) % 4));
-    }
-
-    URL_SAFE.decode(normalized).ok()
 }
 
 #[cfg(test)]
@@ -321,51 +283,96 @@ mod tests {
     }
 
     #[test]
-    fn extracts_chatgpt_account_id_from_jwt() {
-        let token = "header.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xMjMifX0.signature";
-        assert_eq!(
-            chatgpt_account_id_from_jwt(token).as_deref(),
-            Some("acct_123")
-        );
+    fn encode_wav_has_header_and_samples() {
+        let wav = pcm_f32_to_wav_bytes(&[0.5; 160]).unwrap();
+        assert_eq!(wav.len(), upload_size_for_samples(160));
+        assert_eq!(&wav[0..4], b"RIFF");
+        assert_eq!(&wav[8..12], b"WAVE");
     }
 
     #[test]
-    fn decodes_padded_and_unpadded_base64url() {
-        assert_eq!(decode_base64url("SGVsbG8"), Some(b"Hello".to_vec()));
-        assert_eq!(decode_base64url("SGVsbG8="), Some(b"Hello".to_vec()));
-        assert_eq!(decode_base64url("SGk="), Some(b"Hi".to_vec()));
-        assert_eq!(decode_base64url("SGk"), Some(b"Hi".to_vec()));
+    fn timeout_scales_with_upload_size() {
+        assert_eq!(request_timeout(100_000), Duration::from_secs(61));
+        let fifteen_minutes = upload_size_for_samples(15 * 60 * SAMPLE_RATE as usize);
+        assert_eq!(request_timeout(fifteen_minutes), Duration::from_secs(499));
     }
 
     #[test]
-    fn rejects_malformed_base64url_padding() {
-        for malformed in [
-            "SG=VsbG8",
-            "SGVsbG8===",
-            "SGVsbG8=A",
-            "TQ=",
-            "TQ===",
-            "TQ==A",
-            "A",
-            "SGVsbG8==",
-        ] {
-            assert_eq!(decode_base64url(malformed), None, "accepted {malformed}");
+    fn soft_limit_is_reached_after_about_thirteen_minutes() {
+        let samples_per_minute = 60 * SAMPLE_RATE as usize;
+        assert!(upload_size_for_samples(13 * samples_per_minute) < UPLOAD_SOFT_LIMIT_BYTES);
+        assert!(upload_size_for_samples(14 * samples_per_minute) > UPLOAD_SOFT_LIMIT_BYTES);
+    }
+
+    fn reply_once(status_line: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            use std::io::Write;
+            let (mut peer, _) = listener.accept().unwrap();
+            let mut buffer = [0_u8; 8192];
+            let _ = peer.read(&mut buffer);
+            let body = r#"{"detail":"nope"}"#;
+            let _ = write!(
+                peer,
+                "HTTP/1.1 {status_line}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        });
+        endpoint
+    }
+
+    fn failure_kind_for(status_line: &'static str) -> FailureKind {
+        let endpoint = reply_once(status_line);
+        let session = Session {
+            access_token: "test-token".to_string(),
+            account_id: None,
+        };
+        let operation = ProcessingOperation::new(OperationId(3));
+        match tauri::async_runtime::block_on(transcribe_with_session_at(
+            &endpoint, &session, b"wav", None, &operation,
+        )) {
+            Err(RequestError::Failed(error)) => error.kind,
+            _ => panic!("{status_line} must fail"),
         }
     }
 
     #[test]
-    fn auth_parse_error_names_the_resolved_path() {
-        let path = std::path::Path::new("/custom/codex/auth.json");
-        let error = parse_auth_file("{", path).unwrap_err().to_string();
-        assert!(error.contains("/custom/codex/auth.json"));
+    fn http_failures_are_classified() {
+        assert_eq!(
+            failure_kind_for("401 Unauthorized"),
+            FailureKind::SessionExpired
+        );
+        assert_eq!(
+            failure_kind_for("429 Too Many Requests"),
+            FailureKind::RateLimited
+        );
+        assert_eq!(
+            failure_kind_for("502 Bad Gateway"),
+            FailureKind::ServerError
+        );
+        assert_eq!(
+            failure_kind_for("413 Payload Too Large"),
+            FailureKind::TooLarge
+        );
     }
 
     #[test]
-    fn encode_wav_has_header_and_samples() {
-        let wav = pcm_f32_to_wav_bytes(&[0.5; 160]).unwrap();
-        assert!(wav.len() > 44);
-        assert_eq!(&wav[0..4], b"RIFF");
-        assert_eq!(&wav[8..12], b"WAVE");
+    fn unreachable_service_is_a_network_failure() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        drop(listener);
+        let session = Session {
+            access_token: "test-token".to_string(),
+            account_id: None,
+        };
+        let operation = ProcessingOperation::new(OperationId(4));
+        match tauri::async_runtime::block_on(transcribe_with_session_at(
+            &endpoint, &session, b"wav", None, &operation,
+        )) {
+            Err(RequestError::Failed(error)) => assert_eq!(error.kind, FailureKind::Network),
+            _ => panic!("a closed port must fail"),
+        }
     }
 
     #[test]
@@ -415,7 +422,7 @@ mod tests {
         accepted_rx.recv_timeout(Duration::from_secs(1)).unwrap();
         assert!(operation.cancel());
         let result = tauri::async_runtime::block_on(request).unwrap();
-        assert!(result.unwrap_err().to_string().contains("cancelled"));
+        assert!(matches!(result, Err(RequestError::Cancelled)));
         assert!(closed_rx.recv_timeout(Duration::from_secs(1)).unwrap());
         server.join().unwrap();
     }

@@ -648,7 +648,15 @@ export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
-export type CodexAuthStatus = { signed_in: boolean }
+export type CodexAuthStatus = {
+/**
+ * A session exists and is either valid or refreshable.
+ */
+signed_in: boolean;
+/**
+ * A session exists, but it expired and cannot be refreshed.
+ */
+expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string }
