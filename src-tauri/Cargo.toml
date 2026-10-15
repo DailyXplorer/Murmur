@@ -81,9 +81,12 @@ objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
 security-framework = "3.7.0"
+# Accessibility attribute values for the Insights browser-domain lookup.
+core-foundation = "0.10"
 
 [dev-dependencies]
 tempfile = "3"
+chrono-tz = "0.10"
 tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread"] }
 
 [profile.release]
