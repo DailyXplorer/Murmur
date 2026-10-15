@@ -251,8 +251,14 @@
       "retranscribe": "Opnieuw transcriberen",
       "retranscribeError": "Opnieuw transcriberen mislukt. Probeer het opnieuw.",
       "transcribing": "Transcriberen...",
-      "transcriptionFailed": "Transcriptie mislukt. Je kunt het opnieuw proberen via het herlaad-pictogram.",
-      "preferences": "Voorkeuren"
+      "transcriptionFailed": "Transcriptie mislukt. De opname is bewaard, dus je kunt het opnieuw proberen.",
+      "preferences": "Voorkeuren",
+      "noRecording": "Transcriptie mislukt en er is geen opname bewaard.",
+      "retry": "Opnieuw proberen",
+      "retrySuccess": "Opnieuw getranscribeerd.",
+      "copy": "Kopiëren",
+      "recordingUnavailable": "De opname is niet meer beschikbaar en kan dus niet opnieuw worden getranscribeerd.",
+      "noSpeech": "Er is geen spraak gevonden in de opname."
     },
     "debug": {
       "title": "Probleemoplossing",

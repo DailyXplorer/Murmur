@@ -251,8 +251,14 @@
       "retranscribe": "重新轉錄",
       "retranscribeError": "重新轉錄失敗，請重試。",
       "transcribing": "轉錄中...",
-      "transcriptionFailed": "轉錄失敗。您可以使用重試圖示重新轉錄。",
-      "preferences": "偏好設定"
+      "transcriptionFailed": "轉錄失敗。錄音已保留，可以重試。",
+      "preferences": "偏好設定",
+      "noRecording": "轉錄失敗，且未保留錄音。",
+      "retry": "重試",
+      "retrySuccess": "已重新轉錄。",
+      "copy": "複製",
+      "recordingUnavailable": "錄音已無法使用，因此無法重新轉錄。",
+      "noSpeech": "錄音中未偵測到語音。"
     },
     "debug": {
       "title": "偵錯",

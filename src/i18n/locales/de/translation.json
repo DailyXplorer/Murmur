@@ -251,8 +251,14 @@
       "retranscribe": "Erneut transkribieren",
       "retranscribeError": "Erneute Transkription fehlgeschlagen. Bitte versuche es erneut.",
       "transcribing": "Transkribiere...",
-      "transcriptionFailed": "Transkription fehlgeschlagen. Du kannst über das Wiederholen-Symbol erneut transkribieren.",
-      "preferences": "Einstellungen"
+      "transcriptionFailed": "Transkription fehlgeschlagen. Die Aufnahme wurde behalten, du kannst es erneut versuchen.",
+      "preferences": "Einstellungen",
+      "noRecording": "Transkription fehlgeschlagen, und es wurde keine Aufnahme behalten.",
+      "retry": "Erneut versuchen",
+      "retrySuccess": "Erneut transkribiert.",
+      "copy": "Kopieren",
+      "recordingUnavailable": "Die Aufnahme ist nicht mehr verfügbar und kann daher nicht erneut transkribiert werden.",
+      "noSpeech": "In der Aufnahme wurde keine Sprache erkannt."
     },
     "debug": {
       "title": "Debug",

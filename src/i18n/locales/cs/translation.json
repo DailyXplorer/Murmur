@@ -251,8 +251,14 @@
       "retranscribe": "Přepsat znovu",
       "retranscribeError": "Opětovný přepis se nezdařil. Zkuste to prosím znovu.",
       "transcribing": "Přepisuji...",
-      "transcriptionFailed": "Přepis selhal. Můžete zkusit přepis znovu pomocí ikony opakování.",
-      "preferences": "Předvolby"
+      "transcriptionFailed": "Přepis se nezdařil. Nahrávka zůstala uložena, takže to můžete zkusit znovu.",
+      "preferences": "Předvolby",
+      "noRecording": "Přepis se nezdařil a nahrávka nebyla uložena.",
+      "retry": "Zkusit znovu",
+      "retrySuccess": "Znovu přepsáno.",
+      "copy": "Kopírovat",
+      "recordingUnavailable": "Nahrávka už není k dispozici, takže ji nelze znovu přepsat.",
+      "noSpeech": "V nahrávce nebyla nalezena žádná řeč."
     },
     "debug": {
       "title": "Ladění",

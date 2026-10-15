@@ -248,11 +248,17 @@
       "unsave": "Rimuovi dai salvataggi",
       "delete": "Elimina elemento",
       "deleteError": "Errore nell'eliminazione dell'elemento. Riprova.",
-      "retranscribe": "Ri-trascrivere",
+      "retranscribe": "Trascrivi di nuovo",
       "retranscribeError": "Impossibile ri-trascrivere. Riprova.",
       "transcribing": "Trascrizione in corso...",
-      "transcriptionFailed": "Trascrizione fallita. Puoi ri-trascrivere usando l'icona di ripetizione.",
-      "preferences": "Preferenze"
+      "transcriptionFailed": "Trascrizione non riuscita. La registrazione è stata conservata, quindi puoi riprovare.",
+      "preferences": "Preferenze",
+      "noRecording": "Trascrizione non riuscita e nessuna registrazione è stata conservata.",
+      "retry": "Riprova",
+      "retrySuccess": "Trascritto di nuovo.",
+      "copy": "Copia",
+      "recordingUnavailable": "La registrazione non è più disponibile, quindi non può essere trascritta di nuovo.",
+      "noSpeech": "Nessun parlato rilevato nella registrazione."
     },
     "debug": {
       "title": "Debug",

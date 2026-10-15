@@ -251,8 +251,14 @@
       "retranscribe": "Transkribera igen",
       "retranscribeError": "Misslyckades med att transkribera igen. Försök igen.",
       "transcribing": "Transkriberar...",
-      "transcriptionFailed": "Transkribering misslyckades. Du kan transkribera igen med hjälp av ikonen för nytt försök.",
-      "preferences": "Inställningar"
+      "transcriptionFailed": "Transkriptionen misslyckades. Inspelningen sparades, så du kan försöka igen.",
+      "preferences": "Inställningar",
+      "noRecording": "Transkriptionen misslyckades och ingen inspelning sparades.",
+      "retry": "Försök igen",
+      "retrySuccess": "Transkriberat igen.",
+      "copy": "Kopiera",
+      "recordingUnavailable": "Inspelningen är inte längre tillgänglig och kan därför inte transkriberas igen.",
+      "noSpeech": "Inget tal hittades i inspelningen."
     },
     "debug": {
       "title": "Felsökning",

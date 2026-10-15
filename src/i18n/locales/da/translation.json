@@ -248,11 +248,17 @@
       "unsave": "Fjern fra gemte",
       "delete": "Slet post",
       "deleteError": "Kunne ikke slette posten. Prøv igen.",
-      "retranscribe": "Transskribér igen",
+      "retranscribe": "Transskriber igen",
       "retranscribeError": "Kunne ikke transskribere igen. Prøv igen.",
       "transcribing": "Transskriberer...",
-      "transcriptionFailed": "Transskription mislykkedes. Du kan transskribere igen ved hjælp af genforsøgsikonet.",
-      "preferences": "Indstillinger"
+      "transcriptionFailed": "Transskriptionen mislykkedes. Optagelsen blev gemt, så du kan prøve igen.",
+      "preferences": "Indstillinger",
+      "noRecording": "Transskriptionen mislykkedes, og der blev ikke gemt nogen optagelse.",
+      "retry": "Prøv igen",
+      "retrySuccess": "Transskriberet igen.",
+      "copy": "Kopiér",
+      "recordingUnavailable": "Optagelsen er ikke længere tilgængelig, så den kan ikke transskriberes igen.",
+      "noSpeech": "Der blev ikke fundet tale i optagelsen."
     },
     "debug": {
       "title": "Fejlfinding",

@@ -251,8 +251,14 @@
       "retranscribe": "重新转录",
       "retranscribeError": "重新转录失败。请重试。",
       "transcribing": "转录中...",
-      "transcriptionFailed": "转录失败。您可以使用重试图标重新转录。",
-      "preferences": "偏好设置"
+      "transcriptionFailed": "转录失败。录音已保留，可以重试。",
+      "preferences": "偏好设置",
+      "noRecording": "转录失败，且未保留录音。",
+      "retry": "重试",
+      "retrySuccess": "已重新转录。",
+      "copy": "复制",
+      "recordingUnavailable": "录音已不可用，无法重新转录。",
+      "noSpeech": "录音中未检测到语音。"
     },
     "debug": {
       "title": "调试",

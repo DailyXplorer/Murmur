@@ -248,11 +248,17 @@
       "unsave": "Xóa khỏi đã lưu",
       "delete": "Xóa mục",
       "deleteError": "Không thể xóa mục. Vui lòng thử lại.",
-      "retranscribe": "Phiên âm lại",
+      "retranscribe": "Chép lời lại",
       "retranscribeError": "Không thể phiên âm lại. Vui lòng thử lại.",
       "transcribing": "Đang phiên âm...",
-      "transcriptionFailed": "Phiên âm thất bại. Bạn có thể phiên âm lại bằng biểu tượng thử lại.",
-      "preferences": "Tùy chọn"
+      "transcriptionFailed": "Chép lời thất bại. Bản ghi âm vẫn được giữ, bạn có thể thử lại.",
+      "preferences": "Tùy chọn",
+      "noRecording": "Chép lời thất bại và không có bản ghi âm nào được giữ lại.",
+      "retry": "Thử lại",
+      "retrySuccess": "Đã chép lời lại.",
+      "copy": "Sao chép",
+      "recordingUnavailable": "Bản ghi âm không còn nữa nên không thể chép lời lại.",
+      "noSpeech": "Không tìm thấy giọng nói trong bản ghi âm."
     },
     "debug": {
       "title": "Gỡ lỗi",
