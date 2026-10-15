@@ -491,7 +491,10 @@ impl ShortcutAction for TranscribeAction {
                     }
 
                     match transcription_result {
-                        Ok(transcription) => {
+                        Ok(crate::managers::transcription::Transcript {
+                            text: transcription,
+                            dictionary_fixes,
+                        }) => {
                             debug!(
                                 "Transcription completed in {:?} ({} characters)",
                                 transcription_time.elapsed(),
@@ -550,6 +553,12 @@ impl ShortcutAction for TranscribeAction {
                                             error!("Transcription output could not be delivered");
                                             let _ = ah.emit("paste-error", ());
                                         }
+                                        crate::insights::record_dictation(
+                                            &ah,
+                                            &final_text,
+                                            sample_count,
+                                            dictionary_fixes,
+                                        );
                                         if wav_saved {
                                             match hm.save_entry(file_name, final_text) {
                                                 Ok(_) => {
