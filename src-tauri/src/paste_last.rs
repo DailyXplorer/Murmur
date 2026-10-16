@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn default_binding_is_a_valid_shortcut() {
-        crate::shortcut::tauri_impl::validate_shortcut(DEFAULT_BINDING).unwrap();
+        crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
         assert!(DEFAULT_BINDING
             .parse::<tauri_plugin_global_shortcut::Shortcut>()
             .is_ok());

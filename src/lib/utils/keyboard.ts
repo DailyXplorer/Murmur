@@ -14,10 +14,6 @@ export const getKeyName = (e: KeyboardEvent): string => {
       return code.replace("Digit", "");
     }
 
-    if (code.match(/^Numpad\d$/)) {
-      return code.replace("Numpad", "numpad ").toLowerCase();
-    }
-
     const modifierMap: Record<string, string> = {
       ShiftLeft: "shift",
       ShiftRight: "shift",
@@ -27,7 +23,6 @@ export const getKeyName = (e: KeyboardEvent): string => {
       AltRight: "option",
       MetaLeft: "command",
       MetaRight: "command",
-      CapsLock: "caps lock",
       Tab: "tab",
       Enter: "enter",
       Space: "space",
@@ -40,19 +35,9 @@ export const getKeyName = (e: KeyboardEvent): string => {
       ArrowRight: "right",
       Home: "home",
       End: "end",
-      PageUp: "page up",
-      PageDown: "page down",
       Insert: "insert",
-      PrintScreen: "print screen",
-      ScrollLock: "scroll lock",
       Pause: "pause",
       ContextMenu: "menu",
-      NumpadMultiply: "numpad *",
-      NumpadAdd: "numpad +",
-      NumpadSubtract: "numpad -",
-      NumpadDecimal: "numpad .",
-      NumpadDivide: "numpad /",
-      NumLock: "num lock",
     };
 
     if (modifierMap[code]) {
@@ -77,7 +62,9 @@ export const getKeyName = (e: KeyboardEvent): string => {
       return punctuationMap[code];
     }
 
-    return code.toLowerCase().replace(/([a-z])([A-Z])/g, "$1 $2");
+    // The remaining codes (PageUp, CapsLock, Numpad1, NumpadAdd, ...) are
+    // spelled exactly as the global-hotkey parser names them.
+    return code.toLowerCase();
   }
 
   if (e.key) {
@@ -88,7 +75,7 @@ export const getKeyName = (e: KeyboardEvent): string => {
       Alt: "option",
       Shift: "shift",
       Meta: "command",
-      CapsLock: "caps lock",
+      CapsLock: "capslock",
       ArrowUp: "up",
       ArrowDown: "down",
       ArrowLeft: "left",
@@ -107,7 +94,26 @@ export const getKeyName = (e: KeyboardEvent): string => {
   return `unknown-${e.keyCode || e.which || 0}`;
 };
 
+const KEY_LABELS: Record<string, string> = {
+  pageup: "Page Up",
+  pagedown: "Page Down",
+  capslock: "Caps Lock",
+  printscreen: "Print Screen",
+  scrolllock: "Scroll Lock",
+  numlock: "Num Lock",
+  numpadadd: "Numpad +",
+  numpadsubtract: "Numpad -",
+  numpadmultiply: "Numpad *",
+  numpaddivide: "Numpad /",
+  numpaddecimal: "Numpad .",
+  numpadenter: "Numpad Enter",
+  numpadequal: "Numpad =",
+};
+
 const capitalizeKey = (key: string): string => {
+  if (KEY_LABELS[key]) return KEY_LABELS[key];
+  const numpadDigit = /^numpad(\d)$/.exec(key);
+  if (numpadDigit) return `Numpad ${numpadDigit[1]}`;
   if (key === "fn") return "fn";
   if (/^f\d+$/.test(key)) return key.toUpperCase();
   if (key.length === 1) return key.toUpperCase();

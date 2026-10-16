@@ -439,9 +439,10 @@ pub fn init_shortcuts(app: &AppHandle) -> Vec<(String, ShortcutBinding, String)>
     failures
 }
 
-/// Validate a shortcut string for the Tauri global-shortcut implementation.
-/// Tauri requires at least one non-modifier key and doesn't support the fn key.
-pub fn validate_shortcut(raw: &str) -> Result<(), String> {
+/// Parses a shortcut string the way the global-shortcut plugin will when it
+/// registers it, so a binding that could never register is refused before it
+/// is saved. Friendlier messages cover the fn key and modifier-only input.
+pub fn parse_shortcut(raw: &str) -> Result<Shortcut, String> {
     if raw.trim().is_empty() {
         return Err("Shortcut cannot be empty".into());
     }
@@ -462,11 +463,12 @@ pub fn validate_shortcut(raw: &str) -> Result<(), String> {
     // Check for at least one non-modifier key
     let has_non_modifier = parts.iter().any(|part| !modifiers.contains(&part.as_str()));
 
-    if has_non_modifier {
-        Ok(())
-    } else {
-        Err("Tauri shortcuts must include a main key (letter, number, F-key, etc.) in addition to modifiers".into())
+    if !has_non_modifier {
+        return Err("Tauri shortcuts must include a main key (letter, number, F-key, etc.) in addition to modifiers".into());
     }
+
+    raw.parse::<Shortcut>()
+        .map_err(|e| format!("Shortcut '{raw}' is not supported: {e}"))
 }
 
 /// The other binding whose keys are the same shortcut as `raw`. Shortcuts are
@@ -487,27 +489,9 @@ pub fn conflicting_binding<'a>(
 
 /// Register a shortcut using Tauri's global-shortcut plugin
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
-    // Validate for Tauri requirements
-    if let Err(e) = validate_shortcut(&binding.current_binding) {
-        warn!(
-            "register_tauri_shortcut validation error for binding '{}': {}",
-            binding.current_binding, e
-        );
-        return Err(e);
-    }
-
-    // Parse shortcut and return error if it fails
-    let shortcut = match binding.current_binding.parse::<Shortcut>() {
-        Ok(s) => s,
-        Err(e) => {
-            let error_msg = format!(
-                "Failed to parse shortcut '{}': {}",
-                binding.current_binding, e
-            );
-            error!("register_tauri_shortcut parse error: {}", error_msg);
-            return Err(error_msg);
-        }
-    };
+    let shortcut = parse_shortcut(&binding.current_binding).inspect_err(|e| {
+        warn!("register_tauri_shortcut validation error: {e}");
+    })?;
 
     // Prevent duplicate registrations that would silently shadow one another
     if app.global_shortcut().is_registered(shortcut) {
@@ -629,7 +613,7 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_cancel_shortcut_lifecycle_operation, conflicting_binding,
+        apply_cancel_shortcut_lifecycle_operation, conflicting_binding, parse_shortcut,
         register_tracked_cancel_binding, replace_active_cancel_shortcut,
         CancelShortcutLifecycleOperation, CancelShortcutPersistence, CancelShortcutRegistry,
         CancelShortcutSettingsState,
@@ -822,6 +806,23 @@ mod tests {
         assert_eq!(conflict("cancel", "alt+space"), Some("transcribe"));
         assert_eq!(conflict("transcribe", "option+space"), None);
         assert_eq!(conflict("cancel", "ctrl+space"), None);
+    }
+
+    #[test]
+    fn only_shortcuts_the_hotkey_parser_accepts_are_valid() {
+        let accepted = |raw: &str| parse_shortcut(raw).is_ok();
+        assert!(accepted("option+space"));
+        assert!(accepted("ctrl+command+v"));
+        assert!(accepted("pageup"));
+        assert!(accepted("numpad1"));
+        assert!(accepted("escape"));
+        assert!(!accepted("page up"));
+        assert!(!accepted("caps lock"));
+        assert!(!accepted("numpad +"));
+        assert!(!accepted("f5+f6"));
+        assert!(!accepted("command+shift"));
+        assert!(!accepted("fn+space"));
+        assert!(!accepted(""));
     }
 
     #[test]
