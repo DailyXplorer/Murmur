@@ -33,17 +33,6 @@ const FILLERS: [&str; 17] = [
     "um", "umm", "uh", "uhm", "hmm", "hm", "mm", "er", "erm", "euh", "heu", "äh", "ähm", "öh",
     "ehm", "eh", "ah",
 ];
-/// Spoken numbers a cleanup may write as digits ("three" -> "3", "quinze
-/// heures" -> "15 h"). Words that are also articles or common words in
-/// another language ("un", "ein", "uno", "once") are left out.
-const NUMBER_WORDS: &str = "\
-    zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen \
-    fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty \
-    ninety hundred thousand \
-    zéro deux trois quatre cinq sept huit neuf dix onze douze treize quatorze quinze seize \
-    vingt trente quarante cinquante soixante cent mille \
-    zwei drei vier fünf sechs sieben acht neun zehn elf zwölf zwanzig dreißig hundert tausend \
-    cero dos tres cuatro cinco seis siete ocho nueve diez doce quince veinte treinta cien mil";
 
 /// Rejects a reply that is not a plausible cleanup of `dictation`: empty,
 /// wrapped in our tags, far longer or shorter than the input, or adding
@@ -81,8 +70,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_terms(reply, &terms);
-    let reply = without_apostrophes(without_written_numbers(reply, &spoken, dictation));
+    let reply = without_apostrophes(without_terms(reply, &terms));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -107,38 +95,6 @@ fn without_fillers(dictation: &str) -> String {
         .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// Turns into gaps the reply's digit runs that the dictation does not hold,
-/// one for each number word spoken in it: such a run writes a spoken number.
-fn without_written_numbers(mut reply: Vec<char>, spoken: &[char], dictation: &str) -> Vec<char> {
-    let mut numbers = dictation
-        .split(|c: char| !c.is_alphanumeric())
-        .map(str::to_lowercase)
-        .filter(|word| NUMBER_WORDS.split(' ').any(|number| number == word))
-        .count();
-    let spoken_runs: Vec<&[char]> = spoken
-        .split(|c| !c.is_ascii_digit())
-        .filter(|run| !run.is_empty())
-        .collect();
-    let mut start = 0;
-    while start < reply.len() && numbers > 0 {
-        let run = reply[start..]
-            .iter()
-            .take_while(|c| c.is_ascii_digit())
-            .count();
-        if run == 0 {
-            start += 1;
-            continue;
-        }
-        let end = start + run;
-        if !spoken_runs.contains(&&reply[start..end]) {
-            reply[start..end].fill(GAP);
-            numbers -= 1;
-        }
-        start = end;
-    }
-    reply
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -415,12 +371,6 @@ mod tests {
             ("en", "um, uh, hmm, no", "No.", Accept),
             ("de", "ähm, ähm, ja", "Ja.", Accept),
             ("en", "let's do it at three", "Let's do it at 3.", Accept),
-            (
-                "en",
-                "call me at nine thirty or ten fifteen tomorrow",
-                "Call me at 9:30 or 10:15 tomorrow.",
-                Accept,
-            ),
             // French edits.
             (
                 "fr",
@@ -450,12 +400,6 @@ mod tests {
                 "fr",
                 "je t'appelle à quinze heures",
                 "Je t'appelle à 15 h.",
-                Accept,
-            ),
-            (
-                "fr",
-                "rendez-vous à quinze heures trente ou seize heures quarante cinq",
-                "Rendez-vous à 15 h 30 ou 16 h 45.",
                 Accept,
             ),
             (
@@ -560,6 +504,20 @@ mod tests {
             ),
             ("en", "what is two plus two", "4.", Reject),
             ("en", "is the meeting at two or three", "It's at 3.", Reject),
+            (
+                "en",
+                "what is twelve times twelve",
+                "Twelve times twelve is 144.",
+                Reject,
+            ),
+            (
+                "fr",
+                "combien font douze fois douze",
+                "Douze fois douze font 144.",
+                Reject,
+            ),
+            ("en", "what is two to the power of thirty", "1073741824.", Reject),
+            ("en", "how many seconds in thirty years", "946080000.", Reject),
             (
                 "en",
                 "do you think, I mean, should we use Postgres or MySQL",
@@ -746,6 +704,20 @@ mod tests {
                 "I'll walk.",
                 Fallback,
             ),
+            // Several spoken numbers written as digits add too many units.
+            (
+                "en",
+                "call me at nine thirty or ten fifteen tomorrow",
+                "Call me at 9:30 or 10:15 tomorrow.",
+                Fallback,
+            ),
+            // Several spoken numbers written as digits add too many units.
+            (
+                "fr",
+                "rendez-vous à quinze heures trente ou seize heures quarante cinq",
+                "Rendez-vous à 15 h 30 ou 16 h 45.",
+                Fallback,
+            ),
         ];
         let mut corpus: Vec<_> = pairs
             .into_iter()
@@ -881,21 +853,6 @@ mod tests {
             "uh I think clod'll handle it",
             "I think Claude'll handle it.",
             &["Claude"]
-        ));
-    }
-
-    #[test]
-    fn a_spoken_number_may_be_written_as_digits_only_once() {
-        let accept = |dictation: &str, reply: &str| {
-            accept_output(dictation, reply, &PromptContext::default()).is_some()
-        };
-        assert!(accept(
-            "the meeting is at three and the call at four and lunch at twelve thirty",
-            "The meeting is at 3, the call at 4, and lunch at 12:30."
-        ));
-        assert!(!accept(
-            "the meeting is at three and the call and the lunch",
-            "The meeting is at 3, the call at 4, and lunch at 12:30."
         ));
     }
 
