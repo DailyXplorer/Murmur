@@ -9,7 +9,14 @@
     "core:event:allow-unlisten",
     "core:app:allow-version",
     "os:allow-locale",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        }
+      ]
+    },
     "opener:allow-default-urls",
     "updater:allow-check",
     "updater:allow-download-and-install",
