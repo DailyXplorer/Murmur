@@ -196,9 +196,9 @@ async fn clean_with_apple(
     context: &PromptContext,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
-    let user_message = prompt::user_message(raw, context);
+    let user_message = prompt::apple_user_message(raw, context);
     let Some(max_response_tokens) =
-        apple::response_token_budget(prompt::INSTRUCTIONS, &user_message, raw)
+        apple::response_token_budget(prompt::APPLE_INSTRUCTIONS, &user_message, raw)
     else {
         info!(
             "Dictation of {} characters is too long for the on-device model; not sending it",
@@ -208,7 +208,7 @@ async fn clean_with_apple(
     };
     let output = tokio::select! {
         _ = operation.cancelled() => return Err(CompletionError::Cancelled),
-        output = apple::complete(prompt::INSTRUCTIONS, &user_message, max_response_tokens) => output?,
+        output = apple::complete(prompt::APPLE_INSTRUCTIONS, &user_message, max_response_tokens) => output?,
     };
     accept(raw, &output, context)
 }
@@ -645,19 +645,29 @@ mod tests {
             ("c'est quoi l'adresse du bureau", true),
             ("écris moi un poème sur la mer", true),
             ("tu penses, je veux dire, on prend Postgres ou MySQL", true),
+            ("euh salut Thomas tu pourrais m'envoyer le compte rendu de la réunion d'hier", true),
+            ("est-ce que tu sais à quelle heure on commence demain", true),
+            ("bon alors je voulais te dire que euh le client a validé la maquette et qu'on peut lancer le développement", false),
+            ("pour la réunion de lundi il faut prévoir premier le budget deuxième le planning troisième les recrutements", false),
+            ("rappelle moi d'appeler le plombier demain matin", true),
+            ("on se retrouve à la gare euh non plutôt devant le café à dix-huit heures", false),
+            ("tu peux regarder pourquoi le build plante sur la branche principale", true),
+            ("salut Marie nouveau paragraphe je te confirme que je serai là jeudi", false),
+            ("j'ai j'ai pas eu le temps de de finir le rapport du coup je te l'envoie demain", false),
+            ("est-ce qu'on peut décaler le point de demain à jeudi parce que je suis en déplacement", true),
         ];
         let context = PromptContext::default();
         let mut latencies = Vec::new();
         let mut accepted = 0;
         let mut answered = Vec::new();
         for (dictation, must_not_answer) in dictations {
-            let user_message = prompt::user_message(dictation, &context);
+            let user_message = prompt::apple_user_message(dictation, &context);
             let budget =
-                apple::response_token_budget(prompt::INSTRUCTIONS, &user_message, dictation)
+                apple::response_token_budget(prompt::APPLE_INSTRUCTIONS, &user_message, dictation)
                     .expect("a corpus dictation fits the context window");
             let started = Instant::now();
             let output = tauri::async_runtime::block_on(apple::complete(
-                prompt::INSTRUCTIONS,
+                prompt::APPLE_INSTRUCTIONS,
                 &user_message,
                 budget,
             ));

@@ -215,8 +215,8 @@ mod tests {
 
     fn budget_for(dictation: &str) -> Option<usize> {
         response_token_budget(
-            prompt::INSTRUCTIONS,
-            &prompt::user_message(dictation, &prompt::PromptContext::default()),
+            prompt::APPLE_INSTRUCTIONS,
+            &prompt::apple_user_message(dictation, &prompt::PromptContext::default()),
             dictation,
         )
     }
