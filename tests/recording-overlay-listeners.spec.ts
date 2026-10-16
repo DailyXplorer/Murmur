@@ -3,8 +3,6 @@ import { expect, test } from "@playwright/test";
 const expectedListenerCounts = {
   "show-overlay": 2,
   "show-overlay-error": 2,
-  "overlay-hands-free": 2,
-  "recording-limit-warning": 2,
   "hide-overlay": 2,
   "recording-ready": 2,
   "mic-level": 2,
@@ -150,7 +148,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         window.recordingOverlayListenerHarness.pendingCount(),
       ),
     )
-    .toBe(14);
+    .toBe(10);
 
   const initialSummary = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.summary(),
@@ -190,15 +188,15 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
       "recording",
     ),
     ready: window.recordingOverlayListenerHarness.dispatch("recording-ready"),
-    level: window.recordingOverlayListenerHarness.dispatch("mic-level", [4]),
+    level: window.recordingOverlayListenerHarness.dispatch(
+      "mic-level",
+      Array(16).fill(1),
+    ),
   }));
   expect(deliveredEvents).toEqual({ show: 1, ready: 1, level: 1 });
   await expect(page.locator(".ov-stage")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Cancel", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".sdot")).toHaveClass(/ready/);
-  await expect(page.locator(".swave i").first()).toHaveCSS("height", "18px");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
+  await expect(page.locator(".ov-wave i").nth(6)).toHaveCSS("height", "22px");
 
   const hidden = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.dispatch("hide-overlay"),
@@ -227,12 +225,6 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         "failed",
       ),
       ready: window.recordingOverlayListenerHarness.dispatch("recording-ready"),
-      handsFree:
-        window.recordingOverlayListenerHarness.dispatch("overlay-hands-free"),
-      limit: window.recordingOverlayListenerHarness.dispatch(
-        "recording-limit-warning",
-        60,
-      ),
       level: window.recordingOverlayListenerHarness.dispatch("mic-level", [4]),
       callbacks: listenerIds.map((id) =>
         window.recordingOverlayListenerHarness.dispatchById(
@@ -253,8 +245,6 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
     hide: 0,
     error: 0,
     ready: 0,
-    handsFree: 0,
-    limit: 0,
     level: 0,
     callbacks: summary.successfulListenerIds.map(() => false),
   });

@@ -530,12 +530,6 @@
       "red": "Красный"
     }
   },
-  "overlay": {
-    "transcribing": "Расшифровка...",
-    "handsFree": "Запись без удержания клавиши",
-    "handsFreeHint": "Нажмите {{shortcut}}, чтобы остановить",
-    "limitWarning": "Остановка через {{seconds}} с"
-  },
   "whatsNew": {
     "title": "Новое в Murmur v{{version}}"
   }

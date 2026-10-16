@@ -530,12 +530,6 @@
       "red": "Kırmızı"
     }
   },
-  "overlay": {
-    "transcribing": "Transkribe ediliyor...",
-    "handsFree": "Eller serbest kayıt",
-    "handsFreeHint": "Durdurmak için {{shortcut}} tuşuna basın",
-    "limitWarning": "{{seconds}} sn içinde duracak"
-  },
   "whatsNew": {
     "title": "Murmur v{{version}} yenilikleri"
   }

@@ -532,11 +532,5 @@
       "orange": "सुन्तला",
       "red": "रातो"
     }
-  },
-  "overlay": {
-    "transcribing": "ट्रान्सक्राइब गरिँदैछ...",
-    "handsFree": "ह्यान्ड्स-फ्री रेकर्डिङ",
-    "handsFreeHint": "रोक्न {{shortcut}} थिच्नुहोस्",
-    "limitWarning": "{{seconds}} सेकेन्डमा रोकिन्छ"
   }
 }

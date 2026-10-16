@@ -530,12 +530,6 @@
       "red": "אדום"
     }
   },
-  "overlay": {
-    "transcribing": "מתמלל...",
-    "handsFree": "הקלטה ללא ידיים",
-    "handsFreeHint": "הקישו {{shortcut}} כדי לעצור",
-    "limitWarning": "נעצר בעוד {{seconds}} שנ׳"
-  },
   "whatsNew": {
     "title": "חדש ב-Murmur v{{version}}"
   }

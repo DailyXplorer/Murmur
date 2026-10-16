@@ -530,12 +530,6 @@
       "red": "Rouge"
     }
   },
-  "overlay": {
-    "transcribing": "Transcription...",
-    "handsFree": "Enregistrement mains libres",
-    "handsFreeHint": "Appuyez sur {{shortcut}} pour arrêter",
-    "limitWarning": "Arrêt dans {{seconds}} s"
-  },
   "whatsNew": {
     "title": "Nouveautés de Murmur v{{version}}"
   }

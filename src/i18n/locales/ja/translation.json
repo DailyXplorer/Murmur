@@ -530,12 +530,6 @@
       "red": "赤"
     }
   },
-  "overlay": {
-    "transcribing": "文字起こし中…",
-    "handsFree": "ハンズフリー録音",
-    "handsFreeHint": "{{shortcut}} を押して停止",
-    "limitWarning": "あと {{seconds}} 秒で停止"
-  },
   "whatsNew": {
     "title": "Murmur v{{version}} の新機能"
   }

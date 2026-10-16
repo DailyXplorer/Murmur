@@ -530,12 +530,6 @@
       "red": "Rot"
     }
   },
-  "overlay": {
-    "transcribing": "Transkribiere...",
-    "handsFree": "Freihändige Aufnahme",
-    "handsFreeHint": "Zum Beenden {{shortcut}} drücken",
-    "limitWarning": "Endet in {{seconds}} s"
-  },
   "whatsNew": {
     "title": "Neu in Murmur v{{version}}"
   }

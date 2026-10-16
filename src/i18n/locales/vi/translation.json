@@ -530,12 +530,6 @@
       "red": "Đỏ"
     }
   },
-  "overlay": {
-    "transcribing": "Đang chuyển đổi...",
-    "handsFree": "Ghi âm rảnh tay",
-    "handsFreeHint": "Nhấn {{shortcut}} để dừng",
-    "limitWarning": "Dừng sau {{seconds}} giây"
-  },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"
   }

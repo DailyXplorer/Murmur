@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test("an error that arrives while the overlay loads its settings stays on screen", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
+const LOUD = Array(16).fill(0.9);
+
+async function openOverlay(page: Page, { holdSettings = false } = {}) {
+  await page.addInitScript((hold) => {
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -31,9 +31,9 @@ test("an error that arrives while the overlay loads its settings stays on screen
         }
         if (command === "plugin:event|unlisten") return Promise.resolve();
         if (command === "get_app_settings") {
+          if (!hold) return Promise.resolve({});
           return new Promise((resolve) => pendingSettings.push(resolve));
         }
-        if (command === "plugin:os|locale") return Promise.resolve("en-US");
         throw new Error(`Unexpected Tauri command: ${command}`);
       },
       transformCallback: (callback: (event: unknown) => unknown) => {
@@ -49,7 +49,7 @@ test("an error that arrives while the overlay loads its settings stays on screen
         callbacks.delete(id);
       },
     };
-  });
+  }, holdSettings);
 
   await page.goto("/tests/fixtures/recording-overlay-listeners.html");
   await expect
@@ -57,6 +57,29 @@ test("an error that arrives while the overlay loads its settings stays on screen
       page.evaluate(() => window.overlayHarness.dispatch("mic-level", [0])),
     )
     .toBe(1);
+}
+
+const dispatch = (page: Page, event: string, payload?: unknown) =>
+  page.evaluate(
+    ([name, value]) => window.overlayHarness.dispatch(name as string, value),
+    [event, payload] as const,
+  );
+
+const centerBarHeight = (page: Page) =>
+  page
+    .locator(".ov-wave i")
+    .nth(6)
+    .evaluate((bar) => parseFloat(getComputedStyle(bar).height));
+
+const capsuleWidth = (page: Page) =>
+  page
+    .locator(".ov-capsule")
+    .evaluate((capsule) => parseFloat(getComputedStyle(capsule).width));
+
+test("an error that arrives while the overlay loads its settings stays on screen", async ({
+  page,
+}) => {
+  await openOverlay(page, { holdSettings: true });
 
   await page.evaluate(async () => {
     window.overlayHarness.dispatch("show-overlay", "recording");
@@ -69,5 +92,92 @@ test("an error that arrives while the overlay loads its settings stays on screen
   });
 
   await expect(page.getByRole("alert")).toHaveText("Microphone access is off");
-  await expect(page.locator(".swave")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".ov-wave")).toHaveCount(0);
+});
+
+test("recording shows only a waveform that follows the voice", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "recording");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/arming/);
+
+  await dispatch(page, "recording-ready");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
+  expect(await centerBarHeight(page)).toBe(4);
+  expect(await capsuleWidth(page)).toBe(108);
+
+  await dispatch(page, "mic-level", LOUD);
+  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(20);
+  await expect.poll(() => capsuleWidth(page)).toBeGreaterThan(124);
+
+  await expect(page.locator(".ov-wave i")).toHaveCount(13);
+  await expect(page.locator(".ov-stage")).toHaveText("");
+  await expect(page.locator(".ov-stage button")).toHaveCount(0);
+  await expect(page.locator(".ov-stage svg")).toHaveCount(0);
+});
+
+test("a hands-free recording looks the same as push-to-talk", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "recording");
+  await dispatch(page, "recording-ready");
+
+  expect(await dispatch(page, "overlay-hands-free")).toBe(0);
+  expect(await dispatch(page, "recording-limit-warning", 60)).toBe(0);
+  await expect(page.locator(".ov-stage")).toHaveText("");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
+});
+
+test("transcribing pulses the waveform without any text", async ({ page }) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "recording");
+  await dispatch(page, "recording-ready");
+  await dispatch(page, "mic-level", LOUD);
+  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(20);
+
+  await dispatch(page, "show-overlay", "transcribing");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
+  await expect(page.locator(".ov-stage")).toHaveText("");
+  await expect.poll(() => capsuleWidth(page)).toBe(108);
+
+  const heights = new Set<number>();
+  await expect
+    .poll(async () => {
+      heights.add(await centerBarHeight(page));
+      return heights.size;
+    })
+    .toBeGreaterThan(2);
+  expect(Math.max(...heights)).toBeLessThanOrEqual(10);
+});
+
+test("an error replaces the waveform with the message", async ({ page }) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "transcribing");
+  await dispatch(page, "show-overlay-error", "Couldn't reach Codex.");
+
+  await expect(page.getByRole("alert")).toHaveText("Couldn't reach Codex.");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".ov-wave")).toHaveCount(0);
+});
+
+test("reduced motion shows static bars that ignore the voice", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "recording");
+  await dispatch(page, "recording-ready");
+  await dispatch(page, "mic-level", LOUD);
+  await page.waitForTimeout(300);
+
+  expect(await centerBarHeight(page)).toBeCloseTo(12.23, 1);
+  expect(await capsuleWidth(page)).toBe(108);
+
+  await dispatch(page, "show-overlay", "transcribing");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
+  await page.waitForTimeout(300);
+  expect(await centerBarHeight(page)).toBeCloseTo(12.23, 1);
 });

@@ -18,21 +18,18 @@ tauri_panel! {
     })
 }
 
-// Native overlay window sizes (logical points). One window is reused for every
-// state and resized in `show_overlay_state`; each size need only be at least as
-// large as the card it hosts (the `--ov-*` vars in RecordingOverlay.css). The
-// card is CSS-anchored flush to the screen edge, so window height doesn't move
-// where the card sits — only OVERLAY_TOP_OFFSET / OVERLAY_BOTTOM_OFFSET do. Keep
-// these in sync with the CSS card geometry.
-//
-// Compact overlay (Minimal / transcribing): the 40h pill animates
-// width from 172 (--ov-rest-w) to 216 (--ov-work-w) and expands from center, so
-// the window must fit the widest state plus a little slack.
-const OVERLAY_WIDTH: f64 = 256.0;
-const OVERLAY_HEIGHT: f64 = 46.0;
-// Error card: --ov-error-w wide, up to two lines of text.
-const ERROR_OVERLAY_WIDTH: f64 = 340.0;
-const ERROR_OVERLAY_HEIGHT: f64 = 72.0;
+// Native overlay window sizes (logical points), mirroring the `--ov-*` vars in
+// RecordingOverlay.css. One window is reused for every state and resized in
+// `present_overlay_window`. The capsule sits CARD_MARGIN inside the window edge
+// that faces the screen edge, leaving room for its soft shadow; the window
+// ignores the mouse, so that margin never blocks clicks.
+const CARD_MARGIN: f64 = 16.0;
+// Capsule: 36 high, 108 wide at rest, up to 126 at full voice level.
+const OVERLAY_WIDTH: f64 = 126.0 + 2.0 * CARD_MARGIN;
+const OVERLAY_HEIGHT: f64 = 36.0 + 2.0 * CARD_MARGIN;
+// Error capsule: at most 280 wide and two lines of text.
+const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
+const ERROR_OVERLAY_HEIGHT: f64 = 52.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: std::time::Duration = std::time::Duration::from_secs(4);
 
 /// Bumped by every show or hide request, so a delayed hide only applies when
@@ -45,8 +42,9 @@ static ERROR_SHOWING: AtomicBool = AtomicBool::new(false);
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
+// Distance from the screen edge to the visible capsule.
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
-const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     if let Some(mouse_location) = input::get_cursor_position(app_handle) {
@@ -118,11 +116,11 @@ fn calculate_overlay_position(
 
     let x = monitor_x + (monitor_width - width) / 2.0;
     let y = match settings.overlay_position {
-        OverlayPosition::Top => monitor_y + OVERLAY_TOP_OFFSET,
+        OverlayPosition::Top => monitor_y + OVERLAY_TOP_OFFSET - CARD_MARGIN,
         OverlayPosition::Bottom => {
             let wa = monitor.work_area();
             let bottom = (wa.position.y as f64 + wa.size.height as f64) / scale;
-            bottom - height - OVERLAY_BOTTOM_OFFSET
+            bottom - height - (OVERLAY_BOTTOM_OFFSET - CARD_MARGIN)
         }
     };
 
@@ -160,6 +158,9 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     {
         Ok(panel) => {
             panel.hide();
+            if let Some(window) = app_handle.get_webview_window("recording_overlay") {
+                let _ = window.set_ignore_cursor_events(true);
+            }
         }
         Err(e) => {
             log::error!("Failed to create recording overlay panel: {}", e);
@@ -268,32 +269,6 @@ pub fn emit_recording_ready(app_handle: &AppHandle) {
 /// Shows the recording overlay window with fade-in animation
 pub fn show_recording_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "recording");
-}
-
-/// Marks the visible recording as hands-free: the overlay shows a lock and
-/// which shortcut stops it.
-pub fn show_hands_free_overlay(app_handle: &AppHandle) {
-    if !OVERLAY_ENABLED.load(Ordering::Relaxed) {
-        return;
-    }
-    let handle = app_handle.clone();
-    let _ = app_handle.run_on_main_thread(move || {
-        let _ = handle.emit_to("recording_overlay", "overlay-hands-free", ());
-    });
-}
-
-/// Warns that the recording stops at the duration cap in `remaining`: a
-/// countdown in the overlay, or a notification when the overlay is off.
-pub fn warn_recording_limit(app_handle: &AppHandle, remaining: std::time::Duration) {
-    if !OVERLAY_ENABLED.load(Ordering::Relaxed) {
-        crate::user_alert::show(app_handle, crate::user_alert::Alert::RecordingLimitSoon);
-        return;
-    }
-    let handle = app_handle.clone();
-    let seconds = remaining.as_secs();
-    let _ = app_handle.run_on_main_thread(move || {
-        let _ = handle.emit_to("recording_overlay", "recording-limit-warning", seconds);
-    });
 }
 
 /// Shows the transcribing overlay window
