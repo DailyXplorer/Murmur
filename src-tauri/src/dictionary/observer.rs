@@ -63,23 +63,28 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
     });
 }
 
-/// What the user left in place of `inserted`, as of the last snapshot that
-/// still holds it. Chat apps empty the field when the message is sent, so
-/// the first snapshot where the span is gone or blank ends the watch and
-/// keeps the edit made before it.
+/// What the user left in place of `inserted`: the last span two consecutive
+/// snapshots agree on, so a word caught halfway through typing is never
+/// learned. Chat apps empty the field when the message is sent, so the
+/// first snapshot where the span is gone or blank ends the watch.
 fn settled_edit(
     before: &str,
     inserted: &str,
     snapshots: impl IntoIterator<Item = String>,
 ) -> Option<String> {
-    let mut edited = learn::edited_span(before, inserted, before)?.to_string();
+    let mut stable = learn::edited_span(before, inserted, before)?.to_string();
+    let mut previous: Option<String> = None;
     for snapshot in snapshots {
-        match learn::edited_span(before, inserted, &snapshot) {
-            Some(span) if !span.trim().is_empty() => edited = span.to_string(),
+        let span = match learn::edited_span(before, inserted, &snapshot) {
+            Some(span) if !span.trim().is_empty() => span.to_string(),
             _ => break,
+        };
+        if previous.as_ref() == Some(&span) {
+            stable.clone_from(&span);
         }
+        previous = Some(span);
     }
-    Some(edited)
+    Some(stable)
 }
 
 fn read(field: &Element) -> Option<String> {
@@ -107,37 +112,55 @@ mod tests {
     #[test]
     fn a_correction_is_learned_when_the_chat_message_is_sent() {
         let inserted = "I talked to clawd about it";
+        let corrected = "I talked to Claude about it";
         let expected = vec![("Claude".to_string(), "clawd".to_string())];
         assert_eq!(
-            learned(inserted, inserted, &["I talked to Claude about it", ""]),
+            learned(inserted, inserted, &[corrected, corrected, ""]),
             expected
         );
         assert_eq!(
-            learned(
-                inserted,
-                inserted,
-                &["I talked to Claude about it", "", "ok thanks"]
-            ),
+            learned(inserted, inserted, &[corrected, corrected, "", "ok thanks"]),
             expected
         );
+        let greeted = "Hi, I talked to Claude about it";
         assert_eq!(
             learned(
                 "Hi, I talked to clawd about it",
                 inserted,
-                &["Hi, I talked to Claude about it", "Hi, "]
+                &[greeted, greeted, "Hi, "]
             ),
             expected
         );
     }
 
     #[test]
-    fn a_correction_in_a_field_that_keeps_its_text_is_learned() {
+    fn a_word_caught_halfway_through_typing_is_not_learned() {
         let inserted = "I talked to clawd about it";
+        assert!(learned(inserted, inserted, &["I talked to Claud about it", ""]).is_empty());
         assert_eq!(
             learned(
                 inserted,
                 inserted,
-                &["I talked to cl about it", "I talked to Claude about it"]
+                &[
+                    "I talked to Claude about it",
+                    "I talked to Claude about it",
+                    "I talked to Claud about it",
+                    ""
+                ]
+            ),
+            vec![("Claude".to_string(), "clawd".to_string())]
+        );
+    }
+
+    #[test]
+    fn a_correction_in_a_field_that_keeps_its_text_is_learned() {
+        let inserted = "I talked to clawd about it";
+        let corrected = "I talked to Claude about it";
+        assert_eq!(
+            learned(
+                inserted,
+                inserted,
+                &["I talked to cl about it", corrected, corrected]
             ),
             vec![("Claude".to_string(), "clawd".to_string())]
         );
