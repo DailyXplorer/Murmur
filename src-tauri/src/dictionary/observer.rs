@@ -10,6 +10,7 @@ use tauri::AppHandle;
 
 const SETTLE_DELAY: Duration = Duration::from_millis(300);
 const POLL_INTERVAL: Duration = Duration::from_millis(750);
+const CONFIRM_DELAY: Duration = Duration::from_millis(200);
 const WATCH_WINDOW: Duration = Duration::from_secs(45);
 /// Larger fields (whole documents) are skipped: diffing them every poll is
 /// wasted work for a few edited words.
@@ -41,11 +42,11 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
 
         let started = Instant::now();
         let mut still_focused = true;
-        let snapshots = std::iter::from_fn(|| {
+        let snapshots = snapshots(before.clone(), |delay| {
             if !still_focused || started.elapsed() >= WATCH_WINDOW {
                 return None;
             }
-            std::thread::sleep(POLL_INTERVAL);
+            std::thread::sleep(delay);
             if GENERATION.load(Ordering::Acquire) != generation {
                 return None;
             }
@@ -61,6 +62,29 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
             super::remember(&app, learned);
         }
     });
+}
+
+/// The field's text after each wait. `wait_and_read` sleeps for the delay it
+/// is given, then reads the field, or returns `None` to end the watch. A
+/// changed field is read again after `CONFIRM_DELAY`, so a correction sent
+/// right after it was typed still gets the second read that settles it.
+fn snapshots(
+    before: String,
+    mut wait_and_read: impl FnMut(Duration) -> Option<String>,
+) -> impl Iterator<Item = String> {
+    let mut last = before;
+    let mut changed = false;
+    std::iter::from_fn(move || {
+        let delay = if changed {
+            CONFIRM_DELAY
+        } else {
+            POLL_INTERVAL
+        };
+        let snapshot = wait_and_read(delay)?;
+        changed = snapshot != last;
+        last.clone_from(&snapshot);
+        Some(snapshot)
+    })
 }
 
 /// What the user left in place of `inserted`: the last span two consecutive
@@ -164,6 +188,62 @@ mod tests {
             ),
             vec![("Claude".to_string(), "clawd".to_string())]
         );
+    }
+
+    /// What the watch learns when the field shows `before` until the first
+    /// timed text, each text holding from its millisecond until the next.
+    fn learned_over_time(before: &str, timeline: &[(u64, &str)]) -> Vec<(String, String)> {
+        let mut now = Duration::ZERO;
+        let field = snapshots(before.to_string(), |delay| {
+            now += delay;
+            if now >= WATCH_WINDOW {
+                return None;
+            }
+            let text = timeline
+                .iter()
+                .rev()
+                .find(|(at, _)| Duration::from_millis(*at) <= now)
+                .map_or(before, |(_, text)| text);
+            Some(text.to_string())
+        });
+        let edited = settled_edit(before, before, field).unwrap();
+        learn::review(before, &edited)
+            .into_iter()
+            .map(|correction| (correction.word, correction.heard_as))
+            .collect()
+    }
+
+    #[test]
+    fn a_correction_sent_right_after_the_edit_is_learned() {
+        let inserted = "I talked to clawd about it";
+        let corrected = "I talked to Claude about it";
+        let expected = vec![("Claude".to_string(), "clawd".to_string())];
+        // Polls at 0.75, 1.5, 2.25 and 3 s. Enter at 3.3 s empties the field.
+        assert_eq!(
+            learned_over_time(inserted, &[(2_900, corrected), (3_300, "")]),
+            expected
+        );
+        assert_eq!(
+            learned_over_time(
+                inserted,
+                &[
+                    (2_200, "I talked to Cl about it"),
+                    (2_400, corrected),
+                    (2_700, "")
+                ]
+            ),
+            expected
+        );
+    }
+
+    #[test]
+    fn a_word_sent_halfway_through_typing_is_not_learned() {
+        let inserted = "I talked to clawd about it";
+        assert!(learned_over_time(
+            inserted,
+            &[(2_900, "I talked to Claud about it"), (3_050, "")]
+        )
+        .is_empty());
     }
 
     #[test]
