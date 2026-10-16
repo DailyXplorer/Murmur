@@ -229,6 +229,21 @@ pub async fn open_microphone_settings() -> Result<(), String> {
     .map_err(|error| format!("Microphone settings task failed: {error}"))?
 }
 
+/// The raw `AVAuthorizationStatus` for audio capture: 0 not determined,
+/// 1 restricted, 2 denied, 3 authorized.
+#[specta::specta]
+#[tauri::command]
+pub fn get_microphone_authorization_status() -> Result<i32, String> {
+    use objc2::{msg_send, runtime::AnyClass};
+    use objc2_foundation::NSString;
+
+    let device = AnyClass::get(c"AVCaptureDevice")
+        .ok_or_else(|| "AVFoundation is not loaded".to_string())?;
+    let audio = NSString::from_str("soun");
+    let status: isize = unsafe { msg_send![device, authorizationStatusForMediaType: &*audio] };
+    i32::try_from(status).map_err(|_| format!("Unknown microphone authorization status {status}"))
+}
+
 /// Try to initialize Enigo (keyboard/mouse simulation).
 /// On macOS, this will return an error if accessibility permissions are not granted.
 #[specta::specta]
@@ -287,9 +302,15 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        accessibility_reset_arguments, ACCESSIBILITY_SETTINGS_URL, MICROPHONE_SETTINGS_URL,
-        OPEN_PATH, TCCUTIL_PATH,
+        accessibility_reset_arguments, get_microphone_authorization_status,
+        ACCESSIBILITY_SETTINGS_URL, MICROPHONE_SETTINGS_URL, OPEN_PATH, TCCUTIL_PATH,
     };
+
+    #[test]
+    fn microphone_authorization_status_is_read_without_the_webview() {
+        let status = get_microphone_authorization_status().unwrap();
+        assert!((0..=3).contains(&status), "status {status}");
+    }
 
     #[test]
     fn accessibility_repair_targets_only_the_running_bundle() {

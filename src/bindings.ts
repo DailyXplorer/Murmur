@@ -421,6 +421,18 @@ async openMicrophoneSettings() : Promise<Result<null, string>> {
 }
 },
 /**
+ * The raw `AVAuthorizationStatus` for audio capture: 0 not determined,
+ * 1 restricted, 2 denied, 3 authorized.
+ */
+async getMicrophoneAuthorizationStatus() : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_microphone_authorization_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * Try to initialize Enigo (keyboard/mouse simulation).
  * On macOS, this will return an error if accessibility permissions are not granted.
  */
