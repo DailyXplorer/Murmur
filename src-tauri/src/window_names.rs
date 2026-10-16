@@ -21,11 +21,16 @@ const COLLECT_WAIT: Duration = Duration::from_millis(50);
 
 static PENDING: Mutex<Option<Receiver<Vec<String>>>> = Mutex::new(None);
 
-/// Starts reading the frontmost window. Replaces any unclaimed capture.
-pub fn capture() {
+/// Starts a dictation: reads the frontmost window when `enabled`, and
+/// always drops the names of an earlier dictation nobody claimed, such as
+/// one cancelled with Escape.
+pub fn capture(enabled: bool) {
     let (sender, receiver) = mpsc::channel();
     if let Ok(mut pending) = PENDING.lock() {
-        *pending = Some(receiver);
+        *pending = enabled.then_some(receiver);
+    }
+    if !enabled {
+        return;
     }
     std::thread::spawn(move || {
         let names = read_frontmost_window()
@@ -459,6 +464,15 @@ mod tests {
             candidate_names("STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya"),
             vec!["Amaya"]
         );
+    }
+
+    #[test]
+    fn a_dictation_started_with_names_off_drops_an_unclaimed_capture() {
+        let (sender, receiver) = mpsc::channel();
+        sender.send(vec!["Ingrid".to_string()]).unwrap();
+        *PENDING.lock().unwrap() = Some(receiver);
+        capture(false);
+        assert_eq!(collect(), Vec::<String>::new());
     }
 
     #[test]
