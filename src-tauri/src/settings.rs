@@ -648,6 +648,32 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
         updated = true;
     }
 
+    updated |= reconcile_bindings(&mut settings.bindings);
+
+    updated
+}
+
+/// Keeps exactly the bindings this version defines: adds ones introduced
+/// since the store was written and drops ones a release removed, which would
+/// otherwise be registered as dead global hotkeys that swallow their keys.
+fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
+    let defaults = get_default_settings().bindings;
+    let before = bindings.len();
+    bindings.retain(|id, _| {
+        let known = defaults.contains_key(id);
+        if !known {
+            warn!("Removing obsolete binding '{id}'");
+        }
+        known
+    });
+    let mut updated = bindings.len() != before;
+    for (id, binding) in defaults {
+        if let std::collections::hash_map::Entry::Vacant(entry) = bindings.entry(id) {
+            debug!("Adding missing binding: {}", entry.key());
+            entry.insert(binding);
+            updated = true;
+        }
+    }
     updated
 }
 
@@ -659,16 +685,7 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
         .expect("Failed to initialize store");
 
     if let Some(settings_value) = store.get("settings") {
-        let (mut settings, mut updated) = parse_stored_settings(&settings_value);
-
-        // Merge in any bindings added since this store was written.
-        for (key, value) in get_default_settings().bindings {
-            if let std::collections::hash_map::Entry::Vacant(entry) = settings.bindings.entry(key) {
-                debug!("Adding missing binding: {}", entry.key());
-                entry.insert(value);
-                updated = true;
-            }
-        }
+        let (settings, updated) = parse_stored_settings(&settings_value);
 
         if updated {
             store.set("settings", serde_json::to_value(&settings).unwrap());
@@ -1023,6 +1040,29 @@ mod tests {
             let repaired = serde_json::to_value(settings).unwrap();
             assert!(repaired.get("push_to_talk").is_none());
         }
+    }
+
+    #[test]
+    fn a_binding_removed_by_a_release_is_dropped_and_missing_ones_are_added() {
+        let mut stored = default_settings_json();
+        let bindings = stored["bindings"].as_object_mut().unwrap();
+        bindings.remove("paste_last");
+        bindings.insert(
+            "transcribe_with_post_process".into(),
+            serde_json::json!({
+                "id": "transcribe_with_post_process",
+                "name": "Transcribe with Post-Processing",
+                "description": "Converts your speech into text and applies AI post-processing.",
+                "default_binding": "option+shift+space",
+                "current_binding": "option+shift+space"
+            }),
+        );
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated);
+        let mut ids: Vec<&str> = settings.bindings.keys().map(String::as_str).collect();
+        ids.sort_unstable();
+        assert_eq!(ids, ["cancel", "paste_last", "transcribe"]);
     }
 
     #[test]
