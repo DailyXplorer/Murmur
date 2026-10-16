@@ -201,9 +201,18 @@ mod tests {
     }
 
     #[test]
+    fn a_misheard_pair_with_an_everyday_word_keeps_that_word() {
+        let entries = [learned("GPT-4", "gpt for")];
+        assert_eq!(
+            apply_heard_as("I use GPT for everything", &entries),
+            ("I use GPT for everything".to_string(), 0)
+        );
+    }
+
+    #[test]
     fn replacement_text_is_literal() {
         assert_eq!(
-            apply_heard_as("pay dollar sign", &[learned("$1", "dollar sign")]),
+            apply_heard_as("pay dolar wun", &[learned("$1", "dolar wun")]),
             ("pay $1".to_string(), 1)
         );
     }
