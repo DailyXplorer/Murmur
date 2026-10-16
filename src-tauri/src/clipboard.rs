@@ -67,29 +67,36 @@ fn complete_clipboard_only_output(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrontmostTarget {
     pid: i32,
-    bundle_identifier: String,
-    launch_time_bits: u64,
+    /// Unbundled executables have no bundle id, and apps not started through
+    /// LaunchServices have no launch date. The pid alone identifies the app
+    /// for the sub-second span between capture and paste; the other two
+    /// only catch pid reuse when AppKit reports them.
+    bundle_identifier: Option<String>,
+    launch_time_bits: Option<u64>,
+}
+
+impl FrontmostTarget {
+    fn new(pid: i32, bundle_identifier: Option<String>, launch_time: Option<f64>) -> Option<Self> {
+        if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
+            return None;
+        }
+        Some(Self {
+            pid,
+            bundle_identifier: bundle_identifier.filter(|id| !id.is_empty()),
+            launch_time_bits: launch_time.map(f64::to_bits),
+        })
+    }
 }
 
 pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
     let application = NSWorkspace::sharedWorkspace().frontmostApplication()?;
-    let pid = application.processIdentifier();
-    if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
-        return None;
-    }
-    let bundle_identifier = application.bundleIdentifier()?.to_string();
-    if bundle_identifier.is_empty() {
-        return None;
-    }
-    let launch_time_bits = application
-        .launchDate()?
-        .timeIntervalSinceReferenceDate()
-        .to_bits();
-    Some(FrontmostTarget {
-        pid,
-        bundle_identifier,
-        launch_time_bits,
-    })
+    FrontmostTarget::new(
+        application.processIdentifier(),
+        application.bundleIdentifier().map(|id| id.to_string()),
+        application
+            .launchDate()
+            .map(|date| date.timeIntervalSinceReferenceDate()),
+    )
 }
 
 fn same_frontmost_target(
@@ -434,11 +441,30 @@ mod tests {
     use crate::operation::OperationId;
 
     fn target(pid: i32) -> FrontmostTarget {
-        FrontmostTarget {
+        FrontmostTarget::new(
             pid,
-            bundle_identifier: format!("com.example.{pid}"),
-            launch_time_bits: pid as u64,
-        }
+            Some(format!("com.example.{pid}")),
+            Some(f64::from(pid)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn an_app_without_a_bundle_id_or_launch_date_is_still_a_paste_target() {
+        let unbundled = FrontmostTarget::new(42, None, None);
+        assert!(unbundled.is_some());
+        assert!(same_frontmost_target(unbundled.clone(), unbundled.clone()));
+        assert!(!same_frontmost_target(
+            unbundled.clone(),
+            FrontmostTarget::new(43, None, None)
+        ));
+        assert!(!same_frontmost_target(
+            unbundled,
+            FrontmostTarget::new(42, None, Some(1.0))
+        ));
+        assert_eq!(FrontmostTarget::new(0, None, None), None);
+        let own_pid = i32::try_from(std::process::id()).unwrap();
+        assert_eq!(FrontmostTarget::new(own_pid, None, None), None);
     }
 
     #[test]
