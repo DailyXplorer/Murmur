@@ -23,28 +23,27 @@ const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
 /// A reply under this many tenths of the dictation drops what was said: a
 /// summary, or an answer ("No.", "4."). Fillers are not counted in the
-/// dictation.
+/// dictation. Neither is a restart cue trusted: "no wait" or "scratch that"
+/// can be meant, and an answer to the question before it must not pass. So
+/// a cleanup that drops a long false start can fall under the floor; the
+/// raw transcript is pasted then, and nothing is lost.
 const MIN_KEPT_TENTHS: u32 = 3;
-/// A shorter reply still passes after a restart cue when it restates this
-/// many tenths of the words after the cue. A cue can also be meant ("there's
-/// no wait for the train"), so it never lets through a reply that drops
-/// what followed it.
-const MIN_RESTATED_TENTHS: u32 = 7;
 /// Whole-word hesitations the prompt asks to remove, in its languages.
 const FILLERS: [&str; 17] = [
     "um", "umm", "uh", "uhm", "hmm", "hm", "mm", "er", "erm", "euh", "heu", "äh", "ähm", "öh",
     "ehm", "eh", "ah",
 ];
-/// Cues after which the speaker may start over, so the words before them
-/// may be abandoned. "actually", "sorry", "I mean", its French equivalent
-/// "je veux dire" and Spanish "no espera" ("doesn't wait") are meant too
-/// often to be listed.
-const RESTART_CUES: [&[&str]; 4] = [
-    &["scratch", "that"],
-    &["no", "wait"],
-    &["non", "attends"],
-    &["nein", "warte"],
-];
+/// Spoken numbers a cleanup may write as digits ("three" -> "3", "quinze
+/// heures" -> "15 h"). Words that are also articles or common words in
+/// another language ("un", "ein", "uno", "once") are left out.
+const NUMBER_WORDS: &str = "\
+    zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen \
+    fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty \
+    ninety hundred thousand \
+    zéro deux trois quatre cinq sept huit neuf dix onze douze treize quatorze quinze seize \
+    vingt trente quarante cinquante soixante cent mille \
+    zwei drei vier fünf sechs sieben acht neun zehn elf zwölf zwanzig dreißig hundert tausend \
+    cero dos tres cuatro cinco seis siete ocho nueve diez doce quince veinte treinta cien mil";
 
 /// Rejects a reply that is not a plausible cleanup of `dictation`: empty,
 /// wrapped in our tags, far longer or shorter than the input, or adding
@@ -73,7 +72,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
-    if !keeps_what_was_said(&reply, dictation) {
+    if reply_weight * 10 < weight(&units(&without_fillers(dictation))) * MIN_KEPT_TENTHS {
         return false;
     }
     let terms: Vec<Vec<char>> = context
@@ -82,7 +81,8 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_apostrophes(without_terms(reply, &terms));
+    let reply = without_terms(reply, &terms);
+    let reply = without_apostrophes(without_written_numbers(reply, &spoken, dictation));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -96,50 +96,49 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         && tail_added <= EDGE_SLACK
 }
 
-/// Whether the reply keeps enough of the dictation, or restates the words
-/// after a restart cue the speaker may have meant.
-fn keeps_what_was_said(reply: &[char], dictation: &str) -> bool {
-    let (whole, after_cue) = wording(dictation);
-    if weight(reply) * 10 >= weight(&units(&whole)) * MIN_KEPT_TENTHS {
-        return true;
-    }
-    after_cue.is_some_and(|after_cue| {
-        let after_cue = without_apostrophes(units(&after_cue));
-        let reply = without_apostrophes(reply.to_vec());
-        let (restated, _, _) = aligned(&reply, &after_cue, 0, reply.len());
-        restated * 10 >= weight(&after_cue) * MIN_RESTATED_TENTHS
-    })
-}
-
-/// The dictation's words without fillers, and the words after its last
-/// restart cue when the cue is followed by any.
-fn wording(dictation: &str) -> (String, Option<String>) {
-    let words: Vec<String> = dictation
+/// The dictation's words without fillers.
+fn without_fillers(dictation: &str) -> String {
+    dictation
         .split_whitespace()
         .map(|word| {
             word.trim_matches(|c: char| !c.is_alphanumeric())
                 .to_lowercase()
         })
+        .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Turns into gaps the reply's digit runs that the dictation does not hold,
+/// one for each number word spoken in it: such a run writes a spoken number.
+fn without_written_numbers(mut reply: Vec<char>, spoken: &[char], dictation: &str) -> Vec<char> {
+    let mut numbers = dictation
+        .split(|c: char| !c.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|word| NUMBER_WORDS.split(' ').any(|number| number == word))
+        .count();
+    let spoken_runs: Vec<&[char]> = spoken
+        .split(|c| !c.is_ascii_digit())
+        .filter(|run| !run.is_empty())
         .collect();
-    let restart = RESTART_CUES
-        .iter()
-        .filter_map(|cue| {
-            words
-                .windows(cue.len())
-                .rposition(|window| window.iter().map(String::as_str).eq(cue.iter().copied()))
-                .map(|at| at + cue.len())
-        })
-        .max();
-    let kept = |from: usize| {
-        words[from..]
+    let mut start = 0;
+    while start < reply.len() && numbers > 0 {
+        let run = reply[start..]
             .iter()
-            .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    let after_cue = restart.map(&kept).filter(|after| !after.is_empty());
-    (kept(0), after_cue)
+            .take_while(|c| c.is_ascii_digit())
+            .count();
+        if run == 0 {
+            start += 1;
+            continue;
+        }
+        let end = start + run;
+        if !spoken_runs.contains(&&reply[start..end]) {
+            reply[start..end].fill(GAP);
+            numbers -= 1;
+        }
+        start = end;
+    }
+    reply
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -329,8 +328,11 @@ mod tests {
     enum Verdict {
         Accept,
         Reject,
+        /// A correct cleanup the check rejects on purpose: the raw
+        /// transcript is pasted.
+        Fallback,
     }
-    use Verdict::{Accept, Reject};
+    use Verdict::{Accept, Fallback, Reject};
 
     const RELEASE: &str = "so um the release is planned for friday and we still need to check the migration scripts before then okay";
     const RELEASE_CLEAN: &str = "So the release is planned for Friday, and we still need to check the migration scripts before then, okay?";
@@ -410,18 +412,13 @@ mod tests {
                 "I'll send it on Tuesday.",
                 Accept,
             ),
-            (
-                "en",
-                "um send the invoice to marc no wait scratch that I'll do it myself",
-                "I'll do it myself.",
-                Accept,
-            ),
             ("en", "um, uh, hmm, no", "No.", Accept),
             ("de", "ähm, ähm, ja", "Ja.", Accept),
+            ("en", "let's do it at three", "Let's do it at 3.", Accept),
             (
-                "fr",
-                "euh envoie la facture à marc non attends je m'en occupe",
-                "Je m'en occupe.",
+                "en",
+                "call me at nine thirty or ten fifteen tomorrow",
+                "Call me at 9:30 or 10:15 tomorrow.",
                 Accept,
             ),
             // French edits.
@@ -447,6 +444,18 @@ mod tests {
                 "fr",
                 "on se voit mardi non attends mercredi à midi",
                 "On se voit mercredi à midi.",
+                Accept,
+            ),
+            (
+                "fr",
+                "je t'appelle à quinze heures",
+                "Je t'appelle à 15 h.",
+                Accept,
+            ),
+            (
+                "fr",
+                "rendez-vous à quinze heures trente ou seize heures quarante cinq",
+                "Rendez-vous à 15 h 30 ou 16 h 45.",
                 Accept,
             ),
             (
@@ -550,6 +559,7 @@ mod tests {
                 Reject,
             ),
             ("en", "what is two plus two", "4.", Reject),
+            ("en", "is the meeting at two or three", "It's at 3.", Reject),
             (
                 "en",
                 "do you think, I mean, should we use Postgres or MySQL",
@@ -691,6 +701,51 @@ mod tests {
                 Reject,
             ),
             ("th", "เมืองหลวงของฝรั่งเศสคืออะไร", "ปารีส", Reject),
+            // Raw fallback accepted: a cleanup that drops a long false start
+            // is under the floor, because a restart cue can be meant and is
+            // not trusted. The raw transcript is pasted instead.
+            (
+                "en",
+                "um send the invoice to marc no wait scratch that I'll do it myself",
+                "I'll do it myself.",
+                Fallback,
+            ),
+            (
+                "fr",
+                "euh envoie la facture à marc non attends je m'en occupe",
+                "Je m'en occupe.",
+                Fallback,
+            ),
+            (
+                "en",
+                "we could meet tomorrow morning at the office with the whole team scratch that let's do it at three",
+                "Let's do it at 3.",
+                Fallback,
+            ),
+            (
+                "en",
+                "um so I was thinking we could meet tomorrow at the office around noon scratch that let's do it at nine thirty",
+                "Let's do it at 9:30.",
+                Fallback,
+            ),
+            (
+                "en",
+                "let's meet at the cafe on main street at noon scratch that let's meet at two no wait three",
+                "Let's meet at 3.",
+                Fallback,
+            ),
+            (
+                "fr",
+                "je t'appelle demain matin vers dix heures pour parler du contrat non attends je t'appelle à quinze heures",
+                "Je t'appelle à 15 h.",
+                Fallback,
+            ),
+            (
+                "en",
+                "should I take the bus or the train to the office tomorrow morning scratch that I'll walk",
+                "I'll walk.",
+                Fallback,
+            ),
         ];
         let mut corpus: Vec<_> = pairs
             .into_iter()
@@ -830,19 +885,18 @@ mod tests {
     }
 
     #[test]
-    fn a_restart_cue_admits_only_a_reply_that_restates_what_followed_it() {
+    fn a_spoken_number_may_be_written_as_digits_only_once() {
         let accept = |dictation: &str, reply: &str| {
             accept_output(dictation, reply, &PromptContext::default()).is_some()
         };
-        for cue in RESTART_CUES {
-            let cue = cue.join(" ");
-            let meant = format!("should I take the bus or the train {cue} for the train today");
-            assert!(!accept(&meant, "The train."), "{cue}: answer accepted");
-            let restart = format!(
-                "should I take the bus or the train to the office tomorrow morning {cue} I'll walk"
-            );
-            assert!(accept(&restart, "I'll walk."), "{cue}: restart rejected");
-        }
+        assert!(accept(
+            "the meeting is at three and the call at four and lunch at twelve thirty",
+            "The meeting is at 3, the call at 4, and lunch at 12:30."
+        ));
+        assert!(!accept(
+            "the meeting is at three and the call and the lunch",
+            "The meeting is at 3, the call at 4, and lunch at 12:30."
+        ));
     }
 
     #[test]
@@ -850,29 +904,24 @@ mod tests {
         let corpus = corpus();
         assert!(corpus.len() >= 40);
         let mut wrong = Vec::new();
-        let (mut accepted, mut accepts, mut rejected, mut rejects) = (0, 0, 0, 0);
+        let mut counts = [(0, 0); 3];
         for (lang, dictation, reply, verdict) in &corpus {
-            let got = match accept_output(dictation, reply, &PromptContext::default()) {
-                Some(_) => Accept,
-                None => Reject,
-            };
-            match verdict {
-                Accept => {
-                    accepts += 1;
-                    accepted += usize::from(got == Accept);
-                }
-                Reject => {
-                    rejects += 1;
-                    rejected += usize::from(got == Reject);
-                }
-            }
-            if got != *verdict {
+            let accepted = accept_output(dictation, reply, &PromptContext::default()).is_some();
+            let right = accepted == (*verdict == Accept);
+            let count = &mut counts[*verdict as usize];
+            count.0 += usize::from(right);
+            count.1 += 1;
+            if !right {
                 wrong.push(format!(
                     "[{lang}] {dictation:?} -> {reply:?}: expected {verdict:?}"
                 ));
             }
         }
-        println!("edits accepted {accepted}/{accepts}, replies rejected {rejected}/{rejects}");
+        let [(accepted, accepts), (rejected, rejects), (fell_back, fallbacks)] = counts;
+        println!(
+            "edits accepted {accepted}/{accepts}, replies rejected {rejected}/{rejects}, \
+             raw fallbacks {fell_back}/{fallbacks}"
+        );
         assert!(wrong.is_empty(), "misclassified:\n{}", wrong.join("\n"));
     }
 }
