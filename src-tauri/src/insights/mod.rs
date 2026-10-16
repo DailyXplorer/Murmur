@@ -9,7 +9,7 @@ pub mod stats;
 use anyhow::Result;
 use categories::{categorize, AppCategory};
 use chrono::{Local, TimeZone, Utc};
-use log::{error, info};
+use log::{error, info, warn};
 use rusqlite::{params, Connection};
 use rusqlite_migration::{Migrations, M};
 use serde::{Deserialize, Serialize};
@@ -139,10 +139,12 @@ fn insert_correction(conn: &Connection, at: i64, words: u32) -> Result<bool> {
 
 /// Imports dates, word counts and (when the WAV still exists) durations from
 /// history once. Rows and the completion marker commit together, so a crash
-/// mid-way retries cleanly and a finished backfill never runs again.
+/// mid-way retries cleanly and a finished backfill never runs again. History
+/// is read only while the backfill is pending, and an unreadable history
+/// postpones it to a later launch instead of disabling insights.
 fn backfill_from_history(
     conn: &mut Connection,
-    rows: &[HistoryRow],
+    read_rows: impl FnOnce() -> Result<Vec<HistoryRow>>,
     duration_ms: impl Fn(&str) -> Option<u32>,
 ) -> Result<usize> {
     let tx = conn.transaction()?;
@@ -154,6 +156,13 @@ fn backfill_from_history(
     if done {
         return Ok(0);
     }
+    let rows = match read_rows() {
+        Ok(rows) => rows,
+        Err(e) => {
+            warn!("History is unreadable; postponing the insights backfill: {e}");
+            return Ok(0);
+        }
+    };
     let mut imported = 0;
     for row in rows.iter().filter(|row| !row.text.trim().is_empty()) {
         imported += tx.execute(
@@ -265,8 +274,9 @@ impl InsightsManager {
         let mut conn = Connection::open(&db_path)?;
         migrate(&mut conn)?;
 
-        let rows = read_history_rows(&db_path.with_file_name("history.db"))?;
-        let imported = backfill_from_history(&mut conn, &rows, |file_name| {
+        let history_db = db_path.with_file_name("history.db");
+        let read_rows = || read_history_rows(&history_db);
+        let imported = backfill_from_history(&mut conn, read_rows, |file_name| {
             let path = history.resolve_persisted_recording_path(file_name).ok()?;
             let reader = hound::WavReader::open(path).ok()?;
             let rate = u64::from(reader.spec().sample_rate.max(1));
@@ -381,6 +391,25 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_history_postpones_the_backfill_without_failing() {
+        let mut conn = migrated();
+        let no_duration = |_: &str| None;
+
+        let postponed = backfill_from_history(
+            &mut conn,
+            || Err(anyhow::anyhow!("no such table: transcription_history")),
+            no_duration,
+        );
+        assert_eq!(postponed.unwrap(), 0);
+
+        let rows = vec![history_row(1, ts(2026, 10, 13, 9), "one two three")];
+        assert_eq!(
+            backfill_from_history(&mut conn, || Ok(rows), no_duration).unwrap(),
+            1
+        );
+    }
+
+    #[test]
     fn migrations_are_valid() {
         Migrations::new(MIGRATIONS.to_vec()).validate().unwrap();
     }
@@ -388,7 +417,7 @@ mod tests {
     #[test]
     fn backfill_imports_completed_history_once() {
         let mut conn = migrated();
-        let rows = [
+        let rows = vec![
             history_row(1, ts(2026, 10, 13, 9), "one two three"),
             history_row(2, ts(2026, 10, 14, 9), ""),
             history_row(3, ts(2026, 10, 15, 9), "four five"),
@@ -396,11 +425,16 @@ mod tests {
         let duration = |file: &str| (file == "murmur-1.wav").then_some(1_500);
 
         assert_eq!(
-            backfill_from_history(&mut conn, &rows, duration).unwrap(),
+            backfill_from_history(&mut conn, || Ok(rows), duration).unwrap(),
             2
         );
         assert_eq!(
-            backfill_from_history(&mut conn, &rows, duration).unwrap(),
+            backfill_from_history(
+                &mut conn,
+                || panic!("a finished backfill must not read history"),
+                duration
+            )
+            .unwrap(),
             0
         );
 
