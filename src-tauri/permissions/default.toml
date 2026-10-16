@@ -54,6 +54,7 @@ permissions = [
   "allow-open-app-data-dir",
   "allow-repair-accessibility-permission",
   "allow-open-microphone-settings",
+  "allow-get-microphone-authorization-status",
   "allow-initialize-enigo",
   "allow-initialize-shortcuts",
   "allow-update-microphone-mode",
