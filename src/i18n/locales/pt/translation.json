@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Correções",
-      "description": "Palavras que você corrigiu depois que o Murmur colou o texto, mais as palavras que seu dicionário personalizado substituiu automaticamente.",
+      "description": "Nomes mal transcritos que você corrigiu depois que o Murmur colou o texto, contados uma vez para cada palavra que o Murmur aprendeu, mais as palavras que seu dicionário personalizado substituiu automaticamente.",
       "wordsCorrected": "Palavras corrigidas: {{value}}",
       "dictionaryFixes": "Correções do dicionário: {{value}}"
     },

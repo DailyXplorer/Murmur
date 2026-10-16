@@ -124,15 +124,22 @@ const COSTLY_TYPE_PREFIXES: [&str; 2] = [
     "com.apple.pasteboard.promised-",
     "com.microsoft.ole.source.",
 ];
-const COSTLY_TYPES: [&str; 7] = [
+const COSTLY_TYPES: [&str; 5] = [
     "com.apple.NSFilePromiseItemMetaData",
     "com.microsoft.Link-Source",
     "com.microsoft.ObjectLink",
     "com.adobe.pdf",
-    "public.tiff",
-    "NSTIFFPboardType",
     "com.apple.pict",
 ];
+/// TIFF is either the copied image itself, a picture of copied text, as
+/// spreadsheets add, or a copied file's icon. A browser's Copy Image offers
+/// TIFF with only the image's link or `<img>` HTML beside it, so those never
+/// stand in for it.
+const TIFF_TYPES: [&str; 2] = ["public.tiff", "NSTIFFPboardType"];
+const COMPACT_IMAGE_TYPES: [&str; 3] = ["public.png", "public.jpeg", "public.heic"];
+const TEXT_TYPES: [&str; 3] = ["public.utf8-plain-text", "NSStringPboardType", "public.rtf"];
+const FILE_TYPES: [&str; 2] = ["public.file-url", "NSFilenamesPboardType"];
+const WEB_LINK_TYPES: [&str; 2] = ["public.url", "Apple URL pasteboard type"];
 
 fn is_costly_type(data_type: &str) -> bool {
     COSTLY_TYPES.contains(&data_type)
@@ -141,19 +148,28 @@ fn is_costly_type(data_type: &str) -> bool {
             .any(|prefix| data_type.starts_with(prefix))
 }
 
+/// Whether the item's TIFF is only a rendering: a smaller image format holds
+/// the same picture, the item is a file and the TIFF only its icon, or text
+/// holds the content and no web link says the item is an image.
+fn tiff_is_a_rendering(types: &[String]) -> bool {
+    let has = |list: &[&str]| types.iter().any(|t| list.contains(&t.as_str()));
+    has(&COMPACT_IMAGE_TYPES) || has(&FILE_TYPES) || (has(&TEXT_TYPES) && !has(&WEB_LINK_TYPES))
+}
+
 /// The types of one item worth saving. Costly types go only when a type that
 /// is neither costly nor a `dyn.` alias (which may just alias the costly one)
-/// can stand in for them.
+/// can stand in for them. TIFF goes only when it is a rendering.
 fn types_to_capture(types: Vec<String>) -> Vec<String> {
-    let has_substitute = types
-        .iter()
-        .any(|data_type| !is_costly_type(data_type) && !data_type.starts_with("dyn."));
-    if !has_substitute {
-        return types;
-    }
+    let drop_tiff = tiff_is_a_rendering(&types);
+    let rendered_tiff = |data_type: &str| drop_tiff && TIFF_TYPES.contains(&data_type);
+    let has_substitute = types.iter().any(|data_type| {
+        !is_costly_type(data_type) && !data_type.starts_with("dyn.") && !rendered_tiff(data_type)
+    });
+    let skipped =
+        |data_type: &str| rendered_tiff(data_type) || (has_substitute && is_costly_type(data_type));
     types
         .into_iter()
-        .filter(|data_type| !is_costly_type(data_type))
+        .filter(|data_type| !skipped(data_type))
         .collect()
 }
 
@@ -790,6 +806,51 @@ mod tests {
             types_to_capture(types(&["public.png", "public.tiff"])),
             types(&["public.png"])
         );
+    }
+
+    #[test]
+    fn a_copied_web_image_keeps_its_tiff_beside_its_link() {
+        fn types(names: &[&str]) -> Vec<String> {
+            names.iter().map(|name| name.to_string()).collect()
+        }
+
+        let safari = types(&[
+            "public.tiff",
+            "NSTIFFPboardType",
+            "public.url",
+            "Apple URL pasteboard type",
+            "public.utf8-plain-text",
+        ]);
+        assert_eq!(types_to_capture(safari.clone()), safari);
+        let chrome = types(&["public.tiff", "public.html"]);
+        assert_eq!(types_to_capture(chrome.clone()), chrome);
+        let file = types(&["public.file-url", "public.tiff", "com.adobe.pdf"]);
+        assert_eq!(types_to_capture(file), types(&["public.file-url"]));
+    }
+
+    #[test]
+    fn a_finder_file_copy_drops_each_icon_tiff() {
+        fn types(names: &[&str]) -> Vec<String> {
+            names.iter().map(|name| name.to_string()).collect()
+        }
+
+        // Finder writes one item per copied file: its URL, its name and its icon.
+        let item = types(&[
+            "public.file-url",
+            "NSFilenamesPboardType",
+            "public.utf8-plain-text",
+            "com.apple.icns",
+            "public.tiff",
+            "NSTIFFPboardType",
+        ]);
+        let saved: Vec<Vec<String>> = vec![item; 20].into_iter().map(types_to_capture).collect();
+        let without_icon_tiff = types(&[
+            "public.file-url",
+            "NSFilenamesPboardType",
+            "public.utf8-plain-text",
+            "com.apple.icns",
+        ]);
+        assert_eq!(saved, vec![without_icon_tiff; 20]);
     }
 
     fn release(pasteboard: &NSPasteboard) {

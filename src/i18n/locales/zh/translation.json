@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "修正",
-      "description": "Murmur 粘贴后你手动修改的字词，加上自定义词典自动替换的字词。",
+      "description": "Murmur 粘贴后你更正的听错的名称（Murmur 每学会一个词计一次），加上自定义词典自动替换的字词。",
       "wordsCorrected": "修正的字词：{{value}}",
       "dictionaryFixes": "词典修正：{{value}}"
     },
