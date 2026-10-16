@@ -510,6 +510,7 @@ pub fn run(cli_args: CliArgs) {
             commands::open_log_dir,
             commands::open_app_data_dir,
             commands::repair_accessibility_permission,
+            commands::open_microphone_settings,
             commands::initialize_enigo,
             commands::initialize_shortcuts,
             commands::audio::update_microphone_mode,

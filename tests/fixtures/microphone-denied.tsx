@@ -7,10 +7,10 @@ import AccessibilityOnboarding from "../../src/components/onboarding/Accessibili
 import enTranslation from "../../src/i18n/locales/en/translation.json";
 import "../../src/App.css";
 
-const openedUrls: string[] = [];
+let microphoneSettingsOpened = 0;
 let microphoneGranted = false;
 
-mockIPC((command, args) => {
+mockIPC((command) => {
   switch (command) {
     case "plugin:macos-permissions|check_accessibility_permission":
       return true;
@@ -23,8 +23,8 @@ mockIPC((command, args) => {
     case "get_available_microphones":
     case "get_available_output_devices":
       return [];
-    case "plugin:opener|open_url":
-      openedUrls.push(String((args as { url: string }).url));
+    case "open_microphone_settings":
+      microphoneSettingsOpened += 1;
       return null;
     default:
       throw new Error(`Unexpected Tauri command: ${command}`);
@@ -35,7 +35,7 @@ declare global {
   interface Window {
     microphoneDeniedFixture: {
       grantMicrophone: () => void;
-      openedUrls: () => string[];
+      microphoneSettingsOpened: () => number;
     };
   }
 }
@@ -44,7 +44,7 @@ window.microphoneDeniedFixture = {
   grantMicrophone: () => {
     microphoneGranted = true;
   },
-  openedUrls: () => [...openedUrls],
+  microphoneSettingsOpened: () => microphoneSettingsOpened,
 };
 
 const renderFixture = async () => {

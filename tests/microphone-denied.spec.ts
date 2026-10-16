@@ -16,11 +16,11 @@ test("a denied microphone leads to its System Settings pane", async ({
   await page.getByRole("button", { name: "Open System Settings" }).click();
   await expect
     .poll(() =>
-      page.evaluate(() => window.microphoneDeniedFixture.openedUrls()),
+      page.evaluate(() =>
+        window.microphoneDeniedFixture.microphoneSettingsOpened(),
+      ),
     )
-    .toEqual([
-      "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-    ]);
+    .toBe(1);
 
   await page.evaluate(() => window.microphoneDeniedFixture.grantMicrophone());
   await expect(page.getByText("All set!")).toBeVisible();

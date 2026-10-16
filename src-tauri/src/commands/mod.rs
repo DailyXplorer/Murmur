@@ -14,6 +14,8 @@ const TCCUTIL_PATH: &str = "/usr/bin/tccutil";
 const OPEN_PATH: &str = "/usr/bin/open";
 const ACCESSIBILITY_SETTINGS_URL: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+const MICROPHONE_SETTINGS_URL: &str =
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 
 fn accessibility_reset_arguments(bundle_id: &str) -> Result<[String; 3], String> {
     if bundle_id.trim().is_empty() {
@@ -50,17 +52,17 @@ fn reset_accessibility_decision(bundle_id: &str) -> Result<(), String> {
     }
 }
 
-fn open_accessibility_settings() -> Result<(), String> {
+fn open_privacy_pane(url: &str, name: &str) -> Result<(), String> {
     let status = Command::new(OPEN_PATH)
-        .arg(ACCESSIBILITY_SETTINGS_URL)
+        .arg(url)
         .status()
-        .map_err(|error| format!("Failed to open Accessibility settings: {error}"))?;
+        .map_err(|error| format!("Failed to open {name} settings: {error}"))?;
 
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "Opening Accessibility settings exited with status {status}"
+            "Opening {name} settings exited with status {status}"
         ))
     }
 }
@@ -203,14 +205,28 @@ pub async fn repair_accessibility_permission(app: AppHandle) -> Result<(), Strin
 
     tauri_plugin_macos_permissions::request_accessibility_permission().await;
 
-    let open_result = tauri::async_runtime::spawn_blocking(open_accessibility_settings)
-        .await
-        .map_err(|error| format!("Accessibility settings task failed: {error}"))?;
+    let open_result = tauri::async_runtime::spawn_blocking(|| {
+        open_privacy_pane(ACCESSIBILITY_SETTINGS_URL, "Accessibility")
+    })
+    .await
+    .map_err(|error| format!("Accessibility settings task failed: {error}"))?;
 
     reset_result?;
     open_result?;
 
     Ok(())
+}
+
+/// Open the Microphone privacy pane, where the user can turn access back on.
+/// After a denial macOS no longer shows the access prompt.
+#[specta::specta]
+#[tauri::command]
+pub async fn open_microphone_settings() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        open_privacy_pane(MICROPHONE_SETTINGS_URL, "Microphone")
+    })
+    .await
+    .map_err(|error| format!("Microphone settings task failed: {error}"))?
 }
 
 /// Try to initialize Enigo (keyboard/mouse simulation).
@@ -271,7 +287,8 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        accessibility_reset_arguments, ACCESSIBILITY_SETTINGS_URL, OPEN_PATH, TCCUTIL_PATH,
+        accessibility_reset_arguments, ACCESSIBILITY_SETTINGS_URL, MICROPHONE_SETTINGS_URL,
+        OPEN_PATH, TCCUTIL_PATH,
     };
 
     #[test]
@@ -296,5 +313,6 @@ mod tests {
     fn accessibility_repair_uses_absolute_system_tools_and_privacy_pane() {
         assert_eq!(OPEN_PATH, "/usr/bin/open");
         assert!(ACCESSIBILITY_SETTINGS_URL.ends_with("Privacy_Accessibility"));
+        assert!(MICROPHONE_SETTINGS_URL.ends_with("Privacy_Microphone"));
     }
 }
