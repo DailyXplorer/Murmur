@@ -60,6 +60,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     };
   }, [shortcutId]);
 
+  useEffect(() => () => endCapture(shortcutId), [shortcutId, endCapture]);
+
   useEffect(() => {
     // Only add event listeners when we're in editing mode
     if (editingShortcutId === null) return;

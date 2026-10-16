@@ -44,6 +44,35 @@ test("opening a second shortcut field moves the capture to it", async ({
     ]);
 });
 
+const leaveWindow = {
+  "switching to another app": () => window.dispatchEvent(new Event("blur")),
+  "hiding the Settings window": () => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  },
+  "leaving the settings page": () => window.shortcutCapture.unmount(),
+};
+
+for (const [action, leave] of Object.entries(leaveWindow)) {
+  test(`${action} while capturing turns the shortcuts back on`, async ({
+    page,
+  }) => {
+    await field(page, "transcribe").click();
+    await expect(capture(page, "transcribe")).toBeVisible();
+    await expect.poll(() => calls(page)).toEqual(["suspend_all_bindings"]);
+
+    await page.evaluate(leave);
+
+    await expect(capture(page, "transcribe")).toHaveCount(0);
+    await expect
+      .poll(() => calls(page))
+      .toEqual(["suspend_all_bindings", "resume_all_bindings"]);
+  });
+}
+
 test("a bare Escape abandons the edit instead of binding Escape", async ({
   page,
 }) => {
