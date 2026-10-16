@@ -98,6 +98,7 @@ pub fn review(inserted: &str, edited: &str) -> Review {
             && !said_on_purpose(&heard_as, word)
             && sounds_alike(&heard_as, word)
             && !only_inflected(&heard_as, word)
+            && !only_extended(&heard_as, word)
             && !kept_elsewhere(&heard_as, &new)
             && !review.learned.iter().any(|known| known.word == word)
         {
@@ -254,7 +255,9 @@ fn said_on_purpose(heard_as: &str, word: &str) -> bool {
 /// a vocabulary hint for cleanup. A misheard form that is no real word
 /// ("Clawd" -> "Claude") is replaced.
 pub fn replaces_safely(heard_as: &str, word: &str) -> bool {
-    !said_on_purpose(heard_as, word) && !is_name_variant(heard_as.trim(), word.trim())
+    !said_on_purpose(heard_as, word)
+        && !is_name_variant(heard_as.trim(), word.trim())
+        && !only_extended(heard_as.trim(), word.trim())
 }
 
 fn is_name_variant(heard: &str, word: &str) -> bool {
@@ -288,6 +291,15 @@ fn only_inflected(heard: &str, word: &str) -> bool {
         (word, heard)
     };
     short != long && long.starts_with(&short) && long.chars().count() - short.chars().count() <= 2
+}
+
+/// "Google" -> "google.com" or "Sarah" -> "sarah@example.com" adds to a word
+/// the user said rightly; rewriting it everywhere would turn every later
+/// "Google" into the address.
+fn only_extended(heard: &str, word: &str) -> bool {
+    word.to_lowercase()
+        .strip_prefix(&heard.to_lowercase())
+        .is_some_and(|rest| rest.starts_with(|c: char| !c.is_alphanumeric()))
 }
 
 /// A misheard form the user left untouched elsewhere in the text is one
@@ -446,6 +458,15 @@ mod tests {
         assert_eq!(review("ok", "  "), Review::default());
         let next_message = edited_span(inserted, inserted, "ok thanks").unwrap();
         assert_eq!(review(inserted, next_message), Review::default());
+    }
+
+    #[test]
+    fn a_word_extended_into_a_domain_or_address_is_not_learned() {
+        assert!(learned("search it on Google", "search it on google.com").is_empty());
+        assert!(learned("pay with Stripe today", "pay with stripe.com today").is_empty());
+        assert!(learned("deploy on Vercel now", "deploy on vercel.app now").is_empty());
+        assert!(!replaces_safely("Google", "google.com"));
+        assert!(replaces_safely("Clawd", "Claude.ai"));
     }
 
     #[test]
