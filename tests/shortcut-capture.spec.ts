@@ -16,12 +16,6 @@ test.beforeEach(async ({ page }) => {
   await expect(field(page, "transcribe")).toHaveText("Option + Space");
 });
 
-const pressCombination = async (page: Page, id: string, key: string) => {
-  await page.keyboard.down(key);
-  await expect(capture(page, id)).toHaveText(key);
-  await page.keyboard.up(key);
-};
-
 test("opening a second shortcut field moves the capture to it", async ({
   page,
 }) => {
@@ -31,7 +25,7 @@ test("opening a second shortcut field moves the capture to it", async ({
   await expect(capture(page, "cancel")).toBeVisible();
   await expect(capture(page, "transcribe")).toHaveCount(0);
 
-  await pressCombination(page, "cancel", "F8");
+  await page.keyboard.press("F8");
 
   await expect(field(page, "cancel")).toHaveText("F8");
   await expect(field(page, "transcribe")).toHaveText("Option + Space");
@@ -72,6 +66,71 @@ for (const [action, leave] of Object.entries(leaveWindow)) {
       .toEqual(["suspend_all_bindings", "resume_all_bindings"]);
   });
 }
+
+test("a Command shortcut is saved even though macOS drops the letter's key-up", async ({
+  page,
+}) => {
+  await field(page, "transcribe").click();
+  await expect(capture(page, "transcribe")).toBeVisible();
+
+  await page.keyboard.down("Meta");
+  await page.keyboard.down("Shift");
+  await expect(capture(page, "transcribe")).toHaveText("Shift + Command");
+  await page.keyboard.down("d");
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Meta");
+
+  await expect(field(page, "transcribe")).toHaveText("Shift + Command + D");
+  await expect
+    .poll(() => calls(page))
+    .toEqual([
+      "suspend_all_bindings",
+      "change_binding transcribe shift+command+d",
+      "resume_all_bindings",
+    ]);
+});
+
+test("the first main key ends the capture", async ({ page }) => {
+  await field(page, "transcribe").click();
+  await expect(capture(page, "transcribe")).toBeVisible();
+
+  await page.keyboard.down("F5");
+  await page.keyboard.down("F6");
+  await page.keyboard.up("F6");
+  await page.keyboard.up("F5");
+
+  await expect(field(page, "transcribe")).toHaveText("F5");
+  await expect
+    .poll(() => calls(page))
+    .toEqual([
+      "suspend_all_bindings",
+      "change_binding transcribe f5",
+      "resume_all_bindings",
+    ]);
+});
+
+test("keys are sent in the spelling the shortcut parser accepts", async ({
+  page,
+}) => {
+  await field(page, "cancel").click();
+  await page.keyboard.press("PageUp");
+  await expect(field(page, "cancel")).toHaveText("Page Up");
+
+  await field(page, "cancel").click();
+  await page.keyboard.press("NumpadAdd");
+  await expect(field(page, "cancel")).toHaveText("Numpad +");
+
+  await expect
+    .poll(() => calls(page))
+    .toEqual([
+      "suspend_all_bindings",
+      "change_binding cancel pageup",
+      "resume_all_bindings",
+      "suspend_all_bindings",
+      "change_binding cancel numpadadd",
+      "resume_all_bindings",
+    ]);
+});
 
 test("a bare Escape abandons the edit instead of binding Escape", async ({
   page,
