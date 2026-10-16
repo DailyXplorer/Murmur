@@ -110,6 +110,18 @@ pub fn change_binding(
 ) -> Result<BindingResponse, String> {
     tauri_impl::validate_shortcut(&binding)?;
 
+    let bindings = settings::get_bindings(&app);
+    if let Some(other) = tauri_impl::conflicting_binding(&bindings, &id, &binding) {
+        return Ok(BindingResponse {
+            success: false,
+            binding: None,
+            error: Some(format!(
+                "Shortcut '{binding}' is already used by '{}'",
+                other.name
+            )),
+        });
+    }
+
     if id == "cancel" {
         return match tauri_impl::change_cancel_binding(&app, binding) {
             Ok(updated) => Ok(BindingResponse {

@@ -62,6 +62,14 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     let cleanup = false;
 
+    const cancelRecording = async () => {
+      await commands.resumeAllBindings().catch(console.error);
+      setEditingShortcutId(null);
+      setKeyPressed([]);
+      setRecordedKeys([]);
+      setOriginalBinding("");
+    };
+
     // Keyboard event listeners
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (cleanup) return;
@@ -70,6 +78,14 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
       const rawKey = getKeyName(e);
       const key = normalizeKey(rawKey);
+
+      // A bare Escape abandons the edit, as in native macOS shortcut
+      // recorders, instead of becoming a global key taken from every app.
+      if (key === "esc" && keyPressed.length === 0) {
+        cleanup = true;
+        await cancelRecording();
+        return;
+      }
 
       if (!keyPressed.includes(key)) {
         setKeyPressed((prev) => [...prev, key]);
@@ -154,20 +170,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (cleanup) return;
       const activeElement = shortcutRefs.current.get(editingShortcutId);
       if (activeElement && !activeElement.contains(e.target as Node)) {
-        // Cancel shortcut recording and restore original binding
-        if (editingShortcutId && originalBinding) {
-          try {
-            await updateBinding(editingShortcutId, originalBinding);
-          } catch (error) {
-            console.error("Failed to restore original binding:", error);
-            toast.error(t("settings.general.shortcut.errors.restore"));
-          }
-        }
-        await commands.resumeAllBindings().catch(console.error);
-        setEditingShortcutId(null);
-        setKeyPressed([]);
-        setRecordedKeys([]);
-        setOriginalBinding("");
+        await cancelRecording();
       }
     };
 
