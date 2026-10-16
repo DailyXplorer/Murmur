@@ -8,14 +8,17 @@ import enTranslation from "../../src/i18n/locales/en/translation.json";
 import "../../src/App.css";
 
 let microphoneSettingsOpened = 0;
-let microphoneGranted = false;
+// AVAuthorizationStatus: 0 not determined, 1 restricted, 2 denied, 3 authorized.
+let microphoneStatus = Number(
+  new URLSearchParams(window.location.search).get("microphone") ?? 0,
+);
 
 mockIPC((command) => {
   switch (command) {
     case "plugin:macos-permissions|check_accessibility_permission":
       return true;
-    case "plugin:macos-permissions|check_microphone_permission":
-      return microphoneGranted;
+    case "get_microphone_authorization_status":
+      return microphoneStatus;
     case "plugin:macos-permissions|request_microphone_permission":
     case "initialize_enigo":
     case "initialize_shortcuts":
@@ -34,15 +37,15 @@ mockIPC((command) => {
 declare global {
   interface Window {
     microphoneDeniedFixture: {
-      grantMicrophone: () => void;
+      setMicrophoneStatus: (status: number) => void;
       microphoneSettingsOpened: () => number;
     };
   }
 }
 
 window.microphoneDeniedFixture = {
-  grantMicrophone: () => {
-    microphoneGranted = true;
+  setMicrophoneStatus: (status) => {
+    microphoneStatus = status;
   },
   microphoneSettingsOpened: () => microphoneSettingsOpened,
 };

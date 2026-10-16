@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   checkAccessibilityPermission,
-  checkMicrophonePermission,
   requestMicrophonePermission,
 } from "tauri-plugin-macos-permissions-api";
 import { toast } from "sonner";
@@ -19,7 +18,8 @@ interface AccessibilityOnboardingProps {
   onComplete: () => void;
 }
 
-type PermissionStatus = "checking" | "needed" | "waiting" | "granted";
+type PermissionStatus =
+  "checking" | "needed" | "waiting" | "denied" | "granted";
 
 interface PermissionsState {
   accessibility: PermissionStatus;
@@ -38,6 +38,26 @@ const initializeKeyboardAutomation = async () => {
   if (shortcutsResult.status === "error") {
     throw new Error(shortcutsResult.error);
   }
+};
+
+// AVAuthorizationStatus: 0 not determined, 1 restricted, 2 denied, 3 authorized.
+// `undecided` is the state to show while no choice has been made.
+const microphoneState = (
+  status: number,
+  undecided: PermissionStatus,
+): PermissionStatus =>
+  status === 3
+    ? "granted"
+    : status === 1 || status === 2
+      ? "denied"
+      : undecided;
+
+const getMicrophoneStatus = async () => {
+  const result = await commands.getMicrophoneAuthorizationStatus();
+  if (result.status === "error") {
+    throw new Error(result.error);
+  }
+  return result.data;
 };
 
 const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
@@ -73,9 +93,9 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   useEffect(() => {
     const checkInitial = async () => {
       try {
-        const [accessibilityGranted, microphoneGranted] = await Promise.all([
+        const [accessibilityGranted, microphoneStatus] = await Promise.all([
           checkAccessibilityPermission(),
-          checkMicrophonePermission(),
+          getMicrophoneStatus(),
         ]);
 
         if (accessibilityGranted) {
@@ -84,12 +104,12 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
 
         const newState: PermissionsState = {
           accessibility: accessibilityGranted ? "granted" : "needed",
-          microphone: microphoneGranted ? "granted" : "needed",
+          microphone: microphoneState(microphoneStatus, "needed"),
         };
 
         setPermissions(newState);
 
-        if (accessibilityGranted && microphoneGranted) {
+        if (accessibilityGranted && newState.microphone === "granted") {
           await completeOnboarding();
         }
       } catch (error) {
@@ -110,10 +130,12 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
 
     pollingRef.current = setInterval(async () => {
       try {
-        const [accessibilityGranted, microphoneGranted] = await Promise.all([
+        const [accessibilityGranted, microphoneStatus] = await Promise.all([
           checkAccessibilityPermission(),
-          checkMicrophonePermission(),
+          getMicrophoneStatus(),
         ]);
+        const microphoneGranted =
+          microphoneState(microphoneStatus, "needed") === "granted";
 
         if (accessibilityGranted) {
           await initializeKeyboardAutomation();
@@ -126,9 +148,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
             newState.accessibility = "granted";
           }
 
-          if (microphoneGranted && prev.microphone !== "granted") {
-            newState.microphone = "granted";
-          }
+          newState.microphone = microphoneState(
+            microphoneStatus,
+            prev.microphone,
+          );
 
           return newState;
         });
@@ -190,15 +213,16 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     }
   };
 
-  // After a denial macOS shows no prompt again, so the waiting state also
-  // points to the Microphone pane where the user can turn access on.
+  // While the system prompt is open the status stays not determined. After a
+  // denial macOS shows no prompt again, so the denied state points to the
+  // Microphone pane where the user can turn access on.
   const handleGrantMicrophone = async () => {
     try {
       await requestMicrophonePermission();
-      const granted = await checkMicrophonePermission();
+      const status = await getMicrophoneStatus();
       setPermissions((prev) => ({
         ...prev,
-        microphone: granted ? "granted" : "waiting",
+        microphone: microphoneState(status, "waiting"),
       }));
       startPolling();
     } catch (error) {
@@ -213,6 +237,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
       if (result.status === "error") {
         throw new Error(result.error);
       }
+      startPolling();
     } catch (error) {
       console.error("Failed to open microphone settings:", error);
       toast.error(t("onboarding.permissions.errors.requestFailed"));
@@ -277,7 +302,8 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   <CheckIcon size={15} />
                   {t("onboarding.permissions.granted")}
                 </div>
-              ) : permissions.microphone === "waiting" ? (
+              ) : permissions.microphone === "waiting" ||
+                permissions.microphone === "denied" ? (
                 <div
                   aria-live="polite"
                   className="flex flex-col gap-1 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
@@ -286,16 +312,20 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                     <CircleNotchIcon size={15} className="animate-spin" />
                     {t("onboarding.permissions.waiting")}
                   </span>
-                  <p className="text-pretty">
-                    {t("errors.micPermissionDenied.macos")}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openMicrophoneSettings}
-                    className="min-h-10 self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
-                  >
-                    {t("accessibility.openSettings")}
-                  </button>
+                  {permissions.microphone === "denied" && (
+                    <>
+                      <p className="text-pretty">
+                        {t("errors.micPermissionDenied.macos")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={openMicrophoneSettings}
+                        className="min-h-10 self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
+                      >
+                        {t("accessibility.openSettings")}
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <button

@@ -511,6 +511,7 @@ pub fn run(cli_args: CliArgs) {
             commands::open_app_data_dir,
             commands::repair_accessibility_permission,
             commands::open_microphone_settings,
+            commands::get_microphone_authorization_status,
             commands::initialize_enigo,
             commands::initialize_shortcuts,
             commands::audio::update_microphone_mode,
