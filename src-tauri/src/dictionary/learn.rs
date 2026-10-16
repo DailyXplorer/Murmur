@@ -252,12 +252,22 @@ fn said_on_purpose(heard_as: &str, word: &str) -> bool {
 /// Whether `heard_as` may be rewritten into `word` wherever it appears.
 /// Swapping one ordinary name for a near-identical one ("Smith" -> "Smyth")
 /// is right for one person and wrong for every other, so such a word stays
-/// a vocabulary hint for cleanup. A misheard form that is no real word
-/// ("Clawd" -> "Claude") is replaced.
+/// a vocabulary hint for cleanup. So does a misheard pair that holds an
+/// everyday word and does not spell the word: the "for" of "gpt for" ->
+/// "GPT-4" is usually the real preposition. A misheard form that is no
+/// real word ("Clawd" -> "Claude") is replaced.
 pub fn replaces_safely(heard_as: &str, word: &str) -> bool {
     !said_on_purpose(heard_as, word)
+        && !holds_an_everyday_word(heard_as, word)
         && !is_name_variant(heard_as.trim(), word.trim())
         && !only_extended(heard_as.trim(), word.trim())
+}
+
+fn holds_an_everyday_word(heard_as: &str, word: &str) -> bool {
+    let words: Vec<&str> = heard_as.split_whitespace().collect();
+    words.len() > 1
+        && letters(heard_as) != letters(word)
+        && words.iter().any(|word| is_common_word(word))
 }
 
 fn is_name_variant(heard: &str, word: &str) -> bool {
@@ -467,6 +477,13 @@ mod tests {
         assert!(learned("deploy on Vercel now", "deploy on vercel.app now").is_empty());
         assert!(!replaces_safely("Google", "google.com"));
         assert!(replaces_safely("Clawd", "Claude.ai"));
+    }
+
+    #[test]
+    fn a_misheard_pair_with_an_everyday_word_is_a_hint_only() {
+        assert!(!replaces_safely("gpt for", "GPT-4"));
+        assert!(replaces_safely("open ai", "OpenAI"));
+        assert!(replaces_safely("cooper netties", "Kubernetes"));
     }
 
     #[test]
