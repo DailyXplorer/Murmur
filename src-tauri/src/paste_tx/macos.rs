@@ -139,6 +139,8 @@ const TIFF_TYPES: [&str; 2] = ["public.tiff", "NSTIFFPboardType"];
 const COMPACT_IMAGE_TYPES: [&str; 3] = ["public.png", "public.jpeg", "public.heic"];
 const TEXT_TYPES: [&str; 3] = ["public.utf8-plain-text", "NSStringPboardType", "public.rtf"];
 const FILE_TYPES: [&str; 2] = ["public.file-url", "NSFilenamesPboardType"];
+/// A copied file's full icon family, rendered per file like its icon TIFF.
+const ICON_TYPE: &str = "com.apple.icns";
 const WEB_LINK_TYPES: [&str; 2] = ["public.url", "Apple URL pasteboard type"];
 
 fn is_costly_type(data_type: &str) -> bool {
@@ -158,15 +160,19 @@ fn tiff_is_a_rendering(types: &[String]) -> bool {
 
 /// The types of one item worth saving. Costly types go only when a type that
 /// is neither costly nor a `dyn.` alias (which may just alias the costly one)
-/// can stand in for them. TIFF goes only when it is a rendering.
+/// can stand in for them. TIFF goes only when it is a rendering, and a file's
+/// icon always goes: the app that receives the file draws it from the URL.
 fn types_to_capture(types: Vec<String>) -> Vec<String> {
     let drop_tiff = tiff_is_a_rendering(&types);
-    let rendered_tiff = |data_type: &str| drop_tiff && TIFF_TYPES.contains(&data_type);
+    let is_file = types.iter().any(|t| FILE_TYPES.contains(&t.as_str()));
+    let rendering = |data_type: &str| {
+        (drop_tiff && TIFF_TYPES.contains(&data_type)) || (is_file && data_type == ICON_TYPE)
+    };
     let has_substitute = types.iter().any(|data_type| {
-        !is_costly_type(data_type) && !data_type.starts_with("dyn.") && !rendered_tiff(data_type)
+        !is_costly_type(data_type) && !data_type.starts_with("dyn.") && !rendering(data_type)
     });
     let skipped =
-        |data_type: &str| rendered_tiff(data_type) || (has_substitute && is_costly_type(data_type));
+        |data_type: &str| rendering(data_type) || (has_substitute && is_costly_type(data_type));
     types
         .into_iter()
         .filter(|data_type| !skipped(data_type))
@@ -829,7 +835,7 @@ mod tests {
     }
 
     #[test]
-    fn a_finder_file_copy_drops_each_icon_tiff() {
+    fn a_finder_file_copy_drops_each_icon() {
         fn types(names: &[&str]) -> Vec<String> {
             names.iter().map(|name| name.to_string()).collect()
         }
@@ -844,13 +850,15 @@ mod tests {
             "NSTIFFPboardType",
         ]);
         let saved: Vec<Vec<String>> = vec![item; 20].into_iter().map(types_to_capture).collect();
-        let without_icon_tiff = types(&[
+        let without_icons = types(&[
             "public.file-url",
             "NSFilenamesPboardType",
             "public.utf8-plain-text",
-            "com.apple.icns",
         ]);
-        assert_eq!(saved, vec![without_icon_tiff; 20]);
+        assert_eq!(saved, vec![without_icons; 20]);
+        // An icon copied on its own is the content, so it is kept.
+        let icon = types(&["com.apple.icns", "public.tiff"]);
+        assert_eq!(types_to_capture(icon.clone()), icon);
     }
 
     fn release(pasteboard: &NSPasteboard) {
