@@ -22,18 +22,23 @@ const NEW_SHARE: u32 = 10;
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
 /// A reply under this many tenths of the dictation drops what was said: a
-/// summary, or an answer ("No.", "4."). Fillers and a false start the
-/// prompt asks to remove are not counted in the dictation.
+/// summary, or an answer ("No.", "4."). Fillers are not counted in the
+/// dictation.
 const MIN_KEPT_TENTHS: u32 = 3;
+/// A shorter reply still passes after a restart cue when it restates this
+/// many tenths of the words after the cue. A cue can also be meant ("there's
+/// no wait for the train"), so it never lets through a reply that drops
+/// what followed it.
+const MIN_RESTATED_TENTHS: u32 = 7;
 /// Whole-word hesitations the prompt asks to remove, in its languages.
 const FILLERS: [&str; 17] = [
     "um", "umm", "uh", "uhm", "hmm", "hm", "mm", "er", "erm", "euh", "heu", "äh", "ähm", "öh",
     "ehm", "eh", "ah",
 ];
-/// Cues after which the speaker starts over, so the words before them are
-/// abandoned. Only unambiguous ones: "actually", "sorry", "I mean", its
-/// French equivalent "je veux dire" and Spanish "no espera" ("doesn't wait")
-/// are often meant.
+/// Cues after which the speaker may start over, so the words before them
+/// may be abandoned. "actually", "sorry", "I mean", its French equivalent
+/// "je veux dire" and Spanish "no espera" ("doesn't wait") are meant too
+/// often to be listed.
 const RESTART_CUES: [&[&str]; 4] = [
     &["scratch", "that"],
     &["no", "wait"],
@@ -68,7 +73,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
-    if reply_weight * 10 < weight(&units(&final_wording(dictation))) * MIN_KEPT_TENTHS {
+    if !keeps_what_was_said(&reply, dictation) {
         return false;
     }
     let terms: Vec<Vec<char>> = context
@@ -91,9 +96,24 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         && tail_added <= EDGE_SLACK
 }
 
-/// The words a correct cleanup keeps at least: those after the last restart
-/// cue, without fillers.
-fn final_wording(dictation: &str) -> String {
+/// Whether the reply keeps enough of the dictation, or restates the words
+/// after a restart cue the speaker may have meant.
+fn keeps_what_was_said(reply: &[char], dictation: &str) -> bool {
+    let (whole, after_cue) = wording(dictation);
+    if weight(reply) * 10 >= weight(&units(&whole)) * MIN_KEPT_TENTHS {
+        return true;
+    }
+    after_cue.is_some_and(|after_cue| {
+        let after_cue = without_apostrophes(units(&after_cue));
+        let reply = without_apostrophes(reply.to_vec());
+        let (restated, _, _) = aligned(&reply, &after_cue, 0, reply.len());
+        restated * 10 >= weight(&after_cue) * MIN_RESTATED_TENTHS
+    })
+}
+
+/// The dictation's words without fillers, and the words after its last
+/// restart cue when the cue is followed by any.
+fn wording(dictation: &str) -> (String, Option<String>) {
     let words: Vec<String> = dictation
         .split_whitespace()
         .map(|word| {
@@ -109,19 +129,17 @@ fn final_wording(dictation: &str) -> String {
                 .rposition(|window| window.iter().map(String::as_str).eq(cue.iter().copied()))
                 .map(|at| at + cue.len())
         })
-        .max()
-        .unwrap_or(0);
+        .max();
     let kept = |from: usize| {
         words[from..]
             .iter()
             .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
             .cloned()
             .collect::<Vec<_>>()
+            .join(" ")
     };
-    // A cue that ends the dictation leaves nothing to restate, so it cannot
-    // be a restart: weigh the whole dictation then.
-    let after = kept(restart);
-    if after.is_empty() { kept(0) } else { after }.join(" ")
+    let after_cue = restart.map(&kept).filter(|after| !after.is_empty());
+    (kept(0), after_cue)
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -558,6 +576,12 @@ mod tests {
             ),
             (
                 "en",
+                "Should I take the bus or the train? There's no wait for the train today.",
+                "The train.",
+                Reject,
+            ),
+            (
+                "en",
                 "how is the weather today",
                 "The weather today is sunny.",
                 Reject,
@@ -803,6 +827,22 @@ mod tests {
             "I think Claude'll handle it.",
             &["Claude"]
         ));
+    }
+
+    #[test]
+    fn a_restart_cue_admits_only_a_reply_that_restates_what_followed_it() {
+        let accept = |dictation: &str, reply: &str| {
+            accept_output(dictation, reply, &PromptContext::default()).is_some()
+        };
+        for cue in RESTART_CUES {
+            let cue = cue.join(" ");
+            let meant = format!("should I take the bus or the train {cue} for the train today");
+            assert!(!accept(&meant, "The train."), "{cue}: answer accepted");
+            let restart = format!(
+                "should I take the bus or the train to the office tomorrow morning {cue} I'll walk"
+            );
+            assert!(accept(&restart, "I'll walk."), "{cue}: restart rejected");
+        }
     }
 
     #[test]
