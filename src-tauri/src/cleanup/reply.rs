@@ -31,14 +31,14 @@ const FILLERS: [&str; 17] = [
     "ehm", "eh", "ah",
 ];
 /// Cues after which the speaker starts over, so the words before them are
-/// abandoned. Only unambiguous ones: "actually", "sorry", "I mean" and its
-/// French equivalent "je veux dire" are often meant.
-const RESTART_CUES: [&[&str]; 5] = [
+/// abandoned. Only unambiguous ones: "actually", "sorry", "I mean", its
+/// French equivalent "je veux dire" and Spanish "no espera" ("doesn't wait")
+/// are often meant.
+const RESTART_CUES: [&[&str]; 4] = [
     &["scratch", "that"],
     &["no", "wait"],
     &["non", "attends"],
     &["nein", "warte"],
-    &["no", "espera"],
 ];
 
 /// Rejects a reply that is not a plausible cleanup of `dictation`: empty,
@@ -111,12 +111,17 @@ fn final_wording(dictation: &str) -> String {
         })
         .max()
         .unwrap_or(0);
-    words[restart..]
-        .iter()
-        .filter(|word| !FILLERS.contains(&word.as_str()))
-        .cloned()
-        .collect::<Vec<_>>()
-        .join(" ")
+    let kept = |from: usize| {
+        words[from..]
+            .iter()
+            .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    // A cue that ends the dictation leaves nothing to restate, so it cannot
+    // be a restart: weigh the whole dictation then.
+    let after = kept(restart);
+    if after.is_empty() { kept(0) } else { after }.join(" ")
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -542,6 +547,12 @@ mod tests {
             (
                 "fr",
                 "tu penses, je veux dire, on prend Postgres ou MySQL",
+                "Postgres.",
+                Reject,
+            ),
+            (
+                "es",
+                "¿Postgres o MySQL? El equipo no espera.",
                 "Postgres.",
                 Reject,
             ),
