@@ -183,6 +183,8 @@ mockIPC(
       case "plugin:macos-permissions|check_accessibility_permission":
       case "plugin:macos-permissions|check_microphone_permission":
         return true;
+      case "get_microphone_authorization_status":
+        return 3;
       case "initialize_enigo":
         if (failNextInitialization) {
           failNextInitialization = false;
