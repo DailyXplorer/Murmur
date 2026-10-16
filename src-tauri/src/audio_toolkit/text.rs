@@ -177,11 +177,12 @@ pub fn apply_custom_words_counted(
     while i < words.len() {
         let mut best_match: Option<(usize, &String, f64)> = None;
 
-        // Consider n-grams up to three words and choose the closest match. A
-        // longest-first match can consume a following ordinary word when both
-        // candidates happen to share a Soundex code (for example,
-        // "Charge B, che" matching "ChargeBee").
-        for n in (1..=3).rev() {
+        // Consider n-grams up to three words and choose the closest match,
+        // keeping the shortest on a tie. A longest-first match can consume a
+        // following ordinary word when both candidates happen to share a
+        // Soundex code (for example, "Charge B, che" or "CHARGE B is"
+        // matching "ChargeBee").
+        for n in 1..=3 {
             if i + n > words.len() {
                 continue;
             }
@@ -215,8 +216,7 @@ pub fn apply_custom_words_counted(
             let (prefix, _) = extract_punctuation(ngram_words[0]);
             let (_, suffix) = extract_punctuation(ngram_words[n - 1]);
 
-            // Preserve case from first word.
-            let corrected = preserve_case_pattern(ngram_words[0], replacement);
+            let corrected = preserve_case_pattern(&ngram_words.join(" "), replacement);
 
             let replaced = format!("{}{}{}", prefix, corrected, suffix);
             if replaced != ngram_words.join(" ") {
@@ -233,11 +233,18 @@ pub fn apply_custom_words_counted(
     (result.join(" "), replacements)
 }
 
-/// Preserves the case pattern of the original word when applying a replacement
+/// Carries the case of the matched span over to the replacement. A shouted
+/// span ("CHARGE B") stays shouted; a capitalised span capitalises a plain
+/// replacement. A replacement with its own inner capitals ("iPhone") keeps
+/// its spelling, and a lone capital letter ("I phone") is not shouting.
 fn preserve_case_pattern(original: &str, replacement: &str) -> String {
-    if original.chars().all(|c| c.is_uppercase()) {
+    let letters: Vec<char> = original.chars().filter(|c| c.is_alphabetic()).collect();
+    let has_inner_capital = replacement.chars().skip(1).any(char::is_uppercase);
+    if letters.len() >= 2 && letters.iter().all(|c| c.is_uppercase()) {
         replacement.to_uppercase()
-    } else if original.chars().next().is_some_and(|c| c.is_uppercase()) {
+    } else if has_inner_capital {
+        replacement.to_string()
+    } else if letters.first().is_some_and(|c| c.is_uppercase()) {
         let mut chars: Vec<char> = replacement.chars().collect();
         if let Some(first_char) = chars.get_mut(0) {
             *first_char = first_char.to_uppercase().next().unwrap_or(*first_char);
@@ -374,6 +381,23 @@ mod tests {
     }
 
     #[test]
+    fn a_capital_letter_word_does_not_shout_the_custom_word() {
+        let custom_words = vec!["iPhone".to_string(), "Xcode".to_string()];
+        assert_eq!(
+            apply_custom_words("I phone died", &custom_words, 0.5),
+            "iPhone died"
+        );
+        assert_eq!(
+            apply_custom_words("open X code now", &custom_words, 0.5),
+            "open Xcode now"
+        );
+        assert_eq!(
+            apply_custom_words("Hi. X code crashed.", &custom_words, 0.5),
+            "Hi. Xcode crashed."
+        );
+    }
+
+    #[test]
     fn test_extract_punctuation() {
         assert_eq!(extract_punctuation("hello"), ("", ""));
         assert_eq!(extract_punctuation("!hello?"), ("!", "?"));
@@ -481,7 +505,7 @@ mod tests {
         let text = "CHARGE B is great";
         let custom_words = vec!["ChargeBee".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
-        assert!(result.contains("CHARGEBEE"));
+        assert_eq!(result, "CHARGEBEE is great");
     }
 
     #[test]
