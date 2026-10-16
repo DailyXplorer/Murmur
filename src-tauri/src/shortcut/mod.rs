@@ -108,7 +108,7 @@ pub fn change_binding(
     id: String,
     binding: String,
 ) -> Result<BindingResponse, String> {
-    tauri_impl::validate_shortcut(&binding)?;
+    tauri_impl::parse_shortcut(&binding)?;
 
     let bindings = settings::get_bindings(&app);
     if let Some(other) = tauri_impl::conflicting_binding(&bindings, &id, &binding) {

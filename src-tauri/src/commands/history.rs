@@ -150,9 +150,9 @@ pub async fn update_history_limit(
     history_manager: State<'_, Arc<HistoryManager>>,
     limit: usize,
 ) -> Result<(), String> {
-    if limit > crate::settings::MAX_HISTORY_LIMIT {
+    if !(1..=crate::settings::MAX_HISTORY_LIMIT).contains(&limit) {
         return Err(format!(
-            "History limit cannot exceed {} entries",
+            "History limit must be between 1 and {} entries",
             crate::settings::MAX_HISTORY_LIMIT
         ));
     }

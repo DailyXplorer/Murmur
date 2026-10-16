@@ -13,6 +13,18 @@ import { commands } from "@/bindings";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
+const MODIFIER_KEYS = new Set(["ctrl", "option", "shift", "command"]);
+
+// Read from the event flags rather than tracked keydowns, so a key whose
+// keyup was swallowed can never linger in the recorded shortcut.
+const modifiersHeld = (e: KeyboardEvent): string[] =>
+  [
+    e.ctrlKey && "ctrl",
+    e.altKey && "option",
+    e.shiftKey && "shift",
+    e.metaKey && "command",
+  ].filter((modifier): modifier is string => Boolean(modifier));
+
 interface GlobalShortcutInputProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
@@ -29,8 +41,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const { t } = useTranslation();
   const { getSetting, updateBinding, resetBinding, isUpdating, isLoading } =
     useSettings();
-  const [keyPressed, setKeyPressed] = useState<string[]>([]);
-  const [recordedKeys, setRecordedKeys] = useState<string[]>([]);
+  const [heldModifiers, setHeldModifiers] = useState<string[]>([]);
   const {
     capturingId,
     begin: beginCapture,
@@ -70,101 +81,69 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     const cancelRecording = () => {
       endCapture(editingShortcutId);
-      setKeyPressed([]);
-      setRecordedKeys([]);
+      setHeldModifiers([]);
       setOriginalBinding("");
     };
 
-    // Keyboard event listeners
-    const handleKeyDown = async (e: KeyboardEvent) => {
+    const commit = async (newShortcut: string) => {
+      if (!bindings[editingShortcutId]) return;
+      try {
+        await updateBinding(editingShortcutId, newShortcut);
+      } catch (error) {
+        console.error("Failed to change binding:", error);
+        toast.error(
+          t("settings.general.shortcut.errors.set", {
+            error: String(error),
+          }),
+        );
+
+        // Reset to original binding on error
+        if (originalBinding) {
+          try {
+            await updateBinding(editingShortcutId, originalBinding);
+          } catch (resetError) {
+            console.error("Failed to reset binding:", resetError);
+            toast.error(t("settings.general.shortcut.errors.reset"));
+          }
+        }
+      }
+
+      // Re-registers all bindings (the one just committed is already
+      // registered; re-registering it fails cleanly and is ignored)
+      endCapture(editingShortcutId);
+      setHeldModifiers([]);
+      setOriginalBinding("");
+    };
+
+    // The shortcut is committed on the main key's keydown, as native macOS
+    // recorders do: while Command is held, WebKit never delivers the other
+    // keys' keyup, so waiting for every key to be released never ends.
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (cleanup) return;
       if (e.repeat) return; // ignore auto-repeat
       e.preventDefault();
 
-      const rawKey = getKeyName(e);
-      const key = normalizeKey(rawKey);
-
-      // A bare Escape abandons the edit, as in native macOS shortcut
-      // recorders, instead of becoming a global key taken from every app.
-      if (key === "esc" && keyPressed.length === 0) {
-        cleanup = true;
-        cancelRecording();
+      const key = normalizeKey(getKeyName(e));
+      const modifiers = modifiersHeld(e);
+      if (MODIFIER_KEYS.has(key)) {
+        setHeldModifiers(modifiers);
         return;
       }
 
-      if (!keyPressed.includes(key)) {
-        setKeyPressed((prev) => [...prev, key]);
-        // Also add to recorded keys if not already there
-        if (!recordedKeys.includes(key)) {
-          setRecordedKeys((prev) => [...prev, key]);
-        }
+      cleanup = true;
+      // A bare Escape abandons the edit, as in native macOS shortcut
+      // recorders, instead of becoming a global key taken from every app.
+      if (key === "esc" && modifiers.length === 0) {
+        cancelRecording();
+        return;
       }
+      void commit([...modifiers, key].join("+"));
     };
 
-    const handleKeyUp = async (e: KeyboardEvent) => {
+    const handleKeyUp = (e: KeyboardEvent) => {
       if (cleanup) return;
       e.preventDefault();
-
-      const rawKey = getKeyName(e);
-      const key = normalizeKey(rawKey);
-
-      // Remove from currently pressed keys
-      setKeyPressed((prev) => prev.filter((k) => k !== key));
-
-      // If no keys are pressed anymore, commit the shortcut
-      const updatedKeyPressed = keyPressed.filter((k) => k !== key);
-      if (updatedKeyPressed.length === 0 && recordedKeys.length > 0) {
-        // Create the shortcut string from all recorded keys
-        // Sort keys so modifiers come first, then the main key
-        const modifiers = [
-          "ctrl",
-          "control",
-          "shift",
-          "alt",
-          "option",
-          "meta",
-          "command",
-          "cmd",
-        ];
-        const sortedKeys = recordedKeys.sort((a, b) => {
-          const aIsModifier = modifiers.includes(a.toLowerCase());
-          const bIsModifier = modifiers.includes(b.toLowerCase());
-          if (aIsModifier && !bIsModifier) return -1;
-          if (!aIsModifier && bIsModifier) return 1;
-          return 0;
-        });
-        const newShortcut = sortedKeys.join("+");
-
-        if (bindings[editingShortcutId]) {
-          try {
-            await updateBinding(editingShortcutId, newShortcut);
-          } catch (error) {
-            console.error("Failed to change binding:", error);
-            toast.error(
-              t("settings.general.shortcut.errors.set", {
-                error: String(error),
-              }),
-            );
-
-            // Reset to original binding on error
-            if (originalBinding) {
-              try {
-                await updateBinding(editingShortcutId, originalBinding);
-              } catch (resetError) {
-                console.error("Failed to reset binding:", resetError);
-                toast.error(t("settings.general.shortcut.errors.reset"));
-              }
-            }
-          }
-
-          // Re-registers all bindings (the one just committed is already
-          // registered; re-registering it fails cleanly and is ignored)
-          endCapture(editingShortcutId);
-          setKeyPressed([]);
-          setRecordedKeys([]);
-          setOriginalBinding("");
-        }
-      }
+      setHeldModifiers(modifiersHeld(e));
     };
 
     // Add click outside handler
@@ -186,15 +165,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("click", handleClickOutside);
     };
-  }, [
-    keyPressed,
-    recordedKeys,
-    editingShortcutId,
-    bindings,
-    originalBinding,
-    updateBinding,
-    endCapture,
-  ]);
+  }, [editingShortcutId, bindings, originalBinding, updateBinding, endCapture]);
 
   // Start recording a new shortcut
   const startRecording = (id: string) => {
@@ -202,8 +173,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     // Store the original binding to restore if the change fails
     setOriginalBinding(bindings[id]?.current_binding || "");
-    setKeyPressed([]);
-    setRecordedKeys([]);
+    setHeldModifiers([]);
     // Suspends all bindings so no shortcut fires (or swallows the
     // keystrokes) while keys are being recorded
     beginCapture(id);
@@ -211,11 +181,11 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
   // Format the current shortcut keys being recorded
   const formatCurrentKeys = (): string => {
-    if (recordedKeys.length === 0)
+    if (heldModifiers.length === 0)
       return t("settings.general.shortcut.pressKeys");
 
     // Use the same formatting as the display to ensure consistency
-    return formatKeyCombination(recordedKeys.join("+"));
+    return formatKeyCombination(heldModifiers.join("+"));
   };
 
   // Store references to shortcut elements
