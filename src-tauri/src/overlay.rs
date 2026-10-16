@@ -27,9 +27,10 @@ const CARD_MARGIN: f64 = 16.0;
 // Capsule: 36 high, 108 wide at rest, up to 126 at full voice level.
 const OVERLAY_WIDTH: f64 = 126.0 + 2.0 * CARD_MARGIN;
 const OVERLAY_HEIGHT: f64 = 36.0 + 2.0 * CARD_MARGIN;
-// Error capsule: at most 280 wide and three lines of text.
+// Error capsule: at most 280 wide and four lines of text, so the longest
+// message fits in every locale whatever the fallback font.
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
-const ERROR_OVERLAY_HEIGHT: f64 = 68.0 + 2.0 * CARD_MARGIN;
+const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: std::time::Duration = std::time::Duration::from_secs(4);
 
 /// Bumped by every show or hide request, so a delayed hide only applies when

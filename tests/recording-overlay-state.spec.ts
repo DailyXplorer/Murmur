@@ -18,7 +18,7 @@ const errorStringsByLocale = readdirSync(localesDir).map((locale) => {
 });
 
 // ERROR_OVERLAY_WIDTH × ERROR_OVERLAY_HEIGHT in src-tauri/src/overlay.rs.
-const ERROR_WINDOW = { width: 312, height: 100 };
+const ERROR_WINDOW = { width: 312, height: 116 };
 
 async function openOverlay(page: Page, { holdSettings = false } = {}) {
   await page.addInitScript((hold) => {
