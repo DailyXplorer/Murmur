@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Lần sửa",
-      "description": "Những từ bạn đã sửa sau khi Murmur dán, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
+      "description": "Những tên bị nghe nhầm mà bạn đã sửa sau khi Murmur dán, mỗi từ Murmur học được tính một lần, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
       "wordsCorrected": "Từ đã sửa: {{value}}",
       "dictionaryFixes": "Sửa bằng từ điển: {{value}}"
     },

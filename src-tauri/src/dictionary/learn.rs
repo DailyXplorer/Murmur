@@ -1,19 +1,20 @@
 //! Learning dictionary words from the user's own corrections. Murmur knows
 //! what it pasted; the user's edit of that span is compared word by word,
-//! and a word is learned only when one or two pasted words were replaced by
-//! a similar-sounding or similarly spelled term that looks like a name.
-//! Like Wispr Flow, ordinary lowercase words are never learned: changing
-//! "their" to "there" is grammar, not vocabulary. Nor is a correction whose
-//! misheard side is an everyday word or first name ("cloud" -> "Claude",
-//! "John" -> "Joan"), an added suffix, or a word the user kept elsewhere in
-//! the same text: those were said on purpose and must never be rewritten.
-//! A near-identical ordinary name ("Smith" -> "Smyth") is learned as a
-//! vocabulary hint, but its misheard form is never replaced.
+//! and a word is learned only when one or two pasted plain words were
+//! replaced by a similar-sounding or similarly spelled term that looks like
+//! a name. A learned word is only a vocabulary hint, like Wispr Flow's
+//! auto-learned names and VoiceInk's vocabulary: it never rewrites text.
+//! Ordinary lowercase words are never learned: changing "their" to "there"
+//! is grammar, not vocabulary. Nor is a correction whose misheard side is
+//! an everyday word ("cloud" -> "Claude"), an added suffix, or a word the
+//! user kept elsewhere in the same text. Nor is swapping one term for
+//! another ("Q3" -> "Q4", "iOS" -> "macOS", "John" -> "Joan"): the
+//! transcript already held a name, so the user changed what they meant.
 
 use natural::phonetics::soundex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
-use strsim::{levenshtein, normalized_levenshtein};
+use strsim::normalized_levenshtein;
 
 /// Above this many words the diff is skipped; nobody fixes a name in an essay
 /// by retyping it, and the alignment is quadratic.
@@ -30,14 +31,6 @@ pub struct Correction {
     pub word: String,
     /// What Murmur wrote instead.
     pub heard_as: String,
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct Review {
-    /// Pasted words the user changed, ignoring case-only and
-    /// punctuation-only edits.
-    pub words_corrected: u32,
-    pub learned: Vec<Correction>,
 }
 
 /// The part of `after` that replaced `inserted` inside `before`, when the
@@ -57,30 +50,27 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
     after.strip_prefix(prefix)?.strip_suffix(suffix)
 }
 
-/// Compares what Murmur pasted with what the user left in its place. An
-/// emptied or mostly replaced span is not a correction: chat apps clear the
-/// field when the message is sent, the next message then takes its place,
-/// and deleting or rewriting a whole dictation fixes no word in it.
-pub fn review(inserted: &str, edited: &str) -> Review {
+/// Compares what Murmur pasted with what the user left in its place and
+/// returns the words to learn. An emptied or mostly replaced span teaches
+/// nothing: chat apps clear the field when the message is sent, the next
+/// message then takes its place, and a rewrite fixes no word.
+pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
     let old: Vec<&str> = inserted.split_whitespace().collect();
     let new: Vec<&str> = edited.split_whitespace().collect();
     if old.is_empty() || new.is_empty() || old.len() > MAX_WORDS || new.len() > MAX_WORDS {
-        return Review::default();
+        return Vec::new();
     }
 
     let hunks: Vec<Hunk> = diff(&old, &new)
         .into_iter()
         .filter(|hunk| !is_cosmetic(&old[hunk.old.clone()], &new[hunk.new.clone()]))
         .collect();
-    let words_corrected: usize = hunks.iter().map(|hunk| hunk.old.len()).sum();
-    if words_corrected as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
-        return Review::default();
+    let words_changed: usize = hunks.iter().map(|hunk| hunk.old.len()).sum();
+    if words_changed as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
+        return Vec::new();
     }
-    let mut review = Review {
-        words_corrected: words_corrected as u32,
-        learned: Vec::new(),
-    };
 
+    let mut learned: Vec<Correction> = Vec::new();
     for hunk in hunks {
         let replaced = &old[hunk.old.clone()];
         let replacement = &new[hunk.new.clone()];
@@ -94,24 +84,30 @@ pub fn review(inserted: &str, edited: &str) -> Review {
             .collect::<Vec<_>>()
             .join(" ");
         let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
+        let heard_at_sentence_start = hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]);
+        let heard_a_term = replaced
+            .iter()
+            .enumerate()
+            .any(|(i, w)| looks_like_a_term(core(w), i == 0 && heard_at_sentence_start));
         if looks_like_a_term(word, sentence_start)
+            && !heard_a_term
             && !said_on_purpose(&heard_as, word)
             && sounds_alike(&heard_as, word)
             && !only_inflected(&heard_as, word)
             && !only_extended(&heard_as, word)
             && !kept_elsewhere(&heard_as, &new)
-            && !review.learned.iter().any(|known| known.word == word)
+            && !learned.iter().any(|known| known.word == word)
         {
-            review.learned.push(Correction {
+            learned.push(Correction {
                 word: word.to_string(),
                 heard_as,
             });
         }
-        if review.learned.len() == MAX_LEARNED_PER_DICTATION {
+        if learned.len() == MAX_LEARNED_PER_DICTATION {
             break;
         }
     }
-    review
+    learned
 }
 
 #[derive(Debug, PartialEq)]
@@ -249,48 +245,6 @@ fn said_on_purpose(heard_as: &str, word: &str) -> bool {
     words.iter().all(|word| is_common_word(word)) && !joined_spelling
 }
 
-/// Whether `heard_as` may be rewritten into `word` wherever it appears.
-/// Swapping one ordinary name for a near-identical one ("Smith" -> "Smyth")
-/// is right for one person and wrong for every other, so such a word stays
-/// a vocabulary hint for cleanup. So does a misheard pair that holds an
-/// everyday word and does not spell the word: the "for" of "gpt for" ->
-/// "GPT-4" is usually the real preposition. A misheard form that is no
-/// real word ("Clawd" -> "Claude") is replaced.
-pub fn replaces_safely(heard_as: &str, word: &str) -> bool {
-    !said_on_purpose(heard_as, word)
-        && !holds_an_everyday_word(heard_as, word)
-        && !is_name_variant(heard_as.trim(), word.trim())
-        && !only_extended(heard_as.trim(), word.trim())
-}
-
-fn holds_an_everyday_word(heard_as: &str, word: &str) -> bool {
-    let words: Vec<&str> = heard_as.split_whitespace().collect();
-    words.len() > 1
-        && letters(heard_as) != letters(word)
-        && words.iter().any(|word| is_common_word(word))
-}
-
-fn is_name_variant(heard: &str, word: &str) -> bool {
-    let plain_name = |name: &str| {
-        let mut chars = name.chars();
-        chars.next().is_some_and(char::is_uppercase)
-            && chars.all(|c| c.is_alphabetic() && c.is_lowercase())
-    };
-    plain_name(heard)
-        && plain_name(word)
-        && levenshtein(&heard.to_lowercase(), &word.to_lowercase()) <= 2
-        && (is_common_word(heard) || is_dictionary_word(heard))
-}
-
-/// Looks the word up in the system word list, which includes surnames such
-/// as "Smith". Without the list every candidate counts as a real word, so
-/// nothing is rewritten by mistake.
-fn is_dictionary_word(word: &str) -> bool {
-    std::fs::read_to_string("/usr/share/dict/words").map_or(true, |words| {
-        words.lines().any(|entry| entry.eq_ignore_ascii_case(word))
-    })
-}
-
 /// "Sarah" -> "Sarah's" or "report" -> "reports" changes the grammar of a
 /// word the user already had.
 fn only_inflected(heard: &str, word: &str) -> bool {
@@ -303,9 +257,8 @@ fn only_inflected(heard: &str, word: &str) -> bool {
     short != long && long.starts_with(&short) && long.chars().count() - short.chars().count() <= 2
 }
 
-/// "Google" -> "google.com" or "Sarah" -> "sarah@example.com" adds to a word
-/// the user said rightly; rewriting it everywhere would turn every later
-/// "Google" into the address.
+/// "stripe" -> "stripe.com" or "sarah" -> "sarah@example.com" adds to a
+/// word the user said rightly; it was not misheard.
 fn only_extended(heard: &str, word: &str) -> bool {
     word.to_lowercase()
         .strip_prefix(&heard.to_lowercase())
@@ -331,7 +284,6 @@ mod tests {
 
     fn learned(inserted: &str, edited: &str) -> Vec<(String, String)> {
         review(inserted, edited)
-            .learned
             .into_iter()
             .map(|c| (c.word, c.heard_as))
             .collect()
@@ -345,10 +297,10 @@ mod tests {
     fn a_respelled_name_is_learned() {
         assert_eq!(
             learned(
-                "I talked to Clawd about it.",
+                "I talked to clawd about it.",
                 "I talked to Claude about it."
             ),
-            vec![pair("Claude", "Clawd")]
+            vec![pair("Claude", "clawd")]
         );
         assert_eq!(
             learned(
@@ -380,9 +332,7 @@ mod tests {
 
     #[test]
     fn grammar_fixes_of_ordinary_words_are_not_learned() {
-        let review = review("I think their right.", "I think they're right.");
-        assert_eq!(review.words_corrected, 1);
-        assert!(review.learned.is_empty());
+        assert!(learned("I think their right.", "I think they're right.").is_empty());
         assert!(learned("Their right.", "There right.").is_empty());
     }
 
@@ -407,14 +357,14 @@ mod tests {
     }
 
     #[test]
-    fn a_near_identical_ordinary_name_is_learned_as_a_hint_only() {
-        assert_eq!(
-            learned("meet Smith tomorrow", "meet Smyth tomorrow"),
-            vec![pair("Smyth", "Smith")]
-        );
-        assert!(!replaces_safely("Smith", "Smyth"));
-        assert!(replaces_safely("Clawd", "Claude"));
-        assert!(replaces_safely("cooper netties", "Kubernetes"));
+    fn swapping_one_term_for_another_is_not_learned() {
+        assert!(learned("Q3 revenue was strong", "Q4 revenue was strong").is_empty());
+        assert!(learned("we moved to GPT-4 today", "we moved to GPT-5 today").is_empty());
+        assert!(learned("export it as mp3", "export it as mp4").is_empty());
+        assert!(learned("it runs on iOS", "it runs on macOS").is_empty());
+        assert!(learned("open it in Figma", "open it in FigJam").is_empty());
+        assert!(learned("meet Smith tomorrow", "meet Smyth tomorrow").is_empty());
+        assert!(learned("I talked to Clawd today", "I talked to Claude today").is_empty());
     }
 
     #[test]
@@ -431,59 +381,45 @@ mod tests {
     #[test]
     fn a_heard_as_the_user_kept_elsewhere_is_not_a_mishearing() {
         assert!(learned(
-            "I told Clawd and Clawd agreed",
-            "I told Claude and Clawd agreed"
+            "I told clawd and clawd agreed",
+            "I told Claude and clawd agreed"
         )
         .is_empty());
     }
 
     #[test]
     fn case_only_and_punctuation_only_edits_are_ignored() {
-        assert_eq!(
-            review("call paris today", "call Paris, today!"),
-            Review::default()
-        );
-        assert_eq!(
-            review("send the e-mail", "send the email"),
-            Review::default()
-        );
+        assert!(learned("call paris today", "call Paris, today!").is_empty());
+        assert!(learned("send the e-mail", "send the email").is_empty());
     }
 
     #[test]
     fn a_rewritten_sentence_teaches_nothing() {
-        assert_eq!(
-            review(
-                "the quarterly numbers look good for Marta",
-                "Revenue grew a lot this quarter, Martha",
-            ),
-            Review::default()
-        );
+        assert!(learned(
+            "the quarterly numbers look good for marta",
+            "Revenue grew a lot this quarter, Martha",
+        )
+        .is_empty());
     }
 
     #[test]
-    fn a_sent_chat_message_corrects_no_words() {
+    fn a_sent_chat_message_or_the_next_reply_teaches_nothing() {
         let inserted = "see you at five";
         let edited = edited_span(inserted, inserted, "").unwrap();
-        assert_eq!(review(inserted, edited), Review::default());
-        assert_eq!(review("ok", "  "), Review::default());
+        assert!(review(inserted, edited).is_empty());
+        assert!(review("ok", "  ").is_empty());
         let next_message = edited_span(inserted, inserted, "ok thanks").unwrap();
-        assert_eq!(review(inserted, next_message), Review::default());
+        assert!(review(inserted, next_message).is_empty());
+        assert!(review("Sounds good", "see you tomorrow").is_empty());
+        assert!(review("Thanks", "ok").is_empty());
+        assert!(review("Thanks", "Thomas").is_empty());
     }
 
     #[test]
     fn a_word_extended_into_a_domain_or_address_is_not_learned() {
-        assert!(learned("search it on Google", "search it on google.com").is_empty());
-        assert!(learned("pay with Stripe today", "pay with stripe.com today").is_empty());
-        assert!(learned("deploy on Vercel now", "deploy on vercel.app now").is_empty());
-        assert!(!replaces_safely("Google", "google.com"));
-        assert!(replaces_safely("Clawd", "Claude.ai"));
-    }
-
-    #[test]
-    fn a_misheard_pair_with_an_everyday_word_is_a_hint_only() {
-        assert!(!replaces_safely("gpt for", "GPT-4"));
-        assert!(replaces_safely("open ai", "OpenAI"));
-        assert!(replaces_safely("cooper netties", "Kubernetes"));
+        assert!(learned("search it on google", "search it on google.com").is_empty());
+        assert!(learned("pay with stripe today", "pay with stripe.com today").is_empty());
+        assert!(learned("deploy on vercel now", "deploy on vercel.app now").is_empty());
     }
 
     #[test]
@@ -499,9 +435,9 @@ mod tests {
 
     #[test]
     fn at_most_three_words_are_learned_from_one_dictation() {
-        let inserted = "ask Ana Ben Cara Dina Eli Fay Gus Hal Ivy Jo Kim Lu Mo about it";
-        let edited = "ask Anna Benn Carra Deena Eli Fay Gus Hal Ivy Jo Kim Lu Mo about it";
-        assert_eq!(review(inserted, edited).learned.len(), 3);
+        let inserted = "ask zorb quix vlem drub eli fay gus hal ivy jo kim lu mo about it";
+        let edited = "ask Zarb Quax Vlam Drab eli fay gus hal ivy jo kim lu mo about it";
+        assert_eq!(review(inserted, edited).len(), 3);
     }
 
     #[test]
