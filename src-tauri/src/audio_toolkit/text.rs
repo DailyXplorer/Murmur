@@ -62,31 +62,40 @@ fn supports_soundex(key: &str) -> bool {
     !key.is_empty() && key.chars().all(|c| c.is_ascii_alphabetic())
 }
 
-/// Finds the best matching custom word for a candidate string
-///
-/// Uses Levenshtein distance and Soundex phonetic matching to find
-/// the best match above the given threshold.
-///
-/// # Arguments
-/// * `candidate` - The cleaned/lowercased candidate string to match
-/// * `custom_words` - Original custom words (for returning the replacement)
-/// * `custom_word_match_keys` - Normalized custom-word keys for comparison
-/// * `threshold` - Maximum similarity score to accept
-///
-/// # Returns
-/// The best matching custom word and its score, if any match was found
+/// Scores a candidate against one custom-word key: normalized Levenshtein
+/// distance, boosted when both sound alike. Lower is closer; 0.0 is exact.
+fn match_score(candidate: &str, key: &str) -> f64 {
+    let max_len = candidate.chars().count().max(key.chars().count()) as f64;
+    let levenshtein_score = if max_len > 0.0 {
+        levenshtein(candidate, key) as f64 / max_len
+    } else {
+        1.0
+    };
+
+    // Soundex is an English/ASCII phonetic algorithm. Numeric terms can
+    // still use edit distance, but must not receive a phonetic boost.
+    let phonetic_match =
+        supports_soundex(candidate) && supports_soundex(key) && soundex(candidate, key);
+
+    if phonetic_match {
+        levenshtein_score * 0.3
+    } else {
+        levenshtein_score
+    }
+}
+
+/// Finds the closest custom-word key for a candidate string, if any scores
+/// under the threshold.
 fn find_best_match<'a>(
     candidate: &str,
-    custom_words: &'a [String],
-    custom_word_match_keys: &[CustomWordMatchKey],
+    custom_word_match_keys: &'a [CustomWordMatchKey],
     threshold: f64,
-) -> Option<(&'a String, f64)> {
+) -> Option<(&'a CustomWordMatchKey, f64)> {
     if !is_supported_fuzzy_key(candidate) || candidate.chars().count() > 50 {
         return None;
     }
 
-    let mut best_match: Option<&String> = None;
-    let mut best_score = f64::MAX;
+    let mut best_match: Option<(&CustomWordMatchKey, f64)> = None;
 
     for custom_word_key in custom_word_match_keys {
         // Skip if lengths are too different (optimization + prevents over-matching)
@@ -101,35 +110,95 @@ fn find_best_match<'a>(
             continue;
         }
 
-        // Calculate Levenshtein distance (normalized by length)
-        let levenshtein_dist = levenshtein(candidate, &custom_word_key.key);
-        let levenshtein_score = if max_len > 0.0 {
-            levenshtein_dist as f64 / max_len
-        } else {
-            1.0
-        };
-
-        // Soundex is an English/ASCII phonetic algorithm. Numeric terms can
-        // still use edit distance, but must not receive a phonetic boost.
-        let phonetic_match = supports_soundex(candidate)
-            && supports_soundex(&custom_word_key.key)
-            && soundex(candidate, &custom_word_key.key);
-
-        // Combine scores: favor phonetic matches, but also consider string similarity
-        let combined_score = if phonetic_match {
-            levenshtein_score * 0.3 // Give significant boost to phonetic matches
-        } else {
-            levenshtein_score
-        };
-
-        // Accept if the score is good enough (configurable threshold)
-        if combined_score < threshold && combined_score < best_score {
-            best_match = Some(&custom_words[custom_word_key.word_index]);
-            best_score = combined_score;
+        let score = match_score(candidate, &custom_word_key.key);
+        if score < threshold && best_match.is_none_or(|(_, best_score)| score < best_score) {
+            best_match = Some((custom_word_key, score));
         }
     }
 
-    best_match.map(|m| (m, best_score))
+    best_match
+}
+
+/// How closely one word of a span matches any part of a custom-word key of
+/// about its length: "b" against "chargebee" scores 0.0, "app" against
+/// "chatgpt" scores poorly.
+fn best_part_score(word: &str, key: &str) -> f64 {
+    let key: Vec<char> = key.chars().collect();
+    let word_len = word.chars().count();
+    if word_len == 0 {
+        return 1.0;
+    }
+    let mut best = 1.0_f64;
+    for part_len in word_len.saturating_sub(1).max(1)..=(word_len + 1).min(key.len()) {
+        for part in key.windows(part_len) {
+            best = best.min(match_score(word, &part.iter().collect::<String>()));
+        }
+    }
+    best
+}
+
+/// Longest span matched against one custom word. Four covers a spelled-out
+/// acronym after a word, as in "Chat G P T".
+const MAX_SPAN_WORDS: usize = 4;
+
+/// A span of `len` words starting at word `start` that matches a custom word.
+struct SpanMatch<'a> {
+    start: usize,
+    len: usize,
+    replacement: &'a String,
+    score: f64,
+}
+
+/// Every span of up to [`MAX_SPAN_WORDS`] words that matches a custom word and
+/// whose edge words both belong to the match.
+fn candidate_spans<'a>(
+    words: &[&str],
+    custom_words: &'a [String],
+    custom_word_match_keys: &[CustomWordMatchKey],
+    threshold: f64,
+) -> Vec<SpanMatch<'a>> {
+    let mut spans = Vec::new();
+    for start in 0..words.len() {
+        for len in 1..=MAX_SPAN_WORDS.min(words.len() - start) {
+            let span = &words[start..start + len];
+            // Do not consume across a punctuation boundary. In
+            // "Charge B, che", the comma closes the candidate at "B,".
+            if span[..len - 1]
+                .iter()
+                .any(|word| !extract_punctuation(word).1.is_empty())
+            {
+                continue;
+            }
+            let Some((key, score)) =
+                find_best_match(&build_ngram(span), custom_word_match_keys, threshold)
+            else {
+                continue;
+            };
+            // An edge word that matches no part of the custom word, or does
+            // not bring the span closer to it, is an ordinary word the span
+            // would swallow: "my" in "my I phone" for iPhone, "is" in
+            // "CHARGE B is" for ChargeBee, "app" in "chat app" for ChatGPT.
+            if len > 1 {
+                let (first, last) = (build_match_key(span[0]), build_match_key(span[len - 1]));
+                let without_first = match_score(&build_ngram(&span[1..]), &key.key);
+                let without_last = match_score(&build_ngram(&span[..len - 1]), &key.key);
+                if best_part_score(&first, &key.key) >= threshold
+                    || best_part_score(&last, &key.key) >= threshold
+                    || without_first <= score
+                    || without_last <= score
+                {
+                    continue;
+                }
+            }
+            spans.push(SpanMatch {
+                start,
+                len,
+                replacement: &custom_words[key.word_index],
+                score,
+            });
+        }
+    }
+    spans
 }
 
 /// Applies custom word corrections to transcribed text using fuzzy matching
@@ -170,64 +239,49 @@ pub fn apply_custom_words_counted(
         .collect();
 
     let words: Vec<&str> = text.split_whitespace().collect();
+
+    // Take the closest spans first, so an exact match is never pre-empted by
+    // an overlapping fuzzy one that starts earlier. On a tie, the shorter
+    // span wins, then the later one.
+    let mut spans = candidate_spans(&words, custom_words, &custom_word_match_keys, threshold);
+    spans.sort_by(|a, b| {
+        a.score
+            .total_cmp(&b.score)
+            .then(a.len.cmp(&b.len))
+            .then(b.start.cmp(&a.start))
+    });
+    let mut chosen: Vec<Option<&SpanMatch>> = vec![None; words.len()];
+    let mut taken = vec![false; words.len()];
+    for span in &spans {
+        let range = span.start..span.start + span.len;
+        if taken[range.clone()].contains(&true) {
+            continue;
+        }
+        taken[range].fill(true);
+        chosen[span.start] = Some(span);
+    }
+
     let mut result = Vec::new();
     let mut replacements = 0;
     let mut i = 0;
-
     while i < words.len() {
-        let mut best_match: Option<(usize, &String, f64)> = None;
-
-        // Consider n-grams up to three words and choose the closest match,
-        // keeping the shortest on a tie. A longest-first match can consume a
-        // following ordinary word when both candidates happen to share a
-        // Soundex code (for example, "Charge B, che" or "CHARGE B is"
-        // matching "ChargeBee").
-        for n in 1..=3 {
-            if i + n > words.len() {
-                continue;
-            }
-
-            let ngram_words = &words[i..i + n];
-            // Do not consume across a punctuation boundary. In
-            // "Charge B, che", the comma closes the candidate at "B,".
-            if ngram_words[..n.saturating_sub(1)]
-                .iter()
-                .any(|word| !extract_punctuation(word).1.is_empty())
-            {
-                continue;
-            }
-            let ngram = build_ngram(ngram_words);
-
-            if let Some((replacement, score)) =
-                find_best_match(&ngram, custom_words, &custom_word_match_keys, threshold)
-            {
-                let is_better = best_match
-                    .as_ref()
-                    .is_none_or(|(_, _, best_score)| score < *best_score);
-                if is_better {
-                    best_match = Some((n, replacement, score));
-                }
-            }
-        }
-
-        if let Some((n, replacement, _)) = best_match {
-            let ngram_words = &words[i..i + n];
-            // Extract punctuation from first and last words of the n-gram.
-            let (prefix, _) = extract_punctuation(ngram_words[0]);
-            let (_, suffix) = extract_punctuation(ngram_words[n - 1]);
-
-            let corrected = preserve_case_pattern(&ngram_words.join(" "), replacement);
-
-            let replaced = format!("{}{}{}", prefix, corrected, suffix);
-            if replaced != ngram_words.join(" ") {
-                replacements += 1;
-            }
-            result.push(replaced);
-            i += n;
-        } else {
+        let Some(span) = chosen[i] else {
             result.push(words[i].to_string());
             i += 1;
+            continue;
+        };
+        let span_words = &words[i..i + span.len];
+        let original = span_words.join(" ");
+        // Keep the punctuation around the first and last words of the span.
+        let (prefix, _) = extract_punctuation(span_words[0]);
+        let (_, suffix) = extract_punctuation(span_words[span.len - 1]);
+        let corrected = preserve_case_pattern(&original, span.replacement);
+        let replaced = format!("{}{}{}", prefix, corrected, suffix);
+        if replaced != original {
+            replacements += 1;
         }
+        result.push(replaced);
+        i += span.len;
     }
 
     (result.join(" "), replacements)
@@ -398,6 +452,62 @@ mod tests {
     }
 
     #[test]
+    fn a_custom_word_match_never_swallows_a_neighbouring_word() {
+        let all = &["iPhone", "ChatGPT", "OpenAI", "ChargeBee"][..];
+        let cases: &[(&[&str], &str, &str)] = &[
+            // A fuzzy span starting one word early must not beat the exact
+            // span after it.
+            (all, "my I phone died", "my iPhone died"),
+            (all, "the chat GPT app", "the ChatGPT app"),
+            (all, "open AI is", "OpenAI is"),
+            (all, "charge B is great", "ChargeBee is great"),
+            // A trailing ordinary word adds nothing to the match.
+            (
+                &["ChargeBee"],
+                "we use charge it daily",
+                "we use charge it daily",
+            ),
+            (&["ChatGPT"], "the chat app works", "the chat app works"),
+            // Adjacent custom words each keep their own span.
+            (all, "open AI chat GPT", "OpenAI ChatGPT"),
+            (
+                all,
+                "my I phone, chat GPT and charge B.",
+                "my iPhone, ChatGPT and ChargeBee.",
+            ),
+            // French dictation.
+            (all, "mon I phone est mort", "mon iPhone est mort"),
+            (
+                all,
+                "j'utilise chat GPT tous les jours",
+                "j'utilise ChatGPT tous les jours",
+            ),
+            (
+                all,
+                "on a signé avec charge B hier",
+                "on a signé avec ChargeBee hier",
+            ),
+            (
+                all,
+                "le modèle open AI est rapide",
+                "le modèle OpenAI est rapide",
+            ),
+            // Nothing to correct.
+            (all, "we met at noon", "we met at noon"),
+            (all, "je mange une pomme", "je mange une pomme"),
+            (all, "my iPhone died", "my iPhone died"),
+        ];
+        for (words, input, expected) in cases {
+            let custom_words: Vec<String> = words.iter().map(|w| w.to_string()).collect();
+            assert_eq!(
+                apply_custom_words(input, &custom_words, 0.5),
+                *expected,
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
     fn test_extract_punctuation() {
         assert_eq!(extract_punctuation("hello"), ("", ""));
         assert_eq!(extract_punctuation("!hello?"), ("!", "?"));
@@ -480,8 +590,7 @@ mod tests {
         let text = "il cui nome è Charge B, che permette";
         let custom_words = vec!["ChargeBee".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
-        assert!(result.contains("ChargeBee,"), "unexpected result: {result}");
-        assert!(!result.contains("Charge B"));
+        assert_eq!(result, "il cui nome è ChargeBee, che permette");
     }
 
     #[test]
@@ -489,7 +598,7 @@ mod tests {
         let text = "use Chat G P T for this";
         let custom_words = vec!["ChatGPT".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
-        assert!(result.contains("ChatGPT"));
+        assert_eq!(result, "use ChatGPT for this");
     }
 
     #[test]
