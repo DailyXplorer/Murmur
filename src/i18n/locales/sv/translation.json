@@ -530,12 +530,6 @@
       "red": "Röd"
     }
   },
-  "overlay": {
-    "transcribing": "Transkriberar...",
-    "handsFree": "Handsfree-inspelning",
-    "handsFreeHint": "Tryck på {{shortcut}} för att stoppa",
-    "limitWarning": "Stoppas om {{seconds}} s"
-  },
   "whatsNew": {
     "title": "Nytt i Murmur v{{version}}"
   }

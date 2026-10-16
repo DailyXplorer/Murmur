@@ -530,12 +530,6 @@
       "red": "빨강"
     }
   },
-  "overlay": {
-    "transcribing": "텍스트로 변환 중...",
-    "handsFree": "핸즈프리 녹음",
-    "handsFreeHint": "{{shortcut}} 키를 눌러 중지",
-    "limitWarning": "{{seconds}}초 후 중지"
-  },
   "whatsNew": {
     "title": "Murmur v{{version}}의 새 소식"
   }

@@ -530,12 +530,6 @@
       "red": "Червоний"
     }
   },
-  "overlay": {
-    "transcribing": "Обробка...",
-    "handsFree": "Запис без утримання клавіші",
-    "handsFreeHint": "Натисніть {{shortcut}}, щоб зупинити",
-    "limitWarning": "Зупинка через {{seconds}} с"
-  },
   "whatsNew": {
     "title": "Нове в Murmur v{{version}}"
   }

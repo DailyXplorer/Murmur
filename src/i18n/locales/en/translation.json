@@ -532,11 +532,5 @@
       "orange": "Orange",
       "red": "Red"
     }
-  },
-  "overlay": {
-    "transcribing": "Transcribing...",
-    "handsFree": "Hands-free recording",
-    "handsFreeHint": "Press {{shortcut}} to stop",
-    "limitWarning": "Stops in {{seconds}} s"
   }
 }

@@ -1,49 +1,48 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import React, { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
-import i18n, { syncLanguageFromSettings } from "@/i18n";
-import { formatKeyCombination } from "@/lib/utils/keyboard";
-import { getLanguageDirection } from "@/lib/utils/rtl";
-import { LockSimpleIcon } from "@phosphor-icons/react/dist/csr/LockSimple";
-import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import {
+  approach,
+  BAR_COUNT,
+  BAR_MIN_PX,
+  barHeights,
+  STATIC_HEIGHTS,
+  voiceLevel,
+} from "./waveform";
 
-type OverlayState = "recording" | "transcribing" | "error";
+type View =
+  | { kind: "hidden" }
+  | { kind: "recording"; live: boolean }
+  | { kind: "transcribing" }
+  | { kind: "error"; message: string };
 
-const WAVE_BARS = 9;
-const HANDS_FREE_HINT_MS = 3000;
+const CENTER = (BAR_COUNT - 1) / 2;
+
+const reducedMotionQuery = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+);
+const subscribeReducedMotion = (onChange: () => void) => {
+  reducedMotionQuery.addEventListener("change", onChange);
+  return () => reducedMotionQuery.removeEventListener("change", onChange);
+};
+const getReducedMotion = () => reducedMotionQuery.matches;
 
 const RecordingOverlay: React.FC = () => {
-  const { t } = useTranslation();
-  const [isVisible, setIsVisible] = useState(false);
-  const [state, setState] = useState<OverlayState>("recording");
-  const [captureReady, setCaptureReady] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [levels, setLevels] = useState<number[]>(Array(WAVE_BARS).fill(0));
+  const [view, setView] = useState<View>({ kind: "hidden" });
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
-  const [stopShortcut, setStopShortcut] = useState("");
-  const [handsFree, setHandsFree] = useState(false);
-  const [showHandsFreeHint, setShowHandsFreeHint] = useState(false);
-  const [limitEndsAt, setLimitEndsAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
-  const direction = getLanguageDirection(i18n.language);
-
-  useEffect(() => {
-    if (!showHandsFreeHint) return;
-    const timer = window.setTimeout(
-      () => setShowHandsFreeHint(false),
-      HANDS_FREE_HINT_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [showHandsFreeHint]);
-
-  useEffect(() => {
-    if (limitEndsAt === null) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [limitEndsAt]);
+  const reducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotion,
+  );
+  const levelsRef = useRef<number[]>([]);
+  const capsuleRef = useRef<HTMLDivElement>(null);
+  const waveRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isUnmounted = false;
@@ -56,22 +55,16 @@ const RecordingOverlay: React.FC = () => {
       }
     };
 
-    void listen("show-overlay", (event) => {
-      const overlayState = event.payload as OverlayState;
-      if (overlayState === "recording") {
-        setCaptureReady(false);
-        setHandsFree(false);
-        setShowHandsFreeHint(false);
-        setLimitEndsAt(null);
-        smoothedLevelsRef.current = Array(16).fill(0);
-        setLevels(Array(WAVE_BARS).fill(0));
-      }
+    void listen<string>("show-overlay", (event) => {
+      levelsRef.current = [];
       // Applied before any await: an error or hide that arrives while the
       // settings load must not be overwritten by this older show.
-      setState(overlayState);
-      setIsVisible(true);
+      setView(
+        event.payload === "transcribing"
+          ? { kind: "transcribing" }
+          : { kind: "recording", live: false },
+      );
 
-      void syncLanguageFromSettings();
       void commands
         .getAppSettings()
         .then((settings) => {
@@ -79,8 +72,6 @@ const RecordingOverlay: React.FC = () => {
             setPosition(
               settings.data.overlay_position === "top" ? "top" : "bottom",
             );
-            const binding = settings.data.bindings?.transcribe?.current_binding;
-            setStopShortcut(binding ? formatKeyCombination(binding) : "");
           }
         })
         .catch(() => undefined);
@@ -89,38 +80,21 @@ const RecordingOverlay: React.FC = () => {
     // The backend localizes the message, so it matches the notification
     // shown when the overlay is off.
     void listen<string>("show-overlay-error", (event) => {
-      setErrorMessage(event.payload);
-      setState("error");
-      setIsVisible(true);
+      setView({ kind: "error", message: event.payload });
     }).then(storeUnlistener, () => undefined);
 
     void listen("hide-overlay", () => {
-      setIsVisible(false);
-      setCaptureReady(false);
+      setView({ kind: "hidden" });
     }).then(storeUnlistener, () => undefined);
 
     void listen("recording-ready", () => {
-      setCaptureReady(true);
-    }).then(storeUnlistener, () => undefined);
-
-    void listen("overlay-hands-free", () => {
-      setHandsFree(true);
-      setShowHandsFreeHint(true);
-    }).then(storeUnlistener, () => undefined);
-
-    void listen<number>("recording-limit-warning", (event) => {
-      setNow(Date.now());
-      setLimitEndsAt(Date.now() + event.payload * 1000);
+      setView((current) =>
+        current.kind === "recording" ? { ...current, live: true } : current,
+      );
     }).then(storeUnlistener, () => undefined);
 
     void listen<number[]>("mic-level", (event) => {
-      const newLevels = event.payload as number[];
-      const smoothed = smoothedLevelsRef.current.map((prev, i) => {
-        const target = newLevels[i] || 0;
-        return prev * 0.7 + target * 0.3;
-      });
-      smoothedLevelsRef.current = smoothed;
-      setLevels(smoothed.slice(0, WAVE_BARS));
+      levelsRef.current = event.payload;
     }).then(storeUnlistener, () => undefined);
 
     return () => {
@@ -129,108 +103,68 @@ const RecordingOverlay: React.FC = () => {
     };
   }, []);
 
-  if (!isVisible) return null;
+  const animating = view.kind === "recording" && view.live && !reducedMotion;
 
-  const waveform = (
-    <div className={`swave ${captureReady ? "ready" : "arming"}`}>
-      {levels.map((v, i) => (
-        <i
-          key={i}
-          style={{
-            height: `${Math.max(3, Math.min(18, 3 + Math.pow(v, 0.7) * 15))}px`,
-          }}
-        />
-      ))}
-    </div>
-  );
+  // Levels arrive at ~30 Hz; easing them every animation frame outside React
+  // keeps the bars and the capsule width smooth without re-rendering.
+  useEffect(() => {
+    const capsule = capsuleRef.current;
+    const wave = waveRef.current;
+    if (!animating || !capsule || !wave) return;
+    const bars = Array.from(wave.children) as HTMLElement[];
+    let heights = bars.map(() => BAR_MIN_PX);
+    let level = 0;
+    let last = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      const targets = barHeights(levelsRef.current);
+      heights = heights.map((h, i) => approach(h, targets[i], dt));
+      level = approach(level, voiceLevel(levelsRef.current), dt);
+      bars.forEach((bar, i) => {
+        bar.style.height = `${heights[i].toFixed(2)}px`;
+      });
+      capsule.style.setProperty("--level", level.toFixed(3));
+      frame = requestAnimationFrame(tick);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      bars.forEach((bar) => bar.style.removeProperty("height"));
+      capsule.style.removeProperty("--level");
+    };
+  }, [animating]);
 
-  const cancelBtn = (
-    <button
-      className="sx"
-      aria-label={t("tray.cancel")}
-      onClick={() => commands.cancelOperation()}
-    >
-      <XIcon size={9} aria-hidden="true" />
-    </button>
-  );
+  if (view.kind === "hidden") return null;
 
-  const stopHint = t("overlay.handsFreeHint", { shortcut: stopShortcut });
-  const secondsLeft =
-    limitEndsAt === null
-      ? null
-      : Math.max(0, Math.ceil((limitEndsAt - now) / 1000));
-  let note: string | null = null;
-  if (secondsLeft !== null) {
-    note = t("overlay.limitWarning", { seconds: secondsLeft });
-  } else if (handsFree && showHandsFreeHint && stopShortcut) {
-    note = stopHint;
-  }
-
-  const listeningRow = (
-    <div className="sbase">
-      <div className="sbase-l">
-        {handsFree ? (
-          <span
-            className={`slock ${captureReady ? "ready" : "arming"}`}
-            role="img"
-            aria-label={t("overlay.handsFree")}
-            title={stopShortcut ? stopHint : t("overlay.handsFree")}
-          >
-            <LockSimpleIcon size={11} weight="fill" aria-hidden="true" />
-          </span>
-        ) : (
-          <span className={`sdot ${captureReady ? "ready" : "arming"}`} />
-        )}
-      </div>
-      {note === null ? (
-        waveform
-      ) : (
-        <span className="swork-label" role="status">
-          {note}
-        </span>
-      )}
-      <div className="sbase-r">{cancelBtn}</div>
-    </div>
-  );
-
-  const workingRow = (label: string) => (
-    <div className="sbase">
-      <div className="sbase-l">
-        <span className="sspinner" />
-      </div>
-      <span className="swork-label">{label}</span>
-      <div className="sbase-r">{cancelBtn}</div>
-    </div>
-  );
-
-  const working = state === "transcribing";
-  const workLabel = t("overlay.transcribing");
-
-  if (state === "error") {
+  if (view.kind === "error") {
     return (
-      <div
-        dir={direction}
-        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
-      >
-        <div className="scard compact cerror" role="alert">
-          <div className="serror">
-            <span className="serror-dot" aria-hidden="true" />
-            <span className="serror-text">{errorMessage}</span>
-          </div>
+      <div className={`ov-stage ${position}`}>
+        <div className="ov-capsule ov-error" role="alert">
+          <span dir="auto">{view.message}</span>
         </div>
       </div>
     );
   }
 
+  const phase =
+    view.kind === "transcribing" ? "processing" : view.live ? "live" : "arming";
+
   return (
-    <div
-      dir={direction}
-      className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
-    >
-      <div
-        className={`scard compact ${(working || note !== null) && isVisible ? "cworking" : ""}`}
-      >
-        {working ? workingRow(workLabel) : listeningRow}
+    <div className={`ov-stage ${position}`}>
+      <div ref={capsuleRef} className={`ov-capsule ${phase}`}>
+        <div ref={waveRef} className="ov-wave" aria-hidden="true">
+          {STATIC_HEIGHTS.map((height, i) => (
+            <i
+              key={i}
+              style={
+                {
+                  "--d": Math.abs(i - CENTER),
+                  height: reducedMotion ? `${height}px` : undefined,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

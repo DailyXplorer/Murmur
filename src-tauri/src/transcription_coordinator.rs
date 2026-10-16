@@ -279,7 +279,7 @@ impl Worker {
             }
 
             if take_due_limit_warning(&mut self.stage, now) {
-                crate::utils::warn_recording_limit(&self.app, LIMIT_WARNING_LEAD);
+                crate::user_alert::show(&self.app, crate::user_alert::Alert::RecordingLimitSoon);
                 continue;
             }
 
@@ -297,9 +297,6 @@ impl Worker {
                     {
                         self.pending_start =
                             start(&self.app, &mut self.stage, &binding_id, &hotkey_string);
-                        if matches!(self.gesture, Gesture::HandsFree { .. }) {
-                            self.show_hands_free();
-                        }
                         self.forget_gesture_without_recording();
                         continue;
                     }
@@ -415,19 +412,15 @@ impl Worker {
 
     fn apply(&mut self, intent: Intent, binding_id: &str, hotkey_string: &str) {
         match intent {
-            Intent::None => {}
+            Intent::None | Intent::LockHandsFree => {}
             Intent::Start | Intent::StartHandsFree => {
                 if matches!(self.stage, Stage::Idle) {
                     self.pending_start =
                         start(&self.app, &mut self.stage, binding_id, hotkey_string);
-                    if intent == Intent::StartHandsFree {
-                        self.show_hands_free();
-                    }
                 } else {
                     debug!("Ignoring press for '{binding_id}': pipeline busy");
                 }
             }
-            Intent::LockHandsFree => self.show_hands_free(),
             Intent::Stop => match &self.stage {
                 Stage::Recording(recording) if recording.binding_id == binding_id => {
                     self.stop(binding_id, hotkey_string);
@@ -450,12 +443,6 @@ impl Worker {
             debug!("Discarding a single short tap");
             crate::utils::cancel_current_operation_from_coordinator(&self.app);
             self.stage = Stage::Idle;
-        }
-    }
-
-    fn show_hands_free(&self) {
-        if matches!(self.stage, Stage::Recording(_)) {
-            crate::utils::show_hands_free_overlay(&self.app);
         }
     }
 

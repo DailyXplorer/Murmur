@@ -532,11 +532,5 @@
       "orange": "Oranje",
       "red": "Rood"
     }
-  },
-  "overlay": {
-    "transcribing": "Transcriberen...",
-    "handsFree": "Handsfree opnemen",
-    "handsFreeHint": "Druk op {{shortcut}} om te stoppen",
-    "limitWarning": "Stopt over {{seconds}} s"
   }
 }

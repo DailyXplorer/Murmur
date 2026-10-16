@@ -530,12 +530,6 @@
       "red": "红色"
     }
   },
-  "overlay": {
-    "transcribing": "正在转录...",
-    "handsFree": "免按住录音",
-    "handsFreeHint": "按 {{shortcut}} 停止",
-    "limitWarning": "{{seconds}} 秒后停止"
-  },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"
   }

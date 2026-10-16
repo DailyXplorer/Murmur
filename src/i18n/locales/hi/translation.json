@@ -532,11 +532,5 @@
       "orange": "नारंगी",
       "red": "लाल"
     }
-  },
-  "overlay": {
-    "transcribing": "ट्रांसक्राइब हो रहा है...",
-    "handsFree": "हैंड्स-फ़्री रिकॉर्डिंग",
-    "handsFreeHint": "रोकने के लिए {{shortcut}} दबाएँ",
-    "limitWarning": "{{seconds}} सेकंड में रुकेगी"
   }
 }

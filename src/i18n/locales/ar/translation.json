@@ -530,12 +530,6 @@
       "red": "أحمر"
     }
   },
-  "overlay": {
-    "transcribing": "...جاري التفريغ",
-    "handsFree": "تسجيل بدون استخدام اليدين",
-    "handsFreeHint": "اضغط {{shortcut}} للإيقاف",
-    "limitWarning": "يتوقف خلال {{seconds}} ث"
-  },
   "whatsNew": {
     "title": "الجديد في Murmur v{{version}}"
   }

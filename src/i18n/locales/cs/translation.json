@@ -530,12 +530,6 @@
       "red": "Červená"
     }
   },
-  "overlay": {
-    "transcribing": "Přepisuji...",
-    "handsFree": "Nahrávání bez držení klávesy",
-    "handsFreeHint": "Zastavíte stisknutím {{shortcut}}",
-    "limitWarning": "Zastaví se za {{seconds}} s"
-  },
   "whatsNew": {
     "title": "Novinky v Murmur v{{version}}"
   }

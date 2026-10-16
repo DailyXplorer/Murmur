@@ -532,11 +532,5 @@
       "orange": "Orange",
       "red": "Rød"
     }
-  },
-  "overlay": {
-    "transcribing": "Transskriberer...",
-    "handsFree": "Håndfri optagelse",
-    "handsFreeHint": "Tryk på {{shortcut}} for at stoppe",
-    "limitWarning": "Stopper om {{seconds}} s"
   }
 }
