@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Corrections",
-      "description": "Mots que vous avez corrigés après le collage par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
+      "description": "Noms mal transcrits que vous avez corrigés après le collage par Murmur, comptés une fois par mot appris par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
       "wordsCorrected": "Mots corrigés : {{value}}",
       "dictionaryFixes": "Corrections du dictionnaire : {{value}}"
     },

@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Fixes made",
-      "description": "Words you corrected after Murmur pasted, plus words your custom dictionary replaced automatically.",
+      "description": "Misheard names you fixed after Murmur pasted, counted once for each word Murmur learned, plus words your custom dictionary replaced automatically.",
       "wordsCorrected": "Words corrected: {{value}}",
       "dictionaryFixes": "Dictionary fixes: {{value}}"
     },

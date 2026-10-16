@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "수정",
-      "description": "Murmur가 붙여 넣은 뒤 직접 수정한 단어와 사용자 사전이 자동으로 바꾼 단어를 합한 값입니다.",
+      "description": "Murmur가 붙여 넣은 뒤 직접 수정한 잘못 인식된 이름(Murmur가 학습한 단어마다 한 번)과 사용자 사전이 자동으로 바꾼 단어를 합한 값입니다.",
       "wordsCorrected": "수정한 단어: {{value}}",
       "dictionaryFixes": "사전 수정: {{value}}"
     },

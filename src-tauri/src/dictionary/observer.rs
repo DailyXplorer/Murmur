@@ -59,12 +59,9 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
         let Some(edited) = learn::edited_span(&before, &inserted, &latest) else {
             return;
         };
-        let review = learn::review(inserted.trim(), edited);
-        if review.words_corrected > 0 {
-            super::corrections_observed(&app, review.words_corrected);
-        }
-        if !review.learned.is_empty() {
-            super::remember(&app, review.learned);
+        let learned = learn::review(inserted.trim(), edited);
+        if !learned.is_empty() {
+            super::remember(&app, learned);
         }
     });
 }

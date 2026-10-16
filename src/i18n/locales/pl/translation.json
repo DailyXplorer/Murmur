@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Poprawki",
-      "description": "Słowa poprawione przez Ciebie po wklejeniu przez Murmur oraz słowa automatycznie zastąpione przez Twój słownik.",
+      "description": "Źle usłyszane nazwy poprawione przez Ciebie po wklejeniu przez Murmur, liczone raz za każde słowo, którego Murmur się nauczył, oraz słowa automatycznie zastąpione przez Twój słownik.",
       "wordsCorrected": "Poprawione słowa: {{value}}",
       "dictionaryFixes": "Poprawki słownika: {{value}}"
     },

@@ -24,8 +24,9 @@ use tauri_specta::Event;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::HistoryManager;
 
-static MIGRATIONS: &[M] = &[M::up(
-    "CREATE TABLE dictations (
+static MIGRATIONS: &[M] = &[
+    M::up(
+        "CREATE TABLE dictations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at INTEGER NOT NULL,
         word_count INTEGER NOT NULL,
@@ -45,7 +46,12 @@ static MIGRATIONS: &[M] = &[M::up(
         source TEXT PRIMARY KEY,
         completed_at INTEGER NOT NULL
     );",
-)];
+    ),
+    // Corrections used to count every word the user changed after a paste,
+    // so replies typed into a chat field inflated them. They now count one
+    // per learned dictionary word, so the old rows are dropped.
+    M::up("DELETE FROM corrections;"),
+];
 
 const HISTORY_BACKFILL: &str = "history";
 
@@ -306,8 +312,8 @@ impl InsightsManager {
         summary_with_conn(&self.connection()?, Utc::now().timestamp(), &Local)
     }
 
-    /// Records words the user corrected by hand after a paste, as observed
-    /// by the dictionary's correction watcher.
+    /// Records misheard words the user corrected after a paste, one per
+    /// word the dictionary learned from it.
     pub fn record_correction(&self, words_corrected: u32) -> Result<()> {
         if insert_correction(&self.connection()?, Utc::now().timestamp(), words_corrected)? {
             self.notify();
@@ -412,6 +418,21 @@ mod tests {
     #[test]
     fn migrations_are_valid() {
         Migrations::new(MIGRATIONS.to_vec()).validate().unwrap();
+    }
+
+    #[test]
+    fn corrections_counted_as_raw_edits_are_dropped_on_upgrade() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Migrations::new(MIGRATIONS[..1].to_vec())
+            .to_latest(&mut conn)
+            .unwrap();
+        assert!(insert_correction(&conn, ts(2026, 10, 14, 9), 7).unwrap());
+
+        migrate(&mut conn).unwrap();
+        assert!(insert_correction(&conn, ts(2026, 10, 15, 9), 1).unwrap());
+
+        let summary = summary_with_conn(&conn, ts(2026, 10, 15, 12), &Paris).unwrap();
+        assert_eq!(summary.words_corrected, 1);
     }
 
     #[test]
