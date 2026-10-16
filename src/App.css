@@ -24,6 +24,15 @@
   --color-error: var(--color-error);
 }
 
+/* One size for every form control: fields, dropdown triggers, path fields and
+   the buttons beside them (h-control, size-control), and one minimum width
+   so short button labels such as "Open" stay a comfortable target
+   (min-w-control-button). */
+@theme {
+  --spacing-control: 2.5rem;
+  --spacing-control-button: 6rem;
+}
+
 :root {
   font-family: var(--font-sans);
   font-size: 15px;

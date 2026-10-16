@@ -81,13 +81,13 @@ export const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
   }, [hideTooltip, visible]);
 
   return (
-    <span className="-my-1 inline-flex h-10 w-5 shrink-0 items-center">
+    <span className="-my-1 inline-flex h-control w-5 shrink-0 items-center">
       <button
         ref={triggerRef}
         type="button"
         aria-label={description}
         aria-describedby={visible ? tooltipId : undefined}
-        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:start-0 after:top-1/2 after:size-10 after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:start-0 after:top-1/2 after:size-control after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
         onMouseEnter={showTooltip}
         onMouseLeave={scheduleTooltipHide}
         onFocus={showTooltip}

@@ -58,7 +58,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.supportDevelopment.description")}
           grouped={true}
         >
-          <Button variant="primary" size="md" onClick={handleDonateClick}>
+          <Button variant="primary" onClick={handleDonateClick}>
             {t("settings.about.supportDevelopment.button")}
           </Button>
         </SettingContainer>
@@ -68,7 +68,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.sourceCode.description")}
           grouped={true}
         >
-          <Button variant="secondary" size="md" onClick={handleSourceClick}>
+          <Button variant="secondary" onClick={handleSourceClick}>
             {t("settings.about.sourceCode.button")}
           </Button>
         </SettingContainer>

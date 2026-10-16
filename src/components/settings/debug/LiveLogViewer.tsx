@@ -195,18 +195,13 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setPaused((p) => !p)}
-          >
+          <Button variant="secondary" onClick={() => setPaused((p) => !p)}>
             {paused
               ? t("settings.debug.liveLogs.resume")
               : t("settings.debug.liveLogs.pause")}
           </Button>
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleCopy}
             disabled={logs.length === 0}
           >
@@ -214,7 +209,6 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
           </Button>
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleClear}
             disabled={logs.length === 0}
           >

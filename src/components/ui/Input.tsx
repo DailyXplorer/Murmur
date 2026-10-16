@@ -1,32 +1,22 @@
 import React from "react";
+import { FIELD_SIZE_CLASSES, FIELD_SURFACE_CLASSES } from "./controlClasses";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  variant?: "default" | "compact";
-}
-
-export const Input: React.FC<InputProps> = ({
-  className = "",
-  variant = "default",
-  disabled,
-  ...props
-}) => {
-  const baseClasses =
-    "px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded-md text-start transition-all duration-150";
-
+export const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className = "", disabled, ...props }, ref) => {
   const interactiveClasses = disabled
     ? "opacity-60 cursor-not-allowed bg-mid-gray/10 border-mid-gray/40"
-    : "hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-logo-primary";
-
-  const variantClasses = {
-    default: "px-3 py-2",
-    compact: "px-2 py-1",
-  } as const;
+    : `${FIELD_SURFACE_CLASSES} hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-logo-primary`;
 
   return (
     <input
-      className={`${baseClasses} ${variantClasses[variant]} ${interactiveClasses} ${className}`}
+      ref={ref}
+      data-control="field"
+      className={`${FIELD_SIZE_CLASSES} transition-all duration-150 ${interactiveClasses} ${className}`}
       disabled={disabled}
       {...props}
     />
   );
-};
+});
+Input.displayName = "Input";

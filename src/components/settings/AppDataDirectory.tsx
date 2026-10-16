@@ -58,7 +58,7 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
     >
       {loading ? (
         <div
-          className="h-10 animate-pulse rounded-md bg-mid-gray/10"
+          className="h-control animate-pulse rounded-md bg-mid-gray/10"
           aria-hidden="true"
         />
       ) : error ? (
@@ -71,6 +71,7 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
       ) : (
         <PathDisplay
           path={appDirPath}
+          label={t("settings.about.appDataDirectory.title")}
           onOpen={handleOpen}
           disabled={!appDirPath}
         />

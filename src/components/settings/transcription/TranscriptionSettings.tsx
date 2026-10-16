@@ -131,7 +131,6 @@ export const TranscriptionSettings: React.FC = () => {
             {statuses.gemini.kind === "unavailable" &&
               statuses.gemini.reason === "notInstalled" && (
                 <Button
-                  size="sm"
                   variant="secondary"
                   className="shrink-0"
                   onClick={() => void installAntigravity()}
@@ -142,7 +141,6 @@ export const TranscriptionSettings: React.FC = () => {
             {statuses.gemini.kind === "unavailable" &&
               statuses.gemini.reason === "notSignedIn" && (
                 <Button
-                  size="sm"
                   variant="secondary"
                   className="shrink-0"
                   onClick={() => void openAntigravity()}

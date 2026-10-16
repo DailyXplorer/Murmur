@@ -104,11 +104,8 @@ const SettingsControlWidthsFixture: React.FC = () => {
           title="History limit"
           description="Compact number input and label"
         >
-          <div
-            data-testid="history-limit"
-            className="flex items-center justify-end gap-2"
-          >
-            <Input className="w-20" type="number" value="50" readOnly />
+          <div data-testid="history-limit" className="flex items-center gap-2">
+            <Input className="flex-1" type="number" value="50" readOnly />
             <span className="text-sm">entries</span>
           </div>
         </SettingContainer>
@@ -126,9 +123,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
               placeholder="Add a custom word"
               type="text"
             />
-            <Button className="shrink-0" size="md">
-              Add
-            </Button>
+            <Button className="shrink-0">Add</Button>
           </div>
         </SettingContainer>
         <div className="px-4 py-2">
@@ -136,16 +131,16 @@ const SettingsControlWidthsFixture: React.FC = () => {
             data-testid="custom-word-chips"
             className="flex flex-wrap justify-start gap-1"
           >
-            <Button size="sm" variant="secondary">
+            <Button size="chip" variant="secondary">
               Acme
             </Button>
-            <Button size="sm" variant="secondary">
+            <Button size="chip" variant="secondary">
               Long custom transcription term
             </Button>
             <Button
-              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
+              className="max-w-full min-w-0 gap-1"
               data-testid="long-custom-word"
-              size="sm"
+              size="chip"
               variant="secondary"
             >
               <span className="min-w-0 truncate">{LONG_CUSTOM_WORD}</span>
@@ -165,7 +160,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
             <span className="min-w-0 flex-1 truncate text-sm text-text/80">
               Gemini transcription service is not installed
             </span>
-            <Button className="shrink-0" size="sm" variant="secondary">
+            <Button className="shrink-0" variant="secondary">
               Install
             </Button>
           </div>

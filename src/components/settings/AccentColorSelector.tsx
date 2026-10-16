@@ -56,7 +56,7 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
               <label
                 key={accentColor}
                 title={label}
-                className={`relative flex size-10 shrink-0 items-center justify-center rounded-full transition-[transform,box-shadow] duration-150 ${
+                className={`relative flex size-control shrink-0 items-center justify-center rounded-full transition-[transform,box-shadow] duration-150 ${
                   disabled
                     ? "cursor-wait opacity-60"
                     : "cursor-pointer active:scale-[0.96]"

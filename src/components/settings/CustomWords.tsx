@@ -83,7 +83,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               onChange={(e) => setNewWord(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder={t("settings.advanced.customWords.placeholder")}
-              variant="compact"
               disabled={isUpdating("custom_words")}
             />
             <Button
@@ -95,7 +94,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                 isUpdating("custom_words")
               }
               variant="primary"
-              size="md"
               className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}
@@ -120,8 +118,8 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                     onClick={() => handleRemoveWord(word)}
                     disabled={isUpdating("custom_words")}
                     variant="secondary"
-                    size="sm"
-                    className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1"
+                    size="chip"
+                    className="max-w-full min-w-0 gap-1"
                     aria-label={t("settings.advanced.customWords.remove", {
                       word,
                     })}
