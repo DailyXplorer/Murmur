@@ -23,6 +23,7 @@ use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Response, Status};
 
+use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::ProcessingOperation;
 
 const SAMPLE_RATE: usize = 16_000;
@@ -670,11 +671,11 @@ fn normalize_loopback_host(host: &str) -> Option<String> {
     }
 }
 
-async fn connect(connection: &ConnectionInfo) -> Result<Channel> {
+async fn connect(connection: &ConnectionInfo, request_timeout: Duration) -> Result<Channel> {
     Endpoint::from_shared(format!("http://{}:{}", connection.host, connection.port))
         .context("invalid local Antigravity endpoint")?
         .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(TRANSCRIPTION_TIMEOUT)
+        .timeout(request_timeout)
         .connect()
         .await
         .context("failed to connect to the local Antigravity service")
@@ -697,7 +698,7 @@ async fn probe_connection(connection: &ConnectionInfo) -> bool {
 }
 
 async fn probe_connection_inner(connection: &ConnectionInfo) -> bool {
-    let Ok(channel) = connect(connection).await else {
+    let Ok(channel) = connect(connection, PROBE_TIMEOUT).await else {
         return false;
     };
     let mut grpc = Grpc::new(channel);
@@ -717,7 +718,15 @@ async fn probe_connection_inner(connection: &ConnectionInfo) -> bool {
     response.is_ok()
 }
 
-/// Bounds a full Gemini transcription attempt with `TRANSCRIPTION_TIMEOUT`.
+/// The service receives the audio as one RPC per second and transcribes it
+/// once the session ends, so a fixed budget fails every long dictation.
+/// Like Codex, allow one extra second for every two seconds of audio.
+fn transcription_timeout(sample_count: usize) -> Duration {
+    let audio_seconds = (sample_count / SAMPLE_RATE) as u64;
+    TRANSCRIPTION_TIMEOUT + Duration::from_secs(audio_seconds / 2)
+}
+
+/// Bounds a full Gemini transcription attempt with `transcription_timeout`.
 async fn transcribe_over_grpc(
     owned: &mut OwnedServer,
     samples: &[f32],
@@ -726,14 +735,20 @@ async fn transcribe_over_grpc(
 ) -> Result<String> {
     // Cancellation races the complete tonic interaction. Selecting at this
     // boundary drops the current request, stream, and channel instead of
-    // waiting for the provider's 90-second timeout or discarding its text.
+    // waiting for the provider's timeout or discarding its text.
+    let deadline = transcription_timeout(samples.len());
     cancel_network_wait(operation, shutdown, async {
         let result = tokio::time::timeout(
-            TRANSCRIPTION_TIMEOUT,
-            transcribe_over_grpc_inner(owned, samples),
+            deadline,
+            transcribe_over_grpc_inner(owned, samples, deadline),
         )
         .await
-        .map_err(|_| anyhow!("Gemini transcription timed out"))?;
+        .map_err(|_| {
+            anyhow::Error::new(TranscriptionError::new(
+                FailureKind::Timeout,
+                "Gemini transcription timed out",
+            ))
+        })?;
         result
     })
     .await
@@ -779,10 +794,14 @@ where
 }
 
 /// Sends audio, ends the session, and reads the completed transcript.
-async fn transcribe_over_grpc_inner(owned: &mut OwnedServer, samples: &[f32]) -> Result<String> {
+async fn transcribe_over_grpc_inner(
+    owned: &mut OwnedServer,
+    samples: &[f32],
+    deadline: Duration,
+) -> Result<String> {
     owned.verify_identity()?;
     let connection = owned.connection.clone();
-    let channel = connect(&connection).await?;
+    let channel = connect(&connection, deadline).await?;
     // If the owned process died while the TCP transport was opening, never
     // send microphone data to a listener that may have replaced its port.
     owned.verify_identity()?;
@@ -1083,6 +1102,19 @@ mod tests {
     use crate::OperationId;
     use std::future;
     use std::thread;
+
+    #[test]
+    fn the_transcription_deadline_grows_with_the_recording() {
+        assert_eq!(transcription_timeout(0), Duration::from_secs(90));
+        assert_eq!(
+            transcription_timeout(SAMPLE_RATE * 60),
+            Duration::from_secs(120)
+        );
+        assert_eq!(
+            transcription_timeout(SAMPLE_RATE * 900),
+            Duration::from_secs(540)
+        );
+    }
 
     fn local_owned_server() -> (OwnedServer, u32) {
         // `exec` makes the PID belong to sleep itself, so SIGINT tests the
