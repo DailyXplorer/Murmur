@@ -60,7 +60,7 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
     >
       {loading ? (
         <div
-          className="h-10 animate-pulse rounded-md bg-mid-gray/10"
+          className="h-control animate-pulse rounded-md bg-mid-gray/10"
           aria-hidden="true"
         />
       ) : error ? (
@@ -71,7 +71,12 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
           {t("errors.loadDirectory", { error })}
         </p>
       ) : (
-        <PathDisplay path={logDir} onOpen={handleOpen} disabled={!logDir} />
+        <PathDisplay
+          path={logDir}
+          label={t("settings.debug.logDirectory.title")}
+          onOpen={handleOpen}
+          disabled={!logDir}
+        />
       )}
     </SettingContainer>
   );

@@ -9,6 +9,7 @@ import { commands } from "@/bindings";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
 import { useSettingsStore } from "@/stores/settingsStore";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
+import { Button } from "../ui/Button";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CircleNotchIcon } from "@phosphor-icons/react/dist/csr/CircleNotch";
 import { KeyboardIcon } from "@phosphor-icons/react/dist/csr/Keyboard";
@@ -328,7 +329,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                       <button
                         type="button"
                         onClick={openMicrophoneSettings}
-                        className="min-h-10 self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
+                        className="min-h-control self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
                       >
                         {t("accessibility.openSettings")}
                       </button>
@@ -336,12 +337,9 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   )}
                 </div>
               ) : (
-                <button
-                  onClick={handleGrantMicrophone}
-                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
-                >
+                <Button onClick={handleGrantMicrophone}>
                   {t("onboarding.permissions.grant")}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -369,7 +367,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   aria-live="polite"
                   className="flex flex-wrap items-center gap-2 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
                 >
-                  <span className="flex min-h-10 items-center gap-2">
+                  <span className="flex min-h-control items-center gap-2">
                     <CircleNotchIcon size={15} className="animate-spin" />
                     {t("onboarding.permissions.accessibility.waiting")}
                   </span>
@@ -377,18 +375,15 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                     type="button"
                     disabled={isRepairingAccessibility}
                     onClick={handleGrantAccessibility}
-                    className="min-h-10 rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+                    className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
                   >
                     {t("accessibility.openSettings")}
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={handleGrantAccessibility}
-                  className="min-h-10 px-4 py-2 rounded-lg bg-background-ui hover:bg-background-ui-hover active:bg-background-ui-active text-on-accent text-sm font-medium active:scale-[0.96] transition-[background-color,transform]"
-                >
+                <Button onClick={handleGrantAccessibility}>
                   {t("onboarding.permissions.accessibility.action")}
-                </button>
+                </Button>
               )}
             </div>
           </div>

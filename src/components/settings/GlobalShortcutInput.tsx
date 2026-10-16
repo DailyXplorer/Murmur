@@ -6,6 +6,10 @@ import {
   normalizeKey,
 } from "../../lib/utils/keyboard";
 import { ResetButton } from "../ui/ResetButton";
+import {
+  FIELD_SIZE_CLASSES,
+  FIELD_SURFACE_CLASSES,
+} from "../ui/controlClasses";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import { useShortcutCaptureStore } from "../../stores/shortcutCaptureStore";
@@ -267,16 +271,18 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
               ref={(ref) => setShortcutRef(shortcutId, ref)}
               role="status"
               aria-live="polite"
-              className="min-w-0 flex-1 truncate rounded-md border border-logo-primary bg-logo-primary/30 px-2 py-1 text-start text-sm font-normal"
+              data-control="field"
+              className={`${FIELD_SIZE_CLASSES} flex min-w-0 flex-1 items-center border-logo-primary bg-logo-primary/30`}
             >
-              {formatCurrentKeys()}
+              <span className="truncate">{formatCurrentKeys()}</span>
             </div>
           ) : (
             <button
               type="button"
               aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
               disabled={disabled || isUpdating(`binding_${shortcutId}`)}
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md border border-mid-gray/80 bg-mid-gray/10 px-2 py-1 text-start text-sm font-normal hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50"
+              data-control="field"
+              className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} min-w-0 flex-1 cursor-pointer truncate hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50`}
               onClick={(event) => {
                 event.stopPropagation();
                 startRecording(shortcutId);

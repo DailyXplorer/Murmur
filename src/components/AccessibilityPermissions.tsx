@@ -3,14 +3,10 @@ import { useTranslation } from "react-i18next";
 import { checkAccessibilityPermission } from "tauri-plugin-macos-permissions-api";
 import { CircleNotchIcon } from "@phosphor-icons/react/dist/csr/CircleNotch";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
+import { Button } from "./ui/Button";
 
 // Define permission state type
 type PermissionState = "request" | "waiting" | "granted";
-
-// Define button configuration type
-interface ButtonConfig {
-  className: string;
-}
 
 const AccessibilityPermissions: React.FC = () => {
   const { t } = useTranslation();
@@ -81,18 +77,6 @@ const AccessibilityPermissions: React.FC = () => {
     return null;
   }
 
-  // Configure button text and style based on state
-  const buttonConfig: Record<PermissionState, ButtonConfig | null> = {
-    request: {
-      className:
-        "px-3 py-2 min-h-10 text-sm font-medium bg-mid-gray/10 border border-mid-gray/80 hover:bg-logo-primary/10 rounded-lg cursor-pointer hover:border-logo-primary active:scale-[0.96] transition-[background-color,border-color,transform]",
-    },
-    waiting: null,
-    granted: null,
-  };
-
-  const config = buttonConfig[permissionState];
-
   return (
     <div className="p-4 w-full rounded-lg border border-mid-gray">
       <div className="flex justify-between items-center gap-2">
@@ -106,7 +90,7 @@ const AccessibilityPermissions: React.FC = () => {
             aria-live="polite"
             className="flex flex-wrap items-center justify-end gap-2 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm"
           >
-            <span className="flex min-h-10 items-center gap-2">
+            <span className="flex min-h-control items-center gap-2">
               <CircleNotchIcon size={15} className="animate-spin shrink-0" />
               {t("onboarding.permissions.accessibility.waiting")}
             </span>
@@ -114,15 +98,15 @@ const AccessibilityPermissions: React.FC = () => {
               type="button"
               disabled={isRepairing}
               onClick={handleButtonClick}
-              className="min-h-10 rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+              className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
             >
               {t("accessibility.openSettings")}
             </button>
           </div>
-        ) : config ? (
-          <button onClick={handleButtonClick} className={config.className}>
+        ) : permissionState === "request" ? (
+          <Button variant="secondary" onClick={handleButtonClick}>
             {t("onboarding.permissions.accessibility.action")}
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

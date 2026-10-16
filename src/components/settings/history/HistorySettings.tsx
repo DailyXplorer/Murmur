@@ -34,7 +34,8 @@ const IconButton: React.FC<{
     onClick={onClick}
     disabled={disabled}
     aria-label={title}
-    className={`flex size-10 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:text-text/20 disabled:active:scale-100 ${
+    data-control="icon"
+    className={`flex size-control cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:text-text/20 disabled:active:scale-100 ${
       active
         ? "bg-logo-primary/10 text-logo-primary hover:bg-logo-primary/20 hover:text-logo-primary/80"
         : "text-text/50 hover:bg-mid-gray/10 hover:text-logo-primary"
@@ -61,13 +62,7 @@ const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
   onClick,
   label,
 }) => (
-  <Button
-    onClick={onClick}
-    variant="secondary"
-    size="sm"
-    className="flex items-center gap-2"
-    title={label}
-  >
+  <Button onClick={onClick} variant="secondary" title={label}>
     <FolderOpenIcon size={15} aria-hidden="true" />
     <span>{label}</span>
   </Button>
@@ -659,12 +654,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       )}
       {!hasTranscription && hasRecording && !retrying && (
         <div>
-          <Button
-            onClick={handleRetranscribe}
-            variant="secondary"
-            size="sm"
-            className="flex items-center gap-2"
-          >
+          <Button onClick={handleRetranscribe} variant="secondary">
             <ArrowCounterClockwiseIcon size={15} aria-hidden="true" />
             <span>{t("settings.history.retry")}</span>
           </Button>

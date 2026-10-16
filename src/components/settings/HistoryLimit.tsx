@@ -54,7 +54,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
       grouped={grouped}
       layout="horizontal"
     >
-      <div className="flex items-center justify-end space-x-2">
+      <div className="flex items-center gap-2">
         <Input
           type="number"
           min={MIN_HISTORY_LIMIT}
@@ -63,7 +63,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={handleKeyDown}
-          className="w-20"
+          className="min-w-0 flex-1"
         />
         <span className="text-sm text-text">
           {t("settings.debug.historyLimit.entries")}

@@ -11,6 +11,11 @@ import { useTranslation } from "react-i18next";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ResetButton } from "../ui/ResetButton";
 import { FloatingPanel } from "../ui/FloatingPanel";
+import { Input } from "../ui/Input";
+import {
+  FIELD_SIZE_CLASSES,
+  FIELD_SURFACE_CLASSES,
+} from "../ui/controlClasses";
 import { useSettings } from "../../hooks/useSettings";
 import {
   getLanguageLabel,
@@ -168,7 +173,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             ref={dropdownRef}
             id={triggerId}
             type="button"
-            className={`w-full min-w-[200px] px-2 py-1 text-sm font-normal bg-mid-gray/10 border border-mid-gray/80 rounded text-start flex items-center justify-between transition-[background-color,border-color] duration-150 ${
+            data-control="field"
+            className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} flex w-full min-w-[200px] items-center justify-between transition-[background-color,border-color] duration-150 ${
               isLanguageUpdating || isAntigravity
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
@@ -192,18 +198,18 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             open={isLanguageMenuOpen}
             anchorRef={dropdownRef}
             onDismiss={handleDismiss}
-            className="flex flex-col overflow-hidden rounded border border-mid-gray/80 bg-background shadow-lg"
+            className="flex flex-col overflow-hidden rounded-md border border-mid-gray/80 bg-background shadow-lg"
           >
             {/* Search input */}
             <div className="p-2 border-b border-mid-gray/80">
-              <input
+              <Input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onKeyDown={handleKeyDown}
                 placeholder={t("settings.general.language.searchPlaceholder")}
-                className="w-full px-2 py-1 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded focus:outline-none focus:ring-1 focus:ring-logo-primary focus:border-logo-primary"
+                className="w-full"
               />
             </div>
 
@@ -226,7 +232,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     role="option"
                     aria-selected={selectedLanguage === language.value}
                     tabIndex={language.value === initialTabStopValue ? 0 : -1}
-                    className={`w-full px-2 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
+                    className={`min-h-control w-full px-3 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                       selectedLanguage === language.value
                         ? "bg-logo-primary/20 text-logo-primary"
                         : ""

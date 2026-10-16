@@ -34,7 +34,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
       tooltipPosition={tooltipPosition}
     >
       <label
-        className={`relative ml-auto inline-flex min-h-10 items-center ${disabled || isUpdating ? "cursor-not-allowed" : "cursor-pointer"}`}
+        className={`relative ml-auto inline-flex min-h-control items-center ${disabled || isUpdating ? "cursor-not-allowed" : "cursor-pointer"}`}
       >
         <input
           type="checkbox"

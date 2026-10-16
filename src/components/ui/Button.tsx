@@ -9,18 +9,24 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     | "danger"
     | "danger-ghost"
     | "ghost";
-  size?: "sm" | "md" | "lg";
+  size?: "text" | "icon" | "chip";
 }
+
+const SIZE_CLASSES = {
+  text: "h-control min-w-control-button px-4",
+  icon: "size-control shrink-0",
+  chip: "h-control px-3",
+} as const;
 
 export const Button: React.FC<ButtonProps> = ({
   children,
   className = "",
   variant = "primary",
-  size = "md",
+  size = "text",
   ...props
 }) => {
   const baseClasses =
-    "min-h-10 font-medium rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-[color,background-color,border-color,transform] active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer";
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-[color,background-color,border-color,transform] active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer";
 
   const variantClasses = {
     primary:
@@ -39,15 +45,10 @@ export const Button: React.FC<ButtonProps> = ({
       "text-current border-transparent hover:bg-mid-gray/10 hover:border-logo-primary focus-visible:bg-mid-gray/20",
   };
 
-  const sizeClasses = {
-    sm: "px-2 py-1 text-xs",
-    md: "px-4 py-[5px] text-sm",
-    lg: "px-4 py-2 text-base",
-  };
-
   return (
     <button
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      data-control={size}
+      className={`${baseClasses} ${variantClasses[variant]} ${SIZE_CLASSES[size]} ${className}`}
       {...props}
     >
       {children}

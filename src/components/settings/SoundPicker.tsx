@@ -58,8 +58,7 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
         />
         <Button
           variant="ghost"
-          size="sm"
-          className="shrink-0"
+          size="icon"
           onClick={handlePlayBothSounds}
           title="Preview sound theme (plays start then stop)"
         >

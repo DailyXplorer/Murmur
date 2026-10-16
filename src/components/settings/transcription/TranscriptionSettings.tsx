@@ -121,7 +121,7 @@ export const TranscriptionSettings: React.FC = () => {
           description={t("onboarding.provider.antigravityDescription")}
           grouped={true}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
             <span className="rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
               {t("onboarding.provider.experimental")}
             </span>
@@ -131,7 +131,6 @@ export const TranscriptionSettings: React.FC = () => {
             {statuses.gemini.kind === "unavailable" &&
               statuses.gemini.reason === "notInstalled" && (
                 <Button
-                  size="sm"
                   variant="secondary"
                   className="shrink-0"
                   onClick={() => void installAntigravity()}
@@ -142,7 +141,6 @@ export const TranscriptionSettings: React.FC = () => {
             {statuses.gemini.kind === "unavailable" &&
               statuses.gemini.reason === "notSignedIn" && (
                 <Button
-                  size="sm"
                   variant="secondary"
                   className="shrink-0"
                   onClick={() => void openAntigravity()}
