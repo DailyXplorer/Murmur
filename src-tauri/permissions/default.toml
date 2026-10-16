@@ -53,6 +53,7 @@ permissions = [
   "allow-open-log-dir",
   "allow-open-app-data-dir",
   "allow-repair-accessibility-permission",
+  "allow-open-microphone-settings",
   "allow-initialize-enigo",
   "allow-initialize-shortcuts",
   "allow-update-microphone-mode",

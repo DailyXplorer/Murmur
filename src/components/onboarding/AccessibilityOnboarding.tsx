@@ -5,7 +5,6 @@ import {
   checkMicrophonePermission,
   requestMicrophonePermission,
 } from "tauri-plugin-macos-permissions-api";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { commands } from "@/bindings";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
@@ -19,9 +18,6 @@ import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
 interface AccessibilityOnboardingProps {
   onComplete: () => void;
 }
-
-const MICROPHONE_SETTINGS_URL =
-  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 
 type PermissionStatus = "checking" | "needed" | "waiting" | "granted";
 
@@ -213,7 +209,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
 
   const openMicrophoneSettings = async () => {
     try {
-      await openUrl(MICROPHONE_SETTINGS_URL);
+      const result = await commands.openMicrophoneSettings();
+      if (result.status === "error") {
+        throw new Error(result.error);
+      }
     } catch (error) {
       console.error("Failed to open microphone settings:", error);
       toast.error(t("onboarding.permissions.errors.requestFailed"));
