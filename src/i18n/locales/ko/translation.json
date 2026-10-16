@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "시스템 설정에서 Apple Intelligence를 켜세요",
           "modelNotReady": "아직 다운로드 중입니다. 나중에 다시 시도하세요",
           "unsupportedOs": "macOS 26 이상 필요",
-          "unavailable": "현재 사용할 수 없음"
+          "unavailable": "현재 사용할 수 없음",
+          "unsupportedLanguage": "{{language}}에서는 사용할 수 없음"
         }
       },
       "windowNames": {

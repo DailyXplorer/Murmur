@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Zapněte Apple Intelligence v Nastavení systému",
           "modelNotReady": "Stále se stahuje, zkuste to později",
           "unsupportedOs": "Vyžaduje macOS 26 nebo novější",
-          "unavailable": "Momentálně nedostupné"
+          "unavailable": "Momentálně nedostupné",
+          "unsupportedLanguage": "Není dostupné v jazyce {{language}}"
         }
       },
       "windowNames": {

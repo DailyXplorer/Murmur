@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "הפעילו את Apple Intelligence בהגדרות המערכת",
           "modelNotReady": "עדיין בהורדה, נסו שוב מאוחר יותר",
           "unsupportedOs": "דורש macOS 26 ואילך",
-          "unavailable": "לא זמין כרגע"
+          "unavailable": "לא זמין כרגע",
+          "unsupportedLanguage": "לא זמין ב{{language}}"
         }
       },
       "windowNames": {

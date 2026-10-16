@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Включете Apple Intelligence в Системни настройки",
           "modelNotReady": "Все още се изтегля, опитайте по-късно",
           "unsupportedOs": "Изисква macOS 26 или по-нова",
-          "unavailable": "В момента не е налично"
+          "unavailable": "В момента не е налично",
+          "unsupportedLanguage": "Не е налично на {{language}}"
         }
       },
       "windowNames": {

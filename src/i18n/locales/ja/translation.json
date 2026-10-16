@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "システム設定で Apple Intelligence をオンにしてください",
           "modelNotReady": "ダウンロード中です。後でもう一度お試しください",
           "unsupportedOs": "macOS 26 以降が必要です",
-          "unavailable": "現在利用できません"
+          "unavailable": "現在利用できません",
+          "unsupportedLanguage": "{{language}}では利用できません"
         }
       },
       "windowNames": {

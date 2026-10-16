@@ -5,6 +5,7 @@ import {
   type AppleIntelligenceStatus,
   type CleanupEngine,
 } from "@/bindings";
+import { getLanguageLabel } from "@/lib/constants/languages";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
@@ -15,8 +16,24 @@ interface AiCleanupProps {
   grouped?: boolean;
 }
 
-/** Re-read on focus: the user may have just turned it on in System Settings. */
-const useAppleIntelligenceStatus = () => {
+/** The dictation language's name in the interface language. */
+const languageName = (code: string, uiLanguage: string): string => {
+  try {
+    return (
+      new Intl.DisplayNames([uiLanguage], { type: "language" }).of(code) ??
+      getLanguageLabel(code) ??
+      code
+    );
+  } catch {
+    return getLanguageLabel(code) ?? code;
+  }
+};
+
+/**
+ * Re-read on focus, since the user may have just turned it on in System
+ * Settings, and when the dictation language changes.
+ */
+const useAppleIntelligenceStatus = (languageKey: string) => {
   const [status, setStatus] = useState<AppleIntelligenceStatus | null>(null);
 
   useEffect(() => {
@@ -36,16 +53,18 @@ const useAppleIntelligenceStatus = () => {
       active = false;
       window.removeEventListener("focus", refresh);
     };
-  }, []);
+  }, [languageKey]);
 
   return status;
 };
 
 export const AiCleanup: React.FC<AiCleanupProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
-    const appleStatus = useAppleIntelligenceStatus();
+    const language = getSetting("selected_language") ?? "auto";
+    const provider = getSetting("transcription_provider");
+    const appleStatus = useAppleIntelligenceStatus(`${provider}:${language}`);
     const enabled = getSetting("ai_cleanup_enabled") ?? true;
     const engine: CleanupEngine = getSetting("cleanup_engine") ?? "apple";
 
@@ -98,7 +117,9 @@ export const AiCleanup: React.FC<AiCleanupProps> = React.memo(
               className="text-end text-sm text-text/80"
               data-testid="apple-intelligence-status"
             >
-              {t(`settings.transcription.cleanupEngine.status.${appleStatus}`)}
+              {t(`settings.transcription.cleanupEngine.status.${appleStatus}`, {
+                language: languageName(language, i18n.language),
+              })}
             </span>
           </SettingContainer>
         )}

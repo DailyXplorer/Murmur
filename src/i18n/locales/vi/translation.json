@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Bật Apple Intelligence trong Cài đặt hệ thống",
           "modelNotReady": "Vẫn đang tải xuống, hãy thử lại sau",
           "unsupportedOs": "Yêu cầu macOS 26 trở lên",
-          "unavailable": "Hiện không khả dụng"
+          "unavailable": "Hiện không khả dụng",
+          "unsupportedLanguage": "Không khả dụng bằng {{language}}"
         }
       },
       "windowNames": {

@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Activez Apple Intelligence dans Réglages Système",
           "modelNotReady": "Téléchargement en cours, réessayez plus tard",
           "unsupportedOs": "Nécessite macOS 26 ou version ultérieure",
-          "unavailable": "Indisponible pour le moment"
+          "unavailable": "Indisponible pour le moment",
+          "unsupportedLanguage": "Non disponible en {{language}}"
         }
       },
       "windowNames": {

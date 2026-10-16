@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "सिस्टम सेटिङ्समा Apple Intelligence सक्रिय गर्नुहोस्",
           "modelNotReady": "अझै डाउनलोड हुँदैछ, पछि फेरि प्रयास गर्नुहोस्",
           "unsupportedOs": "macOS 26 वा पछिको संस्करण आवश्यक छ",
-          "unavailable": "अहिले उपलब्ध छैन"
+          "unavailable": "अहिले उपलब्ध छैन",
+          "unsupportedLanguage": "{{language}} मा उपलब्ध छैन"
         }
       },
       "windowNames": {

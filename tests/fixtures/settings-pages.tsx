@@ -89,7 +89,7 @@ const SETTINGS: AppSettings = {
   recording_retention_period: "preserve_limit",
   reliable_paste: true,
   selected_channel: null,
-  selected_language: "auto",
+  selected_language: params.get("dictation") ?? "auto",
   selected_microphone: "Default",
   selected_output_device: "Default",
   show_tray_icon: true,

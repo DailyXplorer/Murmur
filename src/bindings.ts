@@ -724,7 +724,11 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Where a dictation was sent, grouped the way the Insights page reports it.
  */
 export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
-export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable"
+export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" |
+/**
+ * The model runs, but not in the selected dictation language.
+ */
+"unsupportedLanguage"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }

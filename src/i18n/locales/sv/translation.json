@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Slå på Apple Intelligence i Systeminställningar",
           "modelNotReady": "Hämtas fortfarande, försök igen senare",
           "unsupportedOs": "Kräver macOS 26 eller senare",
-          "unavailable": "Inte tillgängligt just nu"
+          "unavailable": "Inte tillgängligt just nu",
+          "unsupportedLanguage": "Inte tillgängligt på {{language}}"
         }
       },
       "windowNames": {

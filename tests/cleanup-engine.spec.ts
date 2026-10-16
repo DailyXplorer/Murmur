@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const openTranscription = async (page: Page, apple: string) => {
-  await page.goto(`/tests/fixtures/settings-pages.html?apple=${apple}`);
+const openTranscription = async (page: Page, apple: string, query = "") => {
+  await page.goto(`/tests/fixtures/settings-pages.html?apple=${apple}${query}`);
   await page
     .getByRole("navigation")
     .getByRole("button", { name: "Transcription", exact: true })
@@ -33,6 +33,26 @@ test.describe("AI cleanup engine", () => {
     await openTranscription(page, "appleIntelligenceNotEnabled");
     await expect(page.getByTestId("apple-intelligence-status")).toHaveText(
       "Turn on Apple Intelligence in System Settings",
+    );
+  });
+
+  test("names the dictation language Apple Intelligence lacks", async ({
+    page,
+  }) => {
+    await openTranscription(page, "unsupportedLanguage", "&dictation=ru");
+    await expect(page.getByTestId("apple-intelligence-status")).toHaveText(
+      "Not available in Russian",
+    );
+  });
+
+  test("names the language in the interface language", async ({ page }) => {
+    await openTranscription(
+      page,
+      "unsupportedLanguage",
+      "&dictation=ru&lang=fr",
+    );
+    await expect(page.getByTestId("apple-intelligence-status")).toHaveText(
+      "Non disponible en russe",
     );
   });
 

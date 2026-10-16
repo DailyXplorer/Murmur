@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "请在系统设置中打开 Apple Intelligence",
           "modelNotReady": "仍在下载，请稍后再试",
           "unsupportedOs": "需要 macOS 26 或更高版本",
-          "unavailable": "暂时不可用"
+          "unavailable": "暂时不可用",
+          "unsupportedLanguage": "不支持{{language}}"
         }
       },
       "windowNames": {

@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "شغّل Apple Intelligence من إعدادات النظام",
           "modelNotReady": "لا يزال قيد التنزيل، حاول لاحقًا",
           "unsupportedOs": "يتطلب macOS 26 أو أحدث",
-          "unavailable": "غير متاح حاليًا"
+          "unavailable": "غير متاح حاليًا",
+          "unsupportedLanguage": "غير متاح باللغة {{language}}"
         }
       },
       "windowNames": {

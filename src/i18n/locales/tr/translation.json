@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Sistem Ayarları’nda Apple Intelligence’ı açın",
           "modelNotReady": "Hâlâ indiriliyor, daha sonra tekrar deneyin",
           "unsupportedOs": "macOS 26 veya üstü gerekir",
-          "unavailable": "Şu anda kullanılamıyor"
+          "unavailable": "Şu anda kullanılamıyor",
+          "unsupportedLanguage": "{{language}} dilinde kullanılamıyor"
         }
       },
       "windowNames": {

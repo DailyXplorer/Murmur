@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Włącz Apple Intelligence w Ustawieniach systemowych",
           "modelNotReady": "Wciąż się pobiera, spróbuj później",
           "unsupportedOs": "Wymaga macOS 26 lub nowszego",
-          "unavailable": "Obecnie niedostępne"
+          "unavailable": "Obecnie niedostępne",
+          "unsupportedLanguage": "Niedostępne w języku {{language}}"
         }
       },
       "windowNames": {

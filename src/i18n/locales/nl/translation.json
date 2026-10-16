@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Zet Apple Intelligence aan in Systeeminstellingen",
           "modelNotReady": "Wordt nog gedownload, probeer het later opnieuw",
           "unsupportedOs": "Vereist macOS 26 of nieuwer",
-          "unavailable": "Momenteel niet beschikbaar"
+          "unavailable": "Momenteel niet beschikbaar",
+          "unsupportedLanguage": "Niet beschikbaar in het {{language}}"
         }
       },
       "windowNames": {

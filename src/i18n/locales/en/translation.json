@@ -452,7 +452,8 @@
           "appleIntelligenceNotEnabled": "Turn on Apple Intelligence in System Settings",
           "modelNotReady": "Still downloading, try again later",
           "unsupportedOs": "Requires macOS 26 or later",
-          "unavailable": "Unavailable right now"
+          "unavailable": "Unavailable right now",
+          "unsupportedLanguage": "Not available in {{language}}"
         }
       },
       "windowNames": {
