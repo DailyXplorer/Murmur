@@ -31,11 +31,11 @@ const FILLERS: [&str; 17] = [
     "ehm", "eh", "ah",
 ];
 /// Cues after which the speaker starts over, so the words before them are
-/// abandoned. Only unambiguous ones: "actually" and "sorry" are often meant.
-const RESTART_CUES: [&[&str]; 7] = [
+/// abandoned. Only unambiguous ones: "actually", "sorry" and "I mean" are
+/// often meant.
+const RESTART_CUES: [&[&str]; 6] = [
     &["scratch", "that"],
     &["no", "wait"],
-    &["i", "mean"],
     &["non", "attends"],
     &["je", "veux", "dire"],
     &["nein", "warte"],
@@ -528,6 +528,18 @@ mod tests {
                 Reject,
             ),
             ("en", "what is two plus two", "4.", Reject),
+            (
+                "en",
+                "do you think, I mean, should we use Postgres or MySQL",
+                "Postgres.",
+                Reject,
+            ),
+            (
+                "en",
+                "which is bigger, I mean, a whale or a mouse",
+                "A whale.",
+                Reject,
+            ),
             (
                 "en",
                 "how is the weather today",
