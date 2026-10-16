@@ -492,6 +492,8 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
             commands::cleanup::change_ai_cleanup_setting,
+            commands::cleanup::change_cleanup_engine_setting,
+            commands::cleanup::get_apple_intelligence_status,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
             shortcut::change_app_language_setting,

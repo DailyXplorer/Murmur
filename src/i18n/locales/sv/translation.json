@@ -435,7 +435,26 @@
       "sessionExpired": "Sessionen har gått ut, logga in igen i Codex",
       "aiCleanup": {
         "title": "AI-städning och formatering",
-        "description": "Tar bort utfyllnadsord, behåller bara din slutliga formulering när du rättar dig själv, rättar skiljetecken och formaterar listor och dikterade radbrytningar. Översätter eller skriver aldrig om. Använder din ChatGPT-session; om det misslyckas eller tar för lång tid klistras den råa transkriptionen in."
+        "description": "Tar bort utfyllnadsord, behåller bara din slutliga formulering när du rättar dig själv, rättar skiljetecken och formaterar listor och dikterade radbrytningar. Den översätter eller skriver aldrig om. Om den misslyckas eller tar för lång tid klistras den råa transkriptionen in."
+      },
+      "cleanupEngine": {
+        "title": "Rensningsmotor",
+        "description": "Apple Intelligence körs på den här Macen: gratis, obegränsat, offline och privat. Codex använder din ChatGPT-session och räknas mot dess användningsgränser.",
+        "options": {
+          "apple": "Apple Intelligence (på den här Macen)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "När Apple Intelligence inte kan köras rensar Codex texten om du är inloggad; annars klistras den råa transkriptionen in.",
+          "available": "Redo på den här Macen",
+          "deviceNotEligible": "Stöds inte på den här Macen",
+          "appleIntelligenceNotEnabled": "Slå på Apple Intelligence i Systeminställningar",
+          "modelNotReady": "Hämtas fortfarande, försök igen senare",
+          "unsupportedOs": "Kräver macOS 26 eller senare",
+          "unavailable": "Inte tillgängligt just nu",
+          "unsupportedLanguage": "Inte tillgängligt på {{language}}"
+        }
       },
       "windowNames": {
         "title": "Namn från det aktiva fönstret",

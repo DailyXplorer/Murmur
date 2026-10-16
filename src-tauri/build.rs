@@ -31,6 +31,8 @@ const APP_COMMANDS: &[&str] = &[
     "change_append_trailing_space_setting",
     "change_lazy_stream_close_setting",
     "change_ai_cleanup_setting",
+    "change_cleanup_engine_setting",
+    "get_apple_intelligence_status",
     "change_window_names_setting",
     "change_whisper_mode_setting",
     "change_app_language_setting",
@@ -80,6 +82,7 @@ const APP_COMMANDS: &[&str] = &[
 
 fn main() {
     generate_tray_translations();
+    build_apple_cleanup_bridge();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
     tauri_build::try_build(attributes).expect("failed to build Tauri application ACL");
@@ -150,6 +153,87 @@ fn generate_tray_translations() {
 
     fs::write(Path::new(&out_dir).join("tray_translations.rs"), output)
         .expect("generated tray translations are writable");
+}
+
+/// Compiles `swift/apple_cleanup.swift` into a static library. Apple
+/// Intelligence needs Apple silicon, so Intel builds get Rust's stub instead.
+fn build_apple_cleanup_bridge() {
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    let source = "swift/apple_cleanup.swift";
+    println!("cargo:rerun-if-changed={source}");
+    println!("cargo:rerun-if-env-changed=SDKROOT");
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    if target_os != "macos" || target_arch != "aarch64" {
+        return;
+    }
+
+    let xcrun = |args: &[&str]| -> String {
+        let output = Command::new("xcrun")
+            .args(args)
+            .output()
+            .expect("xcrun runs");
+        assert!(output.status.success(), "xcrun {args:?} failed");
+        String::from_utf8(output.stdout)
+            .expect("xcrun prints UTF-8")
+            .trim()
+            .to_string()
+    };
+    let sdk = std::env::var("SDKROOT")
+        .ok()
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(|| xcrun(&["--sdk", "macosx", "--show-sdk-path"]));
+    let swiftc = xcrun(&["--sdk", "macosx", "--find", "swiftc"]);
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
+    let object = out_dir.join("apple_cleanup.o");
+
+    let status = Command::new(&swiftc)
+        .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
+        .args(["-target", "arm64-apple-macosx11.0", "-sdk", &sdk])
+        .arg("-module-name")
+        .arg("MurmurAppleCleanup")
+        .arg(source)
+        .arg("-o")
+        .arg(&object)
+        .status()
+        .expect("swiftc runs");
+    assert!(status.success(), "swiftc failed to compile {source}");
+    let status = Command::new("libtool")
+        .args(["-static", "-o"])
+        .arg(out_dir.join("libmurmur_apple_cleanup.a"))
+        .arg(&object)
+        .status()
+        .expect("libtool runs");
+    assert!(
+        status.success(),
+        "libtool failed to archive the Swift bridge"
+    );
+
+    let toolchain_swift = Path::new(&swiftc)
+        .parent()
+        .and_then(Path::parent)
+        .expect("swiftc sits in <toolchain>/usr/bin")
+        .join("lib/swift/macosx");
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        toolchain_swift.display()
+    );
+    println!("cargo:rustc-link-search=native={sdk}/usr/lib/swift");
+    println!("cargo:rustc-link-lib=static=murmur_apple_cleanup");
+    println!("cargo:rustc-link-lib=framework=Foundation");
+    // macOS before 26 has no FoundationModels, and macOS 11 has no Swift
+    // concurrency runtime: both are weak so the app still launches there.
+    if Path::new(&sdk)
+        .join("System/Library/Frameworks/FoundationModels.framework")
+        .exists()
+    {
+        println!("cargo:rustc-link-arg=-Wl,-weak_framework,FoundationModels");
+    }
+    println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
 
 fn camel_to_snake(value: &str) -> String {

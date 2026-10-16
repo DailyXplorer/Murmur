@@ -435,7 +435,26 @@
       "sessionExpired": "セッション期限切れ。Codex で再度サインインしてください",
       "aiCleanup": {
         "title": "AI による整形とクリーンアップ",
-        "description": "言いよどみを取り除き、言い直したときは最終的な言い方だけを残し、句読点を整え、リストや口述した改行を書式化します。翻訳や書き換えは一切しません。ChatGPT のセッションを使用し、失敗したり時間がかかりすぎたりした場合は元の文字起こしを貼り付けます。"
+        "description": "フィラーを取り除き、言い直したときは最後の言い方だけを残し、句読点を整え、リストや口述した改行を整形します。翻訳や書き換えは一切しません。失敗した場合や時間がかかりすぎた場合は、元の文字起こしが貼り付けられます。"
+      },
+      "cleanupEngine": {
+        "title": "クリーンアップエンジン",
+        "description": "Apple Intelligence はこの Mac 上で動作します。無料・無制限・オフラインで、プライバシーも守られます。Codex は ChatGPT セッションを使い、その利用上限を消費します。",
+        "options": {
+          "apple": "Apple Intelligence（この Mac）",
+          "codex": "Codex（ChatGPT）"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Apple Intelligence が使えないときは、サインインしていれば Codex がテキストを整えます。それ以外の場合は元の文字起こしが貼り付けられます。",
+          "available": "この Mac で利用可能",
+          "deviceNotEligible": "この Mac には対応していません",
+          "appleIntelligenceNotEnabled": "システム設定で Apple Intelligence をオンにしてください",
+          "modelNotReady": "ダウンロード中です。後でもう一度お試しください",
+          "unsupportedOs": "macOS 26 以降が必要です",
+          "unavailable": "現在利用できません",
+          "unsupportedLanguage": "{{language}}では利用できません"
+        }
       },
       "windowNames": {
         "title": "アクティブなウインドウの名前",

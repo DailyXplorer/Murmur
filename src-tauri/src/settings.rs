@@ -202,6 +202,16 @@ pub enum TranscriptionProvider {
     Gemini,
 }
 
+/// Which model runs AI cleanup. Apple's on-device model is free, offline
+/// and does not spend the user's Codex allowance, so it is the default.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CleanupEngine {
+    #[default]
+    Apple,
+    Codex,
+}
+
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
 /// its `get_default_settings()` value when missing from a stored settings
@@ -296,9 +306,11 @@ pub struct AppSettings {
     /// reading promised data, so settlement waits a bounded window. macOS only.
     #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
-    /// AI cleanup and formatting of each transcript through the Codex session.
+    /// AI cleanup and formatting of each transcript, by `cleanup_engine`.
     #[serde(default = "default_ai_cleanup_enabled")]
     pub ai_cleanup_enabled: bool,
+    #[serde(default)]
+    pub cleanup_engine: CleanupEngine,
     /// Dictionary words learned from corrections; each is also in `custom_words`.
     #[serde(default)]
     pub learned_words: Vec<crate::dictionary::LearnedWord>,
@@ -509,6 +521,7 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: default_reliable_paste(),
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
+        cleanup_engine: CleanupEngine::default(),
         learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
         whisper_mode: false,
@@ -899,6 +912,30 @@ mod tests {
             settings.transcription_provider,
             TranscriptionProvider::Codex
         );
+    }
+
+    #[test]
+    fn cleanup_engine_defaults_to_apple_for_new_and_existing_users() {
+        assert_eq!(get_default_settings().cleanup_engine, CleanupEngine::Apple);
+        let mut existing = default_settings_json();
+        existing.as_object_mut().unwrap().remove("cleanup_engine");
+        existing["ai_cleanup_enabled"] = serde_json::json!(true);
+        let (settings, _) = parse_stored_settings(&existing);
+        assert_eq!(settings.cleanup_engine, CleanupEngine::Apple);
+        assert!(settings.ai_cleanup_enabled);
+
+        existing["cleanup_engine"] = serde_json::json!("codex");
+        assert_eq!(
+            parse_stored_settings(&existing).0.cleanup_engine,
+            CleanupEngine::Codex
+        );
+        assert_eq!(serde_json::to_value(CleanupEngine::Apple).unwrap(), "apple");
+
+        existing["cleanup_engine"] = serde_json::json!("cloud");
+        existing["selected_language"] = serde_json::json!("fr");
+        let (salvaged, _) = parse_stored_settings(&existing);
+        assert_eq!(salvaged.cleanup_engine, CleanupEngine::Apple);
+        assert_eq!(salvaged.selected_language, "fr");
     }
 
     #[test]

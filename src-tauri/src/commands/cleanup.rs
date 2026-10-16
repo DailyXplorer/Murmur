@@ -1,4 +1,5 @@
-use crate::settings::{self, AppSettings};
+use crate::cleanup::AppleIntelligenceStatus;
+use crate::settings::{self, AppSettings, CleanupEngine};
 use tauri::AppHandle;
 
 fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
@@ -12,6 +13,22 @@ fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), 
 #[specta::specta]
 pub fn change_ai_cleanup_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     update(&app, |value| value.ai_cleanup_enabled = enabled)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_engine_setting(app: AppHandle, engine: CleanupEngine) -> Result<(), String> {
+    update(&app, |value| value.cleanup_engine = engine)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_apple_intelligence_status(app: AppHandle) -> AppleIntelligenceStatus {
+    let settings = settings::get_settings(&app);
+    crate::cleanup::apple_intelligence_status(crate::actions::cleanup_language(
+        settings.transcription_provider,
+        &settings.selected_language,
+    ))
 }
 
 #[tauri::command]

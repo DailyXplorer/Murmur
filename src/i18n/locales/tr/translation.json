@@ -435,7 +435,26 @@
       "sessionExpired": "Oturum süresi doldu, Codex'te yeniden oturum açın",
       "aiCleanup": {
         "title": "Yapay zekâ ile temizleme ve biçimlendirme",
-        "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ve dikte edilen satır sonlarını biçimlendirir. Asla çeviri yapmaz veya yeniden yazmaz. ChatGPT oturumunuzu kullanır; başarısız olursa veya çok uzun sürerse ham döküm yapıştırılır."
+        "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ile dikte edilen satır sonlarını biçimlendirir. Asla çevirmez veya yeniden yazmaz. Başarısız olursa ya da çok uzun sürerse ham transkript yapıştırılır."
+      },
+      "cleanupEngine": {
+        "title": "Temizleme motoru",
+        "description": "Apple Intelligence bu Mac’te çalışır: ücretsiz, sınırsız, çevrimdışı ve gizli. Codex ChatGPT oturumunuzu kullanır ve kullanım sınırlarından düşer.",
+        "options": {
+          "apple": "Apple Intelligence (bu Mac’te)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Apple Intelligence çalışamadığında, oturum açtıysanız metninizi Codex temizler; aksi halde ham transkript yapıştırılır.",
+          "available": "Bu Mac’te hazır",
+          "deviceNotEligible": "Bu Mac’te desteklenmiyor",
+          "appleIntelligenceNotEnabled": "Sistem Ayarları’nda Apple Intelligence’ı açın",
+          "modelNotReady": "Hâlâ indiriliyor, daha sonra tekrar deneyin",
+          "unsupportedOs": "macOS 26 veya üstü gerekir",
+          "unavailable": "Şu anda kullanılamıyor",
+          "unsupportedLanguage": "{{language}} dilinde kullanılamıyor"
+        }
       },
       "windowNames": {
         "title": "Etkin penceredeki adlar",

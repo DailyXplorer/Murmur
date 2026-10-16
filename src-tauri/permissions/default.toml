@@ -35,6 +35,8 @@ permissions = [
   "allow-change-append-trailing-space-setting",
   "allow-change-lazy-stream-close-setting",
   "allow-change-ai-cleanup-setting",
+  "allow-change-cleanup-engine-setting",
+  "allow-get-apple-intelligence-status",
   "allow-change-window-names-setting",
   "allow-change-whisper-mode-setting",
   "allow-change-app-language-setting",

@@ -435,7 +435,26 @@
       "sessionExpired": "세션 만료됨, Codex에서 다시 로그인하세요",
       "aiCleanup": {
         "title": "AI 정리 및 서식",
-        "description": "군말을 없애고, 스스로 정정할 때는 최종 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. ChatGPT 세션을 사용하며, 실패하거나 너무 오래 걸리면 원본 전사본을 붙여 넣습니다."
+        "description": "군더더기 말을 제거하고, 말을 고쳐 말하면 마지막 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. 실패하거나 너무 오래 걸리면 원본 전사본이 붙여넣어집니다."
+      },
+      "cleanupEngine": {
+        "title": "정리 엔진",
+        "description": "Apple Intelligence는 이 Mac에서 실행됩니다. 무료이고 무제한이며 오프라인으로 비공개로 작동합니다. Codex는 ChatGPT 세션을 사용하며 사용 한도가 차감됩니다.",
+        "options": {
+          "apple": "Apple Intelligence (이 Mac에서)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Apple Intelligence를 실행할 수 없으면 로그인되어 있을 때 Codex가 텍스트를 정리하고, 그렇지 않으면 원본 전사본이 붙여넣어집니다.",
+          "available": "이 Mac에서 사용 가능",
+          "deviceNotEligible": "이 Mac에서는 지원되지 않음",
+          "appleIntelligenceNotEnabled": "시스템 설정에서 Apple Intelligence를 켜세요",
+          "modelNotReady": "아직 다운로드 중입니다. 나중에 다시 시도하세요",
+          "unsupportedOs": "macOS 26 이상 필요",
+          "unavailable": "현재 사용할 수 없음",
+          "unsupportedLanguage": "{{language}}에서는 사용할 수 없음"
+        }
       },
       "windowNames": {
         "title": "활성 윈도우의 이름",

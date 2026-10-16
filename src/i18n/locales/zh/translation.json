@@ -435,7 +435,26 @@
       "sessionExpired": "会话已过期，请在 Codex 中重新登录",
       "aiCleanup": {
         "title": "AI 清理与排版",
-        "description": "去除口头禅，自我更正时只保留最终说法，修正标点，并将列表和口述的换行排版好。从不翻译或改写。使用你的 ChatGPT 会话；如果失败或耗时过长，将粘贴原始转录文本。"
+        "description": "删除语气词，在你自我纠正时只保留最终说法，修正标点，并整理列表和口述的换行。绝不翻译或改写。如果失败或耗时过长，将粘贴原始转写文本。"
+      },
+      "cleanupEngine": {
+        "title": "清理引擎",
+        "description": "Apple Intelligence 在这台 Mac 上运行：免费、无限制、离线且私密。Codex 使用你的 ChatGPT 会话，并消耗其使用额度。",
+        "options": {
+          "apple": "Apple Intelligence（在这台 Mac 上）",
+          "codex": "Codex（ChatGPT）"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "当 Apple Intelligence 无法运行时，如果你已登录，将由 Codex 清理文本；否则粘贴原始转写文本。",
+          "available": "已在这台 Mac 上就绪",
+          "deviceNotEligible": "这台 Mac 不支持",
+          "appleIntelligenceNotEnabled": "请在系统设置中打开 Apple Intelligence",
+          "modelNotReady": "仍在下载，请稍后再试",
+          "unsupportedOs": "需要 macOS 26 或更高版本",
+          "unavailable": "暂时不可用",
+          "unsupportedLanguage": "不支持{{language}}"
+        }
       },
       "windowNames": {
         "title": "当前窗口中的名称",

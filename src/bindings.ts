@@ -259,6 +259,17 @@ async changeAiCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async changeCleanupEngineSetting(engine: CleanupEngine) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_engine_setting", { engine }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getAppleIntelligenceStatus() : Promise<AppleIntelligenceStatus> {
+    return await TAURI_INVOKE("get_apple_intelligence_status");
+},
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_window_names_setting", { enabled }) };
@@ -693,9 +704,10 @@ selected_channel?: number | null; clamshell_microphone?: string | null; selected
  */
 reliable_paste?: boolean;
 /**
- * AI cleanup and formatting of each transcript through the Codex session.
+ * AI cleanup and formatting of each transcript, by `cleanup_engine`.
  */
 ai_cleanup_enabled?: boolean;
+cleanup_engine?: CleanupEngine;
 /**
  * Dictionary words learned from corrections; each is also in `custom_words`.
  */
@@ -712,10 +724,20 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Where a dictation was sent, grouped the way the Insights page reports it.
  */
 export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
+export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" |
+/**
+ * The model runs, but not in the selected dictation language.
+ */
+"unsupportedLanguage"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type CategoryUsage = { category: AppCategory; count: number }
+/**
+ * Which model runs AI cleanup. Apple's on-device model is free, offline
+ * and does not spend the user's Codex allowance, so it is the default.
+ */
+export type CleanupEngine = "apple" | "codex"
 /**
  * What happened to a transcript, as kept in history.
  */

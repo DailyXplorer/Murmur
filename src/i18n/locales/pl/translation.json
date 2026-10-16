@@ -435,7 +435,26 @@
       "sessionExpired": "Sesja wygasła, zaloguj się ponownie w Codex",
       "aiCleanup": {
         "title": "Porządkowanie i formatowanie AI",
-        "description": "Usuwa wtrącenia, zostawia tylko ostateczne sformułowanie, gdy się poprawiasz, poprawia interpunkcję i formatuje listy oraz dyktowane nowe wiersze. Nigdy nie tłumaczy ani nie przeredagowuje. Korzysta z Twojej sesji ChatGPT; jeśli się nie uda lub potrwa zbyt długo, wklejana jest surowa transkrypcja."
+        "description": "Usuwa wtrącenia, zostawia tylko ostateczne sformułowanie, gdy się poprawiasz, poprawia interpunkcję i formatuje listy oraz dyktowane podziały wierszy. Nigdy nie tłumaczy ani nie przepisuje. Jeśli się nie uda lub potrwa za długo, wklejana jest surowa transkrypcja."
+      },
+      "cleanupEngine": {
+        "title": "Silnik porządkowania",
+        "description": "Apple Intelligence działa na tym Macu: za darmo, bez limitu, offline i prywatnie. Codex korzysta z sesji ChatGPT i zużywa jej limity.",
+        "options": {
+          "apple": "Apple Intelligence (na tym Macu)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Gdy Apple Intelligence nie może działać, Codex porządkuje tekst, jeśli jesteś zalogowany; w przeciwnym razie wklejana jest surowa transkrypcja.",
+          "available": "Gotowe na tym Macu",
+          "deviceNotEligible": "Nieobsługiwane na tym Macu",
+          "appleIntelligenceNotEnabled": "Włącz Apple Intelligence w Ustawieniach systemowych",
+          "modelNotReady": "Wciąż się pobiera, spróbuj później",
+          "unsupportedOs": "Wymaga macOS 26 lub nowszego",
+          "unavailable": "Obecnie niedostępne",
+          "unsupportedLanguage": "Niedostępne w języku {{language}}"
+        }
       },
       "windowNames": {
         "title": "Nazwy z aktywnego okna",

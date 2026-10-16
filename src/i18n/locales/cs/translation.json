@@ -435,7 +435,26 @@
       "sessionExpired": "Relace vypršela, přihlaste se znovu v Codex",
       "aiCleanup": {
         "title": "Úprava a formátování pomocí AI",
-        "description": "Odstraní vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opraví interpunkci a naformátuje seznamy a nadiktované zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Používá vaši relaci ChatGPT; pokud selže nebo trvá příliš dlouho, vloží se surový přepis."
+        "description": "Odstraňuje vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opravuje interpunkci a formátuje seznamy a nadiktovaná zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Pokud selže nebo trvá příliš dlouho, vloží se surový přepis."
+      },
+      "cleanupEngine": {
+        "title": "Nástroj pro úpravu",
+        "description": "Apple Intelligence běží na tomto Macu: zdarma, bez omezení, offline a soukromě. Codex používá vaši relaci ChatGPT a čerpá její limity.",
+        "options": {
+          "apple": "Apple Intelligence (na tomto Macu)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Když Apple Intelligence nemůže běžet, upraví text Codex, pokud jste přihlášeni; jinak se vloží surový přepis.",
+          "available": "Připraveno na tomto Macu",
+          "deviceNotEligible": "Na tomto Macu není podporováno",
+          "appleIntelligenceNotEnabled": "Zapněte Apple Intelligence v Nastavení systému",
+          "modelNotReady": "Stále se stahuje, zkuste to později",
+          "unsupportedOs": "Vyžaduje macOS 26 nebo novější",
+          "unavailable": "Momentálně nedostupné",
+          "unsupportedLanguage": "Není dostupné v jazyce {{language}}"
+        }
       },
       "windowNames": {
         "title": "Jména z aktivního okna",

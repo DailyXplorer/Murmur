@@ -435,7 +435,26 @@
       "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex",
       "aiCleanup": {
         "title": "Limpieza y formato con IA",
-        "description": "Elimina muletillas, conserva solo tu formulación final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Usa tu sesión de ChatGPT; si falla o tarda demasiado, se pega la transcripción sin procesar."
+        "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Si falla o tarda demasiado, se pega la transcripción sin procesar."
+      },
+      "cleanupEngine": {
+        "title": "Motor de limpieza",
+        "description": "Apple Intelligence funciona en este Mac: gratis, ilimitado, sin conexión y privado. Codex usa tu sesión de ChatGPT y consume sus límites de uso.",
+        "options": {
+          "apple": "Apple Intelligence (en este Mac)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Si Apple Intelligence no puede funcionar, Codex limpia tu texto si has iniciado sesión; si no, se pega la transcripción sin procesar.",
+          "available": "Listo en este Mac",
+          "deviceNotEligible": "No compatible con este Mac",
+          "appleIntelligenceNotEnabled": "Activa Apple Intelligence en Ajustes del Sistema",
+          "modelNotReady": "Aún se está descargando, inténtalo más tarde",
+          "unsupportedOs": "Requiere macOS 26 o posterior",
+          "unavailable": "No disponible en este momento",
+          "unsupportedLanguage": "No disponible en {{language}}"
+        }
       },
       "windowNames": {
         "title": "Nombres de la ventana activa",

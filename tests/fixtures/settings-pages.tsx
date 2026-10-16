@@ -10,7 +10,10 @@ import type {
 
 declare global {
   interface Window {
-    settingsPages: { unhandledCommands: string[] };
+    settingsPages: {
+      unhandledCommands: string[];
+      calls: { command: string; args: unknown }[];
+    };
   }
 }
 
@@ -18,6 +21,7 @@ const params = new URLSearchParams(window.location.search);
 const language = params.get("lang") ?? "en";
 const showOnboarding = params.get("onboarding") === "1";
 const geminiSignedOut = params.get("gemini") === "notSignedIn";
+const appleIntelligence = params.get("apple") ?? "available";
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -34,6 +38,7 @@ const OUTPUTS: AudioDevice[] = [
 
 const SETTINGS: AppSettings = {
   ai_cleanup_enabled: true,
+  cleanup_engine: "apple",
   always_on_microphone: false,
   app_language: language,
   append_trailing_space: false,
@@ -84,7 +89,7 @@ const SETTINGS: AppSettings = {
   recording_retention_period: "preserve_limit",
   reliable_paste: true,
   selected_channel: null,
-  selected_language: "auto",
+  selected_language: params.get("dictation") ?? "auto",
   selected_microphone: "Default",
   selected_output_device: "Default",
   show_tray_icon: true,
@@ -161,8 +166,10 @@ const INSIGHTS: InsightsSummary = {
 };
 
 const RESPONSES: Record<string, unknown> = {
+  change_cleanup_engine_setting: null,
   check_custom_sounds: { start: false, stop: false },
   get_app_dir_path: APP_DATA_DIR,
+  get_apple_intelligence_status: appleIntelligence,
   get_app_settings: SETTINGS,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
@@ -186,10 +193,11 @@ const RESPONSES: Record<string, unknown> = {
   "plugin:updater|check": null,
 };
 
-window.settingsPages = { unhandledCommands: [] };
+window.settingsPages = { unhandledCommands: [], calls: [] };
 
 mockIPC(
-  (command) => {
+  (command, args) => {
+    window.settingsPages.calls.push({ command, args });
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
       window.settingsPages.unhandledCommands.push(command);

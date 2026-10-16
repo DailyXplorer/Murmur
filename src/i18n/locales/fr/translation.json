@@ -435,7 +435,26 @@
       "sessionExpired": "Session expirée, reconnectez-vous dans Codex",
       "aiCleanup": {
         "title": "Nettoyage et mise en forme par IA",
-        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. Utilise votre session ChatGPT ; en cas d’échec ou de lenteur, la transcription brute est collée."
+        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. En cas d’échec ou de lenteur, la transcription brute est collée."
+      },
+      "cleanupEngine": {
+        "title": "Moteur de nettoyage",
+        "description": "Apple Intelligence fonctionne sur ce Mac : gratuit, illimité, hors ligne et privé. Codex utilise votre session ChatGPT et consomme ses limites d’utilisation.",
+        "options": {
+          "apple": "Apple Intelligence (sur ce Mac)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Si Apple Intelligence ne peut pas fonctionner, Codex nettoie votre texte si vous êtes connecté ; sinon, la transcription brute est collée.",
+          "available": "Prêt sur ce Mac",
+          "deviceNotEligible": "Non pris en charge sur ce Mac",
+          "appleIntelligenceNotEnabled": "Activez Apple Intelligence dans Réglages Système",
+          "modelNotReady": "Téléchargement en cours, réessayez plus tard",
+          "unsupportedOs": "Nécessite macOS 26 ou version ultérieure",
+          "unavailable": "Indisponible pour le moment",
+          "unsupportedLanguage": "Non disponible en {{language}}"
+        }
       },
       "windowNames": {
         "title": "Noms de la fenêtre active",

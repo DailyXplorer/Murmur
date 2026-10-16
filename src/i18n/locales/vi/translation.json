@@ -435,7 +435,26 @@
       "sessionExpired": "Phiên đã hết hạn, hãy đăng nhập lại trong Codex",
       "aiCleanup": {
         "title": "Dọn dẹp và định dạng bằng AI",
-        "description": "Loại bỏ từ đệm, chỉ giữ cách nói cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Dùng phiên ChatGPT của bạn; nếu thất bại hoặc mất quá lâu, bản chép thô sẽ được dán."
+        "description": "Xóa từ đệm, chỉ giữ cách diễn đạt cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Nếu thất bại hoặc mất quá nhiều thời gian, bản chép lời gốc sẽ được dán."
+      },
+      "cleanupEngine": {
+        "title": "Công cụ dọn dẹp",
+        "description": "Apple Intelligence chạy trên máy Mac này: miễn phí, không giới hạn, ngoại tuyến và riêng tư. Codex dùng phiên ChatGPT của bạn và tính vào giới hạn sử dụng của phiên đó.",
+        "options": {
+          "apple": "Apple Intelligence (trên máy Mac này)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Khi Apple Intelligence không thể chạy, Codex sẽ dọn dẹp văn bản nếu bạn đã đăng nhập; nếu không, bản chép lời gốc sẽ được dán.",
+          "available": "Sẵn sàng trên máy Mac này",
+          "deviceNotEligible": "Không được hỗ trợ trên máy Mac này",
+          "appleIntelligenceNotEnabled": "Bật Apple Intelligence trong Cài đặt hệ thống",
+          "modelNotReady": "Vẫn đang tải xuống, hãy thử lại sau",
+          "unsupportedOs": "Yêu cầu macOS 26 trở lên",
+          "unavailable": "Hiện không khả dụng",
+          "unsupportedLanguage": "Không khả dụng bằng {{language}}"
+        }
       },
       "windowNames": {
         "title": "Tên từ cửa sổ đang hoạt động",

@@ -435,7 +435,26 @@
       "sessionExpired": "Sessionen er udløbet, log ind igen i Codex",
       "aiCleanup": {
         "title": "AI-oprydning og formatering",
-        "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Oversætter eller omskriver aldrig. Bruger din ChatGPT-session; hvis det fejler eller tager for lang tid, indsættes den rå transskription."
+        "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Den oversætter eller omskriver aldrig. Hvis den fejler eller tager for lang tid, indsættes den rå transskription."
+      },
+      "cleanupEngine": {
+        "title": "Oprydningsmotor",
+        "description": "Apple Intelligence kører på denne Mac: gratis, ubegrænset, offline og privat. Codex bruger din ChatGPT-session og tæller med i dens forbrugsgrænser.",
+        "options": {
+          "apple": "Apple Intelligence (på denne Mac)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "Når Apple Intelligence ikke kan køre, rydder Codex op i teksten, hvis du er logget ind; ellers indsættes den rå transskription.",
+          "available": "Klar på denne Mac",
+          "deviceNotEligible": "Understøttes ikke på denne Mac",
+          "appleIntelligenceNotEnabled": "Slå Apple Intelligence til i Systemindstillinger",
+          "modelNotReady": "Hentes stadig, prøv igen senere",
+          "unsupportedOs": "Kræver macOS 26 eller nyere",
+          "unavailable": "Ikke tilgængelig lige nu",
+          "unsupportedLanguage": "Ikke tilgængelig på {{language}}"
+        }
       },
       "windowNames": {
         "title": "Navne fra det aktive vindue",
