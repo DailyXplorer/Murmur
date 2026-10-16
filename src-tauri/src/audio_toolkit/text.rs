@@ -146,13 +146,62 @@ struct SpanMatch<'a> {
     start: usize,
     len: usize,
     replacement: &'a String,
+    /// A possessive or plural ending of the last word, kept after the
+    /// replacement: the "'s" of "ChatGPT's", the "s" of "iPhones".
+    ending: &'a str,
     score: f64,
 }
 
+/// The closest custom-word key for a span whose edge words both belong to
+/// the match.
+fn match_span<'k>(
+    span: &[&str],
+    custom_word_match_keys: &'k [CustomWordMatchKey],
+    threshold: f64,
+) -> Option<(&'k CustomWordMatchKey, f64)> {
+    let (key, score) = find_best_match(&build_ngram(span), custom_word_match_keys, threshold)?;
+    // An edge word that matches no part of the custom word, or does not
+    // bring the span closer to it, is an ordinary word the span would
+    // swallow: "my" in "my I phone" for iPhone, "is" in "CHARGE B is" for
+    // ChargeBee, "app" in "chat app" for ChatGPT.
+    let len = span.len();
+    if len > 1 {
+        let (first, last) = (build_match_key(span[0]), build_match_key(span[len - 1]));
+        let without_first = match_score(&build_ngram(&span[1..]), &key.key);
+        let without_last = match_score(&build_ngram(&span[..len - 1]), &key.key);
+        if best_part_score(&first, &key.key) >= threshold
+            || best_part_score(&last, &key.key) >= threshold
+            || without_first <= score
+            || without_last <= score
+        {
+            return None;
+        }
+    }
+    Some((key, score))
+}
+
+const ENDINGS: [&str; 4] = ["'s", "’s", "es", "s"];
+
+/// Each ending `word` carries, with the word cut before it. The cut word
+/// keeps its trailing punctuation and must still end in a letter or digit.
+fn endings(word: &str) -> impl Iterator<Item = (String, &str)> {
+    let (_, punctuation) = extract_punctuation(word);
+    let body = &word[..word.len() - punctuation.len()];
+    ENDINGS.into_iter().filter_map(move |ending| {
+        let cut = body.len().checked_sub(ending.len())?;
+        let (stem, found) = (body.get(..cut)?, body.get(cut..)?);
+        (found.eq_ignore_ascii_case(ending) && stem.ends_with(char::is_alphanumeric))
+            .then(|| (format!("{stem}{punctuation}"), found))
+    })
+}
+
 /// Every span of up to [`MAX_SPAN_WORDS`] words that matches a custom word and
-/// whose edge words both belong to the match.
+/// whose edge words both belong to the match. A possessive ending is set
+/// aside before matching whenever that brings the span closer. A plural
+/// ending only when the whole span already matched, so "dans" never
+/// becomes a plural of the name "Dan".
 fn candidate_spans<'a>(
-    words: &[&str],
+    words: &[&'a str],
     custom_words: &'a [String],
     custom_word_match_keys: &[CustomWordMatchKey],
     threshold: f64,
@@ -169,33 +218,30 @@ fn candidate_spans<'a>(
             {
                 continue;
             }
-            let Some((key, score)) =
-                find_best_match(&build_ngram(span), custom_word_match_keys, threshold)
-            else {
-                continue;
-            };
-            // An edge word that matches no part of the custom word, or does
-            // not bring the span closer to it, is an ordinary word the span
-            // would swallow: "my" in "my I phone" for iPhone, "is" in
-            // "CHARGE B is" for ChargeBee, "app" in "chat app" for ChatGPT.
-            if len > 1 {
-                let (first, last) = (build_match_key(span[0]), build_match_key(span[len - 1]));
-                let without_first = match_score(&build_ngram(&span[1..]), &key.key);
-                let without_last = match_score(&build_ngram(&span[..len - 1]), &key.key);
-                if best_part_score(&first, &key.key) >= threshold
-                    || best_part_score(&last, &key.key) >= threshold
-                    || without_first <= score
-                    || without_last <= score
-                {
+            let whole = match_span(span, custom_word_match_keys, threshold);
+            let mut best = whole.map(|(key, score)| (key, score, ""));
+            for (stem, ending) in endings(span[len - 1]) {
+                if whole.is_none() && !ending.starts_with(['\'', '’']) {
                     continue;
                 }
+                let mut stemmed = span.to_vec();
+                stemmed[len - 1] = &stem;
+                if let Some((key, score)) = match_span(&stemmed, custom_word_match_keys, threshold)
+                {
+                    if best.is_none_or(|(_, best_score, _)| score < best_score) {
+                        best = Some((key, score, ending));
+                    }
+                }
             }
-            spans.push(SpanMatch {
-                start,
-                len,
-                replacement: &custom_words[key.word_index],
-                score,
-            });
+            if let Some((key, score, ending)) = best {
+                spans.push(SpanMatch {
+                    start,
+                    len,
+                    replacement: &custom_words[key.word_index],
+                    ending,
+                    score,
+                });
+            }
         }
     }
     spans
@@ -276,7 +322,7 @@ pub fn apply_custom_words_counted(
         let (prefix, _) = extract_punctuation(span_words[0]);
         let (_, suffix) = extract_punctuation(span_words[span.len - 1]);
         let corrected = preserve_case_pattern(&original, span.replacement);
-        let replaced = format!("{}{}{}", prefix, corrected, suffix);
+        let replaced = format!("{prefix}{corrected}{}{suffix}", span.ending);
         if replaced != original {
             replacements += 1;
         }
@@ -502,6 +548,30 @@ mod tests {
             assert_eq!(
                 apply_custom_words(input, &custom_words, 0.5),
                 *expected,
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn possessives_and_plurals_of_a_custom_word_keep_their_ending() {
+        let words: Vec<String> = ["ChatGPT", "iPhone", "Figma", "Dan"]
+            .iter()
+            .map(|w| w.to_string())
+            .collect();
+        let cases = [
+            ("ChatGPT's answer", "ChatGPT's answer", 0),
+            ("ChatGPT’s answer", "ChatGPT’s answer", 0),
+            ("both iPhones died", "both iPhones died", 0),
+            ("two Figmas.", "two Figmas.", 0),
+            ("ask chat gpt's view", "ask ChatGPT's view", 1),
+            ("my I phones", "my iPhones", 1),
+            ("je vais dans le bureau", "je vais dans le bureau", 0),
+        ];
+        for (input, expected, fixes) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &words, 0.18),
+                (expected.to_string(), fixes),
                 "input: {input}"
             );
         }
