@@ -1,6 +1,24 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const LOUD = Array(16).fill(0.9);
+
+const localesDir = fileURLToPath(
+  new URL("../src/i18n/locales/", import.meta.url),
+);
+const errorStringsByLocale = readdirSync(localesDir).map((locale) => {
+  const { tray } = JSON.parse(
+    readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
+  ) as { tray: Record<string, string> };
+  const messages = Object.entries(tray)
+    .filter(([key]) => key.startsWith("error"))
+    .map(([, text]) => text.replace("{{shortcut}}", "⌥ Space"));
+  return { locale, messages };
+});
+
+// ERROR_OVERLAY_WIDTH × ERROR_OVERLAY_HEIGHT in src-tauri/src/overlay.rs.
+const ERROR_WINDOW = { width: 312, height: 100 };
 
 async function openOverlay(page: Page, { holdSettings = false } = {}) {
   await page.addInitScript((hold) => {
@@ -162,6 +180,32 @@ test("an error replaces the waveform with the message", async ({ page }) => {
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator(".ov-wave")).toHaveCount(0);
 });
+
+for (const { locale, messages } of errorStringsByLocale) {
+  test(`every ${locale} error message fits the error window unclipped`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(ERROR_WINDOW);
+    await openOverlay(page);
+    await page.evaluate(() => document.fonts.ready);
+
+    for (const message of messages) {
+      await dispatch(page, "show-overlay-error", message);
+      const alert = page.getByRole("alert");
+      await expect(alert).toHaveText(message);
+
+      const fit = await alert.evaluate((capsule) => {
+        const text = capsule.querySelector("span")!;
+        const box = capsule.getBoundingClientRect();
+        return {
+          clipped: text.scrollHeight > text.clientHeight,
+          insideWindow: box.top >= 0 && box.bottom <= window.innerHeight,
+        };
+      });
+      expect(fit, message).toEqual({ clipped: false, insideWindow: true });
+    }
+  });
+}
 
 test("reduced motion shows static bars that ignore the voice", async ({
   page,
