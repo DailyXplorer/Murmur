@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Correcties",
-      "description": "Woorden die je hebt gecorrigeerd nadat Murmur had geplakt, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
+      "description": "Verkeerd verstane namen die je hebt gecorrigeerd nadat Murmur had geplakt, één keer geteld per woord dat Murmur heeft geleerd, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
       "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
       "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
     },

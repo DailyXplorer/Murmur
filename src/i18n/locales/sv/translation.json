@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Rättelser",
-      "description": "Ord som du rättade efter att Murmur klistrat in, plus ord som din egen ordlista ersatte automatiskt.",
+      "description": "Felhörda namn som du rättade efter att Murmur klistrat in, räknade en gång per ord som Murmur lärde sig, plus ord som din egen ordlista ersatte automatiskt.",
       "wordsCorrected": "Rättade ord: {{value}}",
       "dictionaryFixes": "Ordlisterättelser: {{value}}"
     },

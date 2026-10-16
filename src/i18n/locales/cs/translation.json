@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Opravy",
-      "description": "Slova, která jste opravili po vložení textu Murmurem, plus slova, která váš vlastní slovník automaticky nahradil.",
+      "description": "Špatně rozpoznaná jména, která jste opravili po vložení textu Murmurem, počítaná jednou za každé slovo, které se Murmur naučil, plus slova, která váš vlastní slovník automaticky nahradil.",
       "wordsCorrected": "Opravená slova: {{value}}",
       "dictionaryFixes": "Opravy slovníkem: {{value}}"
     },

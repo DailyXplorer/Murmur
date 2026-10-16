@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "修正",
-      "description": "Murmur が貼り付けた後にあなたが修正した単語と、カスタム辞書が自動的に置き換えた単語の合計です。",
+      "description": "Murmur が貼り付けた後にあなたが修正した聞き間違いの名前（Murmur が覚えた単語ごとに 1 回）と、カスタム辞書が自動的に置き換えた単語の合計です。",
       "wordsCorrected": "修正した単語: {{value}}",
       "dictionaryFixes": "辞書による修正: {{value}}"
     },

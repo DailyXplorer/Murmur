@@ -1097,6 +1097,20 @@ mod tests {
     }
 
     #[test]
+    fn a_stored_caps_lock_shortcut_is_reset_to_its_default() {
+        let mut stored = default_settings_json();
+        stored["bindings"]["transcribe"]["current_binding"] = serde_json::json!("capslock");
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert!(updated);
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "option+space"
+        );
+    }
+
+    #[test]
     fn valid_store_without_obsolete_fields_does_not_require_rewrite() {
         let (_, updated) = parse_stored_settings(&default_settings_json());
         assert!(!updated);

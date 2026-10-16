@@ -55,7 +55,7 @@
     },
     "fixes": {
       "title": "Düzeltmeler",
-      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz kelimeler ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
+      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz yanlış duyulmuş adlar (Murmur'un öğrendiği her kelime için bir kez sayılır) ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
       "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
       "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
     },

@@ -1,6 +1,7 @@
-//! The user's dictionary. Every word lives in `custom_words`, which
-//! transcription already applies; `learned_words` marks the ones Murmur
-//! learned from a correction and remembers how they were misheard.
+//! The user's dictionary. Every word lives in `custom_words` and is sent to
+//! cleanup as vocabulary. The words the user typed in also replace their
+//! fuzzy matches in the transcript. `learned_words` marks the ones Murmur
+//! learned from a correction: those are hints only and never rewrite text.
 
 mod learn;
 mod observer;
@@ -11,8 +12,7 @@ use crate::audio_toolkit::apply_custom_words_counted;
 use crate::insights::InsightsManager;
 use crate::settings::{self, MAX_CUSTOM_WORDS};
 use learn::Correction;
-use log::{debug, error, info};
-use regex::Regex;
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
@@ -39,13 +39,11 @@ pub fn prune_learned(learned: &mut Vec<LearnedWord>, custom_words: &[String]) ->
     learned.len() != before
 }
 
-/// Applies the dictionary to a transcript. Words the user typed in are
-/// fuzzy matched as before. A learned word is replaced only where its exact
-/// misheard form appears: fuzzy matching it would turn "cloud" into "Claude"
-/// from a single correction, so otherwise it is only a vocabulary hint for
-/// cleanup. Also returns how many replacements were made, for the Insights
-/// "dictionary fixes" count: each replaced span counts once, since a word
-/// a learned entry replaced is not matched again against the typed words.
+/// Applies the words the user typed into the dictionary to a transcript,
+/// fuzzy matched. Learned words are left out: like Wispr Flow's learned
+/// names and VoiceInk's vocabulary, they are only hints for cleanup, so a
+/// learned "Claude" never turns a spoken "cloud" into a name. Also returns
+/// how many replacements were made, for the Insights "dictionary fixes".
 pub fn correct(
     text: &str,
     custom_words: &[String],
@@ -57,40 +55,11 @@ pub fn correct(
         .filter(|word| !learned.iter().any(|entry| &entry.word == *word))
         .cloned()
         .collect();
-    let (heard, learned_fixes) = apply_heard_as(text, learned);
-    let (corrected, typed_fixes) = apply_custom_words_counted(&heard, &typed, threshold);
-    (corrected, learned_fixes + typed_fixes)
+    apply_custom_words_counted(text, &typed, threshold)
 }
 
-/// Replaces each learned mishearing with its word, whole words only and
-/// ignoring case. Entries whose misheard form is also said on purpose, such
-/// as an everyday word or a near-identical ordinary name, stay hints only;
-/// this also covers entries stored before those rules existed. Returns the
-/// text and the number of replacements.
-fn apply_heard_as(text: &str, learned: &[LearnedWord]) -> (String, u32) {
-    let safe = learned
-        .iter()
-        .filter(|entry| learn::replaces_safely(&entry.heard_as, &entry.word));
-    safe.fold((text.to_string(), 0), |(text, fixes), entry| {
-        let pattern = format!(r"(?i)\b{}\b", regex::escape(entry.heard_as.trim()));
-        let Ok(heard) = Regex::new(&pattern) else {
-            return (text, fixes);
-        };
-        let found = heard
-            .find_iter(&text)
-            .filter(|found| found.as_str() != entry.word)
-            .count() as u32;
-        if found == 0 {
-            return (text, fixes);
-        }
-        let replaced = heard
-            .replace_all(&text, regex::NoExpand(&entry.word))
-            .into_owned();
-        (replaced, fixes + found)
-    })
-}
-
-/// Adds learned words to the dictionary and tells the settings UI.
+/// Adds learned words to the dictionary, tells the settings UI, and counts
+/// each new word once in Insights as a word the user corrected.
 fn remember(app: &AppHandle, corrections: Vec<Correction>) {
     let mut value = settings::get_settings(app);
     let mut added = 0;
@@ -117,16 +86,10 @@ fn remember(app: &AppHandle, corrections: Vec<Correction>) {
         "settings-changed",
         serde_json::json!({"setting": "custom_words"}),
     );
-}
-
-/// Records in Insights that the user edited a pasted dictation, once per
-/// dictation, with the number of words changed. Runs on the watcher thread.
-fn corrections_observed(app: &AppHandle, words_corrected: u32) {
-    debug!("User corrected {words_corrected} pasted word(s)");
     let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
         return;
     };
-    if let Err(e) = insights.record_correction(words_corrected) {
+    if let Err(e) = insights.record_correction(added) {
         error!("Failed to record corrected words in insights: {e}");
     }
 }
@@ -143,92 +106,43 @@ mod tests {
     }
 
     #[test]
-    fn heard_as_is_replaced_as_whole_words_in_any_case() {
+    fn a_learned_word_never_rewrites_the_transcript() {
+        let words = vec!["Claude".to_string(), "Q4".to_string(), "Smyth".to_string()];
         let entries = [
             learned("Claude", "clawd"),
-            learned("Kubernetes", "cooper netties"),
+            learned("Q4", "Q3"),
+            learned("Smyth", "Smith"),
         ];
         assert_eq!(
-            apply_heard_as("Clawd runs on Cooper Netties, not clawdia", &entries),
-            ("Claude runs on Kubernetes, not clawdia".to_string(), 2)
-        );
-    }
-
-    #[test]
-    fn a_stored_common_word_mishearing_is_never_replaced() {
-        let entries = [learned("Claude", "cloud"), learned("Sarah's", "Sarah")];
-        assert_eq!(
-            apply_heard_as("cloud storage for Sarah", &entries),
-            ("cloud storage for Sarah".to_string(), 0)
-        );
-    }
-
-    #[test]
-    fn a_learned_word_is_not_fuzzy_matched_onto_ordinary_words() {
-        let words = vec!["Claude".to_string(), "ChatGPT".to_string()];
-        let entries = [learned("Claude", "clawd")];
-        assert_eq!(
-            correct("ask clawd about cloud storage", &words, &entries, 0.18),
-            ("ask Claude about cloud storage".to_string(), 1)
-        );
-        assert_eq!(
-            correct("open chat gpt", &words, &entries, 0.18),
-            ("open ChatGPT".to_string(), 1)
-        );
-    }
-
-    #[test]
-    fn a_near_identical_ordinary_name_stays_a_vocabulary_hint() {
-        let words = vec!["Smyth".to_string()];
-        let entries = [learned("Smyth", "Smith")];
-        assert_eq!(
-            correct("call Smith about the Smith account", &words, &entries, 0.18),
-            ("call Smith about the Smith account".to_string(), 0)
-        );
-        assert_eq!(
-            apply_heard_as("Clawd says hi", &[learned("Claude", "Clawd")]),
-            ("Claude says hi".to_string(), 1)
-        );
-    }
-
-    #[test]
-    fn a_joined_pair_of_common_words_is_replaced_as_a_sequence() {
-        let entries = [learned("OpenAI", "open ai")];
-        assert_eq!(
-            apply_heard_as("ask open ai, then open the AI panel", &entries),
-            ("ask OpenAI, then open the AI panel".to_string(), 1)
-        );
-    }
-
-    #[test]
-    fn a_misheard_pair_with_an_everyday_word_keeps_that_word() {
-        let entries = [learned("GPT-4", "gpt for")];
-        assert_eq!(
-            apply_heard_as("I use GPT for everything", &entries),
-            ("I use GPT for everything".to_string(), 0)
-        );
-    }
-
-    #[test]
-    fn replacement_text_is_literal() {
-        assert_eq!(
-            apply_heard_as("pay dolar wun", &[learned("$1", "dolar wun")]),
-            ("pay $1".to_string(), 1)
-        );
-    }
-
-    #[test]
-    fn each_dictionary_fix_counts_once() {
-        let words = vec!["Claude".to_string(), "ChargeBee".to_string()];
-        let entries = [learned("Claude", "clawd")];
-        assert_eq!(
             correct(
-                "clawd and Clawd use Charge B, not Claude",
+                "ask clawd about cloud storage, Q3 numbers and Smith",
                 &words,
                 &entries,
                 0.18
             ),
-            ("Claude and Claude use ChargeBee, not Claude".to_string(), 3)
+            (
+                "ask clawd about cloud storage, Q3 numbers and Smith".to_string(),
+                0
+            )
+        );
+    }
+
+    #[test]
+    fn words_the_user_typed_still_replace_their_matches() {
+        let words = vec![
+            "Claude".to_string(),
+            "ChatGPT".to_string(),
+            "ChargeBee".to_string(),
+        ];
+        let entries = [learned("Claude", "clawd")];
+        assert_eq!(
+            correct(
+                "open chat gpt and Charge B with clawd",
+                &words,
+                &entries,
+                0.18
+            ),
+            ("open ChatGPT and ChargeBee with clawd".to_string(), 2)
         );
     }
 
