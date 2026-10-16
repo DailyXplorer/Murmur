@@ -56,7 +56,7 @@ const RecordingOverlay: React.FC = () => {
       }
     };
 
-    void listen("show-overlay", async (event) => {
+    void listen("show-overlay", (event) => {
       const overlayState = event.payload as OverlayState;
       if (overlayState === "recording") {
         setCaptureReady(false);
@@ -66,8 +66,12 @@ const RecordingOverlay: React.FC = () => {
         smoothedLevelsRef.current = Array(16).fill(0);
         setLevels(Array(WAVE_BARS).fill(0));
       }
+      // Applied before any await: an error or hide that arrives while the
+      // settings load must not be overwritten by this older show.
+      setState(overlayState);
+      setIsVisible(true);
 
-      await syncLanguageFromSettings();
+      void syncLanguageFromSettings();
       void commands
         .getAppSettings()
         .then((settings) => {
@@ -80,8 +84,6 @@ const RecordingOverlay: React.FC = () => {
           }
         })
         .catch(() => undefined);
-      setState(overlayState);
-      setIsVisible(true);
     }).then(storeUnlistener, () => undefined);
 
     // The backend localizes the message, so it matches the notification
