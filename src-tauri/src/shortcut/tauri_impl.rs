@@ -5,6 +5,7 @@
 
 use log::{debug, error, warn};
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::AppHandle;
@@ -468,6 +469,22 @@ pub fn validate_shortcut(raw: &str) -> Result<(), String> {
     }
 }
 
+/// The other binding whose keys are the same shortcut as `raw`. Shortcuts are
+/// compared parsed, so spellings such as "esc" and "escape" collide. While
+/// the user edits a shortcut every other one is suspended, so registration
+/// alone cannot catch this.
+pub fn conflicting_binding<'a>(
+    bindings: &'a HashMap<String, ShortcutBinding>,
+    id: &str,
+    raw: &str,
+) -> Option<&'a ShortcutBinding> {
+    let shortcut = raw.parse::<Shortcut>().ok()?;
+    bindings.iter().find_map(|(other_id, other)| {
+        (other_id != id && other.current_binding.parse::<Shortcut>().ok() == Some(shortcut))
+            .then_some(other)
+    })
+}
+
 /// Register a shortcut using Tauri's global-shortcut plugin
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     // Validate for Tauri requirements
@@ -612,9 +629,10 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_cancel_shortcut_lifecycle_operation, register_tracked_cancel_binding,
-        replace_active_cancel_shortcut, CancelShortcutLifecycleOperation,
-        CancelShortcutPersistence, CancelShortcutRegistry, CancelShortcutSettingsState,
+        apply_cancel_shortcut_lifecycle_operation, conflicting_binding,
+        register_tracked_cancel_binding, replace_active_cancel_shortcut,
+        CancelShortcutLifecycleOperation, CancelShortcutPersistence, CancelShortcutRegistry,
+        CancelShortcutSettingsState,
     };
     use crate::settings::ShortcutBinding;
     use std::cell::RefCell;
@@ -788,6 +806,22 @@ mod tests {
             .iter()
             .map(|binding| binding.current_binding.as_str())
             .collect()
+    }
+
+    #[test]
+    fn a_shortcut_already_bound_to_another_action_is_a_conflict() {
+        let bindings = std::collections::HashMap::from([
+            ("transcribe".to_string(), transcribe_binding("option+space")),
+            ("cancel".to_string(), cancel_binding("escape")),
+        ]);
+
+        let conflict = |id: &str, raw: &str| {
+            conflicting_binding(&bindings, id, raw).map(|other| other.id.as_str())
+        };
+        assert_eq!(conflict("transcribe", "esc"), Some("cancel"));
+        assert_eq!(conflict("cancel", "alt+space"), Some("transcribe"));
+        assert_eq!(conflict("transcribe", "option+space"), None);
+        assert_eq!(conflict("cancel", "ctrl+space"), None);
     }
 
     #[test]

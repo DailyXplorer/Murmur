@@ -378,9 +378,7 @@ impl ShortcutAction for TranscribeAction {
                     if rm_clone.is_recording_readiness_current(generation) {
                         play_feedback_sound_blocking(&app_clone, SoundType::Start);
                     }
-                    if rm_clone.is_recording_readiness_current(generation) {
-                        rm_clone.apply_mute();
-                    }
+                    rm_clone.apply_mute(generation);
                 });
             }
             Err(e) => {

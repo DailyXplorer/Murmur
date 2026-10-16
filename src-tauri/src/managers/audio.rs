@@ -80,6 +80,36 @@ struct MuteState {
     prev_muted: Option<bool>,
 }
 
+impl MuteState {
+    /// Mutes for a recording that is still `current`. Callers decide
+    /// `current` under the mute lock, so a cancel or stop that invalidated the
+    /// recording and then released the mute cannot be followed by a late mute.
+    fn engage(
+        &mut self,
+        current: bool,
+        read_system: impl FnOnce() -> Option<bool>,
+        mute_system: impl FnOnce(),
+    ) {
+        // A duplicate apply must not re-snapshot our own forced mute as the
+        // user's state, or release would leave audio muted.
+        if !current || self.did_mute {
+            return;
+        }
+        self.prev_muted = read_system();
+        mute_system();
+        self.did_mute = true;
+        debug!("Mute applied (prev_muted={:?})", self.prev_muted);
+    }
+
+    fn release(&mut self, restore_system: impl FnOnce(Option<bool>)) {
+        if self.did_mute {
+            restore_system(self.prev_muted);
+            self.did_mute = false;
+            debug!("Mute removed (restored prev_muted={:?})", self.prev_muted);
+        }
+    }
+}
+
 /// The persisted microphone preference currently in effect. Clamshell and
 /// regular selections are kept distinct so losing a clamshell-only device does
 /// not erase the user's normal microphone preference.
@@ -455,10 +485,11 @@ impl AudioRecordingManager {
 
     /* ---------- microphone life-cycle -------------------------------------- */
 
-    /// Applies mute if mute_while_recording is enabled and stream is open.
-    /// Snapshots the system's prior mute state first so `remove_mute` can
-    /// restore it instead of unconditionally unmuting.
-    pub fn apply_mute(&self) {
+    /// Applies mute if mute_while_recording is enabled, the stream is open and
+    /// the recording that became ready at `readiness_generation` is still
+    /// current. Snapshots the system's prior mute state first so
+    /// `remove_mute` can restore it instead of unconditionally unmuting.
+    pub fn apply_mute(&self, readiness_generation: u64) {
         let settings = get_settings(&self.app_handle);
         if !settings.mute_while_recording {
             return;
@@ -467,32 +498,14 @@ impl AudioRecordingManager {
         // Lock order: is_open before mute_state (matches stop_microphone_stream).
         let is_open = self.is_open.lock().unwrap();
         let mut mute_guard = self.mute_state.lock().unwrap();
-        // Already muted this session — don't re-snapshot, or a duplicate/late
-        // apply would overwrite prev_muted with our own forced-muted state and
-        // strand audio muted on stop.
-        if mute_guard.did_mute {
-            return;
-        }
-        if *is_open {
-            mute_guard.prev_muted = get_mute();
-            set_mute(true);
-            mute_guard.did_mute = true;
-            debug!("Mute applied (prev_muted={:?})", mute_guard.prev_muted);
-        }
+        let current = *is_open && self.is_recording_readiness_current(readiness_generation);
+        mute_guard.engage(current, get_mute, || set_mute(true));
     }
 
     /// Removes mute if it was applied, restoring the system's prior mute state
     /// (a system already muted before recording stays muted).
     pub fn remove_mute(&self) {
-        let mut mute_guard = self.mute_state.lock().unwrap();
-        if mute_guard.did_mute {
-            restore_mute(mute_guard.prev_muted);
-            mute_guard.did_mute = false;
-            debug!(
-                "Mute removed (restored prev_muted={:?})",
-                mute_guard.prev_muted
-            );
-        }
+        self.mute_state.lock().unwrap().release(restore_mute);
     }
 
     pub fn ensure_recorder(&self) -> Result<(), anyhow::Error> {
@@ -552,13 +565,7 @@ impl AudioRecordingManager {
 
             // Torn down inline rather than via stop_microphone_stream(), which
             // takes the `is_open` lock we are already holding.
-            {
-                let mut mute_guard = self.mute_state.lock().unwrap();
-                if mute_guard.did_mute {
-                    restore_mute(mute_guard.prev_muted);
-                    mute_guard.did_mute = false;
-                }
-            }
+            self.mute_state.lock().unwrap().release(restore_mute);
             if let Some(rec) = self.recorder.lock().unwrap().as_mut() {
                 let _ = rec.close();
             }
@@ -575,13 +582,7 @@ impl AudioRecordingManager {
         // The previous stream restored audio on close, so did_mute should already
         // be false here; if it somehow isn't, restore rather than just clearing the
         // flag, which would strand system audio muted.
-        {
-            let mut mute_guard = self.mute_state.lock().unwrap();
-            if mute_guard.did_mute {
-                restore_mute(mute_guard.prev_muted);
-                mute_guard.did_mute = false;
-            }
-        }
+        self.mute_state.lock().unwrap().release(restore_mute);
 
         // Get the selected device from settings, considering clamshell mode.
         // No pre-flight enumeration here: when nothing is configured the
@@ -637,13 +638,7 @@ impl AudioRecordingManager {
             return;
         }
 
-        {
-            let mut mute_guard = self.mute_state.lock().unwrap();
-            if mute_guard.did_mute {
-                restore_mute(mute_guard.prev_muted);
-            }
-            mute_guard.did_mute = false;
-        }
+        self.mute_state.lock().unwrap().release(restore_mute);
 
         if let Some(rec) = self.recorder.lock().unwrap().as_mut() {
             // If still recording, stop first.
@@ -1026,6 +1021,9 @@ impl AudioRecordingManager {
     /// Cancel any ongoing recording without returning audio samples
     pub fn cancel_recording(&self) {
         self.invalidate_recording_readiness();
+        // An always-on or lazily closed stream stays open after a cancel, so
+        // the stream teardown would not restore the user's audio.
+        self.remove_mute();
         self.cancel_generation.fetch_add(1, Ordering::AcqRel);
         let mut state = self.state.lock().unwrap();
 
@@ -1086,6 +1084,45 @@ mod tests {
         // readiness, move B to Stopping, or call Recorder::stop.
         assert!(!can_claim_stop(&newer_recording, "transcribe", 8, 9));
         assert!(can_claim_stop(&newer_recording, "transcribe", 9, 9));
+    }
+
+    #[test]
+    fn a_readiness_thread_cannot_mute_after_cancel_released_the_mute() {
+        let system = RefCell::new(Vec::new());
+        let mut mute = MuteState::default();
+
+        // Cancel invalidated readiness and released before the readiness
+        // thread reached its mute step.
+        mute.release(|prev| system.borrow_mut().push(format!("restore {prev:?}")));
+        mute.engage(
+            false,
+            || Some(false),
+            || system.borrow_mut().push("mute".into()),
+        );
+
+        assert!(system.borrow().is_empty());
+        assert!(!mute.did_mute);
+    }
+
+    #[test]
+    fn release_restores_the_state_captured_by_the_first_engage() {
+        let system = RefCell::new(Vec::new());
+        let mut mute = MuteState::default();
+
+        mute.engage(
+            true,
+            || Some(false),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+        mute.engage(
+            true,
+            || Some(true),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+        mute.release(|prev| system.borrow_mut().push(format!("restore {prev:?}")));
+        mute.release(|prev| system.borrow_mut().push(format!("restore {prev:?}")));
+
+        assert_eq!(*system.borrow(), ["mute", "restore Some(false)"]);
     }
 
     #[test]
