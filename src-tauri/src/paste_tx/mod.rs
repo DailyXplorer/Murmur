@@ -116,6 +116,14 @@ pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     WaitDecision::KeepWaiting
 }
 
+/// Settles a paste still inside its bounded lifetime. The promised data dies
+/// with the process and the saved clipboard lives only in its memory, so
+/// quitting without this leaves the user's copied content lost. Must run on
+/// the main thread.
+pub(crate) fn settle_before_exit() {
+    macos::flush_pending();
+}
+
 /// Attempts the guarded promised-data paste. A `Skipped` result means the
 /// operation won the output boundary but no chord was injected, so callers
 /// must not start a second paste. On `Injected(_)`, settlement finishes

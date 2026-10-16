@@ -383,8 +383,8 @@ fn decide_settlement(still_ours: bool, preserve_transcript: bool) -> ClipboardSe
 }
 
 /// If a previous transaction is still holding the clipboard, settle it before
-/// publishing a new promise.
-fn flush_pending() {
+/// publishing a new promise or before the app exits.
+pub(super) fn flush_pending() {
     let previous = match PENDING.lock() {
         Ok(mut slot) => slot.take(),
         Err(_) => None,
