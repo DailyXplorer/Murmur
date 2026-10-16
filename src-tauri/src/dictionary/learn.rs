@@ -57,11 +57,13 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
     after.strip_prefix(prefix)?.strip_suffix(suffix)
 }
 
-/// Compares what Murmur pasted with what the user left in its place.
+/// Compares what Murmur pasted with what the user left in its place. An
+/// emptied span is not a correction: chat apps clear the field when the
+/// message is sent, and deleting a whole dictation fixes no word in it.
 pub fn review(inserted: &str, edited: &str) -> Review {
     let old: Vec<&str> = inserted.split_whitespace().collect();
     let new: Vec<&str> = edited.split_whitespace().collect();
-    if old.is_empty() || old.len() > MAX_WORDS || new.len() > MAX_WORDS {
+    if old.is_empty() || new.is_empty() || old.len() > MAX_WORDS || new.len() > MAX_WORDS {
         return Review::default();
     }
 
@@ -432,6 +434,14 @@ mod tests {
         );
         assert!(review.words_corrected >= 4);
         assert!(review.learned.is_empty());
+    }
+
+    #[test]
+    fn a_sent_chat_message_corrects_no_words() {
+        let inserted = "see you at five";
+        let edited = edited_span(inserted, inserted, "").unwrap();
+        assert_eq!(review(inserted, edited), Review::default());
+        assert_eq!(review("ok", "  "), Review::default());
     }
 
     #[test]
