@@ -195,6 +195,14 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     };
   }, []);
 
+  // A microphone denied before launch has no Grant button to start the poll,
+  // so watch for the user granting it in System Settings.
+  useEffect(() => {
+    if (permissions.microphone === "denied") {
+      startPolling();
+    }
+  }, [permissions.microphone, startPolling]);
+
   const handleGrantAccessibility = async () => {
     if (isRepairingAccessibility) return;
 
