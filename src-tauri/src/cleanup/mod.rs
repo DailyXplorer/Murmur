@@ -20,6 +20,7 @@ use log::{info, warn};
 use responses::{CompletionError, Request};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::future::Future;
 use std::time::{Duration, Instant};
 
 const BASE_DEADLINE: Duration = Duration::from_millis(2_500);
@@ -102,15 +103,17 @@ pub fn select_engine(
     }
 }
 
-pub fn apple_intelligence_status() -> AppleIntelligenceStatus {
-    apple::status()
+/// Whether Apple's model can clean dictations in `language` ("auto" when
+/// the language is not known in advance).
+pub fn apple_intelligence_status(language: &str) -> AppleIntelligenceStatus {
+    apple::status(language)
 }
 
-/// The engine to clean the next dictation with, whichever provider
-/// transcribed it.
-pub fn engine_for(chosen: CleanupEngine) -> Option<Engine> {
+/// The engine to clean the next dictation in `language` with, whichever
+/// provider transcribed it.
+pub fn engine_for(chosen: CleanupEngine, language: &str) -> Option<Engine> {
     let apple = match chosen {
-        CleanupEngine::Apple => apple::status(),
+        CleanupEngine::Apple => apple::status(language),
         CleanupEngine::Codex => AppleIntelligenceStatus::Unavailable,
     };
     let engine = select_engine(chosen, apple, codex_auth::auth_status().signed_in);
@@ -135,16 +138,57 @@ pub async fn clean(
         return ProcessedText::unprocessed(raw);
     }
     let started = Instant::now();
-    let deadline = deadline_for(raw.chars().count());
-    let result = match engine {
+    let deadline = tokio::time::Instant::now() + deadline_for(raw.chars().count());
+    let (engine, result) = match engine {
         Engine::Apple => {
-            tokio::time::timeout(deadline, clean_with_apple(&raw, context, operation)).await
+            apple_then_codex(
+                clean_with_apple(&raw, context, operation),
+                || clean_with_codex(&raw, context, operation),
+                || codex_auth::auth_status().signed_in,
+                deadline,
+            )
+            .await
         }
-        Engine::Codex => {
-            tokio::time::timeout(deadline, clean_with_codex(&raw, context, operation)).await
-        }
+        Engine::Codex => (
+            Engine::Codex,
+            tokio::time::timeout_at(deadline, clean_with_codex(&raw, context, operation)).await,
+        ),
     };
     finish(engine, raw, result, started.elapsed())
+}
+
+type Attempt = Result<Result<String, CompletionError>, tokio::time::error::Elapsed>;
+
+/// Apple first. When Apple could not clean this dictation at all, Codex gets
+/// one try in the time left, if a session is signed in.
+async fn apple_then_codex<C>(
+    apple: impl Future<Output = Result<String, CompletionError>>,
+    codex: impl FnOnce() -> C,
+    codex_signed_in: impl FnOnce() -> bool,
+    deadline: tokio::time::Instant,
+) -> (Engine, Attempt)
+where
+    C: Future<Output = Result<String, CompletionError>>,
+{
+    let result = tokio::time::timeout_at(deadline, apple).await;
+    let error = match &result {
+        Ok(Err(CompletionError::Apple(error))) if error.codex_can_retry() => *error,
+        _ => return (Engine::Apple, result),
+    };
+    if tokio::time::Instant::now() >= deadline {
+        warn!(
+            "Apple Intelligence could not clean this dictation ({error:?}); no time left for Codex"
+        );
+    } else if !codex_signed_in() {
+        warn!("Apple Intelligence could not clean this dictation ({error:?}); no Codex session");
+    } else {
+        warn!("Apple Intelligence could not clean this dictation ({error:?}); retrying with Codex");
+        return (
+            Engine::Codex,
+            tokio::time::timeout_at(deadline, codex()).await,
+        );
+    }
+    (Engine::Apple, result)
 }
 
 async fn clean_with_apple(
@@ -233,12 +277,7 @@ fn accept(raw: &str, output: &str, context: &PromptContext) -> Result<String, Co
 }
 
 /// Logs sizes and timing only; the text itself is private.
-fn finish(
-    engine: Engine,
-    raw: String,
-    result: Result<Result<String, CompletionError>, tokio::time::error::Elapsed>,
-    elapsed: Duration,
-) -> ProcessedText {
+fn finish(engine: Engine, raw: String, result: Attempt, elapsed: Duration) -> ProcessedText {
     match result {
         Ok(Ok(text)) => {
             info!(
@@ -358,6 +397,13 @@ mod tests {
                 true,
                 Some(Engine::Codex),
             ),
+            (
+                CleanupEngine::Apple,
+                UnsupportedLanguage,
+                true,
+                Some(Engine::Codex),
+            ),
+            (CleanupEngine::Apple, UnsupportedLanguage, false, None),
             (CleanupEngine::Apple, DeviceNotEligible, false, None),
             (CleanupEngine::Apple, UnsupportedOs, false, None),
             (CleanupEngine::Codex, Available, true, Some(Engine::Codex)),
@@ -380,6 +426,8 @@ mod tests {
             AppleError::Timeout,
             AppleError::Refused,
             AppleError::Unavailable,
+            AppleError::UnsupportedLanguage,
+            AppleError::RateLimited,
             AppleError::Other,
         ] {
             assert_eq!(
@@ -390,6 +438,77 @@ mod tests {
                     Duration::from_millis(5),
                 ),
                 ProcessedText::fallback("hello there".to_string()),
+                "{error:?}"
+            );
+        }
+    }
+
+    /// Runs a failed Apple attempt through the Codex retry, with a Codex that
+    /// always cleans. Returns what is pasted and whether Codex ran.
+    fn after_apple_fails(
+        error: AppleError,
+        codex_signed_in: bool,
+        time_left: Duration,
+    ) -> (ProcessedText, bool) {
+        let codex_ran = std::cell::Cell::new(false);
+        let (engine, result) = tauri::async_runtime::block_on(apple_then_codex(
+            async move { Err(error.into()) },
+            || {
+                codex_ran.set(true);
+                async { Ok("Hello there.".to_string()) }
+            },
+            || codex_signed_in,
+            tokio::time::Instant::now() + time_left,
+        ));
+        let processed = finish(
+            engine,
+            "hello there".to_string(),
+            result,
+            Duration::from_millis(5),
+        );
+        (processed, codex_ran.get())
+    }
+
+    #[test]
+    fn codex_cleans_once_when_apple_cannot_and_a_session_and_time_remain() {
+        let cleaned = ProcessedText {
+            text: "Hello there.".to_string(),
+            raw: "hello there".to_string(),
+            cleanup: Some(CleanupOutcome::Cleaned),
+        };
+        let raw = ProcessedText::fallback("hello there".to_string());
+        let time = Duration::from_secs(2);
+        for error in [
+            AppleError::UnsupportedLanguage,
+            AppleError::RateLimited,
+            AppleError::Unavailable,
+        ] {
+            assert_eq!(
+                after_apple_fails(error, true, time),
+                (cleaned.clone(), true),
+                "{error:?}"
+            );
+            assert_eq!(
+                after_apple_fails(error, false, time),
+                (raw.clone(), false),
+                "{error:?} without a Codex session"
+            );
+            assert_eq!(
+                after_apple_fails(error, true, Duration::ZERO),
+                (raw.clone(), false),
+                "{error:?} with no time left"
+            );
+        }
+        for error in [
+            AppleError::Guardrail,
+            AppleError::ContextTooLong,
+            AppleError::Timeout,
+            AppleError::Refused,
+            AppleError::Other,
+        ] {
+            assert_eq!(
+                after_apple_fails(error, true, time),
+                (raw.clone(), false),
                 "{error:?}"
             );
         }
@@ -501,7 +620,7 @@ mod tests {
     #[test]
     #[ignore]
     fn live_apple_model_cleans_the_corpus() {
-        assert_eq!(apple::status(), AppleIntelligenceStatus::Available);
+        assert_eq!(apple::status("auto"), AppleIntelligenceStatus::Available);
         // (dictation, is a question or request that must not be answered)
         let dictations = [
             ("um so the meeting is at 2 pm uh actually 3 pm and then new paragraph can you send me the notes", true),

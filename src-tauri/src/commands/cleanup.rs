@@ -23,8 +23,12 @@ pub fn change_cleanup_engine_setting(app: AppHandle, engine: CleanupEngine) -> R
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_apple_intelligence_status() -> AppleIntelligenceStatus {
-    crate::cleanup::apple_intelligence_status()
+pub fn get_apple_intelligence_status(app: AppHandle) -> AppleIntelligenceStatus {
+    let settings = settings::get_settings(&app);
+    crate::cleanup::apple_intelligence_status(crate::actions::cleanup_language(
+        settings.transcription_provider,
+        &settings.selected_language,
+    ))
 }
 
 #[tauri::command]

@@ -238,6 +238,11 @@ fn output_language_for_provider(
     (provider == TranscriptionProvider::Codex).then_some(selected_language)
 }
 
+/// The language dictations are cleaned in, or "auto" when it is not known.
+pub(crate) fn cleanup_language(provider: TranscriptionProvider, selected_language: &str) -> &str {
+    output_language_for_provider(provider, selected_language).unwrap_or("auto")
+}
+
 /// Converts the Chinese variant, then runs AI cleanup when it is on and a
 /// Codex session exists, whichever provider transcribed. `names` come from
 /// the window the user dictated into.
@@ -267,7 +272,10 @@ pub(crate) async fn process_transcription_output(
     if !settings.ai_cleanup_enabled {
         return ProcessedText::unprocessed(final_text);
     }
-    let Some(engine) = crate::cleanup::engine_for(settings.cleanup_engine) else {
+    let Some(engine) = crate::cleanup::engine_for(
+        settings.cleanup_engine,
+        cleanup_language(provider, &settings.selected_language),
+    ) else {
         return ProcessedText::unprocessed(final_text);
     };
     // The setting may have been turned off while the user was dictating.

@@ -24,6 +24,8 @@ private let timedOut: Int32 = 3
 private let refused: Int32 = 4
 private let notAvailable: Int32 = 5
 private let failed: Int32 = 6
+private let unsupportedLanguage: Int32 = 7
+private let rateLimited: Int32 = 8
 
 public typealias MurmurAppleCallback =
     @convention(c) (UnsafeMutableRawPointer?, Int32, UnsafePointer<CChar>?) -> Void
@@ -59,6 +61,19 @@ public func murmurAppleAvailability() -> Int32 {
     #endif
     let macOS26 = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
     return ProcessInfo.processInfo.isOperatingSystemAtLeast(macOS26) ? unavailable : unsupportedOS
+}
+
+/// Whether the model works in `language`, a code such as "fr" or "zh-Hans".
+/// `supportsLocale` also counts the model's language fallbacks.
+@_cdecl("murmur_apple_supports_language")
+public func murmurAppleSupportsLanguage(_ language: UnsafePointer<CChar>) -> Bool {
+    #if canImport(FoundationModels)
+    if #available(macOS 26.0, *) {
+        let locale = Locale(identifier: String(cString: language))
+        return SystemLanguageModel.default.supportsLocale(locale)
+    }
+    #endif
+    return false
 }
 
 /// Runs one fresh session and calls `callback` once, from a background task,
@@ -106,6 +121,8 @@ private func status(of error: Error) -> Int32 {
     case "timeout": return timedOut
     case "refusal": return refused
     case "assetsUnavailable": return notAvailable
+    case "unsupportedLanguageOrLocale": return unsupportedLanguage
+    case "rateLimited": return rateLimited
     default: return failed
     }
 }

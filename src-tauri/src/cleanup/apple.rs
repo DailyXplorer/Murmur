@@ -22,6 +22,8 @@ pub enum AppleIntelligenceStatus {
     ModelNotReady,
     UnsupportedOs,
     Unavailable,
+    /// The model runs, but not in the selected dictation language.
+    UnsupportedLanguage,
 }
 
 impl AppleIntelligenceStatus {
@@ -47,6 +49,10 @@ pub enum AppleError {
     Timeout,
     Refused,
     Unavailable,
+    /// The model does not work in the dictation's language.
+    UnsupportedLanguage,
+    /// The system budget for apps calling the model in the background ran out.
+    RateLimited,
     Other,
 }
 
@@ -58,8 +64,19 @@ impl AppleError {
             3 => Self::Timeout,
             4 => Self::Refused,
             5 => Self::Unavailable,
+            7 => Self::UnsupportedLanguage,
+            8 => Self::RateLimited,
             _ => Self::Other,
         }
+    }
+
+    /// Whether Apple could not clean this dictation at all, as opposed to
+    /// judging it unsafe or too long, so Codex is worth a try.
+    pub fn codex_can_retry(self) -> bool {
+        matches!(
+            self,
+            Self::Unavailable | Self::UnsupportedLanguage | Self::RateLimited
+        )
     }
 }
 
@@ -78,18 +95,47 @@ mod bridge {
             context: *mut c_void,
             callback: Callback,
         );
+        pub fn murmur_apple_supports_language(language: *const c_char) -> bool;
     }
 }
 
-pub fn status() -> AppleIntelligenceStatus {
+/// Whether the model can run, and in `language` when it is not "auto".
+pub fn status(language: &str) -> AppleIntelligenceStatus {
     #[cfg(target_arch = "aarch64")]
     {
         // SAFETY: takes no arguments and only reads the model's availability.
-        AppleIntelligenceStatus::from_code(unsafe { bridge::murmur_apple_availability() })
+        let status =
+            AppleIntelligenceStatus::from_code(unsafe { bridge::murmur_apple_availability() });
+        in_language(status, language, supports_language)
     }
     #[cfg(not(target_arch = "aarch64"))]
     {
+        let _ = language;
         AppleIntelligenceStatus::DeviceNotEligible
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+fn supports_language(language: &str) -> bool {
+    let Ok(language) = CString::new(language) else {
+        return false;
+    };
+    // SAFETY: the string outlives the call, which only reads it.
+    unsafe { bridge::murmur_apple_supports_language(language.as_ptr()) }
+}
+
+/// An available model is unavailable for a dictation language it does not
+/// support. "auto" can be any language, so it is not checked.
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+fn in_language(
+    status: AppleIntelligenceStatus,
+    language: &str,
+    supports: impl FnOnce(&str) -> bool,
+) -> AppleIntelligenceStatus {
+    if status == AppleIntelligenceStatus::Available && language != "auto" && !supports(language) {
+        AppleIntelligenceStatus::UnsupportedLanguage
+    } else {
+        status
     }
 }
 
@@ -228,7 +274,33 @@ mod tests {
         );
         assert_eq!(AppleError::from_code(1), AppleError::Guardrail);
         assert_eq!(AppleError::from_code(2), AppleError::ContextTooLong);
+        assert_eq!(AppleError::from_code(6), AppleError::Other);
+        assert_eq!(AppleError::from_code(7), AppleError::UnsupportedLanguage);
+        assert_eq!(AppleError::from_code(8), AppleError::RateLimited);
         assert_eq!(AppleError::from_code(99), AppleError::Other);
+    }
+
+    #[test]
+    fn a_dictation_language_the_model_lacks_makes_it_unavailable() {
+        use AppleIntelligenceStatus::*;
+        let only_french = |language: &str| language == "fr";
+        assert_eq!(in_language(Available, "fr", only_french), Available);
+        assert_eq!(
+            in_language(Available, "ru", only_french),
+            UnsupportedLanguage
+        );
+        assert_eq!(
+            in_language(Available, "auto", |_| panic!("auto is not checked")),
+            Available
+        );
+        assert_eq!(
+            in_language(AppleIntelligenceNotEnabled, "ru", only_french),
+            AppleIntelligenceNotEnabled
+        );
+        assert_eq!(
+            serde_json::to_value(UnsupportedLanguage).unwrap(),
+            "unsupportedLanguage"
+        );
     }
 
     #[test]
