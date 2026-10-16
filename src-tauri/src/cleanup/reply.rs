@@ -22,8 +22,25 @@ const NEW_SHARE: u32 = 10;
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
 /// A reply under this many tenths of the dictation drops what was said: a
-/// summary, or an answer ("No.", "4.").
+/// summary, or an answer ("No.", "4."). Fillers and a false start the
+/// prompt asks to remove are not counted in the dictation.
 const MIN_KEPT_TENTHS: u32 = 3;
+/// Whole-word hesitations the prompt asks to remove, in its languages.
+const FILLERS: [&str; 17] = [
+    "um", "umm", "uh", "uhm", "hmm", "hm", "mm", "er", "erm", "euh", "heu", "äh", "ähm", "öh",
+    "ehm", "eh", "ah",
+];
+/// Cues after which the speaker starts over, so the words before them are
+/// abandoned. Only unambiguous ones: "actually" and "sorry" are often meant.
+const RESTART_CUES: [&[&str]; 7] = [
+    &["scratch", "that"],
+    &["no", "wait"],
+    &["i", "mean"],
+    &["non", "attends"],
+    &["je", "veux", "dire"],
+    &["nein", "warte"],
+    &["no", "espera"],
+];
 
 /// Rejects a reply that is not a plausible cleanup of `dictation`: empty,
 /// wrapped in our tags, far longer or shorter than the input, or adding
@@ -52,7 +69,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
-    if reply_weight * 10 < weight(&spoken) * MIN_KEPT_TENTHS {
+    if reply_weight * 10 < weight(&units(&final_wording(dictation))) * MIN_KEPT_TENTHS {
         return false;
     }
     let terms: Vec<Vec<char>> = context
@@ -73,6 +90,34 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     added <= NEW_SLACK + reply_weight / NEW_SHARE
         && head_added <= EDGE_SLACK
         && tail_added <= EDGE_SLACK
+}
+
+/// The words a correct cleanup keeps at least: those after the last restart
+/// cue, without fillers.
+fn final_wording(dictation: &str) -> String {
+    let words: Vec<String> = dictation
+        .split_whitespace()
+        .map(|word| {
+            word.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .collect();
+    let restart = RESTART_CUES
+        .iter()
+        .filter_map(|cue| {
+            words
+                .windows(cue.len())
+                .rposition(|window| window.iter().map(String::as_str).eq(cue.iter().copied()))
+                .map(|at| at + cue.len())
+        })
+        .max()
+        .unwrap_or(0);
+    words[restart..]
+        .iter()
+        .filter(|word| !FILLERS.contains(&word.as_str()))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -343,6 +388,20 @@ mod tests {
                 "I'll send it on Tuesday.",
                 Accept,
             ),
+            (
+                "en",
+                "um send the invoice to marc no wait scratch that I'll do it myself",
+                "I'll do it myself.",
+                Accept,
+            ),
+            ("en", "um, uh, hmm, no", "No.", Accept),
+            ("de", "ähm, ähm, ja", "Ja.", Accept),
+            (
+                "fr",
+                "euh envoie la facture à marc non attends je m'en occupe",
+                "Je m'en occupe.",
+                Accept,
+            ),
             // French edits.
             (
                 "fr",
@@ -462,6 +521,12 @@ mod tests {
                 Reject,
             ),
             ("en", "is it raining", "No.", Reject),
+            (
+                "en",
+                "um is it raining no wait is it snowing",
+                "No.",
+                Reject,
+            ),
             ("en", "what is two plus two", "4.", Reject),
             (
                 "en",
