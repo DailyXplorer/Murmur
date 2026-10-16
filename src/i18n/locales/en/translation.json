@@ -435,7 +435,25 @@
       "sessionExpired": "Session expired, sign in again in Codex",
       "aiCleanup": {
         "title": "AI Cleanup and Formatting",
-        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. Uses your ChatGPT session; if it fails or takes too long, the raw transcript is pasted."
+        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted."
+      },
+      "cleanupEngine": {
+        "title": "Cleanup Engine",
+        "description": "Apple Intelligence runs on this Mac: free, unlimited, offline and private. Codex uses your ChatGPT session and counts against its usage limits.",
+        "options": {
+          "apple": "Apple Intelligence (on this Mac)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "When Apple Intelligence can't run, Codex cleans your text if you're signed in; otherwise the raw transcript is pasted.",
+          "available": "Ready on this Mac",
+          "deviceNotEligible": "Not supported on this Mac",
+          "appleIntelligenceNotEnabled": "Turn on Apple Intelligence in System Settings",
+          "modelNotReady": "Still downloading, try again later",
+          "unsupportedOs": "Requires macOS 26 or later",
+          "unavailable": "Unavailable right now"
+        }
       },
       "windowNames": {
         "title": "Names From the Active Window",

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  CleanupEngine,
   Result,
   TranscriptionProvider,
 } from "@/bindings";
@@ -284,6 +285,8 @@ const settingUpdaters: {
   overlay_style: (value) => commands.changeOverlayStyleSetting(value as string),
   ai_cleanup_enabled: (value) =>
     commands.changeAiCleanupSetting(value as boolean),
+  cleanup_engine: (value) =>
+    commands.changeCleanupEngineSetting(value as CleanupEngine),
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),

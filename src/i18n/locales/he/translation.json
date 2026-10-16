@@ -435,7 +435,25 @@
       "sessionExpired": "פג תוקף ההתחברות, התחבר מחדש ב-Codex",
       "aiCleanup": {
         "title": "ניקוי ועיצוב בבינה מלאכותית",
-        "description": "מסיר מילות מילוי, שומר רק את הניסוח הסופי כשאתם מתקנים את עצמכם, מתקן פיסוק ומעצב רשימות ושורות חדשות שהוכתבו. לעולם אינו מתרגם או משכתב. משתמש בסשן ה-ChatGPT שלכם; אם הוא נכשל או לוקח יותר מדי זמן, התמלול הגולמי מודבק."
+        "description": "מסיר מילות מילוי, משאיר רק את הניסוח הסופי כשאתם מתקנים את עצמכם, מתקן פיסוק ומעצב רשימות ומעברי שורה מוכתבים. לעולם אינו מתרגם או משכתב. אם הוא נכשל או לוקח יותר מדי זמן, התמלול הגולמי מודבק."
+      },
+      "cleanupEngine": {
+        "title": "מנוע ניקוי",
+        "description": "Apple Intelligence פועל ב-Mac הזה: חינמי, ללא הגבלה, לא מקוון ופרטי. Codex משתמש בסשן ה-ChatGPT שלכם ונספר במגבלות השימוש שלו.",
+        "options": {
+          "apple": "Apple Intelligence (ב-Mac הזה)",
+          "codex": "Codex (ChatGPT)"
+        },
+        "status": {
+          "title": "Apple Intelligence",
+          "description": "כש-Apple Intelligence לא יכול לפעול, Codex מנקה את הטקסט אם אתם מחוברים; אחרת התמלול הגולמי מודבק.",
+          "available": "מוכן ב-Mac הזה",
+          "deviceNotEligible": "לא נתמך ב-Mac הזה",
+          "appleIntelligenceNotEnabled": "הפעילו את Apple Intelligence בהגדרות המערכת",
+          "modelNotReady": "עדיין בהורדה, נסו שוב מאוחר יותר",
+          "unsupportedOs": "דורש macOS 26 ואילך",
+          "unavailable": "לא זמין כרגע"
+        }
       },
       "windowNames": {
         "title": "שמות מהחלון הפעיל",
