@@ -267,9 +267,14 @@ pub(crate) async fn process_transcription_output(
     if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
         return ProcessedText::unprocessed(final_text);
     }
+    // The setting may have been turned off while the user was dictating.
     let context = PromptContext {
         vocabulary: settings.custom_words.clone(),
-        names,
+        names: if settings.window_names_enabled {
+            names
+        } else {
+            Vec::new()
+        },
         language: output_language_for_provider(provider, &settings.selected_language)
             .filter(|language| *language != "auto")
             .map(str::to_string),
@@ -336,9 +341,9 @@ impl ShortcutAction for TranscribeAction {
                     recording_start_time.elapsed()
                 );
                 crate::dictionary::stop_observing();
-                if settings.window_names_enabled && settings.ai_cleanup_enabled {
-                    crate::window_names::capture();
-                }
+                crate::window_names::capture(
+                    settings.window_names_enabled && settings.ai_cleanup_enabled,
+                );
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);

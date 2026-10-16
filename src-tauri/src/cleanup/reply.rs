@@ -8,6 +8,10 @@ use super::PromptContext;
 /// Stands for any run of spaces and punctuation. It weighs nothing, but a
 /// letter next to it in both texts is anchored at a word edge.
 const GAP: char = ' ';
+/// Stands for an apostrophe. It weighs nothing and is dropped before the
+/// texts are aligned ("don't" matches "dont"), but it marks a word edge
+/// while terms are blanked: "d'OpenAI", "dell'iPhone", "OpenAI's".
+const APOSTROPHE: char = '\'';
 /// A cleanup may add this many weight units anywhere ("too", "know",
 /// digits), plus one unit in `NEW_SHARE`.
 const NEW_SLACK: u32 = 2;
@@ -45,7 +49,7 @@ pub fn max_output_chars(input_chars: usize) -> usize {
 }
 
 fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
-    let spoken = units(dictation);
+    let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
     if reply_weight * 10 < weight(&spoken) * MIN_KEPT_TENTHS {
@@ -57,7 +61,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_terms(reply, &terms);
+    let reply = without_apostrophes(without_terms(reply, &terms));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -72,14 +76,13 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
 }
 
 /// Lowercase letters and digits with every run of other characters folded
-/// into one `GAP`, framed by gaps. Apostrophes vanish ("don't" -> "dont").
+/// into one `GAP`, framed by gaps. Each apostrophe becomes an `APOSTROPHE`.
 fn units(text: &str) -> Vec<char> {
     let mut units = vec![GAP];
     for c in text.chars().flat_map(char::to_lowercase) {
         if matches!(c, '\'' | '’') {
-            continue;
-        }
-        if c.is_alphanumeric() || is_thai(c) || ('\u{300}'..='\u{36f}').contains(&c) {
+            units.push(APOSTROPHE);
+        } else if c.is_alphanumeric() || is_thai(c) || ('\u{300}'..='\u{36f}').contains(&c) {
             units.push(c);
         } else if units.last() != Some(&GAP) {
             units.push(GAP);
@@ -88,6 +91,12 @@ fn units(text: &str) -> Vec<char> {
     if units.last() != Some(&GAP) {
         units.push(GAP);
     }
+    units
+}
+
+/// Apostrophes vanish from the aligned texts ("don't" -> "dont").
+fn without_apostrophes(mut units: Vec<char>) -> Vec<char> {
+    units.retain(|&c| c != APOSTROPHE);
     units
 }
 
@@ -101,7 +110,7 @@ fn is_thai(c: char) -> bool {
 /// about two letters.
 fn unit_weight(c: char) -> u32 {
     match c {
-        GAP => 0,
+        GAP | APOSTROPHE => 0,
         '\u{3400}'..='\u{4dbf}' | '\u{4e00}'..='\u{9fff}' | '\u{f900}'..='\u{faff}' => 3,
         '\u{20000}'..='\u{3134f}' => 3,
         '\u{3040}'..='\u{30ff}' | '\u{ac00}'..='\u{d7af}' => 2,
@@ -114,8 +123,13 @@ fn weight(units: &[char]) -> u32 {
 }
 
 /// Turns the vocabulary and window names found in the reply into gaps: the
-/// reply may spell them even though the speaker said something else.
+/// reply may spell them even though the speaker said something else. A term
+/// written with spaces between words counts only as whole words, or before
+/// a plural or possessive "s": "ai" is not blanked out of "said", but
+/// "figma" is out of "Figmas". An apostrophe is a word edge, so "openai" is
+/// blanked out of "d'OpenAI" and "OpenAI's".
 fn without_terms(mut reply: Vec<char>, terms: &[Vec<char>]) -> Vec<char> {
+    let spaced = |c: char| unit_weight(c) == 1 && !is_thai(c);
     for term in terms {
         let term = term.get(1..term.len() - 1).unwrap_or_default();
         if weight(term) < 2 || term.len() > reply.len() {
@@ -123,7 +137,16 @@ fn without_terms(mut reply: Vec<char>, terms: &[Vec<char>]) -> Vec<char> {
         }
         let mut start = 0;
         while start + term.len() <= reply.len() {
-            if reply[start..start + term.len()] == *term {
+            let end = start + term.len();
+            let edge = |inside: char, index: Option<usize>| {
+                index
+                    .and_then(|i| reply.get(i))
+                    .is_none_or(|&outside| outside == GAP || !spaced(inside) || !spaced(outside))
+            };
+            let ending_s = reply.get(end) == Some(&'s') && edge('s', Some(end + 1));
+            let whole = edge(term[0], start.checked_sub(1))
+                && (edge(term[term.len() - 1], Some(end)) || ending_s);
+            if whole && reply[start..end] == *term {
                 reply[start..start + term.len()].fill(GAP);
                 start += term.len();
             } else {
@@ -609,6 +632,84 @@ mod tests {
             ..PromptContext::default()
         };
         assert!(accept_output(dictation, reply, &context).is_some());
+    }
+
+    #[test]
+    fn a_short_term_inside_longer_words_is_not_blanked() {
+        let vocabulary = PromptContext {
+            vocabulary: vec!["AI".into()],
+            ..PromptContext::default()
+        };
+        assert_eq!(
+            accept_output(
+                "um she said she would wait",
+                "She said she would wait.",
+                &vocabulary
+            ),
+            Some("She said she would wait.".to_string())
+        );
+        let names = PromptContext {
+            names: vec!["Al".into()],
+            ..PromptContext::default()
+        };
+        assert_eq!(
+            accept_output(
+                "uh call me when you talk to all of them",
+                "Call me when you talk to all of them.",
+                &names
+            ),
+            Some("Call me when you talk to all of them.".to_string())
+        );
+        let figma = PromptContext {
+            vocabulary: vec!["Figma".into()],
+            ..PromptContext::default()
+        };
+        assert_eq!(
+            accept_output("check the fig ma's file", "Check the Figma's file.", &figma),
+            Some("Check the Figma's file.".to_string())
+        );
+    }
+
+    #[test]
+    fn an_apostrophe_is_a_word_edge_for_terms() {
+        let context = |terms: &[&str]| PromptContext {
+            vocabulary: terms.iter().map(|term| term.to_string()).collect(),
+            ..PromptContext::default()
+        };
+        let accepts = |dictation: &str, reply: &str, terms: &[&str]| {
+            accept_output(dictation, reply, &context(terms)) == Some(reply.to_string())
+        };
+        let brands = ["Anthropic", "OpenAI"];
+        let french = "euh les modèles d'entropique et d'open aï";
+        let straight = "Les modèles d'Anthropic et d'OpenAI.";
+        let curly = "Les modèles d’Anthropic et d’OpenAI.";
+        assert!(!accepts(french, straight, &[]));
+        assert!(accepts(french, straight, &brands));
+        assert!(accepts(french, curly, &brands));
+        let iphone = ["iPhone"];
+        let elided = "euh c'est l'aïe phone de Dan";
+        assert!(accepts(elided, "C'est l'iPhone de Dan.", &iphone));
+        assert!(accepts(elided, "C’est l’iPhone de Dan.", &iphone));
+        assert!(accepts(
+            "ehm la batteria dell'ai fon è scarica",
+            "La batteria dell'iPhone è scarica.",
+            &iphone
+        ));
+        assert!(accepts(
+            "um open a eyes model is fast",
+            "OpenAI's model is fast.",
+            &["OpenAI"]
+        ));
+        assert!(accepts(
+            "um open a eyes model is fast",
+            "OpenAI’s model is fast.",
+            &["OpenAI"]
+        ));
+        assert!(accepts(
+            "uh I think clod'll handle it",
+            "I think Claude'll handle it.",
+            &["Claude"]
+        ));
     }
 
     #[test]

@@ -58,8 +58,9 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
 }
 
 /// Compares what Murmur pasted with what the user left in its place. An
-/// emptied span is not a correction: chat apps clear the field when the
-/// message is sent, and deleting a whole dictation fixes no word in it.
+/// emptied or mostly replaced span is not a correction: chat apps clear the
+/// field when the message is sent, the next message then takes its place,
+/// and deleting or rewriting a whole dictation fixes no word in it.
 pub fn review(inserted: &str, edited: &str) -> Review {
     let old: Vec<&str> = inserted.split_whitespace().collect();
     let new: Vec<&str> = edited.split_whitespace().collect();
@@ -72,13 +73,13 @@ pub fn review(inserted: &str, edited: &str) -> Review {
         .filter(|hunk| !is_cosmetic(&old[hunk.old.clone()], &new[hunk.new.clone()]))
         .collect();
     let words_corrected: usize = hunks.iter().map(|hunk| hunk.old.len()).sum();
+    if words_corrected as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
+        return Review::default();
+    }
     let mut review = Review {
         words_corrected: words_corrected as u32,
         learned: Vec::new(),
     };
-    if words_corrected as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
-        return review;
-    }
 
     for hunk in hunks {
         let replaced = &old[hunk.old.clone()];
@@ -97,6 +98,7 @@ pub fn review(inserted: &str, edited: &str) -> Review {
             && !said_on_purpose(&heard_as, word)
             && sounds_alike(&heard_as, word)
             && !only_inflected(&heard_as, word)
+            && !only_extended(&heard_as, word)
             && !kept_elsewhere(&heard_as, &new)
             && !review.learned.iter().any(|known| known.word == word)
         {
@@ -250,10 +252,22 @@ fn said_on_purpose(heard_as: &str, word: &str) -> bool {
 /// Whether `heard_as` may be rewritten into `word` wherever it appears.
 /// Swapping one ordinary name for a near-identical one ("Smith" -> "Smyth")
 /// is right for one person and wrong for every other, so such a word stays
-/// a vocabulary hint for cleanup. A misheard form that is no real word
-/// ("Clawd" -> "Claude") is replaced.
+/// a vocabulary hint for cleanup. So does a misheard pair that holds an
+/// everyday word and does not spell the word: the "for" of "gpt for" ->
+/// "GPT-4" is usually the real preposition. A misheard form that is no
+/// real word ("Clawd" -> "Claude") is replaced.
 pub fn replaces_safely(heard_as: &str, word: &str) -> bool {
-    !said_on_purpose(heard_as, word) && !is_name_variant(heard_as.trim(), word.trim())
+    !said_on_purpose(heard_as, word)
+        && !holds_an_everyday_word(heard_as, word)
+        && !is_name_variant(heard_as.trim(), word.trim())
+        && !only_extended(heard_as.trim(), word.trim())
+}
+
+fn holds_an_everyday_word(heard_as: &str, word: &str) -> bool {
+    let words: Vec<&str> = heard_as.split_whitespace().collect();
+    words.len() > 1
+        && letters(heard_as) != letters(word)
+        && words.iter().any(|word| is_common_word(word))
 }
 
 fn is_name_variant(heard: &str, word: &str) -> bool {
@@ -287,6 +301,15 @@ fn only_inflected(heard: &str, word: &str) -> bool {
         (word, heard)
     };
     short != long && long.starts_with(&short) && long.chars().count() - short.chars().count() <= 2
+}
+
+/// "Google" -> "google.com" or "Sarah" -> "sarah@example.com" adds to a word
+/// the user said rightly; rewriting it everywhere would turn every later
+/// "Google" into the address.
+fn only_extended(heard: &str, word: &str) -> bool {
+    word.to_lowercase()
+        .strip_prefix(&heard.to_lowercase())
+        .is_some_and(|rest| rest.starts_with(|c: char| !c.is_alphanumeric()))
 }
 
 /// A misheard form the user left untouched elsewhere in the text is one
@@ -428,12 +451,13 @@ mod tests {
 
     #[test]
     fn a_rewritten_sentence_teaches_nothing() {
-        let review = review(
-            "the quarterly numbers look good for Marta",
-            "Revenue grew a lot this quarter, Martha",
+        assert_eq!(
+            review(
+                "the quarterly numbers look good for Marta",
+                "Revenue grew a lot this quarter, Martha",
+            ),
+            Review::default()
         );
-        assert!(review.words_corrected >= 4);
-        assert!(review.learned.is_empty());
     }
 
     #[test]
@@ -442,6 +466,24 @@ mod tests {
         let edited = edited_span(inserted, inserted, "").unwrap();
         assert_eq!(review(inserted, edited), Review::default());
         assert_eq!(review("ok", "  "), Review::default());
+        let next_message = edited_span(inserted, inserted, "ok thanks").unwrap();
+        assert_eq!(review(inserted, next_message), Review::default());
+    }
+
+    #[test]
+    fn a_word_extended_into_a_domain_or_address_is_not_learned() {
+        assert!(learned("search it on Google", "search it on google.com").is_empty());
+        assert!(learned("pay with Stripe today", "pay with stripe.com today").is_empty());
+        assert!(learned("deploy on Vercel now", "deploy on vercel.app now").is_empty());
+        assert!(!replaces_safely("Google", "google.com"));
+        assert!(replaces_safely("Clawd", "Claude.ai"));
+    }
+
+    #[test]
+    fn a_misheard_pair_with_an_everyday_word_is_a_hint_only() {
+        assert!(!replaces_safely("gpt for", "GPT-4"));
+        assert!(replaces_safely("open ai", "OpenAI"));
+        assert!(replaces_safely("cooper netties", "Kubernetes"));
     }
 
     #[test]
