@@ -47,3 +47,16 @@ test("the open system prompt shows no denied hint until the user denies", async 
     page.getByRole("button", { name: "Open System Settings" }),
   ).toBeVisible();
 });
+
+test("granting a mic denied before launch completes onboarding without a click", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixtures/microphone-denied.html?microphone=2");
+  await expect(page.getByTestId("microphone-denied-fixture")).toBeVisible();
+  await expect(page.getByText(DENIED_HINT)).toBeVisible();
+
+  await page.evaluate(() =>
+    window.microphoneDeniedFixture.setMicrophoneStatus(3),
+  );
+  await expect(page.getByText("All set!")).toBeVisible();
+});
