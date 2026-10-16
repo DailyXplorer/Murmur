@@ -58,8 +58,9 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
 }
 
 /// Compares what Murmur pasted with what the user left in its place. An
-/// emptied span is not a correction: chat apps clear the field when the
-/// message is sent, and deleting a whole dictation fixes no word in it.
+/// emptied or mostly replaced span is not a correction: chat apps clear the
+/// field when the message is sent, the next message then takes its place,
+/// and deleting or rewriting a whole dictation fixes no word in it.
 pub fn review(inserted: &str, edited: &str) -> Review {
     let old: Vec<&str> = inserted.split_whitespace().collect();
     let new: Vec<&str> = edited.split_whitespace().collect();
@@ -72,13 +73,13 @@ pub fn review(inserted: &str, edited: &str) -> Review {
         .filter(|hunk| !is_cosmetic(&old[hunk.old.clone()], &new[hunk.new.clone()]))
         .collect();
     let words_corrected: usize = hunks.iter().map(|hunk| hunk.old.len()).sum();
+    if words_corrected as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
+        return Review::default();
+    }
     let mut review = Review {
         words_corrected: words_corrected as u32,
         learned: Vec::new(),
     };
-    if words_corrected as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
-        return review;
-    }
 
     for hunk in hunks {
         let replaced = &old[hunk.old.clone()];
@@ -428,12 +429,13 @@ mod tests {
 
     #[test]
     fn a_rewritten_sentence_teaches_nothing() {
-        let review = review(
-            "the quarterly numbers look good for Marta",
-            "Revenue grew a lot this quarter, Martha",
+        assert_eq!(
+            review(
+                "the quarterly numbers look good for Marta",
+                "Revenue grew a lot this quarter, Martha",
+            ),
+            Review::default()
         );
-        assert!(review.words_corrected >= 4);
-        assert!(review.learned.is_empty());
     }
 
     #[test]
@@ -442,6 +444,8 @@ mod tests {
         let edited = edited_span(inserted, inserted, "").unwrap();
         assert_eq!(review(inserted, edited), Review::default());
         assert_eq!(review("ok", "  "), Review::default());
+        let next_message = edited_span(inserted, inserted, "ok thanks").unwrap();
+        assert_eq!(review(inserted, next_message), Review::default());
     }
 
     #[test]
