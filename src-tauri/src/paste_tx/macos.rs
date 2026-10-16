@@ -131,18 +131,15 @@ const COSTLY_TYPES: [&str; 5] = [
     "com.adobe.pdf",
     "com.apple.pict",
 ];
-/// TIFF is either the copied image itself or a picture of copied text, as
-/// spreadsheets add. A browser's Copy Image offers TIFF with only the
-/// image's link or `<img>` HTML beside it, so those never stand in for it.
+/// TIFF is either the copied image itself, a picture of copied text, as
+/// spreadsheets add, or a copied file's icon. A browser's Copy Image offers
+/// TIFF with only the image's link or `<img>` HTML beside it, so those never
+/// stand in for it.
 const TIFF_TYPES: [&str; 2] = ["public.tiff", "NSTIFFPboardType"];
 const COMPACT_IMAGE_TYPES: [&str; 3] = ["public.png", "public.jpeg", "public.heic"];
 const TEXT_TYPES: [&str; 3] = ["public.utf8-plain-text", "NSStringPboardType", "public.rtf"];
-const LINK_TYPES: [&str; 4] = [
-    "public.url",
-    "public.file-url",
-    "Apple URL pasteboard type",
-    "NSFilenamesPboardType",
-];
+const FILE_TYPES: [&str; 2] = ["public.file-url", "NSFilenamesPboardType"];
+const WEB_LINK_TYPES: [&str; 2] = ["public.url", "Apple URL pasteboard type"];
 
 fn is_costly_type(data_type: &str) -> bool {
     COSTLY_TYPES.contains(&data_type)
@@ -152,11 +149,11 @@ fn is_costly_type(data_type: &str) -> bool {
 }
 
 /// Whether the item's TIFF is only a rendering: a smaller image format holds
-/// the same picture, or text holds the content and no link says the item is
-/// an image or file.
+/// the same picture, the item is a file and the TIFF only its icon, or text
+/// holds the content and no web link says the item is an image.
 fn tiff_is_a_rendering(types: &[String]) -> bool {
     let has = |list: &[&str]| types.iter().any(|t| list.contains(&t.as_str()));
-    has(&COMPACT_IMAGE_TYPES) || (has(&TEXT_TYPES) && !has(&LINK_TYPES))
+    has(&COMPACT_IMAGE_TYPES) || has(&FILE_TYPES) || (has(&TEXT_TYPES) && !has(&WEB_LINK_TYPES))
 }
 
 /// The types of one item worth saving. Costly types go only when a type that
@@ -828,10 +825,32 @@ mod tests {
         let chrome = types(&["public.tiff", "public.html"]);
         assert_eq!(types_to_capture(chrome.clone()), chrome);
         let file = types(&["public.file-url", "public.tiff", "com.adobe.pdf"]);
-        assert_eq!(
-            types_to_capture(file),
-            types(&["public.file-url", "public.tiff"])
-        );
+        assert_eq!(types_to_capture(file), types(&["public.file-url"]));
+    }
+
+    #[test]
+    fn a_finder_file_copy_drops_each_icon_tiff() {
+        fn types(names: &[&str]) -> Vec<String> {
+            names.iter().map(|name| name.to_string()).collect()
+        }
+
+        // Finder writes one item per copied file: its URL, its name and its icon.
+        let item = types(&[
+            "public.file-url",
+            "NSFilenamesPboardType",
+            "public.utf8-plain-text",
+            "com.apple.icns",
+            "public.tiff",
+            "NSTIFFPboardType",
+        ]);
+        let saved: Vec<Vec<String>> = vec![item; 20].into_iter().map(types_to_capture).collect();
+        let without_icon_tiff = types(&[
+            "public.file-url",
+            "NSFilenamesPboardType",
+            "public.utf8-plain-text",
+            "com.apple.icns",
+        ]);
+        assert_eq!(saved, vec![without_icon_tiff; 20]);
     }
 
     fn release(pasteboard: &NSPasteboard) {
