@@ -8,6 +8,10 @@ use super::PromptContext;
 /// Stands for any run of spaces and punctuation. It weighs nothing, but a
 /// letter next to it in both texts is anchored at a word edge.
 const GAP: char = ' ';
+/// Stands for an apostrophe. It weighs nothing and is dropped before the
+/// texts are aligned ("don't" matches "dont"), but it marks a word edge
+/// while terms are blanked: "d'OpenAI", "dell'iPhone", "OpenAI's".
+const APOSTROPHE: char = '\'';
 /// A cleanup may add this many weight units anywhere ("too", "know",
 /// digits), plus one unit in `NEW_SHARE`.
 const NEW_SLACK: u32 = 2;
@@ -45,7 +49,7 @@ pub fn max_output_chars(input_chars: usize) -> usize {
 }
 
 fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
-    let spoken = units(dictation);
+    let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
     if reply_weight * 10 < weight(&spoken) * MIN_KEPT_TENTHS {
@@ -57,7 +61,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_terms(reply, &terms);
+    let reply = without_apostrophes(without_terms(reply, &terms));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -72,14 +76,13 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
 }
 
 /// Lowercase letters and digits with every run of other characters folded
-/// into one `GAP`, framed by gaps. Apostrophes vanish ("don't" -> "dont").
+/// into one `GAP`, framed by gaps. Each apostrophe becomes an `APOSTROPHE`.
 fn units(text: &str) -> Vec<char> {
     let mut units = vec![GAP];
     for c in text.chars().flat_map(char::to_lowercase) {
         if matches!(c, '\'' | '’') {
-            continue;
-        }
-        if c.is_alphanumeric() || is_thai(c) || ('\u{300}'..='\u{36f}').contains(&c) {
+            units.push(APOSTROPHE);
+        } else if c.is_alphanumeric() || is_thai(c) || ('\u{300}'..='\u{36f}').contains(&c) {
             units.push(c);
         } else if units.last() != Some(&GAP) {
             units.push(GAP);
@@ -88,6 +91,12 @@ fn units(text: &str) -> Vec<char> {
     if units.last() != Some(&GAP) {
         units.push(GAP);
     }
+    units
+}
+
+/// Apostrophes vanish from the aligned texts ("don't" -> "dont").
+fn without_apostrophes(mut units: Vec<char>) -> Vec<char> {
+    units.retain(|&c| c != APOSTROPHE);
     units
 }
 
@@ -101,7 +110,7 @@ fn is_thai(c: char) -> bool {
 /// about two letters.
 fn unit_weight(c: char) -> u32 {
     match c {
-        GAP => 0,
+        GAP | APOSTROPHE => 0,
         '\u{3400}'..='\u{4dbf}' | '\u{4e00}'..='\u{9fff}' | '\u{f900}'..='\u{faff}' => 3,
         '\u{20000}'..='\u{3134f}' => 3,
         '\u{3040}'..='\u{30ff}' | '\u{ac00}'..='\u{d7af}' => 2,
@@ -117,7 +126,8 @@ fn weight(units: &[char]) -> u32 {
 /// reply may spell them even though the speaker said something else. A term
 /// written with spaces between words counts only as whole words, or before
 /// a plural or possessive "s": "ai" is not blanked out of "said", but
-/// "figma" is out of "Figma's".
+/// "figma" is out of "Figmas". An apostrophe is a word edge, so "openai" is
+/// blanked out of "d'OpenAI" and "OpenAI's".
 fn without_terms(mut reply: Vec<char>, terms: &[Vec<char>]) -> Vec<char> {
     let spaced = |c: char| unit_weight(c) == 1 && !is_thai(c);
     for term in terms {
@@ -658,6 +668,48 @@ mod tests {
             accept_output("check the fig ma's file", "Check the Figma's file.", &figma),
             Some("Check the Figma's file.".to_string())
         );
+    }
+
+    #[test]
+    fn an_apostrophe_is_a_word_edge_for_terms() {
+        let context = |terms: &[&str]| PromptContext {
+            vocabulary: terms.iter().map(|term| term.to_string()).collect(),
+            ..PromptContext::default()
+        };
+        let accepts = |dictation: &str, reply: &str, terms: &[&str]| {
+            accept_output(dictation, reply, &context(terms)) == Some(reply.to_string())
+        };
+        let brands = ["Anthropic", "OpenAI"];
+        let french = "euh les modèles d'entropique et d'open aï";
+        let straight = "Les modèles d'Anthropic et d'OpenAI.";
+        let curly = "Les modèles d’Anthropic et d’OpenAI.";
+        assert!(!accepts(french, straight, &[]));
+        assert!(accepts(french, straight, &brands));
+        assert!(accepts(french, curly, &brands));
+        let iphone = ["iPhone"];
+        let elided = "euh c'est l'aïe phone de Dan";
+        assert!(accepts(elided, "C'est l'iPhone de Dan.", &iphone));
+        assert!(accepts(elided, "C’est l’iPhone de Dan.", &iphone));
+        assert!(accepts(
+            "ehm la batteria dell'ai fon è scarica",
+            "La batteria dell'iPhone è scarica.",
+            &iphone
+        ));
+        assert!(accepts(
+            "um open a eyes model is fast",
+            "OpenAI's model is fast.",
+            &["OpenAI"]
+        ));
+        assert!(accepts(
+            "um open a eyes model is fast",
+            "OpenAI’s model is fast.",
+            &["OpenAI"]
+        ));
+        assert!(accepts(
+            "uh I think clod'll handle it",
+            "I think Claude'll handle it.",
+            &["Claude"]
+        ));
     }
 
     #[test]
