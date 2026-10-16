@@ -789,6 +789,7 @@ pub fn run(cli_args: CliArgs) {
                 }
             }
             tauri::RunEvent::Exit => {
+                paste_tx::settle_before_exit();
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
                     manager.shutdown();
                 }
@@ -863,5 +864,22 @@ mod headless_guard_tests {
             "async second(): Promise<Result<null, string>> { error: e as unknown }",
         );
         assert!(normalize_generated_bindings_source(generated).is_err());
+    }
+}
+
+#[cfg(test)]
+mod exit_tests {
+    /// The run-loop closure needs a live AppKit event loop, so this pins the
+    /// call instead: the promised transcript dies with the process, and only
+    /// the exiting process can still put the user's clipboard back.
+    #[test]
+    fn quitting_settles_the_pending_paste() {
+        let source = include_str!("lib.rs");
+        let exit_arm = source
+            .split("tauri::RunEvent::Exit => {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => {}").next())
+            .expect("the run loop handles RunEvent::Exit");
+        assert!(exit_arm.contains("paste_tx::settle_before_exit()"));
     }
 }
