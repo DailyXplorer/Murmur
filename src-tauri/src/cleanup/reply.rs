@@ -22,23 +22,16 @@ const NEW_SHARE: u32 = 10;
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
 /// A reply under this many tenths of the dictation drops what was said: a
-/// summary, or an answer ("No.", "4."). Fillers and a false start the
-/// prompt asks to remove are not counted in the dictation.
+/// summary, or an answer ("No.", "4."). Fillers are not counted in the
+/// dictation. Neither is a restart cue trusted: "no wait" or "scratch that"
+/// can be meant, and an answer to the question before it must not pass. So
+/// a cleanup that drops a long false start can fall under the floor; the
+/// raw transcript is pasted then, and nothing is lost.
 const MIN_KEPT_TENTHS: u32 = 3;
 /// Whole-word hesitations the prompt asks to remove, in its languages.
 const FILLERS: [&str; 17] = [
     "um", "umm", "uh", "uhm", "hmm", "hm", "mm", "er", "erm", "euh", "heu", "äh", "ähm", "öh",
     "ehm", "eh", "ah",
-];
-/// Cues after which the speaker starts over, so the words before them are
-/// abandoned. Only unambiguous ones: "actually", "sorry", "I mean", its
-/// French equivalent "je veux dire" and Spanish "no espera" ("doesn't wait")
-/// are often meant.
-const RESTART_CUES: [&[&str]; 4] = [
-    &["scratch", "that"],
-    &["no", "wait"],
-    &["non", "attends"],
-    &["nein", "warte"],
 ];
 
 /// Rejects a reply that is not a plausible cleanup of `dictation`: empty,
@@ -68,7 +61,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let spoken = without_apostrophes(units(dictation));
     let reply = units(reply);
     let reply_weight = weight(&reply);
-    if reply_weight * 10 < weight(&units(&final_wording(dictation))) * MIN_KEPT_TENTHS {
+    if reply_weight * 10 < weight(&units(&without_fillers(dictation))) * MIN_KEPT_TENTHS {
         return false;
     }
     let terms: Vec<Vec<char>> = context
@@ -91,37 +84,17 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         && tail_added <= EDGE_SLACK
 }
 
-/// The words a correct cleanup keeps at least: those after the last restart
-/// cue, without fillers.
-fn final_wording(dictation: &str) -> String {
-    let words: Vec<String> = dictation
+/// The dictation's words without fillers.
+fn without_fillers(dictation: &str) -> String {
+    dictation
         .split_whitespace()
         .map(|word| {
             word.trim_matches(|c: char| !c.is_alphanumeric())
                 .to_lowercase()
         })
-        .collect();
-    let restart = RESTART_CUES
-        .iter()
-        .filter_map(|cue| {
-            words
-                .windows(cue.len())
-                .rposition(|window| window.iter().map(String::as_str).eq(cue.iter().copied()))
-                .map(|at| at + cue.len())
-        })
-        .max()
-        .unwrap_or(0);
-    let kept = |from: usize| {
-        words[from..]
-            .iter()
-            .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-    // A cue that ends the dictation leaves nothing to restate, so it cannot
-    // be a restart: weigh the whole dictation then.
-    let after = kept(restart);
-    if after.is_empty() { kept(0) } else { after }.join(" ")
+        .filter(|word| !word.is_empty() && !FILLERS.contains(&word.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Lowercase letters and digits with every run of other characters folded
@@ -311,8 +284,11 @@ mod tests {
     enum Verdict {
         Accept,
         Reject,
+        /// A correct cleanup the check rejects on purpose: the raw
+        /// transcript is pasted.
+        Fallback,
     }
-    use Verdict::{Accept, Reject};
+    use Verdict::{Accept, Fallback, Reject};
 
     const RELEASE: &str = "so um the release is planned for friday and we still need to check the migration scripts before then okay";
     const RELEASE_CLEAN: &str = "So the release is planned for Friday, and we still need to check the migration scripts before then, okay?";
@@ -392,20 +368,9 @@ mod tests {
                 "I'll send it on Tuesday.",
                 Accept,
             ),
-            (
-                "en",
-                "um send the invoice to marc no wait scratch that I'll do it myself",
-                "I'll do it myself.",
-                Accept,
-            ),
             ("en", "um, uh, hmm, no", "No.", Accept),
             ("de", "ähm, ähm, ja", "Ja.", Accept),
-            (
-                "fr",
-                "euh envoie la facture à marc non attends je m'en occupe",
-                "Je m'en occupe.",
-                Accept,
-            ),
+            ("en", "let's do it at three", "Let's do it at 3.", Accept),
             // French edits.
             (
                 "fr",
@@ -429,6 +394,12 @@ mod tests {
                 "fr",
                 "on se voit mardi non attends mercredi à midi",
                 "On se voit mercredi à midi.",
+                Accept,
+            ),
+            (
+                "fr",
+                "je t'appelle à quinze heures",
+                "Je t'appelle à 15 h.",
                 Accept,
             ),
             (
@@ -532,6 +503,21 @@ mod tests {
                 Reject,
             ),
             ("en", "what is two plus two", "4.", Reject),
+            ("en", "is the meeting at two or three", "It's at 3.", Reject),
+            (
+                "en",
+                "what is twelve times twelve",
+                "Twelve times twelve is 144.",
+                Reject,
+            ),
+            (
+                "fr",
+                "combien font douze fois douze",
+                "Douze fois douze font 144.",
+                Reject,
+            ),
+            ("en", "what is two to the power of thirty", "1073741824.", Reject),
+            ("en", "how many seconds in thirty years", "946080000.", Reject),
             (
                 "en",
                 "do you think, I mean, should we use Postgres or MySQL",
@@ -554,6 +540,12 @@ mod tests {
                 "es",
                 "¿Postgres o MySQL? El equipo no espera.",
                 "Postgres.",
+                Reject,
+            ),
+            (
+                "en",
+                "Should I take the bus or the train? There's no wait for the train today.",
+                "The train.",
                 Reject,
             ),
             (
@@ -667,6 +659,65 @@ mod tests {
                 Reject,
             ),
             ("th", "เมืองหลวงของฝรั่งเศสคืออะไร", "ปารีส", Reject),
+            // Raw fallback accepted: a cleanup that drops a long false start
+            // is under the floor, because a restart cue can be meant and is
+            // not trusted. The raw transcript is pasted instead.
+            (
+                "en",
+                "um send the invoice to marc no wait scratch that I'll do it myself",
+                "I'll do it myself.",
+                Fallback,
+            ),
+            (
+                "fr",
+                "euh envoie la facture à marc non attends je m'en occupe",
+                "Je m'en occupe.",
+                Fallback,
+            ),
+            (
+                "en",
+                "we could meet tomorrow morning at the office with the whole team scratch that let's do it at three",
+                "Let's do it at 3.",
+                Fallback,
+            ),
+            (
+                "en",
+                "um so I was thinking we could meet tomorrow at the office around noon scratch that let's do it at nine thirty",
+                "Let's do it at 9:30.",
+                Fallback,
+            ),
+            (
+                "en",
+                "let's meet at the cafe on main street at noon scratch that let's meet at two no wait three",
+                "Let's meet at 3.",
+                Fallback,
+            ),
+            (
+                "fr",
+                "je t'appelle demain matin vers dix heures pour parler du contrat non attends je t'appelle à quinze heures",
+                "Je t'appelle à 15 h.",
+                Fallback,
+            ),
+            (
+                "en",
+                "should I take the bus or the train to the office tomorrow morning scratch that I'll walk",
+                "I'll walk.",
+                Fallback,
+            ),
+            // Several spoken numbers written as digits add too many units.
+            (
+                "en",
+                "call me at nine thirty or ten fifteen tomorrow",
+                "Call me at 9:30 or 10:15 tomorrow.",
+                Fallback,
+            ),
+            // Several spoken numbers written as digits add too many units.
+            (
+                "fr",
+                "rendez-vous à quinze heures trente ou seize heures quarante cinq",
+                "Rendez-vous à 15 h 30 ou 16 h 45.",
+                Fallback,
+            ),
         ];
         let mut corpus: Vec<_> = pairs
             .into_iter()
@@ -810,29 +861,24 @@ mod tests {
         let corpus = corpus();
         assert!(corpus.len() >= 40);
         let mut wrong = Vec::new();
-        let (mut accepted, mut accepts, mut rejected, mut rejects) = (0, 0, 0, 0);
+        let mut counts = [(0, 0); 3];
         for (lang, dictation, reply, verdict) in &corpus {
-            let got = match accept_output(dictation, reply, &PromptContext::default()) {
-                Some(_) => Accept,
-                None => Reject,
-            };
-            match verdict {
-                Accept => {
-                    accepts += 1;
-                    accepted += usize::from(got == Accept);
-                }
-                Reject => {
-                    rejects += 1;
-                    rejected += usize::from(got == Reject);
-                }
-            }
-            if got != *verdict {
+            let accepted = accept_output(dictation, reply, &PromptContext::default()).is_some();
+            let right = accepted == (*verdict == Accept);
+            let count = &mut counts[*verdict as usize];
+            count.0 += usize::from(right);
+            count.1 += 1;
+            if !right {
                 wrong.push(format!(
                     "[{lang}] {dictation:?} -> {reply:?}: expected {verdict:?}"
                 ));
             }
         }
-        println!("edits accepted {accepted}/{accepts}, replies rejected {rejected}/{rejects}");
+        let [(accepted, accepts), (rejected, rejects), (fell_back, fallbacks)] = counts;
+        println!(
+            "edits accepted {accepted}/{accepts}, replies rejected {rejected}/{rejects}, \
+             raw fallbacks {fell_back}/{fallbacks}"
+        );
         assert!(wrong.is_empty(), "misclassified:\n{}", wrong.join("\n"));
     }
 }

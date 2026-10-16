@@ -190,13 +190,31 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     }
   };
 
+  // After a denial macOS shows no prompt again, so the waiting state also
+  // points to the Microphone pane where the user can turn access on.
   const handleGrantMicrophone = async () => {
     try {
       await requestMicrophonePermission();
-      setPermissions((prev) => ({ ...prev, microphone: "waiting" }));
+      const granted = await checkMicrophonePermission();
+      setPermissions((prev) => ({
+        ...prev,
+        microphone: granted ? "granted" : "waiting",
+      }));
       startPolling();
     } catch (error) {
       console.error("Failed to request microphone permission:", error);
+      toast.error(t("onboarding.permissions.errors.requestFailed"));
+    }
+  };
+
+  const openMicrophoneSettings = async () => {
+    try {
+      const result = await commands.openMicrophoneSettings();
+      if (result.status === "error") {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error("Failed to open microphone settings:", error);
       toast.error(t("onboarding.permissions.errors.requestFailed"));
     }
   };
@@ -260,9 +278,24 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   {t("onboarding.permissions.granted")}
                 </div>
               ) : permissions.microphone === "waiting" ? (
-                <div className="flex items-center gap-2 text-text/50 text-sm">
-                  <CircleNotchIcon size={15} className="animate-spin" />
-                  {t("onboarding.permissions.waiting")}
+                <div
+                  aria-live="polite"
+                  className="flex flex-col gap-1 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
+                >
+                  <span className="flex items-center gap-2 text-text/70">
+                    <CircleNotchIcon size={15} className="animate-spin" />
+                    {t("onboarding.permissions.waiting")}
+                  </span>
+                  <p className="text-pretty">
+                    {t("errors.micPermissionDenied.macos")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openMicrophoneSettings}
+                    className="min-h-10 self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
+                  >
+                    {t("accessibility.openSettings")}
+                  </button>
                 </div>
               ) : (
                 <button

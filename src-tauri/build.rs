@@ -49,6 +49,7 @@ const APP_COMMANDS: &[&str] = &[
     "open_log_dir",
     "open_app_data_dir",
     "repair_accessibility_permission",
+    "open_microphone_settings",
     "initialize_enigo",
     "initialize_shortcuts",
     "update_microphone_mode",

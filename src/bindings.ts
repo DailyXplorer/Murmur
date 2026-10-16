@@ -409,6 +409,18 @@ async repairAccessibilityPermission() : Promise<Result<null, string>> {
 }
 },
 /**
+ * Open the Microphone privacy pane, where the user can turn access back on.
+ * After a denial macOS no longer shows the access prompt.
+ */
+async openMicrophoneSettings() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_microphone_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * Try to initialize Enigo (keyboard/mouse simulation).
  * On macOS, this will return an error if accessibility permissions are not granted.
  */
