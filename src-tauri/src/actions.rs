@@ -264,9 +264,12 @@ pub(crate) async fn process_transcription_output(
         }
     }
 
-    if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
+    if !settings.ai_cleanup_enabled {
         return ProcessedText::unprocessed(final_text);
     }
+    let Some(engine) = crate::cleanup::engine_for(settings.cleanup_engine) else {
+        return ProcessedText::unprocessed(final_text);
+    };
     // The setting may have been turned off while the user was dictating.
     let context = PromptContext {
         vocabulary: settings.custom_words.clone(),
@@ -280,7 +283,7 @@ pub(crate) async fn process_transcription_output(
             .map(str::to_string),
         faint_speech: settings.whisper_mode,
     };
-    crate::cleanup::clean(final_text, &context, operation).await
+    crate::cleanup::clean(engine, final_text, &context, operation).await
 }
 
 impl ShortcutAction for TranscribeAction {
