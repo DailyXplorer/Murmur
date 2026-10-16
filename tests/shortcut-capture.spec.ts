@@ -73,6 +73,29 @@ for (const [action, leave] of Object.entries(leaveWindow)) {
   });
 }
 
+test("keys are sent in the spelling the shortcut parser accepts", async ({
+  page,
+}) => {
+  await field(page, "cancel").click();
+  await page.keyboard.press("PageUp");
+  await expect(field(page, "cancel")).toHaveText("Page Up");
+
+  await field(page, "cancel").click();
+  await page.keyboard.press("NumpadAdd");
+  await expect(field(page, "cancel")).toHaveText("Numpad +");
+
+  await expect
+    .poll(() => calls(page))
+    .toEqual([
+      "suspend_all_bindings",
+      "change_binding cancel pageup",
+      "resume_all_bindings",
+      "suspend_all_bindings",
+      "change_binding cancel numpadadd",
+      "resume_all_bindings",
+    ]);
+});
+
 test("a bare Escape abandons the edit instead of binding Escape", async ({
   page,
 }) => {

@@ -656,6 +656,8 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
 /// Keeps exactly the bindings this version defines: adds ones introduced
 /// since the store was written and drops ones a release removed, which would
 /// otherwise be registered as dead global hotkeys that swallow their keys.
+/// A binding the hotkey parser rejects (saved by an older version) can never
+/// register, so it goes back to its default.
 fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
     let defaults = get_default_settings().bindings;
     let before = bindings.len();
@@ -667,11 +669,24 @@ fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
         known
     });
     let mut updated = bindings.len() != before;
-    for (id, binding) in defaults {
-        if let std::collections::hash_map::Entry::Vacant(entry) = bindings.entry(id) {
-            debug!("Adding missing binding: {}", entry.key());
-            entry.insert(binding);
-            updated = true;
+    for (id, default) in defaults {
+        match bindings.entry(id) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                debug!("Adding missing binding: {}", entry.key());
+                entry.insert(default);
+                updated = true;
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let current = &entry.get().current_binding;
+                if crate::shortcut::tauri_impl::parse_shortcut(current).is_err() {
+                    warn!(
+                        "Resetting unsupported shortcut for binding '{}'",
+                        entry.key()
+                    );
+                    entry.get_mut().current_binding = default.current_binding;
+                    updated = true;
+                }
+            }
         }
     }
     updated
@@ -1063,6 +1078,22 @@ mod tests {
         let mut ids: Vec<&str> = settings.bindings.keys().map(String::as_str).collect();
         ids.sort_unstable();
         assert_eq!(ids, ["cancel", "paste_last", "transcribe"]);
+    }
+
+    #[test]
+    fn a_stored_shortcut_the_hotkey_parser_rejects_is_reset_to_its_default() {
+        let mut stored = default_settings_json();
+        stored["bindings"]["cancel"]["current_binding"] = serde_json::json!("page up");
+        stored["bindings"]["transcribe"]["current_binding"] = serde_json::json!("f5+f6");
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert!(updated);
+        assert_eq!(settings.bindings["cancel"].current_binding, "escape");
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "option+space"
+        );
     }
 
     #[test]
