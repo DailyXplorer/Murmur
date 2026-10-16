@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::AppHandle;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::settings::{self, get_settings, AppSettings, ShortcutBinding};
 
@@ -467,8 +467,18 @@ pub fn parse_shortcut(raw: &str) -> Result<Shortcut, String> {
         return Err("Tauri shortcuts must include a main key (letter, number, F-key, etc.) in addition to modifiers".into());
     }
 
-    raw.parse::<Shortcut>()
-        .map_err(|e| format!("Shortcut '{raw}' is not supported: {e}"))
+    let shortcut = raw
+        .parse::<Shortcut>()
+        .map_err(|e| format!("Shortcut '{raw}' is not supported: {e}"))?;
+    // macOS reports Caps Lock as a modifier-state change, never a key press,
+    // so a hotkey on it registers but never fires.
+    if shortcut.key == Code::CapsLock {
+        return Err(
+            "Caps Lock can't be used in a shortcut because macOS never reports it as a key press. Choose another key."
+                .into(),
+        );
+    }
+    Ok(shortcut)
 }
 
 /// The other binding whose keys are the same shortcut as `raw`. Shortcuts are
@@ -818,6 +828,8 @@ mod tests {
         assert!(accepted("escape"));
         assert!(!accepted("page up"));
         assert!(!accepted("caps lock"));
+        assert!(!accepted("capslock"));
+        assert!(!accepted("ctrl+capslock"));
         assert!(!accepted("numpad +"));
         assert!(!accepted("f5+f6"));
         assert!(!accepted("command+shift"));
