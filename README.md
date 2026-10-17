@@ -44,6 +44,22 @@ Murmur is updated. Murmur identifies itself to the transcription endpoint the
 way the Codex desktop app does. Use of these services stays subject to the
 provider's terms for your account.
 
+## Install
+
+1. Download the DMG from the latest
+   [GitHub release](https://github.com/DailyXplorer/Murmur/releases/latest):
+   `aarch64` for Apple Silicon, `x64` for Intel.
+2. Open the DMG and drag Murmur to Applications.
+3. Open Murmur. Releases are signed with a stable self-signed certificate but
+   are not notarized by Apple, so macOS blocks the first launch. Open System
+   Settings → Privacy & Security and click **Open Anyway**. Since macOS 15,
+   right-click → Open no longer bypasses this check.
+4. Grant Microphone and Accessibility access when Murmur asks.
+
+Murmur's built-in updater installs releases signed with the same certificate,
+so macOS keeps both permissions and asks nothing again after an update. Murmur
+does not store anything in the keychain.
+
 ## Features
 
 - One recording shortcut (Option+Space by default): hold it to talk, or double-tap it to record hands-free and press it once to stop
