@@ -8,9 +8,48 @@ pub const MIC_TRACK: &str = "mic.wav";
 pub const SYSTEM_TRACK: &str = "system.wav";
 /// Both tracks, compressed, once processing is done.
 pub const AUDIO_FILE: &str = "audio.m4a";
+/// Every file of a meeting that holds audio, half-written ones included.
+pub const AUDIO_FILES: [&str; 6] = [
+    AUDIO_FILE,
+    MIC_TRACK,
+    SYSTEM_TRACK,
+    "audio.m4a.part",
+    "mic.wav.part",
+    "system.wav.part",
+];
+
+/// Where `name` is written before it is complete.
+pub fn partial(name: &str) -> String {
+    format!("{name}.part")
+}
 
 pub fn meeting_dir(root: &Path, id: i64) -> PathBuf {
     root.join(id.to_string())
+}
+
+/// After `meetings.db` was found corrupt and moved to `moved_to`, moves the
+/// meetings' folders next to it, to `meetings.corrupt-<time>`: no row points
+/// to them any more, so no screen would list or delete them. The models
+/// stay.
+pub fn set_aside_recordings(root: &Path, moved_to: &Path) -> io::Result<()> {
+    let suffix = moved_to
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix("meetings.db"))
+        .unwrap_or(".corrupt");
+    let aside = root.with_file_name(format!("meetings{suffix}"));
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let is_meeting = entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.parse::<i64>().is_ok());
+        if is_meeting && entry.file_type()?.is_dir() {
+            fs::create_dir_all(&aside)?;
+            fs::rename(entry.path(), aside.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
 
 /// The meeting's folder, when neither it nor the meetings root is a
@@ -134,5 +173,45 @@ mod tests {
 
         assert!(!dir.exists());
         assert!(sentinel.exists());
+    }
+
+    #[test]
+    fn the_half_written_names_are_those_the_archive_writes() {
+        for name in [AUDIO_FILE, MIC_TRACK, SYSTEM_TRACK] {
+            assert!(AUDIO_FILES.contains(&partial(name).as_str()), "{name}");
+        }
+    }
+
+    #[test]
+    fn deleting_the_audio_also_deletes_half_written_audio() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = meeting_dir(root.path(), 6);
+        fs::create_dir_all(&dir).unwrap();
+        for name in [AUDIO_FILE, MIC_TRACK, SYSTEM_TRACK] {
+            fs::write(dir.join(partial(name)), b"audio").unwrap();
+        }
+
+        remove_meeting_files(root.path(), 6, &AUDIO_FILES).unwrap();
+
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_reset_library_sets_the_recordings_aside_and_keeps_the_models() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("meetings");
+        for name in ["1", "7", "models"] {
+            fs::create_dir_all(root.join(name)).unwrap();
+        }
+        fs::write(root.join("7").join(MIC_TRACK), b"audio").unwrap();
+        let moved_to = parent.path().join("meetings.db.corrupt-20261017-101500");
+
+        set_aside_recordings(&root, &moved_to).unwrap();
+
+        let aside = parent.path().join("meetings.corrupt-20261017-101500");
+        assert!(aside.join("7").join(MIC_TRACK).exists());
+        assert!(aside.join("1").is_dir());
+        assert!(!root.join("1").exists() && !root.join("7").exists());
+        assert!(root.join("models").is_dir());
     }
 }

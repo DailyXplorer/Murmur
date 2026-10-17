@@ -312,6 +312,11 @@ impl MeetingsManager {
         let (store, startup) =
             MeetingsStore::open(app_data.join("meetings.db"), chrono::Utc::now());
         info!("Meetings database: {startup:?}");
+        if let crate::managers::history::DatabaseStartup::Reset { moved_to } = &startup {
+            if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
+                error!("Failed to set aside the recordings of the reset library: {error}");
+            }
+        }
         match store.recover_interrupted(&root) {
             Ok(0) => {}
             Ok(count) => info!("Recovered {count} interrupted meeting(s)"),
@@ -513,15 +518,8 @@ impl MeetingsManager {
         {
             return Err(format!("Meeting {id} is not finished"));
         }
-        let result = paths::remove_meeting_files(
-            &self.root,
-            id,
-            &[
-                paths::AUDIO_FILE,
-                paths::MIC_TRACK,
-                paths::SYSTEM_TRACK,
-                analysis::ANALYSIS_FILE,
-            ],
+        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES).and_then(
+            |()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]),
         );
         self.updated(id);
         result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
