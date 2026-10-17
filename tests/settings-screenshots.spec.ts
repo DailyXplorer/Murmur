@@ -54,6 +54,45 @@ test.describe("settings screenshots", () => {
     });
   }
 
+  for (const theme of ["light", "dark"] as const) {
+    test(`meeting transcript (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(VIEWPORT);
+      await page.goto(
+        `/tests/fixtures/settings-pages.html?meetings=1&meetingFailed=1&theme=${theme}`,
+      );
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+      await page.waitForTimeout(500);
+      await growViewportToContent(page);
+      await page.screenshot({
+        path: `${outputDir}/meeting-transcript-${theme}.png`,
+        fullPage: true,
+      });
+
+      await page.getByRole("button", { name: "Search Transcript" }).click();
+      await page
+        .getByRole("textbox", { name: "Search Transcript" })
+        .fill("plateforme");
+      await page.screenshot({
+        path: `${outputDir}/meeting-search-${theme}.png`,
+        fullPage: true,
+      });
+
+      await page.getByRole("button", { name: "Rename Speakers" }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({
+        path: `${outputDir}/meeting-rename-${theme}.png`,
+      });
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    });
+  }
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

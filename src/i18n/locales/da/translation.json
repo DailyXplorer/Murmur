@@ -552,7 +552,64 @@
     }
   },
   "meetings": {
-    "notice": "Transskriptioner og resuméer kommer i en senere version. Optagelserne gemmes indtil da.",
+    "notice": "Transskriptioner vises, når et møde er behandlet. Resuméer kommer i en senere version.",
+    "view": {
+      "back": "Alle møder",
+      "titleLabel": "Mødets titel",
+      "loadError": "Mødet kunne ikke indlæses.",
+      "renameError": "Mødet kunne ikke omdøbes.",
+      "tabs": {
+        "label": "Mødets indhold",
+        "summary": "Resumé",
+        "transcript": "Transskription",
+        "summarySoon": "Resuméer kommer i en senere version."
+      }
+    },
+    "processing": {
+      "waiting": "Venter på behandling…",
+      "transcribing": "Transskriberer: {{done}} af {{total}} dele færdige…",
+      "rateLimited": "Codex bad om at sætte tempoet ned. Behandlingen fortsætter af sig selv…",
+      "aligning": "Samtalen sættes i rækkefølge…",
+      "interrupted": "Optagelsen blev afbrudt. Det optagne kan stadig transskriberes.",
+      "process": "Transskribér",
+      "retry": "Prøv igen",
+      "retryError": "Behandlingen kunne ikke startes igen.",
+      "errors": {
+        "signed_out": "Log ind på Codex, og prøv så igen.",
+        "rate_limited": "Codex begrænser forespørgsler lige nu. Prøv igen senere.",
+        "parts_failed": "Nogle dele kunne ikke transskriberes.",
+        "no_audio": "Optagelsen kunne ikke læses.",
+        "other": "Behandlingen stoppede uventet."
+      }
+    },
+    "transcript": {
+      "header": "Talere: {{count}} · {{duration}}",
+      "empty": "Der blev ikke transskriberet nogen tale.",
+      "pending": "Transskriptionen vises her, når mødet er behandlet.",
+      "missingPart": "Delen {{start}}–{{end}} kunne ikke transskriberes.",
+      "search": "Søg i transskriptionen",
+      "searchPlaceholder": "Søg",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Ingen resultater",
+      "previousMatch": "Forrige resultat",
+      "nextMatch": "Næste resultat",
+      "closeSearch": "Luk søgning",
+      "copy": "Kopiér transskription",
+      "copied": "Transskriptionen er kopieret.",
+      "copyError": "Transskriptionen kunne ikke kopieres.",
+      "export": "Eksportér som Markdown",
+      "exported": "Transskriptionen er gemt.",
+      "exportError": "Transskriptionen kunne ikke gemmes.",
+      "renameSpeakers": "Omdøb talere",
+      "renameSpeaker": "Omdøb {{name}}"
+    },
+    "renameDialog": {
+      "title": "Omdøb talere",
+      "description": "Et nyt navn vises overalt i dette møde.",
+      "nameLabel": "Navn til {{name}}",
+      "save": "Gem",
+      "error": "Taleren kunne ikke omdøbes."
+    },
     "recording": {
       "title": "Optagelse",
       "idle": "Intet møde i gang",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Optager",
       "interrupted": "Afbrudt",
-      "processing": "Optaget",
+      "processing": "Behandles",
       "ready": "Klar",
       "failed": "Mislykkedes"
     }

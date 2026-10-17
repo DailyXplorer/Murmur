@@ -404,9 +404,10 @@ async openAppDataDir() : Promise<Result<null, string>> {
 /**
  * Replace Murmur's stale Accessibility entry after an ad-hoc signed update.
  * 
- * macOS ties Accessibility decisions to the app's code requirement. Murmur's
- * public builds currently use ad-hoc signing, so that requirement changes on
- * every update even though the bundle ID and installation path stay the same.
+ * macOS ties Accessibility decisions to the app's code requirement. Ad hoc
+ * signed builds (local builds, and releases made before the stable signing
+ * certificate) change that requirement on every update even though the
+ * bundle ID and installation path stay the same.
  * Reset only this running bundle's Accessibility decision, register the current
  * process with the system prompt, and take the user straight to the correct
  * privacy pane. Microphone and every other privacy decision are left untouched.
@@ -539,8 +540,9 @@ async setSelectedChannel(channel: number | null) : Promise<Result<null, string>>
 }
 },
 /**
- * Returns whether the local Codex authentication cache contains a usable
- * ChatGPT session. This check never refreshes or writes credentials.
+ * Returns whether the local Codex authentication cache contains a ChatGPT
+ * session that is valid or refreshable, and whether it expired for good.
+ * This check never refreshes or writes credentials.
  */
 async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
@@ -696,6 +698,64 @@ async deleteMeeting(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async getMeeting(id: number) : Promise<Result<MeetingDetail, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * An empty title gives the meeting back its default name.
+ */
+async renameMeeting(id: number, title: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_meeting", { id, title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async renameSpeaker(id: number, key: string, name: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_speaker", { id, key, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async retryMeeting(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("retry_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The transcript as Markdown, exactly as Export saves it.
+ */
+async getMeetingMarkdown(id: number) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting_markdown", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Asks where to save the transcript and writes it there. Returns the path,
+ * or `None` when the user cancels.
+ */
+async exportMeetingMarkdown(id: number) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_meeting_markdown", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async getMeetingCapabilities() : Promise<MeetingCapabilities> {
     return await TAURI_INVOKE("get_meeting_capabilities");
 },
@@ -735,11 +795,15 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
-meetingStateChanged: MeetingStateChanged
+meetingProgress: MeetingProgress,
+meetingStateChanged: MeetingStateChanged,
+meetingsUpdated: MeetingsUpdated
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
-meetingStateChanged: "meeting-state-changed"
+meetingProgress: "meeting-progress",
+meetingStateChanged: "meeting-state-changed",
+meetingsUpdated: "meetings-updated"
 })
 
 /** user-defined constants **/
@@ -753,11 +817,16 @@ meetingStateChanged: "meeting-state-changed"
  */
 export type AccentColor = "pink" | "blue" | "green" | "yellow" | "orange" | "red"
 /**
+ * Where a dictation was sent, grouped the way the Insights page reports it.
+ */
+export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
+/**
  * The container-level `serde(default)` (backed by the `Default` impl below)
- * guarantees every field — including ones added in the future — falls back to
- * its `get_default_settings()` value when missing from a stored settings
- * object, so a partial store can never fail the whole load (#1619).
+ * makes every field, including ones added later, fall back to its
+ * `get_default_settings()` value when missing from a stored settings object,
+ * so a partial store can never fail the whole load.
  * Field-level defaults below take precedence where present.
+ * Settings may contain user-authored and private values. Do not derive `Debug`.
  */
 export type AppSettings = { 
 /**
@@ -771,41 +840,36 @@ bindings?: Partial<{ [key in string]: ShortcutBinding }>; audio_feedback?: boole
 whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_microphone?: boolean; selected_microphone?: string | null; 
 /**
  * Which input channel to use on the selected microphone device.
- * None means "average all channels" (original behavior).
+ * None means "average all channels".
  */
 selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
  * Required guarded paste path. AppKit does not identify the process
  * reading promised data, so settlement waits a bounded window. macOS only.
  */
-reliable_paste?: boolean;
+reliable_paste?: boolean; 
 /**
  * AI cleanup and formatting of each transcript, by `cleanup_engine`.
  */
-ai_cleanup_enabled?: boolean;
-cleanup_engine?: CleanupEngine;
+ai_cleanup_enabled?: boolean; cleanup_engine?: CleanupEngine; 
 /**
  * Dictionary words learned from corrections; each is also in `custom_words`.
  */
-learned_words?: LearnedWord[];
+learned_words?: LearnedWord[]; 
 /**
  * Offer names visible in the frontmost window to the cleanup step.
  */
-window_names_enabled?: boolean;
+window_names_enabled?: boolean; 
 /**
  * More input gain for quiet speech, and a hint that speech was faint.
  */
-whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle;
+whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle; 
 /**
  * Release gate for meeting recording: the Meetings page, its shortcut
  * and its tray item exist only while this is on.
  */
 meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
-/**
- * Where a dictation was sent, grouped the way the Insights page reports it.
- */
-export type AppCategory = "ai_prompts" | "personal_messages" | "work_messages" | "emails" | "documents" | "coding" | "other"
-export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" |
+export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" | 
 /**
  * The model runs, but not in the selected dictation language.
  */
@@ -822,57 +886,67 @@ export type CleanupEngine = "apple" | "codex"
 /**
  * What happened to a transcript, as kept in history.
  */
-export type CleanupOutcome = "cleaned" |
+export type CleanupOutcome = "cleaned" | 
 /**
  * Cleanup was attempted and the raw transcript was used instead.
  */
 "failed"
-export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
-export type CodexAuthStatus = {
+export type ClipboardHandling = 
+/**
+ * Put the user's previous clipboard back after a bounded paste window,
+ * unless they copied something else meanwhile. The legacy serialized
+ * name is retained for settings compatibility.
+ */
+"dont_modify" | 
+/**
+ * Materialize the transcription as the new clipboard value after paste.
+ */
+"copy_to_clipboard"
+export type CodexAuthStatus = { 
 /**
  * A session exists and is either valid or refreshable.
  */
-signed_in: boolean;
+signed_in: boolean; 
 /**
  * A session exists, but it expired and cannot be refreshed.
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GeminiStatus = { installed: boolean; signed_in: boolean }
-export type HeatmapDay = {
+export type HeatmapDay = { 
 /**
  * Local calendar date, `YYYY-MM-DD`.
  */
-date: string; count: number;
+date: string; count: number; 
 /**
  * Intensity bucket from 0 (no dictation) to 4 (busiest day in range).
  */
 level: number }
-export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string;
+export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; 
 /**
  * The text that was delivered.
  */
-transcription_text: string;
+transcription_text: string; 
 /**
  * The transcript before AI cleanup, when cleanup ran.
  */
 raw_text: string | null; cleanup: CleanupOutcome | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
-export type InsightsSummary = { total_dictations: number; total_words: number;
+export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
  */
-words_per_minute: number | null; words_corrected: number; dictionary_fixes: number;
+words_per_minute: number | null; words_corrected: number; dictionary_fixes: number; 
 /**
  * Non-empty categories, most used first.
  */
-categories: CategoryUsage[];
+categories: CategoryUsage[]; 
 /**
- * Dictations whose receiving app is known (recorded since this feature).
+ * Dictations whose receiving app is known. Rows backfilled from history have none.
  */
 categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
 export type InsightsUpdated = null
-export type LearnedWord = { word: string;
+export type LearnedWord = { word: string; 
 /**
  * How Murmur wrote it before the user corrected it.
  */
@@ -885,25 +959,47 @@ export type MeetingCapabilities = { system_audio: SystemAudioSupport }
  * stored choice is kept for when it becomes available.
  */
 export type MeetingCaptureMode = "both" | "system_only" | "mic_only"
-export type MeetingListItem = { id: number;
+export type MeetingDetail = { id: number; title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks; stage: MeetingStage | null; error: ProcessingError | null; speakers: MeetingSpeaker[]; turns: MeetingTurn[] }
+export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
-export type MeetingRuntime = { state: "idle" } | { state: "recording"; id: number; started_at_ms: number;
 /**
- * When the 3-hour cap stops the meeting.
+ * How far processing has come, for the progress bar.
  */
-stops_at_ms: number; tracks: MeetingTracks }
+export type MeetingProgress = { id: number; stage: MeetingStage; 
+/**
+ * Pieces with speech that are transcribed, out of `chunks_total`.
+ */
+chunks_done: number; chunks_total: number; 
+/**
+ * Codex asked to slow down; processing waits and resumes on its own.
+ */
+rate_limited: boolean }
+export type MeetingRuntime = { state: "idle" } | { state: "recording"; id: number; started_at_ms: number; stops_at_ms: number; tracks: MeetingTracks }
+export type MeetingSpeaker = { 
+/**
+ * `me`, `s1`, `s2`…: stable, so a rename touches no text.
+ */
+key: string; name: string; default_name: string; color_index: number }
+/**
+ * What processing is doing now.
+ */
+export type MeetingStage = "transcribing" | 
+/**
+ * Placing the text of both tracks in order.
+ */
+"aligning"
 /**
  * Sent whenever a meeting starts or stops.
  */
 export type MeetingStateChanged = MeetingRuntime
-export type MeetingStatus = "recording" |
+export type MeetingStatus = "recording" | 
 /**
  * The app quit or crashed while recording; the tracks were repaired.
  */
-"interrupted" |
+"interrupted" | 
 /**
  * Recorded and waiting for (or in) processing.
  */
@@ -912,36 +1008,69 @@ export type MeetingStatus = "recording" |
  * Which tracks a meeting recorded.
  */
 export type MeetingTracks = "both" | "system" | "mic"
+/**
+ * One bubble of the transcript. A `_system` speaker marks a part that
+ * could not be transcribed.
+ */
+export type MeetingTurn = { speaker_key: string; start_ms: number; end_ms: number; text: string; low_confidence: boolean }
 export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
+/**
+ * A meeting's row or transcript changed: lists and open views reload it.
+ */
+export type MeetingsUpdated = { id: number }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none"
+/**
+ * Why the last processing run did not finish everything.
+ */
+export type ProcessingError = 
+/**
+ * Codex needs a new sign-in.
+ */
+"signed_out" | 
+/**
+ * Codex kept refusing requests for too long.
+ */
+"rate_limited" | 
+/**
+ * Some parts could not be transcribed; the rest is shown.
+ */
+"parts_failed" | 
+/**
+ * No track could be read.
+ */
+"no_audio" | 
+/**
+ * Processing stopped on an unexpected error.
+ */
+"other"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
  * Why a binding holds no hotkey.
  */
-export type ShortcutRegistrationError =
+export type ShortcutRegistrationError = 
 /**
  * macOS refused the keys, usually because another app holds them.
  */
-"unavailable" |
+"unavailable" | 
 /**
  * Another Murmur action already uses the keys, and keeps them.
  */
 "used_by_another_action"
 export type SoundTheme = "marimba" | "pop" | "custom"
-export type SystemAudioSupport = "available" |
+export type Streaks = { current: number; longest: number }
+export type SystemAudioSupport = "available" | 
 /**
  * Process taps need macOS 14.4 or later.
  */
-"os_too_old" |
+"os_too_old" | 
 /**
  * This build has no system audio bridge (Intel).
  */
 "unsupported"
-export type Streaks = { current: number; longest: number }
 /**
  * UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`
  * and `Dark` force one of the two palettes Murmur already ships.

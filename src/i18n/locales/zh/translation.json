@@ -552,7 +552,64 @@
     "title": "Murmur v{{version}} 新功能"
   },
   "meetings": {
-    "notice": "转录和摘要将在后续版本中提供。在此之前录音会被保留。",
+    "notice": "会议处理完成后会显示转录内容。摘要将在后续版本中提供。",
+    "view": {
+      "back": "所有会议",
+      "titleLabel": "会议标题",
+      "loadError": "无法加载此会议。",
+      "renameError": "无法重命名会议。",
+      "tabs": {
+        "label": "会议内容",
+        "summary": "摘要",
+        "transcript": "转录",
+        "summarySoon": "摘要将在后续版本中提供。"
+      }
+    },
+    "processing": {
+      "waiting": "等待处理…",
+      "transcribing": "正在转录：已完成 {{done}}/{{total}} 个部分…",
+      "rateLimited": "Codex 要求放慢速度。处理会自动继续…",
+      "aligning": "正在整理对话顺序…",
+      "interrupted": "录音被中断。已录制的内容仍可转录。",
+      "process": "转录",
+      "retry": "重试",
+      "retryError": "无法重新开始处理。",
+      "errors": {
+        "signed_out": "请登录 Codex，然后重试。",
+        "rate_limited": "Codex 目前正在限制请求。请稍后重试。",
+        "parts_failed": "部分内容无法转录。",
+        "no_audio": "无法读取录音。",
+        "other": "处理意外停止。"
+      }
+    },
+    "transcript": {
+      "header": "发言人：{{count}} · {{duration}}",
+      "empty": "没有转录到任何语音。",
+      "pending": "会议处理完成后，转录内容会显示在这里。",
+      "missingPart": "无法转录 {{start}}–{{end}} 部分。",
+      "search": "搜索转录内容",
+      "searchPlaceholder": "搜索",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "无匹配项",
+      "previousMatch": "上一个匹配项",
+      "nextMatch": "下一个匹配项",
+      "closeSearch": "关闭搜索",
+      "copy": "复制转录内容",
+      "copied": "已复制转录内容。",
+      "copyError": "无法复制转录内容。",
+      "export": "导出为 Markdown",
+      "exported": "已保存转录内容。",
+      "exportError": "无法保存转录内容。",
+      "renameSpeakers": "重命名发言人",
+      "renameSpeaker": "重命名 {{name}}"
+    },
+    "renameDialog": {
+      "title": "重命名发言人",
+      "description": "新名称会显示在此会议的所有位置。",
+      "nameLabel": "{{name}} 的名称",
+      "save": "保存",
+      "error": "无法重命名发言人。"
+    },
     "recording": {
       "title": "录制",
       "idle": "没有正在进行的会议",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "录制中",
       "interrupted": "已中断",
-      "processing": "已录制",
+      "processing": "处理中",
       "ready": "已就绪",
       "failed": "失败"
     }

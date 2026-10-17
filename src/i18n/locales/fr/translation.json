@@ -552,7 +552,64 @@
     "title": "Nouveautés de Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Les transcriptions et les résumés arrivent dans une prochaine version. Les enregistrements sont conservés d’ici là.",
+    "notice": "Les transcriptions apparaissent une fois la réunion traitée. Les résumés arrivent dans une prochaine version.",
+    "view": {
+      "back": "Toutes les réunions",
+      "titleLabel": "Titre de la réunion",
+      "loadError": "Impossible de charger cette réunion.",
+      "renameError": "Impossible de renommer la réunion.",
+      "tabs": {
+        "label": "Contenu de la réunion",
+        "summary": "Résumé",
+        "transcript": "Transcription",
+        "summarySoon": "Les résumés arrivent dans une prochaine version."
+      }
+    },
+    "processing": {
+      "waiting": "En attente de traitement…",
+      "transcribing": "Transcription : {{done}} parties sur {{total}} terminées…",
+      "rateLimited": "Codex demande de ralentir. Le traitement reprendra tout seul…",
+      "aligning": "Remise en ordre de la conversation…",
+      "interrupted": "L’enregistrement a été interrompu. Ce qui a été enregistré peut quand même être transcrit.",
+      "process": "Transcrire",
+      "retry": "Réessayer",
+      "retryError": "Impossible de relancer le traitement.",
+      "errors": {
+        "signed_out": "Connectez-vous à Codex, puis réessayez.",
+        "rate_limited": "Codex limite les requêtes pour le moment. Réessayez plus tard.",
+        "parts_failed": "Certaines parties n’ont pas pu être transcrites.",
+        "no_audio": "L’enregistrement n’a pas pu être lu.",
+        "other": "Le traitement s’est arrêté de façon inattendue."
+      }
+    },
+    "transcript": {
+      "header": "Intervenants : {{count}} · {{duration}}",
+      "empty": "Aucune parole n’a été transcrite.",
+      "pending": "La transcription apparaîtra ici une fois la réunion traitée.",
+      "missingPart": "La partie {{start}}–{{end}} n’a pas pu être transcrite.",
+      "search": "Rechercher dans la transcription",
+      "searchPlaceholder": "Rechercher",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Aucun résultat",
+      "previousMatch": "Résultat précédent",
+      "nextMatch": "Résultat suivant",
+      "closeSearch": "Fermer la recherche",
+      "copy": "Copier la transcription",
+      "copied": "Transcription copiée.",
+      "copyError": "Impossible de copier la transcription.",
+      "export": "Exporter en Markdown",
+      "exported": "Transcription enregistrée.",
+      "exportError": "Impossible d’enregistrer la transcription.",
+      "renameSpeakers": "Renommer les intervenants",
+      "renameSpeaker": "Renommer {{name}}"
+    },
+    "renameDialog": {
+      "title": "Renommer les intervenants",
+      "description": "Le nouveau nom s’affiche partout dans cette réunion.",
+      "nameLabel": "Nom pour {{name}}",
+      "save": "Enregistrer",
+      "error": "Impossible de renommer l’intervenant."
+    },
     "recording": {
       "title": "Enregistrement",
       "idle": "Aucune réunion en cours",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "En cours d’enregistrement",
       "interrupted": "Interrompue",
-      "processing": "Enregistrée",
+      "processing": "En traitement",
       "ready": "Prête",
       "failed": "Échec"
     }

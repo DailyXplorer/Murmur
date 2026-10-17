@@ -5,12 +5,14 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use log::warn;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::{Path, PathBuf};
 
+use super::chunking::ChunkPlan;
+use super::merge::Track;
 use super::paths;
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
@@ -139,6 +141,163 @@ impl MeetingStatus {
             _ => None,
         }
     }
+}
+
+impl MeetingStatus {
+    fn as_db(self) -> &'static str {
+        match self {
+            Self::Recording => "recording",
+            Self::Interrupted => "interrupted",
+            Self::Processing => "processing",
+            Self::Ready => "ready",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+/// What processing is doing now.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingStage {
+    Transcribing,
+    /// Placing the text of both tracks in order.
+    Aligning,
+}
+
+impl MeetingStage {
+    fn as_db(self) -> &'static str {
+        match self {
+            Self::Transcribing => "transcribing",
+            Self::Aligning => "aligning",
+        }
+    }
+
+    fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "transcribing" => Some(Self::Transcribing),
+            "aligning" => Some(Self::Aligning),
+            _ => None,
+        }
+    }
+}
+
+/// Why the last processing run did not finish everything.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessingError {
+    /// Codex needs a new sign-in.
+    SignedOut,
+    /// Codex kept refusing requests for too long.
+    RateLimited,
+    /// Some parts could not be transcribed; the rest is shown.
+    PartsFailed,
+    /// No track could be read.
+    NoAudio,
+    /// Processing stopped on an unexpected error.
+    Other,
+}
+
+impl ProcessingError {
+    fn as_db(self) -> &'static str {
+        match self {
+            Self::SignedOut => "signed_out",
+            Self::RateLimited => "rate_limited",
+            Self::PartsFailed => "parts_failed",
+            Self::NoAudio => "no_audio",
+            Self::Other => "other",
+        }
+    }
+
+    fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "signed_out" => Some(Self::SignedOut),
+            "rate_limited" => Some(Self::RateLimited),
+            "parts_failed" => Some(Self::PartsFailed),
+            "no_audio" => Some(Self::NoAudio),
+            "other" => Some(Self::Other),
+            _ => None,
+        }
+    }
+}
+
+fn track_db(track: Track) -> &'static str {
+    match track {
+        Track::Mic => "mic",
+        Track::System => "system",
+    }
+}
+
+fn track_from_db(value: &str) -> Option<Track> {
+    match value {
+        "mic" => Some(Track::Mic),
+        "system" => Some(Track::System),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkStatus {
+    Pending,
+    Done,
+    Failed,
+    /// No speech: never uploaded.
+    Silent,
+}
+
+impl ChunkStatus {
+    fn from_db(value: &str) -> Self {
+        match value {
+            "done" => Self::Done,
+            "failed" => Self::Failed,
+            "silent" => Self::Silent,
+            _ => Self::Pending,
+        }
+    }
+}
+
+/// One piece of a track and what Codex made of it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkRow {
+    pub track: Track,
+    pub idx: u32,
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub status: ChunkStatus,
+    pub text: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct MeetingSpeaker {
+    /// `me`, `s1`, `s2`…: stable, so a rename touches no text.
+    pub key: String,
+    pub name: String,
+    pub default_name: String,
+    pub color_index: u32,
+}
+
+/// One bubble of the transcript. A `_system` speaker marks a part that
+/// could not be transcribed.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct MeetingTurn {
+    pub speaker_key: String,
+    pub start_ms: i64,
+    pub end_ms: i64,
+    pub text: String,
+    pub low_confidence: bool,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Type)]
+pub struct MeetingDetail {
+    pub id: i64,
+    pub title: Option<String>,
+    pub started_at_ms: i64,
+    pub duration_ms: i64,
+    pub status: MeetingStatus,
+    pub tracks: MeetingTracks,
+    pub stage: Option<MeetingStage>,
+    pub error: Option<ProcessingError>,
+    pub speakers: Vec<MeetingSpeaker>,
+    pub turns: Vec<MeetingTurn>,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -311,12 +470,273 @@ impl MeetingsStore {
         }
         Ok(cut_off.len())
     }
+
+    /// Meetings to process, oldest first: those left mid-way by a quit.
+    pub fn waiting_for_processing(&self) -> Result<Vec<i64>> {
+        Ok(self
+            .connection()?
+            .prepare("SELECT id FROM meetings WHERE status = 'processing' ORDER BY id")?
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn get(&self, id: i64) -> Result<Option<MeetingDetail>> {
+        let conn = self.connection()?;
+        let row = conn
+            .query_row(
+                "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind
+                 FROM meetings WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((title, started_at_ms, duration_ms, status, tracks, stage, error)) = row else {
+            return Ok(None);
+        };
+        let speakers = conn
+            .prepare(
+                "SELECT key, display_name, default_name, color_index FROM meeting_speakers
+                 WHERE meeting_id = ?1 ORDER BY color_index, key",
+            )?
+            .query_map(params![id], |row| {
+                Ok(MeetingSpeaker {
+                    key: row.get(0)?,
+                    name: row.get(1)?,
+                    default_name: row.get(2)?,
+                    color_index: row.get(3)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let turns = conn
+            .prepare(
+                "SELECT speaker_key, start_ms, end_ms, text, low_confidence FROM meeting_turns
+                 WHERE meeting_id = ?1 ORDER BY seq",
+            )?
+            .query_map(params![id], |row| {
+                Ok(MeetingTurn {
+                    speaker_key: row.get(0)?,
+                    start_ms: row.get(1)?,
+                    end_ms: row.get(2)?,
+                    text: row.get(3)?,
+                    low_confidence: row.get(4)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(Some(MeetingDetail {
+            id,
+            title,
+            started_at_ms,
+            duration_ms,
+            status: MeetingStatus::from_db(&status)
+                .ok_or_else(|| anyhow!("Meeting {id} has an unknown status"))?,
+            tracks: MeetingTracks::from_db(&tracks).unwrap_or(MeetingTracks::Both),
+            stage: stage.as_deref().and_then(MeetingStage::from_db),
+            error: error.as_deref().and_then(ProcessingError::from_db),
+            speakers,
+            turns,
+        }))
+    }
+
+    /// Starts (or resumes) processing a recorded meeting. Returns false when
+    /// the meeting is gone, still recording, or already done.
+    pub fn begin_processing(&self, id: i64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET status = 'processing', stage = 'transcribing',
+                 error_kind = NULL, error_detail = NULL
+             WHERE id = ?1 AND status IN ('processing', 'interrupted', 'failed')",
+            params![id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    pub fn set_stage(&self, id: i64, stage: MeetingStage) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET stage = ?2 WHERE id = ?1",
+            params![id, stage.as_db()],
+        )?;
+        Ok(())
+    }
+
+    /// Ends a processing run: ready, or failed with what went wrong.
+    pub fn finish_processing(&self, id: i64, error: Option<ProcessingError>) -> Result<()> {
+        let status = if error.is_some() {
+            MeetingStatus::Failed
+        } else {
+            MeetingStatus::Ready
+        };
+        self.connection()?.execute(
+            "UPDATE meetings SET status = ?2, stage = NULL, error_kind = ?3
+             WHERE id = ?1 AND status = 'processing'",
+            params![id, status.as_db(), error.map(ProcessingError::as_db)],
+        )?;
+        Ok(())
+    }
+
+    /// Records how a track is split, once: a plan already stored is kept, so
+    /// pieces already transcribed are never sent again.
+    pub fn plan_chunks(&self, id: i64, track: Track, plan: &[ChunkPlan]) -> Result<()> {
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        let planned: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM meeting_chunks WHERE meeting_id = ?1 AND track = ?2",
+            params![id, track_db(track)],
+            |row| row.get(0),
+        )?;
+        if planned == 0 {
+            for (idx, chunk) in plan.iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO meeting_chunks (meeting_id, track, idx, start_ms, end_ms, status)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        id,
+                        track_db(track),
+                        idx as i64,
+                        chunk.start_ms as i64,
+                        chunk.end_ms as i64,
+                        if chunk.silent() { "silent" } else { "pending" }
+                    ],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn chunks(&self, id: i64) -> Result<Vec<ChunkRow>> {
+        let conn = self.connection()?;
+        let rows = conn
+            .prepare(
+                "SELECT track, idx, start_ms, end_ms, status, text FROM meeting_chunks
+                 WHERE meeting_id = ?1 ORDER BY start_ms, track DESC, idx",
+            )?
+            .query_map(params![id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(track, idx, start_ms, end_ms, status, text)| {
+                Some(ChunkRow {
+                    track: track_from_db(&track)?,
+                    idx: idx as u32,
+                    start_ms: start_ms as u64,
+                    end_ms: end_ms as u64,
+                    status: ChunkStatus::from_db(&status),
+                    text,
+                })
+            })
+            .collect())
+    }
+
+    pub fn chunk_done(&self, id: i64, track: Track, idx: u32, text: &str) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meeting_chunks SET status = 'done', text = ?4, error_kind = NULL,
+                 attempts = attempts + 1
+             WHERE meeting_id = ?1 AND track = ?2 AND idx = ?3",
+            params![id, track_db(track), idx, text],
+        )?;
+        Ok(())
+    }
+
+    pub fn chunk_failed(&self, id: i64, track: Track, idx: u32, kind: &str) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meeting_chunks SET status = 'failed', error_kind = ?4,
+                 attempts = attempts + 1
+             WHERE meeting_id = ?1 AND track = ?2 AND idx = ?3",
+            params![id, track_db(track), idx, kind],
+        )?;
+        Ok(())
+    }
+
+    /// Replaces the transcript in one transaction. Speakers keep the name the
+    /// user gave them.
+    pub fn save_transcript(
+        &self,
+        id: i64,
+        speakers: &[MeetingSpeaker],
+        turns: &[MeetingTurn],
+    ) -> Result<()> {
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        tx.execute(
+            "DELETE FROM meeting_turns WHERE meeting_id = ?1",
+            params![id],
+        )?;
+        for (seq, turn) in turns.iter().enumerate() {
+            tx.execute(
+                "INSERT INTO meeting_turns
+                     (meeting_id, seq, speaker_key, start_ms, end_ms, text, low_confidence)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    id,
+                    seq as i64,
+                    turn.speaker_key,
+                    turn.start_ms,
+                    turn.end_ms,
+                    turn.text,
+                    turn.low_confidence
+                ],
+            )?;
+        }
+        for speaker in speakers {
+            tx.execute(
+                "INSERT INTO meeting_speakers
+                     (meeting_id, key, default_name, display_name, color_index)
+                 VALUES (?1, ?2, ?3, ?3, ?4)
+                 ON CONFLICT (meeting_id, key) DO UPDATE SET
+                     default_name = excluded.default_name,
+                     color_index = excluded.color_index",
+                params![id, speaker.key, speaker.default_name, speaker.color_index],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// `None` restores the default name.
+    pub fn rename(&self, id: i64, title: Option<&str>) -> Result<()> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET title = ?2, title_edited = ?3 WHERE id = ?1",
+            params![id, title, title.is_some()],
+        )?;
+        if updated == 0 {
+            return Err(anyhow!("Meeting {id} does not exist"));
+        }
+        Ok(())
+    }
+
+    pub fn rename_speaker(&self, id: i64, key: &str, name: &str) -> Result<()> {
+        let updated = self.connection()?.execute(
+            "UPDATE meeting_speakers SET display_name = ?3 WHERE meeting_id = ?1 AND key = ?2",
+            params![id, key, name],
+        )?;
+        if updated == 0 {
+            return Err(anyhow!("Meeting {id} has no speaker {key}"));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::OptionalExtension;
 
     fn now() -> DateTime<Utc> {
         DateTime::parse_from_rfc3339("2026-10-17T09:00:00Z")
@@ -498,6 +918,155 @@ mod tests {
         assert_eq!(page.meetings[0].id, id);
         assert_eq!(page.meetings[0].status, MeetingStatus::Interrupted);
         assert_eq!(page.meetings[0].duration_ms, 0);
+    }
+
+    fn recorded(store: &MeetingsStore) -> i64 {
+        let id = store.insert_recording(1_000, MeetingTracks::Both).unwrap();
+        store.finish_recording(id, 61_000, 60_000).unwrap();
+        id
+    }
+
+    fn plan(spans: &[(u64, u64, u64)]) -> Vec<ChunkPlan> {
+        spans
+            .iter()
+            .map(|(start_ms, end_ms, voiced_ms)| ChunkPlan {
+                start_ms: *start_ms,
+                end_ms: *end_ms,
+                voiced_ms: *voiced_ms,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_chunk_plan_is_stored_once_and_keeps_its_results() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        store
+            .plan_chunks(
+                id,
+                Track::Mic,
+                &plan(&[(0, 600_000, 90_000), (600_000, 700_000, 0)]),
+            )
+            .unwrap();
+        store
+            .plan_chunks(id, Track::System, &plan(&[(0, 700_000, 5_000)]))
+            .unwrap();
+        store.chunk_done(id, Track::Mic, 0, "Bonjour.").unwrap();
+        store.chunk_failed(id, Track::System, 0, "network").unwrap();
+        // Planning again after a restart changes nothing.
+        store
+            .plan_chunks(id, Track::Mic, &plan(&[(0, 700_000, 90_000)]))
+            .unwrap();
+
+        let chunks = store.chunks(id).unwrap();
+        let summary: Vec<_> = chunks
+            .iter()
+            .map(|c| (c.track, c.idx, c.start_ms, c.status, c.text.as_deref()))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (Track::System, 0, 0, ChunkStatus::Failed, None),
+                (Track::Mic, 0, 0, ChunkStatus::Done, Some("Bonjour.")),
+                (Track::Mic, 1, 600_000, ChunkStatus::Silent, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn processing_runs_only_on_recorded_meetings_and_records_its_outcome() {
+        let (_dir, store) = store();
+        let live = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        assert!(!store.begin_processing(live).unwrap());
+        assert!(!store.begin_processing(999).unwrap());
+
+        let id = recorded(&store);
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+        assert!(store.begin_processing(id).unwrap());
+        store.set_stage(id, MeetingStage::Aligning).unwrap();
+        assert_eq!(
+            store.get(id).unwrap().unwrap().stage,
+            Some(MeetingStage::Aligning)
+        );
+        store
+            .finish_processing(id, Some(ProcessingError::SignedOut))
+            .unwrap();
+        let failed = store.get(id).unwrap().unwrap();
+        assert_eq!(failed.status, MeetingStatus::Failed);
+        assert_eq!(failed.error, Some(ProcessingError::SignedOut));
+        assert_eq!(failed.stage, None);
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+
+        // Retrying clears the error; success makes it ready, for good.
+        assert!(store.begin_processing(id).unwrap());
+        assert_eq!(store.get(id).unwrap().unwrap().error, None);
+        store.finish_processing(id, None).unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().status, MeetingStatus::Ready);
+        assert!(!store.begin_processing(id).unwrap());
+    }
+
+    #[test]
+    fn a_saved_transcript_is_read_back_in_order_and_keeps_renamed_speakers() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        let speakers = vec![
+            MeetingSpeaker {
+                key: "me".into(),
+                name: "Me".into(),
+                default_name: "Me".into(),
+                color_index: 0,
+            },
+            MeetingSpeaker {
+                key: "s1".into(),
+                name: "Speaker 2".into(),
+                default_name: "Speaker 2".into(),
+                color_index: 1,
+            },
+        ];
+        let turn = |key: &str, start_ms: i64, text: &str| MeetingTurn {
+            speaker_key: key.into(),
+            start_ms,
+            end_ms: start_ms + 1_000,
+            text: text.into(),
+            low_confidence: false,
+        };
+        store
+            .save_transcript(
+                id,
+                &speakers,
+                &[turn("s1", 0, "Salut."), turn("me", 900, "Hello.")],
+            )
+            .unwrap();
+        store.rename_speaker(id, "s1", "Sam").unwrap();
+        assert!(store.rename_speaker(id, "s9", "Nobody").is_err());
+
+        // Processing again replaces the turns but keeps the rename.
+        store
+            .save_transcript(id, &speakers, &[turn("s1", 0, "Salut tout le monde.")])
+            .unwrap();
+        let detail = store.get(id).unwrap().unwrap();
+        assert_eq!(detail.speakers[1].name, "Sam");
+        assert_eq!(detail.speakers[1].default_name, "Speaker 2");
+        assert_eq!(detail.turns, [turn("s1", 0, "Salut tout le monde.")]);
+    }
+
+    #[test]
+    fn a_meeting_can_be_renamed_and_given_back_its_default_name() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        store.rename(id, Some("Point hebdo")).unwrap();
+        assert_eq!(
+            store.get(id).unwrap().unwrap().title.as_deref(),
+            Some("Point hebdo")
+        );
+        assert_eq!(
+            store.list(None, 1).unwrap().meetings[0].title.as_deref(),
+            Some("Point hebdo")
+        );
+        store.rename(id, None).unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().title, None);
+        assert!(store.rename(999, Some("x")).is_err());
+        assert_eq!(store.get(999).unwrap(), None);
     }
 
     #[test]

@@ -552,7 +552,64 @@
     "title": "Nytt i Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkriptioner och sammanfattningar kommer i en senare version. Inspelningarna sparas till dess.",
+    "notice": "Transkriptioner visas när ett möte har bearbetats. Sammanfattningar kommer i en senare version.",
+    "view": {
+      "back": "Alla möten",
+      "titleLabel": "Mötets titel",
+      "loadError": "Det gick inte att läsa in mötet.",
+      "renameError": "Det gick inte att byta namn på mötet.",
+      "tabs": {
+        "label": "Mötets innehåll",
+        "summary": "Sammanfattning",
+        "transcript": "Transkription",
+        "summarySoon": "Sammanfattningar kommer i en senare version."
+      }
+    },
+    "processing": {
+      "waiting": "Väntar på bearbetning…",
+      "transcribing": "Transkriberar: {{done}} av {{total}} delar klara…",
+      "rateLimited": "Codex bad om att sakta ner. Bearbetningen fortsätter av sig själv…",
+      "aligning": "Samtalet sätts i ordning…",
+      "interrupted": "Inspelningen avbröts. Det som spelades in kan ändå transkriberas.",
+      "process": "Transkribera",
+      "retry": "Försök igen",
+      "retryError": "Det gick inte att starta om bearbetningen.",
+      "errors": {
+        "signed_out": "Logga in på Codex och försök sedan igen.",
+        "rate_limited": "Codex begränsar förfrågningar just nu. Försök igen senare.",
+        "parts_failed": "Vissa delar kunde inte transkriberas.",
+        "no_audio": "Inspelningen kunde inte läsas.",
+        "other": "Bearbetningen avbröts oväntat."
+      }
+    },
+    "transcript": {
+      "header": "Talare: {{count}} · {{duration}}",
+      "empty": "Inget tal transkriberades.",
+      "pending": "Transkriptionen visas här när mötet har bearbetats.",
+      "missingPart": "Delen {{start}}–{{end}} kunde inte transkriberas.",
+      "search": "Sök i transkriptionen",
+      "searchPlaceholder": "Sök",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Inga träffar",
+      "previousMatch": "Föregående träff",
+      "nextMatch": "Nästa träff",
+      "closeSearch": "Stäng sökning",
+      "copy": "Kopiera transkription",
+      "copied": "Transkriptionen kopierades.",
+      "copyError": "Det gick inte att kopiera transkriptionen.",
+      "export": "Exportera som Markdown",
+      "exported": "Transkriptionen sparades.",
+      "exportError": "Det gick inte att spara transkriptionen.",
+      "renameSpeakers": "Byt namn på talare",
+      "renameSpeaker": "Byt namn på {{name}}"
+    },
+    "renameDialog": {
+      "title": "Byt namn på talare",
+      "description": "Ett nytt namn visas överallt i mötet.",
+      "nameLabel": "Namn för {{name}}",
+      "save": "Spara",
+      "error": "Det gick inte att byta namn på talaren."
+    },
     "recording": {
       "title": "Inspelning",
       "idle": "Inget pågående möte",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Spelar in",
       "interrupted": "Avbrutet",
-      "processing": "Inspelat",
+      "processing": "Bearbetas",
       "ready": "Klart",
       "failed": "Misslyckades"
     }

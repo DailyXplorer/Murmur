@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::meetings::coordinator::MeetingRuntime;
-use crate::meetings::store::MeetingsPage;
+use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingsManager};
 use crate::settings::{get_settings, write_settings, MeetingCaptureMode};
 use crate::user_alert::{self, Alert};
@@ -74,6 +74,77 @@ pub async fn delete_meeting(app: AppHandle, id: i64) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_meeting(app: AppHandle, id: i64) -> Result<MeetingDetail, String> {
+    with_manager(app, move |manager| manager.detail(id)).await
+}
+
+/// An empty title gives the meeting back its default name.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_meeting(app: AppHandle, id: i64, title: String) -> Result<(), String> {
+    with_manager(app, move |manager| manager.rename(id, &title)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_speaker(
+    app: AppHandle,
+    id: i64,
+    key: String,
+    name: String,
+) -> Result<(), String> {
+    with_manager(app, move |manager| manager.rename_speaker(id, &key, &name)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn retry_meeting(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| {
+        manager.retry(id);
+        Ok(())
+    })
+    .await
+}
+
+/// The transcript as Markdown, exactly as Export saves it.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_meeting_markdown(app: AppHandle, id: i64) -> Result<String, String> {
+    with_manager(app, move |manager| {
+        manager.markdown(id).map(|(text, _)| text)
+    })
+    .await
+}
+
+/// Asks where to save the transcript and writes it there. Returns the path,
+/// or `None` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub async fn export_meeting_markdown(app: AppHandle, id: i64) -> Result<Option<String>, String> {
+    let (markdown, file_name) =
+        with_manager(app.clone(), move |manager| manager.markdown(id)).await?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(meetings::save_panel::ask_save_path(&file_name));
+    })
+    .map_err(|error| format!("Cannot show the save dialog: {error}"))?;
+    let Some(path) = receiver
+        .await
+        .map_err(|_| "The save dialog closed unexpectedly".to_string())?
+    else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::write(&path, markdown)
+            .map(|()| Some(path.display().to_string()))
+            .map_err(|error| format!("Cannot save the transcript: {error}"))
+    })
+    .await
+    .map_err(|error| format!("Export task failed: {error}"))?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn get_meeting_capabilities() -> MeetingCapabilities {
     MeetingCapabilities {
         system_audio: meetings::capture::system::support(),
@@ -110,6 +181,11 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
     let binding = settings.bindings.get(meetings::BINDING_ID).cloned();
     let yields = crate::shortcut::meeting_shortcut_yields(&settings);
     write_settings(&app, settings);
+    if enabled {
+        if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+            manager.resume_processing();
+        }
+    }
 
     if let Some(binding) = binding {
         if yields {

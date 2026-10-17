@@ -552,7 +552,64 @@
     "title": "Murmur v{{version}} 新功能"
   },
   "meetings": {
-    "notice": "轉錄和摘要將在後續版本中提供。在此之前錄音會保留。",
+    "notice": "會議處理完成後會顯示轉錄內容。摘要將在後續版本中提供。",
+    "view": {
+      "back": "所有會議",
+      "titleLabel": "會議標題",
+      "loadError": "無法載入此會議。",
+      "renameError": "無法重新命名會議。",
+      "tabs": {
+        "label": "會議內容",
+        "summary": "摘要",
+        "transcript": "轉錄",
+        "summarySoon": "摘要將在後續版本中提供。"
+      }
+    },
+    "processing": {
+      "waiting": "等待處理…",
+      "transcribing": "正在轉錄：已完成 {{done}}/{{total}} 個部分…",
+      "rateLimited": "Codex 要求放慢速度。處理會自動繼續…",
+      "aligning": "正在整理對話順序…",
+      "interrupted": "錄音已中斷。已錄下的內容仍可轉錄。",
+      "process": "轉錄",
+      "retry": "重試",
+      "retryError": "無法重新開始處理。",
+      "errors": {
+        "signed_out": "請登入 Codex，然後重試。",
+        "rate_limited": "Codex 目前正在限制要求。請稍後重試。",
+        "parts_failed": "部分內容無法轉錄。",
+        "no_audio": "無法讀取錄音。",
+        "other": "處理意外停止。"
+      }
+    },
+    "transcript": {
+      "header": "發言者：{{count}} · {{duration}}",
+      "empty": "沒有轉錄到任何語音。",
+      "pending": "會議處理完成後，轉錄內容會顯示在這裡。",
+      "missingPart": "無法轉錄 {{start}}–{{end}} 部分。",
+      "search": "搜尋轉錄內容",
+      "searchPlaceholder": "搜尋",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "沒有相符項目",
+      "previousMatch": "上一個相符項目",
+      "nextMatch": "下一個相符項目",
+      "closeSearch": "關閉搜尋",
+      "copy": "拷貝轉錄內容",
+      "copied": "已拷貝轉錄內容。",
+      "copyError": "無法拷貝轉錄內容。",
+      "export": "輸出為 Markdown",
+      "exported": "已儲存轉錄內容。",
+      "exportError": "無法儲存轉錄內容。",
+      "renameSpeakers": "重新命名發言者",
+      "renameSpeaker": "重新命名 {{name}}"
+    },
+    "renameDialog": {
+      "title": "重新命名發言者",
+      "description": "新名稱會顯示在此會議的所有位置。",
+      "nameLabel": "{{name}} 的名稱",
+      "save": "儲存",
+      "error": "無法重新命名發言者。"
+    },
     "recording": {
       "title": "錄製",
       "idle": "沒有進行中的會議",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "錄製中",
       "interrupted": "已中斷",
-      "processing": "已錄製",
+      "processing": "處理中",
       "ready": "已就緒",
       "failed": "失敗"
     }
