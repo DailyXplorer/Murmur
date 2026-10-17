@@ -432,10 +432,7 @@ impl Notifier for AppNotifier {
                 ..
             } => crate::overlay::show_meeting_overlay(&self.app, *started_at_ms, *stops_at_ms),
         }
-        let app = self.app.clone();
-        let _ = self
-            .app
-            .run_on_main_thread(move || crate::utils::update_tray_menu(&app, None));
+        crate::utils::update_tray_menu(&self.app, None);
         if let Err(error) = MeetingStateChanged(runtime.clone()).emit(&self.app) {
             error!("Failed to emit the meeting state: {error}");
         }

@@ -80,7 +80,18 @@ fn version_label() -> String {
     }
 }
 
+/// Rebuilds the tray menu on the main thread. The state is read and the menu
+/// set in one main-thread step, so a menu built from an older state cannot
+/// land after a newer one.
 pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
+    let (handle, locale) = (app.clone(), locale.map(str::to_owned));
+    let built = app.run_on_main_thread(move || build_tray_menu(&handle, locale.as_deref()));
+    if let Err(error) = built {
+        error!("Failed to update the tray menu: {error}");
+    }
+}
+
+fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
     let state = app.state::<CurrentTrayIconState>().get();
     let settings = settings::get_settings(app);
 
