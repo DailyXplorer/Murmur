@@ -186,7 +186,12 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             .insert_recording(started_at_ms, requested)
             .map_err(storage)?;
         let dir = paths::meeting_dir(&self.root, id);
-        if let Err(error) = std::fs::create_dir_all(&dir) {
+        // SQLite hands out the id of a deleted newest meeting again. Files
+        // still under it (a folder that failed to delete) belong to no
+        // meeting, and an old analysis would be taken for this one's.
+        if let Err(error) =
+            paths::remove_meeting_dir(&self.root, id).and_then(|()| std::fs::create_dir_all(&dir))
+        {
             self.forget(id);
             return Err(storage(error));
         }
