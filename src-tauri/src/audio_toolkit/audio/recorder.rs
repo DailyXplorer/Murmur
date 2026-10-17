@@ -78,7 +78,7 @@ impl AudioRecorder {
     pub fn open(&mut self, device: Option<Device>) -> Result<(), Box<dyn std::error::Error>> {
         if self.worker_handle.is_some() {
             if !self.needs_reopen() {
-                return Ok(()); // already open
+                return Ok(());
             }
             log::warn!("Capture stream failed; rebuilding microphone stream");
             let _ = self.close();
@@ -300,7 +300,7 @@ impl AudioRecorder {
         if let Some(tx) = &self.cmd_tx {
             tx.send(Cmd::Stop(resp_tx))?;
         }
-        Ok(resp_rx.recv()?) // wait for the samples
+        Ok(resp_rx.recv()?)
     }
 
     /// True when the active capture stream must be rebuilt.
@@ -345,8 +345,8 @@ impl AudioRecorder {
         // out of range for this device, fall back to averaging all channels.
         let use_channel: Option<usize> = match selected_channel {
             Some(ch) if ch < channels => Some(ch),
-            Some(_) => None, // out of range, fall back to average
-            None => None,    // user chose "average all"
+            Some(_) => None,
+            None => None,
         };
 
         let stream_cb = move |data: &[T], _: &cpal::InputCallbackInfo| {
@@ -419,7 +419,6 @@ impl AudioRecorder {
         let default_config = device.default_input_config()?;
         let target_rate = default_config.sample_rate();
 
-        // Try to find the best sample format at the device's default rate
         let supported_configs = match device.supported_input_configs() {
             Ok(configs) => configs,
             Err(e) => {
@@ -436,7 +435,6 @@ impl AudioRecorder {
                 match best_config {
                     None => best_config = Some(config_range),
                     Some(ref current) => {
-                        // Prioritize F32 > I16 > I32 > others
                         let score = |fmt: cpal::SampleFormat| match fmt {
                             cpal::SampleFormat::F32 => 4,
                             cpal::SampleFormat::I16 => 3,
@@ -456,7 +454,6 @@ impl AudioRecorder {
             return Ok(config.with_sample_rate(target_rate));
         }
 
-        // Fall back to device default if no config matched (exotic/virtual devices)
         log::warn!(
             "No supported config matched device default rate {:?}, using default config",
             target_rate
@@ -552,7 +549,8 @@ mod tests {
         cmd_tx.send(Cmd::Shutdown).expect("send shutdown");
         let stopped = done_rx.recv_timeout(Duration::from_secs(1));
 
-        // Unblock the old implementation so a failing test still exits cleanly.
+        // Unblocks a consumer stuck waiting for a sample, so a failing test
+        // still exits cleanly.
         drop(sample_tx);
         worker.join().expect("join consumer");
         assert!(stopped.is_ok(), "shutdown waited for an audio sample");
@@ -631,7 +629,6 @@ fn run_consumer(
     let mut recording = false;
     let mut capture_limit_logged = false;
 
-    // ---------- latency instrumentation ---------------------------------- //
     // First-chunk arrival exposes the play()->samples-flowing gap; the
     // first-captured log confirms capture begins with the chunk in flight
     // when Cmd::Start lands.
@@ -639,7 +636,6 @@ fn run_consumer(
     let mut awaiting_first_captured_chunk: Option<Instant> = None;
     let mut capture_ready_tx: Option<mpsc::Sender<()>> = None;
 
-    // ---------- spectrum visualisation setup ---------------------------- //
     const BUCKETS: usize = 16;
     // Scale the FFT window to the device sample rate so the analysis window
     // (~33 ms) and frequency resolution (~30 Hz/bin) stay roughly constant
@@ -670,9 +666,9 @@ fn run_consumer(
         };
 
         // Handle pending commands BEFORE the in-flight chunk so a Start
-        // captures it. Commands used to be polled after processing, which
-        // silently dropped one buffer period of audio (~10ms built-in, up to
-        // ~100ms on Bluetooth) at every recording start.
+        // captures it. Polling after processing would silently drop one buffer
+        // period of audio (~10ms built-in, up to ~100ms on Bluetooth) at every
+        // recording start.
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
                 Cmd::Start(sent_at, ready_tx) => {
@@ -788,7 +784,6 @@ fn run_consumer(
             );
         }
 
-        // ---------- recording-time processing ---------------------------- //
         // In always-on mode the capture stream stays open continuously for
         // zero-latency start, so while idle (not recording) there is nothing to
         // do with a chunk. Skip both the level-meter FFT and resampler while

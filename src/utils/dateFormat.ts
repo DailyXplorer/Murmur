@@ -1,18 +1,17 @@
 /**
- * Format a date string or timestamp to a localized date and time string
+ * Format a Unix timestamp as a localized date and time string, or return the
+ * input unchanged when it does not parse
  * @param timestamp - Unix timestamp in seconds (as string)
  * @param locale - BCP 47 language tag (e.g., 'en', 'es', 'fr')
  * @returns Formatted date string
  */
 export const formatDateTime = (timestamp: string, locale: string): string => {
   try {
-    // Convert Unix timestamp (seconds) to milliseconds
     const timestampMs = parseInt(timestamp, 10) * 1000;
     const date = new Date(timestampMs);
 
-    // Check if date is valid
     if (isNaN(date.getTime())) {
-      return timestamp; // Return original if invalid
+      return timestamp;
     }
 
     return new Intl.DateTimeFormat(locale, {
@@ -24,6 +23,6 @@ export const formatDateTime = (timestamp: string, locale: string): string => {
     }).format(date);
   } catch (error) {
     console.error("Failed to format date:", error);
-    return timestamp; // Fallback to original timestamp
+    return timestamp;
   }
 };

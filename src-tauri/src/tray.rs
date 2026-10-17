@@ -51,7 +51,6 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     }
     let icon_elapsed = icon_started.elapsed();
 
-    // Update menu based on state
     let menu_started = std::time::Instant::now();
     update_tray_menu(app, None);
     debug!(
@@ -62,8 +61,8 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     );
 }
 
-/// Re-applies the last known tray state — for when only the *theme* changed
-/// and the state itself (idle/recording/transcribing) should be preserved.
+/// Re-applies the last known tray state, for when only the theme changed and
+/// the state itself (idle/recording/transcribing) should be preserved.
 pub fn refresh_tray_icon(app: &AppHandle) {
     let icon = app.state::<CurrentTrayIconState>().get();
     change_tray_icon(app, icon);
@@ -90,7 +89,6 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
 
     let (settings_accelerator, quit_accelerator) = (Some("Cmd+,"), Some("Cmd+Q"));
 
-    // Create common menu items
     let version_label = version_label();
     let version_i = MenuItem::with_id(app, "version", &version_label, false, None::<&str>)
         .expect("failed to create version item");

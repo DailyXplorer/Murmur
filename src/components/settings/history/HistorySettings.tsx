@@ -216,7 +216,6 @@ export const HistorySettings: React.FC = () => {
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     if (historyListenerReady) {
       void loadPage();
@@ -230,7 +229,6 @@ export const HistorySettings: React.FC = () => {
     void loadPage();
   }, [hasQueuedFirstPageRefresh, loadPage]);
 
-  // Infinite scroll via IntersectionObserver
   useEffect(() => {
     if (loading) return;
 
@@ -254,7 +252,6 @@ export const HistorySettings: React.FC = () => {
     return () => observer.disconnect();
   }, [loading, hasMore, loadPage]);
 
-  // Listen for new entries added from the transcription pipeline
   useEffect(() => {
     let disposed = false;
     const unlisten = events.historyUpdatePayload
@@ -312,21 +309,18 @@ export const HistorySettings: React.FC = () => {
   }, []);
 
   const toggleSaved = async (id: number) => {
-    // Optimistic update
     setEntries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
     );
     try {
       const result = await commands.toggleHistoryEntrySaved(id);
       if (result.status !== "ok") {
-        // Revert on failure
         setEntries((prev) =>
           prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
         );
       }
     } catch (error) {
       console.error("Failed to toggle saved status:", error);
-      // Revert on failure
       setEntries((prev) =>
         prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
       );
@@ -355,12 +349,10 @@ export const HistorySettings: React.FC = () => {
   }, []);
 
   const deleteAudioEntry = async (id: number) => {
-    // Optimistically remove
     setEntries((prev) => prev.filter((e) => e.id !== id));
     try {
       const result = await commands.deleteHistoryEntry(id);
       if (result.status !== "ok") {
-        // Reload on failure
         loadPage();
       }
     } catch (error) {

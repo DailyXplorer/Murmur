@@ -1,9 +1,9 @@
 //! Guarded clipboard paste.
 //!
 //! Restoring the previous clipboard after a fixed delay is unsafe. The paste
-//! keystroke is only *enqueued* at that point — the target application reads
+//! keystroke is only *enqueued* at that point. The target application reads
 //! the clipboard whenever its event loop gets to it, so a delayed target can
-//! receive the previous clipboard value instead (#502).
+//! receive the previous clipboard value instead.
 //!
 //! This module instead publishes the transcript as a *lazy promise*. The
 //! operating system tells us when a consumer requests its text, but does not

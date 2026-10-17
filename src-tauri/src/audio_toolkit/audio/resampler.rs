@@ -1,7 +1,6 @@
 use rubato::{FftFixedIn, Resampler};
 use std::time::Duration;
 
-// Make this a constant you can tweak
 const RESAMPLER_CHUNK_SIZE: usize = 1024;
 
 pub struct FrameResampler {
@@ -17,7 +16,6 @@ impl FrameResampler {
         let frame_samples = ((out_hz as f64 * frame_dur.as_secs_f64()).round()) as usize;
         assert!(frame_samples > 0, "frame duration too short");
 
-        // Use fixed chunk size instead of GCD-based
         let chunk_in = RESAMPLER_CHUNK_SIZE;
 
         let resampler = (in_hz != out_hz).then(|| {
@@ -47,15 +45,12 @@ impl FrameResampler {
             src = &src[take..];
 
             if self.in_buf.len() == self.chunk_in {
-                // let start = std::time::Instant::now();
                 if let Ok(out) = self
                     .resampler
                     .as_mut()
                     .unwrap()
                     .process(&[&self.in_buf[..]], None)
                 {
-                    // let duration = start.elapsed();
-                    // log::debug!("Resampler took: {:?}", duration);
                     self.emit_frames(&out[0], &mut emit);
                 }
                 self.in_buf.clear();
@@ -64,10 +59,8 @@ impl FrameResampler {
     }
 
     pub fn finish(&mut self, mut emit: impl FnMut(&[f32])) {
-        // Process any remaining input samples
         if let Some(ref mut resampler) = self.resampler {
             if !self.in_buf.is_empty() {
-                // Pad with zeros to reach chunk size
                 self.in_buf.resize(self.chunk_in, 0.0);
                 if let Ok(out) = resampler.process(&[&self.in_buf[..]], None) {
                     self.emit_frames(&out[0], &mut emit);
@@ -79,7 +72,6 @@ impl FrameResampler {
             }
         }
 
-        // Emit any remaining pending frame (padded with zeros)
         if !self.pending.is_empty() {
             self.pending.resize(self.frame_samples, 0.0);
             emit(&self.pending);
@@ -118,7 +110,7 @@ impl FrameResampler {
 mod tests {
     use super::*;
 
-    /// Generate a 1kHz sine wave at the given sample rate and duration.
+    /// Generates a `freq` Hz sine wave at the given sample rate and duration.
     fn sine_wave(sample_rate: usize, freq: f64, duration_secs: f64) -> Vec<f32> {
         let n = (sample_rate as f64 * duration_secs) as usize;
         (0..n)
@@ -144,7 +136,6 @@ mod tests {
 
         r.reset();
 
-        // Now push silence — should get only silence out, no remnants of 0.5
         let silence = vec![0.0f32; 4096];
         let out = collect_output(&mut r, &silence);
 
@@ -160,15 +151,12 @@ mod tests {
     fn reset_clears_fft_overlap_buffers() {
         let mut r = FrameResampler::new(48000, 16000, Duration::from_millis(30));
 
-        // Push a loud 1kHz sine wave through the resampler (simulates recording 1)
-        let sine = sine_wave(48000, 1000.0, 0.5); // 500ms of audio
+        let sine = sine_wave(48000, 1000.0, 0.5);
         let _ = collect_output(&mut r, &sine);
         r.finish(|_| {});
 
-        // Reset (simulates new recording starting)
         r.reset();
 
-        // Push silence (simulates recording 2 starting with no speech)
         let silence = vec![0.0f32; 4096];
         let out = collect_output(&mut r, &silence);
 
@@ -186,17 +174,14 @@ mod tests {
     fn reset_between_recordings_no_crosstalk() {
         let mut r = FrameResampler::new(48000, 16000, Duration::from_millis(30));
 
-        // Recording 1: ascending ramp (distinctive pattern)
-        let ramp: Vec<f32> = (0..48000).map(|i| i as f32 / 48000.0).collect(); // 1 second
+        let ramp: Vec<f32> = (0..48000).map(|i| i as f32 / 48000.0).collect();
         let out1 = collect_output(&mut r, &ramp);
         r.finish(|_| {});
         assert!(!out1.is_empty(), "Recording 1 should produce output");
 
-        // Reset between recordings
         r.reset();
 
-        // Recording 2: constant DC signal of -0.5
-        let dc = vec![-0.5f32; 48000]; // 1 second
+        let dc = vec![-0.5f32; 48000];
         let out2 = collect_output(&mut r, &dc);
 
         // After the resampler settles (skip first frame which may have transient),
@@ -227,11 +212,9 @@ mod tests {
 
         r.reset();
 
-        // Push silence
         let silence = vec![0.0f32; 960];
         let out = collect_output(&mut r, &silence);
 
-        // First complete frame should be all zeros, not contain the 1.0 values
         if !out.is_empty() {
             let max_abs = out.iter().take(480).map(|s| s.abs()).fold(0.0f32, f32::max);
             assert!(

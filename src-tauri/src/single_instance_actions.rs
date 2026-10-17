@@ -91,8 +91,8 @@ impl SingleInstanceActionQueue {
     }
 }
 
-/// Preserve the existing remote-control precedence: toggle wins over cancel,
-/// and ordinary second launches show the settings window.
+/// Toggle wins over cancel, and an ordinary second launch shows the settings
+/// window.
 pub(crate) fn action_from_args(args: &[String]) -> SingleInstanceAction {
     if args.iter().any(|arg| arg == "--toggle-transcription") {
         SingleInstanceAction::Toggle

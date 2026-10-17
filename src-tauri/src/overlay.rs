@@ -94,10 +94,10 @@ fn is_mouse_within_monitor(
 /// Returns overlay position in logical coordinates (points on macOS).
 ///
 /// The Bottom anchor uses the macOS work area (visibleFrame) so the overlay
-/// tracks the Dock — above it when shown, at the screen edge when hidden.
-/// This relies on tauri 2.11's work_area.position.y fix (#14655), the same
-/// bug that led PR #969 to abandon work_area for full monitor bounds. Top
-/// keeps full monitor bounds plus the fixed offset.
+/// tracks the Dock: above it when shown, at the screen edge when hidden.
+/// This relies on the work_area.position.y fix in tauri 2.11; earlier
+/// versions reported a wrong work area origin. Top keeps full monitor bounds
+/// plus the fixed offset.
 ///
 /// We must use LogicalPosition (not PhysicalPosition) because Tauri/tao
 /// converts PhysicalPosition using the scale factor of the monitor the window

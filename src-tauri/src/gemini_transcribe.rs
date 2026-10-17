@@ -54,9 +54,8 @@ const CAPABILITIES_PATH: &str = "/exa.language_server_pb.LanguageServerService/G
 pub fn status() -> crate::commands::transcription::GeminiStatus {
     crate::commands::transcription::GeminiStatus {
         installed: verified_antigravity_binary().is_ok(),
-        // The token is never opened. Its presence only lets the settings page
-        // report the session Antigravity has already created. The service
-        // performs the authoritative check on the first dictation.
+        // Presence is only a hint for the settings page. The service performs
+        // the authoritative check on the first dictation.
         signed_in: antigravity_token_path().is_some_and(|path| {
             std::fs::metadata(path)
                 .map(|metadata| metadata.is_file() && metadata.len() > 0)
@@ -87,8 +86,8 @@ pub struct GeminiTranscriber {
 }
 
 /// Completion receipt for a shutdown that was scheduled away from AppKit.
-/// It resolves only after the owned-child cleanup task has released its state
-/// mutex and completed its bounded termination/reap sequence.
+/// It resolves only after the cleanup task has acquired the state mutex and
+/// completed its bounded termination and reap sequence for the owned child.
 pub struct ShutdownReceipt {
     finished: Receiver<()>,
 }
@@ -268,7 +267,6 @@ impl RuntimeState {
         }
     }
 
-    /// Stops a Murmur-owned language server after `IDLE_TIMEOUT` without use.
     fn stop_owned_if_idle(&mut self) {
         if self.owned.is_none() {
             return;
@@ -471,7 +469,6 @@ struct ConnectionInfo {
     csrf: String,
 }
 
-/// Periodically stops idle Murmur-owned language servers.
 fn spawn_supervisor(state: Weak<Mutex<RuntimeState>>) {
     thread::spawn(move || loop {
         thread::sleep(SUPERVISOR_INTERVAL);
@@ -584,7 +581,6 @@ fn antigravity_version(binary: &Path) -> Option<String> {
         .filter(|version| !version.is_empty())
 }
 
-/// True when a Murmur-owned server has been unused for `IDLE_TIMEOUT`.
 fn should_stop_owned(last_used: Instant, now: Instant) -> bool {
     now.saturating_duration_since(last_used) >= IDLE_TIMEOUT
 }
@@ -660,7 +656,6 @@ fn listening_tcp_endpoints(pid: u32) -> Result<Vec<(String, u16)>> {
     Ok(endpoints.into_iter().collect())
 }
 
-/// Maps recognized loopback listener hosts to a gRPC endpoint hostname.
 fn normalize_loopback_host(host: &str) -> Option<String> {
     match host {
         "127.0.0.1" | "localhost" | "[::1]" => Some(host.to_string()),
@@ -726,7 +721,6 @@ fn transcription_timeout(sample_count: usize) -> Duration {
     TRANSCRIPTION_TIMEOUT + Duration::from_secs(audio_seconds / 2)
 }
 
-/// Bounds a full Gemini transcription attempt with `transcription_timeout`.
 async fn transcribe_over_grpc(
     owned: &mut OwnedServer,
     samples: &[f32],
@@ -912,7 +906,6 @@ async fn transcribe_over_grpc_inner(
     Ok(transcript.trim().to_string())
 }
 
-/// Sends one sequenced PCM chunk to the active Gemini audio session.
 async fn send_audio_chunk(
     channel: Channel,
     connection: &ConnectionInfo,
@@ -1200,7 +1193,6 @@ mod tests {
         assert_eq!(bytes, vec![1, 128, 1, 128, 0, 0, 255, 127, 255, 127]);
     }
 
-    /// Stops a Murmur-owned server only after the idle deadline elapses.
     #[test]
     fn owned_server_stops_at_idle_deadline() {
         let last_used = Instant::now();
@@ -1319,7 +1311,6 @@ mod tests {
         assert!(!local_child_is_alive(pid));
     }
 
-    /// Accepts IPv4, IPv6, and IPv4-mapped loopback hosts for gRPC endpoints.
     #[test]
     fn accepts_only_loopback_listener_hosts() {
         assert_eq!(
@@ -1345,7 +1336,6 @@ mod tests {
         assert_eq!(normalize_loopback_host("192.168.1.10"), None);
     }
 
-    /// Leaves the IDE version unset when the Antigravity bundle cannot be read.
     #[test]
     fn missing_antigravity_bundle_version_has_no_murmur_fallback() {
         assert_eq!(antigravity_version(Path::new("language_server")), None);

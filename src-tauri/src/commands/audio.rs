@@ -74,7 +74,7 @@ pub async fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
         result.extend(devices.into_iter().map(|d| AudioDevice {
             index: d.index,
             name: d.name,
-            is_default: false, // The explicit default is handled separately
+            is_default: false,
         }));
 
         Ok::<_, String>(result)
@@ -119,7 +119,7 @@ pub async fn get_available_output_devices() -> Result<Vec<AudioDevice>, String> 
         result.extend(devices.into_iter().map(|d| AudioDevice {
             index: d.index,
             name: d.name,
-            is_default: false, // The explicit default is handled separately
+            is_default: false,
         }));
 
         Ok::<_, String>(result)

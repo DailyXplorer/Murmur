@@ -87,14 +87,12 @@ fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<Strin
     Ok(normalized)
 }
 
-// Global atomic to store the file log level filter
-// We use u8 to store the log::LevelFilter as a number
 pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u8);
 
-/// When `true`, log records are also forwarded to the webview via the
-/// `log://log` event for the debug panel's live log viewer. Gated on debug
-/// mode — the live log viewer is its only consumer and only exists in debug
-/// mode — so normal runs never broadcast log records (which can include file
+/// When `true`, log records are also forwarded to the webview through the
+/// `log://log` event for the debug panel's live log viewer. It follows debug
+/// mode, because that viewer is the only consumer and only exists in debug
+/// mode, so normal runs never broadcast log records (which can include file
 /// paths and diagnostics) onto the frontend event bus. Synced at startup
 /// and whenever debug mode is toggled (see `shortcut::change_debug_mode_setting`).
 pub static WEBVIEW_LOG_STREAMING: AtomicBool = AtomicBool::new(false);
@@ -236,7 +234,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // after onboarding completes. This avoids triggering permission dialogs
     // on macOS before the user is ready.
 
-    // Initialize the managers.
     let transcription_manager = Arc::new(TranscriptionManager::new(app_handle));
     let (recording_manager, microphone_error) = AudioRecordingManager::new(app_handle);
     let recording_manager = Arc::new(recording_manager);
@@ -275,7 +272,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend calls `initialize_shortcuts` after permissions are confirmed.
-    // This matches the pattern used for Enigo initialization.
 
     signal_handle::setup_signal_handler(app_handle.clone());
 
@@ -326,10 +322,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         .unwrap();
     app_handle.manage(tray);
 
-    // Initialize tray menu with idle state
     utils::update_tray_menu(app_handle, None);
 
-    // Apply show_tray_icon setting
     let settings = settings::get_settings(app_handle);
     if !settings.show_tray_icon {
         tray::set_tray_visibility(app_handle, false);
@@ -380,9 +374,9 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         return 0;
     };
 
-    // read_wav_samples reads 16-bit int samples and does no validation; the app
-    // only ever saves 16 kHz mono 16-bit PCM, so reject anything else rather than
-    // transcribe garbage / mis-time / mis-decode.
+    // read_wav_samples decodes every file as 16-bit int samples without checking
+    // the format. The app only saves 16 kHz mono 16-bit PCM, so reject anything
+    // else instead of transcribing a mis-decoded or mis-timed signal.
     match hound::WavReader::open(&wav) {
         Ok(reader) => {
             let spec = reader.spec();
@@ -454,8 +448,6 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 
 /// Starts the Tauri application and shuts down transcription on process exit.
 pub fn run(cli_args: CliArgs) {
-    // Parse console logging directives from RUST_LOG, falling back to info-level logging
-    // when the variable is unset
     let console_filter = build_console_filter();
 
     let specta_builder = Builder::<tauri::Wry>::new()
@@ -545,7 +537,7 @@ pub fn run(cli_args: CliArgs) {
             insights::InsightsUpdated
         ]);
 
-    #[cfg(debug_assertions)] // <- Only export on non-release builds
+    #[cfg(debug_assertions)]
     {
         let generated = specta_builder
             .export_str(Typescript::default().bigint(BigIntExportBehavior::Number))
@@ -567,15 +559,13 @@ pub fn run(cli_args: CliArgs) {
         .device_event_filter(tauri::DeviceEventFilter::Always)
         .plugin(
             LogBuilder::new()
-                .level(log::LevelFilter::Trace) // Set to most verbose level globally
+                .level(log::LevelFilter::Trace)
                 .max_file_size(500_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()
                 .targets([
-                    // Console output respects RUST_LOG environment variable. In
-                    // headless mode (--transcribe-file)
-                    // stdout carries only the result (JSON or plain), so send console
-                    // logs to stderr instead to keep stdout clean for CI parsing.
+                    // In headless mode stdout carries only the result (JSON or
+                    // plain), so console logs go to stderr to keep stdout parseable.
                     Target::new(if headless_mode {
                         TargetKind::Stderr
                     } else {
@@ -585,7 +575,6 @@ pub fn run(cli_args: CliArgs) {
                         let console_filter = console_filter.clone();
                         move |metadata| console_filter.enabled(metadata)
                     }),
-                    // File logs respect the user's settings (stored in FILE_LOG_LEVEL atomic)
                     Target::new(TargetKind::LogDir {
                         file_name: Some("murmur".into()),
                     })
@@ -609,10 +598,8 @@ pub fn run(cli_args: CliArgs) {
     builder = builder.plugin(tauri_nspanel::init());
 
     // Single-instance forwards CLI args to an already-running Murmur and exits.
-    // That would make the headless path
-    // (`--transcribe-file`) a silent no-op whenever the
-    // app is already open, so skip it in headless mode and run a standalone
-    // instance instead.
+    // That would make `--transcribe-file` a silent no-op whenever the app is
+    // already open, so headless mode skips it and runs a standalone instance.
     if !headless_mode {
         // The plugin can call its callback before setup has initialized the
         // window, coordinator, and recording manager. Register this state
@@ -647,11 +634,11 @@ pub fn run(cli_args: CliArgs) {
         .setup(move |app| {
             specta_builder.mount_events(app);
 
-            // Headless one-shot path (`--transcribe-file`): initialize only the
-            // store/paths plugins and transcription manager, then run on a worker thread and
-            // exit. Deliberately skips the window, tray, overlay, audio
-            // recorder (so it never opens the mic, even with always_on_microphone),
-            // signal handlers, and autostart that initialize_core_logic sets up.
+            // Headless one-shot path (`--transcribe-file`): only the transcription
+            // manager is created, then a worker thread transcribes and exits. It
+            // skips the window, tray, overlay, audio recorder (so it never opens
+            // the mic, even with always_on_microphone), signal handlers, and
+            // autostart that initialize_core_logic sets up.
             if headless_mode {
                 let app_handle = app.handle().clone();
                 let transcription_manager = Arc::new(TranscriptionManager::new(&app_handle));
@@ -704,7 +691,6 @@ pub fn run(cli_args: CliArgs) {
 
             let tauri_log_level: tauri_plugin_log::LogLevel = settings.log_level.into();
             let file_log_level: log::Level = tauri_log_level.into();
-            // Store the file log level in the atomic for the filter to use
             FILE_LOG_LEVEL.store(file_log_level.to_level_filter() as u8, Ordering::Relaxed);
             // Only forward logs to the webview while debug mode is on (the live log
             // viewer is the sole consumer and only exists in debug mode). This also
@@ -727,8 +713,6 @@ pub fn run(cli_args: CliArgs) {
                 tray::set_tray_visibility(&app_handle, false);
             }
 
-            // Show main window only if not starting hidden.
-            // CLI --start-hidden flag overrides the setting.
             let should_hide = settings.start_hidden || cli_args.start_hidden;
 
             // If start_hidden but tray is disabled, we must show the window
@@ -769,7 +753,6 @@ pub fn run(cli_args: CliArgs) {
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
-                // Re-apply the current tray state with the new theme's icon set
                 utils::refresh_tray_icon(window.app_handle());
             }
             _ => {}

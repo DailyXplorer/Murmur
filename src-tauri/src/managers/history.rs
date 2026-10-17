@@ -17,7 +17,6 @@ pub const RECORDING_UNAVAILABLE_ERROR: &str = "Recording unavailable";
 /// Database migrations for transcription history.
 /// Each migration is applied in order. The library tracks which migrations
 /// have been applied using SQLite's user_version pragma.
-///
 static MIGRATIONS: &[M] = &[
     M::up(
         "CREATE TABLE IF NOT EXISTS transcription_history (
@@ -252,21 +251,16 @@ fn init_database(db_path: &Path) -> Result<()> {
 
     migrate_from_tauri_plugin_sql(&conn)?;
 
-    // Create migrations object and run to latest version
     let migrations = Migrations::new(MIGRATIONS.to_vec());
 
-    // Validate migrations in debug builds
     #[cfg(debug_assertions)]
     migrations.validate().expect("Invalid migrations");
 
-    // Get current version before migration
     let version_before: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
     debug!("Database version before migration: {}", version_before);
 
-    // Apply any pending migrations
     migrations.to_latest(&mut conn)?;
 
-    // Get version after migration
     let version_after: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
 
     if version_after > version_before {
@@ -414,7 +408,6 @@ impl HistoryManager {
             );
         }
 
-        // Emit typed event for real-time frontend updates
         if let Err(e) = (HistoryUpdatePayload::Added {
             entry: entry.clone(),
         })
@@ -470,7 +463,7 @@ impl HistoryManager {
                 Ok(())
             }
             crate::settings::RecordingRetentionPeriod::PreserveLimit => {
-                // Use the old count-based logic with history_limit
+                // Keeps the newest `history_limit` unsaved entries.
                 let limit = crate::settings::get_history_limit(&self.app_handle);
                 self.cleanup_by_count(limit)
             }
@@ -514,7 +507,6 @@ impl HistoryManager {
     fn cleanup_by_count(&self, limit: usize) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Get all entries that are not saved, ordered by timestamp desc
         let mut stmt = conn.prepare(
             "SELECT id, file_name FROM transcription_history WHERE saved = 0 ORDER BY timestamp DESC"
         )?;
@@ -546,16 +538,14 @@ impl HistoryManager {
     ) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Calculate cutoff timestamp (current time minus retention period)
         let now = Utc::now().timestamp();
         let cutoff_timestamp = match retention_period {
-            crate::settings::RecordingRetentionPeriod::Days3 => now - (3 * 24 * 60 * 60), // 3 days in seconds
-            crate::settings::RecordingRetentionPeriod::Weeks2 => now - (2 * 7 * 24 * 60 * 60), // 2 weeks in seconds
-            crate::settings::RecordingRetentionPeriod::Months3 => now - (3 * 30 * 24 * 60 * 60), // 3 months in seconds (approximate)
+            crate::settings::RecordingRetentionPeriod::Days3 => now - (3 * 24 * 60 * 60),
+            crate::settings::RecordingRetentionPeriod::Weeks2 => now - (2 * 7 * 24 * 60 * 60),
+            crate::settings::RecordingRetentionPeriod::Months3 => now - (3 * 30 * 24 * 60 * 60),
             _ => unreachable!("Should not reach here"),
         };
 
-        // Get all unsaved entries older than the cutoff timestamp
         let mut stmt = conn.prepare(
             "SELECT id, file_name FROM transcription_history WHERE saved = 0 AND timestamp < ?1",
         )?;
@@ -689,7 +679,6 @@ impl HistoryManager {
     pub async fn toggle_saved_status(&self, id: i64) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Get current saved status
         let current_saved: bool = conn.query_row(
             "SELECT saved FROM transcription_history WHERE id = ?1",
             params![id],
@@ -705,7 +694,6 @@ impl HistoryManager {
 
         debug!("Toggled saved status for entry {}: {}", id, new_saved);
 
-        // Emit history updated event
         if let Err(e) = (HistoryUpdatePayload::Toggled { id }).emit(&self.app_handle) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -770,7 +758,6 @@ impl HistoryManager {
 
         debug!("Deleted history entry with id: {}", id);
 
-        // Emit history updated event
         if let Err(e) = (HistoryUpdatePayload::Deleted { id }).emit(&self.app_handle) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -780,7 +767,6 @@ impl HistoryManager {
 
     fn format_timestamp_title(&self, timestamp: i64) -> String {
         if let Some(utc_datetime) = DateTime::from_timestamp(timestamp, 0) {
-            // Convert UTC to local timezone
             let local_datetime = utc_datetime.with_timezone(&Local);
             local_datetime.format("%B %e, %Y - %l:%M%p").to_string()
         } else {

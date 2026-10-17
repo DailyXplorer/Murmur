@@ -420,7 +420,6 @@ pub fn init_shortcuts(app: &AppHandle) -> Vec<(String, ShortcutBinding, String)>
     let default_bindings = settings::get_default_settings().bindings;
     let user_settings = settings::load_or_create_app_settings(app);
 
-    // Register all default shortcuts, applying user customizations
     for (id, default_binding) in default_bindings {
         if id == "cancel" {
             continue; // Skip cancel shortcut, it will be registered dynamically
@@ -460,7 +459,6 @@ pub fn parse_shortcut(raw: &str) -> Result<Shortcut, String> {
         }
     }
 
-    // Check for at least one non-modifier key
     let has_non_modifier = parts.iter().any(|part| !modifiers.contains(&part.as_str()));
 
     if !has_non_modifier {
@@ -510,7 +508,6 @@ pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<()
         return Err(error_msg);
     }
 
-    // Clone binding.id for use in the closure
     let binding_id_for_closure = binding.id.clone();
 
     app.global_shortcut()
@@ -595,7 +592,7 @@ pub fn register_cancel_shortcut(app: &AppHandle) {
     });
 }
 
-/// Unregister the cancel shortcut (called when recording stops)
+/// Unregister the cancel shortcut (called when the pipeline finishes or is cancelled)
 pub fn unregister_cancel_shortcut(app: &AppHandle) {
     let app_clone = app.clone();
     let request_epoch = CANCEL_SHORTCUT_EPOCH.fetch_add(1, Ordering::AcqRel) + 1;

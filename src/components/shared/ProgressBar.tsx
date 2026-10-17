@@ -35,7 +35,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   }
 
   if (progress.length === 1) {
-    // Single progress bar
     const item = progress[0];
     const percentage = Math.max(0, Math.min(100, item.percentage));
 
@@ -63,7 +62,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     );
   }
 
-  // Multiple progress bars
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex gap-1">

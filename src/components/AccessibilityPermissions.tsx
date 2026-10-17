@@ -5,7 +5,6 @@ import { CircleNotchIcon } from "@phosphor-icons/react/dist/csr/CircleNotch";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
 import { Button } from "./ui/Button";
 
-// Define permission state type
 type PermissionState = "request" | "waiting" | "granted";
 
 const AccessibilityPermissions: React.FC = () => {
@@ -15,7 +14,6 @@ const AccessibilityPermissions: React.FC = () => {
     useState<PermissionState>("request");
   const [isRepairing, setIsRepairing] = useState(false);
 
-  // Handle the unified button action based on current state
   const handleButtonClick = async (): Promise<void> => {
     if (isRepairing || permissionState === "granted") return;
 

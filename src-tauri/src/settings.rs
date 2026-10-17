@@ -213,9 +213,9 @@ pub enum CleanupEngine {
 }
 
 /// The container-level `serde(default)` (backed by the `Default` impl below)
-/// guarantees every field — including ones added in the future — falls back to
-/// its `get_default_settings()` value when missing from a stored settings
-/// object, so a partial store can never fail the whole load (#1619).
+/// makes every field, including ones added later, fall back to its
+/// `get_default_settings()` value when missing from a stored settings object,
+/// so a partial store can never fail the whole load.
 /// Field-level defaults below take precedence where present.
 /// Settings may contain user-authored and private values. Do not derive `Debug`.
 #[derive(Serialize, Deserialize, Clone, Type)]
@@ -249,7 +249,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub selected_microphone: Option<String>,
     /// Which input channel to use on the selected microphone device.
-    /// None means "average all channels" (original behavior).
+    /// None means "average all channels".
     #[serde(default)]
     pub selected_channel: Option<u16>,
     #[serde(default)]
@@ -731,7 +731,7 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
 /// Every stored field that is individually valid is kept; only broken values
 /// (e.g. an enum variant written by a newer or older version) fall back to
 /// their default. This means one bad field can never reset the rest of the
-/// user's configuration (#1619).
+/// user's configuration.
 fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
     let Some(stored_map) = stored.as_object() else {
         warn!("Stored settings are not a JSON object; falling back to defaults");
@@ -831,7 +831,7 @@ mod tests {
     }
 
     /// Every field must survive a partial store: a missing key must never fail
-    /// the whole-settings parse (#1619). `json!({})` is the extreme case.
+    /// the whole-settings parse. `json!({})` is the extreme case.
     #[test]
     fn empty_store_parses_with_defaults() {
         let settings: AppSettings = serde_json::from_value(serde_json::json!({}))
@@ -890,8 +890,7 @@ mod tests {
         map.insert("sound_theme".into(), serde_json::json!("theremin"));
         stored["bindings"]["transcribe"]["current_binding"] = serde_json::json!("f13");
 
-        // Precondition: this is exactly the whole-store parse failure from
-        // #1619 that used to reset everything to defaults.
+        // Precondition: the whole-store parse fails, so salvage is what runs.
         assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
 
         let salvaged = salvage_settings(&stored);

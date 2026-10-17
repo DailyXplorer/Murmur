@@ -47,9 +47,8 @@ static MIGRATIONS: &[M] = &[
         completed_at INTEGER NOT NULL
     );",
     ),
-    // Corrections used to count every word the user changed after a paste,
-    // so replies typed into a chat field inflated them. They now count one
-    // per learned dictionary word, so the old rows are dropped.
+    // Drops rows that counted every word changed after a paste, which replies
+    // typed into a chat field inflated. A correction is one learned word.
     M::up("DELETE FROM corrections;"),
 ];
 
@@ -74,7 +73,7 @@ pub struct InsightsSummary {
     pub dictionary_fixes: u32,
     /// Non-empty categories, most used first.
     pub categories: Vec<CategoryUsage>,
-    /// Dictations whose receiving app is known (recorded since this feature).
+    /// Dictations whose receiving app is known. Rows backfilled from history have none.
     pub categorized_dictations: u32,
     pub apps_used: u32,
     pub streaks: Streaks,
