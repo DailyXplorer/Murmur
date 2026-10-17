@@ -311,6 +311,11 @@ impl Processor {
         let started = Instant::now();
         let audio = tokio::task::spawn_blocking(move || read_tracks(&dir, recorded)).await?;
         let mut stages = vec![("reading", started.elapsed())];
+        // A deleted meeting's id goes to the next one: nothing more is
+        // written once the run is cancelled.
+        if operation.is_cancelled() {
+            return Ok((stages, CodexVerdict::Unknown));
+        }
         if audio.is_empty() {
             self.store
                 .finish_processing(id, Some(ProcessingError::NoAudio))?;
@@ -899,6 +904,18 @@ mod tests {
             analyzer: Arc<FakeAnalyzer>,
             summarizer: Arc<FakeSummarizer>,
         ) -> CodexVerdict {
+            let operation = ProcessingOperation::new(OperationId(id as u64));
+            self.process_during(id, codex, analyzer, summarizer, operation)
+        }
+
+        fn process_during(
+            &self,
+            id: i64,
+            codex: Arc<FakeCodex>,
+            analyzer: Arc<FakeAnalyzer>,
+            summarizer: Arc<FakeSummarizer>,
+            operation: ProcessingOperation,
+        ) -> CodexVerdict {
             let processor = Processor {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
@@ -914,10 +931,7 @@ mod tests {
                 language: None,
                 events: Arc::clone(&self.events) as Arc<dyn ProcessEvents>,
             };
-            tauri::async_runtime::block_on(
-                processor.process(id, ProcessingOperation::new(OperationId(id as u64))),
-            )
-            .unwrap()
+            tauri::async_runtime::block_on(processor.process(id, operation)).unwrap()
         }
     }
 
@@ -1711,6 +1725,26 @@ mod tests {
         assert_eq!(meeting.title.as_deref(), Some("Nouveau"));
         assert_eq!(meeting.audio, AudioState::Compressed);
         assert!(!dir.join(paths::MIC_TRACK).exists());
+    }
+
+    /// Deleting a meeting cancels its run, maybe while the tracks are read;
+    /// the next meeting can get the same id, so nothing may be stored after.
+    #[test]
+    fn a_run_cancelled_while_reading_the_tracks_stores_nothing() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let codex = codex(|_| Ok("Bonjour.".into()));
+        let operation = ProcessingOperation::new(OperationId(id as u64));
+        assert!(operation.cancel());
+        h.process_during(
+            id,
+            Arc::clone(&codex),
+            Arc::new(FakeAnalyzer::without_models()),
+            FakeSummarizer::answering(vec![]),
+            operation,
+        );
+        assert!(h.store.chunks(id).unwrap().is_empty());
+        assert!(codex.calls.lock().unwrap().is_empty());
     }
 
     #[test]

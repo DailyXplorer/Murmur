@@ -703,7 +703,7 @@ impl MeetingsStore {
 
     pub fn set_system_audio_silent(&self, id: i64, silent: bool) -> Result<()> {
         self.connection()?.execute(
-            "UPDATE meetings SET system_audio_silent = ?2 WHERE id = ?1",
+            "UPDATE meetings SET system_audio_silent = ?2 WHERE id = ?1 AND status = 'processing'",
             params![id, silent],
         )?;
         Ok(())
@@ -858,16 +858,18 @@ impl MeetingsStore {
     }
 
     /// Records how a track is split, once: a plan already stored is kept, so
-    /// pieces already transcribed are never sent again.
+    /// pieces already transcribed are never sent again. Only a meeting being
+    /// processed gets one: a deleted meeting's id goes to the next meeting.
     pub fn plan_chunks(&self, id: i64, track: Track, plan: &[ChunkPlan]) -> Result<()> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
-        let planned: i64 = tx.query_row(
-            "SELECT COUNT(*) FROM meeting_chunks WHERE meeting_id = ?1 AND track = ?2",
+        let unplanned: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM meetings WHERE id = ?1 AND status = 'processing')
+                 AND NOT EXISTS (SELECT 1 FROM meeting_chunks WHERE meeting_id = ?1 AND track = ?2)",
             params![id, track_db(track)],
             |row| row.get(0),
         )?;
-        if planned == 0 {
+        if unplanned {
             for (idx, chunk) in plan.iter().enumerate() {
                 tx.execute(
                     "INSERT INTO meeting_chunks (meeting_id, track, idx, start_ms, end_ms, status)
@@ -1281,6 +1283,20 @@ mod tests {
                 (Track::Mic, 1, 600_000, ChunkStatus::Silent, None),
             ]
         );
+    }
+
+    /// A run of a deleted meeting must not write into the next meeting,
+    /// which can get the same id while it records.
+    #[test]
+    fn only_a_meeting_being_processed_gets_a_plan_or_a_silence_flag() {
+        let (_dir, store) = store();
+        let live = store.insert_recording(0, MeetingTracks::Both).unwrap();
+        store
+            .plan_chunks(live, Track::Mic, &plan(&[(0, 60_000, 30_000)]))
+            .unwrap();
+        store.set_system_audio_silent(live, true).unwrap();
+        assert!(store.chunks(live).unwrap().is_empty());
+        assert!(!store.get(live).unwrap().unwrap().system_audio_silent);
     }
 
     #[test]
