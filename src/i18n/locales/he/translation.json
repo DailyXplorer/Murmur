@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "הפגישה הגיעה למגבלה של 3 שעות ונשמרה.",
     "meetingWriteFailed": "הפגישה נעצרה כי Murmur לא הצליח לכתוב לדיסק. מה שהוקלט נשמר.",
     "meetingLowDiskSpace": "פנויים ב-Mac הזה פחות מ-1.5 GB. פגישה ארוכה עלולה להיעצר מוקדם; מה שהוקלט נשמר.",
-    "meetingSystemAudioInterrupted": "הקלטת שמע המערכת נעצרה לאחר שינוי פלט השמע. Murmur ממשיך לנסות לשחזר אותה; המיקרופון שלך עדיין מוקלט."
+    "meetingSystemAudioInterrupted": "הקלטת שמע המערכת נעצרה לאחר שינוי פלט השמע. Murmur ממשיך לנסות לשחזר אותה; המיקרופון שלך עדיין מוקלט.",
+    "meetingMicrophoneInterrupted": "המיקרופון הפסיק להקליט. Murmur ממשיך לנסות לשחזר אותו; ודא שהוא עדיין מחובר."
   },
   "sidebar": {
     "general": "כללי",

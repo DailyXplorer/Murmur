@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "Schůzka dosáhla limitu 3 hodin a byla uložena.",
     "meetingWriteFailed": "Schůzka se zastavila, protože Murmur nemohl zapisovat na disk. Nahraný záznam zůstal zachován.",
     "meetingLowDiskSpace": "Na tomto Macu je volných méně než 1,5 GB. Dlouhá schůzka se může zastavit dříve; co se nahraje, zůstane zachováno.",
-    "meetingSystemAudioInterrupted": "Systémový zvuk se po změně zvukového výstupu přestal nahrávat. Murmur se ho dál pokouší obnovit; mikrofon se nahrává dál."
+    "meetingSystemAudioInterrupted": "Systémový zvuk se po změně zvukového výstupu přestal nahrávat. Murmur se ho dál pokouší obnovit; mikrofon se nahrává dál.",
+    "meetingMicrophoneInterrupted": "Mikrofon přestal nahrávat. Murmur se ho dál pokouší obnovit; zkontrolujte, zda je stále připojený."
   },
   "sidebar": {
     "general": "Obecné",

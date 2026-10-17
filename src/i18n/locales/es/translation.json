@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
     "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva.",
     "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva.",
-    "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando."
+    "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando.",
+    "meetingMicrophoneInterrupted": "El micrófono dejó de grabar. Murmur sigue intentando recuperarlo; comprueba que siga conectado."
   },
   "sidebar": {
     "general": "General",

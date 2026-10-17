@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "会议已达到 3 小时上限并已保存。",
     "meetingWriteFailed": "Murmur 无法写入磁盘，会议已停止。已录制的内容会保留。",
     "meetingLowDiskSpace": "这台 Mac 的可用空间不足 1.5 GB。较长的会议可能会提前停止，已录制的内容会保留。",
-    "meetingSystemAudioInterrupted": "声音输出切换后，系统音频已停止录制。Murmur 会继续尝试恢复；麦克风仍在录制。"
+    "meetingSystemAudioInterrupted": "声音输出切换后，系统音频已停止录制。Murmur 会继续尝试恢复；麦克风仍在录制。",
+    "meetingMicrophoneInterrupted": "麦克风已停止录制。Murmur 会继续尝试恢复；请检查它是否仍已连接。"
   },
   "sidebar": {
     "general": "通用",

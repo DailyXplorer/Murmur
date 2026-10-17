@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "Mødet nåede grænsen på 3 timer og blev gemt.",
     "meetingWriteFailed": "Mødet stoppede, fordi Murmur ikke kunne skrive til disken. Det optagede er bevaret.",
     "meetingLowDiskSpace": "Der er under 1,5 GB ledigt på denne Mac. Et langt møde kan stoppe før tid; det optagne bevares.",
-    "meetingSystemAudioInterrupted": "Systemlyden stoppede, efter at lydudgangen blev skiftet. Murmur prøver fortsat at få den tilbage; din mikrofon optages stadig."
+    "meetingSystemAudioInterrupted": "Systemlyden stoppede, efter at lydudgangen blev skiftet. Murmur prøver fortsat at få den tilbage; din mikrofon optages stadig.",
+    "meetingMicrophoneInterrupted": "Mikrofonen stoppede med at optage. Murmur prøver fortsat at få den tilbage; tjek, at den stadig er tilsluttet."
   },
   "sidebar": {
     "general": "Generelt",

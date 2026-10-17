@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
     "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept.",
     "meetingLowDiskSpace": "Less than 1.5 GB is free on this Mac. A long meeting may stop early; what is recorded is kept.",
-    "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded."
+    "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded.",
+    "meetingMicrophoneInterrupted": "The microphone stopped recording. Murmur keeps trying to bring it back; check that it's still connected."
   },
   "sidebar": {
     "general": "General",

@@ -3,7 +3,7 @@
 //! the dictation recorder's (Core Audio serves several clients from one
 //! device). If the device stops (unplugged, or a Bluetooth headset dropped
 //! out), it is reopened, or the default input once it is gone; the writer
-//! fills the gap.
+//! fills the gap, and the meeting warns when no reopen brings audio back.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -25,27 +25,55 @@ const REOPEN_DELAY: Duration = Duration::from_secs(1);
 pub struct MicCapture {
     writer: TrackWriter,
     stop: Arc<AtomicBool>,
+    heard: Arc<Heard>,
     supervisor: JoinHandle<()>,
+}
+
+/// Which microphone records, and how.
+struct Input {
+    /// The input named so, or the system default when `None` or missing.
+    device: Option<String>,
+    /// The input channel chosen in settings; `None` averages them all.
+    channel: Option<usize>,
 }
 
 impl MicCapture {
     /// Records from the input named `device`, or the system default when it
-    /// is `None` or missing. Fails when the microphone cannot be opened at
-    /// all.
-    pub fn start(path: &Path, origin: Instant, device: Option<String>) -> Result<Self, String> {
+    /// is `None` or missing, keeping only `channel` when the device has it,
+    /// as dictation does. Fails when the microphone cannot be opened at all.
+    pub fn start(
+        path: &Path,
+        origin: Instant,
+        device: Option<String>,
+        channel: Option<u16>,
+    ) -> Result<Self, String> {
         let writer = TrackWriter::create(path, origin)?;
         let feeder = writer.feeder();
         let stop = Arc::new(AtomicBool::new(false));
+        let heard = Arc::new(Heard::new(Instant::now()));
         let (ready_sender, ready) = mpsc::sync_channel(1);
-        let supervisor_stop = Arc::clone(&stop);
+        let input = Input {
+            device,
+            channel: channel.map(usize::from),
+        };
+        let (supervisor_stop, supervisor_heard) = (Arc::clone(&stop), Arc::clone(&heard));
         let supervisor = std::thread::Builder::new()
             .name("meeting-mic".into())
-            .spawn(move || supervise(device, feeder, supervisor_stop, ready_sender))
+            .spawn(move || {
+                supervise(
+                    input,
+                    feeder,
+                    supervisor_stop,
+                    supervisor_heard,
+                    ready_sender,
+                )
+            })
             .map_err(|error| format!("Cannot start the microphone thread: {error}"))?;
         match ready.recv() {
             Ok(Ok(())) => Ok(Self {
                 writer,
                 stop,
+                heard,
                 supervisor,
             }),
             Ok(Err(error)) => {
@@ -66,9 +94,9 @@ impl Track for MicCapture {
     }
 
     /// A stalled microphone is reopened in the background and the gap is
-    /// filled, so it never counts as lost.
+    /// filled; it counts as lost once no reopen brought audio back.
     fn interrupted(&self) -> bool {
-        false
+        self.heard.lost(Instant::now())
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
@@ -78,33 +106,32 @@ impl Track for MicCapture {
     }
 }
 
-/// Keeps a stream on the input named `device` (or the default) open until
-/// `stop`. The first open's outcome goes to `ready`; later failures are
-/// retried.
+/// Keeps a stream on `input` open until `stop`. The first open's outcome
+/// goes to `ready`; later failures are retried.
 fn supervise(
-    device: Option<String>,
+    input: Input,
     feeder: Feeder,
     stop: Arc<AtomicBool>,
+    heard: Arc<Heard>,
     ready: mpsc::SyncSender<Result<(), String>>,
 ) {
     let mut ready = Some(ready);
-    let epoch = Instant::now();
     while !stop.load(Ordering::SeqCst) {
         let broken = Arc::new(AtomicBool::new(false));
-        let last_audio_ms = Arc::new(AtomicU64::new(epoch.elapsed().as_millis() as u64));
-        match open_input(device.as_deref(), &feeder, &broken, &last_audio_ms, epoch) {
+        match open_input(&input, &feeder, &broken, &heard) {
             Ok(stream) => {
                 if let Some(ready) = ready.take() {
                     let _ = ready.send(Ok(()));
                 }
+                let opened = Instant::now();
                 loop {
                     std::thread::sleep(Duration::from_millis(100));
                     if stop.load(Ordering::SeqCst) {
                         break;
                     }
-                    let silent_for = (epoch.elapsed().as_millis() as u64)
-                        .saturating_sub(last_audio_ms.load(Ordering::SeqCst));
-                    if broken.load(Ordering::SeqCst) || silent_for > STALL.as_millis() as u64 {
+                    let now = Instant::now();
+                    let silent_for = heard.silent_for(now).min(now - opened);
+                    if broken.load(Ordering::SeqCst) || silent_for > STALL {
                         log::warn!("Meeting microphone stopped delivering audio; reopening it");
                         break;
                     }
@@ -135,12 +162,12 @@ fn named_input<D>(devices: Vec<(String, D)>, wanted: Option<&str>) -> Option<D> 
 }
 
 fn open_input(
-    wanted: Option<&str>,
+    input: &Input,
     feeder: &Feeder,
     broken: &Arc<AtomicBool>,
-    last_audio_ms: &Arc<AtomicU64>,
-    epoch: Instant,
+    heard: &Arc<Heard>,
 ) -> Result<cpal::Stream, String> {
+    let wanted = input.device.as_deref();
     let named = wanted.and_then(|_| {
         let devices = crate::audio_toolkit::list_input_devices()
             .map_err(|error| log::warn!("Cannot list the microphones: {error}"))
@@ -170,13 +197,13 @@ fn open_input(
     let config: cpal::StreamConfig = config.into();
     let stream = match format {
         cpal::SampleFormat::F32 => {
-            build::<f32>(&device, &config, feeder, broken, last_audio_ms, epoch)
+            build::<f32>(&device, &config, input.channel, feeder, broken, heard)
         }
         cpal::SampleFormat::I16 => {
-            build::<i16>(&device, &config, feeder, broken, last_audio_ms, epoch)
+            build::<i16>(&device, &config, input.channel, feeder, broken, heard)
         }
         cpal::SampleFormat::I32 => {
-            build::<i32>(&device, &config, feeder, broken, last_audio_ms, epoch)
+            build::<i32>(&device, &config, input.channel, feeder, broken, heard)
         }
         other => return Err(format!("Unsupported microphone sample format {other:?}")),
     }
@@ -190,10 +217,10 @@ fn open_input(
 fn build<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
+    channel: Option<usize>,
     feeder: &Feeder,
     broken: &Arc<AtomicBool>,
-    last_audio_ms: &Arc<AtomicU64>,
-    epoch: Instant,
+    heard: &Arc<Heard>,
 ) -> Result<cpal::Stream, cpal::BuildStreamError>
 where
     T: Sample + SizedSample + Send + 'static,
@@ -202,23 +229,13 @@ where
     let channels = usize::from(config.channels.max(1));
     let sample_rate = config.sample_rate.0;
     let feeder = feeder.clone();
-    let last_audio_ms = Arc::clone(last_audio_ms);
+    let heard = Arc::clone(heard);
     let broken = Arc::clone(broken);
     device.build_input_stream(
         config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
-            let mono = data
-                .chunks_exact(channels)
-                .map(|frame| {
-                    frame
-                        .iter()
-                        .map(|sample| sample.to_sample::<f32>())
-                        .sum::<f32>()
-                        / channels as f32
-                })
-                .collect();
-            feeder.push(mono, sample_rate);
-            last_audio_ms.store(epoch.elapsed().as_millis() as u64, Ordering::SeqCst);
+            feeder.push(mono(data, channels, channel), sample_rate);
+            heard.mark(Instant::now());
         },
         move |error| {
             log::error!("Meeting microphone stream error: {error}");
@@ -228,9 +245,91 @@ where
     )
 }
 
+/// Without audio this long, reopening the microphone did not bring it back.
+const LOST: Duration = Duration::from_secs(6);
+
+/// When the microphone last delivered audio, across every reopen.
+struct Heard {
+    epoch: Instant,
+    last_ms: AtomicU64,
+}
+
+impl Heard {
+    fn new(epoch: Instant) -> Self {
+        Self {
+            epoch,
+            last_ms: AtomicU64::new(0),
+        }
+    }
+
+    fn mark(&self, now: Instant) {
+        let ms = now.saturating_duration_since(self.epoch).as_millis() as u64;
+        self.last_ms.store(ms, Ordering::SeqCst);
+    }
+
+    fn silent_for(&self, now: Instant) -> Duration {
+        let last = self.epoch + Duration::from_millis(self.last_ms.load(Ordering::SeqCst));
+        now.saturating_duration_since(last)
+    }
+
+    fn lost(&self, now: Instant) -> bool {
+        self.silent_for(now) > LOST
+    }
+}
+
+/// One sample per frame of interleaved `data`: the input `channel` when the
+/// device has it, else the average of every input, as dictation records.
+fn mono<T>(data: &[T], channels: usize, channel: Option<usize>) -> Vec<f32>
+where
+    T: Sample,
+    f32: cpal::FromSample<T>,
+{
+    let frames = data.chunks_exact(channels);
+    match channel.filter(|channel| *channel < channels) {
+        Some(channel) => frames
+            .map(|frame| frame[channel].to_sample::<f32>())
+            .collect(),
+        None => frames
+            .map(|frame| {
+                frame
+                    .iter()
+                    .map(|sample| sample.to_sample::<f32>())
+                    .sum::<f32>()
+                    / channels as f32
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_input_channel_chosen_in_settings_records_the_meeting() {
+        // Two inputs, the voice on the first.
+        let frames = [0.8f32, 0.0, 0.6, 0.0];
+        assert_eq!(mono(&frames, 2, Some(0)), [0.8, 0.6]);
+        assert_eq!(mono(&frames, 2, Some(1)), [0.0, 0.0]);
+        // No choice, or one the device does not have: all inputs averaged.
+        assert_eq!(mono(&frames, 2, None), [0.4, 0.3]);
+        assert_eq!(mono(&frames, 2, Some(5)), [0.4, 0.3]);
+    }
+
+    #[test]
+    fn a_microphone_silent_past_a_reopen_counts_as_lost() {
+        let start = Instant::now();
+        let heard = Heard::new(start);
+        assert!(!heard.lost(start + Duration::from_secs(1)));
+        assert!(
+            heard.lost(start + LOST + Duration::from_millis(1)),
+            "never heard"
+        );
+
+        heard.mark(start + Duration::from_secs(10));
+        assert!(!heard.lost(start + Duration::from_secs(10) + LOST));
+        assert!(heard.lost(start + Duration::from_secs(11) + LOST));
+    }
 
     fn devices() -> Vec<(String, &'static str)> {
         vec![
