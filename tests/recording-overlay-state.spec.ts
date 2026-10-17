@@ -84,11 +84,19 @@ const dispatch = (page: Page, event: string, payload?: unknown) =>
     [event, payload] as const,
   );
 
+// Drawn sizes include the capsule's pop-in scale until it ends.
+const entranceFinished = (page: Page) =>
+  page
+    .locator(".ov-capsule")
+    .evaluate((capsule) =>
+      Promise.all(capsule.getAnimations().map((entry) => entry.finished)),
+    );
+
 const centerBarHeight = (page: Page) =>
   page
     .locator(".ov-wave i")
     .nth(6)
-    .evaluate((bar) => parseFloat(getComputedStyle(bar).height));
+    .evaluate((bar) => bar.getBoundingClientRect().height);
 
 // Feeds a speech-like stream at the host's ~30 Hz (words of ~5 syllables a
 // second, short pauses, per-event noise; fixed seed) and samples the capsule
@@ -179,12 +187,13 @@ test("recording shows only a waveform that follows the voice", async ({
 
   await dispatch(page, "recording-ready");
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
-  expect(await centerBarHeight(page)).toBe(4);
+  await entranceFinished(page);
+  expect(await centerBarHeight(page)).toBeCloseTo(4, 1);
   expect(await capsuleWidth(page)).toBe(108);
 
   await dispatch(page, "mic-level", LOUD);
-  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(20);
-  await expect.poll(() => capsuleWidth(page)).toBeGreaterThan(124);
+  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(16);
+  await expect.poll(() => capsuleWidth(page)).toBeGreaterThanOrEqual(120);
 
   await expect(page.locator(".ov-wave i")).toHaveCount(13);
   await expect(page.locator(".ov-stage")).toHaveText("");
@@ -198,11 +207,7 @@ test("the capsule holds still while the voice wobbles", async ({ page }) => {
   await dispatch(page, "show-overlay", "recording");
   await dispatch(page, "recording-ready");
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
-  await page
-    .locator(".ov-capsule")
-    .evaluate((capsule) =>
-      Promise.all(capsule.getAnimations().map((entry) => entry.finished)),
-    );
+  await entranceFinished(page);
 
   const seconds = 3;
   const frames = await sampleWhileSpeaking(page, seconds);
@@ -261,7 +266,7 @@ test("transcribing pulses the waveform without any text", async ({ page }) => {
   await dispatch(page, "show-overlay", "recording");
   await dispatch(page, "recording-ready");
   await dispatch(page, "mic-level", LOUD);
-  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(20);
+  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(16);
 
   await dispatch(page, "show-overlay", "transcribing");
   await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
@@ -324,11 +329,11 @@ test("reduced motion shows static bars that ignore the voice", async ({
   await dispatch(page, "mic-level", LOUD);
   await page.waitForTimeout(300);
 
-  expect(await centerBarHeight(page)).toBeCloseTo(12.23, 1);
+  expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
   expect(await capsuleWidth(page)).toBe(108);
 
   await dispatch(page, "show-overlay", "transcribing");
   await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
   await page.waitForTimeout(300);
-  expect(await centerBarHeight(page)).toBeCloseTo(12.23, 1);
+  expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
 });

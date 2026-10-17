@@ -24,9 +24,10 @@ tauri_panel! {
 // that faces the screen edge, leaving room for its soft shadow; the window
 // ignores the mouse, so that margin never blocks clicks.
 const CARD_MARGIN: f64 = 16.0;
-// Capsule: 36 high, 108 wide at rest, up to 126 at full voice level.
+// Capsule: 30 high, 108 wide at rest, up to 126 at full voice level. The width
+// stays even so the centred capsule's edges sit on whole points.
 const OVERLAY_WIDTH: f64 = 126.0 + 2.0 * CARD_MARGIN;
-const OVERLAY_HEIGHT: f64 = 36.0 + 2.0 * CARD_MARGIN;
+const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
 // Error capsule: at most 280 wide and four lines of text, so the longest
 // message fits in every locale whatever the fallback font.
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;

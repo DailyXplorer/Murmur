@@ -4,9 +4,11 @@
   /* Capsule geometry. overlay.rs sizes the native window from these values
      (CARD_MARGIN, OVERLAY_*, ERROR_OVERLAY_*), so keep the two in sync. */
   --ov-margin: 16px; /* room for the shadow between capsule and window edge */
-  --ov-h: 36px;
+  --ov-h: 30px;
   --ov-rest-w: 108px;
-  --ov-grow: 18px; /* extra width at full voice level */
+  /* Extra width per grow step; GROW_STEPS in waveform.ts sets how many. */
+  --ov-grow-step: 2px;
+  --ov-error-min-h: 36px;
   --ov-error-max-w: 280px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
@@ -65,7 +67,7 @@
   box-sizing: border-box;
   flex: none;
   height: var(--ov-h);
-  width: calc(var(--ov-rest-w) + var(--level, 0) * var(--ov-grow));
+  width: calc(var(--ov-rest-w) + var(--grow-step, 0) * var(--ov-grow-step));
   border-radius: calc(var(--ov-h) / 2);
   display: flex;
   align-items: center;
@@ -84,8 +86,8 @@
 .ov-stage.top .ov-capsule {
   transform-origin: center top;
 }
-/* Live width is eased per frame in RecordingOverlay.tsx; a CSS transition on
-   top of that would lag behind the voice. */
+/* Live width moves in whole-pixel steps; a transition would put the edges back
+   on fractional pixels on every step. */
 .ov-capsule.live {
   transition: none;
 }
@@ -100,18 +102,29 @@
   }
 }
 
+/* Each bar keeps a fixed layout box and is drawn at --s of it, the height over
+   BAR_MAX_PX in waveform.ts. Animating layout height instead snaps the top and
+   bottom edges to different pixels on every frame. Registering --s lets the
+   ripple keyframes interpolate it. */
+@property --s {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0.2222;
+}
 .ov-wave {
   display: flex;
-  align-items: center;
   gap: 3px;
-  height: 22px;
+  height: 18px;
 }
 .ov-wave i {
   flex: none;
   width: 3px;
-  height: 4px;
-  border-radius: 1.5px;
+  height: 100%;
+  /* The vertical radius is divided by the scale so the caps stay round. */
+  border-radius: 1.5px / calc(1.5px / var(--s));
   background: var(--ov-ink);
+  transform: scaleY(var(--s));
+  will-change: transform;
   transition: opacity 200ms ease;
 }
 /* Until the microphone delivers its first samples. */
@@ -126,11 +139,11 @@
 @keyframes ov-ripple {
   0%,
   100% {
-    height: 4px;
+    --s: 0.2222;
     opacity: 0.45;
   }
   50% {
-    height: 10px;
+    --s: 0.5555;
     opacity: 1;
   }
 }
@@ -139,7 +152,7 @@
   width: auto;
   max-width: var(--ov-error-max-w);
   height: auto;
-  min-height: var(--ov-h);
+  min-height: var(--ov-error-min-h);
   padding: 8px 16px;
   border-radius: 18px;
   box-shadow:
