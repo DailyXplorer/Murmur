@@ -565,7 +565,7 @@ impl MeetingsManager {
         // Opening the devices takes a moment. Meetings turned off meanwhile
         // found nothing recording to stop, and left no way to stop this one.
         if !get_settings(&self.app).meetings_enabled {
-            let _ = coordinator.discard();
+            let _ = coordinator.discard(id);
             return Err("Meetings were turned off while the meeting started".to_string());
         }
         info!("Meeting {id} started");
@@ -586,9 +586,9 @@ impl MeetingsManager {
         Ok(())
     }
 
-    pub fn discard(&self) -> Result<(), String> {
+    pub fn discard(&self, id: i64) -> Result<(), String> {
         self.coordinator()
-            .discard()
+            .discard(id)
             .map_err(|error| error.to_string())
     }
 

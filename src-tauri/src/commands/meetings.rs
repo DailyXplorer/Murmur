@@ -52,8 +52,8 @@ pub async fn stop_meeting(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn discard_meeting(app: AppHandle) -> Result<(), String> {
-    with_manager(app, MeetingsManager::discard).await
+pub async fn discard_meeting(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| manager.discard(id)).await
 }
 
 #[tauri::command]

@@ -674,9 +674,9 @@ async stopMeeting() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async discardMeeting() : Promise<Result<null, string>> {
+async discardMeeting(id: number) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("discard_meeting") };
+    return { status: "ok", data: await TAURI_INVOKE("discard_meeting", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
