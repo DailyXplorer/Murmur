@@ -3,7 +3,8 @@
 //! a crash loses only the pieces in flight.
 //!
 //! Failures are retried by kind. Rate limits pause every piece and back off
-//! for up to about half an hour; network and server errors retry a few times;
+//! for up to about half an hour, then stop the run with the pieces not yet
+//! done left pending; network and server errors retry a few times;
 //! a piece refused as too large is halved; a lost sign-in stops everything,
 //! since no other piece could succeed.
 
@@ -129,6 +130,9 @@ pub enum RunEnd {
     Finished,
     /// The Codex session is gone; pieces not yet sent stay pending.
     SignedOut,
+    /// A piece used up its rate-limit budget: Codex will refuse the others
+    /// too, so they stay pending for a later retry.
+    RateLimited,
     Cancelled,
 }
 
@@ -178,6 +182,7 @@ struct Shared {
     runner: Runner,
     operation: ProcessingOperation,
     signed_out: AtomicBool,
+    rate_limited_out: AtomicBool,
     gate: RateGate,
 }
 
@@ -189,7 +194,9 @@ enum Attempt {
 
 impl Shared {
     fn stopped(&self) -> bool {
-        self.operation.is_cancelled() || self.signed_out.load(Ordering::SeqCst)
+        self.operation.is_cancelled()
+            || self.signed_out.load(Ordering::SeqCst)
+            || self.rate_limited_out.load(Ordering::SeqCst)
     }
 
     async fn sleep(&self, delay: Duration) {
@@ -249,6 +256,7 @@ impl Shared {
                             .saturating_mul(1 << rate_limits.min(16))
                             .min(policy.rate_limit_cap);
                         if waited + delay > policy.rate_limit_budget {
+                            self.rate_limited_out.store(true, Ordering::SeqCst);
                             return Attempt::Outcome(Outcome::Failed(error.kind));
                         }
                         waited += delay;
@@ -305,6 +313,7 @@ impl Runner {
             runner: self,
             operation,
             signed_out: AtomicBool::new(false),
+            rate_limited_out: AtomicBool::new(false),
             gate: RateGate::default(),
         });
         let slots = Arc::new(Semaphore::new(MAX_PARALLEL));
@@ -332,6 +341,8 @@ impl Runner {
             RunEnd::Cancelled
         } else if shared.signed_out.load(Ordering::SeqCst) {
             RunEnd::SignedOut
+        } else if shared.rate_limited_out.load(Ordering::SeqCst) {
+            RunEnd::RateLimited
         } else {
             RunEnd::Finished
         }
@@ -673,6 +684,21 @@ mod tests {
         );
         // Waits of 20, 40, 40, 40, 40 ms fit the 200 ms budget; the sixth would not.
         assert_eq!(server.requests.lock().unwrap().len(), 6);
+    }
+
+    #[test]
+    fn a_lasting_rate_limit_stops_the_run_and_leaves_later_pieces_pending() {
+        let server = serve(Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())));
+        let run = run(&server, jobs(12, 1_000), operation());
+        assert_eq!(run.end, RunEnd::RateLimited);
+        // Only the pieces already in flight spend the budget; a fresh budget
+        // for each later piece would keep the queue blocked for hours.
+        let finished = outcomes(&run);
+        assert!(finished.len() <= MAX_PARALLEL, "{finished:?}");
+        assert!(finished
+            .iter()
+            .all(|(_, outcome)| *outcome == Outcome::Failed(FailureKind::RateLimited)));
+        assert!(server.requests.lock().unwrap().len() <= 6 * MAX_PARALLEL);
     }
 
     #[test]
