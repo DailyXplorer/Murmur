@@ -570,6 +570,7 @@
       "transcribing": "正在转录：已完成 {{done}}/{{total}} 个部分…",
       "rateLimited": "Codex 要求放慢速度。处理会自动继续…",
       "aligning": "正在整理对话顺序…",
+      "analyzing": "正在区分发言人…",
       "interrupted": "录音被中断。已录制的内容仍可转录。",
       "process": "转录",
       "retry": "重试",
@@ -580,6 +581,34 @@
         "parts_failed": "部分内容无法转录。",
         "no_audio": "无法读取录音。",
         "other": "处理意外停止。"
+      }
+    },
+    "speakers": {
+      "no_models": "未区分发言人，因为发言人模型尚未下载。",
+      "failed": "未区分发言人，因为设备上的分析未完成。",
+      "separate": "区分发言人",
+      "error": "无法区分发言人。"
+    },
+    "models": {
+      "title": "发言人识别",
+      "description": "本地模型会区分参会者。模型只需下载一次（约 480 MB），此步骤不会向任何地方发送音频。",
+      "missing": "未下载",
+      "downloading": "正在下载… {{percent}}%",
+      "preparing": "正在为这台 Mac 准备模型…",
+      "ready": "已就绪 · {{size}}",
+      "failed": "下载失败。",
+      "os_too_old": "发言人识别需要 macOS 14 或更高版本。会议中每个音频来源显示为一位发言人。",
+      "unsupported": "发言人识别需要搭载 Apple 芯片的 Mac。会议中每个音频来源显示为一位发言人。",
+      "download": "下载",
+      "retry": "重试",
+      "delete": "删除模型",
+      "error": "无法更新发言人模型。",
+      "licences": "模型许可",
+      "licencesNote": "模型会在首次使用时从 Hugging Face 下载，Murmur 本身不包含这些模型。",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3（词语时间）：NVIDIA，CC BY 4.0。Core ML 转换：Fluid Inference。",
+        "diarization": "发言人分离 Community-1：pyannote，CC BY 4.0，以及 WeSpeaker 和 BUT Speech@FIT。经修改的 Core ML 转换：Fluid Inference。",
+        "fluidaudio": "FluidAudio：Fluid Inference，Apache License 2.0。"
       }
     },
     "transcript": {

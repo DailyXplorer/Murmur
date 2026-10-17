@@ -570,6 +570,7 @@
       "transcribing": "Transkription: {{done}} von {{total}} Teilen fertig…",
       "rateLimited": "Codex bittet um eine Pause. Die Verarbeitung geht von selbst weiter…",
       "aligning": "Gespräch wird geordnet…",
+      "analyzing": "Sprecher werden unterschieden…",
       "interrupted": "Die Aufnahme wurde unterbrochen. Das Aufgenommene kann trotzdem transkribiert werden.",
       "process": "Transkribieren",
       "retry": "Erneut versuchen",
@@ -580,6 +581,34 @@
         "parts_failed": "Einige Teile konnten nicht transkribiert werden.",
         "no_audio": "Die Aufnahme konnte nicht gelesen werden.",
         "other": "Die Verarbeitung wurde unerwartet beendet."
+      }
+    },
+    "speakers": {
+      "no_models": "Die Sprecher wurden nicht unterschieden, weil die Sprechermodelle nicht geladen waren.",
+      "failed": "Die Sprecher wurden nicht unterschieden, weil die Analyse auf dem Gerät nicht abgeschlossen wurde.",
+      "separate": "Sprecher unterscheiden",
+      "error": "Die Sprecher konnten nicht unterschieden werden."
+    },
+    "models": {
+      "title": "Sprechererkennung",
+      "description": "Lokale Modelle unterscheiden die Teilnehmenden. Sie werden einmal geladen (etwa 480 MB), und dieser Schritt sendet kein Audio.",
+      "missing": "Nicht geladen",
+      "downloading": "Wird geladen… {{percent}} %",
+      "preparing": "Modelle werden für diesen Mac vorbereitet…",
+      "ready": "Bereit · {{size}}",
+      "failed": "Der Download ist fehlgeschlagen.",
+      "os_too_old": "Die Sprechererkennung erfordert macOS 14 oder neuer. Meetings zeigen einen Sprecher pro Audioquelle.",
+      "unsupported": "Die Sprechererkennung erfordert einen Mac mit Apple Chip. Meetings zeigen einen Sprecher pro Audioquelle.",
+      "download": "Laden",
+      "retry": "Erneut versuchen",
+      "delete": "Modelle löschen",
+      "error": "Die Sprechermodelle konnten nicht aktualisiert werden.",
+      "licences": "Modelllizenzen",
+      "licencesNote": "Die Modelle werden bei der ersten Nutzung von Hugging Face geladen. Murmur enthält sie nicht.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (Wort-Zeitstempel): NVIDIA, CC BY 4.0. Core-ML-Konvertierung von Fluid Inference.",
+        "diarization": "Sprecherdiarisierung Community-1: pyannote, CC BY 4.0, mit WeSpeaker und BUT Speech@FIT. Angepasste Core-ML-Konvertierung von Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache-Lizenz 2.0."
       }
     },
     "transcript": {

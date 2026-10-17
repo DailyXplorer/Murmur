@@ -10,5 +10,13 @@ export const formatDuration = (milliseconds: number): string => {
     : `${pad(minutes)}:${pad(seconds)}`;
 };
 
+/** "482 MB", in the locale's style. */
+export const formatSize = (bytes: number, locale: string): string =>
+  new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: "megabyte",
+    maximumFractionDigits: 0,
+  }).format(bytes / 1_000_000);
+
 /** The meeting pill turns amber this long before the 3-hour cap. */
 export const CAP_WARNING_MS = 5 * 60 * 1000;

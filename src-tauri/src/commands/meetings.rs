@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::meetings::coordinator::MeetingRuntime;
+use crate::meetings::models::MeetingModelsStatus;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingsManager};
 use crate::settings::{get_settings, write_settings, MeetingCaptureMode};
@@ -143,11 +144,52 @@ pub async fn export_meeting_markdown(app: AppHandle, id: i64) -> Result<Option<S
     .map_err(|error| format!("Export task failed: {error}"))?
 }
 
+/// Tells the speakers of a finished meeting apart again, for instance once
+/// the models are downloaded.
+#[tauri::command]
+#[specta::specta]
+pub async fn reanalyze_meeting(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| manager.reanalyze(id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_meeting_models_status(app: AppHandle) -> Result<MeetingModelsStatus, String> {
+    with_manager(app, |manager| Ok(manager.models_status())).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn download_meeting_models(app: AppHandle) -> Result<(), String> {
+    with_manager(app, |manager| {
+        manager.download_models();
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_meeting_models_download(app: AppHandle) -> Result<(), String> {
+    with_manager(app, |manager| {
+        manager.cancel_models_download();
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_meeting_models(app: AppHandle) -> Result<(), String> {
+    with_manager(app, MeetingsManager::delete_models).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_meeting_capabilities() -> MeetingCapabilities {
     MeetingCapabilities {
         system_audio: meetings::capture::system::support(),
+        analysis: meetings::helper::support(),
     }
 }
 

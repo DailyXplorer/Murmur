@@ -283,8 +283,16 @@ if (
 
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json")) as {
   app: { security: { csp: unknown; devCsp: unknown } };
-  bundle: { icon: string[]; targets: string[] };
+  bundle: { icon: string[]; targets: string[]; externalBin?: string[] };
 };
+// The only bundled executable besides the app: the meetings helper, built
+// by src-tauri/build.rs for each target.
+if (
+  (tauriConfig.bundle.externalBin ?? []).join("\n") !==
+  "binaries/murmur-meetings-helper"
+) {
+  failures.push("Tauri external binaries differ from the meetings helper");
+}
 const expectedIcons = [
   "icons/32x32.png",
   "icons/128x128.png",

@@ -2,16 +2,23 @@
 //! participants) on two tracks, started and stopped by the user, kept in a
 //! library of their own. Everything here stays behind `meetings_enabled`.
 
+pub mod align;
+pub mod analysis;
+pub mod bleed;
 pub mod cap;
 pub mod capture;
 pub mod chunking;
 pub mod coordinator;
 pub mod export;
+pub mod helper;
 pub mod merge;
+pub mod models;
 pub mod paths;
 pub mod processor;
+pub mod protocol;
 pub mod rename;
 pub mod save_panel;
+pub mod speakers;
 pub mod spread;
 pub mod store;
 pub mod tokens;
@@ -34,9 +41,12 @@ use tauri_specta::Event;
 use crate::settings::get_settings;
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
+use analysis::HelperAnalyzer;
 use capture::system::SystemAudioSupport;
 use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
+use helper::AnalysisSupport;
+use models::{MeetingModelsStatus, Models};
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use transcribe::{CodexTranscriber, RetryPolicy};
@@ -58,6 +68,8 @@ pub struct MeetingsUpdated {
 #[derive(Serialize, Debug, Clone, Copy, Type)]
 pub struct MeetingCapabilities {
     pub system_audio: SystemAudioSupport,
+    /// Telling speakers apart on device.
+    pub analysis: AnalysisSupport,
 }
 
 /// Recorded meetings wait here and are processed one at a time, in order.
@@ -166,6 +178,7 @@ fn spawn_processing(
     app: &AppHandle,
     store: Arc<MeetingsStore>,
     root: PathBuf,
+    models: Arc<Models>,
 ) -> Arc<ProcessingQueue> {
     let (queue, mut receiver) = ProcessingQueue::new(!get_settings(app).meetings_enabled);
     let queue = Arc::new(queue);
@@ -186,6 +199,10 @@ fn spawn_processing(
                 transcriber: Arc::new(CodexTranscriber {
                     url: crate::codex_transcribe::TRANSCRIBE_URL.to_string(),
                     auth_path: None,
+                }),
+                analyzer: Arc::new(HelperAnalyzer {
+                    models: Arc::clone(&models),
+                    support: helper::support(),
                 }),
                 policy: RetryPolicy::default(),
                 language: Some(language),
@@ -265,6 +282,8 @@ pub struct MeetingsManager {
     runtime: Arc<Mutex<MeetingRuntime>>,
     store: Arc<MeetingsStore>,
     queue: Arc<ProcessingQueue>,
+    root: PathBuf,
+    models: Arc<Models>,
 }
 
 impl MeetingsManager {
@@ -283,7 +302,13 @@ impl MeetingsManager {
             Err(error) => error!("Failed to recover interrupted meetings: {error}"),
         }
         let store = Arc::new(store);
-        let queue = spawn_processing(app, Arc::clone(&store), root.clone());
+        let events = app.clone();
+        let models = Models::new(root.join("models"), helper::support(), move |status| {
+            if let Err(error) = status.emit(&events) {
+                error!("Failed to emit the meeting models status: {error}");
+            }
+        });
+        let queue = spawn_processing(app, Arc::clone(&store), root.clone(), Arc::clone(&models));
         let runtime = Arc::new(Mutex::new(MeetingRuntime::Idle));
         let notifier = AppNotifier {
             app: app.clone(),
@@ -297,11 +322,13 @@ impl MeetingsManager {
                 notifier,
                 SystemClock,
                 Arc::clone(&store),
-                root,
+                root.clone(),
             )),
             runtime,
             store,
             queue,
+            root,
+            models,
         })
     }
 
@@ -336,6 +363,9 @@ impl MeetingsManager {
             .map_err(|error| error.to_string())?;
         info!("Meeting {id} started");
         self.spawn_ticker(id);
+        // The speaker models download while the meeting records, so they are
+        // ready when it stops.
+        self.models.start_download();
         Ok(())
     }
 
@@ -414,6 +444,40 @@ impl MeetingsManager {
         self.queue.enqueue(id);
     }
 
+    /// Tells the speakers of a finished meeting apart again, with the models
+    /// as they are now. Codex is not asked again for parts it transcribed.
+    pub fn reanalyze(&self, id: i64) -> Result<(), String> {
+        if !self.store.reopen(id).map_err(|error| error.to_string())? {
+            return Err(format!("Meeting {id} is not finished"));
+        }
+        // Nothing processes the meeting until it is queued below.
+        let analysis = paths::meeting_dir(&self.root, id).join(analysis::ANALYSIS_FILE);
+        match std::fs::remove_file(analysis) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => error!("Meeting {id}: cannot reset the analysis: {error}"),
+        }
+        self.updated(id);
+        self.queue.enqueue(id);
+        Ok(())
+    }
+
+    pub fn models_status(&self) -> MeetingModelsStatus {
+        self.models.status()
+    }
+
+    pub fn download_models(&self) {
+        self.models.start_download();
+    }
+
+    pub fn cancel_models_download(&self) {
+        self.models.cancel_download();
+    }
+
+    pub fn delete_models(&self) -> Result<(), String> {
+        self.models.delete()
+    }
+
     /// Lets processing run again and queues the meetings a quit (or turning
     /// meetings off) left mid-way.
     pub fn resume_processing(&self) {
@@ -455,6 +519,7 @@ impl MeetingsManager {
             }
         }
         self.queue.pause();
+        self.models.cancel_download();
     }
 
     /// Drives the cap and write-failure checks of meeting `id` until it ends.

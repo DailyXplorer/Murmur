@@ -570,6 +570,7 @@
       "transcribing": "Přepisování: hotovo {{done}} z {{total}} částí…",
       "rateLimited": "Codex požádal o zpomalení. Zpracování bude pokračovat samo…",
       "aligning": "Řazení konverzace…",
+      "analyzing": "Rozlišování mluvčích…",
       "interrupted": "Nahrávání bylo přerušeno. Nahranou část lze stále přepsat.",
       "process": "Přepsat",
       "retry": "Zkusit znovu",
@@ -580,6 +581,34 @@
         "parts_failed": "Některé části se nepodařilo přepsat.",
         "no_audio": "Nahrávku se nepodařilo přečíst.",
         "other": "Zpracování se nečekaně zastavilo."
+      }
+    },
+    "speakers": {
+      "no_models": "Mluvčí nebyli rozlišeni, protože modely pro rozpoznání nebyly stažené.",
+      "failed": "Mluvčí nebyli rozlišeni, protože analýza v zařízení nebyla dokončena.",
+      "separate": "Rozlišit mluvčí",
+      "error": "Mluvčí se nepodařilo rozlišit."
+    },
+    "models": {
+      "title": "Rozpoznávání mluvčích",
+      "description": "Místní modely rozlišují účastníky. Stahují se jednou (asi 480 MB) a tento krok nikam neposílá zvuk.",
+      "missing": "Nestaženo",
+      "downloading": "Stahování… {{percent}} %",
+      "preparing": "Příprava modelů pro tento Mac…",
+      "ready": "Připraveno · {{size}}",
+      "failed": "Stahování se nezdařilo.",
+      "os_too_old": "Rozpoznávání mluvčích vyžaduje macOS 14 nebo novější. Schůzky zobrazují jednoho mluvčího na zdroj zvuku.",
+      "unsupported": "Rozpoznávání mluvčích vyžaduje Mac s čipem Apple. Schůzky zobrazují jednoho mluvčího na zdroj zvuku.",
+      "download": "Stáhnout",
+      "retry": "Zkusit znovu",
+      "delete": "Smazat modely",
+      "error": "Modely pro rozpoznání mluvčích se nepodařilo aktualizovat.",
+      "licences": "Licence modelů",
+      "licencesNote": "Modely se při prvním použití stahují z Hugging Face. Murmur je neobsahuje.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (časování slov): NVIDIA, CC BY 4.0. Převod do Core ML: Fluid Inference.",
+        "diarization": "Diarizace Community-1: pyannote, CC BY 4.0, s WeSpeaker a BUT Speech@FIT. Upravený převod do Core ML: Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, licence Apache 2.0."
       }
     },
     "transcript": {

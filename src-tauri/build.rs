@@ -88,6 +88,11 @@ const APP_COMMANDS: &[&str] = &[
     "rename_meeting",
     "rename_speaker",
     "retry_meeting",
+    "reanalyze_meeting",
+    "get_meeting_models_status",
+    "download_meeting_models",
+    "cancel_meeting_models_download",
+    "delete_meeting_models",
     "get_meeting_markdown",
     "export_meeting_markdown",
     "get_meeting_capabilities",
@@ -99,6 +104,7 @@ const APP_COMMANDS: &[&str] = &[
 fn main() {
     generate_tray_translations();
     build_swift_bridges();
+    build_meetings_helper();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
     tauri_build::try_build(attributes).expect("failed to build Tauri application ACL");
@@ -267,6 +273,82 @@ fn build_swift_bridges() {
     }
     println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+}
+
+/// Builds `murmur-meetings-helper`, the on-device meeting analysis (FluidAudio,
+/// macOS 14, Apple silicon), where Tauri bundles it from: `binaries/` with the
+/// target triple. Intel builds get a stub that reports the analysis as
+/// unsupported, so meetings fall back to one speaker per track.
+fn build_meetings_helper() {
+    use std::path::Path;
+    use std::process::Command;
+
+    const PACKAGE: &str = "swift/MurmurMeetingsHelper";
+    for path in ["Package.swift", "Package.resolved", "Sources"] {
+        println!("cargo:rerun-if-changed={PACKAGE}/{path}");
+    }
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os != "macos" {
+        return;
+    }
+    let target = std::env::var("TARGET").expect("TARGET is set by Cargo");
+    std::fs::create_dir_all("binaries").expect("binaries/ is writable");
+    let destination = Path::new("binaries").join(format!("murmur-meetings-helper-{target}"));
+    println!("cargo:rerun-if-changed={}", destination.display());
+
+    if target == "aarch64-apple-darwin" {
+        let swift_build = |extra: &[&str]| {
+            Command::new("swift")
+                .args([
+                    "build",
+                    "-c",
+                    "release",
+                    "--arch",
+                    "arm64",
+                    "--package-path",
+                ])
+                .arg(PACKAGE)
+                .args(extra)
+                .output()
+                .expect("swift runs (Xcode 16.3 or later is needed for the meetings helper)")
+        };
+        let built = swift_build(&[]);
+        assert!(
+            built.status.success(),
+            "swift build failed for {PACKAGE}:\n{}{}",
+            String::from_utf8_lossy(&built.stdout),
+            String::from_utf8_lossy(&built.stderr)
+        );
+        // Where the products go depends on the toolchain.
+        let bin = swift_build(&["--show-bin-path"]);
+        assert!(bin.status.success(), "swift cannot tell its build folder");
+        let bin = String::from_utf8(bin.stdout).expect("swift prints UTF-8");
+        std::fs::copy(
+            Path::new(bin.trim()).join("murmur-meetings-helper"),
+            &destination,
+        )
+        .expect("the built helper can be copied");
+        return;
+    }
+
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo");
+    let source = Path::new(&out_dir).join("meetings_helper_stub.c");
+    std::fs::write(
+        &source,
+        "#include <stdio.h>\nint main(void) {\n  puts(\"{\\\"type\\\":\\\"error\\\",\\\"stage\\\":\\\"analyze\\\",\\\"code\\\":\\\"unsupported\\\",\\\"message\\\":\\\"needs Apple silicon\\\"}\");\n  puts(\"{\\\"type\\\":\\\"done\\\"}\");\n  return 0;\n}\n",
+    )
+    .expect("the helper stub source is writable");
+    let arch = target.split('-').next().unwrap_or("x86_64");
+    let status = Command::new("cc")
+        .args(["-arch", arch, "-mmacosx-version-min=10.15", "-O2", "-o"])
+        .arg(&destination)
+        .arg(&source)
+        .status()
+        .expect("cc runs");
+    assert!(
+        status.success(),
+        "cc failed to build the meetings helper stub"
+    );
 }
 
 fn camel_to_snake(value: &str) -> String {

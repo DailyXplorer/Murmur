@@ -1,0 +1,53 @@
+name: "meetings helper"
+# End-to-end check of the on-device meeting analysis: downloads the models
+# (about 480 MB, cached), then analyses a synthetic two-voice dialogue. Not
+# on the PR path, to avoid the download on every change.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Cache the helper build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: src-tauri/swift/MurmurMeetingsHelper/.build
+          key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+
+      - name: Cache the models
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: meetings-models-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+
+      - name: Build the helper
+        working-directory: src-tauri/swift/MurmurMeetingsHelper
+        run: |
+          swift build -c release --arch arm64
+          echo "HELPER=$(swift build -c release --arch arm64 --show-bin-path)/murmur-meetings-helper" >> "$GITHUB_ENV"
+
+      - name: Download the models
+        run: |
+          "$HELPER" download --models-dir "$RUNNER_TEMP/models" | tail -n 3
+
+      - name: Analyse a synthetic dialogue
+        working-directory: src-tauri/swift/MurmurMeetingsHelper/smoke
+        shell: bash
+        run: |
+          voices=$(say -v '?' | awk '/en_(US|GB)/ {print $1}' | grep -xE 'Samantha|Daniel|Karen|Moira|Fred|Albert|Ralph' | head -n 2)
+          test "$(wc -l <<<"$voices")" -eq 2
+          python3 make_dialogue.py "$RUNNER_TEMP/dialogue.wav" $voices
+          "$HELPER" analyze --models-dir "$RUNNER_TEMP/models" \
+            --system "$RUNNER_TEMP/dialogue.wav" --diarize system \
+            | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
+          python3 check_analysis.py "$RUNNER_TEMP/analysis.jsonl"

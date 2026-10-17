@@ -570,6 +570,7 @@
       "transcribing": "Trascrizione: {{done}} parti su {{total}} completate…",
       "rateLimited": "Codex chiede di rallentare. L’elaborazione riprenderà da sola…",
       "aligning": "Riordino della conversazione…",
+      "analyzing": "Distinzione dei partecipanti…",
       "interrupted": "La registrazione è stata interrotta. Quanto registrato può comunque essere trascritto.",
       "process": "Trascrivi",
       "retry": "Riprova",
@@ -580,6 +581,34 @@
         "parts_failed": "Alcune parti non sono state trascritte.",
         "no_audio": "Impossibile leggere la registrazione.",
         "other": "L’elaborazione si è interrotta in modo imprevisto."
+      }
+    },
+    "speakers": {
+      "no_models": "I partecipanti non sono stati distinti perché i modelli di rilevamento non erano scaricati.",
+      "failed": "I partecipanti non sono stati distinti perché l'analisi sul dispositivo non è terminata.",
+      "separate": "Distingui partecipanti",
+      "error": "Impossibile distinguere i partecipanti."
+    },
+    "models": {
+      "title": "Rilevamento dei partecipanti",
+      "description": "Modelli locali distinguono i partecipanti. Si scaricano una volta (circa 480 MB) e questo passaggio non invia audio altrove.",
+      "missing": "Non scaricati",
+      "downloading": "Download in corso… {{percent}}%",
+      "preparing": "Preparazione dei modelli per questo Mac…",
+      "ready": "Pronti · {{size}}",
+      "failed": "Il download non è riuscito.",
+      "os_too_old": "Il rilevamento dei partecipanti richiede macOS 14 o versioni successive. Le riunioni mostrano un partecipante per sorgente audio.",
+      "unsupported": "Il rilevamento dei partecipanti richiede un Mac con chip Apple. Le riunioni mostrano un partecipante per sorgente audio.",
+      "download": "Scarica",
+      "retry": "Riprova",
+      "delete": "Elimina modelli",
+      "error": "Impossibile aggiornare i modelli di rilevamento.",
+      "licences": "Licenze dei modelli",
+      "licencesNote": "I modelli vengono scaricati da Hugging Face al primo utilizzo. Murmur non li include.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (tempi delle parole): NVIDIA, CC BY 4.0. Conversione Core ML di Fluid Inference.",
+        "diarization": "Diarizzazione Community-1: pyannote, CC BY 4.0, con WeSpeaker e BUT Speech@FIT. Conversione Core ML modificata di Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, licenza Apache 2.0."
       }
     },
     "transcript": {

@@ -29,6 +29,7 @@
     "createUpdaterArtifacts": true,
     "targets": ["app", "dmg"],
     "resources": ["resources/**/*"],
+    "externalBin": ["binaries/murmur-meetings-helper"],
     "license": "MIT",
     "icon": [
       "icons/32x32.png",

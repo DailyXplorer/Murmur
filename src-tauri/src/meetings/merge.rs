@@ -16,7 +16,10 @@ const BUBBLE_WORDS: usize = 90;
 
 /// Ties go to system audio: a remote question comes before the answer
 /// captured at the same moment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum Track {
     System,
     Mic,

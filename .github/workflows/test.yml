@@ -37,6 +37,13 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      # build.rs builds the meetings helper with SwiftPM (FluidAudio).
+      - name: Cache the meetings helper build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: src-tauri/swift/MurmurMeetingsHelper/.build
+          key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+
       - name: Check generated macOS icons
         run: cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check
 
@@ -50,6 +57,17 @@ jobs:
       - name: Run Clippy
         working-directory: src-tauri
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      # Without models, analysis must report them missing and never download.
+      - name: Check the meetings helper stays offline
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          out=$(binaries/murmur-meetings-helper-aarch64-apple-darwin analyze --models-dir "$RUNNER_TEMP/no-models")
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
+          grep -q '"type":"done"' <<<"$out"
+          test ! -e "$RUNNER_TEMP/no-models/parakeet-tdt-0.6b-v3"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.22.2 --locked

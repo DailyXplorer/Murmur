@@ -570,6 +570,7 @@
       "transcribing": "正在轉錄：已完成 {{done}}/{{total}} 個部分…",
       "rateLimited": "Codex 要求放慢速度。處理會自動繼續…",
       "aligning": "正在整理對話順序…",
+      "analyzing": "正在區分發言者…",
       "interrupted": "錄音已中斷。已錄下的內容仍可轉錄。",
       "process": "轉錄",
       "retry": "重試",
@@ -580,6 +581,34 @@
         "parts_failed": "部分內容無法轉錄。",
         "no_audio": "無法讀取錄音。",
         "other": "處理意外停止。"
+      }
+    },
+    "speakers": {
+      "no_models": "未區分發言者，因為發言者模型尚未下載。",
+      "failed": "未區分發言者，因為裝置上的分析未完成。",
+      "separate": "區分發言者",
+      "error": "無法區分發言者。"
+    },
+    "models": {
+      "title": "發言者辨識",
+      "description": "本機模型會區分與會者。模型只需下載一次（約 480 MB），此步驟不會將音訊傳送到任何地方。",
+      "missing": "尚未下載",
+      "downloading": "正在下載… {{percent}}%",
+      "preparing": "正在為這台 Mac 準備模型…",
+      "ready": "已就緒 · {{size}}",
+      "failed": "下載失敗。",
+      "os_too_old": "發言者辨識需要 macOS 14 或以上版本。會議中每個音訊來源會顯示為一位發言者。",
+      "unsupported": "發言者辨識需要搭載 Apple 晶片的 Mac。會議中每個音訊來源會顯示為一位發言者。",
+      "download": "下載",
+      "retry": "重試",
+      "delete": "刪除模型",
+      "error": "無法更新發言者模型。",
+      "licences": "模型授權",
+      "licencesNote": "模型會在首次使用時從 Hugging Face 下載，Murmur 本身不包含這些模型。",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3（字詞時間）：NVIDIA，CC BY 4.0。Core ML 轉換：Fluid Inference。",
+        "diarization": "發言者分離 Community-1：pyannote，CC BY 4.0，以及 WeSpeaker 和 BUT Speech@FIT。經修改的 Core ML 轉換：Fluid Inference。",
+        "fluidaudio": "FluidAudio：Fluid Inference，Apache License 2.0。"
       }
     },
     "transcript": {

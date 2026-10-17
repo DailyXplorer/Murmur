@@ -570,6 +570,7 @@
       "transcribing": "文字起こし中：{{total}} 件中 {{done}} 件完了…",
       "rateLimited": "Codex から速度を落とすよう求められました。処理は自動で再開されます…",
       "aligning": "会話を時系列に並べています…",
+      "analyzing": "話者を区別しています…",
       "interrupted": "録音が中断されました。録音済みの部分は文字起こしできます。",
       "process": "文字起こしする",
       "retry": "再試行",
@@ -580,6 +581,34 @@
         "parts_failed": "一部を文字起こしできませんでした。",
         "no_audio": "録音を読み込めませんでした。",
         "other": "処理が予期せず停止しました。"
+      }
+    },
+    "speakers": {
+      "no_models": "話者モデルがダウンロードされていなかったため、話者は区別されていません。",
+      "failed": "デバイス上の分析が完了しなかったため、話者は区別されていません。",
+      "separate": "話者を区別",
+      "error": "話者を区別できませんでした。"
+    },
+    "models": {
+      "title": "話者検出",
+      "description": "ローカルのモデルが参加者を区別します。ダウンロードは一度だけ（約 480 MB）で、この処理では音声をどこにも送信しません。",
+      "missing": "未ダウンロード",
+      "downloading": "ダウンロード中… {{percent}}%",
+      "preparing": "この Mac 用にモデルを準備しています…",
+      "ready": "準備完了 · {{size}}",
+      "failed": "ダウンロードに失敗しました。",
+      "os_too_old": "話者検出には macOS 14 以降が必要です。会議では音声ソースごとに 1 人の話者が表示されます。",
+      "unsupported": "話者検出には Apple シリコン搭載の Mac が必要です。会議では音声ソースごとに 1 人の話者が表示されます。",
+      "download": "ダウンロード",
+      "retry": "再試行",
+      "delete": "モデルを削除",
+      "error": "話者モデルを更新できませんでした。",
+      "licences": "モデルのライセンス",
+      "licencesNote": "モデルは初回使用時に Hugging Face からダウンロードされます。Murmur には含まれていません。",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3（単語のタイミング）：NVIDIA、CC BY 4.0。Core ML への変換：Fluid Inference。",
+        "diarization": "話者分離 Community-1：pyannote、CC BY 4.0、WeSpeaker および BUT Speech@FIT。Core ML への変換（改変あり）：Fluid Inference。",
+        "fluidaudio": "FluidAudio：Fluid Inference、Apache License 2.0。"
       }
     },
     "transcript": {

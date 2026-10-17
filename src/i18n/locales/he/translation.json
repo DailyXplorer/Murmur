@@ -570,6 +570,7 @@
       "transcribing": "מתמלל: הושלמו {{done}} מתוך {{total}} חלקים…",
       "rateLimited": "Codex ביקש להאט. העיבוד ימשיך מעצמו…",
       "aligning": "מסדר את השיחה…",
+      "analyzing": "מבחין בין הדוברים…",
       "interrupted": "ההקלטה נקטעה. עדיין אפשר לתמלל את מה שהוקלט.",
       "process": "תמלול",
       "retry": "ניסיון חוזר",
@@ -580,6 +581,34 @@
         "parts_failed": "לא ניתן היה לתמלל חלקים מסוימים.",
         "no_audio": "לא ניתן לקרוא את ההקלטה.",
         "other": "העיבוד נעצר באופן בלתי צפוי."
+      }
+    },
+    "speakers": {
+      "no_models": "לא הובחן בין הדוברים כי מודלי הזיהוי לא הורדו.",
+      "failed": "לא הובחן בין הדוברים כי הניתוח במכשיר לא הושלם.",
+      "separate": "הבחנה בין דוברים",
+      "error": "לא ניתן היה להבחין בין הדוברים."
+    },
+    "models": {
+      "title": "זיהוי דוברים",
+      "description": "מודלים מקומיים מבחינים בין המשתתפים. הם מורדים פעם אחת (כ־480 MB), ושלב זה לא שולח שמע לשום מקום.",
+      "missing": "לא הורדו",
+      "downloading": "מוריד… {{percent}}%",
+      "preparing": "מכין את המודלים ל־Mac הזה…",
+      "ready": "מוכנים · {{size}}",
+      "failed": "ההורדה נכשלה.",
+      "os_too_old": "זיהוי דוברים דורש macOS 14 ואילך. פגישות מציגות דובר אחד לכל מקור שמע.",
+      "unsupported": "זיהוי דוברים דורש Mac עם שבב Apple. פגישות מציגות דובר אחד לכל מקור שמע.",
+      "download": "הורדה",
+      "retry": "ניסיון חוזר",
+      "delete": "מחיקת המודלים",
+      "error": "לא ניתן היה לעדכן את מודלי הזיהוי.",
+      "licences": "רישיונות המודלים",
+      "licencesNote": "המודלים מורדים מ־Hugging Face בשימוש הראשון. Murmur לא כולל אותם.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (תזמון מילים): NVIDIA, CC BY 4.0. המרה ל־Core ML מאת Fluid Inference.",
+        "diarization": "הפרדת דוברים Community-1: pyannote, CC BY 4.0, עם WeSpeaker ו־BUT Speech@FIT. המרה מותאמת ל־Core ML מאת Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, רישיון Apache 2.0."
       }
     },
     "transcript": {

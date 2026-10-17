@@ -570,6 +570,7 @@
       "transcribing": "Transcribing: {{done}} of {{total}} parts done…",
       "rateLimited": "Codex asked to slow down. Processing resumes on its own…",
       "aligning": "Putting the conversation in order…",
+      "analyzing": "Telling speakers apart…",
       "interrupted": "The recording was interrupted. What was recorded can still be transcribed.",
       "process": "Transcribe",
       "retry": "Retry",
@@ -580,6 +581,34 @@
         "parts_failed": "Some parts couldn't be transcribed.",
         "no_audio": "The recording couldn't be read.",
         "other": "Processing stopped unexpectedly."
+      }
+    },
+    "speakers": {
+      "no_models": "Speakers weren't told apart because the speaker models weren't downloaded.",
+      "failed": "Speakers weren't told apart because the on-device analysis didn't finish.",
+      "separate": "Separate Speakers",
+      "error": "Couldn't separate the speakers."
+    },
+    "models": {
+      "title": "Speaker Detection",
+      "description": "On-device models tell participants apart. They download once (about 480 MB), and this step sends no audio anywhere.",
+      "missing": "Not downloaded",
+      "downloading": "Downloading… {{percent}}%",
+      "preparing": "Preparing the models for this Mac…",
+      "ready": "Ready · {{size}}",
+      "failed": "The download failed.",
+      "os_too_old": "Speaker detection needs macOS 14 or later. Meetings show one speaker per audio source.",
+      "unsupported": "Speaker detection needs a Mac with Apple silicon. Meetings show one speaker per audio source.",
+      "download": "Download",
+      "retry": "Retry",
+      "delete": "Delete Models",
+      "error": "Couldn't update the speaker models.",
+      "licences": "Model Licences",
+      "licencesNote": "The models download from Hugging Face on first use. Murmur doesn't include them.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (word timing): NVIDIA, CC BY 4.0. Core ML conversion by Fluid Inference.",
+        "diarization": "Speaker diarization Community-1: pyannote, CC BY 4.0, with WeSpeaker and BUT Speech@FIT. Modified Core ML conversion by Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
       }
     },
     "transcript": {

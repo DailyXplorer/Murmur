@@ -570,6 +570,7 @@
       "transcribing": "Transcriberen: {{done}} van {{total}} delen klaar…",
       "rateLimited": "Codex vraagt om het rustiger aan te doen. De verwerking gaat vanzelf verder…",
       "aligning": "Gesprek wordt op volgorde gezet…",
+      "analyzing": "Sprekers worden onderscheiden…",
       "interrupted": "De opname is onderbroken. Wat is opgenomen, kan nog worden getranscribeerd.",
       "process": "Transcriberen",
       "retry": "Opnieuw proberen",
@@ -580,6 +581,34 @@
         "parts_failed": "Sommige delen konden niet worden getranscribeerd.",
         "no_audio": "De opname kan niet worden gelezen.",
         "other": "De verwerking is onverwacht gestopt."
+      }
+    },
+    "speakers": {
+      "no_models": "De sprekers zijn niet onderscheiden, omdat de sprekermodellen niet gedownload waren.",
+      "failed": "De sprekers zijn niet onderscheiden, omdat de analyse op het apparaat niet is voltooid.",
+      "separate": "Sprekers onderscheiden",
+      "error": "Kan de sprekers niet onderscheiden."
+    },
+    "models": {
+      "title": "Sprekerherkenning",
+      "description": "Lokale modellen onderscheiden de deelnemers. Ze worden één keer gedownload (ongeveer 480 MB) en deze stap verstuurt geen audio.",
+      "missing": "Niet gedownload",
+      "downloading": "Downloaden… {{percent}}%",
+      "preparing": "Modellen worden voorbereid voor deze Mac…",
+      "ready": "Klaar · {{size}}",
+      "failed": "Het downloaden is mislukt.",
+      "os_too_old": "Sprekerherkenning vereist macOS 14 of nieuwer. Vergaderingen tonen één spreker per audiobron.",
+      "unsupported": "Sprekerherkenning vereist een Mac met Apple-chip. Vergaderingen tonen één spreker per audiobron.",
+      "download": "Downloaden",
+      "retry": "Opnieuw",
+      "delete": "Modellen verwijderen",
+      "error": "Kan de sprekermodellen niet bijwerken.",
+      "licences": "Modellicenties",
+      "licencesNote": "De modellen worden bij het eerste gebruik van Hugging Face gedownload. Murmur bevat ze niet.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (woordtijden): NVIDIA, CC BY 4.0. Core ML-conversie door Fluid Inference.",
+        "diarization": "Sprekerdiarisatie Community-1: pyannote, CC BY 4.0, met WeSpeaker en BUT Speech@FIT. Aangepaste Core ML-conversie door Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache-licentie 2.0."
       }
     },
     "transcript": {

@@ -126,6 +126,13 @@ jobs:
           workspaces: "./src-tauri -> target"
           key: ${{ inputs.platform }}-${{ inputs.target }}
 
+      - name: Cache the meetings helper build
+        if: ${{ !inputs.no-cache && inputs.target == 'aarch64-apple-darwin' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: src-tauri/swift/MurmurMeetingsHelper/.build
+          key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+
       - name: install frontend dependencies
         run: bun install --frozen-lockfile
 
