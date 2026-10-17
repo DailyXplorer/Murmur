@@ -331,7 +331,8 @@ test("processing shows live progress, including a rate-limit pause", async ({
 }) => {
   await openMeeting(page, /47:12 · Processing/);
   const status = page.locator("article [role=status]");
-  await expect(status).toContainText("Waiting to be processed…");
+  // Before the next live update, the stage saved with the meeting.
+  await expect(status).toContainText("Transcribing…");
   await expect(
     page.getByText(
       "The transcript appears here once the meeting is processed.",
@@ -383,6 +384,33 @@ test("processing shows live progress, including a rate-limit pause", async ({
     stage: "aligning",
   });
   await expect(status).toContainText("Putting the conversation in order…");
+});
+
+test("a meeting opened while speakers are told apart says so, not that it waits", async ({
+  page,
+}) => {
+  await openMeeting(page, /47:12 · Processing/, "&stage=analyzing");
+  const status = page.locator("article [role=status]");
+  await expect(status).toContainText("Telling speakers apart…");
+  await expect(status).not.toContainText("Waiting to be processed");
+});
+
+test("a speaker name being typed survives the meeting reloading", async ({
+  page,
+}) => {
+  await openTranscript(page);
+  await page.getByRole("button", { name: "Rename Speakers" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  const field = dialog.getByRole("textbox", { name: "Name for Speaker 2" });
+  await field.fill("Cam");
+  const loads = (await callsTo(page, "get_meeting")).length;
+  // The summary or the compression finishing reloads the meeting.
+  await page.evaluate(() => window.settingsPages.emitMeetingsUpdated(3));
+  await expect
+    .poll(async () => (await callsTo(page, "get_meeting")).length)
+    .toBe(loads + 1);
+  await page.waitForTimeout(100);
+  await expect(field).toHaveValue("Cam");
 });
 
 test("a meeting with failed parts shows them in place and retries them", async ({

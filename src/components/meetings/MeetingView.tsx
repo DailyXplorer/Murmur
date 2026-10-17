@@ -8,6 +8,7 @@ import {
   type MeetingDetail,
   type MeetingModelsStatus,
   type MeetingProgress,
+  type MeetingStage,
 } from "@/bindings";
 import { useMeetingModels } from "../../hooks/useMeetingModels";
 import { Button } from "../ui/Button";
@@ -19,6 +20,13 @@ import { TranscriptTab } from "./TranscriptTab";
 
 type Tab = "summary" | "transcript";
 const TABS_ID = "meeting";
+
+/** The stage saved with the meeting, before any live progress arrives. */
+const SAVED_STAGE_LABELS: Record<MeetingStage, string> = {
+  transcribing: "meetings.processing.transcribingStarted",
+  analyzing: "meetings.processing.analyzing",
+  aligning: "meetings.processing.aligning",
+};
 
 const formatChipDate = (milliseconds: number, locale: string) =>
   new Intl.DateTimeFormat(locale, {
@@ -85,8 +93,14 @@ const ProcessingBanner: React.FC<{
       progress && progress.chunks_total > 0
         ? progress.chunks_done / progress.chunks_total
         : 0;
+    // Until the next live update, the stage saved with the meeting: the
+    // analysis reports progress only when it starts.
     const label = !progress
-      ? t("meetings.processing.waiting")
+      ? t(
+          meeting.stage
+            ? SAVED_STAGE_LABELS[meeting.stage]
+            : "meetings.processing.waiting",
+        )
       : progress.rate_limited
         ? t("meetings.processing.rateLimited")
         : progress.stage === "aligning"
