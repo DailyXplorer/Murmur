@@ -44,7 +44,10 @@ const analysis = params.get("analysis") ?? "available";
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
 const processingStage = (params.get("stage") ?? "transcribing") as MeetingStage;
-/** `held=1` keeps the processing meeting behind a Codex rate-limit hold. */
+/**
+ * `held=1` keeps the queued meetings behind a Codex rate-limit hold: the
+ * processing one, and a ready one whose summary is pending.
+ */
 const heldUntilMs =
   params.get("held") === "1" ? Date.now() + 2 * 60 * 60 * 1000 : null;
 /** Enough older meetings to fill more than one page of the list. */
@@ -316,6 +319,9 @@ const summaryOf = (item: MeetingListItem) => {
       };
 };
 
+const queuedForSummary = (item: MeetingListItem) =>
+  item.status === "ready" && summaryOf(item).summary_status === "pending";
+
 const detailOf = (item: MeetingListItem): MeetingDetail => ({
   ...item,
   ...summaryOf(item),
@@ -323,7 +329,8 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   audio_bytes: item.id === 3 ? 34_600_000 : 0,
   system_audio_silent: item.id === 3 && systemAudioSilent,
   error: item.status === "failed" ? "parts_failed" : null,
-  held_until_ms: item.status === "processing" ? heldUntilMs : null,
+  held_until_ms:
+    item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
   speakers:
     item.id === 3
       ? [
