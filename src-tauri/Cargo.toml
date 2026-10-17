@@ -89,7 +89,7 @@ security-framework = "3.7.0"
 [dev-dependencies]
 tempfile = "3"
 chrono-tz = "0.10"
-tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread"] }
+tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread", "test-util"] }
 
 [profile.release]
 lto = true

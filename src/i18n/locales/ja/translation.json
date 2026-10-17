@@ -572,6 +572,8 @@
       "transcribing": "文字起こし中：{{total}} 件中 {{done}} 件完了…",
       "transcribingStarted": "文字起こし中…",
       "rateLimited": "Codex から速度を落とすよう求められました。処理は自動で再開されます…",
+      "held": "Codex がリクエストを制限しています。処理は {{time}} に再開されます。",
+      "processNow": "今すぐ処理",
       "aligning": "会話を時系列に並べています…",
       "analyzing": "話者を区別しています…",
       "interrupted": "録音が中断されました。録音済みの部分は文字起こしできます。",

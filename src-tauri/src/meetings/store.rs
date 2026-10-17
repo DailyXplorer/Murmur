@@ -9,6 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::chunking::ChunkPlan;
@@ -393,6 +394,9 @@ pub struct MeetingDetail {
     /// System audio was recorded as pure silence while the user spoke, which
     /// is what macOS gives when Murmur may not record system audio.
     pub system_audio_silent: bool,
+    /// When a Codex rate-limit hold stops keeping this queued meeting
+    /// waiting. Only the processing queue knows; the store never sets it.
+    pub held_until_ms: Option<i64>,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -481,6 +485,16 @@ impl MeetingsStore {
         self.connection()?
             .execute("DELETE FROM meetings WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    /// The id of every meeting in the library.
+    pub fn ids(&self) -> Result<HashSet<i64>> {
+        let conn = self.connection()?;
+        let ids = conn
+            .prepare("SELECT id FROM meetings")?
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<HashSet<i64>>>()?;
+        Ok(ids)
     }
 
     /// Newest first; `cursor` is the id of the last meeting already shown.
@@ -683,6 +697,7 @@ impl MeetingsStore {
             },
             audio_bytes,
             system_audio_silent,
+            held_until_ms: None,
         }))
     }
 

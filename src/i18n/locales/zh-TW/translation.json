@@ -572,6 +572,8 @@
       "transcribing": "正在轉錄：已完成 {{done}}/{{total}} 個部分…",
       "transcribingStarted": "正在轉寫…",
       "rateLimited": "Codex 要求放慢速度。處理會自動繼續…",
+      "held": "Codex 正在限制請求。處理將於 {{time}} 繼續。",
+      "processNow": "立即處理",
       "aligning": "正在整理對話順序…",
       "analyzing": "正在區分發言者…",
       "interrupted": "錄音已中斷。已錄下的內容仍可轉錄。",

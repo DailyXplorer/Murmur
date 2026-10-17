@@ -572,6 +572,8 @@
       "transcribing": "Đang chép lời: xong {{done}}/{{total}} phần…",
       "transcribingStarted": "Đang chép lời…",
       "rateLimited": "Codex yêu cầu giảm tốc độ. Quá trình xử lý sẽ tự tiếp tục…",
+      "held": "Codex đang giới hạn yêu cầu. Quá trình xử lý sẽ tiếp tục lúc {{time}}.",
+      "processNow": "Xử lý ngay",
       "aligning": "Đang sắp xếp cuộc trò chuyện…",
       "analyzing": "Đang phân biệt người nói…",
       "interrupted": "Bản ghi đã bị gián đoạn. Phần đã ghi vẫn có thể được chép lời.",

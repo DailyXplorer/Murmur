@@ -598,6 +598,10 @@ impl TranscriptionCoordinator {
                     warn!("Timed out waiting for owned Gemini provider cleanup during shutdown");
                 }
             }
+            // A refresh request times out on its own within this.
+            if !crate::codex_auth::wait_for_refreshes(crate::codex_auth::REFRESH_TIMEOUT) {
+                warn!("Timed out waiting for a Codex token refresh during shutdown");
+            }
             shutdown_drain.permit_exit();
             app.exit(0);
         });

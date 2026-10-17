@@ -572,6 +572,8 @@
       "transcribing": "Transskriberer: {{done}} af {{total}} dele færdige…",
       "transcribingStarted": "Transskriberer…",
       "rateLimited": "Codex bad om at sætte tempoet ned. Behandlingen fortsætter af sig selv…",
+      "held": "Codex begrænser forespørgslerne. Behandlingen fortsætter kl. {{time}}.",
+      "processNow": "Behandl nu",
       "aligning": "Samtalen sættes i rækkefølge…",
       "analyzing": "Skelner mellem talerne…",
       "interrupted": "Optagelsen blev afbrudt. Det optagne kan stadig transskriberes.",

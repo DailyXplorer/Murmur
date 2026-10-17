@@ -1,5 +1,6 @@
 //! Each meeting keeps its files in `app_data/meetings/<id>/`.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -27,6 +28,13 @@ pub fn meeting_dir(root: &Path, id: i64) -> PathBuf {
     root.join(id.to_string())
 }
 
+/// Whether `name` is a meeting's folder, or one `fresh_meeting_dir` moved
+/// aside.
+fn holds_recordings(name: &str) -> bool {
+    let id = name.split_once(".stale-").map_or(name, |(id, _)| id);
+    id.parse::<i64>().is_ok()
+}
+
 /// After `meetings.db` was found corrupt and moved to `moved_to`, moves the
 /// meetings' folders next to it, to `meetings.corrupt-<time>`: no row points
 /// to them any more, so no screen would list or delete them. The models
@@ -40,10 +48,7 @@ pub fn set_aside_recordings(root: &Path, moved_to: &Path) -> io::Result<()> {
     let aside = root.with_file_name(format!("meetings{suffix}"));
     for entry in fs::read_dir(root)? {
         let entry = entry?;
-        let is_meeting = entry
-            .file_name()
-            .to_str()
-            .is_some_and(|name| name.parse::<i64>().is_ok());
+        let is_meeting = entry.file_name().to_str().is_some_and(holds_recordings);
         if is_meeting && entry.file_type()?.is_dir() {
             fs::create_dir_all(&aside)?;
             fs::rename(entry.path(), aside.join(entry.file_name()))?;
@@ -106,6 +111,60 @@ pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBu
     Ok(dir)
 }
 
+/// Deletes the folders `fresh_meeting_dir` moved aside: they were given up
+/// on, and no screen lists them, so nothing else ever would. Returns how
+/// many went.
+pub fn remove_stale(root: &Path) -> usize {
+    if fs::symlink_metadata(root).is_ok_and(|root| root.file_type().is_symlink()) {
+        return 0;
+    }
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let is_stale = name
+            .split_once(".stale-")
+            .is_some_and(|(id, _)| id.parse::<i64>().is_ok());
+        if !is_stale || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        match fs::remove_dir_all(entry.path()) {
+            Ok(()) => removed += 1,
+            Err(error) => log::warn!("Cannot delete the stale meeting folder {name}: {error}"),
+        }
+    }
+    removed
+}
+
+/// Moves the meeting folders no row points to into `aside`
+/// (`meetings.orphaned-<time>`). A missing row does not mean the user
+/// deleted the meeting: `meetings.db` may have been recreated empty, after
+/// it was lost or moved. Deleting would lose that audio, and leaving it
+/// would let a new meeting that gets the same id delete it. Returns how
+/// many moved.
+pub fn set_aside_orphans(root: &Path, meetings: &HashSet<i64>, aside: &Path) -> io::Result<usize> {
+    let mut moved = 0;
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let is_orphan = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<i64>().ok())
+            .is_some_and(|id| !meetings.contains(&id));
+        if is_orphan && entry.file_type()?.is_dir() {
+            fs::create_dir_all(aside)?;
+            fs::rename(entry.path(), aside.join(entry.file_name()))?;
+            moved += 1;
+        }
+    }
+    Ok(moved)
+}
+
 /// Deletes the named files of a meeting, those that exist. A symlink is
 /// removed, never its target.
 pub fn remove_meeting_files(root: &Path, id: i64, names: &[&str]) -> io::Result<()> {
@@ -138,6 +197,63 @@ mod tests {
         assert!(!dir.exists());
         assert!(root.path().exists());
         remove_meeting_dir(root.path(), 7).unwrap();
+    }
+
+    #[test]
+    fn stale_folders_are_removed_and_the_rest_kept() {
+        let root = tempfile::tempdir().unwrap();
+        for name in ["1", "3.stale-1700000000000", "models"] {
+            fs::create_dir_all(root.path().join(name)).unwrap();
+            fs::write(root.path().join(name).join(MIC_TRACK), b"audio").unwrap();
+        }
+        let outside = tempfile::tempdir().unwrap();
+        symlink(outside.path(), root.path().join("4.stale-1")).unwrap();
+
+        assert_eq!(remove_stale(root.path()), 1);
+
+        assert!(root.path().join("1").join(MIC_TRACK).exists());
+        assert!(root.path().join("models").join(MIC_TRACK).exists());
+        assert!(!root.path().join("3.stale-1700000000000").exists());
+        assert!(outside.path().exists());
+    }
+
+    #[test]
+    fn a_library_recreated_empty_never_deletes_the_recordings() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("7")).unwrap();
+        fs::write(root.path().join("7").join(AUDIO_FILE), b"audio").unwrap();
+
+        assert_eq!(remove_stale(root.path()), 0);
+
+        assert!(root.path().join("7").join(AUDIO_FILE).exists());
+    }
+
+    #[test]
+    fn folders_no_row_points_to_are_set_aside_and_the_rest_kept() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("meetings");
+        for name in ["1", "2", "models"] {
+            fs::create_dir_all(root.join(name)).unwrap();
+            fs::write(root.join(name).join(MIC_TRACK), b"audio").unwrap();
+        }
+        let aside = parent.path().join("meetings.orphaned-20261017-101500");
+
+        assert_eq!(
+            set_aside_orphans(&root, &HashSet::from([1]), &aside).unwrap(),
+            1
+        );
+
+        assert!(root.join("1").join(MIC_TRACK).exists());
+        assert!(root.join("models").join(MIC_TRACK).exists());
+        assert!(aside.join("2").join(MIC_TRACK).exists());
+        assert!(!root.join("2").exists());
+
+        let untouched = parent.path().join("meetings.orphaned-later");
+        assert_eq!(
+            set_aside_orphans(&root, &HashSet::from([1]), &untouched).unwrap(),
+            0
+        );
+        assert!(!untouched.exists());
     }
 
     #[test]
@@ -222,7 +338,7 @@ mod tests {
     fn a_reset_library_sets_the_recordings_aside_and_keeps_the_models() {
         let parent = tempfile::tempdir().unwrap();
         let root = parent.path().join("meetings");
-        for name in ["1", "7", "models"] {
+        for name in ["1", "7", "3.stale-1700000000000", "models"] {
             fs::create_dir_all(root.join(name)).unwrap();
         }
         fs::write(root.join("7").join(MIC_TRACK), b"audio").unwrap();
@@ -233,7 +349,9 @@ mod tests {
         let aside = parent.path().join("meetings.corrupt-20261017-101500");
         assert!(aside.join("7").join(MIC_TRACK).exists());
         assert!(aside.join("1").is_dir());
+        assert!(aside.join("3.stale-1700000000000").is_dir());
         assert!(!root.join("1").exists() && !root.join("7").exists());
+        assert!(!root.join("3.stale-1700000000000").exists());
         assert!(root.join("models").is_dir());
     }
 }

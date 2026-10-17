@@ -572,6 +572,8 @@
       "transcribing": "Trascrizione: {{done}} parti su {{total}} completate…",
       "transcribingStarted": "Trascrizione in corso…",
       "rateLimited": "Codex chiede di rallentare. L’elaborazione riprenderà da sola…",
+      "held": "Codex sta limitando le richieste. L’elaborazione riprenderà alle {{time}}.",
+      "processNow": "Elabora ora",
       "aligning": "Riordino della conversazione…",
       "analyzing": "Distinzione dei partecipanti…",
       "interrupted": "La registrazione è stata interrotta. Quanto registrato può comunque essere trascritto.",

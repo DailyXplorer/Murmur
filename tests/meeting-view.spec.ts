@@ -395,12 +395,29 @@ test("a meeting opened while speakers are told apart says so, not that it waits"
   await expect(status).not.toContainText("Waiting to be processed");
 });
 
+test("a meeting held by a rate limit says when it resumes and can go now", async ({
+  page,
+}) => {
+  await openMeeting(page, /47:12 · Processing/, "&held=1");
+  const status = page.locator("article [role=status]");
+  await expect(status).toContainText(
+    /Codex is limiting requests\. Processing resumes at \d{1,2}:\d{2}/,
+  );
+  await status.getByRole("button", { name: "Process Now" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 4 }]);
+});
+
 test("a speaker name being typed survives the meeting reloading", async ({
   page,
 }) => {
   await openTranscript(page);
   await page.getByRole("button", { name: "Rename Speakers" }).click();
   const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  // The dialog focuses the first field a frame after opening; typing before
+  // that would land the name there.
+  await expect(
+    dialog.getByRole("textbox", { name: "Name for Me" }),
+  ).toBeFocused();
   const field = dialog.getByRole("textbox", { name: "Name for Speaker 2" });
   await field.fill("Cam");
   const loads = (await callsTo(page, "get_meeting")).length;

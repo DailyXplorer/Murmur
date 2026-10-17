@@ -572,6 +572,8 @@
       "transcribing": "Transcribing: {{done}} of {{total}} parts done…",
       "transcribingStarted": "Transcribing…",
       "rateLimited": "Codex asked to slow down. Processing resumes on its own…",
+      "held": "Codex is limiting requests. Processing resumes at {{time}}.",
+      "processNow": "Process Now",
       "aligning": "Putting the conversation in order…",
       "analyzing": "Telling speakers apart…",
       "interrupted": "The recording was interrupted. What was recorded can still be transcribed.",

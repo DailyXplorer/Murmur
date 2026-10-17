@@ -1084,7 +1084,12 @@ audio_bytes: number;
  * System audio was recorded as pure silence while the user spoke, which
  * is what macOS gives when Murmur may not record system audio.
  */
-system_audio_silent: boolean }
+system_audio_silent: boolean; 
+/**
+ * When a Codex rate-limit hold stops keeping this queued meeting
+ * waiting. Only the processing queue knows; the store never sets it.
+ */
+held_until_ms: number | null }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.

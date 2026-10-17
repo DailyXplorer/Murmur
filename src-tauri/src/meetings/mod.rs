@@ -31,15 +31,16 @@ pub mod wav_recovery;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use chrono::TimeZone;
-use log::{error, info};
+use log::{error, info, warn};
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::managers::history::DatabaseStartup;
 use crate::settings::get_settings;
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
@@ -96,8 +97,9 @@ struct QueueState {
     queued: VecDeque<Queued>,
     current: Option<(i64, ProcessingOperation)>,
     paused: bool,
-    /// A rate-limit hold: until then, only `asked` meetings go through.
-    held_until: Option<tokio::time::Instant>,
+    /// A rate-limit hold: until then, only `asked` meetings go through. Wall
+    /// time, as Codex counts its cap: `Instant` stops while the Mac sleeps.
+    held_until: Option<SystemTime>,
     rate_limit: RateLimitHold,
 }
 
@@ -112,10 +114,7 @@ struct Queued {
 impl QueueState {
     /// The meeting to process now or, when none may go, the end of the hold
     /// (`None`: nothing to wait for but a new meeting).
-    fn take_next(
-        &mut self,
-        now: tokio::time::Instant,
-    ) -> Result<i64, Option<tokio::time::Instant>> {
+    fn take_next(&mut self, now: SystemTime) -> Result<i64, Option<SystemTime>> {
         self.held_until = self.held_until.filter(|until| now < *until);
         let index = match self.held_until {
             Some(_) => self.queued.iter().position(|queued| queued.asked),
@@ -173,19 +172,27 @@ impl ProcessingQueue {
         self.changed.notify_one();
     }
 
+    /// How often a held queue looks at the clock again: timers run on uptime,
+    /// so after a sleep only a fresh look sees that the hold has ended.
+    const RECHECK: Duration = Duration::from_secs(60);
+
     /// Waits for the next meeting to process, past any rate-limit hold.
     async fn next(&self) -> i64 {
         loop {
             let changed = self.changed.notified();
-            let held_until = match self.state().take_next(tokio::time::Instant::now()) {
+            let now = SystemTime::now();
+            let held_until = match self.state().take_next(now) {
                 Ok(id) => return id,
                 Err(held_until) => held_until,
             };
             match held_until {
-                Some(until) => tokio::select! {
-                    () = tokio::time::sleep_until(until) => {}
-                    () = changed => {}
-                },
+                Some(until) => {
+                    let left = until.duration_since(now).unwrap_or_default();
+                    tokio::select! {
+                        () = tokio::time::sleep(left.min(Self::RECHECK)) => {}
+                        () = changed => {}
+                    }
+                }
                 None => changed.await,
             }
         }
@@ -194,7 +201,7 @@ impl ProcessingQueue {
     /// Holds the meetings not asked for during `wait`.
     #[cfg(test)]
     fn hold(&self, wait: Duration) {
-        self.state().held_until = Some(tokio::time::Instant::now() + wait);
+        self.state().held_until = Some(SystemTime::now() + wait);
     }
 
     /// Holds or frees the queue from what Codex said while a meeting was
@@ -206,7 +213,7 @@ impl ProcessingQueue {
         match verdict {
             CodexVerdict::RateLimited => {
                 let wait = state.rate_limit.rate_limited();
-                state.held_until = Some(tokio::time::Instant::now() + wait);
+                state.held_until = Some(SystemTime::now() + wait);
                 Some(wait)
             }
             CodexVerdict::Answered => {
@@ -233,6 +240,22 @@ impl ProcessingQueue {
 
     fn end(&self) {
         self.state().current = None;
+    }
+
+    /// How much longer a rate-limit hold keeps queued meeting `id` waiting.
+    /// `None` when it is not waiting on one.
+    fn held_for(&self, id: i64) -> Option<Duration> {
+        let state = self.state();
+        let left = state.held_until?.duration_since(SystemTime::now()).ok()?;
+        state
+            .queued
+            .iter()
+            .any(|queued| queued.id == id && !queued.asked)
+            .then_some(left)
+    }
+
+    fn queued(&self) -> Vec<i64> {
+        self.state().queued.iter().map(|queued| queued.id).collect()
     }
 
     /// Stops processing meeting `id`. What was saved stays, and processing
@@ -362,6 +385,14 @@ fn spawn_processing(
             if let Some(wait) = worker.codex_said(codex) {
                 info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
             }
+            // A hold that starts or lifts changes what their views say.
+            if codex != CodexVerdict::Unknown {
+                let events = AppEvents(app.clone());
+                worker
+                    .queued()
+                    .into_iter()
+                    .for_each(|id| events.updated(id));
+            }
         }
     });
     queue
@@ -438,13 +469,36 @@ impl MeetingsManager {
         let app_data = app.path().app_data_dir()?;
         let root: PathBuf = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
-        let (store, startup) =
-            MeetingsStore::open(app_data.join("meetings.db"), chrono::Utc::now());
+        let now = chrono::Utc::now();
+        let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
         info!("Meetings database: {startup:?}");
-        if let crate::managers::history::DatabaseStartup::Reset { moved_to } = &startup {
-            if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
-                error!("Failed to set aside the recordings of the reset library: {error}");
+        match &startup {
+            DatabaseStartup::Reset { moved_to } => {
+                if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
+                    error!("Failed to set aside the recordings of the reset library: {error}");
+                }
             }
+            // Only a library that opened says which folders no row points to.
+            DatabaseStartup::Ready => {
+                match paths::remove_stale(&root) {
+                    0 => {}
+                    count => info!("Removed {count} stale meeting folder(s)"),
+                }
+                let aside =
+                    app_data.join(format!("meetings.orphaned-{}", now.format("%Y%m%d-%H%M%S")));
+                let moved = store
+                    .ids()
+                    .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));
+                match moved {
+                    Ok(0) => {}
+                    Ok(count) => warn!(
+                        "Moved {count} meeting folder(s) no meeting points to into {}",
+                        aside.display()
+                    ),
+                    Err(error) => error!("Failed to set aside orphan meeting folders: {error}"),
+                }
+            }
+            DatabaseStartup::Unavailable => {}
         }
         match store.recover_interrupted(&root) {
             Ok(0) => {}
@@ -565,10 +619,15 @@ impl MeetingsManager {
     }
 
     pub fn detail(&self, id: i64) -> Result<MeetingDetail, String> {
-        self.store
+        let mut meeting = self
+            .store
             .get(id)
             .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("Meeting {id} does not exist"))
+            .ok_or_else(|| format!("Meeting {id} does not exist"))?;
+        meeting.held_until_ms = self.queue.held_for(id).map(|left| {
+            chrono::Utc::now().timestamp_millis() + i64::try_from(left.as_millis()).unwrap_or(0)
+        });
+        Ok(meeting)
     }
 
     fn updated(&self, id: i64) {
@@ -943,6 +1002,30 @@ mod tests {
     }
 
     #[test]
+    fn a_hold_that_ran_out_while_the_mac_slept_lets_the_queue_go_on_waking() {
+        let queue = ProcessingQueue::new(false);
+        queue.hold(AN_HOUR);
+        queue.enqueue(1);
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .unwrap()
+            .block_on(async {
+                let start = tokio::time::Instant::now();
+                let next = queue.next();
+                tokio::pin!(next);
+                assert!(tokio::time::timeout(NOW, &mut next).await.is_err());
+                // Asleep, the wall clock passes the end of the hold but the
+                // uptime clock, which `Instant` reads on macOS, stands still.
+                queue.state().held_until = Some(SystemTime::now() - A_MOMENT);
+                assert_eq!(next.await, 1);
+                // Within a minute of waking, not when the uptime gets there.
+                assert!(start.elapsed() <= Duration::from_secs(60) + NOW);
+            });
+    }
+
+    #[test]
     fn a_meeting_queued_on_its_own_goes_once_the_hold_is_over() {
         let queue = ProcessingQueue::new(false);
         queue.hold(A_MOMENT);
@@ -980,7 +1063,7 @@ mod tests {
 
     fn held_minutes(queue: &ProcessingQueue) -> Option<u64> {
         let until = queue.state().held_until?;
-        let left = until.saturating_duration_since(tokio::time::Instant::now());
+        let left = until.duration_since(SystemTime::now()).unwrap_or_default();
         Some((left.as_secs() + 30) / 60)
     }
 
@@ -1016,6 +1099,19 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(1));
         queue.codex_said(CodexVerdict::RateLimited);
         assert_eq!(held_minutes(&queue), Some(30));
+    }
+
+    #[test]
+    fn a_meeting_kept_waiting_by_the_hold_says_for_how_long_until_asked_for() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(1);
+        assert_eq!(queue.held_for(1), None);
+        queue.hold(AN_HOUR);
+        let left = queue.held_for(1).unwrap();
+        assert!(left > AN_HOUR - Duration::from_secs(60) && left <= AN_HOUR);
+        assert_eq!(queue.held_for(2), None, "not queued");
+        queue.enqueue_asked(1);
+        assert_eq!(queue.held_for(1), None, "goes through the hold");
     }
 
     #[test]

@@ -572,6 +572,8 @@
       "transcribing": "Transkrypcja: gotowe części {{done}} z {{total}}…",
       "transcribingStarted": "Transkrypcja w toku…",
       "rateLimited": "Codex poprosił o zwolnienie tempa. Przetwarzanie wznowi się samo…",
+      "held": "Codex ogranicza żądania. Przetwarzanie wznowi się o {{time}}.",
+      "processNow": "Przetwórz teraz",
       "aligning": "Porządkowanie rozmowy…",
       "analyzing": "Rozróżnianie mówców…",
       "interrupted": "Nagrywanie zostało przerwane. Nagrany fragment nadal można przepisać.",

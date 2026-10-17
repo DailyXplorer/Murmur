@@ -572,6 +572,8 @@
       "transcribing": "Dökülüyor: {{total}} bölümden {{done}} tanesi tamam…",
       "transcribingStarted": "Metne dökülüyor…",
       "rateLimited": "Codex yavaşlamayı istedi. İşleme kendiliğinden devam edecek…",
+      "held": "Codex istekleri sınırlıyor. İşleme saat {{time}} itibarıyla devam edecek.",
+      "processNow": "Şimdi İşle",
       "aligning": "Konuşma sıraya konuyor…",
       "analyzing": "Konuşmacılar ayırt ediliyor…",
       "interrupted": "Kayıt yarıda kesildi. Kaydedilen kısım yine de dökülebilir.",
