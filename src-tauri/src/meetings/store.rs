@@ -790,14 +790,14 @@ impl MeetingsStore {
     }
 
     /// Makes a finished meeting with audio wait to be transcribed from
-    /// scratch: its pieces are forgotten and its summary written anew.
-    /// Returns false when it is not finished or has no audio.
+    /// scratch: its pieces are forgotten. Its transcript and summary stay
+    /// until a new transcript replaces them, as the audio may turn out
+    /// unreadable. Returns false when it is not finished or has no audio.
     pub fn retranscribe(&self, id: i64) -> Result<bool> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         let updated = tx.execute(
-            "UPDATE meetings SET status = 'processing', stage = NULL, error_kind = NULL,
-                 summary_md = NULL, summary_status = 'pending', summary_error = NULL
+            "UPDATE meetings SET status = 'processing', stage = NULL, error_kind = NULL
              WHERE id = ?1 AND status IN ('ready', 'failed') AND audio_deleted = 0",
             params![id],
         )?;
@@ -958,6 +958,18 @@ impl MeetingsStore {
     ) -> Result<()> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
+        let previous: Vec<(String, String)> = tx
+            .prepare(
+                "SELECT speaker_key, text FROM meeting_turns WHERE meeting_id = ?1 ORDER BY seq",
+            )?
+            .query_map(params![id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let reworded = !previous
+            .iter()
+            .map(|(key, text)| (key.as_str(), text.as_str()))
+            .eq(turns
+                .iter()
+                .map(|turn| (turn.speaker_key.as_str(), turn.text.as_str())));
         tx.execute(
             "DELETE FROM meeting_turns WHERE meeting_id = ?1",
             params![id],
@@ -968,12 +980,13 @@ impl MeetingsStore {
                AND (SELECT speaker_identity FROM meetings WHERE id = ?1) IS NOT ?2",
             params![id, identity],
         )?;
-        // The summary names people by key: with new keys, it is written anew.
+        // The summary names people by key: with new keys or other words, it
+        // is written anew.
         tx.execute(
             "UPDATE meetings SET summary_md = NULL, summary_status = 'pending',
                  summary_error = NULL
-             WHERE id = ?1 AND speaker_identity IS NOT ?2",
-            params![id, identity],
+             WHERE id = ?1 AND (?3 OR speaker_identity IS NOT ?2)",
+            params![id, identity, reworded],
         )?;
         tx.execute(
             "UPDATE meetings SET speaker_identity = ?2 WHERE id = ?1",
@@ -1578,25 +1591,55 @@ mod tests {
     }
 
     #[test]
-    fn transcribing_again_forgets_the_pieces_and_the_summary() {
+    fn transcribing_again_forgets_the_pieces_and_the_summary_goes_with_the_words() {
         let (_dir, store) = store();
-        let id = ready(&store);
+        let id = recorded(&store);
         store
             .plan_chunks(id, Track::Mic, &plan(&[(0, 60_000, 30_000)]))
             .unwrap();
         store.chunk_done(id, Track::Mic, 0, "Bonjour.").unwrap();
+        let transcript = |text: &str| {
+            store
+                .save_transcript(
+                    id,
+                    &[],
+                    &[MeetingTurn {
+                        speaker_key: "me".into(),
+                        start_ms: 0,
+                        end_ms: 1_000,
+                        text: text.into(),
+                        low_confidence: false,
+                    }],
+                    SpeakerAnalysis::NoModels,
+                    None,
+                    None,
+                )
+                .unwrap()
+        };
+        transcript("Bonjour.");
+        store.finish_processing(id, None).unwrap();
         store.rename(id, Some("Kept")).unwrap();
         store.save_summary(id, Some("Ignored"), "Notes.").unwrap();
 
         assert!(store.retranscribe(id).unwrap());
         let meeting = store.get(id).unwrap().unwrap();
         assert_eq!(meeting.status, MeetingStatus::Processing);
-        assert_eq!(meeting.summary, None);
-        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
-        assert_eq!(meeting.title.as_deref(), Some("Kept"));
+        // The audio may turn out unreadable: the summary waits for the
+        // new transcript.
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
         assert!(store.chunks(id).unwrap().is_empty());
         // Already waiting: a second request changes nothing.
         assert!(!store.retranscribe(id).unwrap());
+
+        // The same words keep their summary; other words get a new one.
+        transcript("Bonjour.");
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        transcript("Bonsoir.");
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary, None);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.title.as_deref(), Some("Kept"));
     }
 
     #[test]

@@ -1747,6 +1747,29 @@ mod tests {
         assert!(codex.calls.lock().unwrap().is_empty());
     }
 
+    /// "Transcribe again" on audio that can no longer be read leaves the
+    /// meeting's transcript and summary as they were.
+    #[test]
+    fn transcribing_again_unreadable_audio_keeps_the_summary() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        h.process(id, codex(|_| Ok("Bonjour.".into())));
+        let before = h.store.get(id).unwrap().unwrap();
+        assert_eq!(before.summary_status, SummaryStatus::Ready);
+        let dir = paths::meeting_dir(&h.root, id);
+        for file in [paths::MIC_TRACK, paths::SYSTEM_TRACK, paths::AUDIO_FILE] {
+            let _ = std::fs::remove_file(dir.join(file));
+        }
+
+        assert!(h.store.retranscribe(id).unwrap());
+        h.process(id, codex(|_| Ok("never".into())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(meeting.summary, before.summary);
+        assert_eq!(turns(&meeting), turns(&before));
+    }
+
     #[test]
     fn without_models_each_track_has_one_speaker() {
         let h = harness();
