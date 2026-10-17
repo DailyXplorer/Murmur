@@ -7,9 +7,11 @@ import { FlaskIcon } from "@phosphor-icons/react/dist/csr/Flask";
 import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
 import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
 import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
+import { UsersThreeIcon } from "@phosphor-icons/react/dist/csr/UsersThree";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import type { AppSettings } from "@/bindings";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
+import { MeetingsPage } from "./meetings/MeetingsPage";
 import { useSettings } from "../hooks/useSettings";
 import {
   GeneralSettings,
@@ -47,6 +49,12 @@ export const SECTIONS_CONFIG = {
     component: HistorySettings,
     enabled: () => true,
   },
+  meetings: {
+    labelKey: "sidebar.meetings",
+    icon: UsersThreeIcon,
+    component: MeetingsPage,
+    enabled: (settings) => settings?.meetings_enabled ?? false,
+  },
   insights: {
     labelKey: "sidebar.insights",
     icon: ChartBarIcon,
@@ -79,6 +87,7 @@ const SECTION_ORDER: readonly SidebarSection[] = [
   "general",
   "transcription",
   "history",
+  "meetings",
   "insights",
   "advanced",
   "debug",

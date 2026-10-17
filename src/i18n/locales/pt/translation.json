@@ -23,7 +23,15 @@
     "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado.",
     "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos).",
     "pasteLastTranscript": "Colar a última transcrição",
-    "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar."
+    "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
+    "startMeeting": "Iniciar reunião",
+    "stopMeeting": "Parar reunião",
+    "meetingSystemAudioUnavailable": "O áudio do sistema não está disponível, então a reunião grava apenas o microfone.",
+    "meetingMicrophoneUnavailable": "O microfone não está disponível, então a reunião grava apenas o áudio do sistema.",
+    "meetingStartFailed": "Não foi possível iniciar a reunião. Verifique o microfone e as permissões de áudio.",
+    "meetingStopsSoon": "A reunião para em 5 minutos (limite de 3 horas).",
+    "meetingStoppedAtLimit": "A reunião atingiu o limite de 3 horas e foi salva.",
+    "meetingWriteFailed": "A reunião parou porque o Murmur não conseguiu gravar no disco. O que foi gravado foi mantido."
   },
   "sidebar": {
     "general": "Geral",
@@ -32,7 +40,8 @@
     "debug": "Depuração",
     "about": "Sobre",
     "transcription": "Transcrição",
-    "insights": "Estatísticas"
+    "insights": "Estatísticas",
+    "meetings": "Reuniões"
   },
   "insights": {
     "error": "Não foi possível carregar as estatísticas.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Colar a última transcrição",
             "description": "Cola novamente a sua última transcrição no app que você está usando."
+          },
+          "meeting_toggle": {
+            "name": "Atalho de reunião",
+            "description": "Começa a gravar uma reunião ou para a que está em andamento."
           }
         },
         "errors": {
           "restore": "Falha ao restaurar atalho original",
           "set": "Falha ao definir atalho: {{error}}",
           "reset": "Falha ao redefinir atalho para o valor original",
-          "registrationFailed": "Outro aplicativo está usando este atalho. Escolha um diferente."
+          "registrationFailed": "Outro aplicativo está usando este atalho. Escolha um diferente.",
+          "usedByAnotherAction": "Outra ação do Murmur está usando este atalho. Escolha um diferente."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Aprendida",
         "learnedFrom": "{{word}}: aprendida quando você corrigiu “{{heard}}”",
         "learnedHint": "Quando você corrige um nome mal escrito logo após ditar, o Murmur o adiciona aqui marcado como Aprendida. Clique em uma palavra para removê-la."
+      },
+      "meetingsToggle": {
+        "label": "Reuniões",
+        "description": "Grave reuniões pelo microfone e pelo áudio do sistema. Adiciona uma página de reuniões, um atalho e um item na barra de menus."
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Novidades no Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Transcrições e resumos chegam em uma versão futura. Até lá, as gravações são mantidas.",
+    "recording": {
+      "title": "Gravação",
+      "idle": "Nenhuma reunião em andamento",
+      "active": "Gravando · {{time}}",
+      "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pela barra de menus. A reunião para sozinha após 3 horas."
+    },
+    "start": "Iniciar reunião",
+    "stop": "Parar",
+    "discard": "Descartar",
+    "cancel": "Cancelar",
+    "startError": "Não foi possível iniciar a reunião.",
+    "stopError": "Não foi possível parar a reunião.",
+    "loadError": "Não foi possível carregar as reuniões.",
+    "deleteError": "Não foi possível excluir a reunião.",
+    "delete": "Excluir reunião",
+    "discardDialog": {
+      "title": "Descartar esta reunião?",
+      "description": "A gravação até agora é excluída e não pode ser recuperada.",
+      "keep": "Continuar gravando"
+    },
+    "deleteDialog": {
+      "title": "Excluir esta reunião?",
+      "description": "A gravação é excluída e não pode ser recuperada."
+    },
+    "captureMode": {
+      "title": "Fontes de áudio",
+      "description": "O microfone grava você; o áudio do sistema grava os outros participantes.",
+      "options": {
+        "both": "Microfone e áudio do sistema",
+        "system_only": "Somente áudio do sistema",
+        "mic_only": "Somente microfone"
+      }
+    },
+    "systemAudioUnavailable": "O áudio do sistema exige macOS 14.4 ou posterior em Apple silicon, então as reuniões gravam apenas o microfone.",
+    "permission": {
+      "title": "Permissão de áudio do sistema",
+      "description": "O macOS pergunta na primeira vez que uma reunião grava o áudio do sistema. Se você recusou, reative o Murmur nos ajustes de privacidade.",
+      "open": "Abrir ajustes"
+    },
+    "list": {
+      "title": "Gravações",
+      "empty": "Ainda não há reuniões.",
+      "untitled": "Reunião · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Mostrar mais"
+    },
+    "status": {
+      "recording": "Gravando",
+      "interrupted": "Interrompida",
+      "processing": "Gravada",
+      "ready": "Pronta",
+      "failed": "Falhou"
+    }
   }
 }

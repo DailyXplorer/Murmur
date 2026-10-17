@@ -2,6 +2,7 @@ use crate::input;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
@@ -40,6 +41,23 @@ static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// While an error message is on screen, routine hides (pipeline finished,
 /// cancel) leave it up; only its own timer or a new recording replaces it.
 static ERROR_SHOWING: AtomicBool = AtomicBool::new(false);
+/// Whether a dictation owns the overlay (recording or transcribing).
+static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
+/// The meeting pill, while a meeting records. Dictation and error capsules
+/// take the overlay over for a moment; hiding them brings the pill back.
+static MEETING_PILL: Mutex<Option<MeetingPill>> = Mutex::new(None);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct MeetingPill {
+    pub started_at_ms: i64,
+    pub stops_at_ms: i64,
+}
+
+fn meeting_pill() -> Option<MeetingPill> {
+    *MEETING_PILL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
@@ -178,6 +196,7 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     ERROR_SHOWING.store(false, Ordering::SeqCst);
+    DICTATION_SHOWING.store(true, Ordering::SeqCst);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
@@ -295,11 +314,65 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
     }
 }
 
-/// Hides the recording overlay window with fade-out animation
+/// Hides the recording overlay window with fade-out animation, or brings the
+/// meeting pill back while a meeting records.
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
     if ERROR_SHOWING.load(Ordering::SeqCst) {
         return;
     }
+    DICTATION_SHOWING.store(false, Ordering::SeqCst);
+    if let Some(pill) = meeting_pill() {
+        present_meeting_pill(app_handle, pill);
+        return;
+    }
+    fade_out_overlay(app_handle);
+}
+
+/// Shows the meeting pill unless a dictation or an error is on screen; it
+/// appears when they hide.
+pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at_ms: i64) {
+    let pill = MeetingPill {
+        started_at_ms,
+        stops_at_ms,
+    };
+    *MEETING_PILL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
+    if !DICTATION_SHOWING.load(Ordering::SeqCst) && !ERROR_SHOWING.load(Ordering::SeqCst) {
+        present_meeting_pill(app_handle, pill);
+    }
+}
+
+pub fn hide_meeting_overlay(app_handle: &AppHandle) {
+    let was_showing = MEETING_PILL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take()
+        .is_some();
+    if was_showing
+        && !DICTATION_SHOWING.load(Ordering::SeqCst)
+        && !ERROR_SHOWING.load(Ordering::SeqCst)
+    {
+        fade_out_overlay(app_handle);
+    }
+}
+
+fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
+    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
+        return;
+    }
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) =
+            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        {
+            let _ = window.emit("show-overlay-meeting", pill);
+        }
+    });
+}
+
+fn fade_out_overlay(app_handle: &AppHandle) {
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.emit("hide-overlay", ());

@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
+import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
 import {
   approach,
   BAR_COUNT,
@@ -24,7 +25,35 @@ type View =
   | { kind: "hidden" }
   | { kind: "recording"; live: boolean }
   | { kind: "transcribing" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
+
+/** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
+interface MeetingPill {
+  started_at_ms: number;
+  stops_at_ms: number;
+}
+
+/** Ticks once a second while a meeting records. */
+const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
+  startedAtMs,
+  stopsAtMs,
+}) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const warning = now >= stopsAtMs - CAP_WARNING_MS;
+  return (
+    <div
+      className={`ov-capsule ov-meeting${warning ? " warning" : ""}`}
+      role="timer"
+    >
+      <span>{formatDuration(now - startedAtMs)}</span>
+    </div>
+  );
+};
 
 const CENTER = (BAR_COUNT - 1) / 2;
 
@@ -59,16 +88,7 @@ const RecordingOverlay: React.FC = () => {
       }
     };
 
-    void listen<string>("show-overlay", (event) => {
-      levelsRef.current = [];
-      // Applied before any await: an error or hide that arrives while the
-      // settings load must not be overwritten by this older show.
-      setView(
-        event.payload === "transcribing"
-          ? { kind: "transcribing" }
-          : { kind: "recording", live: false },
-      );
-
+    const refreshPosition = () => {
       void commands
         .getAppSettings()
         .then((settings) => {
@@ -79,6 +99,27 @@ const RecordingOverlay: React.FC = () => {
           }
         })
         .catch(() => undefined);
+    };
+
+    void listen<string>("show-overlay", (event) => {
+      levelsRef.current = [];
+      // Applied before any await: an error or hide that arrives while the
+      // settings load must not be overwritten by this older show.
+      setView(
+        event.payload === "transcribing"
+          ? { kind: "transcribing" }
+          : { kind: "recording", live: false },
+      );
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
+    void listen<MeetingPill>("show-overlay-meeting", (event) => {
+      setView({
+        kind: "meeting",
+        startedAtMs: event.payload.started_at_ms,
+        stopsAtMs: event.payload.stops_at_ms,
+      });
+      refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
     // The backend localizes the message, so it matches the notification
@@ -144,6 +185,17 @@ const RecordingOverlay: React.FC = () => {
   }, [animating]);
 
   if (view.kind === "hidden") return null;
+
+  if (view.kind === "meeting") {
+    return (
+      <div className={`ov-stage ${position}`}>
+        <MeetingPillView
+          startedAtMs={view.startedAtMs}
+          stopsAtMs={view.stopsAtMs}
+        />
+      </div>
+    );
+  }
 
   if (view.kind === "error") {
     return (

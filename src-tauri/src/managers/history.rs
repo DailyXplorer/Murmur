@@ -131,24 +131,24 @@ pub struct HistoryManager {
     db_path: PathBuf,
 }
 
-/// What opening the history database at startup produced.
+/// What opening a database at startup produced.
 #[derive(Debug, PartialEq, Eq)]
-pub enum HistoryStartup {
+pub enum DatabaseStartup {
     Ready,
     /// The file was not a readable database. It was renamed to this path and
     /// an empty database replaced it.
     Reset {
         moved_to: PathBuf,
     },
-    /// History is unusable this session (for example, the file is locked).
-    /// Dictation still works; saves fail and are logged.
+    /// The database is unusable this session (for example, the file is
+    /// locked). Dictation still works; saves fail and are logged.
     Unavailable,
 }
 
 impl HistoryManager {
     /// Never fails on a broken database: it is moved aside or, failing that,
-    /// reported through `HistoryStartup` so the app keeps running.
-    pub fn new(app_handle: &AppHandle) -> Result<(Self, HistoryStartup)> {
+    /// reported through `DatabaseStartup` so the app keeps running.
+    pub fn new(app_handle: &AppHandle) -> Result<(Self, DatabaseStartup)> {
         let app_data_dir = app_handle.path().app_data_dir()?;
         let recordings_dir = app_data_dir.join("recordings");
         let db_path = app_data_dir.join("history.db");
@@ -161,7 +161,7 @@ impl HistoryManager {
             }
         }
 
-        let startup = open_or_reset_database(&db_path, Utc::now());
+        let startup = open_or_reset_database(&db_path, Utc::now(), init_database);
         let manager = Self {
             app_handle: app_handle.clone(),
             recordings_dir,
@@ -171,29 +171,36 @@ impl HistoryManager {
     }
 }
 
-/// Opens and migrates the database. A file SQLite cannot read as a database is
-/// renamed to `history.db.corrupt-<timestamp>` and replaced by an empty one.
-fn open_or_reset_database(db_path: &Path, now: DateTime<Utc>) -> HistoryStartup {
-    let first_error = match init_database(db_path) {
-        Ok(()) => return HistoryStartup::Ready,
+/// Opens and migrates the database with `init`. A file SQLite cannot read as a
+/// database is renamed to `<name>.corrupt-<timestamp>` and replaced by an
+/// empty one.
+pub(crate) fn open_or_reset_database(
+    db_path: &Path,
+    now: DateTime<Utc>,
+    init: impl Fn(&Path) -> Result<()>,
+) -> DatabaseStartup {
+    let name = db_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let first_error = match init(db_path) {
+        Ok(()) => return DatabaseStartup::Ready,
         Err(error) => error,
     };
     if !is_corruption(&first_error) {
-        error!("History database is unavailable: {first_error:#}");
-        return HistoryStartup::Unavailable;
+        error!("Database {name} is unavailable: {first_error:#}");
+        return DatabaseStartup::Unavailable;
     }
 
-    let moved_to = db_path.with_file_name(format!(
-        "history.db.corrupt-{}",
-        now.format("%Y%m%d-%H%M%S")
-    ));
+    let moved_to =
+        db_path.with_file_name(format!("{name}.corrupt-{}", now.format("%Y%m%d-%H%M%S")));
     error!(
-        "History database is corrupt ({first_error:#}); moving it to {}",
+        "Database {name} is corrupt ({first_error:#}); moving it to {}",
         moved_to.display()
     );
     if let Err(error) = fs::rename(db_path, &moved_to) {
-        error!("Failed to move the corrupt history database aside: {error}");
-        return HistoryStartup::Unavailable;
+        error!("Failed to move the corrupt database {name} aside: {error}");
+        return DatabaseStartup::Unavailable;
     }
     for suffix in ["-wal", "-shm"] {
         let sidecar = PathBuf::from(format!("{}{suffix}", db_path.display()));
@@ -204,11 +211,11 @@ fn open_or_reset_database(db_path: &Path, now: DateTime<Utc>) -> HistoryStartup 
             );
         }
     }
-    match init_database(db_path) {
-        Ok(()) => HistoryStartup::Reset { moved_to },
+    match init(db_path) {
+        Ok(()) => DatabaseStartup::Reset { moved_to },
         Err(error) => {
-            error!("Failed to recreate the history database: {error:#}");
-            HistoryStartup::Unavailable
+            error!("Failed to recreate the database {name}: {error:#}");
+            DatabaseStartup::Unavailable
         }
     }
 }
@@ -796,12 +803,12 @@ mod tests {
         )
         .expect("write corrupt database");
 
-        let startup = open_or_reset_database(&db_path, startup_time());
+        let startup = open_or_reset_database(&db_path, startup_time(), init_database);
 
         let moved_to = temp.path().join("history.db.corrupt-20261015-120000");
         assert_eq!(
             startup,
-            HistoryStartup::Reset {
+            DatabaseStartup::Reset {
                 moved_to: moved_to.clone()
             }
         );
@@ -823,12 +830,12 @@ mod tests {
         let temp = tempfile::tempdir().expect("create temporary directory");
         let db_path = temp.path().join("history.db");
         assert_eq!(
-            open_or_reset_database(&db_path, startup_time()),
-            HistoryStartup::Ready
+            open_or_reset_database(&db_path, startup_time(), init_database),
+            DatabaseStartup::Ready
         );
         assert_eq!(
-            open_or_reset_database(&db_path, startup_time()),
-            HistoryStartup::Ready
+            open_or_reset_database(&db_path, startup_time(), init_database),
+            DatabaseStartup::Ready
         );
         assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
     }

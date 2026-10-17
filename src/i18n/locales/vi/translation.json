@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh.",
     "warningRecordingLimit": "Ghi âm sẽ dừng sau 1 phút (giới hạn 15 phút).",
     "pasteLastTranscript": "Dán bản chép lời gần nhất",
-    "noticeNothingToPaste": "Chưa có bản chép lời nào để dán."
+    "noticeNothingToPaste": "Chưa có bản chép lời nào để dán.",
+    "startMeeting": "Bắt đầu cuộc họp",
+    "stopMeeting": "Dừng cuộc họp",
+    "meetingSystemAudioUnavailable": "Âm thanh hệ thống không khả dụng nên cuộc họp chỉ ghi micrô.",
+    "meetingMicrophoneUnavailable": "Micrô không khả dụng nên cuộc họp chỉ ghi âm thanh hệ thống.",
+    "meetingStartFailed": "Không thể bắt đầu cuộc họp. Hãy kiểm tra micrô và quyền âm thanh.",
+    "meetingStopsSoon": "Cuộc họp sẽ dừng sau 5 phút (giới hạn 3 giờ).",
+    "meetingStoppedAtLimit": "Cuộc họp đã đạt giới hạn 3 giờ và đã được lưu.",
+    "meetingWriteFailed": "Cuộc họp đã dừng vì Murmur không thể ghi vào ổ đĩa. Phần đã ghi vẫn được giữ."
   },
   "sidebar": {
     "general": "Chung",
@@ -32,7 +40,8 @@
     "debug": "Gỡ lỗi",
     "about": "Giới thiệu",
     "transcription": "Phiên âm",
-    "insights": "Thống kê"
+    "insights": "Thống kê",
+    "meetings": "Cuộc họp"
   },
   "insights": {
     "error": "Không thể tải thống kê.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Dán bản chép lời gần nhất",
             "description": "Dán lại bản chép lời gần nhất vào ứng dụng bạn đang dùng."
+          },
+          "meeting_toggle": {
+            "name": "Phím tắt cuộc họp",
+            "description": "Bắt đầu ghi một cuộc họp hoặc dừng cuộc họp đang diễn ra."
           }
         },
         "errors": {
           "restore": "Không thể khôi phục phím tắt gốc",
           "set": "Không thể đặt phím tắt: {{error}}",
           "reset": "Không thể đặt lại phím tắt về giá trị gốc",
-          "registrationFailed": "Ứng dụng khác đang dùng phím tắt này. Hãy chọn phím tắt khác."
+          "registrationFailed": "Ứng dụng khác đang dùng phím tắt này. Hãy chọn phím tắt khác.",
+          "usedByAnotherAction": "Một thao tác khác của Murmur đang dùng phím tắt này. Hãy chọn phím tắt khác."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Đã học",
         "learnedFrom": "{{word}}: đã học khi bạn sửa “{{heard}}”",
         "learnedHint": "Khi bạn sửa một tên viết sai ngay sau khi đọc, Murmur thêm tên đó vào đây với nhãn Đã học. Nhấp vào một từ để xóa."
+      },
+      "meetingsToggle": {
+        "label": "Cuộc họp",
+        "description": "Ghi cuộc họp từ micrô và âm thanh hệ thống. Thêm trang Cuộc họp, một phím tắt và một mục trên thanh menu."
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Điểm mới trong Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Bản chép lời và bản tóm tắt sẽ có trong phiên bản sau. Các bản ghi được giữ đến lúc đó.",
+    "recording": {
+      "title": "Ghi âm",
+      "idle": "Không có cuộc họp nào",
+      "active": "Đang ghi · {{time}}",
+      "description": "Bạn cũng có thể bắt đầu và dừng cuộc họp bằng phím tắt hoặc từ thanh menu. Cuộc họp tự dừng sau 3 giờ."
+    },
+    "start": "Bắt đầu cuộc họp",
+    "stop": "Dừng",
+    "discard": "Xóa",
+    "cancel": "Hủy",
+    "startError": "Không thể bắt đầu cuộc họp.",
+    "stopError": "Không thể dừng cuộc họp.",
+    "loadError": "Không thể tải các cuộc họp.",
+    "deleteError": "Không thể xóa cuộc họp.",
+    "delete": "Xóa cuộc họp",
+    "discardDialog": {
+      "title": "Xóa cuộc họp này?",
+      "description": "Bản ghi đến lúc này sẽ bị xóa và không thể khôi phục.",
+      "keep": "Tiếp tục ghi"
+    },
+    "deleteDialog": {
+      "title": "Xóa cuộc họp này?",
+      "description": "Bản ghi của cuộc họp sẽ bị xóa và không thể khôi phục."
+    },
+    "captureMode": {
+      "title": "Nguồn âm thanh",
+      "description": "Micrô ghi giọng bạn; âm thanh hệ thống ghi những người tham gia khác.",
+      "options": {
+        "both": "Micrô và âm thanh hệ thống",
+        "system_only": "Chỉ âm thanh hệ thống",
+        "mic_only": "Chỉ micrô"
+      }
+    },
+    "systemAudioUnavailable": "Âm thanh hệ thống cần macOS 14.4 trở lên trên Apple silicon nên cuộc họp chỉ ghi micrô.",
+    "permission": {
+      "title": "Quyền âm thanh hệ thống",
+      "description": "macOS sẽ hỏi lần đầu một cuộc họp ghi âm thanh hệ thống. Nếu bạn đã từ chối, hãy bật lại Murmur trong cài đặt quyền riêng tư.",
+      "open": "Mở cài đặt"
+    },
+    "list": {
+      "title": "Bản ghi",
+      "empty": "Chưa có cuộc họp nào.",
+      "untitled": "Cuộc họp · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Hiển thị thêm"
+    },
+    "status": {
+      "recording": "Đang ghi",
+      "interrupted": "Bị gián đoạn",
+      "processing": "Đã ghi",
+      "ready": "Sẵn sàng",
+      "failed": "Thất bại"
+    }
   }
 }

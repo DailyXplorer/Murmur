@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Geschiedenis was beschadigd en is opnieuw ingesteld. Het oude bestand staat ernaast.",
     "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten).",
     "pasteLastTranscript": "Laatste transcriptie plakken",
-    "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken."
+    "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken.",
+    "startMeeting": "Vergadering starten",
+    "stopMeeting": "Vergadering stoppen",
+    "meetingSystemAudioUnavailable": "Systeemgeluid is niet beschikbaar, dus deze vergadering neemt alleen je microfoon op.",
+    "meetingMicrophoneUnavailable": "De microfoon is niet beschikbaar, dus deze vergadering neemt alleen systeemgeluid op.",
+    "meetingStartFailed": "De vergadering kon niet starten. Controleer de microfoon en de audiotoestemmingen.",
+    "meetingStopsSoon": "De vergadering stopt over 5 minuten (limiet van 3 uur).",
+    "meetingStoppedAtLimit": "De vergadering heeft de limiet van 3 uur bereikt en is opgeslagen.",
+    "meetingWriteFailed": "De vergadering is gestopt omdat Murmur niet naar de schijf kon schrijven. Wat is opgenomen, blijft bewaard."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -32,7 +40,8 @@
     "debug": "Probleemoplossing",
     "about": "Over Murmur",
     "transcription": "Transcriptie",
-    "insights": "Inzichten"
+    "insights": "Inzichten",
+    "meetings": "Vergaderingen"
   },
   "insights": {
     "error": "Inzichten konden niet worden geladen.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Laatste transcriptie plakken",
             "description": "Plakt je laatste transcriptie opnieuw in de app die je gebruikt."
+          },
+          "meeting_toggle": {
+            "name": "Sneltoets voor vergadering",
+            "description": "Start de opname van een vergadering of stopt de lopende."
           }
         },
         "errors": {
           "restore": "Herstellen van originele sneltoets mislukt",
           "set": "Instellen van sneltoets mislukt: {{error}}",
           "reset": "Sneltoets terugzetten naar standaardwaarde mislukt",
-          "registrationFailed": "Een andere app gebruikt deze sneltoets. Kies een andere."
+          "registrationFailed": "Een andere app gebruikt deze sneltoets. Kies een andere.",
+          "usedByAnotherAction": "Een andere Murmur-actie gebruikt deze sneltoets. Kies een andere."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Geleerd",
         "learnedFrom": "{{word}}: geleerd toen je ‘{{heard}}’ verbeterde",
         "learnedHint": "Als je vlak na het dicteren een verkeerd gespelde naam verbetert, voegt Murmur die hier toe met het label Geleerd. Klik op een woord om het te verwijderen."
+      },
+      "meetingsToggle": {
+        "label": "Vergaderingen",
+        "description": "Neem vergaderingen op via je microfoon en systeemgeluid. Voegt een vergaderpagina, een sneltoets en een item in de menubalk toe."
       }
     },
     "history": {
@@ -531,6 +549,62 @@
       "yellow": "Geel",
       "orange": "Oranje",
       "red": "Rood"
+    }
+  },
+  "meetings": {
+    "notice": "Transcripties en samenvattingen komen in een latere versie. Tot die tijd blijven de opnames bewaard.",
+    "recording": {
+      "title": "Opname",
+      "idle": "Geen vergadering bezig",
+      "active": "Opname · {{time}}",
+      "description": "Je kunt een vergadering ook starten en stoppen met de sneltoets of via de menubalk. Een vergadering stopt vanzelf na 3 uur."
+    },
+    "start": "Vergadering starten",
+    "stop": "Stoppen",
+    "discard": "Weggooien",
+    "cancel": "Annuleren",
+    "startError": "De vergadering kon niet starten.",
+    "stopError": "De vergadering kon niet worden gestopt.",
+    "loadError": "Vergaderingen konden niet worden geladen.",
+    "deleteError": "De vergadering kon niet worden verwijderd.",
+    "delete": "Vergadering verwijderen",
+    "discardDialog": {
+      "title": "Deze vergadering weggooien?",
+      "description": "De opname tot nu toe wordt verwijderd en kan niet worden hersteld.",
+      "keep": "Blijven opnemen"
+    },
+    "deleteDialog": {
+      "title": "Deze vergadering verwijderen?",
+      "description": "De opname wordt verwijderd en kan niet worden hersteld."
+    },
+    "captureMode": {
+      "title": "Audiobronnen",
+      "description": "De microfoon neemt jou op; systeemgeluid de andere deelnemers.",
+      "options": {
+        "both": "Microfoon en systeemgeluid",
+        "system_only": "Alleen systeemgeluid",
+        "mic_only": "Alleen microfoon"
+      }
+    },
+    "systemAudioUnavailable": "Systeemgeluid vereist macOS 14.4 of nieuwer op Apple silicon, dus vergaderingen nemen alleen je microfoon op.",
+    "permission": {
+      "title": "Toestemming voor systeemgeluid",
+      "description": "macOS vraagt het de eerste keer dat een vergadering systeemgeluid opneemt. Als je hebt geweigerd, zet Murmur dan weer aan in de privacyinstellingen.",
+      "open": "Instellingen openen"
+    },
+    "list": {
+      "title": "Opnames",
+      "empty": "Nog geen vergaderingen.",
+      "untitled": "Vergadering · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Meer weergeven"
+    },
+    "status": {
+      "recording": "Wordt opgenomen",
+      "interrupted": "Onderbroken",
+      "processing": "Opgenomen",
+      "ready": "Klaar",
+      "failed": "Mislukt"
     }
   }
 }

@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
     "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
     "pasteLastTranscript": "Son dökümü yapıştır",
-    "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok."
+    "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok.",
+    "startMeeting": "Toplantıyı başlat",
+    "stopMeeting": "Toplantıyı durdur",
+    "meetingSystemAudioUnavailable": "Sistem sesi kullanılamıyor, bu nedenle toplantı yalnızca mikrofonu kaydediyor.",
+    "meetingMicrophoneUnavailable": "Mikrofon kullanılamıyor, bu nedenle toplantı yalnızca sistem sesini kaydediyor.",
+    "meetingStartFailed": "Toplantı başlatılamadı. Mikrofonu ve ses izinlerini kontrol edin.",
+    "meetingStopsSoon": "Toplantı 5 dakika içinde duracak (3 saat sınırı).",
+    "meetingStoppedAtLimit": "Toplantı 3 saat sınırına ulaştı ve kaydedildi.",
+    "meetingWriteFailed": "Murmur diske yazamadığı için toplantı durdu. Kaydedilen kısım korunuyor."
   },
   "sidebar": {
     "general": "Genel",
@@ -32,7 +40,8 @@
     "debug": "Hata Ayıklama",
     "about": "Hakkında",
     "transcription": "Transkripsiyon",
-    "insights": "İstatistikler"
+    "insights": "İstatistikler",
+    "meetings": "Toplantılar"
   },
   "insights": {
     "error": "İstatistikler yüklenemedi.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Son dökümü yapıştır",
             "description": "En son dökümünüzü kullandığınız uygulamaya yeniden yapıştırır."
+          },
+          "meeting_toggle": {
+            "name": "Toplantı kısayolu",
+            "description": "Bir toplantıyı kaydetmeye başlar veya devam edeni durdurur."
           }
         },
         "errors": {
           "restore": "Orijinal kısayol geri yüklenemedi",
           "set": "Kısayol ayarlanamadı: {{error}}",
           "reset": "Kısayol orijinal değerine sıfırlanamadı",
-          "registrationFailed": "Bu kısayolu başka bir uygulama kullanıyor. Farklı bir tane seçin."
+          "registrationFailed": "Bu kısayolu başka bir uygulama kullanıyor. Farklı bir tane seçin.",
+          "usedByAnotherAction": "Bu kısayolu başka bir Murmur eylemi kullanıyor. Farklı bir tane seçin."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Öğrenildi",
         "learnedFrom": "{{word}}: “{{heard}}” sözcüğünü düzelttiğinizde öğrenildi",
         "learnedHint": "Dikteden hemen sonra yanlış yazılmış bir adı düzelttiğinizde Murmur onu buraya Öğrenildi etiketiyle ekler. Kaldırmak için bir sözcüğe tıklayın."
+      },
+      "meetingsToggle": {
+        "label": "Toplantılar",
+        "description": "Toplantıları mikrofonunuzdan ve sistem sesinden kaydedin. Bir toplantılar sayfası, bir kısayol ve menü çubuğu öğesi ekler."
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Murmur v{{version}} yenilikleri"
+  },
+  "meetings": {
+    "notice": "Dökümler ve özetler sonraki bir sürümde gelecek. Kayıtlar o zamana kadar saklanır.",
+    "recording": {
+      "title": "Kayıt",
+      "idle": "Devam eden toplantı yok",
+      "active": "Kaydediliyor · {{time}}",
+      "description": "Toplantıyı kısayolla veya menü çubuğundan da başlatıp durdurabilirsiniz. Toplantı 3 saat sonra kendiliğinden durur."
+    },
+    "start": "Toplantıyı başlat",
+    "stop": "Durdur",
+    "discard": "Sil",
+    "cancel": "İptal",
+    "startError": "Toplantı başlatılamadı.",
+    "stopError": "Toplantı durdurulamadı.",
+    "loadError": "Toplantılar yüklenemedi.",
+    "deleteError": "Toplantı silinemedi.",
+    "delete": "Toplantıyı sil",
+    "discardDialog": {
+      "title": "Bu toplantı silinsin mi?",
+      "description": "Şimdiye kadarki kayıt silinir ve geri alınamaz.",
+      "keep": "Kayda devam et"
+    },
+    "deleteDialog": {
+      "title": "Bu toplantı silinsin mi?",
+      "description": "Kaydı silinir ve geri alınamaz."
+    },
+    "captureMode": {
+      "title": "Ses kaynakları",
+      "description": "Mikrofon sizi, sistem sesi diğer katılımcıları kaydeder.",
+      "options": {
+        "both": "Mikrofon ve sistem sesi",
+        "system_only": "Yalnızca sistem sesi",
+        "mic_only": "Yalnızca mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Sistem sesi, Apple silicon üzerinde macOS 14.4 veya sonrasını gerektirir; bu nedenle toplantılar yalnızca mikrofonu kaydeder.",
+    "permission": {
+      "title": "Sistem sesi izni",
+      "description": "Bir toplantı sistem sesini ilk kez kaydettiğinde macOS izin ister. Reddettiyseniz Murmur'u gizlilik ayarlarında yeniden etkinleştirin.",
+      "open": "Ayarları aç"
+    },
+    "list": {
+      "title": "Kayıtlar",
+      "empty": "Henüz toplantı yok.",
+      "untitled": "Toplantı · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Daha fazla göster"
+    },
+    "status": {
+      "recording": "Kaydediliyor",
+      "interrupted": "Kesintiye uğradı",
+      "processing": "Kaydedildi",
+      "ready": "Hazır",
+      "failed": "Başarısız"
+    }
   }
 }

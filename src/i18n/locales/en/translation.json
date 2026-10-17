@@ -23,7 +23,15 @@
     "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it.",
     "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit).",
     "pasteLastTranscript": "Paste Last Transcript",
-    "noticeNothingToPaste": "There is no transcription to paste yet."
+    "noticeNothingToPaste": "There is no transcription to paste yet.",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
+    "meetingSystemAudioUnavailable": "System audio isn't available, so this meeting records your microphone only.",
+    "meetingMicrophoneUnavailable": "The microphone isn't available, so this meeting records system audio only.",
+    "meetingStartFailed": "Couldn't start the meeting. Check the microphone and audio permissions.",
+    "meetingStopsSoon": "The meeting stops in 5 minutes (3-hour limit).",
+    "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
+    "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept."
   },
   "sidebar": {
     "general": "General",
@@ -32,7 +40,8 @@
     "debug": "Debug",
     "about": "About",
     "transcription": "Transcription",
-    "insights": "Insights"
+    "insights": "Insights",
+    "meetings": "Meetings"
   },
   "insights": {
     "error": "Insights could not be loaded.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Paste Last Transcription",
             "description": "Pastes your latest transcription again into the app you are using."
+          },
+          "meeting_toggle": {
+            "name": "Meeting Shortcut",
+            "description": "Starts recording a meeting, or stops the one in progress."
           }
         },
         "errors": {
           "restore": "Failed to restore original shortcut",
           "set": "Failed to set shortcut: {{error}}",
           "reset": "Failed to reset shortcut to original value",
-          "registrationFailed": "Another app is using this shortcut. Choose a different one."
+          "registrationFailed": "Another app is using this shortcut. Choose a different one.",
+          "usedByAnotherAction": "Another Murmur action uses this shortcut. Choose a different one."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Learned",
         "learnedFrom": "{{word}}: learned when you corrected “{{heard}}”",
         "learnedHint": "When you fix a misspelled name right after dictating, Murmur adds it here, marked Learned. Click a word to remove it."
+      },
+      "meetingsToggle": {
+        "label": "Meetings",
+        "description": "Record meetings from your microphone and system audio. Adds a Meetings page, a shortcut and a menu bar item."
       }
     },
     "history": {
@@ -531,6 +549,62 @@
       "yellow": "Yellow",
       "orange": "Orange",
       "red": "Red"
+    }
+  },
+  "meetings": {
+    "notice": "Transcripts and summaries arrive in a later version. Recordings are kept until then.",
+    "recording": {
+      "title": "Recording",
+      "idle": "No meeting in progress",
+      "active": "Recording · {{time}}",
+      "description": "You can also start and stop a meeting with its shortcut or from the menu bar. A meeting stops on its own after 3 hours."
+    },
+    "start": "Start Meeting",
+    "stop": "Stop",
+    "discard": "Discard",
+    "cancel": "Cancel",
+    "startError": "Couldn't start the meeting.",
+    "stopError": "Couldn't stop the meeting.",
+    "loadError": "Couldn't load meetings.",
+    "deleteError": "Couldn't delete the meeting.",
+    "delete": "Delete Meeting",
+    "discardDialog": {
+      "title": "Discard this meeting?",
+      "description": "The recording so far is deleted and can't be recovered.",
+      "keep": "Keep Recording"
+    },
+    "deleteDialog": {
+      "title": "Delete this meeting?",
+      "description": "Its recording is deleted and can't be recovered."
+    },
+    "captureMode": {
+      "title": "Audio Sources",
+      "description": "The microphone records you; system audio records the other participants.",
+      "options": {
+        "both": "Microphone and System Audio",
+        "system_only": "System Audio Only",
+        "mic_only": "Microphone Only"
+      }
+    },
+    "systemAudioUnavailable": "System audio needs macOS 14.4 or later on Apple silicon, so meetings record your microphone only.",
+    "permission": {
+      "title": "System Audio Permission",
+      "description": "macOS asks the first time a meeting records system audio. If you declined, turn Murmur back on in the privacy settings.",
+      "open": "Open Settings"
+    },
+    "list": {
+      "title": "Recordings",
+      "empty": "No meetings yet.",
+      "untitled": "Meeting · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Show More"
+    },
+    "status": {
+      "recording": "Recording",
+      "interrupted": "Interrupted",
+      "processing": "Recorded",
+      "ready": "Ready",
+      "failed": "Failed"
     }
   }
 }

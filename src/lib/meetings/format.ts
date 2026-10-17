@@ -1,0 +1,14 @@
+/** "04:07" under an hour, "1:02:09" from one hour on. */
+export const formatDuration = (milliseconds: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(minutes)}:${pad(seconds)}`;
+};
+
+/** The meeting pill turns amber this long before the 3-hour cap. */
+export const CAP_WARNING_MS = 5 * 60 * 1000;

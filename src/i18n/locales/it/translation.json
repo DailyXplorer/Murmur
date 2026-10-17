@@ -23,7 +23,15 @@
     "noticeHistoryReset": "La cronologia era danneggiata ed è stata reimpostata. Il vecchio file è stato conservato accanto.",
     "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti).",
     "pasteLastTranscript": "Incolla l'ultima trascrizione",
-    "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare."
+    "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
+    "startMeeting": "Avvia riunione",
+    "stopMeeting": "Interrompi riunione",
+    "meetingSystemAudioUnavailable": "L'audio di sistema non è disponibile, quindi la riunione registra solo il microfono.",
+    "meetingMicrophoneUnavailable": "Il microfono non è disponibile, quindi la riunione registra solo l'audio di sistema.",
+    "meetingStartFailed": "Impossibile avviare la riunione. Controlla il microfono e i permessi audio.",
+    "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 3 ore).",
+    "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
+    "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato."
   },
   "sidebar": {
     "general": "Generale",
@@ -32,7 +40,8 @@
     "debug": "Debug",
     "about": "Informazioni",
     "transcription": "Trascrizione",
-    "insights": "Statistiche"
+    "insights": "Statistiche",
+    "meetings": "Riunioni"
   },
   "insights": {
     "error": "Impossibile caricare le statistiche.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Incolla l'ultima trascrizione",
             "description": "Incolla di nuovo l'ultima trascrizione nell'app che stai usando."
+          },
+          "meeting_toggle": {
+            "name": "Scorciatoia riunione",
+            "description": "Avvia la registrazione di una riunione o interrompe quella in corso."
           }
         },
         "errors": {
           "restore": "Errore nel ripristino della scorciatoia originale",
           "set": "Errore nella configurazione della scorciatoia: {{error}}",
           "reset": "Errore nella reinizializzazione della scorciatoia al valore originale",
-          "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa."
+          "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa.",
+          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Appresa",
         "learnedFrom": "{{word}}: appresa quando hai corretto «{{heard}}»",
         "learnedHint": "Quando correggi un nome scritto male subito dopo aver dettato, Murmur lo aggiunge qui come Appresa. Fai clic su una parola per rimuoverla."
+      },
+      "meetingsToggle": {
+        "label": "Riunioni",
+        "description": "Registra le riunioni dal microfono e dall'audio di sistema. Aggiunge una pagina Riunioni, una scorciatoia e una voce nella barra dei menu."
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Novità in Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Trascrizioni e riepiloghi arriveranno in una versione successiva. Fino ad allora le registrazioni vengono conservate.",
+    "recording": {
+      "title": "Registrazione",
+      "idle": "Nessuna riunione in corso",
+      "active": "Registrazione · {{time}}",
+      "description": "Puoi anche avviare e interrompere una riunione con la scorciatoia o dalla barra dei menu. Una riunione si interrompe da sola dopo 3 ore."
+    },
+    "start": "Avvia riunione",
+    "stop": "Interrompi",
+    "discard": "Elimina",
+    "cancel": "Annulla",
+    "startError": "Impossibile avviare la riunione.",
+    "stopError": "Impossibile interrompere la riunione.",
+    "loadError": "Impossibile caricare le riunioni.",
+    "deleteError": "Impossibile eliminare la riunione.",
+    "delete": "Elimina riunione",
+    "discardDialog": {
+      "title": "Eliminare questa riunione?",
+      "description": "La registrazione fin qui viene eliminata e non può essere recuperata.",
+      "keep": "Continua a registrare"
+    },
+    "deleteDialog": {
+      "title": "Eliminare questa riunione?",
+      "description": "La sua registrazione viene eliminata e non può essere recuperata."
+    },
+    "captureMode": {
+      "title": "Sorgenti audio",
+      "description": "Il microfono registra te; l'audio di sistema gli altri partecipanti.",
+      "options": {
+        "both": "Microfono e audio di sistema",
+        "system_only": "Solo audio di sistema",
+        "mic_only": "Solo microfono"
+      }
+    },
+    "systemAudioUnavailable": "L'audio di sistema richiede macOS 14.4 o successivo su Apple silicon, quindi le riunioni registrano solo il microfono.",
+    "permission": {
+      "title": "Permesso audio di sistema",
+      "description": "macOS lo chiede la prima volta che una riunione registra l'audio di sistema. Se hai rifiutato, riattiva Murmur nelle impostazioni della privacy.",
+      "open": "Apri impostazioni"
+    },
+    "list": {
+      "title": "Registrazioni",
+      "empty": "Ancora nessuna riunione.",
+      "untitled": "Riunione · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Mostra altro"
+    },
+    "status": {
+      "recording": "In registrazione",
+      "interrupted": "Interrotta",
+      "processing": "Registrata",
+      "ready": "Pronta",
+      "failed": "Non riuscita"
+    }
   }
 }

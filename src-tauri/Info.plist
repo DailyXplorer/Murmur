@@ -4,5 +4,7 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Request microphone access to transcribe speech with your selected cloud provider</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Murmur records audio from other apps during a meeting you start, so it can transcribe what remote participants say.</string>
 </dict>
 </plist>

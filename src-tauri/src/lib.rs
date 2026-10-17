@@ -20,6 +20,7 @@ mod helpers;
 mod input;
 mod insights;
 mod managers;
+mod meetings;
 mod operation;
 mod overlay;
 mod paste_last;
@@ -44,7 +45,7 @@ use tauri_specta::{collect_commands, collect_events, Builder};
 
 use env_filter::Builder as EnvFilterBuilder;
 use managers::audio::AudioRecordingManager;
-use managers::history::{HistoryManager, HistoryStartup};
+use managers::history::{DatabaseStartup, HistoryManager};
 use managers::transcription::TranscriptionManager;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
@@ -249,11 +250,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         HistoryManager::new(app_handle).expect("Failed to resolve the app data directory");
     let history_manager = Arc::new(history_manager);
     match history_startup {
-        HistoryStartup::Ready => {}
-        HistoryStartup::Reset { .. } => {
+        DatabaseStartup::Ready => {}
+        DatabaseStartup::Reset { .. } => {
             user_alert::show(app_handle, user_alert::Alert::HistoryReset)
         }
-        HistoryStartup::Unavailable => {
+        DatabaseStartup::Unavailable => {
             user_alert::show(app_handle, user_alert::Alert::HistoryUnavailable)
         }
     }
@@ -268,6 +269,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
         Err(e) => log::error!("Failed to initialize insights: {e}"),
     }
+    meetings::init(app_handle, true);
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -305,6 +307,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "paste_last_transcript" => {
                 paste_last::request(app);
+            }
+            meetings::TRAY_ITEM_ID => {
+                meetings::request_toggle(app);
             }
             "cancel" => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
@@ -531,10 +536,21 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
             insights::get_insights,
+            commands::meetings::get_meeting_runtime,
+            commands::meetings::start_meeting,
+            commands::meetings::stop_meeting,
+            commands::meetings::discard_meeting,
+            commands::meetings::get_meetings,
+            commands::meetings::delete_meeting,
+            commands::meetings::get_meeting_capabilities,
+            commands::meetings::open_system_audio_privacy_settings,
+            commands::meetings::change_meetings_enabled_setting,
+            commands::meetings::change_meeting_capture_mode_setting,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
-            insights::InsightsUpdated
+            insights::InsightsUpdated,
+            meetings::MeetingStateChanged
         ]);
 
     #[cfg(debug_assertions)]
@@ -777,6 +793,10 @@ pub fn run(cli_args: CliArgs) {
             }
             tauri::RunEvent::Exit => {
                 paste_tx::settle_before_exit();
+                // Close a meeting's tracks so it is kept, not left interrupted.
+                if let Some(manager) = app.try_state::<Arc<meetings::MeetingsManager>>() {
+                    manager.shutdown();
+                }
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
                     manager.shutdown();
                 }

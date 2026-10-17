@@ -3,10 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
 const VIEWPORT = { width: 960, height: 720 };
 
-const SECTIONS = [
+const SECTIONS: { file: string; label: string; query?: string }[] = [
   { file: "general", label: "General" },
   { file: "transcription", label: "Transcription" },
   { file: "history", label: "History" },
+  { file: "meetings", label: "Meetings", query: "?meetings=1" },
   { file: "insights", label: "Insights" },
   { file: "advanced", label: "Advanced" },
   { file: "debug", label: "Debug" },
@@ -34,7 +35,9 @@ test.describe("settings screenshots", () => {
   for (const section of SECTIONS) {
     test(section.file, async ({ page }) => {
       await page.setViewportSize(VIEWPORT);
-      await page.goto("/tests/fixtures/settings-pages.html");
+      await page.goto(
+        `/tests/fixtures/settings-pages.html${section.query ?? ""}`,
+      );
       await page
         .getByRole("navigation")
         .getByRole("button", { name: section.label, exact: true })

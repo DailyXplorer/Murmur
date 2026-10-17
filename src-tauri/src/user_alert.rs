@@ -3,6 +3,7 @@
 //! outside a dictation, a macOS notification is posted instead. The settings
 //! window keeps its own toasts.
 
+use crate::meetings::coordinator::MeetingAlert;
 use crate::settings::get_settings;
 use crate::transcription_error::FailureKind;
 use crate::tray_i18n::{get_tray_translations, TrayStrings};
@@ -22,6 +23,7 @@ pub enum Alert {
     MicrophoneUnavailableAtStartup,
     HistoryUnavailable,
     HistoryReset,
+    Meeting(MeetingAlert),
 }
 
 impl Alert {
@@ -61,6 +63,15 @@ impl Alert {
             Self::MicrophoneUnavailableAtStartup => strings.error_microphone_startup.clone(),
             Self::HistoryUnavailable => strings.error_history_startup.clone(),
             Self::HistoryReset => strings.notice_history_reset.clone(),
+            Self::Meeting(alert) => match alert {
+                MeetingAlert::SystemAudioUnavailable => &strings.meeting_system_audio_unavailable,
+                MeetingAlert::MicrophoneUnavailable => &strings.meeting_microphone_unavailable,
+                MeetingAlert::StartFailed => &strings.meeting_start_failed,
+                MeetingAlert::StopsSoon => &strings.meeting_stops_soon,
+                MeetingAlert::StoppedAtLimit => &strings.meeting_stopped_at_limit,
+                MeetingAlert::WriteFailed => &strings.meeting_write_failed,
+            }
+            .clone(),
         }
     }
 }
@@ -120,6 +131,27 @@ mod tests {
             .collect();
         assert_eq!(messages.len(), kinds.len());
         assert!(messages.iter().all(|message| !message.is_empty()));
+    }
+
+    #[test]
+    fn every_meeting_alert_has_its_own_message_in_a_notification() {
+        let strings = get_tray_translations(Some("fr".to_string()));
+        let alerts = [
+            MeetingAlert::SystemAudioUnavailable,
+            MeetingAlert::MicrophoneUnavailable,
+            MeetingAlert::StartFailed,
+            MeetingAlert::StopsSoon,
+            MeetingAlert::StoppedAtLimit,
+            MeetingAlert::WriteFailed,
+        ];
+        let messages: std::collections::HashSet<_> = alerts
+            .iter()
+            .map(|alert| Alert::Meeting(*alert).message(&strings))
+            .collect();
+        assert_eq!(messages.len(), alerts.len());
+        assert!(alerts
+            .iter()
+            .all(|alert| !Alert::Meeting(*alert).belongs_in_overlay()));
     }
 
     #[test]

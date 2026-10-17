@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Historiken var skadad och har återställts. Den gamla filen finns kvar bredvid.",
     "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter).",
     "pasteLastTranscript": "Klistra in senaste transkriptionen",
-    "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu."
+    "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu.",
+    "startMeeting": "Starta möte",
+    "stopMeeting": "Stoppa möte",
+    "meetingSystemAudioUnavailable": "Systemljud är inte tillgängligt, så mötet spelar bara in mikrofonen.",
+    "meetingMicrophoneUnavailable": "Mikrofonen är inte tillgänglig, så mötet spelar bara in systemljud.",
+    "meetingStartFailed": "Mötet kunde inte starta. Kontrollera mikrofonen och ljudbehörigheterna.",
+    "meetingStopsSoon": "Mötet stoppas om 5 minuter (gräns på 3 timmar).",
+    "meetingStoppedAtLimit": "Mötet nådde gränsen på 3 timmar och sparades.",
+    "meetingWriteFailed": "Mötet stoppades eftersom Murmur inte kunde skriva till disken. Det som spelats in finns kvar."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -32,7 +40,8 @@
     "debug": "Felsökning",
     "about": "Om",
     "transcription": "Transkribering",
-    "insights": "Statistik"
+    "insights": "Statistik",
+    "meetings": "Möten"
   },
   "insights": {
     "error": "Statistiken kunde inte läsas in.",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "Klistra in senaste transkriptionen",
             "description": "Klistrar in din senaste transkription igen i appen du använder."
+          },
+          "meeting_toggle": {
+            "name": "Kortkommando för möte",
+            "description": "Startar inspelningen av ett möte eller stoppar det pågående."
           }
         },
         "errors": {
           "restore": "Misslyckades med att återställa ursprungligt kortkommando",
           "set": "Misslyckades med att ställa in kortkommando: {{error}}",
           "reset": "Misslyckades med att återställa kortkommando till ursprungsvärdet",
-          "registrationFailed": "En annan app använder det här kortkommandot. Välj ett annat."
+          "registrationFailed": "En annan app använder det här kortkommandot. Välj ett annat.",
+          "usedByAnotherAction": "En annan åtgärd i Murmur använder det här kortkommandot. Välj ett annat."
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "Inlärt",
         "learnedFrom": "{{word}}: inlärt när du rättade ”{{heard}}”",
         "learnedHint": "När du rättar ett felstavat namn direkt efter diktering lägger Murmur till det här, markerat som Inlärt. Klicka på ett ord för att ta bort det."
+      },
+      "meetingsToggle": {
+        "label": "Möten",
+        "description": "Spela in möten från mikrofonen och systemljudet. Lägger till en mötessida, ett kortkommando och ett objekt i menyraden."
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Nytt i Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Transkriptioner och sammanfattningar kommer i en senare version. Inspelningarna sparas till dess.",
+    "recording": {
+      "title": "Inspelning",
+      "idle": "Inget pågående möte",
+      "active": "Spelar in · {{time}}",
+      "description": "Du kan också starta och stoppa ett möte med kortkommandot eller från menyraden. Ett möte stoppas av sig självt efter 3 timmar."
+    },
+    "start": "Starta möte",
+    "stop": "Stoppa",
+    "discard": "Släng",
+    "cancel": "Avbryt",
+    "startError": "Mötet kunde inte starta.",
+    "stopError": "Mötet kunde inte stoppas.",
+    "loadError": "Mötena kunde inte läsas in.",
+    "deleteError": "Mötet kunde inte raderas.",
+    "delete": "Radera möte",
+    "discardDialog": {
+      "title": "Vill du slänga mötet?",
+      "description": "Inspelningen hittills raderas och kan inte återställas.",
+      "keep": "Fortsätt spela in"
+    },
+    "deleteDialog": {
+      "title": "Vill du radera mötet?",
+      "description": "Inspelningen raderas och kan inte återställas."
+    },
+    "captureMode": {
+      "title": "Ljudkällor",
+      "description": "Mikrofonen spelar in dig; systemljudet spelar in de andra deltagarna.",
+      "options": {
+        "both": "Mikrofon och systemljud",
+        "system_only": "Endast systemljud",
+        "mic_only": "Endast mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Systemljud kräver macOS 14.4 eller senare på Apple silicon, så möten spelar bara in mikrofonen.",
+    "permission": {
+      "title": "Behörighet för systemljud",
+      "description": "macOS frågar första gången ett möte spelar in systemljud. Om du nekade kan du slå på Murmur igen i integritetsinställningarna.",
+      "open": "Öppna inställningar"
+    },
+    "list": {
+      "title": "Inspelningar",
+      "empty": "Inga möten ännu.",
+      "untitled": "Möte · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Visa fler"
+    },
+    "status": {
+      "recording": "Spelar in",
+      "interrupted": "Avbrutet",
+      "processing": "Inspelat",
+      "ready": "Klart",
+      "failed": "Misslyckades"
+    }
   }
 }

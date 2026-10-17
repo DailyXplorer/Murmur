@@ -5,7 +5,6 @@
 
 use log::{debug, error, warn};
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::AppHandle;
@@ -421,8 +420,10 @@ pub fn init_shortcuts(app: &AppHandle) -> Vec<(String, ShortcutBinding, String)>
     let user_settings = settings::load_or_create_app_settings(app);
 
     for (id, default_binding) in default_bindings {
-        if id == "cancel" {
-            continue; // Skip cancel shortcut, it will be registered dynamically
+        // Cancel is registered while recording; meetings only when enabled
+        // and no other action uses their keys, so the order here is moot.
+        if !super::binding_registers(&user_settings, &id) {
+            continue;
         }
         let binding = user_settings
             .bindings
@@ -482,16 +483,19 @@ pub fn parse_shortcut(raw: &str) -> Result<Shortcut, String> {
 /// The other binding whose keys are the same shortcut as `raw`. Shortcuts are
 /// compared parsed, so spellings such as "esc" and "escape" collide. While
 /// the user edits a shortcut every other one is suspended, so registration
-/// alone cannot catch this.
+/// alone cannot catch this. A binding that is not in use (the meeting
+/// shortcut while meetings are off) conflicts with nothing.
 pub fn conflicting_binding<'a>(
-    bindings: &'a HashMap<String, ShortcutBinding>,
+    settings: &'a settings::AppSettings,
     id: &str,
     raw: &str,
 ) -> Option<&'a ShortcutBinding> {
     let shortcut = raw.parse::<Shortcut>().ok()?;
-    bindings.iter().find_map(|(other_id, other)| {
-        (other_id != id && other.current_binding.parse::<Shortcut>().ok() == Some(shortcut))
-            .then_some(other)
+    settings.bindings.iter().find_map(|(other_id, other)| {
+        (other_id != id
+            && super::binding_active(settings, other_id)
+            && other.current_binding.parse::<Shortcut>().ok() == Some(shortcut))
+        .then_some(other)
     })
 }
 
@@ -801,13 +805,14 @@ mod tests {
 
     #[test]
     fn a_shortcut_already_bound_to_another_action_is_a_conflict() {
-        let bindings = std::collections::HashMap::from([
+        let mut settings = crate::settings::get_default_settings();
+        settings.bindings = std::collections::HashMap::from([
             ("transcribe".to_string(), transcribe_binding("option+space")),
             ("cancel".to_string(), cancel_binding("escape")),
         ]);
 
         let conflict = |id: &str, raw: &str| {
-            conflicting_binding(&bindings, id, raw).map(|other| other.id.as_str())
+            conflicting_binding(&settings, id, raw).map(|other| other.id.as_str())
         };
         assert_eq!(conflict("transcribe", "esc"), Some("cancel"));
         assert_eq!(conflict("cancel", "alt+space"), Some("transcribe"));

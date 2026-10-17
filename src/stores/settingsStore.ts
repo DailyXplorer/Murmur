@@ -5,6 +5,7 @@ import type {
   AppSettings as Settings,
   AudioDevice,
   CleanupEngine,
+  MeetingCaptureMode,
   Result,
   TranscriptionProvider,
 } from "@/bindings";
@@ -292,6 +293,10 @@ const settingUpdaters: {
     commands.changeShowTrayIconSetting(value as boolean),
   extra_recording_buffer_ms: (value) =>
     commands.changeExtraRecordingBufferSetting(value as number),
+  meetings_enabled: (value) =>
+    commands.changeMeetingsEnabledSetting(value as boolean),
+  meeting_capture_mode: (value) =>
+    commands.changeMeetingCaptureModeSetting(value as MeetingCaptureMode),
 };
 
 interface SettingWriteState {

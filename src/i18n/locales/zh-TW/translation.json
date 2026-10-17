@@ -23,7 +23,15 @@
     "noticeHistoryReset": "歷史記錄已損毀並已重設。舊檔案保留在旁邊。",
     "warningRecordingLimit": "錄音將在 1 分鐘後停止（上限 15 分鐘）。",
     "pasteLastTranscript": "貼上上一則轉錄",
-    "noticeNothingToPaste": "目前還沒有可貼上的轉錄。"
+    "noticeNothingToPaste": "目前還沒有可貼上的轉錄。",
+    "startMeeting": "開始會議",
+    "stopMeeting": "停止會議",
+    "meetingSystemAudioUnavailable": "系統音訊無法使用，此會議僅錄製麥克風。",
+    "meetingMicrophoneUnavailable": "麥克風無法使用，此會議僅錄製系統音訊。",
+    "meetingStartFailed": "無法開始會議。請檢查麥克風和音訊權限。",
+    "meetingStopsSoon": "會議將在 5 分鐘後停止（上限 3 小時）。",
+    "meetingStoppedAtLimit": "會議已達 3 小時上限並已儲存。",
+    "meetingWriteFailed": "Murmur 無法寫入磁碟，會議已停止。已錄製的內容會保留。"
   },
   "sidebar": {
     "general": "一般",
@@ -32,7 +40,8 @@
     "debug": "偵錯",
     "about": "關於",
     "transcription": "轉錄",
-    "insights": "數據洞察"
+    "insights": "數據洞察",
+    "meetings": "會議"
   },
   "insights": {
     "error": "無法載入數據洞察。",
@@ -152,13 +161,18 @@
           "paste_last": {
             "name": "貼上上一則轉錄",
             "description": "將最近一次轉錄再次貼到目前使用的應用程式中。"
+          },
+          "meeting_toggle": {
+            "name": "會議快速鍵",
+            "description": "開始錄製會議，或停止進行中的會議。"
           }
         },
         "errors": {
           "restore": "無法還原原始快捷鍵",
           "set": "無法設定快捷鍵: {{error}}",
           "reset": "無法將快捷鍵重設為原始值",
-          "registrationFailed": "其他 App 正在使用此快速鍵。請選擇其他快速鍵。"
+          "registrationFailed": "其他 App 正在使用此快速鍵。請選擇其他快速鍵。",
+          "usedByAnotherAction": "Murmur 的其他操作正在使用此快速鍵。請選擇其他快速鍵。"
         }
       },
       "language": {
@@ -287,6 +301,10 @@
         "learned": "已學習",
         "learnedFrom": "{{word}}：在你更正「{{heard}}」時學習",
         "learnedHint": "聽寫後立即更正拼錯的名稱時，Murmur 會將其加入這裡並標示為已學習。點一下單字即可移除。"
+      },
+      "meetingsToggle": {
+        "label": "會議",
+        "description": "從麥克風和系統音訊錄製會議。會新增會議頁面、快速鍵和選單列項目。"
       }
     },
     "history": {
@@ -532,5 +550,61 @@
   },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"
+  },
+  "meetings": {
+    "notice": "轉錄和摘要將在後續版本中提供。在此之前錄音會保留。",
+    "recording": {
+      "title": "錄製",
+      "idle": "沒有進行中的會議",
+      "active": "正在錄製 · {{time}}",
+      "description": "也可以透過快速鍵或選單列開始和停止會議。會議會在 3 小時後自動停止。"
+    },
+    "start": "開始會議",
+    "stop": "停止",
+    "discard": "捨棄",
+    "cancel": "取消",
+    "startError": "無法開始會議。",
+    "stopError": "無法停止會議。",
+    "loadError": "無法載入會議。",
+    "deleteError": "無法刪除會議。",
+    "delete": "刪除會議",
+    "discardDialog": {
+      "title": "要捨棄此會議嗎？",
+      "description": "目前的錄音將被刪除，且無法復原。",
+      "keep": "繼續錄製"
+    },
+    "deleteDialog": {
+      "title": "要刪除此會議嗎？",
+      "description": "其錄音將被刪除，且無法復原。"
+    },
+    "captureMode": {
+      "title": "音訊來源",
+      "description": "麥克風錄製你的聲音，系統音訊錄製其他參與者。",
+      "options": {
+        "both": "麥克風和系統音訊",
+        "system_only": "僅系統音訊",
+        "mic_only": "僅麥克風"
+      }
+    },
+    "systemAudioUnavailable": "系統音訊需要 Apple 晶片上的 macOS 14.4 或以上版本，因此會議僅錄製麥克風。",
+    "permission": {
+      "title": "系統音訊權限",
+      "description": "會議首次錄製系統音訊時，macOS 會要求權限。如果你拒絕了，請在隱私權設定中重新開啟 Murmur。",
+      "open": "開啟設定"
+    },
+    "list": {
+      "title": "錄音",
+      "empty": "還沒有會議。",
+      "untitled": "會議 · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "顯示更多"
+    },
+    "status": {
+      "recording": "錄製中",
+      "interrupted": "已中斷",
+      "processing": "已錄製",
+      "ready": "已就緒",
+      "failed": "失敗"
+    }
   }
 }

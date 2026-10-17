@@ -22,9 +22,9 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
 }
 },
 /**
- * Shortcuts that failed to register at startup, keyed by binding id.
+ * Shortcuts that hold no hotkey, keyed by binding id.
  */
-async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: string }>> {
+async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: ShortcutRegistrationError }>> {
     return await TAURI_INVOKE("get_shortcut_registration_errors");
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -652,6 +652,80 @@ async getInsights() : Promise<Result<InsightsSummary, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async getMeetingRuntime() : Promise<MeetingRuntime> {
+    return await TAURI_INVOKE("get_meeting_runtime");
+},
+async startMeeting() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_meeting") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async stopMeeting() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_meeting") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async discardMeeting() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("discard_meeting") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getMeetings(cursor: number | null, limit: number | null) : Promise<Result<MeetingsPage, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meetings", { cursor, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async deleteMeeting(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getMeetingCapabilities() : Promise<MeetingCapabilities> {
+    return await TAURI_INVOKE("get_meeting_capabilities");
+},
+async openSystemAudioPrivacySettings() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_system_audio_privacy_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Turning meetings off stops a meeting in progress (it is kept) and frees
+ * the shortcut's keys; turning them on claims them.
+ */
+async changeMeetingsEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meetings_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_capture_mode_setting", { mode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -660,10 +734,12 @@ async getInsights() : Promise<Result<InsightsSummary, string>> {
 
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
-insightsUpdated: InsightsUpdated
+insightsUpdated: InsightsUpdated,
+meetingStateChanged: MeetingStateChanged
 }>({
 historyUpdatePayload: "history-update-payload",
-insightsUpdated: "insights-updated"
+insightsUpdated: "insights-updated",
+meetingStateChanged: "meeting-state-changed"
 })
 
 /** user-defined constants **/
@@ -719,7 +795,12 @@ window_names_enabled?: boolean;
 /**
  * More input gain for quiet speech, and a hint that speech was faint.
  */
-whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle }
+whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle;
+/**
+ * Release gate for meeting recording: the Meetings page, its shortcut
+ * and its tray item exist only while this is on.
+ */
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
 /**
  * Where a dictation was sent, grouped the way the Insights page reports it.
  */
@@ -797,13 +878,69 @@ export type LearnedWord = { word: string;
  */
 heard_as: string }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+export type MeetingCapabilities = { system_audio: SystemAudioSupport }
+/**
+ * Which sources a meeting records. Without system audio support (before
+ * macOS 14.4, or on Intel) every mode records the microphone only; the
+ * stored choice is kept for when it becomes available.
+ */
+export type MeetingCaptureMode = "both" | "system_only" | "mic_only"
+export type MeetingListItem = { id: number;
+/**
+ * `None` until a summary names the meeting.
+ */
+title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+export type MeetingRuntime = { state: "idle" } | { state: "recording"; id: number; started_at_ms: number;
+/**
+ * When the 3-hour cap stops the meeting.
+ */
+stops_at_ms: number; tracks: MeetingTracks }
+/**
+ * Sent whenever a meeting starts or stops.
+ */
+export type MeetingStateChanged = MeetingRuntime
+export type MeetingStatus = "recording" |
+/**
+ * The app quit or crashed while recording; the tracks were repaired.
+ */
+"interrupted" |
+/**
+ * Recorded and waiting for (or in) processing.
+ */
+"processing" | "ready" | "failed"
+/**
+ * Which tracks a meeting recorded.
+ */
+export type MeetingTracks = "both" | "system" | "mic"
+export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
+/**
+ * Why a binding holds no hotkey.
+ */
+export type ShortcutRegistrationError =
+/**
+ * macOS refused the keys, usually because another app holds them.
+ */
+"unavailable" |
+/**
+ * Another Murmur action already uses the keys, and keeps them.
+ */
+"used_by_another_action"
 export type SoundTheme = "marimba" | "pop" | "custom"
+export type SystemAudioSupport = "available" |
+/**
+ * Process taps need macOS 14.4 or later.
+ */
+"os_too_old" |
+/**
+ * This build has no system audio bridge (Intel).
+ */
+"unsupported"
 export type Streaks = { current: number; longest: number }
 /**
  * UI appearance mode. `System` follows the OS `prefers-color-scheme`; `Light`

@@ -6,6 +6,8 @@ import type {
   AudioDevice,
   HistoryEntry,
   InsightsSummary,
+  MeetingListItem,
+  MeetingRuntime,
 } from "../../src/bindings";
 
 declare global {
@@ -22,6 +24,9 @@ const language = params.get("lang") ?? "en";
 const showOnboarding = params.get("onboarding") === "1";
 const geminiSignedOut = params.get("gemini") === "notSignedIn";
 const appleIntelligence = params.get("apple") ?? "available";
+const meetingsEnabled = params.get("meetings") === "1";
+const meetingRecording = params.get("meeting") === "recording";
+const systemAudio = params.get("systemAudio") ?? "available";
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -55,6 +60,13 @@ const SETTINGS: AppSettings = {
       id: "cancel",
       name: "Cancel",
     },
+    meeting_toggle: {
+      current_binding: "option+command+m",
+      default_binding: "option+command+m",
+      description: "Starts recording a meeting, or stops the one in progress.",
+      id: "meeting_toggle",
+      name: "Start or stop a meeting",
+    },
     paste_last: {
       current_binding: "option+shift+v",
       default_binding: "option+shift+v",
@@ -79,6 +91,8 @@ const SETTINGS: AppSettings = {
   history_limit: 50,
   learned_words: [{ heard_as: "play right", word: "Playwright" }],
   log_level: "info",
+  meeting_capture_mode: "both",
+  meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
   onboarding_completed: !showOnboarding,
   overlay_position: "bottom",
@@ -165,7 +179,53 @@ const INSIGHTS: InsightsSummary = {
   words_per_minute: 138,
 };
 
+const MINUTE_MS = 60_000;
+const MEETINGS: MeetingListItem[] = [
+  {
+    duration_ms: meetingRecording ? 0 : 47 * MINUTE_MS + 12_000,
+    id: 4,
+    started_at_ms: NOW * 1000 - 50 * MINUTE_MS,
+    status: meetingRecording ? "recording" : "processing",
+    title: null,
+    tracks: "both",
+  },
+  {
+    duration_ms: 72 * MINUTE_MS + 5_000,
+    id: 3,
+    started_at_ms: NOW * 1000 - 26 * HOUR * 1000,
+    status: "processing",
+    title: null,
+    tracks: "mic",
+  },
+  {
+    duration_ms: 9 * MINUTE_MS + 41_000,
+    id: 2,
+    started_at_ms: NOW * 1000 - 74 * HOUR * 1000,
+    status: "interrupted",
+    title: null,
+    tracks: "both",
+  },
+];
+const MEETING_RUNTIME: MeetingRuntime = meetingRecording
+  ? {
+      id: 4,
+      started_at_ms: Date.now() - 12 * MINUTE_MS - 34_000,
+      state: "recording",
+      stops_at_ms: Date.now() + 3 * HOUR * 1000,
+      tracks: "both",
+    }
+  : { state: "idle" };
+
 const RESPONSES: Record<string, unknown> = {
+  change_meeting_capture_mode_setting: null,
+  delete_meeting: null,
+  discard_meeting: null,
+  get_meeting_capabilities: { system_audio: systemAudio },
+  get_meeting_runtime: MEETING_RUNTIME,
+  get_meetings: { has_more: false, meetings: MEETINGS },
+  open_system_audio_privacy_settings: null,
+  start_meeting: null,
+  stop_meeting: null,
   change_cleanup_engine_setting: null,
   check_custom_sounds: { start: false, stop: false },
   get_app_dir_path: APP_DATA_DIR,
