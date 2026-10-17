@@ -10,8 +10,12 @@ import { commands } from "@/bindings";
 import {
   approach,
   BAR_COUNT,
+  BAR_MAX_PX,
   BAR_MIN_PX,
   barHeights,
+  type Envelope,
+  followPhrase,
+  growStep,
   STATIC_HEIGHTS,
   voiceLevel,
 } from "./waveform";
@@ -106,31 +110,36 @@ const RecordingOverlay: React.FC = () => {
   const animating = view.kind === "recording" && view.live && !reducedMotion;
 
   // Levels arrive at ~30 Hz; easing them every animation frame outside React
-  // keeps the bars and the capsule width smooth without re-rendering.
+  // keeps the bars smooth without re-rendering.
   useEffect(() => {
     const capsule = capsuleRef.current;
     const wave = waveRef.current;
     if (!animating || !capsule || !wave) return;
     const bars = Array.from(wave.children) as HTMLElement[];
     let heights = bars.map(() => BAR_MIN_PX);
-    let level = 0;
+    let envelope: Envelope = { level: 0, quietSeconds: 0 };
+    let step = 0;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const targets = barHeights(levelsRef.current);
       heights = heights.map((h, i) => approach(h, targets[i], dt));
-      level = approach(level, voiceLevel(levelsRef.current), dt);
       bars.forEach((bar, i) => {
-        bar.style.height = `${heights[i].toFixed(2)}px`;
+        bar.style.setProperty("--s", (heights[i] / BAR_MAX_PX).toFixed(3));
       });
-      capsule.style.setProperty("--level", level.toFixed(3));
+      envelope = followPhrase(envelope, voiceLevel(levelsRef.current), dt);
+      const next = growStep(step, envelope.level);
+      if (next !== step) {
+        step = next;
+        capsule.style.setProperty("--grow-step", String(step));
+      }
       frame = requestAnimationFrame(tick);
     });
     return () => {
       cancelAnimationFrame(frame);
-      bars.forEach((bar) => bar.style.removeProperty("height"));
-      capsule.style.removeProperty("--level");
+      bars.forEach((bar) => bar.style.removeProperty("--s"));
+      capsule.style.removeProperty("--grow-step");
     };
   }, [animating]);
 
@@ -159,7 +168,7 @@ const RecordingOverlay: React.FC = () => {
               style={
                 {
                   "--d": Math.abs(i - CENTER),
-                  height: reducedMotion ? `${height}px` : undefined,
+                  "--s": reducedMotion ? height / BAR_MAX_PX : undefined,
                 } as React.CSSProperties
               }
             />
