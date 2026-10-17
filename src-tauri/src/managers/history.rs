@@ -162,6 +162,11 @@ impl HistoryManager {
         }
 
         let startup = open_or_reset_database(&db_path, Utc::now(), init_database);
+        if let DatabaseStartup::Reset { moved_to } = &startup {
+            if let Err(error) = set_aside_recordings(&recordings_dir, moved_to) {
+                error!("Failed to set aside the recordings of the reset history: {error}");
+            }
+        }
         let manager = Self {
             app_handle: app_handle.clone(),
             recordings_dir,
@@ -218,6 +223,26 @@ pub(crate) fn open_or_reset_database(
             DatabaseStartup::Unavailable
         }
     }
+}
+
+/// After `history.db` was found corrupt and moved to `moved_to`, moves the
+/// dictation recordings next to it, to `recordings.corrupt-<time>`: no row
+/// points to them any more, so retention would never delete them, and the
+/// history player could still read them. A new folder replaces them.
+fn set_aside_recordings(recordings_dir: &Path, moved_to: &Path) -> std::io::Result<()> {
+    if !recordings_dir.exists() {
+        return Ok(());
+    }
+    let suffix = moved_to
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix("history.db"))
+        .unwrap_or(".corrupt");
+    fs::rename(
+        recordings_dir,
+        recordings_dir.with_file_name(format!("recordings{suffix}")),
+    )?;
+    fs::create_dir_all(recordings_dir)
 }
 
 /// The raw transcript is kept only when cleanup changed the delivered text;
@@ -823,6 +848,21 @@ mod tests {
             })
             .expect("query recreated history table");
         assert_eq!(rows, 0);
+    }
+
+    #[test]
+    fn the_recordings_of_a_reset_history_are_moved_next_to_it() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings = temp.path().join("recordings");
+        std::fs::create_dir(&recordings).unwrap();
+        std::fs::write(recordings.join("murmur-1.wav"), b"audio").unwrap();
+        let moved_to = temp.path().join("history.db.corrupt-20261015-120000");
+
+        set_aside_recordings(&recordings, &moved_to).unwrap();
+
+        let aside = temp.path().join("recordings.corrupt-20261015-120000");
+        assert_eq!(std::fs::read(aside.join("murmur-1.wav")).unwrap(), b"audio");
+        assert_eq!(std::fs::read_dir(&recordings).unwrap().count(), 0);
     }
 
     #[test]
