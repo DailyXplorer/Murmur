@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
@@ -53,7 +53,12 @@ const TitleField: React.FC<{
 }> = ({ title, placeholder, onCommit }) => {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(title ?? "");
-  useEffect(() => setDraft(title ?? ""), [title]);
+  // The title when editing began, `null` while the field is not focused: a
+  // title saved meanwhile (the summary's) never replaces what is typed.
+  const editedFrom = useRef<string | null>(null);
+  useEffect(() => {
+    if (editedFrom.current === null) setDraft(title ?? "");
+  }, [title]);
 
   return (
     <input
@@ -63,14 +68,20 @@ const TitleField: React.FC<{
       maxLength={120}
       aria-label={t("meetings.view.titleLabel")}
       onChange={(event) => setDraft(event.target.value)}
+      onFocus={() => {
+        editedFrom.current = title ?? "";
+      }}
       onBlur={() => {
-        if (draft.trim() !== (title ?? "")) onCommit(draft);
+        const from = editedFrom.current ?? "";
+        editedFrom.current = null;
+        if (draft.trim() !== from) onCommit(draft);
         else setDraft(title ?? "");
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") event.currentTarget.blur();
         if (event.key === "Escape") {
           event.preventDefault();
+          editedFrom.current = title ?? "";
           setDraft(title ?? "");
           // Blur after the revert has rendered, so nothing is committed.
           const field = event.currentTarget;
