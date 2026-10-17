@@ -421,8 +421,9 @@ pub fn init_shortcuts(app: &AppHandle) -> Vec<(String, ShortcutBinding, String)>
     let user_settings = settings::load_or_create_app_settings(app);
 
     for (id, default_binding) in default_bindings {
-        if id == "cancel" {
-            continue; // Skip cancel shortcut, it will be registered dynamically
+        // Cancel is registered while recording; meetings only when enabled.
+        if !super::binding_registers(&user_settings, &id) {
+            continue;
         }
         let binding = user_settings
             .bindings

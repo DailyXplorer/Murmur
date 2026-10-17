@@ -7,6 +7,7 @@ import { StartHidden } from "../StartHidden";
 import { AutostartToggle } from "../AutostartToggle";
 import { ShowTrayIcon } from "../ShowTrayIcon";
 import { ExperimentalToggle } from "../ExperimentalToggle";
+import { MeetingsToggle } from "../MeetingsToggle";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
 import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
@@ -40,6 +41,7 @@ export const AdvancedSettings: React.FC = () => {
 
       <SettingsGroup title={t("settings.advanced.groups.experimental")}>
         <ExperimentalToggle descriptionMode="tooltip" grouped={true} />
+        <MeetingsToggle descriptionMode="tooltip" grouped={true} />
         {experimentalEnabled && (
           <LazyStreamClose descriptionMode="tooltip" grouped={true} />
         )}

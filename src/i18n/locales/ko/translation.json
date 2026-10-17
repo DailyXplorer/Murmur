@@ -23,7 +23,15 @@
     "noticeHistoryReset": "기록이 손상되어 초기화했습니다. 이전 파일은 같은 위치에 보관했습니다.",
     "warningRecordingLimit": "녹음이 1분 후에 중지됩니다(15분 제한).",
     "pasteLastTranscript": "마지막 받아쓰기 붙여넣기",
-    "noticeNothingToPaste": "아직 붙여넣을 받아쓰기가 없습니다."
+    "noticeNothingToPaste": "아직 붙여넣을 받아쓰기가 없습니다.",
+    "startMeeting": "회의 시작",
+    "stopMeeting": "회의 중지",
+    "meetingSystemAudioUnavailable": "시스템 오디오를 사용할 수 없어 이 회의는 마이크만 녹음합니다.",
+    "meetingMicrophoneUnavailable": "마이크를 사용할 수 없어 이 회의는 시스템 오디오만 녹음합니다.",
+    "meetingStartFailed": "회의를 시작할 수 없습니다. 마이크와 오디오 권한을 확인하세요.",
+    "meetingStopsSoon": "회의가 5분 후에 중지됩니다(3시간 제한).",
+    "meetingStoppedAtLimit": "회의가 3시간 제한에 도달하여 저장되었습니다.",
+    "meetingWriteFailed": "Murmur가 디스크에 쓸 수 없어 회의가 중지되었습니다. 녹음된 내용은 보존됩니다."
   },
   "sidebar": {
     "general": "일반",
@@ -32,7 +40,8 @@
     "debug": "디버그",
     "about": "정보",
     "transcription": "받아쓰기",
-    "insights": "인사이트"
+    "insights": "인사이트",
+    "meetings": "회의"
   },
   "insights": {
     "error": "인사이트를 불러오지 못했습니다.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "마지막 받아쓰기 붙여넣기",
             "description": "가장 최근 받아쓰기를 사용 중인 앱에 다시 붙여넣습니다."
+          },
+          "meeting_toggle": {
+            "name": "회의 단축키",
+            "description": "회의 녹음을 시작하거나 진행 중인 회의를 중지합니다."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "학습됨",
         "learnedFrom": "{{word}}: “{{heard}}”을(를) 수정했을 때 학습됨",
         "learnedHint": "받아쓰기 직후 잘못 쓴 이름을 고치면 Murmur가 여기에 학습됨으로 표시해 추가합니다. 단어를 클릭하면 삭제됩니다."
+      },
+      "meetingsToggle": {
+        "label": "회의",
+        "description": "마이크와 시스템 오디오로 회의를 녹음합니다. 회의 페이지, 단축키, 메뉴 막대 항목이 추가됩니다."
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Murmur v{{version}}의 새 소식"
+  },
+  "meetings": {
+    "notice": "받아쓰기와 요약은 이후 버전에서 제공됩니다. 그때까지 녹음은 보관됩니다.",
+    "recording": {
+      "title": "녹음",
+      "idle": "진행 중인 회의 없음",
+      "active": "녹음 중 · {{time}}",
+      "description": "단축키나 메뉴 막대에서도 회의를 시작하고 중지할 수 있습니다. 회의는 3시간 후 자동으로 중지됩니다."
+    },
+    "start": "회의 시작",
+    "stop": "중지",
+    "discard": "삭제",
+    "cancel": "취소",
+    "startError": "회의를 시작할 수 없습니다.",
+    "stopError": "회의를 중지할 수 없습니다.",
+    "loadError": "회의를 불러올 수 없습니다.",
+    "deleteError": "회의를 삭제할 수 없습니다.",
+    "delete": "회의 삭제",
+    "discardDialog": {
+      "title": "이 회의를 삭제할까요?",
+      "description": "지금까지의 녹음이 삭제되며 복구할 수 없습니다.",
+      "keep": "계속 녹음"
+    },
+    "deleteDialog": {
+      "title": "이 회의를 삭제할까요?",
+      "description": "녹음이 삭제되며 복구할 수 없습니다."
+    },
+    "captureMode": {
+      "title": "오디오 소스",
+      "description": "마이크는 내 목소리를, 시스템 오디오는 다른 참가자를 녹음합니다.",
+      "options": {
+        "both": "마이크 및 시스템 오디오",
+        "system_only": "시스템 오디오만",
+        "mic_only": "마이크만"
+      }
+    },
+    "systemAudioUnavailable": "시스템 오디오에는 Apple 실리콘의 macOS 14.4 이상이 필요하므로 회의는 마이크만 녹음합니다.",
+    "permission": {
+      "title": "시스템 오디오 권한",
+      "description": "회의에서 처음 시스템 오디오를 녹음할 때 macOS가 권한을 요청합니다. 거부했다면 개인정보 보호 설정에서 Murmur를 다시 켜세요.",
+      "open": "설정 열기"
+    },
+    "list": {
+      "title": "녹음",
+      "empty": "아직 회의가 없습니다.",
+      "untitled": "회의 · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "더 보기"
+    },
+    "status": {
+      "recording": "녹음 중",
+      "interrupted": "중단됨",
+      "processing": "녹음됨",
+      "ready": "준비됨",
+      "failed": "실패"
+    }
   }
 }

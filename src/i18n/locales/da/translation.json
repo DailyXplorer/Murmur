@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Historikken var beskadiget og er nulstillet. Den gamle fil ligger ved siden af.",
     "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter).",
     "pasteLastTranscript": "Indsæt seneste transskription",
-    "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte."
+    "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte.",
+    "startMeeting": "Start møde",
+    "stopMeeting": "Stop møde",
+    "meetingSystemAudioUnavailable": "Systemlyd er ikke tilgængelig, så mødet optager kun din mikrofon.",
+    "meetingMicrophoneUnavailable": "Mikrofonen er ikke tilgængelig, så mødet optager kun systemlyd.",
+    "meetingStartFailed": "Mødet kunne ikke starte. Tjek mikrofonen og lydtilladelserne.",
+    "meetingStopsSoon": "Mødet stopper om 5 minutter (grænse på 3 timer).",
+    "meetingStoppedAtLimit": "Mødet nåede grænsen på 3 timer og blev gemt.",
+    "meetingWriteFailed": "Mødet stoppede, fordi Murmur ikke kunne skrive til disken. Det optagede er bevaret."
   },
   "sidebar": {
     "general": "Generelt",
@@ -32,7 +40,8 @@
     "debug": "Fejlfinding",
     "about": "Om",
     "transcription": "Transskription",
-    "insights": "Statistik"
+    "insights": "Statistik",
+    "meetings": "Møder"
   },
   "insights": {
     "error": "Statistikken kunne ikke indlæses.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "Indsæt seneste transskription",
             "description": "Indsætter din seneste transskription igen i den app, du bruger."
+          },
+          "meeting_toggle": {
+            "name": "Genvej til møde",
+            "description": "Starter optagelsen af et møde eller stopper det igangværende."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "Lært",
         "learnedFrom": "{{word}}: lært, da du rettede “{{heard}}”",
         "learnedHint": "Når du retter et forkert stavet navn lige efter diktering, tilføjer Murmur det her, markeret som Lært. Klik på et ord for at fjerne det."
+      },
+      "meetingsToggle": {
+        "label": "Møder",
+        "description": "Optag møder fra din mikrofon og systemlyd. Tilføjer en mødeside, en genvej og et punkt i menulinjen."
       }
     },
     "history": {
@@ -531,6 +548,62 @@
       "yellow": "Gul",
       "orange": "Orange",
       "red": "Rød"
+    }
+  },
+  "meetings": {
+    "notice": "Transskriptioner og resuméer kommer i en senere version. Optagelserne gemmes indtil da.",
+    "recording": {
+      "title": "Optagelse",
+      "idle": "Intet møde i gang",
+      "active": "Optager · {{time}}",
+      "description": "Du kan også starte og stoppe et møde med genvejen eller fra menulinjen. Et møde stopper af sig selv efter 3 timer."
+    },
+    "start": "Start møde",
+    "stop": "Stop",
+    "discard": "Kassér",
+    "cancel": "Annuller",
+    "startError": "Mødet kunne ikke starte.",
+    "stopError": "Mødet kunne ikke stoppes.",
+    "loadError": "Møderne kunne ikke indlæses.",
+    "deleteError": "Mødet kunne ikke slettes.",
+    "delete": "Slet møde",
+    "discardDialog": {
+      "title": "Vil du kassere dette møde?",
+      "description": "Optagelsen indtil nu slettes og kan ikke gendannes.",
+      "keep": "Fortsæt optagelsen"
+    },
+    "deleteDialog": {
+      "title": "Vil du slette dette møde?",
+      "description": "Optagelsen slettes og kan ikke gendannes."
+    },
+    "captureMode": {
+      "title": "Lydkilder",
+      "description": "Mikrofonen optager dig; systemlyden optager de andre deltagere.",
+      "options": {
+        "both": "Mikrofon og systemlyd",
+        "system_only": "Kun systemlyd",
+        "mic_only": "Kun mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Systemlyd kræver macOS 14.4 eller nyere på Apple silicon, så møder optager kun din mikrofon.",
+    "permission": {
+      "title": "Tilladelse til systemlyd",
+      "description": "macOS spørger første gang, et møde optager systemlyd. Hvis du afviste, kan du slå Murmur til igen i indstillingerne for anonymitet.",
+      "open": "Åbn indstillinger"
+    },
+    "list": {
+      "title": "Optagelser",
+      "empty": "Ingen møder endnu.",
+      "untitled": "Møde · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Vis flere"
+    },
+    "status": {
+      "recording": "Optager",
+      "interrupted": "Afbrudt",
+      "processing": "Optaget",
+      "ready": "Klar",
+      "failed": "Mislykkedes"
     }
   }
 }

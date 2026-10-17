@@ -23,7 +23,15 @@
     "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado.",
     "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos).",
     "pasteLastTranscript": "Pegar la última transcripción",
-    "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar."
+    "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
+    "startMeeting": "Iniciar reunión",
+    "stopMeeting": "Detener reunión",
+    "meetingSystemAudioUnavailable": "El audio del sistema no está disponible, así que la reunión solo graba su micrófono.",
+    "meetingMicrophoneUnavailable": "El micrófono no está disponible, así que la reunión solo graba el audio del sistema.",
+    "meetingStartFailed": "No se pudo iniciar la reunión. Compruebe el micrófono y los permisos de audio.",
+    "meetingStopsSoon": "La reunión se detendrá en 5 minutos (límite de 3 horas).",
+    "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
+    "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva."
   },
   "sidebar": {
     "general": "General",
@@ -32,7 +40,8 @@
     "debug": "Depuración",
     "about": "Acerca de",
     "transcription": "Transcripción",
-    "insights": "Estadísticas"
+    "insights": "Estadísticas",
+    "meetings": "Reuniones"
   },
   "insights": {
     "error": "No se pudieron cargar las estadísticas.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "Pegar la última transcripción",
             "description": "Vuelve a pegar tu última transcripción en la aplicación que estás usando."
+          },
+          "meeting_toggle": {
+            "name": "Atajo de reunión",
+            "description": "Empieza a grabar una reunión o detiene la que está en curso."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "Aprendida",
         "learnedFrom": "{{word}}: aprendida cuando corregiste «{{heard}}»",
         "learnedHint": "Cuando corriges un nombre mal escrito justo después de dictar, Murmur lo añade aquí marcado como Aprendida. Haz clic en una palabra para quitarla."
+      },
+      "meetingsToggle": {
+        "label": "Reuniones",
+        "description": "Grabe reuniones desde su micrófono y el audio del sistema. Añade una página de reuniones, un atajo y un elemento en la barra de menús."
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Nuevo en Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Las transcripciones y los resúmenes llegarán en una versión posterior. Las grabaciones se conservan hasta entonces.",
+    "recording": {
+      "title": "Grabación",
+      "idle": "Ninguna reunión en curso",
+      "active": "Grabando · {{time}}",
+      "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión se detiene sola a las 3 horas."
+    },
+    "start": "Iniciar reunión",
+    "stop": "Detener",
+    "discard": "Descartar",
+    "cancel": "Cancelar",
+    "startError": "No se pudo iniciar la reunión.",
+    "stopError": "No se pudo detener la reunión.",
+    "loadError": "No se pudieron cargar las reuniones.",
+    "deleteError": "No se pudo eliminar la reunión.",
+    "delete": "Eliminar reunión",
+    "discardDialog": {
+      "title": "¿Descartar esta reunión?",
+      "description": "La grabación hasta ahora se elimina y no se puede recuperar.",
+      "keep": "Seguir grabando"
+    },
+    "deleteDialog": {
+      "title": "¿Eliminar esta reunión?",
+      "description": "Su grabación se elimina y no se puede recuperar."
+    },
+    "captureMode": {
+      "title": "Fuentes de audio",
+      "description": "El micrófono le graba a usted; el audio del sistema, a los demás participantes.",
+      "options": {
+        "both": "Micrófono y audio del sistema",
+        "system_only": "Solo audio del sistema",
+        "mic_only": "Solo micrófono"
+      }
+    },
+    "systemAudioUnavailable": "El audio del sistema requiere macOS 14.4 o posterior en Apple silicon, así que las reuniones solo graban su micrófono.",
+    "permission": {
+      "title": "Permiso de audio del sistema",
+      "description": "macOS pregunta la primera vez que una reunión graba el audio del sistema. Si lo rechazó, vuelva a activar Murmur en los ajustes de privacidad.",
+      "open": "Abrir ajustes"
+    },
+    "list": {
+      "title": "Grabaciones",
+      "empty": "Todavía no hay reuniones.",
+      "untitled": "Reunión · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Mostrar más"
+    },
+    "status": {
+      "recording": "Grabando",
+      "interrupted": "Interrumpida",
+      "processing": "Grabada",
+      "ready": "Lista",
+      "failed": "Fallida"
+    }
   }
 }

@@ -337,3 +337,46 @@ test("reduced motion shows static bars that ignore the voice", async ({
   await page.waitForTimeout(300);
   expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
 });
+
+test("the meeting pill ticks without moving, turns amber near the cap and gives way to dictation", async ({
+  page,
+}) => {
+  const now = Date.parse("2026-10-17T10:00:00Z");
+  const cap = 3 * 3600 * 1000;
+  await page.clock.install({ time: now - 1_000 });
+  await page.clock.pauseAt(now);
+  await page.setViewportSize(RECORDING_WINDOW);
+  await openOverlay(page);
+  const pill = page.locator(".ov-meeting");
+  const startedAt = now - 65_000;
+
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: startedAt,
+    stops_at_ms: startedAt + cap,
+  });
+  await expect(pill).toHaveText("01:05");
+  await entranceFinished(page);
+  const edges = () =>
+    pill.evaluate((capsule) => {
+      const box = capsule.getBoundingClientRect();
+      return [box.left, box.right, box.top, box.bottom];
+    });
+  const before = await edges();
+  await page.clock.runFor(2_000);
+  await expect(pill).toHaveText("01:07");
+  expect(await edges()).toEqual(before);
+  await expect(pill).not.toHaveClass(/warning/);
+
+  // A dictation takes the overlay over; the backend sends the pill back after.
+  await dispatch(page, "show-overlay", "recording");
+  await expect(pill).toHaveCount(0);
+  await expect(page.locator(".ov-wave")).toBeVisible();
+
+  const nearCap = now + 2_000 - (cap - 4 * 60 * 1000);
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: nearCap,
+    stops_at_ms: nearCap + cap,
+  });
+  await expect(pill).toHaveText("2:56:00");
+  await expect(pill).toHaveClass(/warning/);
+});

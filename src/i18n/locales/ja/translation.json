@@ -23,7 +23,15 @@
     "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。",
     "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。",
     "pasteLastTranscript": "最後の文字起こしを貼り付け",
-    "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。"
+    "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。",
+    "startMeeting": "会議を開始",
+    "stopMeeting": "会議を停止",
+    "meetingSystemAudioUnavailable": "システムオーディオを使用できないため、この会議はマイクのみを録音します。",
+    "meetingMicrophoneUnavailable": "マイクを使用できないため、この会議はシステムオーディオのみを録音します。",
+    "meetingStartFailed": "会議を開始できませんでした。マイクとオーディオの権限を確認してください。",
+    "meetingStopsSoon": "会議はあと5分で停止します（上限3時間）。",
+    "meetingStoppedAtLimit": "会議が上限の3時間に達したため保存しました。",
+    "meetingWriteFailed": "Murmur がディスクに書き込めなかったため、会議を停止しました。録音済みの内容は保持されます。"
   },
   "sidebar": {
     "general": "一般",
@@ -32,7 +40,8 @@
     "debug": "デバッグ",
     "about": "概要",
     "transcription": "文字起こし",
-    "insights": "インサイト"
+    "insights": "インサイト",
+    "meetings": "会議"
   },
   "insights": {
     "error": "インサイトを読み込めませんでした。",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "最後の文字起こしを貼り付け",
             "description": "最新の文字起こしを、使用中のアプリにもう一度貼り付けます。"
+          },
+          "meeting_toggle": {
+            "name": "会議のショートカット",
+            "description": "会議の録音を開始するか、進行中の会議を停止します。"
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "学習済み",
         "learnedFrom": "{{word}}:「{{heard}}」を修正したときに学習",
         "learnedHint": "音声入力の直後に誤った名前の表記を直すと、Murmur がここに「学習済み」として追加します。単語をクリックすると削除できます。"
+      },
+      "meetingsToggle": {
+        "label": "会議",
+        "description": "マイクとシステムオーディオから会議を録音します。会議ページ、ショートカット、メニューバー項目が追加されます。"
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Murmur v{{version}} の新機能"
+  },
+  "meetings": {
+    "notice": "文字起こしと要約は今後のバージョンで追加されます。それまで録音は保持されます。",
+    "recording": {
+      "title": "録音",
+      "idle": "進行中の会議はありません",
+      "active": "録音中 · {{time}}",
+      "description": "ショートカットやメニューバーからも会議を開始・停止できます。会議は3時間で自動的に停止します。"
+    },
+    "start": "会議を開始",
+    "stop": "停止",
+    "discard": "破棄",
+    "cancel": "キャンセル",
+    "startError": "会議を開始できませんでした。",
+    "stopError": "会議を停止できませんでした。",
+    "loadError": "会議を読み込めませんでした。",
+    "deleteError": "会議を削除できませんでした。",
+    "delete": "会議を削除",
+    "discardDialog": {
+      "title": "この会議を破棄しますか？",
+      "description": "ここまでの録音は削除され、復元できません。",
+      "keep": "録音を続ける"
+    },
+    "deleteDialog": {
+      "title": "この会議を削除しますか？",
+      "description": "録音は削除され、復元できません。"
+    },
+    "captureMode": {
+      "title": "オーディオソース",
+      "description": "マイクはあなたの声を、システムオーディオはほかの参加者の声を録音します。",
+      "options": {
+        "both": "マイクとシステムオーディオ",
+        "system_only": "システムオーディオのみ",
+        "mic_only": "マイクのみ"
+      }
+    },
+    "systemAudioUnavailable": "システムオーディオには Apple シリコン搭載の macOS 14.4 以降が必要なため、会議はマイクのみを録音します。",
+    "permission": {
+      "title": "システムオーディオの権限",
+      "description": "会議が初めてシステムオーディオを録音するときに macOS が許可を求めます。拒否した場合は、プライバシー設定で Murmur を再びオンにしてください。",
+      "open": "設定を開く"
+    },
+    "list": {
+      "title": "録音",
+      "empty": "会議はまだありません。",
+      "untitled": "会議 · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "さらに表示"
+    },
+    "status": {
+      "recording": "録音中",
+      "interrupted": "中断",
+      "processing": "録音済み",
+      "ready": "準備完了",
+      "failed": "失敗"
+    }
   }
 }

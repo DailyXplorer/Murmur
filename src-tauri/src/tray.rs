@@ -4,9 +4,9 @@ use crate::settings;
 use crate::tray_i18n::get_tray_translations;
 use log::{debug, error, info, warn};
 use std::sync::{Arc, Mutex};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIcon;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -128,45 +128,54 @@ pub fn update_tray_menu(app: &AppHandle, locale: Option<&str>) {
     let quit_i = MenuItem::with_id(app, "quit", &strings.quit, true, quit_accelerator)
         .expect("failed to create quit item");
     let separator = || PredefinedMenuItem::separator(app).expect("failed to create separator");
-
-    let menu = match state {
-        TrayIconState::Recording | TrayIconState::Transcribing => {
-            let cancel_i = MenuItem::with_id(app, "cancel", &strings.cancel, true, None::<&str>)
-                .expect("failed to create cancel item");
-            Menu::with_items(
-                app,
-                &[
-                    &version_i,
-                    &separator(),
-                    &cancel_i,
-                    &separator(),
-                    &paste_last_transcript_i,
-                    &copy_last_transcript_i,
-                    &separator(),
-                    &settings_i,
-                    &check_updates_i,
-                    &separator(),
-                    &quit_i,
-                ],
-            )
-            .expect("failed to create menu")
-        }
-        TrayIconState::Idle => Menu::with_items(
+    let meeting_i = settings.meetings_enabled.then(|| {
+        let label = if crate::meetings::is_recording(app) {
+            &strings.stop_meeting
+        } else {
+            &strings.start_meeting
+        };
+        MenuItem::with_id(
             app,
-            &[
-                &version_i,
-                &separator(),
-                &paste_last_transcript_i,
-                &copy_last_transcript_i,
-                &separator(),
-                &settings_i,
-                &check_updates_i,
-                &separator(),
-                &quit_i,
-            ],
+            crate::meetings::TRAY_ITEM_ID,
+            label,
+            true,
+            None::<&str>,
         )
-        .expect("failed to create menu"),
-    };
+        .expect("failed to create meeting item")
+    });
+    let cancel_i = matches!(
+        state,
+        TrayIconState::Recording | TrayIconState::Transcribing
+    )
+    .then(|| {
+        MenuItem::with_id(app, "cancel", &strings.cancel, true, None::<&str>)
+            .expect("failed to create cancel item")
+    });
+    let separators = [
+        separator(),
+        separator(),
+        separator(),
+        separator(),
+        separator(),
+    ];
+
+    let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&version_i, &separators[0]];
+    if let Some(cancel_i) = &cancel_i {
+        items.extend([cancel_i as &dyn IsMenuItem<Wry>, &separators[1]]);
+    }
+    if let Some(meeting_i) = &meeting_i {
+        items.extend([meeting_i as &dyn IsMenuItem<Wry>, &separators[2]]);
+    }
+    items.extend([
+        &paste_last_transcript_i as &dyn IsMenuItem<Wry>,
+        &copy_last_transcript_i,
+        &separators[3],
+        &settings_i,
+        &check_updates_i,
+        &separators[4],
+        &quit_i,
+    ]);
+    let menu = Menu::with_items(app, &items).expect("failed to create menu");
 
     let tray = app.state::<TrayIcon>();
     let _ = tray.set_menu(Some(menu));

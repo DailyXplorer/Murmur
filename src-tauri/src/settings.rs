@@ -212,6 +212,18 @@ pub enum CleanupEngine {
     Codex,
 }
 
+/// Which sources a meeting records. Without system audio support (before
+/// macOS 14.4, or on Intel) every mode records the microphone only; the
+/// stored choice is kept for when it becomes available.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingCaptureMode {
+    #[default]
+    Both,
+    SystemOnly,
+    MicOnly,
+}
+
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// makes every field, including ones added later, fall back to its
 /// `get_default_settings()` value when missing from a stored settings object,
@@ -324,6 +336,12 @@ pub struct AppSettings {
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
+    /// Release gate for meeting recording: the Meetings page, its shortcut
+    /// and its tray item exist only while this is on.
+    #[serde(default)]
+    pub meetings_enabled: bool,
+    #[serde(default)]
+    pub meeting_capture_mode: MeetingCaptureMode,
 }
 
 fn default_always_on_microphone() -> bool {
@@ -479,6 +497,16 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: crate::paste_last::DEFAULT_BINDING.to_string(),
         },
     );
+    bindings.insert(
+        crate::meetings::BINDING_ID.to_string(),
+        ShortcutBinding {
+            id: crate::meetings::BINDING_ID.to_string(),
+            name: "Start or stop a meeting".to_string(),
+            description: "Starts recording a meeting, or stops the one in progress.".to_string(),
+            default_binding: crate::meetings::DEFAULT_BINDING.to_string(),
+            current_binding: crate::meetings::DEFAULT_BINDING.to_string(),
+        },
+    );
 
     AppSettings {
         bindings,
@@ -527,6 +555,8 @@ pub fn get_default_settings() -> AppSettings {
         whisper_mode: false,
         extra_recording_buffer_ms: 0,
         overlay_style: default_overlay_style(),
+        meetings_enabled: false,
+        meeting_capture_mode: MeetingCaptureMode::default(),
     }
 }
 
@@ -1113,7 +1143,35 @@ mod tests {
         assert!(updated);
         let mut ids: Vec<&str> = settings.bindings.keys().map(String::as_str).collect();
         ids.sort_unstable();
-        assert_eq!(ids, ["cancel", "paste_last", "transcribe"]);
+        assert_eq!(
+            ids,
+            ["cancel", "meeting_toggle", "paste_last", "transcribe"]
+        );
+    }
+
+    #[test]
+    fn meetings_stay_off_for_existing_users_and_record_both_sources_once_on() {
+        let mut stored = default_settings_json();
+        let settings_object = stored.as_object_mut().unwrap();
+        settings_object.remove("meetings_enabled");
+        settings_object.remove("meeting_capture_mode");
+        stored["bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_toggle");
+
+        let (settings, _) = parse_stored_settings(&stored);
+
+        assert!(!settings.meetings_enabled);
+        assert_eq!(settings.meeting_capture_mode, MeetingCaptureMode::Both);
+        assert_eq!(
+            settings.bindings["meeting_toggle"].current_binding,
+            "option+command+m"
+        );
+        assert_eq!(
+            serde_json::to_value(MeetingCaptureMode::SystemOnly).unwrap(),
+            "system_only"
+        );
     }
 
     #[test]

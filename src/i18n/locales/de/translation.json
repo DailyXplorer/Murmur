@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben.",
     "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten).",
     "pasteLastTranscript": "Letzte Transkription einfügen",
-    "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen."
+    "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
+    "startMeeting": "Meeting starten",
+    "stopMeeting": "Meeting beenden",
+    "meetingSystemAudioUnavailable": "Systemton ist nicht verfügbar, daher nimmt das Meeting nur dein Mikrofon auf.",
+    "meetingMicrophoneUnavailable": "Das Mikrofon ist nicht verfügbar, daher nimmt das Meeting nur den Systemton auf.",
+    "meetingStartFailed": "Das Meeting konnte nicht starten. Prüfe das Mikrofon und die Audioberechtigungen.",
+    "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 3 Stunden).",
+    "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
+    "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -32,7 +40,8 @@
     "debug": "Debug",
     "about": "Info",
     "transcription": "Transkription",
-    "insights": "Statistiken"
+    "insights": "Statistiken",
+    "meetings": "Meetings"
   },
   "insights": {
     "error": "Statistiken konnten nicht geladen werden.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "Letzte Transkription einfügen",
             "description": "Fügt deine letzte Transkription erneut in die App ein, die du gerade verwendest."
+          },
+          "meeting_toggle": {
+            "name": "Meeting-Kurzbefehl",
+            "description": "Startet die Aufnahme eines Meetings oder beendet das laufende."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "Gelernt",
         "learnedFrom": "{{word}}: gelernt, als du „{{heard}}“ korrigiert hast",
         "learnedHint": "Wenn du direkt nach dem Diktieren einen falsch geschriebenen Namen korrigierst, fügt Murmur ihn hier hinzu und markiert ihn als Gelernt. Klicke auf ein Wort, um es zu entfernen."
+      },
+      "meetingsToggle": {
+        "label": "Meetings",
+        "description": "Nimm Meetings über dein Mikrofon und den Systemton auf. Fügt eine Meetings-Seite, einen Kurzbefehl und einen Eintrag in der Menüleiste hinzu."
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Neu in Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Transkripte und Zusammenfassungen folgen in einer späteren Version. Bis dahin bleiben die Aufnahmen gespeichert.",
+    "recording": {
+      "title": "Aufnahme",
+      "idle": "Kein laufendes Meeting",
+      "active": "Aufnahme · {{time}}",
+      "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Nach 3 Stunden endet es von selbst."
+    },
+    "start": "Meeting starten",
+    "stop": "Beenden",
+    "discard": "Verwerfen",
+    "cancel": "Abbrechen",
+    "startError": "Das Meeting konnte nicht starten.",
+    "stopError": "Das Meeting konnte nicht beendet werden.",
+    "loadError": "Meetings konnten nicht geladen werden.",
+    "deleteError": "Das Meeting konnte nicht gelöscht werden.",
+    "delete": "Meeting löschen",
+    "discardDialog": {
+      "title": "Dieses Meeting verwerfen?",
+      "description": "Die bisherige Aufnahme wird gelöscht und kann nicht wiederhergestellt werden.",
+      "keep": "Weiter aufnehmen"
+    },
+    "deleteDialog": {
+      "title": "Dieses Meeting löschen?",
+      "description": "Die Aufnahme wird gelöscht und kann nicht wiederhergestellt werden."
+    },
+    "captureMode": {
+      "title": "Audioquellen",
+      "description": "Das Mikrofon nimmt dich auf, der Systemton die anderen Teilnehmenden.",
+      "options": {
+        "both": "Mikrofon und Systemton",
+        "system_only": "Nur Systemton",
+        "mic_only": "Nur Mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Systemton braucht macOS 14.4 oder neuer auf Apple silicon, daher nehmen Meetings nur dein Mikrofon auf.",
+    "permission": {
+      "title": "Berechtigung für Systemton",
+      "description": "macOS fragt, wenn ein Meeting zum ersten Mal Systemton aufnimmt. Wenn du abgelehnt hast, aktiviere Murmur in den Datenschutzeinstellungen wieder.",
+      "open": "Einstellungen öffnen"
+    },
+    "list": {
+      "title": "Aufnahmen",
+      "empty": "Noch keine Meetings.",
+      "untitled": "Meeting · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Mehr anzeigen"
+    },
+    "status": {
+      "recording": "Aufnahme läuft",
+      "interrupted": "Unterbrochen",
+      "processing": "Aufgenommen",
+      "ready": "Fertig",
+      "failed": "Fehlgeschlagen"
+    }
   }
 }

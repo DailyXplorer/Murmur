@@ -78,6 +78,12 @@ pub fn get_shortcut_registration_errors(app: AppHandle) -> HashMap<String, Strin
         .unwrap_or_default()
 }
 
+/// Whether `id` holds a global hotkey of its own. Cancel is registered only
+/// while recording; the meeting shortcut only while meetings are on.
+pub fn binding_registers(settings: &settings::AppSettings, id: &str) -> bool {
+    id != "cancel" && (id != crate::meetings::BINDING_ID || settings.meetings_enabled)
+}
+
 pub fn register_cancel_shortcut(app: &AppHandle) {
     tauri_impl::register_cancel_shortcut(app);
 }
@@ -145,19 +151,20 @@ pub fn change_binding(
         .or_else(|| settings::get_default_settings().bindings.get(&id).cloned())
         .ok_or_else(|| format!("Binding '{id}' does not exist"))?;
 
-    if let Err(error) = unregister_shortcut(&app, previous.clone()) {
-        debug!("Previous shortcut was not registered: {error}");
-    }
-
     let mut updated = previous.clone();
     updated.current_binding = binding;
-    if let Err(error) = register_shortcut(&app, updated.clone()) {
-        let _ = register_shortcut(&app, previous);
-        return Ok(BindingResponse {
-            success: false,
-            binding: None,
-            error: Some(error),
-        });
+    if binding_registers(&current, &id) {
+        if let Err(error) = unregister_shortcut(&app, previous.clone()) {
+            debug!("Previous shortcut was not registered: {error}");
+        }
+        if let Err(error) = register_shortcut(&app, updated.clone()) {
+            let _ = register_shortcut(&app, previous);
+            return Ok(BindingResponse {
+                success: false,
+                binding: None,
+                error: Some(error),
+            });
+        }
     }
 
     clear_registration_error(&app, &id);
@@ -182,17 +189,19 @@ pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, Stri
 }
 
 pub fn suspend_all_shortcuts(app: &AppHandle) {
-    for (id, binding) in settings::get_bindings(app) {
-        if id != "cancel" {
-            let _ = unregister_shortcut(app, binding);
+    let settings = settings::get_settings(app);
+    for (id, binding) in &settings.bindings {
+        if binding_registers(&settings, id) {
+            let _ = unregister_shortcut(app, binding.clone());
         }
     }
 }
 
 pub fn resume_all_shortcuts(app: &AppHandle) {
-    for (id, binding) in settings::get_bindings(app) {
-        if id != "cancel" {
-            let _ = register_shortcut(app, binding);
+    let settings = settings::get_settings(app);
+    for (id, binding) in &settings.bindings {
+        if binding_registers(&settings, id) {
+            let _ = register_shortcut(app, binding.clone());
         }
     }
 }
@@ -648,9 +657,20 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_provider_selection, ProviderAvailability};
+    use super::{binding_registers, validate_provider_selection, ProviderAvailability};
     use crate::commands::transcription::GeminiStatus;
     use crate::settings::TranscriptionProvider;
+
+    #[test]
+    fn the_meeting_shortcut_holds_its_keys_only_while_meetings_are_on() {
+        let mut settings = crate::settings::get_default_settings();
+        assert!(binding_registers(&settings, "transcribe"));
+        assert!(!binding_registers(&settings, "cancel"));
+        assert!(!binding_registers(&settings, crate::meetings::BINDING_ID));
+        settings.meetings_enabled = true;
+        assert!(binding_registers(&settings, crate::meetings::BINDING_ID));
+        assert!(!binding_registers(&settings, "cancel"));
+    }
 
     #[test]
     fn codex_selection_rejects_an_absent_session_without_falling_back_to_gemini() {

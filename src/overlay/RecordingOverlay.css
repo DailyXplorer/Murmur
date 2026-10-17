@@ -171,6 +171,31 @@
   overflow: hidden;
 }
 
+/* Meeting pill: a red dot and the elapsed time. The width is fixed and the
+   digits are tabular, so the edges stay still as the seconds change. */
+.ov-capsule.ov-meeting {
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  color: var(--ov-ink);
+}
+.ov-meeting::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(255 69 58);
+}
+/* The last 5 minutes before the 3-hour cap. */
+.ov-meeting.warning {
+  color: rgb(255 204 0);
+}
+.ov-meeting.warning::before {
+  background: rgb(255 204 0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ov-capsule,
   .ov-wave i {

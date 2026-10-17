@@ -78,11 +78,21 @@ const APP_COMMANDS: &[&str] = &[
     "update_history_limit",
     "update_recording_retention_period",
     "is_laptop",
+    "get_meeting_runtime",
+    "start_meeting",
+    "stop_meeting",
+    "discard_meeting",
+    "get_meetings",
+    "delete_meeting",
+    "get_meeting_capabilities",
+    "open_system_audio_privacy_settings",
+    "change_meetings_enabled_setting",
+    "change_meeting_capture_mode_setting",
 ];
 
 fn main() {
     generate_tray_translations();
-    build_apple_cleanup_bridge();
+    build_swift_bridges();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
     tauri_build::try_build(attributes).expect("failed to build Tauri application ACL");
@@ -155,14 +165,28 @@ fn generate_tray_translations() {
         .expect("generated tray translations are writable");
 }
 
-/// Compiles `swift/apple_cleanup.swift` into a static library. Apple
-/// Intelligence needs Apple silicon, so Intel builds get Rust's stub instead.
-fn build_apple_cleanup_bridge() {
+/// Compiles each Swift bridge in `swift/` into a static library: Apple
+/// Intelligence cleanup and the meeting system-audio tap. Both need Apple
+/// silicon, so Intel builds get Rust's stubs instead.
+fn build_swift_bridges() {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    let source = "swift/apple_cleanup.swift";
-    println!("cargo:rerun-if-changed={source}");
+    const BRIDGES: [(&str, &str, &str); 2] = [
+        (
+            "swift/apple_cleanup.swift",
+            "MurmurAppleCleanup",
+            "murmur_apple_cleanup",
+        ),
+        (
+            "swift/meeting_audio.swift",
+            "MurmurMeetingAudio",
+            "murmur_meeting_audio",
+        ),
+    ];
+    for (source, _, _) in BRIDGES {
+        println!("cargo:rerun-if-changed={source}");
+    }
     println!("cargo:rerun-if-env-changed=SDKROOT");
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
@@ -187,29 +211,32 @@ fn build_apple_cleanup_bridge() {
         .unwrap_or_else(|| xcrun(&["--sdk", "macosx", "--show-sdk-path"]));
     let swiftc = xcrun(&["--sdk", "macosx", "--find", "swiftc"]);
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
-    let object = out_dir.join("apple_cleanup.o");
 
-    let status = Command::new(&swiftc)
-        .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
-        .args(["-target", "arm64-apple-macosx11.0", "-sdk", &sdk])
-        .arg("-module-name")
-        .arg("MurmurAppleCleanup")
-        .arg(source)
-        .arg("-o")
-        .arg(&object)
-        .status()
-        .expect("swiftc runs");
-    assert!(status.success(), "swiftc failed to compile {source}");
-    let status = Command::new("libtool")
-        .args(["-static", "-o"])
-        .arg(out_dir.join("libmurmur_apple_cleanup.a"))
-        .arg(&object)
-        .status()
-        .expect("libtool runs");
-    assert!(
-        status.success(),
-        "libtool failed to archive the Swift bridge"
-    );
+    for (source, module, library) in BRIDGES {
+        let object = out_dir.join(format!("{library}.o"));
+        let status = Command::new(&swiftc)
+            .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
+            .args(["-target", "arm64-apple-macosx11.0", "-sdk", &sdk])
+            .arg("-module-name")
+            .arg(module)
+            .arg(source)
+            .arg("-o")
+            .arg(&object)
+            .status()
+            .expect("swiftc runs");
+        assert!(status.success(), "swiftc failed to compile {source}");
+        let status = Command::new("libtool")
+            .args(["-static", "-o"])
+            .arg(out_dir.join(format!("lib{library}.a")))
+            .arg(&object)
+            .status()
+            .expect("libtool runs");
+        assert!(
+            status.success(),
+            "libtool failed to archive the Swift bridge {source}"
+        );
+        println!("cargo:rustc-link-lib=static={library}");
+    }
 
     let toolchain_swift = Path::new(&swiftc)
         .parent()
@@ -222,8 +249,8 @@ fn build_apple_cleanup_bridge() {
         toolchain_swift.display()
     );
     println!("cargo:rustc-link-search=native={sdk}/usr/lib/swift");
-    println!("cargo:rustc-link-lib=static=murmur_apple_cleanup");
     println!("cargo:rustc-link-lib=framework=Foundation");
+    println!("cargo:rustc-link-lib=framework=CoreAudio");
     // macOS before 26 has no FoundationModels, and macOS 11 has no Swift
     // concurrency runtime: both are weak so the app still launches there.
     if Path::new(&sdk)

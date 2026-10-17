@@ -23,7 +23,15 @@
     "noticeHistoryReset": "历史记录已损坏并已重置。旧文件保留在旁边。",
     "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。",
     "pasteLastTranscript": "粘贴上一条转录",
-    "noticeNothingToPaste": "还没有可粘贴的转录。"
+    "noticeNothingToPaste": "还没有可粘贴的转录。",
+    "startMeeting": "开始会议",
+    "stopMeeting": "停止会议",
+    "meetingSystemAudioUnavailable": "系统音频不可用，此会议仅录制麦克风。",
+    "meetingMicrophoneUnavailable": "麦克风不可用，此会议仅录制系统音频。",
+    "meetingStartFailed": "无法开始会议。请检查麦克风和音频权限。",
+    "meetingStopsSoon": "会议将在 5 分钟后停止（上限 3 小时）。",
+    "meetingStoppedAtLimit": "会议已达到 3 小时上限并已保存。",
+    "meetingWriteFailed": "Murmur 无法写入磁盘，会议已停止。已录制的内容会保留。"
   },
   "sidebar": {
     "general": "通用",
@@ -32,7 +40,8 @@
     "debug": "调试",
     "about": "关于",
     "transcription": "转录",
-    "insights": "数据洞察"
+    "insights": "数据洞察",
+    "meetings": "会议"
   },
   "insights": {
     "error": "无法加载数据洞察。",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "粘贴上一条转录",
             "description": "将最近一次转录再次粘贴到当前使用的应用中。"
+          },
+          "meeting_toggle": {
+            "name": "会议快捷键",
+            "description": "开始录制会议，或停止正在进行的会议。"
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "已学习",
         "learnedFrom": "{{word}}：在你更正“{{heard}}”时学习",
         "learnedHint": "听写后立即更正拼错的名称时，Murmur 会将其添加到这里并标记为已学习。点击单词即可删除。"
+      },
+      "meetingsToggle": {
+        "label": "会议",
+        "description": "从麦克风和系统音频录制会议。会添加会议页面、快捷键和菜单栏项目。"
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Murmur v{{version}} 新功能"
+  },
+  "meetings": {
+    "notice": "转录和摘要将在后续版本中提供。在此之前录音会被保留。",
+    "recording": {
+      "title": "录制",
+      "idle": "没有正在进行的会议",
+      "active": "正在录制 · {{time}}",
+      "description": "也可以通过快捷键或菜单栏开始和停止会议。会议会在 3 小时后自动停止。"
+    },
+    "start": "开始会议",
+    "stop": "停止",
+    "discard": "丢弃",
+    "cancel": "取消",
+    "startError": "无法开始会议。",
+    "stopError": "无法停止会议。",
+    "loadError": "无法加载会议。",
+    "deleteError": "无法删除会议。",
+    "delete": "删除会议",
+    "discardDialog": {
+      "title": "要丢弃此会议吗？",
+      "description": "目前的录音将被删除，且无法恢复。",
+      "keep": "继续录制"
+    },
+    "deleteDialog": {
+      "title": "要删除此会议吗？",
+      "description": "其录音将被删除，且无法恢复。"
+    },
+    "captureMode": {
+      "title": "音频来源",
+      "description": "麦克风录制你的声音，系统音频录制其他参与者。",
+      "options": {
+        "both": "麦克风和系统音频",
+        "system_only": "仅系统音频",
+        "mic_only": "仅麦克风"
+      }
+    },
+    "systemAudioUnavailable": "系统音频需要 Apple 芯片上的 macOS 14.4 或更高版本，因此会议仅录制麦克风。",
+    "permission": {
+      "title": "系统音频权限",
+      "description": "会议首次录制系统音频时，macOS 会请求权限。如果你拒绝了，请在隐私设置中重新开启 Murmur。",
+      "open": "打开设置"
+    },
+    "list": {
+      "title": "录音",
+      "empty": "还没有会议。",
+      "untitled": "会议 · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "显示更多"
+    },
+    "status": {
+      "recording": "录制中",
+      "interrupted": "已中断",
+      "processing": "已录制",
+      "ready": "已就绪",
+      "failed": "失败"
+    }
   }
 }

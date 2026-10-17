@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok.",
     "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut).",
     "pasteLastTranscript": "Wklej ostatnią transkrypcję",
-    "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia."
+    "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia.",
+    "startMeeting": "Rozpocznij spotkanie",
+    "stopMeeting": "Zakończ spotkanie",
+    "meetingSystemAudioUnavailable": "Dźwięk systemowy jest niedostępny, więc spotkanie nagrywa tylko mikrofon.",
+    "meetingMicrophoneUnavailable": "Mikrofon jest niedostępny, więc spotkanie nagrywa tylko dźwięk systemowy.",
+    "meetingStartFailed": "Nie udało się rozpocząć spotkania. Sprawdź mikrofon i uprawnienia do dźwięku.",
+    "meetingStopsSoon": "Spotkanie zakończy się za 5 minut (limit 3 godzin).",
+    "meetingStoppedAtLimit": "Spotkanie osiągnęło limit 3 godzin i zostało zapisane.",
+    "meetingWriteFailed": "Spotkanie zostało zatrzymane, ponieważ Murmur nie mógł zapisywać na dysku. Nagrana część została zachowana."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -32,7 +40,8 @@
     "debug": "Debugowanie",
     "about": "O programie",
     "transcription": "Transkrypcja",
-    "insights": "Statystyki"
+    "insights": "Statystyki",
+    "meetings": "Spotkania"
   },
   "insights": {
     "error": "Nie udało się wczytać statystyk.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "Wklej ostatnią transkrypcję",
             "description": "Ponownie wkleja ostatnią transkrypcję do aplikacji, której używasz."
+          },
+          "meeting_toggle": {
+            "name": "Skrót spotkania",
+            "description": "Rozpoczyna nagrywanie spotkania lub kończy trwające."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "Nauczone",
         "learnedFrom": "{{word}}: nauczone, gdy poprawiłeś „{{heard}}”",
         "learnedHint": "Gdy zaraz po dyktowaniu poprawisz błędnie zapisaną nazwę, Murmur doda ją tutaj z oznaczeniem Nauczone. Kliknij słowo, aby je usunąć."
+      },
+      "meetingsToggle": {
+        "label": "Spotkania",
+        "description": "Nagrywaj spotkania z mikrofonu i dźwięku systemowego. Dodaje stronę Spotkania, skrót i pozycję na pasku menu."
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Nowości w Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Transkrypcje i podsumowania pojawią się w późniejszej wersji. Do tego czasu nagrania są przechowywane.",
+    "recording": {
+      "title": "Nagrywanie",
+      "idle": "Brak trwającego spotkania",
+      "active": "Nagrywanie · {{time}}",
+      "description": "Spotkanie możesz też rozpocząć i zakończyć skrótem lub z paska menu. Spotkanie kończy się samo po 3 godzinach."
+    },
+    "start": "Rozpocznij spotkanie",
+    "stop": "Zakończ",
+    "discard": "Odrzuć",
+    "cancel": "Anuluj",
+    "startError": "Nie udało się rozpocząć spotkania.",
+    "stopError": "Nie udało się zakończyć spotkania.",
+    "loadError": "Nie udało się wczytać spotkań.",
+    "deleteError": "Nie udało się usunąć spotkania.",
+    "delete": "Usuń spotkanie",
+    "discardDialog": {
+      "title": "Odrzucić to spotkanie?",
+      "description": "Dotychczasowe nagranie zostanie usunięte i nie będzie można go odzyskać.",
+      "keep": "Nagrywaj dalej"
+    },
+    "deleteDialog": {
+      "title": "Usunąć to spotkanie?",
+      "description": "Nagranie zostanie usunięte i nie będzie można go odzyskać."
+    },
+    "captureMode": {
+      "title": "Źródła dźwięku",
+      "description": "Mikrofon nagrywa Ciebie, a dźwięk systemowy pozostałych uczestników.",
+      "options": {
+        "both": "Mikrofon i dźwięk systemowy",
+        "system_only": "Tylko dźwięk systemowy",
+        "mic_only": "Tylko mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Dźwięk systemowy wymaga systemu macOS 14.4 lub nowszego na Apple silicon, więc spotkania nagrywają tylko mikrofon.",
+    "permission": {
+      "title": "Uprawnienie do dźwięku systemowego",
+      "description": "macOS zapyta, gdy spotkanie po raz pierwszy nagrywa dźwięk systemowy. Jeśli odmówiono, ponownie włącz Murmur w ustawieniach prywatności.",
+      "open": "Otwórz ustawienia"
+    },
+    "list": {
+      "title": "Nagrania",
+      "empty": "Nie ma jeszcze spotkań.",
+      "untitled": "Spotkanie · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Pokaż więcej"
+    },
+    "status": {
+      "recording": "Nagrywanie",
+      "interrupted": "Przerwane",
+      "processing": "Nagrane",
+      "ready": "Gotowe",
+      "failed": "Niepowodzenie"
+    }
   }
 }

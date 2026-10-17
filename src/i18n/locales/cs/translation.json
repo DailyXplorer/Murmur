@@ -23,7 +23,15 @@
     "noticeHistoryReset": "Historie byla poškozená a byla obnovena. Starý soubor zůstal vedle ní.",
     "warningRecordingLimit": "Nahrávání se zastaví za 1 minutu (limit 15 minut).",
     "pasteLastTranscript": "Vložit poslední přepis",
-    "noticeNothingToPaste": "Zatím není co vložit."
+    "noticeNothingToPaste": "Zatím není co vložit.",
+    "startMeeting": "Spustit schůzku",
+    "stopMeeting": "Ukončit schůzku",
+    "meetingSystemAudioUnavailable": "Systémový zvuk není dostupný, schůzka proto nahrává jen mikrofon.",
+    "meetingMicrophoneUnavailable": "Mikrofon není dostupný, schůzka proto nahrává jen systémový zvuk.",
+    "meetingStartFailed": "Schůzku se nepodařilo spustit. Zkontrolujte mikrofon a oprávnění ke zvuku.",
+    "meetingStopsSoon": "Schůzka se zastaví za 5 minut (limit 3 hodiny).",
+    "meetingStoppedAtLimit": "Schůzka dosáhla limitu 3 hodin a byla uložena.",
+    "meetingWriteFailed": "Schůzka se zastavila, protože Murmur nemohl zapisovat na disk. Nahraný záznam zůstal zachován."
   },
   "sidebar": {
     "general": "Obecné",
@@ -32,7 +40,8 @@
     "debug": "Ladění",
     "about": "O aplikaci",
     "transcription": "Přepis",
-    "insights": "Statistiky"
+    "insights": "Statistiky",
+    "meetings": "Schůzky"
   },
   "insights": {
     "error": "Statistiky se nepodařilo načíst.",
@@ -152,6 +161,10 @@
           "paste_last": {
             "name": "Vložit poslední přepis",
             "description": "Znovu vloží váš poslední přepis do aplikace, kterou právě používáte."
+          },
+          "meeting_toggle": {
+            "name": "Zkratka schůzky",
+            "description": "Spustí nahrávání schůzky, nebo zastaví probíhající."
           }
         },
         "errors": {
@@ -287,6 +300,10 @@
         "learned": "Naučené",
         "learnedFrom": "{{word}}: naučené, když jste opravili „{{heard}}“",
         "learnedHint": "Když hned po diktování opravíte špatně napsané jméno, Murmur ho sem přidá s označením Naučené. Klepnutím na slovo ho odeberete."
+      },
+      "meetingsToggle": {
+        "label": "Schůzky",
+        "description": "Nahrávejte schůzky z mikrofonu a systémového zvuku. Přidá stránku Schůzky, zkratku a položku v řádku nabídek."
       }
     },
     "history": {
@@ -532,5 +549,61 @@
   },
   "whatsNew": {
     "title": "Novinky v Murmur v{{version}}"
+  },
+  "meetings": {
+    "notice": "Přepisy a shrnutí přijdou v pozdější verzi. Do té doby se nahrávky uchovávají.",
+    "recording": {
+      "title": "Nahrávání",
+      "idle": "Žádná probíhající schůzka",
+      "active": "Nahrává se · {{time}}",
+      "description": "Schůzku můžete spustit a zastavit také zkratkou nebo z řádku nabídek. Po 3 hodinách se zastaví sama."
+    },
+    "start": "Spustit schůzku",
+    "stop": "Zastavit",
+    "discard": "Zahodit",
+    "cancel": "Zrušit",
+    "startError": "Schůzku se nepodařilo spustit.",
+    "stopError": "Schůzku se nepodařilo zastavit.",
+    "loadError": "Schůzky se nepodařilo načíst.",
+    "deleteError": "Schůzku se nepodařilo smazat.",
+    "delete": "Smazat schůzku",
+    "discardDialog": {
+      "title": "Zahodit tuto schůzku?",
+      "description": "Dosavadní nahrávka se smaže a nelze ji obnovit.",
+      "keep": "Pokračovat v nahrávání"
+    },
+    "deleteDialog": {
+      "title": "Smazat tuto schůzku?",
+      "description": "Její nahrávka se smaže a nelze ji obnovit."
+    },
+    "captureMode": {
+      "title": "Zdroje zvuku",
+      "description": "Mikrofon nahrává vás, systémový zvuk ostatní účastníky.",
+      "options": {
+        "both": "Mikrofon a systémový zvuk",
+        "system_only": "Jen systémový zvuk",
+        "mic_only": "Jen mikrofon"
+      }
+    },
+    "systemAudioUnavailable": "Systémový zvuk vyžaduje macOS 14.4 nebo novější na Apple silicon, schůzky proto nahrávají jen mikrofon.",
+    "permission": {
+      "title": "Oprávnění k systémovému zvuku",
+      "description": "macOS se zeptá, když schůzka poprvé nahrává systémový zvuk. Pokud jste odmítli, znovu Murmur povolte v nastavení soukromí.",
+      "open": "Otevřít nastavení"
+    },
+    "list": {
+      "title": "Nahrávky",
+      "empty": "Zatím žádné schůzky.",
+      "untitled": "Schůzka · {{date}}",
+      "details": "{{duration}} · {{status}}",
+      "loadMore": "Zobrazit další"
+    },
+    "status": {
+      "recording": "Nahrává se",
+      "interrupted": "Přerušeno",
+      "processing": "Nahráno",
+      "ready": "Připraveno",
+      "failed": "Selhalo"
+    }
   }
 }
