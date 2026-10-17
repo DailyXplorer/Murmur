@@ -168,20 +168,24 @@ impl RunObserver for Saver {
     }
 }
 
-/// Reads the levels of the recorded tracks, first bringing them back from
-/// the compressed audio when they were deleted after an earlier run.
-fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
-    if let Err(error) = archive::restore(dir, recorded) {
-        log::warn!("Cannot restore the meeting tracks: {error}");
-    }
-    let tracks: Vec<Track> = [
+fn recorded_tracks(recorded: MeetingTracks) -> Vec<Track> {
+    [
         (recorded.has_mic(), Track::Mic),
         (recorded.has_system(), Track::System),
     ]
     .into_iter()
     .filter_map(|(recorded, track)| recorded.then_some(track))
-    .collect();
-    tracks
+    .collect()
+}
+
+/// Reads the levels of the recorded tracks, first bringing them back from
+/// the compressed audio when they were deleted after an earlier run. A track
+/// that cannot be read is left out.
+fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
+    if let Err(error) = archive::restore(dir, recorded) {
+        log::warn!("Cannot restore the meeting tracks: {error}");
+    }
+    recorded_tracks(recorded)
         .iter()
         .filter_map(|track| {
             let path = dir.join(track_file(*track));
@@ -384,8 +388,15 @@ impl Processor {
         )?;
         stages.push(("aligning", started.elapsed()));
 
+        // A recorded track that could not be read leaves one side of the
+        // conversation out: never a Ready meeting, nor a summary of half of it.
+        let unreadable = recorded_tracks(recorded)
+            .iter()
+            .any(|track| !source.0.contains_key(track));
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
+        } else if unreadable {
+            Some(ProcessingError::NoAudio)
         } else if !built.missing {
             None
         } else if saver.rate_limited.load(Ordering::SeqCst) {
@@ -1109,6 +1120,31 @@ mod tests {
         h.store.finish_processing(ready, None).unwrap();
         h.process(ready, Arc::clone(&codex));
         assert!(codex.calls.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_recorded_track_that_cannot_be_read_fails_the_meeting_and_keeps_the_other() {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 20);
+        // System audio was recorded, but its file is gone.
+        track(
+            &paths::meeting_dir(&h.root, id).join(paths::MIC_TRACK),
+            20,
+            &[(2, 10)],
+        );
+        let summarizer = FakeSummarizer::answering(vec![]);
+        h.process_all(
+            id,
+            codex(|_| Ok("Seul.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        assert_eq!(summarizer.calls(), 0, "no summary from half a meeting");
+        assert_eq!(turns(&meeting), [("me", "Seul.")]);
     }
 
     /// A fictional dialogue between two `say` voices; `fixtures/dialogue_fr.jsonl`
