@@ -36,6 +36,13 @@ CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri dev
 
 Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, and `chore:`.
 
+## Comments
+
+- Comments are welcome when they explain why: intent, invariants, platform quirks, and safety (for example `unsafe` blocks and FFI ownership).
+- Do not restate what the code does. A clear name or a smaller function usually says it better.
+- When you change code, update or remove the comments around it in the same change so they never drift from the code.
+- Keep doc comments on public items accurate.
+
 ## Validate the change
 
 Run the checks relevant to the files and behavior you changed. Common frontend checks are:

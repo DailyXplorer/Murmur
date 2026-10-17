@@ -10,10 +10,16 @@ option requires an API key or local speech-recognition model.
 
 ## Requirements
 
+- macOS 10.15 or later
 - A working microphone
 - Codex signed in with a ChatGPT account, or Antigravity signed in on macOS
 - Accessibility permission for global shortcuts and text insertion
 - Network access while transcribing
+- Optional: Apple Intelligence for on-device AI cleanup. It needs macOS 26 or
+  later, a Mac that supports Apple Intelligence, Apple Intelligence turned on
+  in System Settings, and a dictation language it supports. Without it, AI
+  cleanup uses Codex when a Codex session is signed in, and otherwise pastes
+  the raw transcript.
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
 `~/.codex/auth.json`. When the access token is about to expire, or when the
@@ -40,21 +46,28 @@ provider's terms for your account.
 
 ## Features
 
-- One recording shortcut: hold it to talk, or double-tap it to record hands-free and press it once to stop
-- Cancel shortcut, and a shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
+- One recording shortcut (Option+Space by default): hold it to talk, or double-tap it to record hands-free and press it once to stop
+- A cancel shortcut (Escape by default), active only while Murmur records or transcribes
+- A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Automatic language detection for both services, with explicit language selection for Codex
 - Codex or experimental Gemini transcription selection on macOS
 - Microphone and output-device selection
-- AI cleanup through the Codex session, on by default: removes fillers, applies
-  self-corrections, fixes punctuation, and formats lists and spoken line breaks,
-  falling back to the raw transcript on any failure
+- AI cleanup, on by default: removes fillers, applies self-corrections, fixes
+  punctuation, and formats lists and spoken line breaks. The cleanup engine is
+  selectable in Settings. Apple Intelligence on this Mac is the default. When
+  it cannot run, Codex cleans the text if a Codex session is signed in. Any
+  failure or timeout pastes the raw transcript.
 - A dictionary that also learns names you correct right after pasting
-- Names from the frontmost window as spelling hints, read through Accessibility
-  and never stored
+- Names from the frontmost window as spelling hints for AI cleanup, read
+  through Accessibility and never stored
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
 - Transcription history with saved recordings, keeping the raw and cleaned text; a failed
   or unsatisfying transcription can be sent again from its recording
-- Recording overlay, audio feedback, tray controls, and automatic updates
+- Insights: total words, words per minute over the last 30 days, current and
+  longest streak with a 20-week heatmap, and usage by app category
+- A minimal waveform overlay at the top or bottom of the screen, which can be
+  turned off
+- Audio feedback, tray controls, and automatic updates
 
 ## Getting started
 
@@ -140,18 +153,37 @@ Murmur uses Tauri 2 with a Rust backend and a React/TypeScript frontend. The
 runtime pipeline is:
 
 ```text
-microphone -> WAV/audio samples -> selected cloud transcription -> cleanup -> clipboard/paste
+microphone -> quiet-speech gain -> selected cloud transcription -> dictionary -> AI cleanup (Apple Intelligence or Codex) -> clipboard/paste
 ```
 
 The backend owns audio capture, the Codex session and its refresh, transcription,
-history, shortcuts, and macOS integration. The frontend owns onboarding,
-settings, history, and the recording overlay.
+AI cleanup, history, Insights, shortcuts, and macOS integration. The on-device
+cleanup calls Apple's Foundation Models framework through a small Swift bridge.
+The frontend owns onboarding, settings, history, Insights, and the recording
+overlay.
 
 ## Privacy and security
 
 Audio sent for transcription leaves the computer and is handled by ChatGPT or
 Google, depending on the selected service. Do not describe Murmur as offline
 or local-only.
+
+AI cleanup with Apple Intelligence runs on the Mac, and the transcript does
+not leave it for cleanup. The transcript is sent to ChatGPT for cleanup only
+when Codex is the selected cleanup engine, or as a fallback when Apple
+Intelligence cannot clean a dictation and a Codex session is signed in. A
+cleanup request contains the transcript, your custom dictionary words, and the
+names found in the frontmost window.
+
+Those names are read on the Mac through Accessibility when a dictation starts,
+only while AI cleanup and the window-names setting are both on. They are never
+stored, and they leave the Mac only inside a Codex cleanup request. Password
+fields and password managers are never read.
+
+History, saved recordings, learned words, and Insights stay on the Mac.
+For Insights, Murmur records the frontmost app of each dictation and, in a
+browser, the site's host name. Insights store no dictated text. Murmur checks GitHub for updates, which can be
+turned off in Settings.
 
 The Codex authentication cache is sensitive. Murmur reads the tokens needed
 for a request or a refresh, never logs them, and keeps no copy of its own.
