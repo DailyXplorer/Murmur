@@ -55,7 +55,8 @@ use summary::CodexSummarizer;
 use transcribe::{CodexTranscriber, RetryPolicy};
 
 pub const BINDING_ID: &str = "meeting_toggle";
-pub const DEFAULT_BINDING: &str = "option+command+m";
+/// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
+pub const DEFAULT_BINDING: &str = "ctrl+option+command+m";
 pub const TRAY_ITEM_ID: &str = "meeting_toggle";
 
 /// Sent whenever a meeting starts or stops.
@@ -702,6 +703,27 @@ mod tests {
     #[test]
     fn default_binding_is_a_valid_shortcut() {
         crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+    }
+
+    #[test]
+    fn default_binding_leaves_standard_macos_shortcuts_alone() {
+        // A global hotkey swallows its keys in every app, so the default must
+        // not be one macOS apps already use: Option+Command+M minimizes all
+        // windows, Command+M minimizes one, Control+Command+Q locks the screen.
+        let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+        for taken in [
+            "command+m",
+            "option+command+m",
+            "ctrl+command+m",
+            "command+h",
+            "option+command+h",
+            "ctrl+command+q",
+            "ctrl+command+f",
+            "ctrl+command+space",
+        ] {
+            let taken = crate::shortcut::tauri_impl::parse_shortcut(taken).unwrap();
+            assert_ne!(default, taken);
+        }
     }
 
     fn operation(id: u64) -> ProcessingOperation {

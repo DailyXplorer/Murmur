@@ -48,6 +48,11 @@ pub fn init_shortcuts(app: &AppHandle) {
     let failures = tauri_impl::init_shortcuts(app);
     for (id, binding, _) in failures {
         record_registration_error(app, &id, ShortcutRegistrationError::Unavailable);
+        // The meeting shortcut comes with Meetings, on by default: a user who
+        // never asked for it hears about its keys only in its settings field.
+        if id == crate::meetings::BINDING_ID {
+            continue;
+        }
         user_alert::show(
             app,
             Alert::ShortcutUnavailable {
