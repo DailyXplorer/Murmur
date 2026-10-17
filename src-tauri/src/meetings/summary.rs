@@ -387,7 +387,8 @@ pub async fn summarize(
 }
 
 /// Stage D: writes the summary of a transcribed meeting that has none yet,
-/// and names the meeting unless the user did. Returns false when cancelled.
+/// and names the meeting unless the user did. Returns false when cancelled,
+/// or when the meeting was transcribed again or re-analysed meanwhile.
 pub async fn write(
     store: &MeetingsStore,
     summarizer: &dyn Summarizer,
@@ -416,13 +417,11 @@ pub async fn write(
                 started.elapsed(),
                 summary.body.chars().count()
             );
-            store.save_summary(id, summary.title.as_deref(), &summary.body)?;
-            Ok(true)
+            Ok(store.save_summary(id, summary.title.as_deref(), &summary.body)?)
         }
         SummaryEnd::Failed(error) => {
             log::warn!("Meeting {id}: no summary ({error:?})");
-            store.summary_failed(id, error)?;
-            Ok(true)
+            Ok(store.summary_failed(id, error)?)
         }
         SummaryEnd::Cancelled => Ok(false),
     }

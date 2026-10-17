@@ -672,6 +672,8 @@ mod tests {
     struct FakeSummarizer {
         answers: Mutex<Vec<Result<String, CompletionError>>>,
         inputs: Mutex<Vec<String>>,
+        /// What the user does while the first summary is being written.
+        meanwhile: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     }
 
     impl FakeSummarizer {
@@ -679,6 +681,7 @@ mod tests {
             Arc::new(Self {
                 answers: Mutex::new(answers),
                 inputs: Mutex::default(),
+                meanwhile: Mutex::default(),
             })
         }
 
@@ -695,6 +698,9 @@ mod tests {
             _: ProcessingOperation,
         ) -> crate::meetings::summary::CompleteFuture {
             self.inputs.lock().unwrap().push(input);
+            if let Some(meanwhile) = self.meanwhile.lock().unwrap().take() {
+                meanwhile();
+            }
             let mut answers = self.answers.lock().unwrap();
             let answer = if answers.is_empty() {
                 Ok("# Réunion\nNotes.".to_string())
@@ -1287,6 +1293,48 @@ mod tests {
         assert_eq!(meeting.summary.as_deref(), Some("Notes."));
         // The user's title stays.
         assert_eq!(meeting.title.as_deref(), Some("Mon titre"));
+    }
+
+    #[test]
+    fn transcribing_again_while_the_summary_is_written_drops_that_summary() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![
+            Ok("# Old title\nOld notes.".into()),
+            Ok("# New title\nNew notes.".into()),
+        ]);
+        let store = Arc::clone(&h.store);
+        *summarizer.meanwhile.lock().unwrap() = Some(Box::new(move || {
+            assert!(store.retranscribe(id).unwrap());
+        }));
+        h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Processing);
+        assert_eq!(meeting.summary, None);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.title, None);
+        // The run stopped there: the tracks wait for the new transcript.
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        let dir = paths::meeting_dir(&h.root, id);
+        assert!(dir.join(paths::MIC_TRACK).exists());
+
+        h.process_all(
+            id,
+            codex(|_| Ok("Au revoir.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(summarizer.calls(), 2);
+        assert!(summarizer.inputs.lock().unwrap()[1].contains("Au revoir."));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary.as_deref(), Some("New notes."));
+        assert_eq!(meeting.title.as_deref(), Some("New title"));
     }
 
     #[test]

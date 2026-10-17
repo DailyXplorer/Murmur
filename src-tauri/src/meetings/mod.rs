@@ -468,6 +468,8 @@ impl MeetingsManager {
         if !self.store.reopen(id).map_err(|error| error.to_string())? {
             return Err(format!("Meeting {id} is not finished"));
         }
+        // A summary still being written is of the analysis that goes.
+        self.queue.cancel(id);
         // Nothing processes the meeting until it is queued below.
         let analysis = paths::meeting_dir(&self.root, id).join(analysis::ANALYSIS_FILE);
         match std::fs::remove_file(analysis) {
@@ -528,6 +530,8 @@ impl MeetingsManager {
         {
             return Err(format!("Meeting {id} cannot be transcribed again"));
         }
+        // A summary still being written is of the transcript that goes.
+        self.queue.cancel(id);
         self.updated(id);
         self.queue.enqueue(id);
         Ok(())

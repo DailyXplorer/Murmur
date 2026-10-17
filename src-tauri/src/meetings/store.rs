@@ -670,23 +670,28 @@ impl MeetingsStore {
     }
 
     /// Saves the summary, and the title it gives the meeting unless the
-    /// user named it.
-    pub fn save_summary(&self, id: i64, title: Option<&str>, body: &str) -> Result<()> {
-        self.connection()?.execute(
+    /// user named it. Returns false when the meeting no longer waits for
+    /// it: transcribed again or re-analysed meanwhile, its summary is of a
+    /// transcript that is gone.
+    pub fn save_summary(&self, id: i64, title: Option<&str>, body: &str) -> Result<bool> {
+        let updated = self.connection()?.execute(
             "UPDATE meetings SET summary_md = ?3, summary_status = 'ready', summary_error = NULL,
                  title = CASE WHEN title_edited = 0 AND ?2 IS NOT NULL THEN ?2 ELSE title END
-             WHERE id = ?1",
+             WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
             params![id, title, body],
         )?;
-        Ok(())
+        Ok(updated > 0)
     }
 
-    pub fn summary_failed(&self, id: i64, error: SummaryError) -> Result<()> {
-        self.connection()?.execute(
-            "UPDATE meetings SET summary_status = 'failed', summary_error = ?2 WHERE id = ?1",
+    /// Returns false, like `save_summary`, when the meeting no longer waits
+    /// for this summary.
+    pub fn summary_failed(&self, id: i64, error: SummaryError) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET summary_status = 'failed', summary_error = ?2
+             WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
             params![id, error.as_db()],
         )?;
-        Ok(())
+        Ok(updated > 0)
     }
 
     /// Makes a failed summary wait to be written again. Returns false when
@@ -1416,20 +1421,32 @@ mod tests {
         assert_eq!(fresh.summary_status, SummaryStatus::Pending);
         assert_eq!(fresh.summary, None);
 
-        store
+        assert!(store
             .save_summary(id, Some("Budget review"), "Notes about [[me]].")
-            .unwrap();
+            .unwrap());
         let meeting = store.get(id).unwrap().unwrap();
         assert_eq!(meeting.title.as_deref(), Some("Budget review"));
         assert_eq!(meeting.summary.as_deref(), Some("Notes about [[me]]."));
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        // Written once: a second summary is not waited for.
+        assert!(!store.save_summary(id, Some("Other"), "Other.").unwrap());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().summary.as_deref(),
+            Some("Notes about [[me]].")
+        );
 
-        store.rename(id, Some("My title")).unwrap();
-        store.save_summary(id, Some("Other"), "New notes.").unwrap();
-        store.save_summary(id, None, "Newer notes.").unwrap();
-        let meeting = store.get(id).unwrap().unwrap();
+        let named = ready(&store);
+        store.rename(named, Some("My title")).unwrap();
+        assert!(store
+            .save_summary(named, Some("Other"), "New notes.")
+            .unwrap());
+        let meeting = store.get(named).unwrap().unwrap();
         assert_eq!(meeting.title.as_deref(), Some("My title"));
-        assert_eq!(meeting.summary.as_deref(), Some("Newer notes."));
+        assert_eq!(meeting.summary.as_deref(), Some("New notes."));
+
+        let untitled = ready(&store);
+        assert!(store.save_summary(untitled, None, "Notes.").unwrap());
+        assert_eq!(store.get(untitled).unwrap().unwrap().title, None);
     }
 
     #[test]
@@ -1502,6 +1519,32 @@ mod tests {
         assert!(store.chunks(id).unwrap().is_empty());
         // Already waiting: a second request changes nothing.
         assert!(!store.retranscribe(id).unwrap());
+    }
+
+    #[test]
+    fn a_summary_of_the_old_transcript_is_dropped_after_transcribing_again() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        // Codex is still writing the summary when the user transcribes again.
+        assert!(store.retranscribe(id).unwrap());
+        assert!(!store
+            .save_summary(id, Some("Old title"), "Old notes.")
+            .unwrap());
+        assert!(!store.summary_failed(id, SummaryError::Timeout).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary, None);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary_error, None);
+        assert_eq!(meeting.title, None);
+
+        // The new transcript gets its own summary.
+        store.finish_processing(id, None).unwrap();
+        assert!(store
+            .save_summary(id, Some("New title"), "New notes.")
+            .unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary.as_deref(), Some("New notes."));
+        assert_eq!(meeting.title.as_deref(), Some("New title"));
     }
 
     #[test]
