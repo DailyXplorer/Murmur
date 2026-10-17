@@ -17,7 +17,8 @@ const errorStringsByLocale = readdirSync(localesDir).map((locale) => {
   return { locale, messages };
 });
 
-// ERROR_OVERLAY_WIDTH × ERROR_OVERLAY_HEIGHT in src-tauri/src/overlay.rs.
+// OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
+const RECORDING_WINDOW = { width: 158, height: 62 };
 const ERROR_WINDOW = { width: 312, height: 116 };
 
 async function openOverlay(page: Page, { holdSettings = false } = {}) {
@@ -89,6 +90,61 @@ const centerBarHeight = (page: Page) =>
     .nth(6)
     .evaluate((bar) => parseFloat(getComputedStyle(bar).height));
 
+// Feeds a speech-like stream at the host's ~30 Hz (words of ~5 syllables a
+// second, short pauses, per-event noise; fixed seed) and samples the capsule
+// and bars on every animation frame.
+const sampleWhileSpeaking = (page: Page, seconds: number) =>
+  page.evaluate(async (durationMs) => {
+    const capsule = document.querySelector<HTMLElement>(".ov-capsule")!;
+    const bars = [...document.querySelectorAll<HTMLElement>(".ov-wave i")];
+    let seed = 7;
+    const noise = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647 - 0.5;
+    };
+    const start = performance.now();
+    const timer = window.setInterval(() => {
+      const t = (performance.now() - start) / 1000;
+      const inWord = t % 0.85 < 0.6;
+      const syllable = Math.abs(Math.sin(t * Math.PI * 5));
+      const levels = Array.from({ length: 16 }, (_, band) => {
+        const voice = inWord ? 0.2 + 0.6 * syllable : 0.03;
+        const level = voice * (band < 6 ? 1 : 0.6) + noise() * 0.3;
+        return Math.min(1, Math.max(0, level));
+      });
+      window.overlayHarness.dispatch("mic-level", levels);
+    }, 33);
+
+    const frames: Array<{
+      left: number;
+      right: number;
+      height: number;
+      barLayoutHeights: number[];
+      centerBarDrawnHeight: number;
+    }> = [];
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(function sample() {
+        const box = capsule.getBoundingClientRect();
+        frames.push({
+          left: box.left,
+          right: box.right,
+          height: box.height,
+          barLayoutHeights: bars.map((bar) =>
+            parseFloat(getComputedStyle(bar).height),
+          ),
+          centerBarDrawnHeight: bars[6].getBoundingClientRect().height,
+        });
+        if (performance.now() - start < durationMs) {
+          requestAnimationFrame(sample);
+        } else {
+          resolve();
+        }
+      });
+    });
+    window.clearInterval(timer);
+    return frames;
+  }, seconds * 1000);
+
 const capsuleWidth = (page: Page) =>
   page
     .locator(".ov-capsule")
@@ -134,6 +190,57 @@ test("recording shows only a waveform that follows the voice", async ({
   await expect(page.locator(".ov-stage")).toHaveText("");
   await expect(page.locator(".ov-stage button")).toHaveCount(0);
   await expect(page.locator(".ov-stage svg")).toHaveCount(0);
+});
+
+test("the capsule holds still while the voice wobbles", async ({ page }) => {
+  await page.setViewportSize(RECORDING_WINDOW);
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "recording");
+  await dispatch(page, "recording-ready");
+  await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
+  await page
+    .locator(".ov-capsule")
+    .evaluate((capsule) =>
+      Promise.all(capsule.getAnimations().map((entry) => entry.finished)),
+    );
+
+  const seconds = 3;
+  const frames = await sampleWhileSpeaking(page, seconds);
+  const lefts = frames.map((frame) => frame.left);
+  const steps = lefts.slice(1).map((left, i) => left - lefts[i]);
+  const moves = steps.filter((step) => step !== 0);
+  const reversals = moves
+    .slice(1)
+    .filter((step, i) => Math.sign(step) !== Math.sign(moves[i])).length;
+  const drawn = frames.map((frame) => frame.centerBarDrawnHeight);
+  const relayouts = frames
+    .slice(1)
+    .filter(
+      (frame, i) =>
+        frame.barLayoutHeights.join() !== frames[i].barLayoutHeights.join(),
+    ).length;
+  test.info().annotations.push({
+    type: "jitter",
+    description: JSON.stringify({
+      frames: frames.length,
+      edgeMoves: moves.length,
+      reversals,
+      fractionalEdges: lefts.filter((left) => !Number.isInteger(left)).length,
+      barRelayouts: relayouts,
+    }),
+  });
+
+  expect(new Set(frames.map((frame) => frame.height))).toEqual(new Set([30]));
+  expect(lefts.every(Number.isInteger)).toBe(true);
+  expect(
+    frames.every(
+      (frame) => frame.left + frame.right === RECORDING_WINDOW.width,
+    ),
+  ).toBe(true);
+  expect(moves.length).toBeLessThanOrEqual(4 * seconds);
+  expect(reversals).toBeLessThanOrEqual(3);
+  expect(Math.max(...drawn) - Math.min(...drawn)).toBeGreaterThan(6);
+  expect(relayouts).toBe(0);
 });
 
 test("a hands-free recording looks the same as push-to-talk", async ({
