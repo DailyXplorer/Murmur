@@ -1,7 +1,9 @@
-//! The "Me" track: the system default microphone, on a cpal stream of its own
-//! next to the dictation recorder's (Core Audio serves several clients from
-//! one device). If the device stops (unplugged, or a Bluetooth headset
-//! dropped out), the default input is reopened; the writer fills the gap.
+//! The "Me" track: the microphone dictation uses (the one chosen in
+//! settings, else the system default), on a cpal stream of its own next to
+//! the dictation recorder's (Core Audio serves several clients from one
+//! device). If the device stops (unplugged, or a Bluetooth headset dropped
+//! out), it is reopened, or the default input once it is gone; the writer
+//! fills the gap.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -27,8 +29,10 @@ pub struct MicCapture {
 }
 
 impl MicCapture {
-    /// Fails when the microphone cannot be opened at all.
-    pub fn start(path: &Path, origin: Instant) -> Result<Self, String> {
+    /// Records from the input named `device`, or the system default when it
+    /// is `None` or missing. Fails when the microphone cannot be opened at
+    /// all.
+    pub fn start(path: &Path, origin: Instant, device: Option<String>) -> Result<Self, String> {
         let writer = TrackWriter::create(path, origin)?;
         let feeder = writer.feeder();
         let stop = Arc::new(AtomicBool::new(false));
@@ -36,7 +40,7 @@ impl MicCapture {
         let supervisor_stop = Arc::clone(&stop);
         let supervisor = std::thread::Builder::new()
             .name("meeting-mic".into())
-            .spawn(move || supervise(feeder, supervisor_stop, ready_sender))
+            .spawn(move || supervise(device, feeder, supervisor_stop, ready_sender))
             .map_err(|error| format!("Cannot start the microphone thread: {error}"))?;
         match ready.recv() {
             Ok(Ok(())) => Ok(Self {
@@ -68,15 +72,21 @@ impl Track for MicCapture {
     }
 }
 
-/// Keeps a stream on the default input open until `stop`. The first open's
-/// outcome goes to `ready`; later failures are retried.
-fn supervise(feeder: Feeder, stop: Arc<AtomicBool>, ready: mpsc::SyncSender<Result<(), String>>) {
+/// Keeps a stream on the input named `device` (or the default) open until
+/// `stop`. The first open's outcome goes to `ready`; later failures are
+/// retried.
+fn supervise(
+    device: Option<String>,
+    feeder: Feeder,
+    stop: Arc<AtomicBool>,
+    ready: mpsc::SyncSender<Result<(), String>>,
+) {
     let mut ready = Some(ready);
     let epoch = Instant::now();
     while !stop.load(Ordering::SeqCst) {
         let broken = Arc::new(AtomicBool::new(false));
         let last_audio_ms = Arc::new(AtomicU64::new(epoch.elapsed().as_millis() as u64));
-        match open_default_input(&feeder, &broken, &last_audio_ms, epoch) {
+        match open_input(device.as_deref(), &feeder, &broken, &last_audio_ms, epoch) {
             Ok(stream) => {
                 if let Some(ready) = ready.take() {
                     let _ = ready.send(Ok(()));
@@ -109,15 +119,44 @@ fn supervise(feeder: Feeder, stop: Arc<AtomicBool>, ready: mpsc::SyncSender<Resu
     }
 }
 
-fn open_default_input(
+/// The device named `wanted` among `devices`; `None` means the default.
+fn named_input<D>(devices: Vec<(String, D)>, wanted: Option<&str>) -> Option<D> {
+    let wanted = wanted?;
+    devices
+        .into_iter()
+        .find(|(name, _)| name == wanted)
+        .map(|(_, device)| device)
+}
+
+fn open_input(
+    wanted: Option<&str>,
     feeder: &Feeder,
     broken: &Arc<AtomicBool>,
     last_audio_ms: &Arc<AtomicU64>,
     epoch: Instant,
 ) -> Result<cpal::Stream, String> {
-    let device = cpal::default_host()
-        .default_input_device()
-        .ok_or_else(|| "No input device found".to_string())?;
+    let named = wanted.and_then(|_| {
+        let devices = crate::audio_toolkit::list_input_devices()
+            .map_err(|error| log::warn!("Cannot list the microphones: {error}"))
+            .ok()?;
+        let found = named_input(
+            devices
+                .into_iter()
+                .map(|info| (info.name, info.device))
+                .collect(),
+            wanted,
+        );
+        if found.is_none() {
+            log::warn!("The chosen microphone is missing; the meeting uses the default");
+        }
+        found
+    });
+    let device = match named {
+        Some(device) => device,
+        None => cpal::default_host()
+            .default_input_device()
+            .ok_or_else(|| "No input device found".to_string())?,
+    };
     let config = device
         .default_input_config()
         .map_err(|error| format!("Cannot read the microphone format: {error}"))?;
@@ -181,4 +220,30 @@ where
         },
         None,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn devices() -> Vec<(String, &'static str)> {
+        vec![
+            ("MacBook Pro Microphone".to_string(), "built-in"),
+            ("USB Headset".to_string(), "headset"),
+        ]
+    }
+
+    #[test]
+    fn the_microphone_chosen_in_settings_records_the_meeting() {
+        assert_eq!(
+            named_input(devices(), Some("USB Headset")),
+            Some("headset")
+        );
+    }
+
+    #[test]
+    fn the_system_default_records_without_a_choice_or_once_the_choice_is_gone() {
+        assert_eq!(named_input(devices(), None), None);
+        assert_eq!(named_input(devices(), Some("Unplugged Mic")), None);
+    }
 }

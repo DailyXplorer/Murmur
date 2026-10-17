@@ -334,7 +334,7 @@ impl MeetingsManager {
         Ok(Self {
             app: app.clone(),
             coordinator: Mutex::new(Coordinator::new(
-                DeviceCapture,
+                DeviceCapture(app.clone()),
                 notifier,
                 SystemClock,
                 Arc::clone(&store),

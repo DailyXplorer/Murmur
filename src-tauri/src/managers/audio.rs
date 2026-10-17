@@ -117,6 +117,37 @@ enum DesiredMicrophone {
     Clamshell(String),
 }
 
+/// The persisted microphone preference currently in effect. Only runs the
+/// clamshell probe (an `ioreg` subprocess, ~10-20ms) when a clamshell
+/// microphone is actually configured.
+fn desired_microphone(settings: &AppSettings) -> DesiredMicrophone {
+    if let Some(clamshell_microphone) = &settings.clamshell_microphone {
+        let clamshell_started = Instant::now();
+        let is_clamshell = clamshell::is_clamshell().unwrap_or(false);
+        debug!(
+            "device resolve: clamshell_check={:?} (clamshell={})",
+            clamshell_started.elapsed(),
+            is_clamshell
+        );
+        if is_clamshell {
+            return DesiredMicrophone::Clamshell(clamshell_microphone.clone());
+        }
+    }
+    match &settings.selected_microphone {
+        Some(name) => DesiredMicrophone::Selected(name.clone()),
+        None => DesiredMicrophone::Default,
+    }
+}
+
+/// The name of the microphone dictation records from, `None` for the system
+/// default. Meetings record the same one.
+pub fn preferred_microphone(settings: &AppSettings) -> Option<String> {
+    match desired_microphone(settings) {
+        DesiredMicrophone::Default => None,
+        DesiredMicrophone::Selected(name) | DesiredMicrophone::Clamshell(name) => Some(name),
+    }
+}
+
 /// Result of resolving the persisted preference to a live cpal device.
 /// `device: None` means cpal should open the system default. The unavailable
 /// name is populated only when enumeration succeeded and confirmed that the
@@ -336,34 +367,12 @@ impl AudioRecordingManager {
         (manager, startup_error)
     }
 
-    /// The persisted microphone preference currently in effect. Only runs the
-    /// clamshell probe (an `ioreg` subprocess, ~10-20ms) when a clamshell
-    /// microphone is actually configured.
-    fn desired_microphone(&self, settings: &AppSettings) -> DesiredMicrophone {
-        if let Some(clamshell_microphone) = &settings.clamshell_microphone {
-            let clamshell_started = Instant::now();
-            let is_clamshell = clamshell::is_clamshell().unwrap_or(false);
-            debug!(
-                "device resolve: clamshell_check={:?} (clamshell={})",
-                clamshell_started.elapsed(),
-                is_clamshell
-            );
-            if is_clamshell {
-                return DesiredMicrophone::Clamshell(clamshell_microphone.clone());
-            }
-        }
-        match &settings.selected_microphone {
-            Some(name) => DesiredMicrophone::Selected(name.clone()),
-            None => DesiredMicrophone::Default,
-        }
-    }
-
     pub fn invalidate_device_cache(&self) {
         *self.cached_device.lock().unwrap() = None;
     }
 
     fn resolve_microphone_device(&self, settings: &AppSettings) -> MicrophoneResolution {
-        let desired = self.desired_microphone(settings);
+        let desired = desired_microphone(settings);
         let (device_name, selected_microphone) = match desired {
             DesiredMicrophone::Default => {
                 debug!("device resolve: no mic configured -> system default");
