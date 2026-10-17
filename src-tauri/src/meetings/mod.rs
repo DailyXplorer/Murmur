@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use chrono::TimeZone;
-use log::{error, info};
+use log::{error, info, warn};
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, Manager};
@@ -469,8 +469,8 @@ impl MeetingsManager {
         let app_data = app.path().app_data_dir()?;
         let root: PathBuf = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
-        let (store, startup) =
-            MeetingsStore::open(app_data.join("meetings.db"), chrono::Utc::now());
+        let now = chrono::Utc::now();
+        let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
         info!("Meetings database: {startup:?}");
         match &startup {
             DatabaseStartup::Reset { moved_to } => {
@@ -478,15 +478,26 @@ impl MeetingsManager {
                     error!("Failed to set aside the recordings of the reset library: {error}");
                 }
             }
-            // Only a library that opened as it was says which folders are
-            // orphans: deletions that failed finish here.
-            DatabaseStartup::Ready => match store.ids() {
-                Ok(ids) => match paths::remove_orphans(&root, &ids) {
+            // Only a library that opened says which folders no row points to.
+            DatabaseStartup::Ready => {
+                match paths::remove_stale(&root) {
                     0 => {}
-                    count => info!("Removed {count} orphan meeting folder(s)"),
-                },
-                Err(error) => error!("Failed to list meetings: {error}"),
-            },
+                    count => info!("Removed {count} stale meeting folder(s)"),
+                }
+                let aside =
+                    app_data.join(format!("meetings.orphaned-{}", now.format("%Y%m%d-%H%M%S")));
+                let moved = store
+                    .ids()
+                    .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));
+                match moved {
+                    Ok(0) => {}
+                    Ok(count) => warn!(
+                        "Moved {count} meeting folder(s) no meeting points to into {}",
+                        aside.display()
+                    ),
+                    Err(error) => error!("Failed to set aside orphan meeting folders: {error}"),
+                }
+            }
             DatabaseStartup::Unavailable => {}
         }
         match store.recover_interrupted(&root) {

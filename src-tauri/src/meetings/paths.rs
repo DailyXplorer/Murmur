@@ -111,11 +111,13 @@ pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBu
     Ok(dir)
 }
 
-/// Deletes the folders no meeting owns any more: those of deleted meetings
-/// whose deletion failed, and those `fresh_meeting_dir` moved aside. No
-/// screen lists them, so nothing else ever would. `meetings` holds the id
-/// of every meeting in the library. Returns how many went.
-pub fn remove_orphans(root: &Path, meetings: &HashSet<i64>) -> usize {
+/// Deletes the folders `fresh_meeting_dir` moved aside: they were given up
+/// on, and no screen lists them, so nothing else ever would. Returns how
+/// many went.
+pub fn remove_stale(root: &Path) -> usize {
+    if fs::symlink_metadata(root).is_ok_and(|root| root.file_type().is_symlink()) {
+        return 0;
+    }
     let Ok(entries) = fs::read_dir(root) else {
         return 0;
     };
@@ -125,27 +127,42 @@ pub fn remove_orphans(root: &Path, meetings: &HashSet<i64>) -> usize {
         let Some(name) = name.to_str() else {
             continue;
         };
-        let result = if let Ok(id) = name.parse::<i64>() {
-            if meetings.contains(&id) {
-                continue;
-            }
-            remove_meeting_dir(root, id)
-        } else if name
+        let is_stale = name
             .split_once(".stale-")
-            .is_some_and(|(id, _)| id.parse::<i64>().is_ok())
-            && entry.file_type().is_ok_and(|kind| kind.is_dir())
-            && !fs::symlink_metadata(root).is_ok_and(|root| root.file_type().is_symlink())
-        {
-            fs::remove_dir_all(entry.path())
-        } else {
+            .is_some_and(|(id, _)| id.parse::<i64>().is_ok());
+        if !is_stale || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
             continue;
-        };
-        match result {
+        }
+        match fs::remove_dir_all(entry.path()) {
             Ok(()) => removed += 1,
-            Err(error) => log::warn!("Cannot delete the orphan meeting folder {name}: {error}"),
+            Err(error) => log::warn!("Cannot delete the stale meeting folder {name}: {error}"),
         }
     }
     removed
+}
+
+/// Moves the meeting folders no row points to into `aside`
+/// (`meetings.orphaned-<time>`). A missing row does not mean the user
+/// deleted the meeting: `meetings.db` may have been recreated empty, after
+/// it was lost or moved. Deleting would lose that audio, and leaving it
+/// would let a new meeting that gets the same id delete it. Returns how
+/// many moved.
+pub fn set_aside_orphans(root: &Path, meetings: &HashSet<i64>, aside: &Path) -> io::Result<usize> {
+    let mut moved = 0;
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let is_orphan = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<i64>().ok())
+            .is_some_and(|id| !meetings.contains(&id));
+        if is_orphan && entry.file_type()?.is_dir() {
+            fs::create_dir_all(aside)?;
+            fs::rename(entry.path(), aside.join(entry.file_name()))?;
+            moved += 1;
+        }
+    }
+    Ok(moved)
 }
 
 /// Deletes the named files of a meeting, those that exist. A symlink is
@@ -183,22 +200,60 @@ mod tests {
     }
 
     #[test]
-    fn folders_of_deleted_meetings_are_removed_and_the_rest_kept() {
+    fn stale_folders_are_removed_and_the_rest_kept() {
         let root = tempfile::tempdir().unwrap();
-        for name in ["1", "2", "3.stale-1700000000000", "models"] {
+        for name in ["1", "3.stale-1700000000000", "models"] {
             fs::create_dir_all(root.path().join(name)).unwrap();
             fs::write(root.path().join(name).join(MIC_TRACK), b"audio").unwrap();
         }
         let outside = tempfile::tempdir().unwrap();
         symlink(outside.path(), root.path().join("4.stale-1")).unwrap();
 
-        assert_eq!(remove_orphans(root.path(), &HashSet::from([1])), 2);
+        assert_eq!(remove_stale(root.path()), 1);
 
         assert!(root.path().join("1").join(MIC_TRACK).exists());
         assert!(root.path().join("models").join(MIC_TRACK).exists());
-        assert!(!root.path().join("2").exists());
         assert!(!root.path().join("3.stale-1700000000000").exists());
         assert!(outside.path().exists());
+    }
+
+    #[test]
+    fn a_library_recreated_empty_never_deletes_the_recordings() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("7")).unwrap();
+        fs::write(root.path().join("7").join(AUDIO_FILE), b"audio").unwrap();
+
+        assert_eq!(remove_stale(root.path()), 0);
+
+        assert!(root.path().join("7").join(AUDIO_FILE).exists());
+    }
+
+    #[test]
+    fn folders_no_row_points_to_are_set_aside_and_the_rest_kept() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("meetings");
+        for name in ["1", "2", "models"] {
+            fs::create_dir_all(root.join(name)).unwrap();
+            fs::write(root.join(name).join(MIC_TRACK), b"audio").unwrap();
+        }
+        let aside = parent.path().join("meetings.orphaned-20261017-101500");
+
+        assert_eq!(
+            set_aside_orphans(&root, &HashSet::from([1]), &aside).unwrap(),
+            1
+        );
+
+        assert!(root.join("1").join(MIC_TRACK).exists());
+        assert!(root.join("models").join(MIC_TRACK).exists());
+        assert!(aside.join("2").join(MIC_TRACK).exists());
+        assert!(!root.join("2").exists());
+
+        let untouched = parent.path().join("meetings.orphaned-later");
+        assert_eq!(
+            set_aside_orphans(&root, &HashSet::from([1]), &untouched).unwrap(),
+            0
+        );
+        assert!(!untouched.exists());
     }
 
     #[test]
