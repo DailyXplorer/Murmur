@@ -6,15 +6,19 @@ import type {
   AudioDevice,
   HistoryEntry,
   InsightsSummary,
+  MeetingDetail,
   MeetingListItem,
+  MeetingProgress,
   MeetingRuntime,
 } from "../../src/bindings";
+import { events } from "../../src/bindings";
 
 declare global {
   interface Window {
     settingsPages: {
       unhandledCommands: string[];
       calls: { command: string; args: unknown }[];
+      emitProgress: (progress: MeetingProgress) => Promise<void>;
     };
   }
 }
@@ -27,6 +31,8 @@ const appleIntelligence = params.get("apple") ?? "available";
 const meetingsEnabled = params.get("meetings") === "1";
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
+const meetingFailed = params.get("meetingFailed") === "1";
+const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -110,7 +116,7 @@ const SETTINGS: AppSettings = {
   show_whats_new_on_update: false,
   sound_theme: "marimba",
   start_hidden: false,
-  theme: "light",
+  theme,
   transcription_provider: "codex",
   update_checks_enabled: true,
   whats_new_last_seen_version: "1.3.7",
@@ -193,9 +199,9 @@ const MEETINGS: MeetingListItem[] = [
     duration_ms: 72 * MINUTE_MS + 5_000,
     id: 3,
     started_at_ms: NOW * 1000 - 26 * HOUR * 1000,
-    status: "processing",
-    title: null,
-    tracks: "mic",
+    status: meetingFailed ? "failed" : "ready",
+    title: "Point hebdo produit",
+    tracks: "both",
   },
   {
     duration_ms: 9 * MINUTE_MS + 41_000,
@@ -216,10 +222,99 @@ const MEETING_RUNTIME: MeetingRuntime = meetingRecording
     }
   : { state: "idle" };
 
+const SECOND_MS = 1000;
+const turn = (speaker_key: string, start_s: number, text: string) => ({
+  end_ms: (start_s + 4) * SECOND_MS,
+  low_confidence: true,
+  speaker_key,
+  start_ms: start_s * SECOND_MS,
+  text,
+});
+const detailOf = (item: MeetingListItem): MeetingDetail => ({
+  ...item,
+  error: item.status === "failed" ? "parts_failed" : null,
+  speakers:
+    item.id === 3
+      ? [
+          { color_index: 0, default_name: "Me", key: "me", name: "Me" },
+          {
+            color_index: 1,
+            default_name: "Speaker 2",
+            key: "s1",
+            name: "Speaker 2",
+          },
+        ]
+      : [],
+  stage: item.status === "processing" ? "transcribing" : null,
+  turns:
+    item.id === 3
+      ? [
+          turn("s1", 4, "Bonjour à tous, on commence par le point produit ?"),
+          turn(
+            "me",
+            9,
+            "Oui. La nouvelle page d'accueil est prête pour la revue de jeudi.",
+          ),
+          turn("me", 15, "Il reste deux écrans à finaliser, rien de bloquant."),
+          turn(
+            "s1",
+            31,
+            "Parfait. Et l'intégration avec la plateforme de paiement ?",
+          ),
+          turn(
+            "me",
+            38,
+            "Elle est déjà en test. On vise une mise en production début novembre.",
+          ),
+          ...(meetingFailed
+            ? [{ ...turn("_system", 600, ""), end_ms: 1_200_000 }]
+            : []),
+          turn("s1", 1_262, "Super, je préviens l'équipe support."),
+          turn(
+            "me",
+            1_270,
+            "Let's also schedule a quick demo for the sales team next week.",
+          ),
+          turn("s1", 1_278, "Sounds good, I'll send the invite."),
+        ]
+      : [],
+});
+const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
+const MARKDOWN = "# Point hebdo produit\n\n## Transcript\n";
+
+/** Commands whose answer depends on their arguments or changes the data. */
+const handleMeetingCommand = (
+  command: string,
+  args: Record<string, unknown>,
+): { handled: boolean; value?: unknown } => {
+  const meeting = DETAILS.get(args.id as number);
+  switch (command) {
+    case "get_meeting":
+      // A copy, as the real IPC returns: React sees each load as new data.
+      return { handled: true, value: structuredClone(meeting) };
+    case "rename_meeting":
+      if (meeting) {
+        const title = String(args.title).trim();
+        meeting.title = title === "" ? null : title;
+      }
+      return { handled: true, value: null };
+    case "rename_speaker":
+      meeting?.speakers.forEach((speaker) => {
+        if (speaker.key === args.key) speaker.name = String(args.name);
+      });
+      return { handled: true, value: null };
+    default:
+      return { handled: false };
+  }
+};
+
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   delete_meeting: null,
   discard_meeting: null,
+  export_meeting_markdown: "/Users/user/Documents/2025-10-08 Point hebdo.md",
+  get_meeting_markdown: MARKDOWN,
+  retry_meeting: null,
   get_meeting_capabilities: { system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
   get_meetings: { has_more: false, meetings: MEETINGS },
@@ -253,11 +348,20 @@ const RESPONSES: Record<string, unknown> = {
   "plugin:updater|check": null,
 };
 
-window.settingsPages = { unhandledCommands: [], calls: [] };
+window.settingsPages = {
+  unhandledCommands: [],
+  calls: [],
+  emitProgress: (progress) => events.meetingProgress.emit(progress),
+};
 
 mockIPC(
   (command, args) => {
     window.settingsPages.calls.push({ command, args });
+    const meeting = handleMeetingCommand(
+      command,
+      (args ?? {}) as Record<string, unknown>,
+    );
+    if (meeting.handled) return meeting.value;
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
       window.settingsPages.unhandledCommands.push(command);

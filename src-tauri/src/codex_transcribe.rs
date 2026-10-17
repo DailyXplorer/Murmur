@@ -3,6 +3,7 @@ use hound::WavSpec;
 use log::warn;
 use serde::Deserialize;
 use std::io::Cursor;
+use std::path::Path;
 use std::time::Duration;
 
 use crate::codex_auth::{self, Session};
@@ -11,7 +12,7 @@ use crate::ProcessingOperation;
 
 pub use crate::codex_auth::CodexAuthStatus;
 
-const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcribe";
+pub(crate) const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcribe";
 const SAMPLE_RATE: u32 = 16_000;
 const WAV_BYTES_PER_SAMPLE: usize = 2;
 
@@ -56,6 +57,18 @@ pub async fn transcribe(
     language: Option<&str>,
     operation: &ProcessingOperation,
 ) -> Result<String> {
+    transcribe_at(TRANSCRIBE_URL, None, samples, language, operation).await
+}
+
+/// `transcribe` against `url`, with the session in `auth_path` (the Codex
+/// default when `None`).
+pub(crate) async fn transcribe_at(
+    url: &str,
+    auth_path: Option<&Path>,
+    samples: &[f32],
+    language: Option<&str>,
+    operation: &ProcessingOperation,
+) -> Result<String> {
     if samples.is_empty() {
         return Ok(String::new());
     }
@@ -64,7 +77,10 @@ pub async fn transcribe(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
-    let auth_path = codex_auth::auth_path()?;
+    let auth_path = match auth_path {
+        Some(path) => path.to_path_buf(),
+        None => codex_auth::auth_path()?,
+    };
     let mut session = codex_auth::session_for_request(&auth_path).await?;
     let mut recovered_from_unauthorized = false;
     let mut retries = 0;
@@ -73,16 +89,12 @@ pub async fn transcribe(
         if operation.is_cancelled() {
             return Err(anyhow!("Codex transcription cancelled"));
         }
-        let error =
-            match transcribe_with_session_at(TRANSCRIBE_URL, &session, &wav, language, operation)
-                .await
-            {
-                Ok(text) => return Ok(text),
-                Err(RequestError::Cancelled) => {
-                    return Err(anyhow!("Codex transcription cancelled"))
-                }
-                Err(RequestError::Failed(error)) => error,
-            };
+        let error = match transcribe_with_session_at(url, &session, &wav, language, operation).await
+        {
+            Ok(text) => return Ok(text),
+            Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
+            Err(RequestError::Failed(error)) => error,
+        };
 
         // Like Codex: on the first 401, refresh once and resend once.
         if error.kind == FailureKind::SessionExpired && !recovered_from_unauthorized {

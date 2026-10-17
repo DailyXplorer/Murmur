@@ -552,7 +552,64 @@
     "title": "Nuevo en Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Las transcripciones y los resúmenes llegarán en una versión posterior. Las grabaciones se conservan hasta entonces.",
+    "notice": "Las transcripciones aparecen cuando se procesa la reunión. Los resúmenes llegarán en una versión posterior.",
+    "view": {
+      "back": "Todas las reuniones",
+      "titleLabel": "Título de la reunión",
+      "loadError": "No se pudo cargar esta reunión.",
+      "renameError": "No se pudo cambiar el nombre de la reunión.",
+      "tabs": {
+        "label": "Contenido de la reunión",
+        "summary": "Resumen",
+        "transcript": "Transcripción",
+        "summarySoon": "Los resúmenes llegarán en una versión posterior."
+      }
+    },
+    "processing": {
+      "waiting": "Esperando para procesarse…",
+      "transcribing": "Transcribiendo: {{done}} de {{total}} partes listas…",
+      "rateLimited": "Codex pidió ir más despacio. El procesamiento se reanudará solo…",
+      "aligning": "Ordenando la conversación…",
+      "interrupted": "La grabación se interrumpió. Lo grabado aún se puede transcribir.",
+      "process": "Transcribir",
+      "retry": "Reintentar",
+      "retryError": "No se pudo reintentar el procesamiento.",
+      "errors": {
+        "signed_out": "Inicia sesión en Codex y vuelve a intentarlo.",
+        "rate_limited": "Codex está limitando las solicitudes ahora. Vuelve a intentarlo más tarde.",
+        "parts_failed": "Algunas partes no se pudieron transcribir.",
+        "no_audio": "No se pudo leer la grabación.",
+        "other": "El procesamiento se detuvo de forma inesperada."
+      }
+    },
+    "transcript": {
+      "header": "Participantes: {{count}} · {{duration}}",
+      "empty": "No se transcribió ninguna voz.",
+      "pending": "La transcripción aparecerá aquí cuando se procese la reunión.",
+      "missingPart": "No se pudo transcribir la parte {{start}}–{{end}}.",
+      "search": "Buscar en la transcripción",
+      "searchPlaceholder": "Buscar",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Sin resultados",
+      "previousMatch": "Resultado anterior",
+      "nextMatch": "Resultado siguiente",
+      "closeSearch": "Cerrar búsqueda",
+      "copy": "Copiar transcripción",
+      "copied": "Transcripción copiada.",
+      "copyError": "No se pudo copiar la transcripción.",
+      "export": "Exportar como Markdown",
+      "exported": "Transcripción guardada.",
+      "exportError": "No se pudo guardar la transcripción.",
+      "renameSpeakers": "Renombrar participantes",
+      "renameSpeaker": "Renombrar a {{name}}"
+    },
+    "renameDialog": {
+      "title": "Renombrar participantes",
+      "description": "El nuevo nombre aparece en toda la reunión.",
+      "nameLabel": "Nombre para {{name}}",
+      "save": "Guardar",
+      "error": "No se pudo renombrar al participante."
+    },
     "recording": {
       "title": "Grabación",
       "idle": "Ninguna reunión en curso",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Grabando",
       "interrupted": "Interrumpida",
-      "processing": "Grabada",
+      "processing": "Procesando",
       "ready": "Lista",
       "failed": "Fallida"
     }

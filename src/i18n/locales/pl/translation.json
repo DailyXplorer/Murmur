@@ -552,7 +552,64 @@
     "title": "Nowości w Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkrypcje i podsumowania pojawią się w późniejszej wersji. Do tego czasu nagrania są przechowywane.",
+    "notice": "Transkrypcje pojawiają się po przetworzeniu spotkania. Podsumowania pojawią się w późniejszej wersji.",
+    "view": {
+      "back": "Wszystkie spotkania",
+      "titleLabel": "Tytuł spotkania",
+      "loadError": "Nie udało się wczytać tego spotkania.",
+      "renameError": "Nie udało się zmienić nazwy spotkania.",
+      "tabs": {
+        "label": "Zawartość spotkania",
+        "summary": "Podsumowanie",
+        "transcript": "Transkrypcja",
+        "summarySoon": "Podsumowania pojawią się w późniejszej wersji."
+      }
+    },
+    "processing": {
+      "waiting": "Oczekuje na przetworzenie…",
+      "transcribing": "Transkrypcja: gotowe części {{done}} z {{total}}…",
+      "rateLimited": "Codex poprosił o zwolnienie tempa. Przetwarzanie wznowi się samo…",
+      "aligning": "Porządkowanie rozmowy…",
+      "interrupted": "Nagrywanie zostało przerwane. Nagrany fragment nadal można przepisać.",
+      "process": "Przepisz",
+      "retry": "Ponów",
+      "retryError": "Nie udało się ponowić przetwarzania.",
+      "errors": {
+        "signed_out": "Zaloguj się do Codex i spróbuj ponownie.",
+        "rate_limited": "Codex ogranicza teraz liczbę żądań. Spróbuj później.",
+        "parts_failed": "Niektórych części nie udało się przepisać.",
+        "no_audio": "Nie udało się odczytać nagrania.",
+        "other": "Przetwarzanie nieoczekiwanie się zatrzymało."
+      }
+    },
+    "transcript": {
+      "header": "Mówcy: {{count}} · {{duration}}",
+      "empty": "Nie przepisano żadnej wypowiedzi.",
+      "pending": "Transkrypcja pojawi się tutaj po przetworzeniu spotkania.",
+      "missingPart": "Nie udało się przepisać części {{start}}–{{end}}.",
+      "search": "Szukaj w transkrypcji",
+      "searchPlaceholder": "Szukaj",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Brak wyników",
+      "previousMatch": "Poprzedni wynik",
+      "nextMatch": "Następny wynik",
+      "closeSearch": "Zamknij wyszukiwanie",
+      "copy": "Kopiuj transkrypcję",
+      "copied": "Skopiowano transkrypcję.",
+      "copyError": "Nie udało się skopiować transkrypcji.",
+      "export": "Eksportuj jako Markdown",
+      "exported": "Zapisano transkrypcję.",
+      "exportError": "Nie udało się zapisać transkrypcji.",
+      "renameSpeakers": "Zmień nazwy mówców",
+      "renameSpeaker": "Zmień nazwę: {{name}}"
+    },
+    "renameDialog": {
+      "title": "Zmień nazwy mówców",
+      "description": "Nowa nazwa pojawi się wszędzie w tym spotkaniu.",
+      "nameLabel": "Nazwa dla: {{name}}",
+      "save": "Zapisz",
+      "error": "Nie udało się zmienić nazwy mówcy."
+    },
     "recording": {
       "title": "Nagrywanie",
       "idle": "Brak trwającego spotkania",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Nagrywanie",
       "interrupted": "Przerwane",
-      "processing": "Nagrane",
+      "processing": "Przetwarzanie",
       "ready": "Gotowe",
       "failed": "Niepowodzenie"
     }

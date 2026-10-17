@@ -14,6 +14,7 @@ import {
   type SystemAudioSupport,
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
+import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -45,16 +46,18 @@ const useNow = (active: boolean) => {
   return now;
 };
 
-const formatMeetingDate = (milliseconds: number, locale: string) =>
-  new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(milliseconds));
-
 export const MeetingsPage: React.FC = () => {
+  const [selected, setSelected] = useState<number | null>(null);
+  return selected === null ? (
+    <MeetingsList onOpen={setSelected} />
+  ) : (
+    <MeetingView id={selected} onBack={() => setSelected(null)} />
+  );
+};
+
+const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
+  onOpen,
+}) => {
   const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
   const [runtime, setRuntime] = useState<MeetingRuntime>({ state: "idle" });
@@ -108,9 +111,13 @@ export const MeetingsPage: React.FC = () => {
       setRuntime(event.payload);
       void loadMeetings(null);
     });
+    const updated = events.meetingsUpdated.listen(() => {
+      void loadMeetings(null);
+    });
     return () => {
       disposed = true;
       void unlisten.then((stop) => stop());
+      void updated.then((stop) => stop());
     };
   }, [loadMeetings]);
 
@@ -264,7 +271,12 @@ export const MeetingsPage: React.FC = () => {
                   key={meeting.id}
                   className="flex min-h-12 items-center gap-3 px-4 py-2"
                 >
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    disabled={live}
+                    onClick={() => onOpen(meeting.id)}
+                    className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-default"
+                  >
                     <p className="truncate text-sm font-medium">
                       {meeting.title ?? t("meetings.list.untitled", { date })}
                     </p>
@@ -278,7 +290,7 @@ export const MeetingsPage: React.FC = () => {
                         status: t(STATUS_KEYS[meeting.status]),
                       })}
                     </p>
-                  </div>
+                  </button>
                   <Button
                     variant="ghost"
                     size="icon"

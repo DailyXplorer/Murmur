@@ -552,7 +552,64 @@
     "title": "Murmur v{{version}} の新機能"
   },
   "meetings": {
-    "notice": "文字起こしと要約は今後のバージョンで追加されます。それまで録音は保持されます。",
+    "notice": "会議の処理が終わると文字起こしが表示されます。要約は今後のバージョンで追加されます。",
+    "view": {
+      "back": "すべての会議",
+      "titleLabel": "会議のタイトル",
+      "loadError": "この会議を読み込めませんでした。",
+      "renameError": "会議の名前を変更できませんでした。",
+      "tabs": {
+        "label": "会議の内容",
+        "summary": "要約",
+        "transcript": "文字起こし",
+        "summarySoon": "要約は今後のバージョンで追加されます。"
+      }
+    },
+    "processing": {
+      "waiting": "処理を待っています…",
+      "transcribing": "文字起こし中：{{total}} 件中 {{done}} 件完了…",
+      "rateLimited": "Codex から速度を落とすよう求められました。処理は自動で再開されます…",
+      "aligning": "会話を時系列に並べています…",
+      "interrupted": "録音が中断されました。録音済みの部分は文字起こしできます。",
+      "process": "文字起こしする",
+      "retry": "再試行",
+      "retryError": "処理を再試行できませんでした。",
+      "errors": {
+        "signed_out": "Codex にサインインしてから再試行してください。",
+        "rate_limited": "現在 Codex がリクエストを制限しています。しばらくしてから再試行してください。",
+        "parts_failed": "一部を文字起こしできませんでした。",
+        "no_audio": "録音を読み込めませんでした。",
+        "other": "処理が予期せず停止しました。"
+      }
+    },
+    "transcript": {
+      "header": "話者：{{count}} · {{duration}}",
+      "empty": "文字起こしされた発話はありません。",
+      "pending": "会議の処理が終わると、ここに文字起こしが表示されます。",
+      "missingPart": "{{start}}〜{{end}} の部分を文字起こしできませんでした。",
+      "search": "文字起こしを検索",
+      "searchPlaceholder": "検索",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "一致なし",
+      "previousMatch": "前の一致",
+      "nextMatch": "次の一致",
+      "closeSearch": "検索を閉じる",
+      "copy": "文字起こしをコピー",
+      "copied": "文字起こしをコピーしました。",
+      "copyError": "文字起こしをコピーできませんでした。",
+      "export": "Markdown として書き出す",
+      "exported": "文字起こしを保存しました。",
+      "exportError": "文字起こしを保存できませんでした。",
+      "renameSpeakers": "話者の名前を変更",
+      "renameSpeaker": "{{name}} の名前を変更"
+    },
+    "renameDialog": {
+      "title": "話者の名前を変更",
+      "description": "新しい名前はこの会議のすべての箇所に反映されます。",
+      "nameLabel": "{{name}} の名前",
+      "save": "保存",
+      "error": "話者の名前を変更できませんでした。"
+    },
     "recording": {
       "title": "録音",
       "idle": "進行中の会議はありません",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "録音中",
       "interrupted": "中断",
-      "processing": "録音済み",
+      "processing": "処理中",
       "ready": "準備完了",
       "failed": "失敗"
     }

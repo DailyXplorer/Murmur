@@ -552,7 +552,64 @@
     "title": "Novità in Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Trascrizioni e riepiloghi arriveranno in una versione successiva. Fino ad allora le registrazioni vengono conservate.",
+    "notice": "Le trascrizioni compaiono quando la riunione è stata elaborata. I riepiloghi arriveranno in una versione successiva.",
+    "view": {
+      "back": "Tutte le riunioni",
+      "titleLabel": "Titolo della riunione",
+      "loadError": "Impossibile caricare questa riunione.",
+      "renameError": "Impossibile rinominare la riunione.",
+      "tabs": {
+        "label": "Contenuto della riunione",
+        "summary": "Riepilogo",
+        "transcript": "Trascrizione",
+        "summarySoon": "I riepiloghi arriveranno in una versione successiva."
+      }
+    },
+    "processing": {
+      "waiting": "In attesa di elaborazione…",
+      "transcribing": "Trascrizione: {{done}} parti su {{total}} completate…",
+      "rateLimited": "Codex chiede di rallentare. L’elaborazione riprenderà da sola…",
+      "aligning": "Riordino della conversazione…",
+      "interrupted": "La registrazione è stata interrotta. Quanto registrato può comunque essere trascritto.",
+      "process": "Trascrivi",
+      "retry": "Riprova",
+      "retryError": "Impossibile riavviare l’elaborazione.",
+      "errors": {
+        "signed_out": "Accedi a Codex, poi riprova.",
+        "rate_limited": "Codex sta limitando le richieste in questo momento. Riprova più tardi.",
+        "parts_failed": "Alcune parti non sono state trascritte.",
+        "no_audio": "Impossibile leggere la registrazione.",
+        "other": "L’elaborazione si è interrotta in modo imprevisto."
+      }
+    },
+    "transcript": {
+      "header": "Partecipanti: {{count}} · {{duration}}",
+      "empty": "Non è stato trascritto alcun parlato.",
+      "pending": "La trascrizione comparirà qui quando la riunione sarà elaborata.",
+      "missingPart": "Impossibile trascrivere la parte {{start}}–{{end}}.",
+      "search": "Cerca nella trascrizione",
+      "searchPlaceholder": "Cerca",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Nessun risultato",
+      "previousMatch": "Risultato precedente",
+      "nextMatch": "Risultato successivo",
+      "closeSearch": "Chiudi ricerca",
+      "copy": "Copia trascrizione",
+      "copied": "Trascrizione copiata.",
+      "copyError": "Impossibile copiare la trascrizione.",
+      "export": "Esporta in Markdown",
+      "exported": "Trascrizione salvata.",
+      "exportError": "Impossibile salvare la trascrizione.",
+      "renameSpeakers": "Rinomina partecipanti",
+      "renameSpeaker": "Rinomina {{name}}"
+    },
+    "renameDialog": {
+      "title": "Rinomina partecipanti",
+      "description": "Il nuovo nome compare ovunque in questa riunione.",
+      "nameLabel": "Nome per {{name}}",
+      "save": "Salva",
+      "error": "Impossibile rinominare il partecipante."
+    },
     "recording": {
       "title": "Registrazione",
       "idle": "Nessuna riunione in corso",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "In registrazione",
       "interrupted": "Interrotta",
-      "processing": "Registrata",
+      "processing": "In elaborazione",
       "ready": "Pronta",
       "failed": "Non riuscita"
     }

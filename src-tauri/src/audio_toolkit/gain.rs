@@ -6,13 +6,14 @@
 //! could read words into. A soft limiter keeps amplified peaks below full
 //! scale.
 
-const FRAME: usize = 320;
+/// 20 ms at 16 kHz.
+pub(crate) const FRAME: usize = 320;
 const TARGET_SPEECH_DBFS: f32 = -20.0;
 /// Below this a gain change is inaudible to the recogniser; leave audio as is.
 const MIN_USEFUL_GAIN_DB: f32 = 3.0;
 const MIN_SPEECH_FRAMES: usize = 10;
 /// Frames below this hold no signal at all, not even a microphone's hiss.
-const DIGITAL_SILENCE_DBFS: f32 = -100.0;
+pub(crate) const DIGITAL_SILENCE_DBFS: f32 = -100.0;
 /// Speech must stand this far above the noise floor to be treated as speech.
 const SPEECH_OVER_NOISE_DB: f32 = 9.0;
 /// Amplified background must stay below this, whatever the speech level.
@@ -51,7 +52,8 @@ fn from_db(db: f32) -> f32 {
     10f32.powf(db / 20.0)
 }
 
-fn frame_levels(samples: &[f32]) -> Vec<f32> {
+/// The level in dBFS of each 20 ms frame of 16 kHz audio.
+pub(crate) fn frame_levels(samples: &[f32]) -> Vec<f32> {
     samples
         .chunks(FRAME)
         .map(|frame| {

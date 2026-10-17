@@ -39,7 +39,7 @@ mod window_names;
 
 pub use cli::CliArgs;
 pub use operation::{OperationId, PastePermit, ProcessingOperation};
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, collect_events, Builder};
 
@@ -61,7 +61,7 @@ use crate::single_instance_actions::{
     action_from_args, SingleInstanceAction, SingleInstanceActionQueue,
 };
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<String> {
     let pattern = regex::Regex::new(r"error:\s*e\s+as\s+any")
         .expect("generated-binding error pattern is valid");
@@ -451,11 +451,9 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     0
 }
 
-/// Starts the Tauri application and shuts down transcription on process exit.
-pub fn run(cli_args: CliArgs) {
-    let console_filter = build_console_filter();
-
-    let specta_builder = Builder::<tauri::Wry>::new()
+/// Every command and event the webview can use.
+fn specta_builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             shortcut::change_binding,
             shortcut::reset_binding,
@@ -542,6 +540,12 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::discard_meeting,
             commands::meetings::get_meetings,
             commands::meetings::delete_meeting,
+            commands::meetings::get_meeting,
+            commands::meetings::rename_meeting,
+            commands::meetings::rename_speaker,
+            commands::meetings::retry_meeting,
+            commands::meetings::get_meeting_markdown,
+            commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
             commands::meetings::open_system_audio_privacy_settings,
             commands::meetings::change_meetings_enabled_setting,
@@ -550,19 +554,31 @@ pub fn run(cli_args: CliArgs) {
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
             insights::InsightsUpdated,
-            meetings::MeetingStateChanged
-        ]);
+            meetings::MeetingStateChanged,
+            meetings::MeetingsUpdated,
+            meetings::processor::MeetingProgress
+        ])
+}
+
+/// The contents of `src/bindings.ts`.
+#[cfg(any(debug_assertions, test))]
+fn typescript_bindings(builder: &Builder<tauri::Wry>) -> String {
+    let generated = builder
+        .export_str(Typescript::default().bigint(BigIntExportBehavior::Number))
+        .expect("Failed to generate typescript bindings");
+    normalize_generated_bindings_source(&generated)
+        .expect("Failed to normalize typescript binding errors")
+}
+
+/// Starts the Tauri application and shuts down transcription on process exit.
+pub fn run(cli_args: CliArgs) {
+    let console_filter = build_console_filter();
+
+    let specta_builder = specta_builder();
 
     #[cfg(debug_assertions)]
-    {
-        let generated = specta_builder
-            .export_str(Typescript::default().bigint(BigIntExportBehavior::Number))
-            .expect("Failed to generate typescript bindings");
-        let normalized = normalize_generated_bindings_source(&generated)
-            .expect("Failed to normalize typescript binding errors");
-        std::fs::write("../src/bindings.ts", normalized)
-            .expect("Failed to export typescript bindings");
-    }
+    std::fs::write("../src/bindings.ts", typescript_bindings(&specta_builder))
+        .expect("Failed to export typescript bindings");
 
     let invoke_handler = specta_builder.invoke_handler();
 
@@ -830,6 +846,21 @@ mod headless_guard_tests {
         assert!(!settings_window_needs_order_out(false, false));
         assert!(!settings_window_needs_order_out(true, true));
         assert!(!settings_window_needs_order_out(false, true));
+    }
+
+    /// `MURMUR_WRITE_BINDINGS=1 cargo test bindings_are_current` rewrites the
+    /// file after a command or event changes, without launching the app.
+    #[test]
+    fn bindings_are_current() {
+        let generated = super::typescript_bindings(&super::specta_builder());
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/bindings.ts");
+        if std::env::var_os("MURMUR_WRITE_BINDINGS").is_some() {
+            std::fs::write(path, &generated).unwrap();
+        }
+        assert!(
+            std::fs::read_to_string(path).unwrap() == generated,
+            "src/bindings.ts is stale: run with MURMUR_WRITE_BINDINGS=1"
+        );
     }
 
     #[test]

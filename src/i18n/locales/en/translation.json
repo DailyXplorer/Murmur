@@ -552,7 +552,64 @@
     }
   },
   "meetings": {
-    "notice": "Transcripts and summaries arrive in a later version. Recordings are kept until then.",
+    "notice": "Transcripts appear once a meeting is processed. Summaries arrive in a later version.",
+    "view": {
+      "back": "All Meetings",
+      "titleLabel": "Meeting Title",
+      "loadError": "Couldn't load this meeting.",
+      "renameError": "Couldn't rename the meeting.",
+      "tabs": {
+        "label": "Meeting Content",
+        "summary": "Summary",
+        "transcript": "Transcript",
+        "summarySoon": "Summaries arrive in a later version."
+      }
+    },
+    "processing": {
+      "waiting": "Waiting to be processed…",
+      "transcribing": "Transcribing: {{done}} of {{total}} parts done…",
+      "rateLimited": "Codex asked to slow down. Processing resumes on its own…",
+      "aligning": "Putting the conversation in order…",
+      "interrupted": "The recording was interrupted. What was recorded can still be transcribed.",
+      "process": "Transcribe",
+      "retry": "Retry",
+      "retryError": "Couldn't retry processing.",
+      "errors": {
+        "signed_out": "Sign in to Codex, then retry.",
+        "rate_limited": "Codex is limiting requests right now. Retry later.",
+        "parts_failed": "Some parts couldn't be transcribed.",
+        "no_audio": "The recording couldn't be read.",
+        "other": "Processing stopped unexpectedly."
+      }
+    },
+    "transcript": {
+      "header": "Speakers: {{count}} · {{duration}}",
+      "empty": "No speech was transcribed.",
+      "pending": "The transcript appears here once the meeting is processed.",
+      "missingPart": "Part {{start}}–{{end}} couldn't be transcribed.",
+      "search": "Search Transcript",
+      "searchPlaceholder": "Search",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "No matches",
+      "previousMatch": "Previous Match",
+      "nextMatch": "Next Match",
+      "closeSearch": "Close Search",
+      "copy": "Copy Transcript",
+      "copied": "Transcript copied.",
+      "copyError": "Couldn't copy the transcript.",
+      "export": "Export as Markdown",
+      "exported": "Transcript saved.",
+      "exportError": "Couldn't save the transcript.",
+      "renameSpeakers": "Rename Speakers",
+      "renameSpeaker": "Rename {{name}}"
+    },
+    "renameDialog": {
+      "title": "Rename Speakers",
+      "description": "A new name shows everywhere in this meeting.",
+      "nameLabel": "Name for {{name}}",
+      "save": "Save",
+      "error": "Couldn't rename the speaker."
+    },
     "recording": {
       "title": "Recording",
       "idle": "No meeting in progress",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Recording",
       "interrupted": "Interrupted",
-      "processing": "Recorded",
+      "processing": "Processing",
       "ready": "Ready",
       "failed": "Failed"
     }

@@ -1,0 +1,245 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const fixture = "/tests/fixtures/settings-pages.html?meetings=1";
+
+const openMeeting = async (page: Page, title: RegExp, query = "") => {
+  await page.goto(`${fixture}${query}`);
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Meetings", exact: true })
+    .click();
+  await page.getByRole("button", { name: title }).click();
+};
+
+const callsTo = (page: Page, command: string) =>
+  page.evaluate(
+    (name) =>
+      window.settingsPages.calls
+        .filter((call) => call.command === name)
+        .map((call) => call.args),
+    command,
+  );
+
+const bubbles = (page: Page) =>
+  page.getByRole("list", { name: "Transcript" }).getByRole("listitem");
+
+test("a meeting shows its transcript in order, with a name at each change of speaker", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+
+  await expect(page.getByLabel("Meeting Title")).toHaveValue(
+    "Point hebdo produit",
+  );
+  await expect(page.getByRole("tab", { name: "Transcript" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByRole("tab", { name: "Summary" })).toBeDisabled();
+  await expect(page.getByText("Speakers: 2 · 1:12:05")).toBeVisible();
+
+  const items = bubbles(page);
+  await expect(items).toHaveCount(8);
+  await expect(items.nth(0)).toContainText("Speaker 2");
+  await expect(items.nth(0)).toContainText("on commence par le point produit");
+  await expect(items.nth(1)).toContainText("Me");
+  // The user's second bubble continues without repeating the name.
+  await expect(items.nth(2).getByRole("button")).toHaveCount(0);
+  await expect(items.nth(3)).toContainText("Speaker 2");
+  await expect(page.locator("article [role=alert]")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => window.settingsPages.unhandledCommands),
+  ).toEqual([]);
+});
+
+test("the title saves on Enter and reverts on Escape", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  const title = page.getByLabel("Meeting Title");
+
+  await title.fill("Revue produit");
+  await title.press("Escape");
+  await expect(title).toHaveValue("Point hebdo produit");
+  expect(await callsTo(page, "rename_meeting")).toEqual([]);
+
+  await title.fill("Revue produit");
+  await title.press("Enter");
+  await expect
+    .poll(() => callsTo(page, "rename_meeting"))
+    .toEqual([{ id: 3, title: "Revue produit" }]);
+  await expect(title).toHaveValue("Revue produit");
+});
+
+test("search ignores case and accents and cycles through the matches", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await page.getByRole("button", { name: "Search Transcript" }).click();
+  const search = page.getByRole("textbox", { name: "Search Transcript" });
+
+  await search.fill("INTEGRATION");
+  await expect(page.getByText("1/1")).toBeVisible();
+  await expect(page.locator("mark")).toHaveText("intégration");
+
+  await search.fill("pr");
+  await expect(page.getByText("1/4")).toBeVisible();
+  await search.press("Enter");
+  await expect(page.getByText("2/4")).toBeVisible();
+  await search.press("Shift+Enter");
+  await search.press("Shift+Enter");
+  await expect(page.getByText("4/4")).toBeVisible();
+  await expect(page.locator("mark[data-current]")).toHaveCount(1);
+
+  await search.fill("zzz");
+  await expect(page.getByText("No matches")).toBeVisible();
+  await search.press("Escape");
+  await expect(page.locator("mark")).toHaveCount(0);
+  await expect(page.getByText("Speakers: 2 · 1:12:05")).toBeVisible();
+});
+
+test("clicking a speaker's name renames them everywhere", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await bubbles(page).nth(0).getByRole("button", { name: "Speaker 2" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  const field = dialog.getByRole("textbox", { name: "Name for Speaker 2" });
+  await expect(field).toBeFocused();
+  await field.fill("Camille");
+  await dialog.getByRole("button", { name: "Save" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  expect(await callsTo(page, "rename_speaker")).toEqual([
+    { id: 3, key: "s1", name: "Camille" },
+  ]);
+  await expect(
+    bubbles(page).getByRole("button", { name: "Camille" }),
+  ).toHaveCount(4);
+  await expect(
+    bubbles(page).getByRole("button", { name: "Speaker 2" }),
+  ).toHaveCount(0);
+});
+
+test("the rename dialog opens from the header and saves nothing unchanged", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await page.getByRole("button", { name: "Rename Speakers" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  await expect(dialog.getByRole("textbox")).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "Name for Me" }).fill(" ");
+  await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(await callsTo(page, "rename_speaker")).toEqual([]);
+});
+
+test("copy puts the same Markdown as export on the clipboard", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openMeeting(page, /Point hebdo produit/);
+
+  await page.getByRole("button", { name: "Copy Transcript" }).click();
+  await expect(page.getByText("Transcript copied.")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "# Point hebdo produit\n\n## Transcript\n",
+  );
+
+  await page.getByRole("button", { name: "Export as Markdown" }).click();
+  await expect(page.getByText("Transcript saved.")).toBeVisible();
+  expect(await callsTo(page, "export_meeting_markdown")).toEqual([{ id: 3 }]);
+});
+
+test("processing shows live progress, including a rate-limit pause", async ({
+  page,
+}) => {
+  await openMeeting(page, /47:12 · Processing/);
+  const status = page.locator("article [role=status]");
+  await expect(status).toContainText("Waiting to be processed…");
+  await expect(
+    page.getByText(
+      "The transcript appears here once the meeting is processed.",
+    ),
+  ).toBeVisible();
+
+  const emit = (progress: object) =>
+    page.evaluate(
+      (payload) =>
+        window.settingsPages.emitProgress(
+          payload as Parameters<typeof window.settingsPages.emitProgress>[0],
+        ),
+      progress,
+    );
+  await emit({
+    chunks_done: 2,
+    chunks_total: 5,
+    id: 4,
+    rate_limited: false,
+    stage: "transcribing",
+  });
+  await expect(status).toContainText("Transcribing: 2 of 5 parts done…");
+  await expect(page.getByRole("progressbar")).toHaveAttribute(
+    "aria-valuenow",
+    "40",
+  );
+  await emit({
+    chunks_done: 2,
+    chunks_total: 5,
+    id: 4,
+    rate_limited: true,
+    stage: "transcribing",
+  });
+  await expect(status).toContainText("Codex asked to slow down.");
+  // Another meeting's progress is ignored.
+  await emit({
+    chunks_done: 1,
+    chunks_total: 1,
+    id: 3,
+    rate_limited: false,
+    stage: "aligning",
+  });
+  await expect(status).toContainText("Codex asked to slow down.");
+  await emit({
+    chunks_done: 5,
+    chunks_total: 5,
+    id: 4,
+    rate_limited: false,
+    stage: "aligning",
+  });
+  await expect(status).toContainText("Putting the conversation in order…");
+});
+
+test("a meeting with failed parts shows them in place and retries them", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&meetingFailed=1");
+
+  await expect(page.locator("article [role=alert]")).toContainText(
+    "Some parts couldn't be transcribed.",
+  );
+  const missing = bubbles(page).filter({
+    hasText: "Part 10:00–20:00 couldn't be transcribed.",
+  });
+  await expect(missing).toHaveCount(1);
+  await missing.getByRole("button", { name: "Retry" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
+  // After the gap, the remote speaker is named again.
+  await expect(bubbles(page).nth(6)).toContainText("Speaker 2");
+});
+
+test("an interrupted recording can be transcribed, and Back returns to the list", async ({
+  page,
+}) => {
+  await openMeeting(page, /09:41 · Interrupted/);
+  await expect(page.locator("article [role=alert]")).toContainText(
+    "The recording was interrupted.",
+  );
+  await page.getByRole("button", { name: "Transcribe" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 2 }]);
+
+  await page.getByRole("button", { name: "All Meetings" }).click();
+  await expect(
+    page.getByRole("button", { name: "Start Meeting" }),
+  ).toBeVisible();
+  await expect(page.getByRole("listitem")).toHaveCount(3);
+});

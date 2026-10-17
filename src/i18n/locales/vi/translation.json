@@ -552,7 +552,64 @@
     "title": "Điểm mới trong Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Bản chép lời và bản tóm tắt sẽ có trong phiên bản sau. Các bản ghi được giữ đến lúc đó.",
+    "notice": "Bản chép lời xuất hiện sau khi cuộc họp được xử lý. Bản tóm tắt sẽ có trong phiên bản sau.",
+    "view": {
+      "back": "Tất cả cuộc họp",
+      "titleLabel": "Tiêu đề cuộc họp",
+      "loadError": "Không thể tải cuộc họp này.",
+      "renameError": "Không thể đổi tên cuộc họp.",
+      "tabs": {
+        "label": "Nội dung cuộc họp",
+        "summary": "Tóm tắt",
+        "transcript": "Bản chép lời",
+        "summarySoon": "Bản tóm tắt sẽ có trong phiên bản sau."
+      }
+    },
+    "processing": {
+      "waiting": "Đang chờ xử lý…",
+      "transcribing": "Đang chép lời: xong {{done}}/{{total}} phần…",
+      "rateLimited": "Codex yêu cầu giảm tốc độ. Quá trình xử lý sẽ tự tiếp tục…",
+      "aligning": "Đang sắp xếp cuộc trò chuyện…",
+      "interrupted": "Bản ghi đã bị gián đoạn. Phần đã ghi vẫn có thể được chép lời.",
+      "process": "Chép lời",
+      "retry": "Thử lại",
+      "retryError": "Không thể thử xử lý lại.",
+      "errors": {
+        "signed_out": "Hãy đăng nhập Codex rồi thử lại.",
+        "rate_limited": "Codex đang giới hạn yêu cầu. Hãy thử lại sau.",
+        "parts_failed": "Một số phần không thể chép lời.",
+        "no_audio": "Không thể đọc bản ghi.",
+        "other": "Quá trình xử lý dừng đột ngột."
+      }
+    },
+    "transcript": {
+      "header": "Người nói: {{count}} · {{duration}}",
+      "empty": "Không có lời nói nào được chép.",
+      "pending": "Bản chép lời sẽ xuất hiện ở đây sau khi cuộc họp được xử lý.",
+      "missingPart": "Không thể chép lời phần {{start}}–{{end}}.",
+      "search": "Tìm trong bản chép lời",
+      "searchPlaceholder": "Tìm",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Không có kết quả",
+      "previousMatch": "Kết quả trước",
+      "nextMatch": "Kết quả tiếp theo",
+      "closeSearch": "Đóng tìm kiếm",
+      "copy": "Sao chép bản chép lời",
+      "copied": "Đã sao chép bản chép lời.",
+      "copyError": "Không thể sao chép bản chép lời.",
+      "export": "Xuất dưới dạng Markdown",
+      "exported": "Đã lưu bản chép lời.",
+      "exportError": "Không thể lưu bản chép lời.",
+      "renameSpeakers": "Đổi tên người nói",
+      "renameSpeaker": "Đổi tên {{name}}"
+    },
+    "renameDialog": {
+      "title": "Đổi tên người nói",
+      "description": "Tên mới sẽ hiển thị ở mọi nơi trong cuộc họp này.",
+      "nameLabel": "Tên cho {{name}}",
+      "save": "Lưu",
+      "error": "Không thể đổi tên người nói."
+    },
     "recording": {
       "title": "Ghi âm",
       "idle": "Không có cuộc họp nào",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Đang ghi",
       "interrupted": "Bị gián đoạn",
-      "processing": "Đã ghi",
+      "processing": "Đang xử lý",
       "ready": "Sẵn sàng",
       "failed": "Thất bại"
     }

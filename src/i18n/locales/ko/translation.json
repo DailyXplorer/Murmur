@@ -552,7 +552,64 @@
     "title": "Murmur v{{version}}의 새 소식"
   },
   "meetings": {
-    "notice": "받아쓰기와 요약은 이후 버전에서 제공됩니다. 그때까지 녹음은 보관됩니다.",
+    "notice": "회의가 처리되면 받아쓰기가 표시됩니다. 요약은 이후 버전에서 제공됩니다.",
+    "view": {
+      "back": "모든 회의",
+      "titleLabel": "회의 제목",
+      "loadError": "이 회의를 불러올 수 없습니다.",
+      "renameError": "회의 이름을 변경할 수 없습니다.",
+      "tabs": {
+        "label": "회의 내용",
+        "summary": "요약",
+        "transcript": "받아쓰기",
+        "summarySoon": "요약은 이후 버전에서 제공됩니다."
+      }
+    },
+    "processing": {
+      "waiting": "처리 대기 중…",
+      "transcribing": "받아쓰는 중: {{total}}개 중 {{done}}개 완료…",
+      "rateLimited": "Codex가 속도를 늦춰 달라고 요청했습니다. 처리는 자동으로 재개됩니다…",
+      "aligning": "대화를 순서대로 정리하는 중…",
+      "interrupted": "녹음이 중단되었습니다. 녹음된 부분은 여전히 받아쓸 수 있습니다.",
+      "process": "받아쓰기",
+      "retry": "다시 시도",
+      "retryError": "처리를 다시 시도할 수 없습니다.",
+      "errors": {
+        "signed_out": "Codex에 로그인한 후 다시 시도하세요.",
+        "rate_limited": "현재 Codex가 요청을 제한하고 있습니다. 나중에 다시 시도하세요.",
+        "parts_failed": "일부 구간을 받아쓸 수 없었습니다.",
+        "no_audio": "녹음을 읽을 수 없습니다.",
+        "other": "처리가 예기치 않게 중단되었습니다."
+      }
+    },
+    "transcript": {
+      "header": "화자: {{count}} · {{duration}}",
+      "empty": "받아쓴 음성이 없습니다.",
+      "pending": "회의가 처리되면 여기에 받아쓰기가 표시됩니다.",
+      "missingPart": "{{start}}–{{end}} 구간을 받아쓸 수 없었습니다.",
+      "search": "받아쓰기 검색",
+      "searchPlaceholder": "검색",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "일치 항목 없음",
+      "previousMatch": "이전 항목",
+      "nextMatch": "다음 항목",
+      "closeSearch": "검색 닫기",
+      "copy": "받아쓰기 복사",
+      "copied": "받아쓰기를 복사했습니다.",
+      "copyError": "받아쓰기를 복사할 수 없습니다.",
+      "export": "Markdown으로 내보내기",
+      "exported": "받아쓰기를 저장했습니다.",
+      "exportError": "받아쓰기를 저장할 수 없습니다.",
+      "renameSpeakers": "화자 이름 변경",
+      "renameSpeaker": "{{name}} 이름 변경"
+    },
+    "renameDialog": {
+      "title": "화자 이름 변경",
+      "description": "새 이름은 이 회의의 모든 곳에 표시됩니다.",
+      "nameLabel": "{{name}}의 이름",
+      "save": "저장",
+      "error": "화자 이름을 변경할 수 없습니다."
+    },
     "recording": {
       "title": "녹음",
       "idle": "진행 중인 회의 없음",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "녹음 중",
       "interrupted": "중단됨",
-      "processing": "녹음됨",
+      "processing": "처리 중",
       "ready": "준비됨",
       "failed": "실패"
     }

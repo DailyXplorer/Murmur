@@ -552,7 +552,64 @@
     "title": "חדש ב-Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "תמלולים וסיכומים יגיעו בגרסה מאוחרת יותר. ההקלטות נשמרות עד אז.",
+    "notice": "תמלולים מופיעים אחרי שהפגישה מעובדת. סיכומים יגיעו בגרסה מאוחרת יותר.",
+    "view": {
+      "back": "כל הפגישות",
+      "titleLabel": "כותרת הפגישה",
+      "loadError": "לא ניתן לטעון את הפגישה.",
+      "renameError": "לא ניתן לשנות את שם הפגישה.",
+      "tabs": {
+        "label": "תוכן הפגישה",
+        "summary": "סיכום",
+        "transcript": "תמלול",
+        "summarySoon": "סיכומים יגיעו בגרסה מאוחרת יותר."
+      }
+    },
+    "processing": {
+      "waiting": "ממתין לעיבוד…",
+      "transcribing": "מתמלל: הושלמו {{done}} מתוך {{total}} חלקים…",
+      "rateLimited": "Codex ביקש להאט. העיבוד ימשיך מעצמו…",
+      "aligning": "מסדר את השיחה…",
+      "interrupted": "ההקלטה נקטעה. עדיין אפשר לתמלל את מה שהוקלט.",
+      "process": "תמלול",
+      "retry": "ניסיון חוזר",
+      "retryError": "לא ניתן להפעיל מחדש את העיבוד.",
+      "errors": {
+        "signed_out": "יש להתחבר ל־Codex ולנסות שוב.",
+        "rate_limited": "Codex מגביל כרגע את הבקשות. כדאי לנסות שוב מאוחר יותר.",
+        "parts_failed": "לא ניתן היה לתמלל חלקים מסוימים.",
+        "no_audio": "לא ניתן לקרוא את ההקלטה.",
+        "other": "העיבוד נעצר באופן בלתי צפוי."
+      }
+    },
+    "transcript": {
+      "header": "דוברים: {{count}} · {{duration}}",
+      "empty": "לא תומלל דיבור.",
+      "pending": "התמלול יופיע כאן אחרי שהפגישה תעובד.",
+      "missingPart": "לא ניתן היה לתמלל את החלק {{start}}–{{end}}.",
+      "search": "חיפוש בתמלול",
+      "searchPlaceholder": "חיפוש",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "אין תוצאות",
+      "previousMatch": "התוצאה הקודמת",
+      "nextMatch": "התוצאה הבאה",
+      "closeSearch": "סגירת החיפוש",
+      "copy": "העתקת התמלול",
+      "copied": "התמלול הועתק.",
+      "copyError": "לא ניתן להעתיק את התמלול.",
+      "export": "ייצוא כ־Markdown",
+      "exported": "התמלול נשמר.",
+      "exportError": "לא ניתן לשמור את התמלול.",
+      "renameSpeakers": "שינוי שמות הדוברים",
+      "renameSpeaker": "שינוי השם של {{name}}"
+    },
+    "renameDialog": {
+      "title": "שינוי שמות הדוברים",
+      "description": "השם החדש יופיע בכל מקום בפגישה הזו.",
+      "nameLabel": "שם עבור {{name}}",
+      "save": "שמירה",
+      "error": "לא ניתן לשנות את שם הדובר."
+    },
     "recording": {
       "title": "הקלטה",
       "idle": "אין פגישה פעילה",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "מקליט",
       "interrupted": "נקטעה",
-      "processing": "הוקלטה",
+      "processing": "בעיבוד",
       "ready": "מוכנה",
       "failed": "נכשלה"
     }

@@ -552,7 +552,64 @@
     "title": "Novinky v Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Přepisy a shrnutí přijdou v pozdější verzi. Do té doby se nahrávky uchovávají.",
+    "notice": "Přepisy se zobrazí po zpracování schůzky. Shrnutí přijdou v pozdější verzi.",
+    "view": {
+      "back": "Všechny schůzky",
+      "titleLabel": "Název schůzky",
+      "loadError": "Tuto schůzku se nepodařilo načíst.",
+      "renameError": "Schůzku se nepodařilo přejmenovat.",
+      "tabs": {
+        "label": "Obsah schůzky",
+        "summary": "Shrnutí",
+        "transcript": "Přepis",
+        "summarySoon": "Shrnutí přijdou v pozdější verzi."
+      }
+    },
+    "processing": {
+      "waiting": "Čeká na zpracování…",
+      "transcribing": "Přepisování: hotovo {{done}} z {{total}} částí…",
+      "rateLimited": "Codex požádal o zpomalení. Zpracování bude pokračovat samo…",
+      "aligning": "Řazení konverzace…",
+      "interrupted": "Nahrávání bylo přerušeno. Nahranou část lze stále přepsat.",
+      "process": "Přepsat",
+      "retry": "Zkusit znovu",
+      "retryError": "Zpracování se nepodařilo spustit znovu.",
+      "errors": {
+        "signed_out": "Přihlaste se do Codexu a zkuste to znovu.",
+        "rate_limited": "Codex teď omezuje požadavky. Zkuste to později.",
+        "parts_failed": "Některé části se nepodařilo přepsat.",
+        "no_audio": "Nahrávku se nepodařilo přečíst.",
+        "other": "Zpracování se nečekaně zastavilo."
+      }
+    },
+    "transcript": {
+      "header": "Mluvčí: {{count}} · {{duration}}",
+      "empty": "Nebyla přepsána žádná řeč.",
+      "pending": "Přepis se zde zobrazí po zpracování schůzky.",
+      "missingPart": "Část {{start}}–{{end}} se nepodařilo přepsat.",
+      "search": "Hledat v přepisu",
+      "searchPlaceholder": "Hledat",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Žádné výsledky",
+      "previousMatch": "Předchozí výsledek",
+      "nextMatch": "Další výsledek",
+      "closeSearch": "Zavřít hledání",
+      "copy": "Kopírovat přepis",
+      "copied": "Přepis zkopírován.",
+      "copyError": "Přepis se nepodařilo zkopírovat.",
+      "export": "Exportovat jako Markdown",
+      "exported": "Přepis uložen.",
+      "exportError": "Přepis se nepodařilo uložit.",
+      "renameSpeakers": "Přejmenovat mluvčí",
+      "renameSpeaker": "Přejmenovat: {{name}}"
+    },
+    "renameDialog": {
+      "title": "Přejmenovat mluvčí",
+      "description": "Nové jméno se zobrazí všude v této schůzce.",
+      "nameLabel": "Jméno pro: {{name}}",
+      "save": "Uložit",
+      "error": "Mluvčího se nepodařilo přejmenovat."
+    },
     "recording": {
       "title": "Nahrávání",
       "idle": "Žádná probíhající schůzka",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Nahrává se",
       "interrupted": "Přerušeno",
-      "processing": "Nahráno",
+      "processing": "Zpracovává se",
       "ready": "Připraveno",
       "failed": "Selhalo"
     }

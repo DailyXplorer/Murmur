@@ -45,6 +45,8 @@ pub enum MeetingAlert {
 pub trait Notifier: Send {
     fn runtime_changed(&self, runtime: &MeetingRuntime);
     fn alert(&self, alert: MeetingAlert);
+    /// Meeting `id` was recorded and waits for processing.
+    fn recorded(&self, id: i64);
 }
 
 pub trait Clock: Send {
@@ -235,6 +237,9 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             .finish_recording(active.id, self.clock.unix_ms(), duration.as_millis() as i64)
             .map_err(storage);
         self.notifier.runtime_changed(&self.runtime());
+        if result.is_ok() {
+            self.notifier.recorded(active.id);
+        }
         result.map(|()| active.id)
     }
 
@@ -379,6 +384,9 @@ mod tests {
         fn alert(&self, alert: MeetingAlert) {
             self.0.push(format!("alert {alert:?}"));
         }
+        fn recorded(&self, _: i64) {
+            self.0.push("recorded");
+        }
     }
 
     #[derive(Clone)]
@@ -482,7 +490,8 @@ mod tests {
                 "recording Both",
                 "finish mic 90s",
                 "finish system 90s",
-                "idle"
+                "idle",
+                "recorded"
             ]
         );
         assert_eq!(h.coordinator.runtime(), MeetingRuntime::Idle);
@@ -602,6 +611,7 @@ mod tests {
                 "finish mic 10801s",
                 "finish system 10801s",
                 "idle",
+                "recorded",
                 "alert StoppedAtLimit"
             ]
         );
@@ -625,6 +635,7 @@ mod tests {
                 "finish mic 30s",
                 "finish system 30s",
                 "idle",
+                "recorded",
                 "alert WriteFailed"
             ]
         );

@@ -552,7 +552,64 @@
     }
   },
   "meetings": {
-    "notice": "Transcripties en samenvattingen komen in een latere versie. Tot die tijd blijven de opnames bewaard.",
+    "notice": "Transcripties verschijnen zodra een vergadering is verwerkt. Samenvattingen komen in een latere versie.",
+    "view": {
+      "back": "Alle vergaderingen",
+      "titleLabel": "Titel van de vergadering",
+      "loadError": "Kan deze vergadering niet laden.",
+      "renameError": "Kan de vergadering niet hernoemen.",
+      "tabs": {
+        "label": "Inhoud van de vergadering",
+        "summary": "Samenvatting",
+        "transcript": "Transcriptie",
+        "summarySoon": "Samenvattingen komen in een latere versie."
+      }
+    },
+    "processing": {
+      "waiting": "Wacht op verwerking…",
+      "transcribing": "Transcriberen: {{done}} van {{total}} delen klaar…",
+      "rateLimited": "Codex vraagt om het rustiger aan te doen. De verwerking gaat vanzelf verder…",
+      "aligning": "Gesprek wordt op volgorde gezet…",
+      "interrupted": "De opname is onderbroken. Wat is opgenomen, kan nog worden getranscribeerd.",
+      "process": "Transcriberen",
+      "retry": "Opnieuw proberen",
+      "retryError": "Kan de verwerking niet opnieuw starten.",
+      "errors": {
+        "signed_out": "Log in bij Codex en probeer het opnieuw.",
+        "rate_limited": "Codex beperkt op dit moment de verzoeken. Probeer het later opnieuw.",
+        "parts_failed": "Sommige delen konden niet worden getranscribeerd.",
+        "no_audio": "De opname kan niet worden gelezen.",
+        "other": "De verwerking is onverwacht gestopt."
+      }
+    },
+    "transcript": {
+      "header": "Sprekers: {{count}} · {{duration}}",
+      "empty": "Er is geen spraak getranscribeerd.",
+      "pending": "De transcriptie verschijnt hier zodra de vergadering is verwerkt.",
+      "missingPart": "Deel {{start}}–{{end}} kon niet worden getranscribeerd.",
+      "search": "Transcriptie doorzoeken",
+      "searchPlaceholder": "Zoeken",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Geen resultaten",
+      "previousMatch": "Vorig resultaat",
+      "nextMatch": "Volgend resultaat",
+      "closeSearch": "Zoeken sluiten",
+      "copy": "Transcriptie kopiëren",
+      "copied": "Transcriptie gekopieerd.",
+      "copyError": "Kan de transcriptie niet kopiëren.",
+      "export": "Exporteren als Markdown",
+      "exported": "Transcriptie bewaard.",
+      "exportError": "Kan de transcriptie niet bewaren.",
+      "renameSpeakers": "Sprekers hernoemen",
+      "renameSpeaker": "{{name}} hernoemen"
+    },
+    "renameDialog": {
+      "title": "Sprekers hernoemen",
+      "description": "Een nieuwe naam verschijnt overal in deze vergadering.",
+      "nameLabel": "Naam voor {{name}}",
+      "save": "Bewaren",
+      "error": "Kan de spreker niet hernoemen."
+    },
     "recording": {
       "title": "Opname",
       "idle": "Geen vergadering bezig",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Wordt opgenomen",
       "interrupted": "Onderbroken",
-      "processing": "Opgenomen",
+      "processing": "Wordt verwerkt",
       "ready": "Klaar",
       "failed": "Mislukt"
     }

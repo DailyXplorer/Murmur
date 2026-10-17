@@ -57,6 +57,8 @@ rodio = "0.21.1"
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
 strsim = "0.11.0"
+# Accent-insensitive word keys for meeting transcripts.
+unicode-normalization = "0.1"
 natural = "0.5.0"
 regex = "1"
 chrono = "0.4"

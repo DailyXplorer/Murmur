@@ -65,7 +65,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 - `signal_handle.rs` - `send_transcription_input()` reusable function
 - `cleanup/` - AI cleanup prompt and the Codex responses client
 - `dictionary/` - Learned words and the post-paste correction watcher
-- `meetings/` - Meeting recording behind `meetings_enabled`: microphone and system audio (Core Audio process tap in `swift/meeting_audio.swift`) streamed to two WAVs, the 3-hour cap, and the `meetings.db` library
+- `meetings/` - Meeting recording behind `meetings_enabled`: microphone and system audio (Core Audio process tap in `swift/meeting_audio.swift`) streamed to two WAVs, the 3-hour cap, and the `meetings.db` library. After a meeting stops, `processor.rs` splits each track at pauses (`chunking.rs`), sends the pieces to Codex (`transcribe.rs`, at most 3 at a time, resumable), and interleaves both tracks into the transcript (`spread.rs`, `merge.rs`)
 - `window_names.rs`, `accessibility.rs` - Name hints read from the frontmost window
 - `utils.rs` - Tray, window, and application helpers
 

@@ -32,8 +32,9 @@ test("lists meetings newest first with their duration and status", async ({
   const items = page.getByRole("listitem");
   await expect(items).toHaveCount(3);
   await expect(items.nth(0)).toContainText("Meeting · ");
-  await expect(items.nth(0)).toContainText("47:12 · Recorded");
-  await expect(items.nth(1)).toContainText("1:12:05 · Recorded");
+  await expect(items.nth(0)).toContainText("47:12 · Processing");
+  await expect(items.nth(1)).toContainText("Point hebdo produit");
+  await expect(items.nth(1)).toContainText("1:12:05 · Ready");
   await expect(items.nth(2)).toContainText("09:41 · Interrupted");
   await expect(
     page.getByRole("button", { name: "Start Meeting" }),

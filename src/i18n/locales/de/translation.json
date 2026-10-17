@@ -552,7 +552,64 @@
     "title": "Neu in Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkripte und Zusammenfassungen folgen in einer späteren Version. Bis dahin bleiben die Aufnahmen gespeichert.",
+    "notice": "Transkripte erscheinen, sobald ein Meeting verarbeitet ist. Zusammenfassungen folgen in einer späteren Version.",
+    "view": {
+      "back": "Alle Meetings",
+      "titleLabel": "Meeting-Titel",
+      "loadError": "Dieses Meeting konnte nicht geladen werden.",
+      "renameError": "Das Meeting konnte nicht umbenannt werden.",
+      "tabs": {
+        "label": "Meeting-Inhalt",
+        "summary": "Zusammenfassung",
+        "transcript": "Transkript",
+        "summarySoon": "Zusammenfassungen folgen in einer späteren Version."
+      }
+    },
+    "processing": {
+      "waiting": "Wartet auf Verarbeitung…",
+      "transcribing": "Transkription: {{done}} von {{total}} Teilen fertig…",
+      "rateLimited": "Codex bittet um eine Pause. Die Verarbeitung geht von selbst weiter…",
+      "aligning": "Gespräch wird geordnet…",
+      "interrupted": "Die Aufnahme wurde unterbrochen. Das Aufgenommene kann trotzdem transkribiert werden.",
+      "process": "Transkribieren",
+      "retry": "Erneut versuchen",
+      "retryError": "Die Verarbeitung konnte nicht neu gestartet werden.",
+      "errors": {
+        "signed_out": "Melde dich bei Codex an und versuche es erneut.",
+        "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
+        "parts_failed": "Einige Teile konnten nicht transkribiert werden.",
+        "no_audio": "Die Aufnahme konnte nicht gelesen werden.",
+        "other": "Die Verarbeitung wurde unerwartet beendet."
+      }
+    },
+    "transcript": {
+      "header": "Sprecher: {{count}} · {{duration}}",
+      "empty": "Es wurde keine Sprache transkribiert.",
+      "pending": "Das Transkript erscheint hier, sobald das Meeting verarbeitet ist.",
+      "missingPart": "Teil {{start}}–{{end}} konnte nicht transkribiert werden.",
+      "search": "Transkript durchsuchen",
+      "searchPlaceholder": "Suchen",
+      "matches": "{{current}}/{{total}}",
+      "noMatches": "Keine Treffer",
+      "previousMatch": "Vorheriger Treffer",
+      "nextMatch": "Nächster Treffer",
+      "closeSearch": "Suche schließen",
+      "copy": "Transkript kopieren",
+      "copied": "Transkript kopiert.",
+      "copyError": "Das Transkript konnte nicht kopiert werden.",
+      "export": "Als Markdown exportieren",
+      "exported": "Transkript gespeichert.",
+      "exportError": "Das Transkript konnte nicht gespeichert werden.",
+      "renameSpeakers": "Sprecher umbenennen",
+      "renameSpeaker": "{{name}} umbenennen"
+    },
+    "renameDialog": {
+      "title": "Sprecher umbenennen",
+      "description": "Ein neuer Name erscheint überall in diesem Meeting.",
+      "nameLabel": "Name für {{name}}",
+      "save": "Sichern",
+      "error": "Der Sprecher konnte nicht umbenannt werden."
+    },
     "recording": {
       "title": "Aufnahme",
       "idle": "Kein laufendes Meeting",
@@ -602,7 +659,7 @@
     "status": {
       "recording": "Aufnahme läuft",
       "interrupted": "Unterbrochen",
-      "processing": "Aufgenommen",
+      "processing": "Wird verarbeitet",
       "ready": "Fertig",
       "failed": "Fehlgeschlagen"
     }
