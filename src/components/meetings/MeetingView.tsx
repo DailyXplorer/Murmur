@@ -98,7 +98,28 @@ const ProcessingBanner: React.FC<{
   /** Absent when the meeting cannot be processed again. */
   onRetry?: () => void;
 }> = ({ meeting, progress, onRetry }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  if (meeting.status === "processing" && meeting.held_until_ms !== null) {
+    const time = new Intl.DateTimeFormat(i18n.language, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(meeting.held_until_ms));
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
+      >
+        <p className="flex-1 text-sm">
+          {t("meetings.processing.held", { time })}
+        </p>
+        {onRetry && (
+          <Button variant="secondary" onClick={onRetry}>
+            {t("meetings.processing.processNow")}
+          </Button>
+        )}
+      </div>
+    );
+  }
   if (meeting.status === "processing") {
     const fraction =
       progress && progress.chunks_total > 0
@@ -292,6 +313,17 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
       void progressed.then((stop) => stop());
     };
   }, [id, load]);
+
+  // The hold lifts on its own: nothing announces it to the waiting meetings.
+  const heldUntil = meeting?.held_until_ms ?? null;
+  useEffect(() => {
+    if (heldUntil === null) return;
+    const timer = setTimeout(
+      () => void load(),
+      Math.max(0, heldUntil - Date.now()) + 1000,
+    );
+    return () => clearTimeout(timer);
+  }, [heldUntil, load]);
 
   const retry = async () => {
     const result = await commands.retryMeeting(id);

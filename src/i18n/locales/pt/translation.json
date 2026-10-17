@@ -572,6 +572,8 @@
       "transcribing": "Transcrevendo: {{done}} de {{total}} partes concluídas…",
       "transcribingStarted": "Transcrevendo…",
       "rateLimited": "O Codex pediu para desacelerar. O processamento continua sozinho…",
+      "held": "O Codex está limitando as solicitações. O processamento continua às {{time}}.",
+      "processNow": "Processar agora",
       "aligning": "Organizando a conversa…",
       "analyzing": "Distinguindo os participantes…",
       "interrupted": "A gravação foi interrompida. O que foi gravado ainda pode ser transcrito.",

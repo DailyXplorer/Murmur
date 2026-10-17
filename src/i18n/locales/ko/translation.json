@@ -572,6 +572,8 @@
       "transcribing": "받아쓰는 중: {{total}}개 중 {{done}}개 완료…",
       "transcribingStarted": "받아쓰는 중…",
       "rateLimited": "Codex가 속도를 늦춰 달라고 요청했습니다. 처리는 자동으로 재개됩니다…",
+      "held": "Codex가 요청을 제한하고 있습니다. 처리는 {{time}}에 재개됩니다.",
+      "processNow": "지금 처리",
       "aligning": "대화를 순서대로 정리하는 중…",
       "analyzing": "화자를 구분하는 중…",
       "interrupted": "녹음이 중단되었습니다. 녹음된 부분은 여전히 받아쓸 수 있습니다.",

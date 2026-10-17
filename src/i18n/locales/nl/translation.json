@@ -572,6 +572,8 @@
       "transcribing": "Transcriberen: {{done}} van {{total}} delen klaar…",
       "transcribingStarted": "Bezig met transcriberen…",
       "rateLimited": "Codex vraagt om het rustiger aan te doen. De verwerking gaat vanzelf verder…",
+      "held": "Codex beperkt de verzoeken. De verwerking gaat om {{time}} verder.",
+      "processNow": "Nu verwerken",
       "aligning": "Gesprek wordt op volgorde gezet…",
       "analyzing": "Sprekers worden onderscheiden…",
       "interrupted": "De opname is onderbroken. Wat is opgenomen, kan nog worden getranscribeerd.",

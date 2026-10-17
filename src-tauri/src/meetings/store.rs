@@ -394,6 +394,9 @@ pub struct MeetingDetail {
     /// System audio was recorded as pure silence while the user spoke, which
     /// is what macOS gives when Murmur may not record system audio.
     pub system_audio_silent: bool,
+    /// When a Codex rate-limit hold stops keeping this queued meeting
+    /// waiting. Only the processing queue knows; the store never sets it.
+    pub held_until_ms: Option<i64>,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -694,6 +697,7 @@ impl MeetingsStore {
             },
             audio_bytes,
             system_audio_silent,
+            held_until_ms: None,
         }))
     }
 

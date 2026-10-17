@@ -572,6 +572,8 @@
       "transcribing": "Transcription : {{done}} parties sur {{total}} terminées…",
       "transcribingStarted": "Transcription en cours…",
       "rateLimited": "Codex demande de ralentir. Le traitement reprendra tout seul…",
+      "held": "Codex limite les requêtes. Le traitement reprendra à {{time}}.",
+      "processNow": "Traiter maintenant",
       "aligning": "Remise en ordre de la conversation…",
       "analyzing": "Identification des intervenants…",
       "interrupted": "L’enregistrement a été interrompu. Ce qui a été enregistré peut quand même être transcrit.",

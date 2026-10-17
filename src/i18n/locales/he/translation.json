@@ -572,6 +572,8 @@
       "transcribing": "מתמלל: הושלמו {{done}} מתוך {{total}} חלקים…",
       "transcribingStarted": "מתמלל…",
       "rateLimited": "Codex ביקש להאט. העיבוד ימשיך מעצמו…",
+      "held": "Codex מגביל את הבקשות. העיבוד ימשיך ב-{{time}}.",
+      "processNow": "עבד עכשיו",
       "aligning": "מסדר את השיחה…",
       "analyzing": "מבחין בין הדוברים…",
       "interrupted": "ההקלטה נקטעה. עדיין אפשר לתמלל את מה שהוקלט.",

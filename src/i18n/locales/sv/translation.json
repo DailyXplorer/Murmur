@@ -572,6 +572,8 @@
       "transcribing": "Transkriberar: {{done}} av {{total}} delar klara…",
       "transcribingStarted": "Transkriberar…",
       "rateLimited": "Codex bad om att sakta ner. Bearbetningen fortsätter av sig själv…",
+      "held": "Codex begränsar förfrågningarna. Bearbetningen fortsätter kl. {{time}}.",
+      "processNow": "Bearbeta nu",
       "aligning": "Samtalet sätts i ordning…",
       "analyzing": "Skiljer talarna åt…",
       "interrupted": "Inspelningen avbröts. Det som spelades in kan ändå transkriberas.",

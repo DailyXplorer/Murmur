@@ -572,6 +572,8 @@
       "transcribing": "Přepisování: hotovo {{done}} z {{total}} částí…",
       "transcribingStarted": "Přepisuje se…",
       "rateLimited": "Codex požádal o zpomalení. Zpracování bude pokračovat samo…",
+      "held": "Codex omezuje požadavky. Zpracování bude pokračovat v {{time}}.",
+      "processNow": "Zpracovat nyní",
       "aligning": "Řazení konverzace…",
       "analyzing": "Rozlišování mluvčích…",
       "interrupted": "Nahrávání bylo přerušeno. Nahranou část lze stále přepsat.",

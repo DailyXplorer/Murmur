@@ -572,6 +572,8 @@
       "transcribing": "Transkription: {{done}} von {{total}} Teilen fertig…",
       "transcribingStarted": "Wird transkribiert…",
       "rateLimited": "Codex bittet um eine Pause. Die Verarbeitung geht von selbst weiter…",
+      "held": "Codex begrenzt die Anfragen. Die Verarbeitung geht um {{time}} weiter.",
+      "processNow": "Jetzt verarbeiten",
       "aligning": "Gespräch wird geordnet…",
       "analyzing": "Sprecher werden unterschieden…",
       "interrupted": "Die Aufnahme wurde unterbrochen. Das Aufgenommene kann trotzdem transkribiert werden.",

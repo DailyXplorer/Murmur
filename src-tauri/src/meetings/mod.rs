@@ -236,6 +236,24 @@ impl ProcessingQueue {
         self.state().current = None;
     }
 
+    /// How much longer a rate-limit hold keeps queued meeting `id` waiting.
+    /// `None` when it is not waiting on one.
+    fn held_for(&self, id: i64) -> Option<Duration> {
+        let state = self.state();
+        let left = state
+            .held_until?
+            .checked_duration_since(tokio::time::Instant::now())?;
+        state
+            .queued
+            .iter()
+            .any(|queued| queued.id == id && !queued.asked)
+            .then_some(left)
+    }
+
+    fn queued(&self) -> Vec<i64> {
+        self.state().queued.iter().map(|queued| queued.id).collect()
+    }
+
     /// Stops processing meeting `id`. What was saved stays, and processing
     /// resumes from there next time.
     fn cancel(&self, id: i64) {
@@ -362,6 +380,14 @@ fn spawn_processing(
             // unfailed.
             if let Some(wait) = worker.codex_said(codex) {
                 info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+            }
+            // A hold that starts or lifts changes what their views say.
+            if codex != CodexVerdict::Unknown {
+                let events = AppEvents(app.clone());
+                worker
+                    .queued()
+                    .into_iter()
+                    .for_each(|id| events.updated(id));
             }
         }
     });
@@ -578,10 +604,15 @@ impl MeetingsManager {
     }
 
     pub fn detail(&self, id: i64) -> Result<MeetingDetail, String> {
-        self.store
+        let mut meeting = self
+            .store
             .get(id)
             .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("Meeting {id} does not exist"))
+            .ok_or_else(|| format!("Meeting {id} does not exist"))?;
+        meeting.held_until_ms = self.queue.held_for(id).map(|left| {
+            chrono::Utc::now().timestamp_millis() + i64::try_from(left.as_millis()).unwrap_or(0)
+        });
+        Ok(meeting)
     }
 
     fn updated(&self, id: i64) {
@@ -1029,6 +1060,19 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(1));
         queue.codex_said(CodexVerdict::RateLimited);
         assert_eq!(held_minutes(&queue), Some(30));
+    }
+
+    #[test]
+    fn a_meeting_kept_waiting_by_the_hold_says_for_how_long_until_asked_for() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(1);
+        assert_eq!(queue.held_for(1), None);
+        queue.hold(AN_HOUR);
+        let left = queue.held_for(1).unwrap();
+        assert!(left > AN_HOUR - Duration::from_secs(60) && left <= AN_HOUR);
+        assert_eq!(queue.held_for(2), None, "not queued");
+        queue.enqueue_asked(1);
+        assert_eq!(queue.held_for(1), None, "goes through the hold");
     }
 
     #[test]
