@@ -530,34 +530,43 @@ impl HistoryManager {
         }
     }
 
+    /// Deletes the unstarred entries among `entries` and their recordings, and
+    /// returns the ids of the rows it deleted. `saved` is checked again here:
+    /// the user may have starred an entry since the cleanup selected it.
     fn delete_entries_and_files_with_conn(
         conn: &Connection,
         recordings_dir: &Path,
         entries: &[(i64, String)],
-    ) -> Result<usize> {
-        if entries.is_empty() {
-            return Ok(0);
-        }
-
-        let mut deleted_count = 0;
+    ) -> Result<Vec<i64>> {
+        let mut deleted = Vec::new();
 
         for (id, file_name) in entries {
-            conn.execute(
-                "DELETE FROM transcription_history WHERE id = ?1",
+            let rows = conn.execute(
+                "DELETE FROM transcription_history WHERE id = ?1 AND saved = 0",
                 params![id],
             )?;
-
-            if Self::delete_recording_file(recordings_dir, file_name) {
-                deleted_count += 1;
+            if rows == 0 {
+                continue;
             }
+            Self::delete_recording_file(recordings_dir, file_name);
+            deleted.push(*id);
         }
 
-        Ok(deleted_count)
+        Ok(deleted)
     }
 
+    /// Deletes `entries` like `delete_entries_and_files_with_conn` and tells
+    /// the History page which rows went away.
     fn delete_entries_and_files(&self, entries: &[(i64, String)]) -> Result<usize> {
         let conn = self.get_connection()?;
-        Self::delete_entries_and_files_with_conn(&conn, &self.recordings_dir, entries)
+        let deleted =
+            Self::delete_entries_and_files_with_conn(&conn, &self.recordings_dir, entries)?;
+        for &id in &deleted {
+            if let Err(e) = (HistoryUpdatePayload::Deleted { id }).emit(&self.app_handle) {
+                error!("Failed to emit history-updated event: {}", e);
+            }
+        }
+        Ok(deleted.len())
     }
 
     fn cleanup_by_count(&self, limit: usize) -> Result<()> {
@@ -1214,7 +1223,7 @@ mod tests {
         )
         .expect("retain history entry with symlinked recordings root");
 
-        assert_eq!(deleted, 0);
+        assert_eq!(deleted, vec![id]);
         assert_eq!(
             std::fs::read_to_string(&sentinel).expect("read external sentinel"),
             "sentinel"
@@ -1288,7 +1297,7 @@ mod tests {
         )
         .expect("retain invalid history entry");
 
-        assert_eq!(deleted, 0);
+        assert_eq!(deleted, vec![id]);
         assert_eq!(
             std::fs::read_to_string(&sentinel).expect("read sentinel"),
             "sentinel"
@@ -1320,7 +1329,7 @@ mod tests {
         )
         .expect("retain valid history entry");
 
-        assert_eq!(deleted, 1);
+        assert_eq!(deleted, vec![id]);
         assert!(!recording.exists());
         let remaining: i64 = conn
             .query_row(
@@ -1330,6 +1339,41 @@ mod tests {
             )
             .expect("count history entries");
         assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn retention_keeps_an_entry_starred_after_it_was_selected() {
+        let temp = tempfile::tempdir().expect("create temporary directory");
+        let recordings_dir = temp.path().join("recordings");
+        std::fs::create_dir(&recordings_dir).expect("create recordings directory");
+        let recording = recordings_dir.join("murmur-100.wav");
+        std::fs::write(&recording, "wav").expect("write recording");
+        let conn = setup_conn();
+        let id = insert_entry_with_file_name(&conn, "murmur-100.wav");
+        // The user stars the entry between the cleanup's SELECT and its DELETE.
+        conn.execute(
+            "UPDATE transcription_history SET saved = 1 WHERE id = ?1",
+            params![id],
+        )
+        .expect("star history entry");
+
+        let deleted = HistoryManager::delete_entries_and_files_with_conn(
+            &conn,
+            &recordings_dir,
+            &[(id, "murmur-100.wav".to_string())],
+        )
+        .expect("retain history entries");
+
+        assert!(deleted.is_empty());
+        assert!(recording.exists());
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transcription_history WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("count history entries");
+        assert_eq!(remaining, 1);
     }
 
     #[test]

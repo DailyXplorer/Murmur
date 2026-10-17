@@ -52,8 +52,17 @@ const accentObserver = new MutationObserver(() => {
   if (accentColor) observedAccentColors.push(accentColor);
 });
 
-mockIPC((command) => {
+mockIPC((command, payload) => {
   calls.push(command);
+
+  // Tauri rejects a `null` for the command's `device_name: String`.
+  if (
+    command === "set_clamshell_microphone" &&
+    typeof (payload as { deviceName?: unknown } | undefined)?.deviceName !==
+      "string"
+  ) {
+    return Promise.reject("invalid type: null, expected a string");
+  }
 
   if (command === "get_app_settings") {
     if (deferredSettingsReadsRemaining > 0) {
@@ -107,6 +116,7 @@ const reset = async () => {
   localStorage.setItem("murmur.accent-color", "pink");
   useSettingsStore.setState({
     audioDevices: AUDIO_DEVICES,
+    defaultSettings: null,
     isLoading: false,
     isUpdating: {},
     settings: { ...INITIAL_SETTINGS },
@@ -147,6 +157,7 @@ declare global {
         result: boolean;
         theme: Theme | undefined;
       }>;
+      runClamshellResetProbe: () => Promise<string | null | undefined>;
       runConcurrentRefreshProbe: () => Promise<{
         refreshCalls: number;
         theme: Theme | undefined;
@@ -193,6 +204,16 @@ window.settingsWriteContract = {
   reset,
   resolveDeferredCommand: (index) => {
     deferredCommandResolvers[index]?.();
+  },
+  runClamshellResetProbe: async () => {
+    useSettingsStore.setState((state) => ({
+      defaultSettings: { ...INITIAL_SETTINGS, clamshell_microphone: null },
+      settings: state.settings
+        ? { ...state.settings, clamshell_microphone: PROPOSED_MICROPHONE }
+        : null,
+    }));
+    await useSettingsStore.getState().resetSetting("clamshell_microphone");
+    return useSettingsStore.getState().settings?.clamshell_microphone;
   },
   runConcurrentRefreshProbe: async () => {
     deferredSettingsReadsRemaining = 2;

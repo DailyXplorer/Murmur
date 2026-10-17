@@ -103,6 +103,54 @@ test("keeps an update that arrives while the first page is in flight", async ({
   ).toHaveCount(0);
 });
 
+test("removes an entry the backend deleted", async ({ page }) => {
+  await openRaceFixture(page);
+
+  const expiredEntry = historyEntry({ id: 404, transcription_text: "Expired" });
+  const keptEntry = historyEntry({ id: 405, transcription_text: "Kept" });
+  await page.evaluate(
+    (entries) => window.historyRace.resolveFirstPage(entries),
+    [keptEntry, expiredEntry],
+  );
+  await expect(page.getByText("Expired", { exact: true })).toBeVisible();
+
+  await page.evaluate(() =>
+    window.historyRace.emit({ action: "deleted", id: 404 }),
+  );
+
+  await expect(page.getByText("Expired", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Kept", { exact: true })).toBeVisible();
+});
+
+test("drops entries deleted while the first page is in flight", async ({
+  page,
+}) => {
+  await openRaceFixture(page);
+
+  const staleEntry = historyEntry({ id: 808, transcription_text: "Stale row" });
+  const addedEntry = historyEntry({ id: 809, transcription_text: "Added row" });
+  const keptEntry = historyEntry({ id: 807, transcription_text: "Kept row" });
+  await page.evaluate(
+    (entry) => window.historyRace.emit({ action: "added", entry }),
+    addedEntry,
+  );
+  await page.evaluate(async () => {
+    await window.historyRace.emit({ action: "deleted", id: 808 });
+    await window.historyRace.emit({ action: "deleted", id: 809 });
+  });
+  await page.evaluate(
+    (entries) => window.historyRace.resolveFirstPage(entries),
+    [staleEntry, keptEntry],
+  );
+  await page.waitForFunction(
+    () => window.historyRace.inFlightHistoryRequests() === 0,
+  );
+
+  await expect(page.getByText("Kept row", { exact: true })).toBeVisible();
+  await expect(page.getByText("Stale row", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Added row", { exact: true })).toHaveCount(0);
+});
+
 test("handles an unlisten rejection during cleanup", async ({ page }) => {
   await page.goto(
     "/tests/fixtures/history-settings-race.html?mode=unlisten-reject",

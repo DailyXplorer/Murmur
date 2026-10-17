@@ -51,6 +51,14 @@ test("restores the previous microphone after Rust rejects a runtime proposal", a
     .toEqual(["set_selected_microphone"]);
 });
 
+test("resets the clamshell microphone to the system default", async ({
+  page,
+}) => {
+  await expect(
+    page.evaluate(() => window.settingsWriteContract.runClamshellResetProbe()),
+  ).resolves.toBeNull();
+});
+
 test("serializes same-key writes and keeps the latest accepted value", async ({
   page,
 }) => {

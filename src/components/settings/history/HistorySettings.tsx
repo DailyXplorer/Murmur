@@ -159,6 +159,7 @@ export const HistorySettings: React.FC = () => {
   const pendingHistoryEntriesByIdRef = useRef<Map<number, PendingHistoryEntry>>(
     new Map(),
   );
+  const deletedDuringRequestIdsRef = useRef<Set<number>>(new Set());
 
   // Keep ref in sync for use in IntersectionObserver callback
   useEffect(() => {
@@ -186,7 +187,10 @@ export const HistorySettings: React.FC = () => {
         PAGE_SIZE,
       );
       if (result.status === "ok") {
-        const { entries: newEntries, has_more } = result.data;
+        const newEntries = result.data.entries.filter(
+          (entry) => !deletedDuringRequestIdsRef.current.has(entry.id),
+        );
+        const { has_more } = result.data;
         const pendingEntries = Array.from(
           pendingHistoryEntriesByIdRef.current.values(),
         ).filter(({ revision }) => revision > requestRevision);
@@ -208,6 +212,7 @@ export const HistorySettings: React.FC = () => {
       if (activeHistoryRequestRevisionRef.current === requestRevision) {
         activeHistoryRequestRevisionRef.current = null;
         pendingHistoryEntriesByIdRef.current.clear();
+        deletedDuringRequestIdsRef.current.clear();
       }
       if (queuedFirstPageRefreshRef.current) {
         queuedFirstPageRefreshRef.current = false;
@@ -277,9 +282,19 @@ export const HistorySettings: React.FC = () => {
             });
           }
           setEntries((prev) => upsertHistoryEntry(prev, payload.entry, false));
+        } else if (payload.action === "deleted") {
+          // Retention deletes rows the page still shows. Removing an id that
+          // an optimistic delete already removed changes nothing.
+          pendingHistoryEntriesByIdRef.current.delete(payload.id);
+          if (activeHistoryRequestRevisionRef.current !== null) {
+            deletedDuringRequestIdsRef.current.add(payload.id);
+          }
+          setEntries((prev) =>
+            prev.filter((existingEntry) => existingEntry.id !== payload.id),
+          );
         }
-        // "deleted" and "toggled" are handled by optimistic updates only,
-        // so we intentionally ignore them here to avoid double-mutation.
+        // "toggled" is handled by optimistic updates only, so we
+        // intentionally ignore it here to avoid double-mutation.
       })
       .then((stopListening) => {
         if (disposed) {
