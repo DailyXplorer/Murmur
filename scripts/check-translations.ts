@@ -4,7 +4,6 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Configuration
 const LOCALES_DIR = path.join(__dirname, "..", "src", "i18n", "locales");
 const REFERENCE_LANG = "en";
 
@@ -26,7 +25,6 @@ function getLanguages(): string[] {
 
 const LANGUAGES = getLanguages();
 
-// Colors for terminal output
 const colors: Record<string, string> = {
   reset: "\x1b[0m",
   red: "\x1b[31m",
@@ -92,7 +90,6 @@ function loadTranslationFile(lang: string): TranslationData | null {
 function validateTranslations(): void {
   console.log(colorize("\n🌍 Translation Consistency Check\n", "blue"));
 
-  // Load reference file
   console.log(`Loading reference language: ${REFERENCE_LANG}`);
   const referenceData = loadTranslationFile(REFERENCE_LANG);
 
@@ -103,15 +100,12 @@ function validateTranslations(): void {
     process.exit(1);
   }
 
-  // Get all key paths from reference
   const referenceKeyPaths = getAllKeyPaths(referenceData);
   console.log(`Reference has ${referenceKeyPaths.length} keys\n`);
 
-  // Track validation results
   let hasErrors = false;
   const results: Record<string, ValidationResult> = {};
 
-  // Validate each language
   for (const lang of LANGUAGES) {
     const langData = loadTranslationFile(lang);
 
@@ -121,12 +115,10 @@ function validateTranslations(): void {
       continue;
     }
 
-    // Find missing keys
     const missing = referenceKeyPaths.filter(
       (keyPath) => !hasKeyPath(langData, keyPath),
     );
 
-    // Find extra keys (keys in language but not in reference)
     const langKeyPaths = getAllKeyPaths(langData);
     const extra = langKeyPaths.filter(
       (keyPath) => !hasKeyPath(referenceData, keyPath),
@@ -143,7 +135,6 @@ function validateTranslations(): void {
     }
   }
 
-  // Print results
   console.log(colorize("Results:", "blue"));
   console.log("─".repeat(60));
 
@@ -197,7 +188,6 @@ function validateTranslations(): void {
 
   console.log("─".repeat(60));
 
-  // Summary
   const validCount = Object.values(results).filter((r) => r.valid).length;
   const totalCount = LANGUAGES.length;
 
@@ -220,5 +210,4 @@ function validateTranslations(): void {
   }
 }
 
-// Run validation
 validateTranslations();

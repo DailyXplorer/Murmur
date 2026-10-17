@@ -115,7 +115,6 @@ impl Drop for PendingWav {
     }
 }
 
-// Shortcut Action Trait
 pub trait ShortcutAction: Send + Sync {
     fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str);
     fn stop(
@@ -127,7 +126,6 @@ pub trait ShortcutAction: Send + Sync {
     );
 }
 
-// Transcribe Action
 struct TranscribeAction;
 
 async fn complete_unless_cancelled<F, C>(operation: F, is_cancelled: C) -> Option<F::Output>
@@ -205,7 +203,6 @@ async fn maybe_convert_chinese_variant(
         effective_language
     );
 
-    // Use OpenCC to convert based on selected language
     let config = if is_simplified {
         // Convert Traditional Chinese to Simplified Chinese
         BuiltinConfig::Tw2sp
@@ -321,7 +318,6 @@ impl ShortcutAction for TranscribeAction {
         change_tray_icon(app, TrayIconState::Recording);
         let tray_elapsed = tray_started.elapsed();
 
-        // Get the microphone mode to determine audio feedback timing
         let plan_started = Instant::now();
         let settings = get_settings(app);
         let is_always_on = settings.always_on_microphone;
@@ -470,10 +466,9 @@ impl ShortcutAction for TranscribeAction {
         // Unmute before playing audio feedback so the stop sound is audible
         rm.remove_mute();
 
-        // Play audio feedback for recording stop
         play_feedback_sound(app, SoundType::Stop);
 
-        let binding_id = binding_id.to_string(); // Clone binding_id for the async task
+        let binding_id = binding_id.to_string();
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -538,7 +533,6 @@ impl ShortcutAction for TranscribeAction {
                         .transcribe_with_provider(samples, operation.clone(), provider)
                         .await;
 
-                    // Await WAV save and verify
                     let wav_saved = match wav_handle {
                         None => false,
                         Some(wav_handle) => match wav_handle.await {
@@ -709,7 +703,6 @@ impl ShortcutAction for TranscribeAction {
     }
 }
 
-// Cancel Action
 struct CancelAction;
 
 impl ShortcutAction for CancelAction {

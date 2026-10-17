@@ -78,7 +78,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   useEffect(() => () => endCapture(shortcutId), [shortcutId, endCapture]);
 
   useEffect(() => {
-    // Only add event listeners when we're in editing mode
     if (editingShortcutId === null) return;
 
     let cleanup = false;
@@ -101,7 +100,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
           }),
         );
 
-        // Reset to original binding on error
         if (originalBinding) {
           try {
             await updateBinding(editingShortcutId, originalBinding);
@@ -124,7 +122,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     // keys' keyup, so waiting for every key to be released never ends.
     const handleKeyDown = (e: KeyboardEvent) => {
       if (cleanup) return;
-      if (e.repeat) return; // ignore auto-repeat
+      if (e.repeat) return;
       e.preventDefault();
 
       const key = normalizeKey(getKeyName(e));
@@ -150,7 +148,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       setHeldModifiers(modifiersHeld(e));
     };
 
-    // Add click outside handler
     const handleClickOutside = async (e: MouseEvent) => {
       if (cleanup) return;
       const activeElement = shortcutRefs.current.get(editingShortcutId);
@@ -171,11 +168,9 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     };
   }, [editingShortcutId, bindings, originalBinding, updateBinding, endCapture]);
 
-  // Start recording a new shortcut
   const startRecording = (id: string) => {
-    if (editingShortcutId === id) return; // Already editing this shortcut
+    if (editingShortcutId === id) return;
 
-    // Store the original binding to restore if the change fails
     setOriginalBinding(bindings[id]?.current_binding || "");
     setHeldModifiers([]);
     // Suspends all bindings so no shortcut fires (or swallows the
@@ -183,21 +178,17 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     beginCapture(id);
   };
 
-  // Format the current shortcut keys being recorded
   const formatCurrentKeys = (): string => {
     if (heldModifiers.length === 0)
       return t("settings.general.shortcut.pressKeys");
 
-    // Use the same formatting as the display to ensure consistency
     return formatKeyCombination(heldModifiers.join("+"));
   };
 
-  // Store references to shortcut elements
   const setShortcutRef = (id: string, ref: HTMLElement | null) => {
     shortcutRefs.current.set(id, ref);
   };
 
-  // If still loading, show loading state
   if (isLoading) {
     return (
       <SettingContainer
@@ -213,7 +204,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     );
   }
 
-  // If no bindings are loaded, show empty state
   if (Object.keys(bindings).length === 0) {
     return (
       <SettingContainer
@@ -245,7 +235,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     );
   }
 
-  // Get translated name and description for the binding
   const translatedName = t(
     `settings.general.shortcut.bindings.${shortcutId}.name`,
     binding.name,

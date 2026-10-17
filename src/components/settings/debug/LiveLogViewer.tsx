@@ -119,7 +119,6 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
     };
   }, []);
 
-  // Flush buffered lines into state on a fixed cadence to cap re-renders.
   useEffect(() => {
     const interval = setInterval(() => {
       if (pausedRef.current || pendingRef.current.length === 0) return;

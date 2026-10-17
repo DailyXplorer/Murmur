@@ -116,7 +116,6 @@ pub fn get_log_dir_path(app: AppHandle) -> Result<String, String> {
 pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
     let tauri_log_level: tauri_plugin_log::LogLevel = level.into();
     let log_level: log::Level = tauri_log_level.into();
-    // Update the file log level atomic so the filter picks up the new level
     crate::FILE_LOG_LEVEL.store(
         log_level.to_level_filter() as u8,
         std::sync::atomic::Ordering::Relaxed,
@@ -251,13 +250,11 @@ pub fn get_microphone_authorization_status() -> Result<i32, String> {
 pub fn initialize_enigo(app: AppHandle) -> Result<(), String> {
     use crate::input::EnigoState;
 
-    // Check if already initialized
     if app.try_state::<EnigoState>().is_some() {
         log::debug!("Enigo already initialized");
         return Ok(());
     }
 
-    // Try to initialize
     match EnigoState::new() {
         Ok(enigo_state) => {
             app.manage(enigo_state);
@@ -283,16 +280,12 @@ pub struct ShortcutsInitialized;
 #[specta::specta]
 #[tauri::command]
 pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
-    // Check if already initialized
     if app.try_state::<ShortcutsInitialized>().is_some() {
         log::debug!("Shortcuts already initialized");
         return Ok(());
     }
 
-    // Initialize shortcuts
     crate::shortcut::init_shortcuts(&app);
-
-    // Mark as initialized after registration succeeds.
     app.manage(ShortcutsInitialized);
 
     log::info!("Shortcuts initialized successfully");

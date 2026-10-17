@@ -55,8 +55,6 @@ fn restore_mute(prev_muted: Option<bool>) {
 
 const TARGET_SAMPLE_RATE: usize = 16000;
 
-/* ──────────────────────────────────────────────────────────────── */
-
 #[derive(Clone, Debug)]
 pub enum RecordingState {
     Idle,
@@ -127,8 +125,6 @@ struct MicrophoneResolution {
     device: Option<cpal::Device>,
     unavailable_selected_microphone: Option<String>,
 }
-
-/* ──────────────────────────────────────────────────────────────── */
 
 fn create_audio_recorder(
     app_handle: &tauri::AppHandle,
@@ -243,8 +239,6 @@ fn restart_open_stream_transaction<T>(
     }
 }
 
-/* ──────────────────────────────────────────────────────────────── */
-
 /// One recording session's first-sample notification. Waiting on this never
 /// blocks the shortcut coordinator: callers hand it to a dedicated worker.
 pub struct RecordingReadiness {
@@ -296,8 +290,6 @@ pub struct AudioRecordingManager {
 }
 
 impl AudioRecordingManager {
-    /* ---------- construction ------------------------------------------------ */
-
     /// Builds the manager. If the always-on microphone cannot open (unplugged,
     /// busy or denied at login), the manager falls back to on-demand capture
     /// for this session and returns the error so the caller can tell the user.
@@ -343,8 +335,6 @@ impl AudioRecordingManager {
 
         (manager, startup_error)
     }
-
-    /* ---------- helper methods --------------------------------------------- */
 
     /// The persisted microphone preference currently in effect. Only runs the
     /// clamshell probe (an `ioreg` subprocess, ~10-20ms) when a clamshell
@@ -483,8 +473,6 @@ impl AudioRecordingManager {
         });
     }
 
-    /* ---------- microphone life-cycle -------------------------------------- */
-
     /// Applies mute if mute_while_recording is enabled, the stream is open and
     /// the recording that became ready at `readiness_generation` is still
     /// current. Snapshots the system's prior mute state first so
@@ -554,9 +542,8 @@ impl AudioRecordingManager {
                 .is_some_and(|rec| rec.needs_reopen());
 
             if !needs_reopen {
-                // trace, not debug: with the aliveness check in
-                // try_start_recording this now fires on every keypress in
-                // always-on mode.
+                // trace, not debug: the aliveness check in try_start_recording
+                // reaches this on every keypress in always-on mode.
                 trace!("Microphone stream already active");
                 return Ok(None);
             }
@@ -584,11 +571,9 @@ impl AudioRecordingManager {
         // flag, which would strand system audio muted.
         self.mute_state.lock().unwrap().release(restore_mute);
 
-        // Get the selected device from settings, considering clamshell mode.
         // No pre-flight enumeration here: when nothing is configured the
         // recorder resolves the system default itself, and a machine with no
-        // input devices at all fails inside open() with the same
-        // "No input device found" error this used to check for.
+        // input devices at all fails inside open() with "No input device found".
         let resolve_started = Instant::now();
         let mut resolution = self.resolve_microphone_device(settings);
         let resolve_elapsed = resolve_started.elapsed();
@@ -641,7 +626,6 @@ impl AudioRecordingManager {
         self.mute_state.lock().unwrap().release(restore_mute);
 
         if let Some(rec) = self.recorder.lock().unwrap().as_mut() {
-            // If still recording, stop first.
             if *self.is_recording.lock().unwrap() {
                 let _ = rec.stop();
                 *self.is_recording.lock().unwrap() = false;
@@ -652,8 +636,6 @@ impl AudioRecordingManager {
         *open_flag = false;
         debug!("Microphone stream stopped");
     }
-
-    /* ---------- mode switching --------------------------------------------- */
 
     pub fn update_mode(&self, new_mode: MicrophoneMode) -> Result<(), anyhow::Error> {
         update_mode_transaction(
@@ -687,8 +669,6 @@ impl AudioRecordingManager {
             }),
         );
     }
-
-    /* ---------- recording --------------------------------------------------- */
 
     /// The one place `state` is written. Derives `recording_active` (the
     /// lock-free mirror read by `is_recording()`) from the new value itself,
@@ -966,7 +946,6 @@ impl AudioRecordingManager {
                 *self.is_recording.lock().unwrap() = false;
                 self.set_state(&mut self.state.lock().unwrap(), RecordingState::Idle);
 
-                // In on-demand mode, close the mic (lazily if the setting is enabled)
                 if matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
                     if get_settings(&self.app_handle).lazy_stream_close {
                         self.schedule_lazy_close();
@@ -980,9 +959,7 @@ impl AudioRecordingManager {
                     return None;
                 }
 
-                // Pad if very short
                 let s_len = samples.len();
-                // debug!("Got {} samples", s_len);
                 if s_len < TARGET_SAMPLE_RATE && s_len > 0 {
                     let mut padded = samples;
                     padded.resize(TARGET_SAMPLE_RATE * 5 / 4, 0.0);
@@ -1033,12 +1010,11 @@ impl AudioRecordingManager {
                 drop(state);
 
                 if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                    let _ = rec.stop(); // Discard the result
+                    let _ = rec.stop();
                 }
 
                 *self.is_recording.lock().unwrap() = false;
 
-                // In on-demand mode, close the mic (lazily if the setting is enabled)
                 if matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
                     if get_settings(&self.app_handle).lazy_stream_close {
                         self.schedule_lazy_close();

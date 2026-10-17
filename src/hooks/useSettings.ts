@@ -3,7 +3,6 @@ import { useSettingsStore } from "../stores/settingsStore";
 import type { AppSettings as Settings, AudioDevice } from "@/bindings";
 
 interface UseSettingsReturn {
-  // State
   settings: Settings | null;
   isLoading: boolean;
   isUpdating: (key: string) => boolean;
@@ -11,7 +10,6 @@ interface UseSettingsReturn {
   outputDevices: AudioDevice[];
   audioFeedbackEnabled: boolean;
 
-  // Actions
   updateSetting: <K extends keyof Settings>(
     key: K,
     value: Settings[K],
@@ -21,18 +19,15 @@ interface UseSettingsReturn {
   refreshAudioDevices: () => Promise<void>;
   refreshOutputDevices: () => Promise<void>;
 
-  // Binding-specific actions
   updateBinding: (id: string, binding: string) => Promise<void>;
   resetBinding: (id: string) => Promise<void>;
 
-  // Convenience getters
   getSetting: <K extends keyof Settings>(key: K) => Settings[K] | undefined;
 }
 
 export const useSettings = (): UseSettingsReturn => {
   const store = useSettingsStore();
 
-  // Initialize on first mount
   useEffect(() => {
     if (store.isLoading) {
       store.initialize();

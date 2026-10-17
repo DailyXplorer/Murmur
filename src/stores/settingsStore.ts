@@ -19,7 +19,6 @@ interface SettingsStore {
   outputDevices: AudioDevice[];
   customSounds: { start: boolean; stop: boolean };
 
-  // Actions
   initialize: () => Promise<void>;
   loadDefaultSettings: () => Promise<void>;
   updateSetting: <K extends keyof Settings>(
@@ -37,7 +36,6 @@ interface SettingsStore {
   playTestSound: (soundType: "start" | "stop") => Promise<void>;
   checkCustomSounds: () => Promise<void>;
 
-  // Internal state setters
   setSettings: (settings: Settings | null) => void;
   setDefaultSettings: (defaultSettings: Settings | null) => void;
   setLoading: (loading: boolean) => void;
@@ -318,7 +316,6 @@ export const useSettingsStore = create<SettingsStore>()(
     outputDevices: [],
     customSounds: { start: false, stop: false },
 
-    // Internal setters
     setSettings: (settings) => set({ settings }),
     setDefaultSettings: (defaultSettings) => set({ defaultSettings }),
     setLoading: (isLoading) => set({ isLoading }),
@@ -330,11 +327,9 @@ export const useSettingsStore = create<SettingsStore>()(
     setOutputDevices: (outputDevices) => set({ outputDevices }),
     setCustomSounds: (customSounds) => set({ customSounds }),
 
-    // Getters
     getSetting: (key) => get().settings?.[key],
     isUpdatingKey: (key) => get().isUpdating[key] || false,
 
-    // Load settings from store
     refreshSettings: async () => {
       const refreshRevision = ++settingsRefreshRevision;
 
@@ -391,7 +386,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Load audio devices
     refreshAudioDevices: async () => {
       try {
         const result = await commands.getAvailableMicrophones();
@@ -412,7 +406,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Load output devices
     refreshOutputDevices: async () => {
       try {
         const result = await commands.getAvailableOutputDevices();
@@ -433,7 +426,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Play a test sound
     playTestSound: async (soundType: "start" | "stop") => {
       try {
         await commands.playTestSound(soundType);
@@ -451,7 +443,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Update a specific setting
     updateSetting: async <K extends keyof Settings>(
       key: K,
       value: Settings[K],
@@ -523,7 +514,6 @@ export const useSettingsStore = create<SettingsStore>()(
       return operation;
     },
 
-    // Reset a setting to its default value
     resetSetting: async (key) => {
       const { defaultSettings } = get();
       if (defaultSettings) {
@@ -534,7 +524,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Update a specific binding
     updateBinding: async (id, binding) => {
       const { settings, setUpdating } = get();
       const updateKey = `binding_${id}`;
@@ -543,7 +532,6 @@ export const useSettingsStore = create<SettingsStore>()(
       setUpdating(updateKey, true);
 
       try {
-        // Optimistic update
         set((state) => ({
           settings: state.settings
             ? {
@@ -561,19 +549,16 @@ export const useSettingsStore = create<SettingsStore>()(
 
         const result = await commands.changeBinding(id, binding);
 
-        // Check if the command executed successfully
         if (result.status === "error") {
           throw new Error(result.error);
         }
 
-        // Check if the binding change was successful
         if (!result.data.success) {
           throw new Error(result.data.error || "Failed to update binding");
         }
       } catch (error) {
         console.error(`Failed to update binding ${id}:`, error);
 
-        // Rollback on error
         if (originalBinding && get().settings) {
           set((state) => ({
             settings: state.settings
@@ -591,14 +576,12 @@ export const useSettingsStore = create<SettingsStore>()(
           }));
         }
 
-        // Re-throw to let the caller know it failed
         throw error;
       } finally {
         setUpdating(updateKey, false);
       }
     },
 
-    // Reset a specific binding
     resetBinding: async (id) => {
       const { setUpdating, refreshSettings } = get();
       const updateKey = `binding_${id}`;
@@ -615,7 +598,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }
     },
 
-    // Load default settings from Rust
     loadDefaultSettings: async () => {
       try {
         const result = await commands.getDefaultSettings();

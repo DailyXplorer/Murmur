@@ -57,7 +57,7 @@ pub fn handle_shortcut_event(
         return;
     }
 
-    // Remaining bindings (e.g. "test") use simple start/stop on press/release.
+    // Remaining bindings (e.g. "paste_last") use simple start/stop on press/release.
     if is_pressed {
         action.start(app, binding_id, hotkey_string);
     } else {

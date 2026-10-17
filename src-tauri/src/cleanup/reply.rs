@@ -299,7 +299,6 @@ mod tests {
     /// commentary and preambles.
     fn corpus() -> Vec<(&'static str, String, String, Verdict)> {
         let pairs: Vec<(&str, &str, &str, Verdict)> = vec![
-            // English edits.
             (
                 "en",
                 "um so the meeting is at 2 pm uh actually 3 pm",
@@ -371,7 +370,6 @@ mod tests {
             ("en", "um, uh, hmm, no", "No.", Accept),
             ("de", "ähm, ähm, ja", "Ja.", Accept),
             ("en", "let's do it at three", "Let's do it at 3.", Accept),
-            // French edits.
             (
                 "fr",
                 "la réunion euh est à quinze heures non attends seize heures",
@@ -414,7 +412,6 @@ mod tests {
                 "Je ne sais pas s'il vient.",
                 Accept,
             ),
-            // Chinese edits.
             (
                 "zh",
                 "我们明天三点开会然后讨论预算",
@@ -430,7 +427,6 @@ mod tests {
                 Accept,
             ),
             ("zh", "他得电话号码是多少", "他的电话号码是多少？", Accept),
-            // Japanese edits.
             (
                 "ja",
                 "えーと明日の会議は三時からです",
@@ -449,7 +445,6 @@ mod tests {
                 "会議は水曜日にしましょう。",
                 Accept,
             ),
-            // Thai edits.
             (
                 "th",
                 "เอ่อ พรุ่งนี้เราประชุมตอนบ่ายสามโมง",
@@ -463,7 +458,6 @@ mod tests {
                 Accept,
             ),
             ("th", "เราจะไปวันจันทร์ ไม่ใช่ วันอังคาร", "เราจะไปวันอังคาร", Accept),
-            // English replies.
             ("en", "what is the capital of france", "Paris.", Reject),
             (
                 "en",
@@ -573,7 +567,6 @@ mod tests {
                 "On se retrouve demain matin pour préparer la réunion avec le client.",
                 Reject,
             ),
-            // French replies.
             (
                 "fr",
                 "euh on se retrouve demain matin pour préparer la réunion avec le client",
@@ -598,7 +591,6 @@ mod tests {
                 "La mer immense et bleue\nBerce les rêves des marins",
                 Reject,
             ),
-            // Chinese replies.
             (
                 "zh",
                 "今天天气怎么样",
@@ -630,7 +622,6 @@ mod tests {
                 "好的，以下是整理后的文本：我们明天三点开会，然后讨论预算。",
                 Reject,
             ),
-            // Japanese replies.
             ("ja", "東京の天気はどうですか", "晴れです。", Reject),
             (
                 "ja",
@@ -650,7 +641,6 @@ mod tests {
                 "はい、整えたテキストはこちらです：明日の会議は三時からです。",
                 Reject,
             ),
-            // Thai replies.
             ("th", "วันนี้อากาศเป็นอย่างไร", "วันนี้อากาศดีมาก แดดออกทั้งวัน", Reject),
             (
                 "th",
@@ -711,7 +701,6 @@ mod tests {
                 "Call me at 9:30 or 10:15 tomorrow.",
                 Fallback,
             ),
-            // Several spoken numbers written as digits add too many units.
             (
                 "fr",
                 "rendez-vous à quinze heures trente ou seize heures quarante cinq",

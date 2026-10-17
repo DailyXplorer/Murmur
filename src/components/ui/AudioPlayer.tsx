@@ -74,7 +74,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const isPlayingRef = useRef(false);
   const isDraggingRef = useRef(false);
 
-  // Keep refs in sync with state
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -83,7 +82,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     isDraggingRef.current = isDragging;
   }, [isDragging]);
 
-  // Stable animation loop with no dependencies
   const tick = useCallback(() => {
     if (audioRef.current && !isDraggingRef.current) {
       const time = audioRef.current.currentTime;
@@ -93,17 +91,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (isPlayingRef.current) {
       animationRef.current = requestAnimationFrame(tick);
     }
-  }, []); // Empty dependency array is key!
+  }, []);
 
-  // Manage animation loop lifecycle
   useEffect(() => {
     if (isPlaying && !isDragging) {
-      // Only start if not already running
       if (!animationRef.current) {
         animationRef.current = requestAnimationFrame(tick);
       }
     } else {
-      // Stop animation loop
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = undefined;
@@ -118,7 +113,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
   }, [isPlaying, isDragging, tick]);
 
-  // Audio event handlers
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -157,20 +151,16 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
   }, [group]);
 
-  // Auto-play when src becomes available (via onLoadRequest or autoPlay prop)
   const prevLoadedSrc = useRef<string | null>(null);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Play when loadedSrc changes from null to a value (lazy load case)
     if (loadedSrc && !prevLoadedSrc.current && onLoadRequest) {
       audio.play().catch((error) => {
         console.error("Auto-play failed:", error);
       });
-    }
-    // Or when autoPlay is set with initial src
-    else if (autoPlay && initialSrc && !prevLoadedSrc.current) {
+    } else if (autoPlay && initialSrc && !prevLoadedSrc.current) {
       audio.play().catch((error) => {
         console.error("Auto-play failed:", error);
       });
@@ -179,7 +169,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     prevLoadedSrc.current = loadedSrc;
   }, [loadedSrc, autoPlay, initialSrc, onLoadRequest]);
 
-  // Global drag handlers
   const handleMouseUp = useCallback(() => {
     if (isDragging) {
       setIsDragging(false);
@@ -202,7 +191,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   }, [isDragging, handleMouseUp]);
 
-  // Cleanup blob URLs on unmount
   useEffect(() => {
     return () => {
       if (loadedSrc?.startsWith("blob:")) {
@@ -220,7 +208,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       if (isPlaying) {
         audio.pause();
       } else {
-        // If no src loaded yet, request it
         if (!src && onLoadRequest) {
           setIsLoading(true);
           const newSrc = await onLoadRequest();
@@ -264,11 +251,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Fix playhead positioning with better edge case handling
   const getProgressPercent = (): number => {
     if (duration <= 0) return 0;
 
-    // Handle the end case - if we're within 0.1 seconds of the end, show 100%
     if (duration - currentTime < 0.1) return 100;
 
     const percent = (currentTime / duration) * 100;

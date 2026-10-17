@@ -15,10 +15,9 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
-// Include the auto-generated TrayStrings struct and TRANSLATIONS static
 include!(concat!(env!("OUT_DIR"), "/tray_translations.rs"));
 
-/// Get localized tray menu strings based on the system locale.
+/// Get localized tray menu strings for `locale`, the app language setting.
 ///
 /// Lookup order: exact locale → Chinese script/region fallback → language code → English.
 pub fn get_tray_translations(locale: Option<String>) -> TrayStrings {

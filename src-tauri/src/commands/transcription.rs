@@ -84,7 +84,6 @@ fn select_onboarding_provider(
 mod tests {
     use super::*;
 
-    /// Keeps Codex or Gemini when that provider already has a usable session.
     #[test]
     fn onboarding_keeps_a_usable_selected_provider() {
         assert_eq!(
@@ -109,7 +108,6 @@ mod tests {
         );
     }
 
-    /// Rejects onboarding when neither Codex nor Gemini has a usable session.
     #[test]
     fn onboarding_rejects_missing_sessions() {
         assert_eq!(

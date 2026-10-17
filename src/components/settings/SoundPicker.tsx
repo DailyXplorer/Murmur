@@ -26,7 +26,6 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
     { value: "pop", label: "Pop" },
   ];
 
-  // Only add Custom option if both custom sound files exist
   if (customSounds.start && customSounds.stop) {
     options.push({ value: "custom", label: "Custom" });
   }

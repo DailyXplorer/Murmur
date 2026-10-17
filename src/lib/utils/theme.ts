@@ -3,11 +3,11 @@ import { commands, type Theme } from "@/bindings";
 /**
  * Appearance theme handling.
  *
- * Murmur already ships a full light palette and a full dark palette (see
- * `App.css`). This module lets the user pick which one is used instead of
- * always following the OS:
+ * Murmur ships a full light palette and a full dark palette (see `App.css`).
+ * This module lets the user pick which one is used instead of always
+ * following the OS:
  *  - `system` removes the override so the `prefers-color-scheme` media query
- *    governs (the historical behaviour).
+ *    governs.
  *  - `light` / `dark` set `data-theme` on the document root, whose
  *    higher-specificity CSS selectors win over the media query.
  *
@@ -45,7 +45,7 @@ export const getStoredTheme = (): Theme => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (isTheme(stored)) return stored;
   } catch {
-    // ignore
+    // Fall back to the system theme when localStorage is unavailable.
   }
   return "system";
 };

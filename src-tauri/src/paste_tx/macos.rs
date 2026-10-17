@@ -55,8 +55,8 @@ define_class!(
     pub struct MurmurPasteProvider;
 
     impl MurmurPasteProvider {
-        // NSPasteboardOwner informal protocol: the pasteboard is asking for the
-        // promised data — our receipt that a consumer read the clipboard.
+        // NSPasteboardOwner informal protocol: the pasteboard asks for the
+        // promised data when some consumer reads the clipboard.
         #[unsafe(method(pasteboard:provideDataForType:))]
         fn pasteboard_provide_data_for_type(&self, pasteboard: &NSPasteboard, data_type: &NSString) {
             let ivars = self.ivars();

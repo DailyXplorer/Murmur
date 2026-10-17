@@ -19,7 +19,6 @@ pub fn is_clamshell() -> Result<bool, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Look for "AppleClamshellState" = Yes in the output
     Ok(stdout.contains("\"AppleClamshellState\" = Yes"))
 }
 
@@ -38,7 +37,6 @@ pub fn is_laptop() -> Result<bool, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Check if InternalBattery is present (laptops have batteries, desktops typically don't)
     Ok(stdout.contains("InternalBattery"))
 }
 
@@ -48,7 +46,6 @@ mod tests {
 
     #[test]
     fn test_clamshell_check() {
-        // This will run on macOS and should not panic
         let result = is_clamshell();
         assert!(result.is_ok());
         let _ = result.unwrap();

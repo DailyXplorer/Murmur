@@ -23,7 +23,6 @@ syncThemeFromSettings();
 applyAccentColor(getStoredAccentColor());
 syncAccentColorFromSettings();
 
-// Initialize i18n
 import "./i18n";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

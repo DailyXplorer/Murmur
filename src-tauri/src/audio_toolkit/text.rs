@@ -105,7 +105,7 @@ fn find_best_match<'a>(
         let custom_word_len = custom_word_key.key.chars().count();
         let len_diff = candidate_len.abs_diff(custom_word_len) as f64;
         let max_len = candidate_len.max(custom_word_len) as f64;
-        let max_allowed_diff = (max_len * 0.25).max(2.0); // At least 2 chars difference allowed
+        let max_allowed_diff = (max_len * 0.25).max(2.0);
         if len_diff > max_allowed_diff {
             continue;
         }
@@ -404,13 +404,11 @@ fn collapse_stutters(text: &str) -> String {
         let word_lower = word.to_lowercase();
 
         if word_lower.chars().all(|c| c.is_alphabetic()) {
-            // Count consecutive repetitions (case-insensitive)
             let mut count = 1;
             while i + count < words.len() && words[i + count].to_lowercase() == word_lower {
                 count += 1;
             }
 
-            // If 3+ repetitions, collapse to single instance
             if count >= 3 {
                 result.push(word);
                 i += count;
@@ -432,12 +430,10 @@ fn collapse_stutters(text: &str) -> String {
 pub fn normalize_transcription_output(text: &str) -> String {
     let mut normalized = collapse_stutters(text);
 
-    // Clean up multiple spaces to single space
     normalized = MULTI_SPACE_PATTERN
         .replace_all(&normalized, " ")
         .to_string();
 
-    // Trim leading/trailing whitespace
     normalized.trim().to_string()
 }
 
@@ -521,7 +517,6 @@ mod tests {
                 "my I phone, chat GPT and charge B.",
                 "my iPhone, ChatGPT and ChargeBee.",
             ),
-            // French dictation.
             (all, "mon I phone est mort", "mon iPhone est mort"),
             (
                 all,
@@ -538,7 +533,6 @@ mod tests {
                 "le modèle open AI est rapide",
                 "le modèle OpenAI est rapide",
             ),
-            // Nothing to correct.
             (all, "we met at noon", "we met at noon"),
             (all, "je mange une pomme", "je mange une pomme"),
             (all, "my iPhone died", "my iPhone died"),
@@ -689,7 +683,6 @@ mod tests {
 
     #[test]
     fn test_apply_custom_words_ngram_with_spaces_in_custom() {
-        // Custom word with space should also match against split words
         let text = "using Mac Book Pro";
         let custom_words = vec!["MacBook Pro".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
@@ -703,7 +696,6 @@ mod tests {
         let text = "use GPT4 for this";
         let custom_words = vec!["GPT-4".to_string()];
         let result = apply_custom_words(text, &custom_words, 0.5);
-        // Should NOT produce "GPT-44" (double-counting the trailing 4)
         assert!(
             !result.contains("GPT-44"),
             "got double-counted result: {}",

@@ -12,9 +12,7 @@ mod macos {
     type CfDataRef = *const c_void;
     type CfStringRef = *const c_void;
 
-    // kVK_ANSI_V. This is the behavior Murmur used before layout-aware
-    // resolution and remains the safest fallback if macOS cannot expose the
-    // active layout.
+    // kVK_ANSI_V, the fallback when macOS cannot expose the active layout.
     const ANSI_V_KEYCODE: u16 = 9;
     const KEYCODE_COUNT: u16 = 128;
     const UC_KEY_ACTION_DISPLAY: u16 = 3;
@@ -295,7 +293,6 @@ pub fn send_text_to_pid(pid: i32, text: &str) -> Result<(), String> {
 }
 
 /// Wrapper for Enigo to store in Tauri's managed state.
-/// Enigo is wrapped in a Mutex since it requires mutable access.
 pub struct EnigoState(pub Mutex<Enigo>);
 
 impl EnigoState {

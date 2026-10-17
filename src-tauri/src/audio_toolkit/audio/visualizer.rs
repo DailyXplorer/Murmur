@@ -4,9 +4,9 @@ use std::sync::Arc;
 // `db` below is not true dBFS: it's a per-bin average divided by the FFT
 // window size, which lands ~20 dB low for speech. So this window is calibrated
 // against measured mic audio (dictation ~-32 dBFS, room tone ~-48 dBFS) rather
-// than absolute dBFS. The old -55/-8 left speech ~1 px above the overlay's
-// floor, which reads as a frozen waveform (#1694). Not lowered past -68: at
-// -70 a noisy room starts making the idle waveform twitch.
+// than absolute dBFS. A floor much above that leaves speech ~1 px above the
+// overlay's baseline, which reads as a frozen waveform. Not lowered past -68:
+// at -70 a noisy room starts making the idle waveform twitch.
 const DB_MIN: f32 = -68.0;
 const DB_MAX: f32 = -30.0;
 const GAIN: f32 = 1.3;
@@ -41,7 +41,6 @@ impl AudioVisualiser {
             })
             .collect();
 
-        // Pre-compute bucket frequency ranges
         let nyquist = sample_rate as f32 / 2.0;
         let freq_min = freq_min.min(nyquist);
         let freq_max = freq_max.min(nyquist);
@@ -49,7 +48,7 @@ impl AudioVisualiser {
         let mut bucket_ranges = Vec::with_capacity(buckets);
 
         for b in 0..buckets {
-            // Use logarithmic spacing for better perceptual representation
+            // Quadratic spacing gives low frequencies narrower, more numerous buckets.
             let log_start = (b as f32 / buckets as f32).powi(2);
             let log_end = ((b + 1) as f32 / buckets as f32).powi(2);
 
@@ -59,12 +58,10 @@ impl AudioVisualiser {
             let start_bin = ((start_hz * window_size as f32) / sample_rate as f32) as usize;
             let mut end_bin = ((end_hz * window_size as f32) / sample_rate as f32) as usize;
 
-            // Ensure each bucket has at least one bin
             if end_bin <= start_bin {
                 end_bin = start_bin + 1;
             }
 
-            // Clamp to valid range
             let start_bin = start_bin.min(window_size / 2);
             let end_bin = end_bin.min(window_size / 2);
 
@@ -76,7 +73,7 @@ impl AudioVisualiser {
             window,
             bucket_ranges,
             fft_input: vec![Complex32::new(0.0, 0.0); window_size],
-            noise_floor: vec![-40.0; buckets], // Initialize to reasonable noise floor
+            noise_floor: vec![-40.0; buckets],
             buffer: Vec::with_capacity(window_size * 2),
             window_size,
             buckets,
@@ -84,30 +81,24 @@ impl AudioVisualiser {
     }
 
     pub fn feed(&mut self, samples: &[f32]) -> Option<Vec<f32>> {
-        // Add new samples to buffer
         self.buffer.extend_from_slice(samples);
 
-        // Only process if we have enough samples
         if self.buffer.len() < self.window_size {
             return None;
         }
 
-        // Take the required window of samples
         let window_samples = &self.buffer[..self.window_size];
 
         // Remove DC component
         let mean = window_samples.iter().sum::<f32>() / self.window_size as f32;
 
-        // Apply window function and prepare FFT input
         for (i, &sample) in window_samples.iter().enumerate() {
             let windowed_sample = (sample - mean) * self.window[i];
             self.fft_input[i] = Complex32::new(windowed_sample, 0.0);
         }
 
-        // Perform FFT
         self.fft.process(&mut self.fft_input);
 
-        // Compute power spectrum and bucket levels
         let mut buckets = vec![0.0; self.buckets];
 
         for (bucket_idx, &(start_bin, end_bin)) in self.bucket_ranges.iter().enumerate() {
@@ -115,7 +106,6 @@ impl AudioVisualiser {
                 continue;
             }
 
-            // Calculate average power in this frequency range
             let mut power_sum = 0.0;
             for bin_idx in start_bin..end_bin {
                 let magnitude = self.fft_input[bin_idx].norm();
@@ -124,21 +114,18 @@ impl AudioVisualiser {
 
             let avg_power = power_sum / (end_bin - start_bin) as f32;
 
-            // Convert to dB with proper scaling
             let db = if avg_power > 1e-12 {
                 20.0 * (avg_power.sqrt() / self.window_size as f32).log10()
             } else {
-                -80.0 // Very low floor for zero power
+                -80.0
             };
 
-            // Only update noise floor when signal is quiet (below current floor + 10dB)
             if db < self.noise_floor[bucket_idx] + 10.0 {
-                const NOISE_ALPHA: f32 = 0.001; // Very slow adaptation
+                const NOISE_ALPHA: f32 = 0.001;
                 self.noise_floor[bucket_idx] =
                     NOISE_ALPHA * db + (1.0 - NOISE_ALPHA) * self.noise_floor[bucket_idx];
             }
 
-            // Map configurable dB range to 0-1 with gain and curve shaping
             let normalized = ((db - DB_MIN) / (DB_MAX - DB_MIN)).clamp(0.0, 1.0);
             buckets[bucket_idx] = (normalized * GAIN).powf(CURVE_POWER).clamp(0.0, 1.0);
         }
@@ -148,7 +135,6 @@ impl AudioVisualiser {
             buckets[i] = buckets[i] * 0.7 + buckets[i - 1] * 0.15 + buckets[i + 1] * 0.15;
         }
 
-        // Clear processed samples from buffer
         self.buffer.clear();
 
         Some(buckets)
@@ -156,7 +142,6 @@ impl AudioVisualiser {
 
     pub fn reset(&mut self) {
         self.buffer.clear();
-        // Reset noise floor to initial values
         self.noise_floor.fill(-40.0);
     }
 }

@@ -140,7 +140,6 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && filteredLanguages.length > 0) {
-      // Select first filtered language on Enter
       handleLanguageSelect(filteredLanguages[0].value);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -200,7 +199,6 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             onDismiss={handleDismiss}
             className="flex flex-col overflow-hidden rounded-md border border-mid-gray/80 bg-background shadow-lg"
           >
-            {/* Search input */}
             <div className="p-2 border-b border-mid-gray/80">
               <Input
                 ref={searchInputRef}

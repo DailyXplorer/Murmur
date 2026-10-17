@@ -42,7 +42,6 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = React.memo(
       };
     }, [selectedMicrophone]);
 
-    // Don't render if the device only has one channel.
     if (channelCount <= 1) {
       return null;
     }
