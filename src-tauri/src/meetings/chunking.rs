@@ -120,7 +120,8 @@ pub fn plan_chunks(levels: &[f32], total_ms: u64) -> Vec<ChunkPlan> {
                 cursor + TARGET_MAX_MS - QUIET_WINDOW_FRAMES as u64 * FRAME_MS,
             );
             if total_ms - cut < MIN_TAIL_MS {
-                cursor + (remaining / 2 / FRAME_MS) * FRAME_MS
+                // Two pieces of similar length instead, still cut in a pause.
+                split_chunk(levels, cursor, total_ms).map_or(cut, |(_, middle, _)| middle)
             } else {
                 cut
             }
@@ -136,7 +137,8 @@ pub fn plan_chunks(levels: &[f32], total_ms: u64) -> Vec<ChunkPlan> {
 }
 
 /// Halves `[start_ms, end_ms)` at the quietest moment of its middle half,
-/// for a piece Codex refused as too large. `None` when the halves would be
+/// for a piece Codex refused as too large or a plan's last two pieces.
+/// `None` when the halves would be
 /// shorter than `MIN_SPLIT_MS`.
 pub fn split_chunk(levels: &[f32], start_ms: u64, end_ms: u64) -> Option<(u64, u64, u64)> {
     let length = end_ms.saturating_sub(start_ms);
@@ -227,14 +229,20 @@ mod tests {
     }
 
     #[test]
-    fn a_short_tail_is_balanced_with_the_piece_before() {
-        // A cut at 10 minutes would leave 30 s.
+    fn a_short_tail_is_balanced_with_the_piece_before_and_still_cut_in_a_pause() {
+        // A cut at 10 minutes would leave 30 s; the only pause in the middle
+        // of the track is at 4 minutes.
         let total = 10 * MINUTE + 30_000;
-        let levels = speech_with_gaps(total, &[(9 * MINUTE + 59_000, 800)]);
+        let levels = speech_with_gaps(total, &[(4 * MINUTE, 800), (9 * MINUTE + 59_000, 800)]);
         let chunks = plan_chunks(&levels, total);
         assert_covers(&chunks, total);
         assert_eq!(chunks.len(), 2);
-        assert_eq!(chunks[0].end_ms, total / 2 / FRAME_MS * FRAME_MS);
+        let cut = chunks[0].end_ms;
+        assert!(
+            (4 * MINUTE..4 * MINUTE + 800).contains(&cut),
+            "cut at {cut}"
+        );
+        assert!(total - cut >= MIN_TAIL_MS);
     }
 
     #[test]
