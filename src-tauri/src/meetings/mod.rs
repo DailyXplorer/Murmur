@@ -63,34 +63,85 @@ pub struct MeetingCapabilities {
 /// Recorded meetings wait here and are processed one at a time, in order.
 struct ProcessingQueue {
     sender: tokio::sync::mpsc::UnboundedSender<i64>,
-    queued: Mutex<HashSet<i64>>,
-    current: Mutex<Option<(i64, ProcessingOperation)>>,
+    state: Mutex<QueueState>,
+}
+
+struct QueueState {
+    queued: HashSet<i64>,
+    current: Option<(i64, ProcessingOperation)>,
+    paused: bool,
 }
 
 impl ProcessingQueue {
-    fn enqueue(&self, id: i64) {
-        let added = self
-            .queued
+    fn new(paused: bool) -> (Self, tokio::sync::mpsc::UnboundedReceiver<i64>) {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let state = QueueState {
+            queued: HashSet::new(),
+            current: None,
+            paused,
+        };
+        (
+            Self {
+                sender,
+                state: Mutex::new(state),
+            },
+            receiver,
+        )
+    }
+
+    fn state(&self) -> std::sync::MutexGuard<'_, QueueState> {
+        self.state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(id);
+    }
+
+    fn enqueue(&self, id: i64) {
+        let added = self.state().queued.insert(id);
         if added && self.sender.send(id).is_err() {
             error!("Meeting {id}: the processing queue is closed");
         }
     }
 
-    /// Stops processing meeting `id`, or any meeting when `None`. What was
-    /// saved stays, and processing resumes from there next time.
-    fn cancel(&self, id: Option<i64>) {
-        if let Some((current, operation)) = &*self
-            .current
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-        {
-            if id.is_none_or(|id| id == *current) {
+    /// Makes `id` the meeting in progress, unless the queue is paused: the
+    /// meeting then waits, and `resume_processing` queues it again. Deciding
+    /// under the lock `pause` takes means a meeting is either refused here
+    /// or cancelled there, never sent after a pause.
+    fn begin(&self, id: i64, operation: &ProcessingOperation) -> bool {
+        let mut state = self.state();
+        state.queued.remove(&id);
+        if state.paused {
+            return false;
+        }
+        state.current = Some((id, operation.clone()));
+        true
+    }
+
+    fn end(&self) {
+        self.state().current = None;
+    }
+
+    /// Stops processing meeting `id`. What was saved stays, and processing
+    /// resumes from there next time.
+    fn cancel(&self, id: i64) {
+        if let Some((current, operation)) = &self.state().current {
+            if *current == id {
                 operation.cancel();
             }
         }
+    }
+
+    /// Stops the meeting in progress and holds every other one until
+    /// `resume`.
+    fn pause(&self) {
+        let mut state = self.state();
+        state.paused = true;
+        if let Some((_, operation)) = &state.current {
+            operation.cancel();
+        }
+    }
+
+    fn resume(&self) {
+        self.state().paused = false;
     }
 }
 
@@ -116,38 +167,18 @@ fn spawn_processing(
     store: Arc<MeetingsStore>,
     root: PathBuf,
 ) -> Arc<ProcessingQueue> {
-    let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
-    let queue = Arc::new(ProcessingQueue {
-        sender,
-        queued: Mutex::default(),
-        current: Mutex::default(),
-    });
+    let (queue, mut receiver) = ProcessingQueue::new(!get_settings(app).meetings_enabled);
+    let queue = Arc::new(queue);
     let worker = Arc::clone(&queue);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut operations = 0;
         while let Some(id) = receiver.recv().await {
-            // Turned off: the meeting waits, and is queued again when
-            // meetings are turned back on.
-            if !get_settings(&app).meetings_enabled {
-                worker
-                    .queued
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .remove(&id);
-                continue;
-            }
             operations += 1;
             let operation = ProcessingOperation::new(OperationId(operations));
-            worker
-                .queued
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .remove(&id);
-            *worker
-                .current
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((id, operation.clone()));
+            if !worker.begin(id, &operation) {
+                continue;
+            }
             let language = get_settings(&app).selected_language;
             let processor = Processor {
                 store: Arc::clone(&store),
@@ -168,10 +199,7 @@ fn spawn_processing(
                 }
                 AppEvents(app.clone()).updated(id);
             }
-            *worker
-                .current
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+            worker.end();
         }
     });
     queue
@@ -344,7 +372,7 @@ impl MeetingsManager {
     }
 
     pub fn delete(&self, id: i64) -> Result<(), String> {
-        self.queue.cancel(Some(id));
+        self.queue.cancel(id);
         self.coordinator()
             .delete(id)
             .map_err(|error| error.to_string())
@@ -386,8 +414,10 @@ impl MeetingsManager {
         self.queue.enqueue(id);
     }
 
-    /// Queues the meetings a quit (or turning meetings off) left mid-way.
+    /// Lets processing run again and queues the meetings a quit (or turning
+    /// meetings off) left mid-way.
     pub fn resume_processing(&self) {
+        self.queue.resume();
         match self.store.waiting_for_processing() {
             Ok(ids) => ids.into_iter().for_each(|id| self.queue.enqueue(id)),
             Err(error) => error!("Failed to list meetings to process: {error}"),
@@ -415,15 +445,16 @@ impl MeetingsManager {
         ))
     }
 
-    /// Keeps a meeting in progress when the app quits: its tracks are closed
-    /// and it waits for processing, which resumes at the next launch.
+    /// Keeps a meeting in progress when the app quits or meetings are turned
+    /// off: its tracks are closed and it waits for processing, which resumes
+    /// at the next launch or when meetings are turned back on.
     pub fn shutdown(&self) {
         if self.is_recording() {
             if let Err(error) = self.stop() {
                 error!("Failed to finish the meeting on quit: {error}");
             }
         }
-        self.queue.cancel(None);
+        self.queue.pause();
     }
 
     /// Drives the cap and write-failure checks of meeting `id` until it ends.
@@ -464,7 +495,7 @@ pub fn init(app: &AppHandle, at_startup: bool) {
     }
     match MeetingsManager::new(app) {
         Ok(manager) => {
-            if at_startup {
+            if at_startup && get_settings(app).meetings_enabled {
                 manager.resume_processing();
             }
             app.manage(Arc::new(manager));
@@ -520,5 +551,51 @@ mod tests {
     #[test]
     fn default_binding_is_a_valid_shortcut() {
         crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+    }
+
+    fn operation(id: u64) -> ProcessingOperation {
+        ProcessingOperation::new(OperationId(id))
+    }
+
+    #[test]
+    fn a_meeting_stopped_as_meetings_turn_off_is_not_processed() {
+        // Turning meetings off stops the recording, which queues the meeting,
+        // then pauses the queue before the worker picks the meeting up.
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        queue.enqueue(1);
+        queue.pause();
+        assert!(!queue.begin(1, &operation(1)));
+    }
+
+    #[test]
+    fn pausing_cancels_the_meeting_in_progress() {
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        let processing = operation(1);
+        queue.enqueue(1);
+        assert!(queue.begin(1, &processing));
+        queue.pause();
+        assert!(processing.is_cancelled());
+    }
+
+    #[test]
+    fn a_held_meeting_is_processed_after_resuming() {
+        let (queue, _receiver) = ProcessingQueue::new(true);
+        queue.enqueue(1);
+        assert!(!queue.begin(1, &operation(1)));
+        queue.resume();
+        queue.enqueue(1);
+        assert!(queue.begin(1, &operation(2)));
+    }
+
+    #[test]
+    fn cancelling_one_meeting_leaves_another_running() {
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        let processing = operation(1);
+        queue.enqueue(1);
+        assert!(queue.begin(1, &processing));
+        queue.cancel(2);
+        assert!(!processing.is_cancelled());
+        queue.cancel(1);
+        assert!(processing.is_cancelled());
     }
 }
