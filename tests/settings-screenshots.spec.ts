@@ -55,6 +55,39 @@ test.describe("settings screenshots", () => {
   }
 
   for (const theme of ["light", "dark"] as const) {
+    test(`meetings list and settings (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(VIEWPORT);
+      await page.goto(`/tests/fixtures/settings-pages.html?theme=${theme}`);
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.waitForTimeout(500);
+      await growViewportToContent(page);
+      await page.screenshot({
+        path: `${outputDir}/meetings-list-${theme}.png`,
+        fullPage: true,
+      });
+
+      await page.setViewportSize(VIEWPORT);
+      await page.goto(
+        `/tests/fixtures/settings-pages.html?systemAudioSilent=1&theme=${theme}`,
+      );
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/meeting-system-audio-silent-${theme}.png`,
+      });
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    });
+
     test(`meeting transcript (${theme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: theme });
       await page.setViewportSize(VIEWPORT);

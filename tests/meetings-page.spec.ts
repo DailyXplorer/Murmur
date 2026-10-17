@@ -13,15 +13,28 @@ const openMeetings = async (page: Page, query = "") => {
 const calls = (page: Page) =>
   page.evaluate(() => window.settingsPages.calls.map(({ command }) => command));
 
-test("the Meetings page is hidden until meetings are turned on", async ({
+test("meetings are on by default and the switch to turn them off is not experimental", async ({
   page,
 }) => {
   await page.goto(fixture);
-  await expect(sidebarButton(page, "History")).toBeVisible();
-  await expect(sidebarButton(page, "Meetings")).toHaveCount(0);
+  await expect(sidebarButton(page, "Meetings")).toBeVisible();
 
   await sidebarButton(page, "Advanced").click();
-  await expect(page.getByText("Meetings", { exact: true })).toBeVisible();
+  const appGroup = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "App", exact: true }),
+  });
+  const meetingsSwitch = appGroup.getByRole("checkbox", { name: "Meetings" });
+  await expect(meetingsSwitch).toBeChecked();
+
+  await meetingsSwitch.uncheck({ force: true });
+  await expect(sidebarButton(page, "Meetings")).toHaveCount(0);
+  expect(await calls(page)).toContain("change_meetings_enabled_setting");
+});
+
+test("the Meetings page is hidden while meetings are off", async ({ page }) => {
+  await page.goto(`${fixture}?meetings=0`);
+  await expect(sidebarButton(page, "History")).toBeVisible();
+  await expect(sidebarButton(page, "Meetings")).toHaveCount(0);
 });
 
 test("lists meetings newest first with their duration and status", async ({

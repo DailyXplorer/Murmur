@@ -31,7 +31,8 @@
     "meetingStartFailed": "Das Meeting konnte nicht starten. Prüfe das Mikrofon und die Audioberechtigungen.",
     "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 3 Stunden).",
     "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
-    "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten."
+    "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten.",
+    "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Berechtigung für Systemton",
       "description": "macOS fragt, wenn ein Meeting zum ersten Mal Systemton aufnimmt. Wenn du abgelehnt hast, aktiviere Murmur in den Datenschutzeinstellungen wieder.",
-      "open": "Einstellungen öffnen"
+      "open": "Einstellungen öffnen",
+      "silent": "Es wurde kein Systemton aufgenommen, daher fehlen die anderen Teilnehmenden. Erlaube Murmur unter „Systemaudioaufnahme“ in den Datenschutzeinstellungen und nimm erneut auf."
     },
     "list": {
       "title": "Aufnahmen",

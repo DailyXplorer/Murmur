@@ -31,7 +31,8 @@
     "meetingStartFailed": "無法開始會議。請檢查麥克風和音訊權限。",
     "meetingStopsSoon": "會議將在 5 分鐘後停止（上限 3 小時）。",
     "meetingStoppedAtLimit": "會議已達 3 小時上限並已儲存。",
-    "meetingWriteFailed": "Murmur 無法寫入磁碟，會議已停止。已錄製的內容會保留。"
+    "meetingWriteFailed": "Murmur 無法寫入磁碟，會議已停止。已錄製的內容會保留。",
+    "meetingLowDiskSpace": "這台 Mac 的可用空間不足 1.5 GB。較長的會議可能會提早停止，已錄製的內容會保留。"
   },
   "sidebar": {
     "general": "一般",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "系統音訊權限",
       "description": "會議首次錄製系統音訊時，macOS 會要求權限。如果你拒絕了，請在隱私權設定中重新開啟 Murmur。",
-      "open": "開啟設定"
+      "open": "開啟設定",
+      "silent": "沒有錄到系統音訊，因此缺少其他與會者的聲音。請在隱私權設定的「系統音訊錄製」中允許 Murmur，然後重新錄製。"
     },
     "list": {
       "title": "錄音",

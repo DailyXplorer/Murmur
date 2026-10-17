@@ -57,6 +57,16 @@ pub fn speech_threshold(levels: &[f32]) -> Option<f32> {
     Some((floor + SPEECH_OVER_NOISE_DB).clamp(MIN_SPEECH_DBFS, MAX_SPEECH_DBFS))
 }
 
+/// System audio that is exact digital zero from start to end while the user
+/// spoke: macOS gives a process tap only zeros when Murmur may not record
+/// system audio, and there is no public way to ask beforehand.
+pub fn system_audio_missing(mic: &[f32], system: &[f32]) -> bool {
+    let mic_ms = mic.len() as u64 * FRAME_MS;
+    !system.is_empty()
+        && speech_threshold(system).is_none()
+        && voiced_ms(mic, speech_threshold(mic), 0, mic_ms) >= MIN_VOICED_MS
+}
+
 fn frame_of(ms: u64) -> usize {
     (ms / FRAME_MS) as usize
 }
@@ -250,6 +260,23 @@ mod tests {
         assert_covers(&chunks, total);
         assert!(chunks.iter().all(ChunkPlan::silent));
         assert_eq!(speech_threshold(&levels), None);
+    }
+
+    #[test]
+    fn system_audio_is_missing_only_when_it_is_digital_silence_while_the_mic_has_speech() {
+        let total = 3 * MINUTE;
+        let speech = speech_with_gaps(total, &[(MINUTE, 2_000)]);
+        let zeros = vec![-180.0; frames(total)];
+        let quiet_call = vec![ROOM; frames(total)];
+
+        assert!(system_audio_missing(&speech, &zeros));
+        // A call nobody spoke in still carries some signal.
+        assert!(!system_audio_missing(&speech, &quiet_call));
+        assert!(!system_audio_missing(&speech, &speech));
+        // Nothing was said at all: no reason to suspect the permission.
+        assert!(!system_audio_missing(&zeros, &zeros));
+        assert!(!system_audio_missing(&quiet_call, &zeros));
+        assert!(!system_audio_missing(&speech, &[]));
     }
 
     #[test]

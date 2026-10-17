@@ -3066,6 +3066,7 @@ dependencies = [
  "ferrous-opencc",
  "hound",
  "image",
+ "libc",
  "log",
  "natural",
  "objc2",

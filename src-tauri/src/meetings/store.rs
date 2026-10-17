@@ -80,6 +80,8 @@ static MIGRATIONS: &[M] = &[
     M::up("ALTER TABLE meetings ADD COLUMN speaker_identity TEXT;"),
     // The user deleted the audio; the text stays.
     M::up("ALTER TABLE meetings ADD COLUMN audio_deleted INTEGER NOT NULL DEFAULT 0;"),
+    // System audio held only zeros: the permission is likely off.
+    M::up("ALTER TABLE meetings ADD COLUMN system_audio_silent INTEGER NOT NULL DEFAULT 0;"),
 ];
 
 /// Which tracks a meeting recorded.
@@ -386,6 +388,9 @@ pub struct MeetingDetail {
     pub audio: AudioState,
     /// The size of `audio.m4a`, once compressed.
     pub audio_bytes: i64,
+    /// System audio was recorded as pure silence while the user spoke, which
+    /// is what macOS gives when Murmur may not record system audio.
+    pub system_audio_silent: bool,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -581,7 +586,7 @@ impl MeetingsStore {
             .query_row(
                 "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind,
                         speaker_analysis, summary_md, summary_status, summary_error,
-                        audio_file, audio_bytes, audio_deleted
+                        audio_file, audio_bytes, audio_deleted, system_audio_silent
                  FROM meetings WHERE id = ?1",
                 params![id],
                 |row| {
@@ -603,6 +608,7 @@ impl MeetingsStore {
                             row.get::<_, Option<String>>(11)?,
                             row.get::<_, i64>(12)?,
                             row.get::<_, bool>(13)?,
+                            row.get::<_, bool>(14)?,
                         ),
                     ))
                 },
@@ -610,7 +616,15 @@ impl MeetingsStore {
             .optional()?;
         let Some((
             (title, started_at_ms, duration_ms, status, tracks, stage, error, analysis),
-            (summary, summary_status, summary_error, audio_file, audio_bytes, audio_deleted),
+            (
+                summary,
+                summary_status,
+                summary_error,
+                audio_file,
+                audio_bytes,
+                audio_deleted,
+                system_audio_silent,
+            ),
         )) = row
         else {
             return Ok(None);
@@ -666,7 +680,16 @@ impl MeetingsStore {
                 (false, None) => AudioState::Tracks,
             },
             audio_bytes,
+            system_audio_silent,
         }))
+    }
+
+    pub fn set_system_audio_silent(&self, id: i64, silent: bool) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET system_audio_silent = ?2 WHERE id = ?1",
+            params![id, silent],
+        )?;
+        Ok(())
     }
 
     /// Saves the summary, and the title it gives the meeting unless the

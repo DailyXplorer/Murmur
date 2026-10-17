@@ -15,7 +15,7 @@ export const MeetingsToggle: React.FC<MeetingsToggleProps> = React.memo(
 
     return (
       <ToggleSwitch
-        checked={getSetting("meetings_enabled") ?? false}
+        checked={getSetting("meetings_enabled") ?? true}
         onChange={(enabled) => updateSetting("meetings_enabled", enabled)}
         isUpdating={isUpdating("meetings_enabled")}
         label={t("settings.advanced.meetingsToggle.label")}

@@ -31,6 +31,23 @@ const callsTo = (page: Page, command: string) =>
 const bubbles = (page: Page) =>
   page.getByRole("list", { name: "Transcript" }).getByRole("listitem");
 
+test("a meeting whose system audio was pure silence points to the privacy settings", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await expect(page.getByText(/No system audio was recorded/)).toHaveCount(0);
+
+  await openMeeting(page, /Point hebdo produit/, "&systemAudioSilent=1");
+  const notice = page
+    .getByRole("status")
+    .filter({ hasText: "No system audio was recorded" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "Open Settings" }).click();
+  expect(
+    await callsTo(page, "open_system_audio_privacy_settings"),
+  ).toHaveLength(1);
+});
+
 test("a meeting shows its transcript in order, with a name at each change of speaker", async ({
   page,
 }) => {

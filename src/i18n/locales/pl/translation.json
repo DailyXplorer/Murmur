@@ -31,7 +31,8 @@
     "meetingStartFailed": "Nie udało się rozpocząć spotkania. Sprawdź mikrofon i uprawnienia do dźwięku.",
     "meetingStopsSoon": "Spotkanie zakończy się za 5 minut (limit 3 godzin).",
     "meetingStoppedAtLimit": "Spotkanie osiągnęło limit 3 godzin i zostało zapisane.",
-    "meetingWriteFailed": "Spotkanie zostało zatrzymane, ponieważ Murmur nie mógł zapisywać na dysku. Nagrana część została zachowana."
+    "meetingWriteFailed": "Spotkanie zostało zatrzymane, ponieważ Murmur nie mógł zapisywać na dysku. Nagrana część została zachowana.",
+    "meetingLowDiskSpace": "Na tym Macu jest mniej niż 1,5 GB wolnego miejsca. Długie spotkanie może zatrzymać się wcześniej; nagrany fragment zostanie zachowany."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Uprawnienie do dźwięku systemowego",
       "description": "macOS zapyta, gdy spotkanie po raz pierwszy nagrywa dźwięk systemowy. Jeśli odmówiono, ponownie włącz Murmur w ustawieniach prywatności.",
-      "open": "Otwórz ustawienia"
+      "open": "Otwórz ustawienia",
+      "silent": "Nie nagrano dźwięku systemowego, więc brakuje pozostałych uczestników. Zezwól Murmur w sekcji Nagrywanie dźwięku systemowego w ustawieniach prywatności i nagraj ponownie."
     },
     "list": {
       "title": "Nagrania",

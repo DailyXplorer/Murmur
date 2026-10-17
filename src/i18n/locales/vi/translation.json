@@ -31,7 +31,8 @@
     "meetingStartFailed": "Không thể bắt đầu cuộc họp. Hãy kiểm tra micrô và quyền âm thanh.",
     "meetingStopsSoon": "Cuộc họp sẽ dừng sau 5 phút (giới hạn 3 giờ).",
     "meetingStoppedAtLimit": "Cuộc họp đã đạt giới hạn 3 giờ và đã được lưu.",
-    "meetingWriteFailed": "Cuộc họp đã dừng vì Murmur không thể ghi vào ổ đĩa. Phần đã ghi vẫn được giữ."
+    "meetingWriteFailed": "Cuộc họp đã dừng vì Murmur không thể ghi vào ổ đĩa. Phần đã ghi vẫn được giữ.",
+    "meetingLowDiskSpace": "Máy Mac này còn trống dưới 1,5 GB. Cuộc họp dài có thể dừng sớm; phần đã ghi vẫn được giữ lại."
   },
   "sidebar": {
     "general": "Chung",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Quyền âm thanh hệ thống",
       "description": "macOS sẽ hỏi lần đầu một cuộc họp ghi âm thanh hệ thống. Nếu bạn đã từ chối, hãy bật lại Murmur trong cài đặt quyền riêng tư.",
-      "open": "Mở cài đặt"
+      "open": "Mở cài đặt",
+      "silent": "Không ghi được âm thanh hệ thống nên thiếu những người tham gia khác. Hãy cho phép Murmur trong mục Ghi âm thanh hệ thống ở cài đặt quyền riêng tư, rồi ghi lại."
     },
     "list": {
       "title": "Bản ghi",

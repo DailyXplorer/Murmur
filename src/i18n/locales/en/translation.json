@@ -31,7 +31,8 @@
     "meetingStartFailed": "Couldn't start the meeting. Check the microphone and audio permissions.",
     "meetingStopsSoon": "The meeting stops in 5 minutes (3-hour limit).",
     "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
-    "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept."
+    "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept.",
+    "meetingLowDiskSpace": "Less than 1.5 GB is free on this Mac. A long meeting may stop early; what is recorded is kept."
   },
   "sidebar": {
     "general": "General",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "System Audio Permission",
       "description": "macOS asks the first time a meeting records system audio. If you declined, turn Murmur back on in the privacy settings.",
-      "open": "Open Settings"
+      "open": "Open Settings",
+      "silent": "No system audio was recorded, so the other participants are missing. Allow Murmur under System Audio Recording in the privacy settings, then record again."
     },
     "list": {
       "title": "Recordings",

@@ -206,6 +206,25 @@ const SpeakerNotice: React.FC<{
   );
 };
 
+/** System audio held only silence: macOS likely kept it from Murmur. */
+const SystemAudioNotice: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="status"
+      className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
+    >
+      <p className="flex-1 text-sm">{t("meetings.permission.silent")}</p>
+      <Button
+        variant="secondary"
+        onClick={() => void commands.openSystemAudioPrivacySettings()}
+      >
+        {t("meetings.permission.open")}
+      </Button>
+    </div>
+  );
+};
+
 interface MeetingViewProps {
   id: number;
   onBack: () => void;
@@ -335,6 +354,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
           onSeparate={() => void separate()}
         />
       )}
+      {meeting.system_audio_silent && <SystemAudioNotice />}
       <Tabs<Tab>
         idPrefix={TABS_ID}
         label={t("meetings.view.tabs.label")}

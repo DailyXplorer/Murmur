@@ -734,6 +734,7 @@ mod tests {
     #[test]
     fn with_meetings_off_the_meeting_keys_can_go_to_any_action() {
         let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = false;
         for id in ["transcribe", "paste_last", "cancel"] {
             assert!(conflicting_binding(&settings, id, DEFAULT_BINDING).is_none());
         }
@@ -746,6 +747,7 @@ mod tests {
     fn an_action_already_on_the_meeting_keys_keeps_them_when_meetings_turn_on() {
         for id in ["transcribe", "paste_last", "cancel"] {
             let mut settings = crate::settings::get_default_settings();
+            settings.meetings_enabled = false;
             bound(&mut settings, id, DEFAULT_BINDING);
             settings.meetings_enabled = true;
 
@@ -773,6 +775,7 @@ mod tests {
     #[test]
     fn the_meeting_shortcut_holds_its_keys_only_while_meetings_are_on() {
         let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = false;
         assert!(binding_registers(&settings, "transcribe"));
         assert!(!binding_registers(&settings, "cancel"));
         assert!(!binding_registers(&settings, crate::meetings::BINDING_ID));

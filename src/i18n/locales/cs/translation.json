@@ -31,7 +31,8 @@
     "meetingStartFailed": "Schůzku se nepodařilo spustit. Zkontrolujte mikrofon a oprávnění ke zvuku.",
     "meetingStopsSoon": "Schůzka se zastaví za 5 minut (limit 3 hodiny).",
     "meetingStoppedAtLimit": "Schůzka dosáhla limitu 3 hodin a byla uložena.",
-    "meetingWriteFailed": "Schůzka se zastavila, protože Murmur nemohl zapisovat na disk. Nahraný záznam zůstal zachován."
+    "meetingWriteFailed": "Schůzka se zastavila, protože Murmur nemohl zapisovat na disk. Nahraný záznam zůstal zachován.",
+    "meetingLowDiskSpace": "Na tomto Macu je volných méně než 1,5 GB. Dlouhá schůzka se může zastavit dříve; co se nahraje, zůstane zachováno."
   },
   "sidebar": {
     "general": "Obecné",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Oprávnění k systémovému zvuku",
       "description": "macOS se zeptá, když schůzka poprvé nahrává systémový zvuk. Pokud jste odmítli, znovu Murmur povolte v nastavení soukromí.",
-      "open": "Otevřít nastavení"
+      "open": "Otevřít nastavení",
+      "silent": "Nenahrál se žádný systémový zvuk, takže ostatní účastníci chybí. Povolte Murmur v části Nahrávání systémového zvuku v nastavení soukromí a nahrávejte znovu."
     },
     "list": {
       "title": "Nahrávky",
