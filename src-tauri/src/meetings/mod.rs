@@ -169,6 +169,33 @@ impl ProcessingQueue {
     }
 }
 
+/// How long the queue waits after a meeting ends rate limited, before the
+/// next one: Codex would refuse it too, and each meeting would spend its
+/// half hour of retries and fail. The ChatGPT usage cap frees up over a
+/// sliding five-hour window, so each such meeting in a row doubles the wait.
+#[derive(Default)]
+struct RateLimitHold {
+    in_a_row: u32,
+}
+
+impl RateLimitHold {
+    const FIRST: Duration = Duration::from_secs(30 * 60);
+    const CAP: Duration = Duration::from_secs(4 * 3600);
+
+    /// The wait before the next meeting, given how the last one ended.
+    fn after(&mut self, rate_limited: bool) -> Option<Duration> {
+        if !rate_limited {
+            self.in_a_row = 0;
+            return None;
+        }
+        let wait = Self::FIRST
+            .saturating_mul(1 << self.in_a_row.min(8))
+            .min(Self::CAP);
+        self.in_a_row += 1;
+        Some(wait)
+    }
+}
+
 struct AppEvents(AppHandle);
 
 impl ProcessEvents for AppEvents {
@@ -198,6 +225,7 @@ fn spawn_processing(
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut operations = 0;
+        let mut hold = RateLimitHold::default();
         while let Some(id) = receiver.recv().await {
             operations += 1;
             let operation = ProcessingOperation::new(OperationId(operations));
@@ -233,6 +261,16 @@ fn spawn_processing(
                 AppEvents(app.clone()).updated(id);
             }
             worker.end();
+            let rate_limited = store
+                .get(id)
+                .ok()
+                .flatten()
+                .is_some_and(|meeting| meeting.error == Some(ProcessingError::RateLimited));
+            if let Some(wait) = hold.after(rate_limited) {
+                // The meetings still queued wait as they are, unfailed.
+                info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+                tokio::time::sleep(wait).await;
+            }
         }
     });
     queue
@@ -761,6 +799,21 @@ mod tests {
         queue.resume();
         queue.enqueue(1);
         assert!(queue.begin(1, &operation(2)));
+    }
+
+    #[test]
+    fn the_queue_waits_longer_after_each_rate_limited_meeting_in_a_row() {
+        let mut hold = RateLimitHold::default();
+        assert_eq!(hold.after(false), None);
+        let minutes = |wait: Option<Duration>| wait.map(|wait| wait.as_secs() / 60);
+        assert_eq!(minutes(hold.after(true)), Some(30));
+        assert_eq!(minutes(hold.after(true)), Some(60));
+        assert_eq!(minutes(hold.after(true)), Some(120));
+        assert_eq!(minutes(hold.after(true)), Some(240));
+        assert_eq!(minutes(hold.after(true)), Some(240), "capped");
+        // A meeting that got through: the cap has freed up.
+        assert_eq!(hold.after(false), None);
+        assert_eq!(minutes(hold.after(true)), Some(30));
     }
 
     #[test]
