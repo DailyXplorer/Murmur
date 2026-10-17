@@ -760,7 +760,7 @@ mod tests {
             assert!(!binding_registers(&settings, BINDING_ID), "{id}");
             assert_eq!(binding_registers(&settings, id), id != "cancel");
             // Spelled differently, the keys are the same.
-            bound(&mut settings, BINDING_ID, "alt+cmd+m");
+            bound(&mut settings, BINDING_ID, "control+alt+cmd+m");
             assert!(meeting_shortcut_yields(&settings), "{id}");
 
             bound(&mut settings, id, "ctrl+shift+f9");

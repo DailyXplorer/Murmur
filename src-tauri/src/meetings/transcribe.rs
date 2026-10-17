@@ -677,7 +677,7 @@ mod tests {
     fn a_lasting_rate_limit_fails_the_piece_after_its_budget() {
         let server = serve(Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())));
         let run = run(&server, jobs(1, 1_000), operation());
-        assert_eq!(run.end, RunEnd::Finished);
+        assert_eq!(run.end, RunEnd::RateLimited);
         assert_eq!(
             outcomes(&run),
             [(0, Outcome::Failed(FailureKind::RateLimited))]
