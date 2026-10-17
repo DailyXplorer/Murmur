@@ -50,9 +50,9 @@ use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
 use helper::AnalysisSupport;
 use models::{MeetingModelsStatus, Models};
 use processor::{MeetingProgress, ProcessEvents, Processor};
-use store::{MeetingDetail, MeetingStatus, MeetingsPage, MeetingsStore, ProcessingError};
+use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
-use transcribe::{CodexTranscriber, RetryPolicy};
+use transcribe::{CodexTranscriber, CodexVerdict, RetryPolicy};
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
@@ -98,6 +98,7 @@ struct QueueState {
     paused: bool,
     /// A rate-limit hold: until then, only `asked` meetings go through.
     held_until: Option<tokio::time::Instant>,
+    rate_limit: RateLimitHold,
 }
 
 struct Queued {
@@ -134,6 +135,7 @@ impl ProcessingQueue {
             current: None,
             paused,
             held_until: None,
+            rate_limit: RateLimitHold::default(),
         };
         Self {
             state: Mutex::new(state),
@@ -189,9 +191,31 @@ impl ProcessingQueue {
         }
     }
 
-    /// Holds the meetings not asked for during `wait`; `None` lifts the hold.
-    fn hold(&self, wait: Option<Duration>) {
-        self.state().held_until = wait.map(|wait| tokio::time::Instant::now() + wait);
+    /// Holds the meetings not asked for during `wait`.
+    #[cfg(test)]
+    fn hold(&self, wait: Duration) {
+        self.state().held_until = Some(tokio::time::Instant::now() + wait);
+    }
+
+    /// Holds or frees the queue from what Codex said while a meeting was
+    /// processed, and returns the wait it starts. Only an answer lifts a hold: a
+    /// pass that asked Codex nothing, such as re-analysing, says nothing
+    /// about its cap.
+    fn codex_said(&self, verdict: CodexVerdict) -> Option<Duration> {
+        let mut state = self.state();
+        match verdict {
+            CodexVerdict::RateLimited => {
+                let wait = state.rate_limit.rate_limited();
+                state.held_until = Some(tokio::time::Instant::now() + wait);
+                Some(wait)
+            }
+            CodexVerdict::Answered => {
+                state.rate_limit.reset();
+                state.held_until = None;
+                None
+            }
+            CodexVerdict::Unknown => None,
+        }
     }
 
     /// Makes `id` the meeting in progress, unless the queue is paused: the
@@ -236,10 +260,11 @@ impl ProcessingQueue {
     }
 }
 
-/// How long the queue waits after a meeting ends rate limited, before the
-/// next one: Codex would refuse it too, and each meeting would spend its
-/// half hour of retries and fail. The ChatGPT usage cap frees up over a
-/// sliding five-hour window, so each such meeting in a row doubles the wait.
+/// How long the queue waits after Codex rate limits a meeting's transcript
+/// or summary, before the next one: Codex would refuse it too, and each
+/// meeting would spend its half hour of retries and fail. The ChatGPT usage
+/// cap frees up over a sliding five-hour window, so each refusal in a row,
+/// with no answer between, doubles the wait.
 #[derive(Default)]
 struct RateLimitHold {
     in_a_row: u32,
@@ -249,7 +274,7 @@ impl RateLimitHold {
     const FIRST: Duration = Duration::from_secs(30 * 60);
     const CAP: Duration = Duration::from_secs(4 * 3600);
 
-    /// The wait after one more meeting ended rate limited.
+    /// The wait after one more refusal.
     fn rate_limited(&mut self) -> Duration {
         let wait = Self::FIRST
             .saturating_mul(1 << self.in_a_row.min(8))
@@ -258,7 +283,7 @@ impl RateLimitHold {
         wait
     }
 
-    /// A meeting got through: the cap has freed up.
+    /// Codex answered: the cap has freed up.
     fn reset(&mut self) {
         self.in_a_row = 0;
     }
@@ -292,7 +317,6 @@ fn spawn_processing(
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut operations = 0;
-        let mut hold = RateLimitHold::default();
         loop {
             let id = worker.next().await;
             operations += 1;
@@ -321,28 +345,22 @@ fn spawn_processing(
                 events: Arc::new(AppEvents(app.clone())),
             };
             info!("Meeting {id}: processing");
-            if let Err(error) = processor.process(id, operation).await {
-                error!("Meeting {id}: processing failed: {error}");
-                if let Err(error) = store.finish_processing(id, Some(ProcessingError::Other)) {
-                    error!("Meeting {id}: cannot record the failure: {error}");
+            let codex = match processor.process(id, operation).await {
+                Ok(codex) => codex,
+                Err(error) => {
+                    error!("Meeting {id}: processing failed: {error}");
+                    if let Err(error) = store.finish_processing(id, Some(ProcessingError::Other)) {
+                        error!("Meeting {id}: cannot record the failure: {error}");
+                    }
+                    AppEvents(app.clone()).updated(id);
+                    CodexVerdict::Unknown
                 }
-                AppEvents(app.clone()).updated(id);
-            }
+            };
             worker.end();
             // While held, the meetings still queued wait as they are,
-            // unfailed. A cancelled or otherwise failed meeting says nothing
-            // about Codex and leaves the hold as it is.
-            match store.get(id).ok().flatten() {
-                Some(meeting) if meeting.error == Some(ProcessingError::RateLimited) => {
-                    let wait = hold.rate_limited();
-                    info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
-                    worker.hold(Some(wait));
-                }
-                Some(meeting) if meeting.status == MeetingStatus::Ready => {
-                    hold.reset();
-                    worker.hold(None);
-                }
-                _ => {}
+            // unfailed.
+            if let Some(wait) = worker.codex_said(codex) {
+                info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
             }
         }
     });
@@ -857,7 +875,7 @@ mod tests {
 
     const NOW: Duration = Duration::from_secs(5);
     const A_MOMENT: Duration = Duration::from_millis(50);
-    const AN_HOUR: Option<Duration> = Some(Duration::from_secs(3600));
+    const AN_HOUR: Duration = Duration::from_secs(3600);
 
     #[test]
     fn meetings_are_processed_in_the_order_they_were_queued() {
@@ -927,7 +945,7 @@ mod tests {
     #[test]
     fn a_meeting_queued_on_its_own_goes_once_the_hold_is_over() {
         let queue = ProcessingQueue::new(false);
-        queue.hold(Some(A_MOMENT));
+        queue.hold(A_MOMENT);
         queue.enqueue(1);
         assert_eq!(next_within(&queue, NOW), Some(1));
     }
@@ -956,8 +974,48 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(r));
         assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
         // R got through: Codex freed up.
-        queue.hold(None);
+        queue.codex_said(CodexVerdict::Answered);
         assert_eq!(next_within(&queue, NOW), Some(a));
+    }
+
+    fn held_minutes(queue: &ProcessingQueue) -> Option<u64> {
+        let until = queue.state().held_until?;
+        let left = until.saturating_duration_since(tokio::time::Instant::now());
+        Some((left.as_secs() + 30) / 60)
+    }
+
+    #[test]
+    fn a_pass_codex_never_answered_keeps_the_hold() {
+        // R hit the limit and A waits; then a summary retry of M goes
+        // through the hold, and Codex transcribes nothing for it.
+        let (a, m) = (1, 3);
+        let queue = ProcessingQueue::new(false);
+        assert_eq!(
+            queue.codex_said(CodexVerdict::RateLimited),
+            Some(Duration::from_secs(30 * 60))
+        );
+        queue.enqueue(a);
+        queue.enqueue_asked(m);
+        assert_eq!(next_within(&queue, NOW), Some(m));
+        assert_eq!(queue.codex_said(CodexVerdict::Unknown), None);
+        assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
+        assert_eq!(held_minutes(&queue), Some(30));
+        // The next refusal is still one more in a row.
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert_eq!(held_minutes(&queue), Some(60));
+    }
+
+    #[test]
+    fn codex_answering_lifts_the_hold_and_restarts_the_wait() {
+        let queue = ProcessingQueue::new(false);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.enqueue(1);
+        queue.codex_said(CodexVerdict::Answered);
+        assert_eq!(held_minutes(&queue), None);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert_eq!(held_minutes(&queue), Some(30));
     }
 
     #[test]
