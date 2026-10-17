@@ -262,6 +262,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(recording_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    history_manager.clone().start_retention_sweep();
     // Insights are optional: a broken stats database must not stop dictation.
     match insights::InsightsManager::new(app_handle, &history_manager) {
         Ok(insights_manager) => {

@@ -132,6 +132,34 @@ test("a meeting in progress shows its time, can be stopped and cannot be deleted
   await expect.poll(() => calls(page)).toContain("stop_meeting");
 });
 
+test("discarding names the meeting, and the dialog closes once that meeting stops", async ({
+  page,
+}) => {
+  await openMeetings(page, "&meeting=recording");
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Discard" })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls.find(
+          ({ command }) => command === "discard_meeting",
+        ),
+      ),
+    )
+    .toEqual({ command: "discard_meeting", args: { id: 4 } });
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({ state: "idle" }),
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
 test("without system audio support the sources are fixed to the microphone", async ({
   page,
 }) => {

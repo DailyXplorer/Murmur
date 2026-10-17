@@ -7,12 +7,16 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::cleanup::{CleanupOutcome, ProcessedText};
 
 pub const RECORDING_UNAVAILABLE_ERROR: &str = "Recording unavailable";
+
+const RETENTION_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 /// Database migrations for transcription history.
 /// Each migration is applied in order. The library tracks which migrations
@@ -309,7 +313,11 @@ fn init_database(db_path: &Path) -> Result<()> {
 
 impl HistoryManager {
     fn get_connection(&self) -> Result<Connection> {
-        Ok(Connection::open(&self.db_path)?)
+        let conn = Connection::open(&self.db_path)?;
+        // The retention sweep writes from its own thread; wait for it rather
+        // than failing a save with SQLITE_BUSY.
+        conn.busy_timeout(Duration::from_secs(5))?;
+        Ok(conn)
     }
 
     fn map_history_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryEntry> {
@@ -484,6 +492,22 @@ impl HistoryManager {
         }
 
         Ok(entry)
+    }
+
+    /// Applies the retention setting at launch and then every hour, so an
+    /// age limit holds even when nothing new is dictated.
+    pub fn start_retention_sweep(self: Arc<Self>) {
+        let spawned = std::thread::Builder::new()
+            .name("history-retention".into())
+            .spawn(move || loop {
+                if let Err(error) = self.cleanup_old_entries() {
+                    error!("Scheduled history cleanup failed: {}", error);
+                }
+                std::thread::sleep(RETENTION_SWEEP_INTERVAL);
+            });
+        if let Err(error) = spawned {
+            error!("Failed to start the history retention sweep: {}", error);
+        }
     }
 
     pub fn cleanup_old_entries(&self) -> Result<()> {

@@ -69,7 +69,8 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /** The meeting the Discard dialog was opened for. */
+  const [discardId, setDiscardId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<MeetingListItem | null>(
     null,
   );
@@ -77,6 +78,9 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
   const models = useMeetingModels();
   const recording = runtime.state === "recording";
   const now = useNow(recording);
+  // The dialog closes by itself once its meeting stops some other way.
+  const confirmDiscard =
+    discardId !== null && recording && runtime.id === discardId;
 
   /** Rows the list shows: a page, plus one per Show More. */
   const shownRef = useRef(PAGE_SIZE);
@@ -194,7 +198,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                 <Button
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => setConfirmDiscard(true)}
+                  onClick={() => setDiscardId(runtime.id)}
                 >
                   {t("meetings.discard")}
                 </Button>
@@ -336,22 +340,25 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
 
       <Dialog
         open={confirmDiscard}
-        onOpenChange={setConfirmDiscard}
+        onOpenChange={(open) => {
+          if (!open) setDiscardId(null);
+        }}
         title={t("meetings.discardDialog.title")}
         closeLabel={t("common.close")}
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => setConfirmDiscard(false)}
-            >
+            <Button variant="secondary" onClick={() => setDiscardId(null)}>
               {t("meetings.discardDialog.keep")}
             </Button>
             <Button
               variant="danger"
               onClick={() => {
-                setConfirmDiscard(false);
-                void run(commands.discardMeeting, "meetings.stopError");
+                if (discardId === null) return;
+                setDiscardId(null);
+                void run(
+                  () => commands.discardMeeting(discardId),
+                  "meetings.stopError",
+                );
               }}
             >
               {t("meetings.discard")}

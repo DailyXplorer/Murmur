@@ -24,6 +24,7 @@ declare global {
       calls: { command: string; args: unknown }[];
       emitProgress: (progress: MeetingProgress) => Promise<void>;
       emitMeetingsUpdated: (id: number) => Promise<void>;
+      emitMeetingState: (runtime: MeetingRuntime) => Promise<void>;
     };
   }
 }
@@ -490,6 +491,7 @@ window.settingsPages = {
   calls: [],
   emitProgress: (progress) => events.meetingProgress.emit(progress),
   emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
+  emitMeetingState: (runtime) => events.meetingStateChanged.emit(runtime),
 };
 
 mockIPC(

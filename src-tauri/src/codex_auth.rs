@@ -440,12 +440,17 @@ async fn refresh_to_completion(
 
     // Re-read right before writing. If anything changed while the request
     // was in flight, the other writer wins and our tokens are discarded.
-    let latest = AuthFile::read(path)?;
-    if latest.raw != base.raw {
-        info!(
-            "auth.json changed during the Codex token refresh; keeping the other writer's tokens"
-        );
-        return latest.session();
+    // The server has spent the old refresh token by now, so a failed re-read
+    // must not drop the new tokens: they are saved anyway.
+    match AuthFile::read(path) {
+        Ok(latest) if latest.raw != base.raw => {
+            info!(
+                "auth.json changed during the Codex token refresh; keeping the other writer's tokens"
+            );
+            return latest.session();
+        }
+        Ok(_) => {}
+        Err(_) => warn!("Could not re-read auth.json after the Codex token refresh; saving the refreshed tokens"),
     }
 
     let content = base.with_refreshed_tokens(&tokens, now)?;
@@ -953,6 +958,27 @@ mod tests {
 
         assert_eq!(session.access_token, "codex-access");
         assert_eq!(fs::read_to_string(&path).unwrap(), theirs);
+    }
+
+    #[test]
+    fn refresh_saves_its_tokens_when_the_file_cannot_be_reread() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        let path_for_server = path.clone();
+        let (endpoint, _requests) = one_shot_server(
+            200,
+            r#"{"access_token":"murmur-access","refresh_token":"murmur-rt"}"#,
+            move || fs::write(&path_for_server, "{").unwrap(),
+        );
+
+        let session =
+            tauri::async_runtime::block_on(session_for_request_at(&path, &endpoint, now()))
+                .unwrap();
+
+        assert_eq!(session.access_token, "murmur-access");
+        let saved = file_from(fs::read_to_string(&path).unwrap());
+        assert_eq!(saved.refresh_token(), Some("murmur-rt"));
     }
 
     #[test]

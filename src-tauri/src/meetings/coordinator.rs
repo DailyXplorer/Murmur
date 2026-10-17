@@ -295,9 +295,14 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         result.map(|()| active.id)
     }
 
-    /// Ends the recording and deletes it.
-    pub fn discard(&mut self) -> Result<(), MeetingError> {
-        let active = self.active.take().ok_or(MeetingError::NotRecording)?;
+    /// Ends recording `id` and deletes it. Any other meeting, recording or
+    /// not, is left alone: the request may come from a dialog opened for a
+    /// meeting that has ended since.
+    pub fn discard(&mut self, id: i64) -> Result<(), MeetingError> {
+        let active = self
+            .active
+            .take_if(|active| active.id == id)
+            .ok_or(MeetingError::NotRecording)?;
         for (_, track) in active.tracks {
             let _ = track.finish(Duration::ZERO);
         }
@@ -721,11 +726,29 @@ mod tests {
     fn discarding_deletes_the_recording() {
         let mut h = working();
         let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
-        h.coordinator.discard().unwrap();
+        h.coordinator.discard(id).unwrap();
         assert_eq!(h.coordinator.runtime(), MeetingRuntime::Idle);
         assert!(h.store.list(None, 10).unwrap().meetings.is_empty());
         assert!(!paths::meeting_dir(&h.root, id).exists());
-        assert_eq!(h.coordinator.discard(), Err(MeetingError::NotRecording));
+        assert_eq!(h.coordinator.discard(id), Err(MeetingError::NotRecording));
+    }
+
+    #[test]
+    fn a_discard_aimed_at_an_ended_meeting_keeps_the_one_recording_now() {
+        let mut h = working();
+        let first = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        let second = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+
+        assert_eq!(
+            h.coordinator.discard(first),
+            Err(MeetingError::NotRecording)
+        );
+        assert!(matches!(
+            h.coordinator.runtime(),
+            MeetingRuntime::Recording { id, .. } if id == second
+        ));
+        assert!(paths::meeting_dir(&h.root, second).exists());
     }
 
     #[test]
@@ -848,7 +871,7 @@ mod tests {
             assert_eq!(id, 1);
             let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
             assert!(dir.is_dir() && !dir.file_type().is_symlink());
-            h.coordinator.discard().unwrap();
+            h.coordinator.discard(id).unwrap();
         }
         assert!(outside.path().join("keep.txt").exists());
     }
