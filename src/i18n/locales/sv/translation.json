@@ -552,7 +552,7 @@
     "title": "Nytt i Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkriptioner visas när ett möte har bearbetats. Sammanfattningar kommer i en senare version.",
+    "notice": "Transkriptioner och sammanfattningar visas när mötet har bearbetats.",
     "view": {
       "back": "Alla möten",
       "titleLabel": "Mötets titel",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Mötets innehåll",
         "summary": "Sammanfattning",
-        "transcript": "Transkription",
-        "summarySoon": "Sammanfattningar kommer i en senare version."
+        "transcript": "Transkription"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Bearbetas",
       "ready": "Klart",
       "failed": "Misslyckades"
+    },
+    "summary": {
+      "header": "{{count}} min läsning",
+      "search": "Sök i sammanfattningen",
+      "copy": "Kopiera sammanfattning",
+      "copied": "Sammanfattningen kopierades.",
+      "copyError": "Det gick inte att kopiera sammanfattningen.",
+      "export": "Exportera som Markdown",
+      "exported": "Sammanfattningen sparades.",
+      "exportError": "Det gick inte att spara sammanfattningen.",
+      "writing": "Skriver sammanfattningen…",
+      "pending": "Sammanfattningen skrivs när hela mötet har transkriberats.",
+      "retryError": "Det gick inte att försöka igen med sammanfattningen.",
+      "errors": {
+        "signed_out": "Logga in i Codex och försök igen.",
+        "rate_limited": "Codex begränsar förfrågningar just nu. Försök igen senare.",
+        "network": "Det gick inte att nå Codex. Kontrollera anslutningen och försök igen.",
+        "timeout": "Codex tog för lång tid att svara.",
+        "too_long": "Sammanfattningen blev för lång.",
+        "empty": "Codex returnerade en tom sammanfattning.",
+        "nothing_to_summarize": "Inget transkriberades, så det finns inget att sammanfatta.",
+        "other": "Det gick inte att skriva sammanfattningen."
+      }
+    },
+    "audio": {
+      "tracks": "Ljudet sparas",
+      "compressed": "Ljudet sparas · {{size}}",
+      "deleted": "Ljudet har raderats. Transkriptionen och sammanfattningen finns kvar.",
+      "retranscribe": "Transkribera igen",
+      "delete": "Radera ljud",
+      "deleteError": "Det gick inte att radera ljudet.",
+      "retranscribeError": "Det gick inte att transkribera mötet igen.",
+      "deleteDialog": {
+        "title": "Radera ljudet för det här mötet?",
+        "description": "Inspelningen raderas och kan inte återställas. Transkriptionen och sammanfattningen finns kvar, men mötet kan inte transkriberas igen."
+      },
+      "retranscribeDialog": {
+        "title": "Transkribera det här mötet igen?",
+        "description": "Codex transkriberar inspelningen igen, och transkriptionen och sammanfattningen ersätts. En titel du har valt behålls."
+      }
     }
   }
 }

@@ -59,6 +59,10 @@ pub struct Request<'a> {
     pub instructions: &'a str,
     pub user_message: &'a str,
     pub max_output_chars: usize,
+    /// `low`, `medium` or `high`: how long the model reasons first.
+    pub effort: &'a str,
+    /// `low`, `medium` or `high`: how much the model writes.
+    pub verbosity: &'a str,
 }
 
 /// Posts one request and returns the streamed output text. The caller owns
@@ -84,10 +88,10 @@ pub async fn complete(
         ],
         "tool_choice": "none",
         "parallel_tool_calls": false,
-        "reasoning": { "effort": "low" },
+        "reasoning": { "effort": request.effort },
         "store": false,
         "include": [],
-        "text": { "verbosity": "low" },
+        "text": { "verbosity": request.verbosity },
     });
 
     let mut builder = client
@@ -230,6 +234,20 @@ pub fn fast_model(codex_home: &Path) -> String {
 }
 
 fn pick_fast_model(models_cache_json: &str) -> Option<String> {
+    pick_model(models_cache_json, true)
+}
+
+/// The standard (not fast) model the account can use, for work where
+/// quality matters more than speed; the fast model when none is listed.
+pub fn default_model(codex_home: &Path) -> String {
+    std::fs::read_to_string(codex_home.join("models_cache.json"))
+        .ok()
+        .and_then(|json| pick_model(&json, false))
+        .unwrap_or_else(|| fast_model(codex_home))
+}
+
+/// The listed model of the first rank in the fast or the standard tier.
+fn pick_model(models_cache_json: &str, fast: bool) -> Option<String> {
     let cache: ModelsCache = serde_json::from_str(models_cache_json).ok()?;
     cache
         .models
@@ -240,6 +258,7 @@ fn pick_fast_model(models_cache_json: &str) -> Option<String> {
             FAST_MODEL_MARKERS
                 .iter()
                 .any(|marker| slug.contains(marker))
+                == fast
         })
         .min_by_key(|model| model.priority.unwrap_or(i64::MAX))
         .map(|model| model.slug)
@@ -311,8 +330,30 @@ event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{
     }
 
     #[test]
+    fn the_first_listed_standard_model_is_the_default() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = directory.path().join("models_cache.json");
+        std::fs::write(
+            &cache,
+            r#"{"models":[
+            {"slug":"gpt-6-luna","visibility":"list","priority":0},
+            {"slug":"gpt-6.1-sol","visibility":"list","priority":3},
+            {"slug":"gpt-6.2-sol","visibility":"list","priority":1},
+            {"slug":"secret-max","visibility":"hide","priority":0}
+        ]}"#,
+        )
+        .unwrap();
+        assert_eq!(default_model(directory.path()), "gpt-6.2-sol");
+
+        // With only a fast model listed, that one.
+        std::fs::write(&cache, r#"{"models":[{"slug":"gpt-6-luna"}]}"#).unwrap();
+        assert_eq!(default_model(directory.path()), "gpt-6-luna");
+    }
+
+    #[test]
     fn a_missing_cache_falls_back_to_the_known_fast_model() {
         let directory = tempfile::tempdir().unwrap();
         assert_eq!(fast_model(directory.path()), FALLBACK_MODEL);
+        assert_eq!(default_model(directory.path()), FALLBACK_MODEL);
     }
 }

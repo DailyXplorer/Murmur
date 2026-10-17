@@ -4,6 +4,7 @@
 
 pub mod align;
 pub mod analysis;
+pub mod archive;
 pub mod bleed;
 pub mod cap;
 pub mod capture;
@@ -21,6 +22,7 @@ pub mod save_panel;
 pub mod speakers;
 pub mod spread;
 pub mod store;
+pub mod summary;
 pub mod tokens;
 pub mod track_audio;
 pub mod transcribe;
@@ -49,6 +51,7 @@ use helper::AnalysisSupport;
 use models::{MeetingModelsStatus, Models};
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
+use summary::CodexSummarizer;
 use transcribe::{CodexTranscriber, RetryPolicy};
 
 pub const BINDING_ID: &str = "meeting_toggle";
@@ -63,6 +66,14 @@ pub struct MeetingStateChanged(pub MeetingRuntime);
 #[derive(Serialize, Debug, Clone, Copy, Type, Event)]
 pub struct MeetingsUpdated {
     pub id: i64,
+}
+
+/// Which tab Copy and Export take their text from.
+#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingMarkdownKind {
+    Summary,
+    Transcript,
 }
 
 #[derive(Serialize, Debug, Clone, Copy, Type)]
@@ -203,6 +214,10 @@ fn spawn_processing(
                 analyzer: Arc::new(HelperAnalyzer {
                     models: Arc::clone(&models),
                     support: helper::support(),
+                }),
+                summarizer: Arc::new(CodexSummarizer {
+                    url: crate::cleanup::responses::RESPONSES_URL.to_string(),
+                    auth_path: None,
                 }),
                 policy: RetryPolicy::default(),
                 language: Some(language),
@@ -447,9 +462,14 @@ impl MeetingsManager {
     /// Tells the speakers of a finished meeting apart again, with the models
     /// as they are now. Codex is not asked again for parts it transcribed.
     pub fn reanalyze(&self, id: i64) -> Result<(), String> {
+        if self.detail(id)?.audio == store::AudioState::Deleted {
+            return Err(format!("Meeting {id} has no audio left"));
+        }
         if !self.store.reopen(id).map_err(|error| error.to_string())? {
             return Err(format!("Meeting {id} is not finished"));
         }
+        // A summary still being written is of the analysis that goes.
+        self.queue.cancel(id);
         // Nothing processes the meeting until it is queued below.
         let analysis = paths::meeting_dir(&self.root, id).join(analysis::ANALYSIS_FILE);
         match std::fs::remove_file(analysis) {
@@ -457,6 +477,61 @@ impl MeetingsManager {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => error!("Meeting {id}: cannot reset the analysis: {error}"),
         }
+        self.updated(id);
+        self.queue.enqueue(id);
+        Ok(())
+    }
+
+    /// Asks Codex again for a summary that failed.
+    pub fn retry_summary(&self, id: i64) -> Result<(), String> {
+        if !self
+            .store
+            .retry_summary(id)
+            .map_err(|error| error.to_string())?
+        {
+            return Err(format!("Meeting {id} has no failed summary"));
+        }
+        self.updated(id);
+        self.queue.enqueue(id);
+        Ok(())
+    }
+
+    /// Deletes a finished meeting's audio and the analysis made from it; the
+    /// transcript and the summary stay.
+    pub fn delete_audio(&self, id: i64) -> Result<(), String> {
+        if !self
+            .store
+            .delete_audio(id)
+            .map_err(|error| error.to_string())?
+        {
+            return Err(format!("Meeting {id} is not finished"));
+        }
+        let result = paths::remove_meeting_files(
+            &self.root,
+            id,
+            &[
+                paths::AUDIO_FILE,
+                paths::MIC_TRACK,
+                paths::SYSTEM_TRACK,
+                analysis::ANALYSIS_FILE,
+            ],
+        );
+        self.updated(id);
+        result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+    }
+
+    /// Transcribes a finished meeting again from its audio, and writes its
+    /// summary anew. A title the user gave stays.
+    pub fn retranscribe(&self, id: i64) -> Result<(), String> {
+        if !self
+            .store
+            .retranscribe(id)
+            .map_err(|error| error.to_string())?
+        {
+            return Err(format!("Meeting {id} cannot be transcribed again"));
+        }
+        // A summary still being written is of the transcript that goes.
+        self.queue.cancel(id);
         self.updated(id);
         self.queue.enqueue(id);
         Ok(())
@@ -488,21 +563,32 @@ impl MeetingsManager {
         }
     }
 
-    /// The transcript as Markdown, and the file name to save it under.
-    pub fn markdown(&self, id: i64) -> Result<(String, String), String> {
+    /// The summary or the transcript as Markdown, and the file name to save
+    /// it under.
+    pub fn markdown(&self, id: i64, kind: MeetingMarkdownKind) -> Result<(String, String), String> {
         let meeting = self.detail(id)?;
         let started_at = chrono::Local
             .timestamp_millis_opt(meeting.started_at_ms)
             .single()
             .ok_or_else(|| format!("Meeting {id} has an invalid start time"))?
             .fixed_offset();
-        let markdown = export::transcript_markdown(&export::Transcript {
+        let transcript = export::Transcript {
             title: meeting.title.as_deref(),
             started_at,
             duration_ms: meeting.duration_ms,
             speakers: &meeting.speakers,
             turns: &meeting.turns,
-        });
+        };
+        let markdown = match kind {
+            MeetingMarkdownKind::Transcript => export::transcript_markdown(&transcript),
+            MeetingMarkdownKind::Summary => export::summary_markdown(
+                &transcript,
+                meeting
+                    .summary
+                    .as_deref()
+                    .ok_or_else(|| format!("Meeting {id} has no summary"))?,
+            ),
+        };
         Ok((
             markdown,
             export::file_name(&started_at, meeting.title.as_deref()),

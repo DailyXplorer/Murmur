@@ -93,6 +93,43 @@ test.describe("settings screenshots", () => {
     });
   }
 
+  for (const theme of ["light", "dark"] as const) {
+    test(`meeting summary (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(VIEWPORT);
+      await page.goto(
+        `/tests/fixtures/settings-pages.html?meetings=1&theme=${theme}`,
+      );
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+      await page.waitForTimeout(500);
+      await growViewportToContent(page);
+      await page.screenshot({
+        path: `${outputDir}/meeting-summary-${theme}.png`,
+        fullPage: true,
+      });
+
+      await page.goto(
+        `/tests/fixtures/settings-pages.html?meetings=1&summary=failed&theme=${theme}`,
+      );
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/meeting-summary-failed-${theme}.png`,
+      });
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    });
+  }
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

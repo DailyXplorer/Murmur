@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use super::chunking::ChunkPlan;
 use super::merge::Track;
 use super::paths;
+use super::summary::SummaryError;
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::{open_or_reset_database, DatabaseStartup};
@@ -77,6 +78,8 @@ static MIGRATIONS: &[M] = &[
     M::up("ALTER TABLE meetings ADD COLUMN speaker_analysis TEXT;"),
     // Which diarization the speaker keys come from (NULL: one per track).
     M::up("ALTER TABLE meetings ADD COLUMN speaker_identity TEXT;"),
+    // The user deleted the audio; the text stays.
+    M::up("ALTER TABLE meetings ADD COLUMN audio_deleted INTEGER NOT NULL DEFAULT 0;"),
 ];
 
 /// Which tracks a meeting recorded.
@@ -265,6 +268,37 @@ impl ProcessingError {
     }
 }
 
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SummaryStatus {
+    /// Not written yet: it is once the whole transcript is.
+    Pending,
+    Ready,
+    Failed,
+}
+
+impl SummaryStatus {
+    fn from_db(value: &str) -> Self {
+        match value {
+            "ready" => Self::Ready,
+            "failed" => Self::Failed,
+            _ => Self::Pending,
+        }
+    }
+}
+
+/// Where a meeting's audio is.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioState {
+    /// The tracks as recorded, until processing compresses them.
+    Tracks,
+    /// `audio.m4a`.
+    Compressed,
+    /// The user deleted it.
+    Deleted,
+}
+
 fn track_db(track: Track) -> &'static str {
     match track {
         Track::Mic => "mic",
@@ -345,6 +379,13 @@ pub struct MeetingDetail {
     pub speaker_analysis: Option<SpeakerAnalysis>,
     pub speakers: Vec<MeetingSpeaker>,
     pub turns: Vec<MeetingTurn>,
+    /// Markdown with `[[key]]` markers where people are named.
+    pub summary: Option<String>,
+    pub summary_status: SummaryStatus,
+    pub summary_error: Option<SummaryError>,
+    pub audio: AudioState,
+    /// The size of `audio.m4a`, once compressed.
+    pub audio_bytes: i64,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -518,11 +559,18 @@ impl MeetingsStore {
         Ok(cut_off.len())
     }
 
-    /// Meetings to process, oldest first: those left mid-way by a quit.
+    /// Meetings to process, oldest first: those a quit left mid-way, and
+    /// transcribed ones still waiting for their summary or compressed audio.
     pub fn waiting_for_processing(&self) -> Result<Vec<i64>> {
         Ok(self
             .connection()?
-            .prepare("SELECT id FROM meetings WHERE status = 'processing' ORDER BY id")?
+            .prepare(
+                "SELECT id FROM meetings
+                 WHERE status = 'processing'
+                    OR (status = 'ready' AND (summary_status = 'pending'
+                        OR (audio_file IS NULL AND audio_deleted = 0)))
+                 ORDER BY id",
+            )?
             .query_map([], |row| row.get(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?)
     }
@@ -532,24 +580,38 @@ impl MeetingsStore {
         let row = conn
             .query_row(
                 "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind,
-                        speaker_analysis
+                        speaker_analysis, summary_md, summary_status, summary_error,
+                        audio_file, audio_bytes, audio_deleted
                  FROM meetings WHERE id = ?1",
                 params![id],
                 |row| {
                     Ok((
-                        row.get::<_, Option<String>>(0)?,
-                        row.get::<_, i64>(1)?,
-                        row.get::<_, i64>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, Option<String>>(5)?,
-                        row.get::<_, Option<String>>(6)?,
-                        row.get::<_, Option<String>>(7)?,
+                        (
+                            row.get::<_, Option<String>>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, i64>(2)?,
+                            row.get::<_, String>(3)?,
+                            row.get::<_, String>(4)?,
+                            row.get::<_, Option<String>>(5)?,
+                            row.get::<_, Option<String>>(6)?,
+                            row.get::<_, Option<String>>(7)?,
+                        ),
+                        (
+                            row.get::<_, Option<String>>(8)?,
+                            row.get::<_, String>(9)?,
+                            row.get::<_, Option<String>>(10)?,
+                            row.get::<_, Option<String>>(11)?,
+                            row.get::<_, i64>(12)?,
+                            row.get::<_, bool>(13)?,
+                        ),
                     ))
                 },
             )
             .optional()?;
-        let Some((title, started_at_ms, duration_ms, status, tracks, stage, error, analysis)) = row
+        let Some((
+            (title, started_at_ms, duration_ms, status, tracks, stage, error, analysis),
+            (summary, summary_status, summary_error, audio_file, audio_bytes, audio_deleted),
+        )) = row
         else {
             return Ok(None);
         };
@@ -595,7 +657,96 @@ impl MeetingsStore {
             speaker_analysis: analysis.as_deref().and_then(SpeakerAnalysis::from_db),
             speakers,
             turns,
+            summary,
+            summary_status: SummaryStatus::from_db(&summary_status),
+            summary_error: summary_error.as_deref().and_then(SummaryError::from_db),
+            audio: match (audio_deleted, audio_file) {
+                (true, _) => AudioState::Deleted,
+                (false, Some(_)) => AudioState::Compressed,
+                (false, None) => AudioState::Tracks,
+            },
+            audio_bytes,
         }))
+    }
+
+    /// Saves the summary, and the title it gives the meeting unless the
+    /// user named it. Returns false when the meeting no longer waits for
+    /// it: transcribed again or re-analysed meanwhile, its summary is of a
+    /// transcript that is gone.
+    pub fn save_summary(&self, id: i64, title: Option<&str>, body: &str) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET summary_md = ?3, summary_status = 'ready', summary_error = NULL,
+                 title = CASE WHEN title_edited = 0 AND ?2 IS NOT NULL THEN ?2 ELSE title END
+             WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
+            params![id, title, body],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// Returns false, like `save_summary`, when the meeting no longer waits
+    /// for this summary.
+    pub fn summary_failed(&self, id: i64, error: SummaryError) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET summary_status = 'failed', summary_error = ?2
+             WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
+            params![id, error.as_db()],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// Makes a failed summary wait to be written again. Returns false when
+    /// it did not fail.
+    pub fn retry_summary(&self, id: i64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET summary_status = 'pending', summary_error = NULL
+             WHERE id = ?1 AND summary_status = 'failed'",
+            params![id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// The tracks are compressed into `audio.m4a`. Returns false when the
+    /// user deleted the audio meanwhile.
+    pub fn audio_compressed(&self, id: i64, bytes: u64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET audio_file = ?2, audio_bytes = ?3
+             WHERE id = ?1 AND audio_deleted = 0",
+            params![id, paths::AUDIO_FILE, bytes as i64],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// Marks a finished meeting's audio deleted; its text stays. Returns
+    /// false while it records or processes.
+    pub fn delete_audio(&self, id: i64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET audio_deleted = 1, audio_file = NULL, audio_bytes = 0
+             WHERE id = ?1 AND status IN ('ready', 'failed')",
+            params![id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// Makes a finished meeting with audio wait to be transcribed from
+    /// scratch: its pieces are forgotten and its summary written anew.
+    /// Returns false when it is not finished or has no audio.
+    pub fn retranscribe(&self, id: i64) -> Result<bool> {
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        let updated = tx.execute(
+            "UPDATE meetings SET status = 'processing', stage = NULL, error_kind = NULL,
+                 summary_md = NULL, summary_status = 'pending', summary_error = NULL
+             WHERE id = ?1 AND status IN ('ready', 'failed') AND audio_deleted = 0",
+            params![id],
+        )?;
+        if updated > 0 {
+            tx.execute(
+                "DELETE FROM meeting_chunks WHERE meeting_id = ?1",
+                params![id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(updated > 0)
     }
 
     /// Starts (or resumes) processing a recorded meeting. Returns false when
@@ -751,6 +902,13 @@ impl MeetingsStore {
             "UPDATE meeting_speakers SET display_name = default_name
              WHERE meeting_id = ?1 AND key <> 'me'
                AND (SELECT speaker_identity FROM meetings WHERE id = ?1) IS NOT ?2",
+            params![id, identity],
+        )?;
+        // The summary names people by key: with new keys, it is written anew.
+        tx.execute(
+            "UPDATE meetings SET summary_md = NULL, summary_status = 'pending',
+                 summary_error = NULL
+             WHERE id = ?1 AND speaker_identity IS NOT ?2",
             params![id, identity],
         )?;
         tx.execute(
@@ -1246,6 +1404,183 @@ mod tests {
         assert_eq!(store.get(id).unwrap().unwrap().title, None);
         assert!(store.rename(999, Some("x")).is_err());
         assert_eq!(store.get(999).unwrap(), None);
+    }
+
+    fn ready(store: &MeetingsStore) -> i64 {
+        let id = recorded(store);
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        id
+    }
+
+    #[test]
+    fn the_summary_names_the_meeting_unless_the_user_did() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        let fresh = store.get(id).unwrap().unwrap();
+        assert_eq!(fresh.summary_status, SummaryStatus::Pending);
+        assert_eq!(fresh.summary, None);
+
+        assert!(store
+            .save_summary(id, Some("Budget review"), "Notes about [[me]].")
+            .unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.title.as_deref(), Some("Budget review"));
+        assert_eq!(meeting.summary.as_deref(), Some("Notes about [[me]]."));
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        // Written once: a second summary is not waited for.
+        assert!(!store.save_summary(id, Some("Other"), "Other.").unwrap());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().summary.as_deref(),
+            Some("Notes about [[me]].")
+        );
+
+        let named = ready(&store);
+        store.rename(named, Some("My title")).unwrap();
+        assert!(store
+            .save_summary(named, Some("Other"), "New notes.")
+            .unwrap());
+        let meeting = store.get(named).unwrap().unwrap();
+        assert_eq!(meeting.title.as_deref(), Some("My title"));
+        assert_eq!(meeting.summary.as_deref(), Some("New notes."));
+
+        let untitled = ready(&store);
+        assert!(store.save_summary(untitled, None, "Notes.").unwrap());
+        assert_eq!(store.get(untitled).unwrap().unwrap().title, None);
+    }
+
+    #[test]
+    fn a_failed_summary_waits_for_retry_and_then_for_processing() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        store.audio_compressed(id, 1_000).unwrap();
+        // Pending: processing writes it, at the next launch too.
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+        assert!(!store.retry_summary(id).unwrap());
+
+        store.summary_failed(id, SummaryError::RateLimited).unwrap();
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Failed);
+        assert_eq!(meeting.summary_error, Some(SummaryError::RateLimited));
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+
+        assert!(store.retry_summary(id).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary_error, None);
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+    }
+
+    #[test]
+    fn audio_is_compressed_then_deleted_and_the_text_stays() {
+        let (_dir, store) = store();
+        let recording = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        assert!(!store.delete_audio(recording).unwrap());
+
+        let id = ready(&store);
+        store.save_summary(id, None, "Notes.").unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Tracks);
+        // Waiting for its audio to be compressed.
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+
+        assert!(store.audio_compressed(id, 4_200).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.audio, AudioState::Compressed);
+        assert_eq!(meeting.audio_bytes, 4_200);
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+
+        assert!(store.delete_audio(id).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.audio, AudioState::Deleted);
+        assert_eq!(meeting.audio_bytes, 0);
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+        assert!(!store.audio_compressed(id, 4_200).unwrap());
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+        assert!(!store.retranscribe(id).unwrap());
+    }
+
+    #[test]
+    fn transcribing_again_forgets_the_pieces_and_the_summary() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        store
+            .plan_chunks(id, Track::Mic, &plan(&[(0, 60_000, 30_000)]))
+            .unwrap();
+        store.chunk_done(id, Track::Mic, 0, "Bonjour.").unwrap();
+        store.rename(id, Some("Kept")).unwrap();
+        store.save_summary(id, Some("Ignored"), "Notes.").unwrap();
+
+        assert!(store.retranscribe(id).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Processing);
+        assert_eq!(meeting.summary, None);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.title.as_deref(), Some("Kept"));
+        assert!(store.chunks(id).unwrap().is_empty());
+        // Already waiting: a second request changes nothing.
+        assert!(!store.retranscribe(id).unwrap());
+    }
+
+    #[test]
+    fn a_summary_of_the_old_transcript_is_dropped_after_transcribing_again() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        // Codex is still writing the summary when the user transcribes again.
+        assert!(store.retranscribe(id).unwrap());
+        assert!(!store
+            .save_summary(id, Some("Old title"), "Old notes.")
+            .unwrap());
+        assert!(!store.summary_failed(id, SummaryError::Timeout).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary, None);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary_error, None);
+        assert_eq!(meeting.title, None);
+
+        // The new transcript gets its own summary.
+        store.finish_processing(id, None).unwrap();
+        assert!(store
+            .save_summary(id, Some("New title"), "New notes.")
+            .unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary.as_deref(), Some("New notes."));
+        assert_eq!(meeting.title.as_deref(), Some("New title"));
+    }
+
+    #[test]
+    fn new_speaker_keys_make_the_summary_be_written_again() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        let speakers = [MeetingSpeaker {
+            key: "s1".into(),
+            name: "Speaker 1".into(),
+            default_name: "Speaker 1".into(),
+            color_index: 1,
+        }];
+        let save = |identity: Option<&str>| {
+            store
+                .save_transcript(
+                    id,
+                    &speakers,
+                    &[],
+                    SpeakerAnalysis::Separated,
+                    identity,
+                    None,
+                )
+                .unwrap()
+        };
+        save(None);
+        store.save_summary(id, None, "Notes by [[s1]].").unwrap();
+        // The same keys keep the summary.
+        save(None);
+        assert_eq!(
+            store.get(id).unwrap().unwrap().summary_status,
+            SummaryStatus::Ready
+        );
+        save(Some("diarized"));
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary, None);
     }
 
     #[test]

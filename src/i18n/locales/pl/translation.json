@@ -552,7 +552,7 @@
     "title": "Nowości w Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkrypcje pojawiają się po przetworzeniu spotkania. Podsumowania pojawią się w późniejszej wersji.",
+    "notice": "Transkrypcje i podsumowania pojawiają się po przetworzeniu spotkania.",
     "view": {
       "back": "Wszystkie spotkania",
       "titleLabel": "Tytuł spotkania",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Zawartość spotkania",
         "summary": "Podsumowanie",
-        "transcript": "Transkrypcja",
-        "summarySoon": "Podsumowania pojawią się w późniejszej wersji."
+        "transcript": "Transkrypcja"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Przetwarzanie",
       "ready": "Gotowe",
       "failed": "Niepowodzenie"
+    },
+    "summary": {
+      "header": "{{count}} min czytania",
+      "search": "Szukaj w podsumowaniu",
+      "copy": "Kopiuj podsumowanie",
+      "copied": "Skopiowano podsumowanie.",
+      "copyError": "Nie udało się skopiować podsumowania.",
+      "export": "Eksportuj jako Markdown",
+      "exported": "Zapisano podsumowanie.",
+      "exportError": "Nie udało się zapisać podsumowania.",
+      "writing": "Pisanie podsumowania…",
+      "pending": "Podsumowanie powstaje, gdy całe spotkanie zostanie przetranskrybowane.",
+      "retryError": "Nie udało się ponowić podsumowania.",
+      "errors": {
+        "signed_out": "Zaloguj się do Codex i spróbuj ponownie.",
+        "rate_limited": "Codex ogranicza teraz liczbę żądań. Spróbuj ponownie później.",
+        "network": "Nie można połączyć się z Codex. Sprawdź połączenie i spróbuj ponownie.",
+        "timeout": "Codex zbyt długo nie odpowiadał.",
+        "too_long": "Podsumowanie wyszło za długie.",
+        "empty": "Codex zwrócił puste podsumowanie.",
+        "nothing_to_summarize": "Nic nie zostało przetranskrybowane, więc nie ma czego podsumować.",
+        "other": "Nie udało się napisać podsumowania."
+      }
+    },
+    "audio": {
+      "tracks": "Dźwięk zachowany",
+      "compressed": "Dźwięk zachowany · {{size}}",
+      "deleted": "Dźwięk usunięty. Transkrypcja i podsumowanie pozostają.",
+      "retranscribe": "Transkrybuj ponownie",
+      "delete": "Usuń dźwięk",
+      "deleteError": "Nie udało się usunąć dźwięku.",
+      "retranscribeError": "Nie udało się ponownie przetranskrybować spotkania.",
+      "deleteDialog": {
+        "title": "Usunąć dźwięk tego spotkania?",
+        "description": "Nagranie zostanie usunięte i nie będzie można go odzyskać. Transkrypcja i podsumowanie pozostaną, ale spotkania nie będzie można ponownie przetranskrybować."
+      },
+      "retranscribeDialog": {
+        "title": "Przetranskrybować to spotkanie ponownie?",
+        "description": "Codex ponownie transkrybuje nagranie, a transkrypcja i podsumowanie zostaną zastąpione. Nadany przez Ciebie tytuł pozostanie."
+      }
     }
   }
 }

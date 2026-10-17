@@ -552,7 +552,7 @@
     "title": "Điểm mới trong Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Bản chép lời xuất hiện sau khi cuộc họp được xử lý. Bản tóm tắt sẽ có trong phiên bản sau.",
+    "notice": "Bản ghi lời và bản tóm tắt sẽ xuất hiện sau khi cuộc họp được xử lý.",
     "view": {
       "back": "Tất cả cuộc họp",
       "titleLabel": "Tiêu đề cuộc họp",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Nội dung cuộc họp",
         "summary": "Tóm tắt",
-        "transcript": "Bản chép lời",
-        "summarySoon": "Bản tóm tắt sẽ có trong phiên bản sau."
+        "transcript": "Bản chép lời"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Đang xử lý",
       "ready": "Sẵn sàng",
       "failed": "Thất bại"
+    },
+    "summary": {
+      "header": "{{count}} phút đọc",
+      "search": "Tìm trong bản tóm tắt",
+      "copy": "Sao chép bản tóm tắt",
+      "copied": "Đã sao chép bản tóm tắt.",
+      "copyError": "Không thể sao chép bản tóm tắt.",
+      "export": "Xuất dưới dạng Markdown",
+      "exported": "Đã lưu bản tóm tắt.",
+      "exportError": "Không thể lưu bản tóm tắt.",
+      "writing": "Đang viết bản tóm tắt…",
+      "pending": "Bản tóm tắt được viết khi toàn bộ cuộc họp đã được chép lời.",
+      "retryError": "Không thể thử lại bản tóm tắt.",
+      "errors": {
+        "signed_out": "Hãy đăng nhập Codex rồi thử lại.",
+        "rate_limited": "Codex đang giới hạn yêu cầu. Hãy thử lại sau.",
+        "network": "Không thể kết nối Codex. Hãy kiểm tra kết nối rồi thử lại.",
+        "timeout": "Codex phản hồi quá lâu.",
+        "too_long": "Bản tóm tắt quá dài.",
+        "empty": "Codex trả về một bản tóm tắt trống.",
+        "nothing_to_summarize": "Không có nội dung nào được chép lời nên không có gì để tóm tắt.",
+        "other": "Không thể viết bản tóm tắt."
+      }
+    },
+    "audio": {
+      "tracks": "Đã giữ âm thanh",
+      "compressed": "Đã giữ âm thanh · {{size}}",
+      "deleted": "Đã xóa âm thanh. Bản ghi lời và bản tóm tắt vẫn được giữ.",
+      "retranscribe": "Chép lời lại",
+      "delete": "Xóa âm thanh",
+      "deleteError": "Không thể xóa âm thanh.",
+      "retranscribeError": "Không thể chép lời lại cuộc họp.",
+      "deleteDialog": {
+        "title": "Xóa âm thanh của cuộc họp này?",
+        "description": "Bản ghi âm sẽ bị xóa và không thể khôi phục. Bản ghi lời và bản tóm tắt vẫn được giữ, nhưng không thể chép lời lại cuộc họp."
+      },
+      "retranscribeDialog": {
+        "title": "Chép lời lại cuộc họp này?",
+        "description": "Codex sẽ chép lời lại bản ghi âm, bản ghi lời và bản tóm tắt sẽ được thay thế. Tiêu đề bạn đã đặt vẫn được giữ."
+      }
     }
   }
 }

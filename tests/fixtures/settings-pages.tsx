@@ -36,6 +36,8 @@ const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
 const analysis = params.get("analysis") ?? "available";
+/** `failed` or `pending`; ready by default. */
+const meetingSummary = params.get("summary");
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
 const MODELS: Record<string, MeetingModelsStatus> = {
@@ -254,8 +256,50 @@ const turn = (speaker_key: string, start_s: number, text: string) => ({
   start_ms: start_s * SECOND_MS,
   text,
 });
+/** A fictional summary, as Codex writes it: people as markers. */
+const SUMMARY = `Weekly product check-in between [[me]] and [[s1]].
+
+**Home page**
+- The new home page is ready for Thursday's review
+  - Two screens left, nothing blocking
+
+**Payment integration**
+- Already in testing; production planned for early November
+
+**Action items**
+- [[s1]] — tell the support team
+- [[s1]] — send the invite for the sales demo — next week`;
+
+const summaryOf = (item: MeetingListItem) => {
+  if (
+    item.id !== 3 ||
+    item.status !== "ready" ||
+    meetingSummary === "pending"
+  ) {
+    return {
+      summary: null,
+      summary_error: null,
+      summary_status: "pending" as const,
+    };
+  }
+  return meetingSummary === "failed"
+    ? {
+        summary: null,
+        summary_error: "rate_limited" as const,
+        summary_status: "failed" as const,
+      }
+    : {
+        summary: SUMMARY,
+        summary_error: null,
+        summary_status: "ready" as const,
+      };
+};
+
 const detailOf = (item: MeetingListItem): MeetingDetail => ({
   ...item,
+  ...summaryOf(item),
+  audio: item.id === 3 ? "compressed" : "tracks",
+  audio_bytes: item.id === 3 ? 34_600_000 : 0,
   error: item.status === "failed" ? "parts_failed" : null,
   speakers:
     item.id === 3
@@ -306,6 +350,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
 });
 const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
 const MARKDOWN = "# Point hebdo produit\n\n## Transcript\n";
+const SUMMARY_MARKDOWN = "# Point hebdo produit\n\n## Summary\n";
 
 /** Commands whose answer depends on their arguments or changes the data. */
 const handleMeetingCommand = (
@@ -328,6 +373,24 @@ const handleMeetingCommand = (
         if (speaker.key === args.key) speaker.name = String(args.name);
       });
       return { handled: true, value: null };
+    case "get_meeting_markdown":
+      return {
+        handled: true,
+        value: args.kind === "summary" ? SUMMARY_MARKDOWN : MARKDOWN,
+      };
+    case "retry_meeting_summary":
+      // Codex answers at once.
+      if (meeting) {
+        Object.assign(meeting, {
+          summary: SUMMARY,
+          summary_error: null,
+          summary_status: "ready",
+        });
+      }
+      return { handled: true, value: null };
+    case "delete_meeting_audio":
+      if (meeting) Object.assign(meeting, { audio: "deleted", audio_bytes: 0 });
+      return { handled: true, value: null };
     default:
       return { handled: false };
   }
@@ -338,8 +401,8 @@ const RESPONSES: Record<string, unknown> = {
   delete_meeting: null,
   discard_meeting: null,
   export_meeting_markdown: "/Users/user/Documents/2025-10-08 Point hebdo.md",
-  get_meeting_markdown: MARKDOWN,
   retry_meeting: null,
+  retranscribe_meeting: null,
   reanalyze_meeting: null,
   get_meeting_models_status: modelsStatus,
   download_meeting_models: null,

@@ -6,7 +6,7 @@
 mod apple;
 mod prompt;
 mod reply;
-mod responses;
+pub(crate) mod responses;
 
 pub use apple::AppleIntelligenceStatus;
 pub use prompt::PromptContext;
@@ -264,6 +264,8 @@ async fn clean_with_session(
         instructions: prompt::INSTRUCTIONS,
         user_message: &user_message,
         max_output_chars: reply::max_output_chars(raw.chars().count()),
+        effort: "low",
+        verbosity: "low",
     };
     let output = responses::complete(url, session, &request, operation).await?;
     accept(raw, &output, context)

@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager};
 use crate::meetings::coordinator::MeetingRuntime;
 use crate::meetings::models::MeetingModelsStatus;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
-use crate::meetings::{self, MeetingCapabilities, MeetingsManager};
+use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
 use crate::settings::{get_settings, write_settings, MeetingCaptureMode};
 use crate::user_alert::{self, Alert};
 
@@ -107,23 +107,31 @@ pub async fn retry_meeting(app: AppHandle, id: i64) -> Result<(), String> {
     .await
 }
 
-/// The transcript as Markdown, exactly as Export saves it.
+/// The summary or the transcript as Markdown, exactly as Export saves it.
 #[tauri::command]
 #[specta::specta]
-pub async fn get_meeting_markdown(app: AppHandle, id: i64) -> Result<String, String> {
+pub async fn get_meeting_markdown(
+    app: AppHandle,
+    id: i64,
+    kind: MeetingMarkdownKind,
+) -> Result<String, String> {
     with_manager(app, move |manager| {
-        manager.markdown(id).map(|(text, _)| text)
+        manager.markdown(id, kind).map(|(text, _)| text)
     })
     .await
 }
 
-/// Asks where to save the transcript and writes it there. Returns the path,
-/// or `None` when the user cancels.
+/// Asks where to save the summary or the transcript and writes it there.
+/// Returns the path, or `None` when the user cancels.
 #[tauri::command]
 #[specta::specta]
-pub async fn export_meeting_markdown(app: AppHandle, id: i64) -> Result<Option<String>, String> {
+pub async fn export_meeting_markdown(
+    app: AppHandle,
+    id: i64,
+    kind: MeetingMarkdownKind,
+) -> Result<Option<String>, String> {
     let (markdown, file_name) =
-        with_manager(app.clone(), move |manager| manager.markdown(id)).await?;
+        with_manager(app.clone(), move |manager| manager.markdown(id, kind)).await?;
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.run_on_main_thread(move || {
         let _ = sender.send(meetings::save_panel::ask_save_path(&file_name));
@@ -138,10 +146,31 @@ pub async fn export_meeting_markdown(app: AppHandle, id: i64) -> Result<Option<S
     tauri::async_runtime::spawn_blocking(move || {
         std::fs::write(&path, markdown)
             .map(|()| Some(path.display().to_string()))
-            .map_err(|error| format!("Cannot save the transcript: {error}"))
+            .map_err(|error| format!("Cannot save the meeting notes: {error}"))
     })
     .await
     .map_err(|error| format!("Export task failed: {error}"))?
+}
+
+/// Asks Codex again for a summary that failed.
+#[tauri::command]
+#[specta::specta]
+pub async fn retry_meeting_summary(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| manager.retry_summary(id)).await
+}
+
+/// Deletes a finished meeting's audio; its transcript and summary stay.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_meeting_audio(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| manager.delete_audio(id)).await
+}
+
+/// Transcribes a finished meeting again from its audio.
+#[tauri::command]
+#[specta::specta]
+pub async fn retranscribe_meeting(app: AppHandle, id: i64) -> Result<(), String> {
+    with_manager(app, move |manager| manager.retranscribe(id)).await
 }
 
 /// Tells the speakers of a finished meeting apart again, for instance once

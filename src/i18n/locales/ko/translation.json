@@ -552,7 +552,7 @@
     "title": "Murmur v{{version}}의 새 소식"
   },
   "meetings": {
-    "notice": "회의가 처리되면 받아쓰기가 표시됩니다. 요약은 이후 버전에서 제공됩니다.",
+    "notice": "회의가 처리되면 녹취록과 요약이 표시됩니다.",
     "view": {
       "back": "모든 회의",
       "titleLabel": "회의 제목",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "회의 내용",
         "summary": "요약",
-        "transcript": "받아쓰기",
-        "summarySoon": "요약은 이후 버전에서 제공됩니다."
+        "transcript": "받아쓰기"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "처리 중",
       "ready": "준비됨",
       "failed": "실패"
+    },
+    "summary": {
+      "header": "{{count}}분 분량",
+      "search": "요약 검색",
+      "copy": "요약 복사",
+      "copied": "요약을 복사했습니다.",
+      "copyError": "요약을 복사하지 못했습니다.",
+      "export": "Markdown으로 내보내기",
+      "exported": "요약을 저장했습니다.",
+      "exportError": "요약을 저장하지 못했습니다.",
+      "writing": "요약을 작성하는 중…",
+      "pending": "회의 전체가 받아쓰기된 후 요약이 작성됩니다.",
+      "retryError": "요약을 다시 시도하지 못했습니다.",
+      "errors": {
+        "signed_out": "Codex에 로그인한 후 다시 시도하세요.",
+        "rate_limited": "Codex가 지금 요청을 제한하고 있습니다. 나중에 다시 시도하세요.",
+        "network": "Codex에 연결할 수 없습니다. 연결을 확인한 후 다시 시도하세요.",
+        "timeout": "Codex의 응답이 너무 오래 걸렸습니다.",
+        "too_long": "요약이 너무 길게 작성되었습니다.",
+        "empty": "Codex가 빈 요약을 반환했습니다.",
+        "nothing_to_summarize": "받아쓴 내용이 없어 요약할 것이 없습니다.",
+        "other": "요약을 작성하지 못했습니다."
+      }
+    },
+    "audio": {
+      "tracks": "오디오 보관됨",
+      "compressed": "오디오 보관됨 · {{size}}",
+      "deleted": "오디오를 삭제했습니다. 녹취록과 요약은 남아 있습니다.",
+      "retranscribe": "다시 받아쓰기",
+      "delete": "오디오 삭제",
+      "deleteError": "오디오를 삭제하지 못했습니다.",
+      "retranscribeError": "회의를 다시 받아쓰지 못했습니다.",
+      "deleteDialog": {
+        "title": "이 회의의 오디오를 삭제할까요?",
+        "description": "녹음이 삭제되며 복구할 수 없습니다. 녹취록과 요약은 남지만 회의를 다시 받아쓸 수는 없습니다."
+      },
+      "retranscribeDialog": {
+        "title": "이 회의를 다시 받아쓸까요?",
+        "description": "Codex가 녹음을 다시 받아쓰고 녹취록과 요약이 교체됩니다. 직접 지정한 제목은 유지됩니다."
+      }
     }
   }
 }

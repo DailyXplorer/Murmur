@@ -12,7 +12,9 @@ import {
 import { useMeetingModels } from "../../hooks/useMeetingModels";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
+import { AudioRow } from "./AudioRow";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
+import { SummaryTab } from "./SummaryTab";
 import { TranscriptTab } from "./TranscriptTab";
 
 type Tab = "summary" | "transcript";
@@ -74,7 +76,8 @@ const TitleField: React.FC<{
 const ProcessingBanner: React.FC<{
   meeting: MeetingDetail;
   progress: MeetingProgress | null;
-  onRetry: () => void;
+  /** Absent when the meeting cannot be processed again. */
+  onRetry?: () => void;
 }> = ({ meeting, progress, onRetry }) => {
   const { t } = useTranslation();
   if (meeting.status === "processing") {
@@ -127,11 +130,13 @@ const ProcessingBanner: React.FC<{
         className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
       >
         <p className="flex-1 text-sm">{message}</p>
-        <Button variant="secondary" onClick={onRetry}>
-          {meeting.status === "interrupted"
-            ? t("meetings.processing.process")
-            : t("meetings.processing.retry")}
-        </Button>
+        {onRetry && (
+          <Button variant="secondary" onClick={onRetry}>
+            {meeting.status === "interrupted"
+              ? t("meetings.processing.process")
+              : t("meetings.processing.retry")}
+          </Button>
+        )}
       </div>
     );
   }
@@ -211,7 +216,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<MeetingProgress | null>(null);
-  const [tab, setTab] = useState<Tab>("transcript");
+  // Until the user picks a tab: the summary once the meeting is ready.
+  const [chosenTab, setTab] = useState<Tab | null>(null);
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
@@ -290,6 +296,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const defaultTitle = t("meetings.list.untitled", {
     date: formatMeetingDate(meeting.started_at_ms, i18n.language),
   });
+  const tab =
+    chosenTab ?? (meeting.status === "ready" ? "summary" : "transcript");
+  const hasAudio = meeting.audio !== "deleted";
+
+  const retrySummary = async () => {
+    const result = await commands.retryMeetingSummary(id);
+    if (result.status === "error")
+      toast.error(t("meetings.summary.retryError"));
+    void load();
+  };
 
   return (
     <article
@@ -310,25 +326,22 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
       <ProcessingBanner
         meeting={meeting}
         progress={progress}
-        onRetry={() => void retry()}
+        onRetry={hasAudio ? () => void retry() : undefined}
       />
-      <SpeakerNotice
-        meeting={meeting}
-        models={models}
-        onSeparate={() => void separate()}
-      />
+      {hasAudio && (
+        <SpeakerNotice
+          meeting={meeting}
+          models={models}
+          onSeparate={() => void separate()}
+        />
+      )}
       <Tabs<Tab>
         idPrefix={TABS_ID}
         label={t("meetings.view.tabs.label")}
         selected={tab}
         onSelect={setTab}
         tabs={[
-          {
-            id: "summary",
-            label: t("meetings.view.tabs.summary"),
-            disabled: true,
-            hint: t("meetings.view.tabs.summarySoon"),
-          },
+          { id: "summary", label: t("meetings.view.tabs.summary") },
           { id: "transcript", label: t("meetings.view.tabs.transcript") },
         ]}
       />
@@ -337,12 +350,17 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         id={panelId(TABS_ID, tab)}
         aria-labelledby={tabId(TABS_ID, tab)}
       >
-        <TranscriptTab
-          meeting={meeting}
-          onRenameSpeaker={(focus) => setRenaming({ focus })}
-          onRetry={() => void retry()}
-        />
+        {tab === "summary" ? (
+          <SummaryTab meeting={meeting} onRetry={() => void retrySummary()} />
+        ) : (
+          <TranscriptTab
+            meeting={meeting}
+            onRenameSpeaker={(focus) => setRenaming({ focus })}
+            onRetry={hasAudio ? () => void retry() : undefined}
+          />
+        )}
       </div>
+      <AudioRow meeting={meeting} onChanged={() => void load()} />
       <RenameSpeakersDialog
         meetingId={meeting.id}
         speakers={meeting.speakers}

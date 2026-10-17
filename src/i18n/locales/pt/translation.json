@@ -552,7 +552,7 @@
     "title": "Novidades no Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "As transcrições aparecem quando a reunião é processada. Os resumos chegam em uma versão futura.",
+    "notice": "As transcrições e os resumos aparecem quando a reunião é processada.",
     "view": {
       "back": "Todas as reuniões",
       "titleLabel": "Título da reunião",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Conteúdo da reunião",
         "summary": "Resumo",
-        "transcript": "Transcrição",
-        "summarySoon": "Os resumos chegam em uma versão futura."
+        "transcript": "Transcrição"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Processando",
       "ready": "Pronta",
       "failed": "Falhou"
+    },
+    "summary": {
+      "header": "{{count}} min de leitura",
+      "search": "Pesquisar no resumo",
+      "copy": "Copiar resumo",
+      "copied": "Resumo copiado.",
+      "copyError": "Não foi possível copiar o resumo.",
+      "export": "Exportar como Markdown",
+      "exported": "Resumo salvo.",
+      "exportError": "Não foi possível salvar o resumo.",
+      "writing": "Escrevendo o resumo…",
+      "pending": "O resumo é escrito quando toda a reunião estiver transcrita.",
+      "retryError": "Não foi possível tentar o resumo de novo.",
+      "errors": {
+        "signed_out": "Entre no Codex e tente de novo.",
+        "rate_limited": "O Codex está limitando as solicitações agora. Tente de novo mais tarde.",
+        "network": "Não foi possível acessar o Codex. Verifique a conexão e tente de novo.",
+        "timeout": "O Codex demorou demais para responder.",
+        "too_long": "O resumo ficou longo demais.",
+        "empty": "O Codex retornou um resumo vazio.",
+        "nothing_to_summarize": "Nada foi transcrito, então não há nada para resumir.",
+        "other": "Não foi possível escrever o resumo."
+      }
+    },
+    "audio": {
+      "tracks": "Áudio mantido",
+      "compressed": "Áudio mantido · {{size}}",
+      "deleted": "Áudio apagado. A transcrição e o resumo continuam.",
+      "retranscribe": "Transcrever de Novo",
+      "delete": "Apagar Áudio",
+      "deleteError": "Não foi possível apagar o áudio.",
+      "retranscribeError": "Não foi possível transcrever a reunião de novo.",
+      "deleteDialog": {
+        "title": "Apagar o áudio desta reunião?",
+        "description": "A gravação é apagada e não pode ser recuperada. A transcrição e o resumo continuam, mas a reunião não poderá ser transcrita de novo."
+      },
+      "retranscribeDialog": {
+        "title": "Transcrever esta reunião de novo?",
+        "description": "O Codex transcreve a gravação de novo, e a transcrição e o resumo são substituídos. Um título que você definiu é mantido."
+      }
     }
   }
 }

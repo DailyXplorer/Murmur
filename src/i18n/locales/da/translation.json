@@ -552,7 +552,7 @@
     }
   },
   "meetings": {
-    "notice": "Transskriptioner vises, når et møde er behandlet. Resuméer kommer i en senere version.",
+    "notice": "Transskriptioner og resuméer vises, når mødet er behandlet.",
     "view": {
       "back": "Alle møder",
       "titleLabel": "Mødets titel",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Mødets indhold",
         "summary": "Resumé",
-        "transcript": "Transskription",
-        "summarySoon": "Resuméer kommer i en senere version."
+        "transcript": "Transskription"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Behandles",
       "ready": "Klar",
       "failed": "Mislykkedes"
+    },
+    "summary": {
+      "header": "{{count}} min. læsning",
+      "search": "Søg i resuméet",
+      "copy": "Kopiér resumé",
+      "copied": "Resuméet er kopieret.",
+      "copyError": "Resuméet kunne ikke kopieres.",
+      "export": "Eksportér som Markdown",
+      "exported": "Resuméet er gemt.",
+      "exportError": "Resuméet kunne ikke gemmes.",
+      "writing": "Skriver resuméet…",
+      "pending": "Resuméet skrives, når hele mødet er transskriberet.",
+      "retryError": "Resuméet kunne ikke prøves igen.",
+      "errors": {
+        "signed_out": "Log ind på Codex, og prøv igen.",
+        "rate_limited": "Codex begrænser anmodninger lige nu. Prøv igen senere.",
+        "network": "Codex kunne ikke nås. Tjek forbindelsen, og prøv igen.",
+        "timeout": "Codex var for længe om at svare.",
+        "too_long": "Resuméet blev for langt.",
+        "empty": "Codex returnerede et tomt resumé.",
+        "nothing_to_summarize": "Intet blev transskriberet, så der er intet at opsummere.",
+        "other": "Resuméet kunne ikke skrives."
+      }
+    },
+    "audio": {
+      "tracks": "Lyden er gemt",
+      "compressed": "Lyden er gemt · {{size}}",
+      "deleted": "Lyden er slettet. Transskriptionen og resuméet bevares.",
+      "retranscribe": "Transskribér igen",
+      "delete": "Slet lyd",
+      "deleteError": "Lyden kunne ikke slettes.",
+      "retranscribeError": "Mødet kunne ikke transskriberes igen.",
+      "deleteDialog": {
+        "title": "Slet lyden for dette møde?",
+        "description": "Optagelsen slettes og kan ikke gendannes. Transskriptionen og resuméet bevares, men mødet kan ikke transskriberes igen."
+      },
+      "retranscribeDialog": {
+        "title": "Transskribér dette møde igen?",
+        "description": "Codex transskriberer optagelsen igen, og transskriptionen og resuméet erstattes. En titel, du har valgt, bevares."
+      }
     }
   }
 }

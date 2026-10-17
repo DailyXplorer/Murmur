@@ -347,6 +347,7 @@ mod tests {
     use std::net::{TcpListener, TcpStream};
     use std::path::Path;
     use std::sync::atomic::AtomicUsize;
+    use std::sync::{mpsc, Condvar};
 
     /// One request as the fake server saw it.
     #[derive(Debug, Clone)]
@@ -358,15 +359,15 @@ mod tests {
     type Reply = Box<dyn Fn(usize, &Request) -> (u16, String) + Send + Sync>;
 
     /// A local stand-in for the transcription endpoint. `reply` gets the
-    /// request number (from 0) and decides the answer; each request is held
-    /// for `hold` so concurrent ones overlap.
+    /// request number (from 0) and decides the answer, and may block to make
+    /// requests overlap.
     struct FakeServer {
         url: String,
         requests: Arc<Mutex<Vec<Request>>>,
         peak: Arc<AtomicUsize>,
     }
 
-    fn serve(hold: Duration, reply: Reply) -> FakeServer {
+    fn serve(reply: Reply) -> FakeServer {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/transcribe", listener.local_addr().unwrap());
         let requests = Arc::new(Mutex::new(Vec::new()));
@@ -386,8 +387,7 @@ mod tests {
                 std::thread::spawn(move || {
                     let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
                     high.fetch_max(now, Ordering::SeqCst);
-                    handle(stream, hold, &seen, reply.as_ref());
-                    in_flight.fetch_sub(1, Ordering::SeqCst);
+                    handle(stream, &seen, &in_flight, reply.as_ref());
                 });
             }
         });
@@ -400,8 +400,8 @@ mod tests {
 
     fn handle(
         stream: TcpStream,
-        hold: Duration,
         seen: &Mutex<Vec<Request>>,
+        in_flight: &AtomicUsize,
         reply: &(dyn Fn(usize, &Request) -> (u16, String) + Send + Sync),
     ) {
         let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -409,6 +409,7 @@ mod tests {
         loop {
             let mut line = String::new();
             if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                in_flight.fetch_sub(1, Ordering::SeqCst);
                 return;
             }
             let line = line.trim_end();
@@ -457,14 +458,51 @@ mod tests {
             seen.push(request.clone());
             seen.len() - 1
         };
-        std::thread::sleep(hold);
         let (status, body) = reply(number, &request);
+        // Before the answer leaves: the slot it frees may send the next
+        // request at once.
+        in_flight.fetch_sub(1, Ordering::SeqCst);
         let mut stream = stream;
         let _ = write!(
             stream,
             "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
             body.len()
         );
+    }
+
+    /// Holds the first `count` requests until all of them have arrived, so
+    /// they overlap however slowly the machine runs.
+    struct Rendezvous {
+        count: usize,
+        arrived: Mutex<usize>,
+        all_here: Condvar,
+    }
+
+    impl Rendezvous {
+        fn new(count: usize) -> Self {
+            Self {
+                count,
+                arrived: Mutex::new(0),
+                all_here: Condvar::new(),
+            }
+        }
+
+        /// Waits for the others; true for the last to arrive.
+        fn arrive(&self) -> bool {
+            let mut arrived = self.arrived.lock().unwrap();
+            *arrived += 1;
+            if *arrived == self.count {
+                self.all_here.notify_all();
+                return true;
+            }
+            // Only a runner that never sends them all reaches the timeout.
+            let (arrived, wait) = self
+                .all_here
+                .wait_timeout_while(arrived, Duration::from_secs(30), |n| *n < self.count)
+                .unwrap();
+            assert!(!wait.timed_out(), "{} of {} requests", *arrived, self.count);
+            false
+        }
     }
 
     fn ok(text: &str) -> (u16, String) {
@@ -591,10 +629,13 @@ mod tests {
 
     #[test]
     fn at_most_three_pieces_are_in_flight_and_all_are_transcribed() {
-        let server = serve(
-            Duration::from_millis(150),
-            Box::new(|number, _| ok(&format!("texte {number}"))),
-        );
+        let together = Rendezvous::new(MAX_PARALLEL);
+        let server = serve(Box::new(move |number, _| {
+            if number < MAX_PARALLEL {
+                together.arrive();
+            }
+            ok(&format!("texte {number}"))
+        }));
         let run = run(&server, jobs(8, 1_000), operation());
         assert_eq!(run.end, RunEnd::Finished);
         assert_eq!(server.peak.load(Ordering::SeqCst), MAX_PARALLEL);
@@ -607,16 +648,13 @@ mod tests {
 
     #[test]
     fn rate_limits_back_off_then_succeed() {
-        let server = serve(
-            Duration::ZERO,
-            Box::new(|number, _| {
-                if number < 2 {
-                    (429, r#"{"detail":"slow down"}"#.into())
-                } else {
-                    ok("Bonjour.")
-                }
-            }),
-        );
+        let server = serve(Box::new(|number, _| {
+            if number < 2 {
+                (429, r#"{"detail":"slow down"}"#.into())
+            } else {
+                ok("Bonjour.")
+            }
+        }));
         let run = run(&server, jobs(1, 1_000), operation());
         assert_eq!(run.end, RunEnd::Finished);
         assert_eq!(outcomes(&run), [(0, Outcome::Done("Bonjour.".into()))]);
@@ -626,10 +664,7 @@ mod tests {
 
     #[test]
     fn a_lasting_rate_limit_fails_the_piece_after_its_budget() {
-        let server = serve(
-            Duration::ZERO,
-            Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())),
-        );
+        let server = serve(Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())));
         let run = run(&server, jobs(1, 1_000), operation());
         assert_eq!(run.end, RunEnd::Finished);
         assert_eq!(
@@ -642,17 +677,14 @@ mod tests {
 
     #[test]
     fn server_errors_are_retried_then_the_piece_fails_and_the_others_go_on() {
-        let server = serve(
-            Duration::ZERO,
-            Box::new(|_, request| {
-                // The first piece is twice as long as the second.
-                if request.body_bytes > 40_000 {
-                    (502, "bad gateway".into())
-                } else {
-                    ok("Suite.")
-                }
-            }),
-        );
+        let server = serve(Box::new(|_, request| {
+            // The first piece is twice as long as the second.
+            if request.body_bytes > 40_000 {
+                (502, "bad gateway".into())
+            } else {
+                ok("Suite.")
+            }
+        }));
         let pieces = vec![
             Job {
                 track: Track::Mic,
@@ -688,17 +720,14 @@ mod tests {
 
     #[test]
     fn a_piece_refused_as_too_large_is_halved_and_rejoined() {
-        let server = serve(
-            Duration::ZERO,
-            Box::new(|number, request| {
-                // 150 s of 16 kHz WAV is 4.8 MB; its halves pass.
-                if request.body_bytes > 3_000_000 {
-                    (413, "too large".into())
-                } else {
-                    ok(&format!("moitié {number}"))
-                }
-            }),
-        );
+        let server = serve(Box::new(|number, request| {
+            // 150 s of 16 kHz WAV is 4.8 MB; its halves pass.
+            if request.body_bytes > 3_000_000 {
+                (413, "too large".into())
+            } else {
+                ok(&format!("moitié {number}"))
+            }
+        }));
         let piece = Job {
             track: Track::System,
             idx: 0,
@@ -716,17 +745,14 @@ mod tests {
     fn a_lost_session_stops_every_piece_not_yet_sent() {
         let dir_token = Arc::new(Mutex::new(None::<PathBuf>));
         let auth = Arc::clone(&dir_token);
-        let server = serve(
-            Duration::from_millis(50),
-            Box::new(move |number, _| {
-                // Another Codex client refreshed the token: the one-time 401
-                // recovery picks it up without the network, and fails again.
-                if let Some(dir) = auth.lock().unwrap().as_ref() {
-                    auth_file(dir, &format!("token-{}", number + 1));
-                }
-                (401, r#"{"detail":"expired"}"#.into())
-            }),
-        );
+        let server = serve(Box::new(move |number, _| {
+            // Another Codex client refreshed the token: the one-time 401
+            // recovery picks it up without the network, and fails again.
+            if let Some(dir) = auth.lock().unwrap().as_ref() {
+                auth_file(dir, &format!("token-{}", number + 1));
+            }
+            (401, r#"{"detail":"expired"}"#.into())
+        }));
         let dir = tempfile::tempdir().unwrap();
         auth_file(dir.path(), "token-0");
         *dir_token.lock().unwrap() = Some(dir.path().to_path_buf());
@@ -756,17 +782,14 @@ mod tests {
     fn a_refreshed_session_is_used_after_one_unauthorized_answer() {
         let dir = tempfile::tempdir().unwrap();
         let auth_dir = dir.path().to_path_buf();
-        let server = serve(
-            Duration::ZERO,
-            Box::new(move |_, request| {
-                if request.token == "token-0" {
-                    auth_file(&auth_dir, "token-1");
-                    (401, r#"{"detail":"expired"}"#.into())
-                } else {
-                    ok("Rebonjour.")
-                }
-            }),
-        );
+        let server = serve(Box::new(move |_, request| {
+            if request.token == "token-0" {
+                auth_file(&auth_dir, "token-1");
+                (401, r#"{"detail":"expired"}"#.into())
+            } else {
+                ok("Rebonjour.")
+            }
+        }));
         auth_file(dir.path(), "token-0");
         let recorder = Arc::new(Recorder::default());
         let runner = Runner {
@@ -797,16 +820,28 @@ mod tests {
 
     #[test]
     fn cancelling_stops_new_requests() {
-        let server = serve(Duration::from_millis(100), Box::new(|_, _| ok("x")));
         let operation = operation();
         let cancel = operation.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(30));
-            cancel.cancel();
-        });
+        let together = Rendezvous::new(MAX_PARALLEL);
+        let (release, released) = mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let server = serve(Box::new(move |number, _| {
+            if number >= MAX_PARALLEL {
+                // Sent after the cancel: answered so the run still ends.
+                return ok("trop tard");
+            }
+            // Cancelled once every slot is taken; no answer until the run
+            // is over, so no slot frees before the cancel.
+            if together.arrive() {
+                cancel.cancel();
+            }
+            let _ = released.lock().unwrap().recv();
+            ok("x")
+        }));
         let run = run(&server, jobs(9, 1_000), operation);
+        drop(release);
         assert_eq!(run.end, RunEnd::Cancelled);
-        assert!(server.requests.lock().unwrap().len() <= MAX_PARALLEL);
+        assert_eq!(server.requests.lock().unwrap().len(), MAX_PARALLEL);
         assert!(outcomes(&run).is_empty());
     }
 }

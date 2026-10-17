@@ -7,6 +7,7 @@ use std::fmt::Write;
 
 use super::merge::PLACEHOLDER;
 use super::store::{MeetingSpeaker, MeetingTurn};
+use super::summary::resolve_markers;
 
 /// File names stay short enough for every file system and dialog.
 const MAX_FILE_STEM_CHARS: usize = 80;
@@ -47,12 +48,8 @@ fn escape(name: &str) -> String {
     escaped
 }
 
-pub fn transcript_markdown(transcript: &Transcript) -> String {
-    let names: HashMap<&str, &str> = transcript
-        .speakers
-        .iter()
-        .map(|speaker| (speaker.key.as_str(), speaker.name.as_str()))
-        .collect();
+/// The title and the line under it: date, length and how many spoke.
+fn header(transcript: &Transcript) -> String {
     let mut speaking: Vec<&str> = transcript
         .turns
         .iter()
@@ -61,21 +58,41 @@ pub fn transcript_markdown(transcript: &Transcript) -> String {
         .collect();
     speaking.sort_unstable();
     speaking.dedup();
-
     let title = transcript
         .title
         .map(str::to_string)
         .unwrap_or_else(|| default_title(&transcript.started_at));
-    let mut out = String::new();
-    let _ = writeln!(out, "# {}", escape(&title));
-    let _ = writeln!(
-        out,
-        "{} · {} · {} speaker{}",
+    format!(
+        "# {}\n{} · {} · {} speaker{}\n",
+        escape(&title),
         transcript.started_at.format("%-d %b %Y · %H:%M"),
         clock(transcript.duration_ms),
         speaking.len(),
         if speaking.len() == 1 { "" } else { "s" }
-    );
+    )
+}
+
+/// The summary, with each `[[key]]` marker replaced by the speaker's name.
+pub fn summary_markdown(transcript: &Transcript, summary: &str) -> String {
+    let names: HashMap<&str, String> = transcript
+        .speakers
+        .iter()
+        .map(|speaker| (speaker.key.as_str(), escape(&speaker.name)))
+        .collect();
+    format!(
+        "{}\n## Summary\n\n{}\n",
+        header(transcript),
+        resolve_markers(summary.trim(), &names)
+    )
+}
+
+pub fn transcript_markdown(transcript: &Transcript) -> String {
+    let names: HashMap<&str, &str> = transcript
+        .speakers
+        .iter()
+        .map(|speaker| (speaker.key.as_str(), speaker.name.as_str()))
+        .collect();
+    let mut out = header(transcript);
     out.push_str("\n## Transcript\n");
 
     let mut previous: Option<&str> = None;
@@ -243,6 +260,39 @@ Oui, il est validé.
         assert_eq!(
             markdown,
             "# Q4 \\*planning\\*\n1 Dec 2026 · 16:00 · 00:00 · 0 speakers\n\n## Transcript\n"
+        );
+    }
+
+    #[test]
+    fn the_summary_exports_with_names_in_place_of_markers() {
+        let (mut speakers, turns) = french_meeting();
+        speakers[1].name = "Camille_R".into();
+        let markdown = summary_markdown(
+            &Transcript {
+                title: Some("Point hebdo"),
+                started_at: at("2026-10-17T14:05:00+02:00"),
+                duration_ms: 3_732_000,
+                speakers: &speakers,
+                turns: &turns,
+            },
+            "Suivi entre [[me]] et [[s1]].\n\n**Budget**\n- Validé par [[s1]]\n  - Sans réserve\n\n**Actions**\n- [[me]] — relancer [[s7]] — jeudi\n",
+        );
+        assert_eq!(
+            markdown,
+            "# Point hebdo
+17 Oct 2026 · 14:05 · 1:02:12 · 2 speakers
+
+## Summary
+
+Suivi entre Me et Camille\\_R.
+
+**Budget**
+- Validé par Camille\\_R
+  - Sans réserve
+
+**Actions**
+- Me — relancer s7 — jeudi
+"
         );
     }
 

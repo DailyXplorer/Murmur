@@ -552,7 +552,7 @@
     }
   },
   "meetings": {
-    "notice": "Transcripties verschijnen zodra een vergadering is verwerkt. Samenvattingen komen in een latere versie.",
+    "notice": "Transcripties en samenvattingen verschijnen zodra een vergadering is verwerkt.",
     "view": {
       "back": "Alle vergaderingen",
       "titleLabel": "Titel van de vergadering",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Inhoud van de vergadering",
         "summary": "Samenvatting",
-        "transcript": "Transcriptie",
-        "summarySoon": "Samenvattingen komen in een latere versie."
+        "transcript": "Transcriptie"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Wordt verwerkt",
       "ready": "Klaar",
       "failed": "Mislukt"
+    },
+    "summary": {
+      "header": "{{count}} min leestijd",
+      "search": "Samenvatting doorzoeken",
+      "copy": "Samenvatting kopiëren",
+      "copied": "Samenvatting gekopieerd.",
+      "copyError": "Kan de samenvatting niet kopiëren.",
+      "export": "Exporteren als Markdown",
+      "exported": "Samenvatting bewaard.",
+      "exportError": "Kan de samenvatting niet bewaren.",
+      "writing": "Samenvatting wordt geschreven…",
+      "pending": "De samenvatting wordt geschreven zodra de hele vergadering is getranscribeerd.",
+      "retryError": "Kan de samenvatting niet opnieuw proberen.",
+      "errors": {
+        "signed_out": "Log in bij Codex en probeer het opnieuw.",
+        "rate_limited": "Codex beperkt op dit moment het aantal verzoeken. Probeer het later opnieuw.",
+        "network": "Kan Codex niet bereiken. Controleer de verbinding en probeer het opnieuw.",
+        "timeout": "Codex deed er te lang over om te antwoorden.",
+        "too_long": "De samenvatting werd te lang.",
+        "empty": "Codex gaf een lege samenvatting terug.",
+        "nothing_to_summarize": "Er is niets getranscribeerd, dus er valt niets samen te vatten.",
+        "other": "Kan de samenvatting niet schrijven."
+      }
+    },
+    "audio": {
+      "tracks": "Audio bewaard",
+      "compressed": "Audio bewaard · {{size}}",
+      "deleted": "Audio verwijderd. De transcriptie en samenvatting blijven.",
+      "retranscribe": "Opnieuw transcriberen",
+      "delete": "Audio verwijderen",
+      "deleteError": "Kan de audio niet verwijderen.",
+      "retranscribeError": "Kan de vergadering niet opnieuw transcriberen.",
+      "deleteDialog": {
+        "title": "Audio van deze vergadering verwijderen?",
+        "description": "De opname wordt verwijderd en kan niet worden hersteld. De transcriptie en samenvatting blijven, maar de vergadering kan niet opnieuw worden getranscribeerd."
+      },
+      "retranscribeDialog": {
+        "title": "Deze vergadering opnieuw transcriberen?",
+        "description": "Codex transcribeert de opname opnieuw, en de transcriptie en samenvatting worden vervangen. Een titel die je hebt gekozen blijft."
+      }
     }
   }
 }

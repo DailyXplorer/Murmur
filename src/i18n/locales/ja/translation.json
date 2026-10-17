@@ -552,7 +552,7 @@
     "title": "Murmur v{{version}} の新機能"
   },
   "meetings": {
-    "notice": "会議の処理が終わると文字起こしが表示されます。要約は今後のバージョンで追加されます。",
+    "notice": "会議の処理が終わると、文字起こしと要約が表示されます。",
     "view": {
       "back": "すべての会議",
       "titleLabel": "会議のタイトル",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "会議の内容",
         "summary": "要約",
-        "transcript": "文字起こし",
-        "summarySoon": "要約は今後のバージョンで追加されます。"
+        "transcript": "文字起こし"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "処理中",
       "ready": "準備完了",
       "failed": "失敗"
+    },
+    "summary": {
+      "header": "{{count}} 分で読めます",
+      "search": "要約を検索",
+      "copy": "要約をコピー",
+      "copied": "要約をコピーしました。",
+      "copyError": "要約をコピーできませんでした。",
+      "export": "Markdown として書き出す",
+      "exported": "要約を保存しました。",
+      "exportError": "要約を保存できませんでした。",
+      "writing": "要約を作成しています…",
+      "pending": "会議全体の文字起こしが終わると要約が作成されます。",
+      "retryError": "要約を再試行できませんでした。",
+      "errors": {
+        "signed_out": "Codex にサインインしてから再試行してください。",
+        "rate_limited": "Codex が現在リクエストを制限しています。しばらくしてから再試行してください。",
+        "network": "Codex に接続できませんでした。接続を確認してから再試行してください。",
+        "timeout": "Codex の応答に時間がかかりすぎました。",
+        "too_long": "要約が長くなりすぎました。",
+        "empty": "Codex から空の要約が返されました。",
+        "nothing_to_summarize": "何も文字起こしされなかったため、要約する内容がありません。",
+        "other": "要約を作成できませんでした。"
+      }
+    },
+    "audio": {
+      "tracks": "音声を保存しています",
+      "compressed": "音声を保存しています · {{size}}",
+      "deleted": "音声を削除しました。文字起こしと要約は残ります。",
+      "retranscribe": "もう一度文字起こし",
+      "delete": "音声を削除",
+      "deleteError": "音声を削除できませんでした。",
+      "retranscribeError": "会議をもう一度文字起こしできませんでした。",
+      "deleteDialog": {
+        "title": "この会議の音声を削除しますか？",
+        "description": "録音は削除され、元に戻せません。文字起こしと要約は残りますが、会議をもう一度文字起こしすることはできなくなります。"
+      },
+      "retranscribeDialog": {
+        "title": "この会議をもう一度文字起こししますか？",
+        "description": "Codex が録音をもう一度文字起こしし、文字起こしと要約が置き換えられます。設定したタイトルはそのまま残ります。"
+      }
     }
   }
 }

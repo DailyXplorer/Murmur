@@ -552,7 +552,7 @@
     "title": "Murmur v{{version}} yenilikleri"
   },
   "meetings": {
-    "notice": "Dökümler toplantı işlendikten sonra görünür. Özetler sonraki bir sürümde gelecek.",
+    "notice": "Dökümler ve özetler toplantı işlendikten sonra görünür.",
     "view": {
       "back": "Tüm toplantılar",
       "titleLabel": "Toplantı başlığı",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Toplantı içeriği",
         "summary": "Özet",
-        "transcript": "Döküm",
-        "summarySoon": "Özetler sonraki bir sürümde gelecek."
+        "transcript": "Döküm"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "İşleniyor",
       "ready": "Hazır",
       "failed": "Başarısız"
+    },
+    "summary": {
+      "header": "{{count}} dk okuma",
+      "search": "Özette Ara",
+      "copy": "Özeti Kopyala",
+      "copied": "Özet kopyalandı.",
+      "copyError": "Özet kopyalanamadı.",
+      "export": "Markdown Olarak Dışa Aktar",
+      "exported": "Özet kaydedildi.",
+      "exportError": "Özet kaydedilemedi.",
+      "writing": "Özet yazılıyor…",
+      "pending": "Özet, toplantının tamamı yazıya döküldükten sonra yazılır.",
+      "retryError": "Özet yeniden denenemedi.",
+      "errors": {
+        "signed_out": "Codex'te oturum açın, ardından yeniden deneyin.",
+        "rate_limited": "Codex şu anda istekleri sınırlıyor. Daha sonra yeniden deneyin.",
+        "network": "Codex'e ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.",
+        "timeout": "Codex'in yanıtı çok uzun sürdü.",
+        "too_long": "Özet çok uzun oldu.",
+        "empty": "Codex boş bir özet döndürdü.",
+        "nothing_to_summarize": "Hiçbir şey yazıya dökülmedi, bu yüzden özetlenecek bir şey yok.",
+        "other": "Özet yazılamadı."
+      }
+    },
+    "audio": {
+      "tracks": "Ses saklanıyor",
+      "compressed": "Ses saklanıyor · {{size}}",
+      "deleted": "Ses silindi. Döküm ve özet korunuyor.",
+      "retranscribe": "Yeniden Yazıya Dök",
+      "delete": "Sesi Sil",
+      "deleteError": "Ses silinemedi.",
+      "retranscribeError": "Toplantı yeniden yazıya dökülemedi.",
+      "deleteDialog": {
+        "title": "Bu toplantının sesi silinsin mi?",
+        "description": "Kayıt silinir ve geri getirilemez. Döküm ve özet korunur, ancak toplantı yeniden yazıya dökülemez."
+      },
+      "retranscribeDialog": {
+        "title": "Bu toplantı yeniden yazıya dökülsün mü?",
+        "description": "Codex kaydı yeniden yazıya döker; döküm ve özet değiştirilir. Belirlediğiniz başlık korunur."
+      }
     }
   }
 }

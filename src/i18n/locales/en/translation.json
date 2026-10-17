@@ -552,7 +552,7 @@
     }
   },
   "meetings": {
-    "notice": "Transcripts appear once a meeting is processed. Summaries arrive in a later version.",
+    "notice": "Transcripts and summaries appear once a meeting is processed.",
     "view": {
       "back": "All Meetings",
       "titleLabel": "Meeting Title",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Meeting Content",
         "summary": "Summary",
-        "transcript": "Transcript",
-        "summarySoon": "Summaries arrive in a later version."
+        "transcript": "Transcript"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Processing",
       "ready": "Ready",
       "failed": "Failed"
+    },
+    "summary": {
+      "header": "{{count}} min read",
+      "search": "Search Summary",
+      "copy": "Copy Summary",
+      "copied": "Summary copied.",
+      "copyError": "Couldn't copy the summary.",
+      "export": "Export as Markdown",
+      "exported": "Summary saved.",
+      "exportError": "Couldn't save the summary.",
+      "writing": "Writing the summary…",
+      "pending": "The summary is written once the whole meeting is transcribed.",
+      "retryError": "Couldn't retry the summary.",
+      "errors": {
+        "signed_out": "Sign in to Codex, then retry.",
+        "rate_limited": "Codex is limiting requests right now. Retry later.",
+        "network": "Couldn't reach Codex. Check the connection, then retry.",
+        "timeout": "Codex took too long to answer.",
+        "too_long": "The summary came out too long.",
+        "empty": "Codex returned an empty summary.",
+        "nothing_to_summarize": "Nothing was transcribed, so there's nothing to summarize.",
+        "other": "Couldn't write the summary."
+      }
+    },
+    "audio": {
+      "tracks": "Audio kept",
+      "compressed": "Audio kept · {{size}}",
+      "deleted": "Audio deleted. The transcript and summary stay.",
+      "retranscribe": "Transcribe Again",
+      "delete": "Delete Audio",
+      "deleteError": "Couldn't delete the audio.",
+      "retranscribeError": "Couldn't transcribe the meeting again.",
+      "deleteDialog": {
+        "title": "Delete this meeting's audio?",
+        "description": "The recording is deleted and can't be recovered. The transcript and summary stay, but the meeting can't be transcribed again."
+      },
+      "retranscribeDialog": {
+        "title": "Transcribe this meeting again?",
+        "description": "Codex transcribes the recording again, and the transcript and summary are replaced. A title you set stays."
+      }
     }
   }
 }
