@@ -136,10 +136,11 @@ warning 5 minutes before.
 - After you stop, Codex transcribes the tracks in pieces of up to 10 minutes,
   at most 3 at a time. Processing resumes after a quit, without sending a
   transcribed piece again.
-- On Apple silicon, speaker detection runs on the Mac with
-  [FluidAudio](https://github.com/FluidInference/FluidAudio). Its models
-  (about 480 MB) download during the first meeting. Without them, each track
-  keeps one speaker.
+- On Apple silicon with macOS 15 or later, speaker detection runs on the Mac
+  with [FluidAudio](https://github.com/FluidInference/FluidAudio). Its models
+  (about 480 MB) download during the first meeting. Without them, or on
+  macOS 14, where FluidAudio's speaker model crashes, each track keeps one
+  speaker.
 - Once the transcript is complete, Codex writes a title and a summary. The
   two tracks are then kept as one compressed `audio.m4a` (about 30 MB per
   hour), which you can delete while keeping the text.

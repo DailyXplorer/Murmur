@@ -602,7 +602,7 @@
       "preparing": "Příprava modelů pro tento Mac…",
       "ready": "Připraveno · {{size}}",
       "failed": "Stahování se nezdařilo.",
-      "os_too_old": "Rozpoznávání mluvčích vyžaduje macOS 14 nebo novější. Schůzky zobrazují jednoho mluvčího na zdroj zvuku.",
+      "os_too_old": "Rozpoznávání mluvčích vyžaduje macOS 15 nebo novější. Schůzky zobrazují jednoho mluvčího na zdroj zvuku.",
       "unsupported": "Rozpoznávání mluvčích vyžaduje Mac s čipem Apple. Schůzky zobrazují jednoho mluvčího na zdroj zvuku.",
       "download": "Stáhnout",
       "retry": "Zkusit znovu",

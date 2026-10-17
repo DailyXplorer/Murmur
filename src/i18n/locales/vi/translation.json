@@ -602,7 +602,7 @@
       "preparing": "Đang chuẩn bị mô hình cho máy Mac này…",
       "ready": "Sẵn sàng · {{size}}",
       "failed": "Tải xuống không thành công.",
-      "os_too_old": "Nhận dạng người nói cần macOS 14 trở lên. Cuộc họp hiển thị một người nói cho mỗi nguồn âm thanh.",
+      "os_too_old": "Nhận dạng người nói cần macOS 15 trở lên. Cuộc họp hiển thị một người nói cho mỗi nguồn âm thanh.",
       "unsupported": "Nhận dạng người nói cần máy Mac dùng chip Apple. Cuộc họp hiển thị một người nói cho mỗi nguồn âm thanh.",
       "download": "Tải xuống",
       "retry": "Thử lại",

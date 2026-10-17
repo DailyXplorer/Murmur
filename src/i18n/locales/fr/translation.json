@@ -602,7 +602,7 @@
       "preparing": "Préparation des modèles pour ce Mac…",
       "ready": "Prêts · {{size}}",
       "failed": "Le téléchargement a échoué.",
-      "os_too_old": "La détection des intervenants nécessite macOS 14 ou version ultérieure. Les réunions affichent un intervenant par source audio.",
+      "os_too_old": "La détection des intervenants nécessite macOS 15 ou version ultérieure. Les réunions affichent un intervenant par source audio.",
       "unsupported": "La détection des intervenants nécessite un Mac avec puce Apple. Les réunions affichent un intervenant par source audio.",
       "download": "Télécharger",
       "retry": "Réessayer",

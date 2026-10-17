@@ -602,7 +602,7 @@
       "preparing": "Przygotowywanie modeli dla tego Maca…",
       "ready": "Gotowe · {{size}}",
       "failed": "Pobieranie nie powiodło się.",
-      "os_too_old": "Wykrywanie mówców wymaga systemu macOS 14 lub nowszego. Spotkania pokazują jednego mówcę na źródło dźwięku.",
+      "os_too_old": "Wykrywanie mówców wymaga systemu macOS 15 lub nowszego. Spotkania pokazują jednego mówcę na źródło dźwięku.",
       "unsupported": "Wykrywanie mówców wymaga Maca z czipem Apple. Spotkania pokazują jednego mówcę na źródło dźwięku.",
       "download": "Pobierz",
       "retry": "Spróbuj ponownie",

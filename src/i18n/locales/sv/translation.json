@@ -602,7 +602,7 @@
       "preparing": "Förbereder modellerna för den här Macen…",
       "ready": "Klara · {{size}}",
       "failed": "Hämtningen misslyckades.",
-      "os_too_old": "Talaridentifiering kräver macOS 14 eller senare. Möten visar en talare per ljudkälla.",
+      "os_too_old": "Talaridentifiering kräver macOS 15 eller senare. Möten visar en talare per ljudkälla.",
       "unsupported": "Talaridentifiering kräver en Mac med Apple-chip. Möten visar en talare per ljudkälla.",
       "download": "Hämta",
       "retry": "Försök igen",

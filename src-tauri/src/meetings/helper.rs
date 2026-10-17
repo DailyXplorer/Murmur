@@ -1,5 +1,5 @@
 //! Runs `murmur-meetings-helper`, the separate process that does the
-//! on-device analysis (FluidAudio needs macOS 14, and a crash in Core ML
+//! on-device analysis (FluidAudio needs macOS 15, and a crash in Core ML
 //! must not take the app down). Its stdout is read line by line as
 //! `protocol` messages; its stderr goes to the debug log only.
 
@@ -21,7 +21,8 @@ pub const HELPER_NAME: &str = "murmur-meetings-helper";
 #[serde(rename_all = "snake_case")]
 pub enum AnalysisSupport {
     Available,
-    /// The analysis models need macOS 14 or later.
+    /// The analysis needs macOS 15 or later: on macOS 14 FluidAudio's
+    /// speaker diarizer crashes on every run.
     OsTooOld,
     /// Intel Macs: one speaker per track.
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]

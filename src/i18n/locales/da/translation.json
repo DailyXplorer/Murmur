@@ -602,7 +602,7 @@
       "preparing": "Forbereder modellerne til denne Mac…",
       "ready": "Klar · {{size}}",
       "failed": "Overførslen mislykkedes.",
-      "os_too_old": "Talergenkendelse kræver macOS 14 eller nyere. Møder viser én taler pr. lydkilde.",
+      "os_too_old": "Talergenkendelse kræver macOS 15 eller nyere. Møder viser én taler pr. lydkilde.",
       "unsupported": "Talergenkendelse kræver en Mac med Apple-chip. Møder viser én taler pr. lydkilde.",
       "download": "Hent",
       "retry": "Prøv igen",

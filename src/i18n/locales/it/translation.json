@@ -602,7 +602,7 @@
       "preparing": "Preparazione dei modelli per questo Mac…",
       "ready": "Pronti · {{size}}",
       "failed": "Il download non è riuscito.",
-      "os_too_old": "Il rilevamento dei partecipanti richiede macOS 14 o versioni successive. Le riunioni mostrano un partecipante per sorgente audio.",
+      "os_too_old": "Il rilevamento dei partecipanti richiede macOS 15 o versioni successive. Le riunioni mostrano un partecipante per sorgente audio.",
       "unsupported": "Il rilevamento dei partecipanti richiede un Mac con chip Apple. Le riunioni mostrano un partecipante per sorgente audio.",
       "download": "Scarica",
       "retry": "Riprova",

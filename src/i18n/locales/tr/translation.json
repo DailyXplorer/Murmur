@@ -602,7 +602,7 @@
       "preparing": "Modeller bu Mac için hazırlanıyor…",
       "ready": "Hazır · {{size}}",
       "failed": "İndirme başarısız oldu.",
-      "os_too_old": "Konuşmacı algılama için macOS 14 veya üstü gerekir. Toplantılar her ses kaynağı için bir konuşmacı gösterir.",
+      "os_too_old": "Konuşmacı algılama için macOS 15 veya üstü gerekir. Toplantılar her ses kaynağı için bir konuşmacı gösterir.",
       "unsupported": "Konuşmacı algılama için Apple çipli bir Mac gerekir. Toplantılar her ses kaynağı için bir konuşmacı gösterir.",
       "download": "İndir",
       "retry": "Yeniden dene",
