@@ -88,10 +88,13 @@ pub struct MeetingCapabilities {
 struct ProcessingQueue {
     sender: tokio::sync::mpsc::UnboundedSender<i64>,
     state: Mutex<QueueState>,
+    asked_signal: tokio::sync::Notify,
 }
 
 struct QueueState {
     queued: HashSet<i64>,
+    /// Queued at the user's request, so a rate-limit hold lets them through.
+    asked: HashSet<i64>,
     current: Option<(i64, ProcessingOperation)>,
     paused: bool,
 }
@@ -101,6 +104,7 @@ impl ProcessingQueue {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let state = QueueState {
             queued: HashSet::new(),
+            asked: HashSet::new(),
             current: None,
             paused,
         };
@@ -108,6 +112,7 @@ impl ProcessingQueue {
             Self {
                 sender,
                 state: Mutex::new(state),
+                asked_signal: tokio::sync::Notify::new(),
             },
             receiver,
         )
@@ -133,6 +138,7 @@ impl ProcessingQueue {
     fn begin(&self, id: i64, operation: &ProcessingOperation) -> bool {
         let mut state = self.state();
         state.queued.remove(&id);
+        state.asked.remove(&id);
         if state.paused {
             return false;
         }
@@ -166,6 +172,33 @@ impl ProcessingQueue {
 
     fn resume(&self) {
         self.state().paused = false;
+    }
+
+    /// Queues a meeting the user just asked for (Retry, Transcribe again...),
+    /// which a rate-limit hold does not keep waiting: pressing it is how the
+    /// user says Codex may have freed up.
+    fn enqueue_asked(&self, id: i64) {
+        self.state().asked.insert(id);
+        self.enqueue(id);
+        self.asked_signal.notify_one();
+    }
+
+    /// Waits out a rate-limit hold of `wait`, or until a meeting the user
+    /// asked for is queued.
+    async fn hold(&self, wait: Duration) {
+        let until = tokio::time::Instant::now() + wait;
+        loop {
+            // `notify_one` keeps a permit, so a request made between the check
+            // and the wait still wakes it; a stale one only loops once.
+            let asked = self.asked_signal.notified();
+            if !self.state().asked.is_empty() {
+                return;
+            }
+            tokio::select! {
+                () = tokio::time::sleep_until(until) => return,
+                () = asked => {}
+            }
+        }
     }
 }
 
@@ -269,7 +302,7 @@ fn spawn_processing(
             if let Some(wait) = hold.after(rate_limited) {
                 // The meetings still queued wait as they are, unfailed.
                 info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
-                tokio::time::sleep(wait).await;
+                worker.hold(wait).await;
             }
         }
     });
@@ -506,7 +539,7 @@ impl MeetingsManager {
     /// Processes an interrupted meeting, or the parts of a failed one that
     /// are missing.
     pub fn retry(&self, id: i64) {
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
     }
 
     /// Tells the speakers of a finished meeting apart again, with the models
@@ -528,7 +561,7 @@ impl MeetingsManager {
             Err(error) => error!("Meeting {id}: cannot reset the analysis: {error}"),
         }
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -542,7 +575,7 @@ impl MeetingsManager {
             return Err(format!("Meeting {id} has no failed summary"));
         }
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -575,7 +608,7 @@ impl MeetingsManager {
         // A summary still being written is of the transcript that goes.
         self.queue.cancel(id);
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -814,6 +847,51 @@ mod tests {
         // A meeting that got through: the cap has freed up.
         assert_eq!(hold.after(false), None);
         assert_eq!(minutes(hold.after(true)), Some(30));
+    }
+
+    /// Runs `hold` for an hour, giving up after `within`: true when it
+    /// returned first.
+    fn hold_ends_within(queue: &ProcessingQueue, within: Duration) -> bool {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap()
+            .block_on(async {
+                tokio::time::timeout(within, queue.hold(Duration::from_secs(3600)))
+                    .await
+                    .is_ok()
+            })
+    }
+
+    #[test]
+    fn the_rate_limit_hold_lasts_its_time_for_meetings_queued_on_their_own() {
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        queue.enqueue(1);
+        assert!(!hold_ends_within(&queue, Duration::from_millis(50)));
+    }
+
+    #[test]
+    fn a_meeting_the_user_asked_for_ends_the_rate_limit_hold() {
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        let queue = Arc::new(queue);
+        let asking = Arc::clone(&queue);
+        let ask = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            asking.enqueue_asked(1);
+        });
+        assert!(hold_ends_within(&queue, Duration::from_secs(5)));
+        ask.join().unwrap();
+    }
+
+    #[test]
+    fn a_meeting_asked_for_before_the_hold_is_not_held() {
+        let (queue, _receiver) = ProcessingQueue::new(false);
+        queue.enqueue_asked(1);
+        assert!(hold_ends_within(&queue, Duration::from_secs(5)));
+        // Once it runs, the next hold holds again.
+        assert!(queue.begin(1, &operation(1)));
+        queue.end();
+        assert!(!hold_ends_within(&queue, Duration::from_millis(50)));
     }
 
     #[test]
