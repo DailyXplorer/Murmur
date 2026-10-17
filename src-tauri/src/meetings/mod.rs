@@ -518,9 +518,8 @@ impl MeetingsManager {
         {
             return Err(format!("Meeting {id} is not finished"));
         }
-        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES).and_then(
-            |()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]),
-        );
+        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES)
+            .and_then(|()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]));
         self.updated(id);
         result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
     }

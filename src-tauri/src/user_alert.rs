@@ -71,9 +71,7 @@ impl Alert {
                 MeetingAlert::StoppedAtLimit => &strings.meeting_stopped_at_limit,
                 MeetingAlert::WriteFailed => &strings.meeting_write_failed,
                 MeetingAlert::LowDiskSpace => &strings.meeting_low_disk_space,
-                MeetingAlert::SystemAudioInterrupted => {
-                    &strings.meeting_system_audio_interrupted
-                }
+                MeetingAlert::SystemAudioInterrupted => &strings.meeting_system_audio_interrupted,
             }
             .clone(),
         }

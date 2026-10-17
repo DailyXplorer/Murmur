@@ -241,10 +241,7 @@ mod tests {
 
     #[test]
     fn the_microphone_chosen_in_settings_records_the_meeting() {
-        assert_eq!(
-            named_input(devices(), Some("USB Headset")),
-            Some("headset")
-        );
+        assert_eq!(named_input(devices(), Some("USB Headset")), Some("headset"));
     }
 
     #[test]

@@ -43,8 +43,7 @@ const analysis = params.get("analysis") ?? "available";
 /** `failed` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
-const processingStage = (params.get("stage") ??
-  "transcribing") as MeetingStage;
+const processingStage = (params.get("stage") ?? "transcribing") as MeetingStage;
 /** Enough older meetings to fill more than one page of the list. */
 const manyMeetings = params.get("manyMeetings") === "1";
 const speakerAnalysis = (params.get("speakers") ??
