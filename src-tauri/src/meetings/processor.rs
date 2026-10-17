@@ -414,21 +414,24 @@ impl Processor {
         let started = Instant::now();
         let chunks = self.store.chunks(id)?;
         let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
-        self.store.save_transcript(
-            id,
-            &built.speakers,
-            &built.turns,
-            outcome,
-            built.identity.as_deref(),
-            built.score,
-        )?;
-        stages.push(("aligning", started.elapsed()));
-
         // A recorded track that could not be read leaves one side of the
-        // conversation out: never a Ready meeting, nor a summary of half of it.
+        // conversation out: never a Ready meeting, nor a summary of half of
+        // it, nor half a transcript in place of the whole one.
         let unreadable = recorded_tracks(recorded)
             .iter()
             .any(|track| !source.0.contains_key(track));
+        if !unreadable || meeting.turns.is_empty() {
+            self.store.save_transcript(
+                id,
+                &built.speakers,
+                &built.turns,
+                outcome,
+                built.identity.as_deref(),
+                built.score,
+            )?;
+        }
+        stages.push(("aligning", started.elapsed()));
+
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
         } else if unreadable {
@@ -1826,6 +1829,29 @@ mod tests {
 
         assert!(h.store.retranscribe(id).unwrap());
         h.process(id, codex(|_| Ok("never".into())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(meeting.summary, before.summary);
+        assert_eq!(turns(&meeting), turns(&before));
+    }
+
+    #[test]
+    fn transcribing_again_with_one_unreadable_track_keeps_the_transcript() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        h.process(id, codex(|_| Ok("Bonjour.".into())));
+        let before = h.store.get(id).unwrap().unwrap();
+        assert_eq!(before.summary_status, SummaryStatus::Ready);
+        assert_eq!(before.turns.len(), 2);
+        // The microphone track reads, the system one is damaged.
+        let dir = paths::meeting_dir(&h.root, id);
+        let _ = std::fs::remove_file(dir.join(paths::AUDIO_FILE));
+        track(&dir.join(paths::MIC_TRACK), 20, &[(8, 14)]);
+        std::fs::write(dir.join(paths::SYSTEM_TRACK), b"damaged").unwrap();
+
+        assert!(h.store.retranscribe(id).unwrap());
+        h.process(id, codex(|_| Ok("Autre chose.".into())));
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
