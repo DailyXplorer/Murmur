@@ -570,6 +570,7 @@
       "transcribing": "받아쓰는 중: {{total}}개 중 {{done}}개 완료…",
       "rateLimited": "Codex가 속도를 늦춰 달라고 요청했습니다. 처리는 자동으로 재개됩니다…",
       "aligning": "대화를 순서대로 정리하는 중…",
+      "analyzing": "화자를 구분하는 중…",
       "interrupted": "녹음이 중단되었습니다. 녹음된 부분은 여전히 받아쓸 수 있습니다.",
       "process": "받아쓰기",
       "retry": "다시 시도",
@@ -580,6 +581,34 @@
         "parts_failed": "일부 구간을 받아쓸 수 없었습니다.",
         "no_audio": "녹음을 읽을 수 없습니다.",
         "other": "처리가 예기치 않게 중단되었습니다."
+      }
+    },
+    "speakers": {
+      "no_models": "화자 모델이 다운로드되지 않아 화자를 구분하지 않았습니다.",
+      "failed": "기기 내 분석이 완료되지 않아 화자를 구분하지 않았습니다.",
+      "separate": "화자 구분",
+      "error": "화자를 구분할 수 없습니다."
+    },
+    "models": {
+      "title": "화자 감지",
+      "description": "로컬 모델이 참가자를 구분합니다. 한 번만 다운로드되며(약 480MB), 이 단계에서는 오디오를 어디에도 보내지 않습니다.",
+      "missing": "다운로드되지 않음",
+      "downloading": "다운로드 중… {{percent}}%",
+      "preparing": "이 Mac에 맞게 모델을 준비하는 중…",
+      "ready": "준비됨 · {{size}}",
+      "failed": "다운로드에 실패했습니다.",
+      "os_too_old": "화자 감지에는 macOS 14 이상이 필요합니다. 회의에는 오디오 소스마다 화자 한 명이 표시됩니다.",
+      "unsupported": "화자 감지에는 Apple 실리콘이 탑재된 Mac이 필요합니다. 회의에는 오디오 소스마다 화자 한 명이 표시됩니다.",
+      "download": "다운로드",
+      "retry": "다시 시도",
+      "delete": "모델 삭제",
+      "error": "화자 모델을 업데이트할 수 없습니다.",
+      "licences": "모델 라이선스",
+      "licencesNote": "모델은 처음 사용할 때 Hugging Face에서 다운로드됩니다. Murmur에는 포함되어 있지 않습니다.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3(단어 타이밍): NVIDIA, CC BY 4.0. Core ML 변환: Fluid Inference.",
+        "diarization": "화자 분리 Community-1: pyannote, CC BY 4.0, WeSpeaker 및 BUT Speech@FIT. 수정된 Core ML 변환: Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
       }
     },
     "transcript": {

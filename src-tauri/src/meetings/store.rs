@@ -18,8 +18,9 @@ use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::{open_or_reset_database, DatabaseStartup};
 
-static MIGRATIONS: &[M] = &[M::up(
-    "CREATE TABLE meetings (
+static MIGRATIONS: &[M] = &[
+    M::up(
+        "CREATE TABLE meetings (
         id              INTEGER PRIMARY KEY,
         started_at_ms   INTEGER NOT NULL,
         ended_at_ms     INTEGER,
@@ -71,7 +72,10 @@ static MIGRATIONS: &[M] = &[M::up(
         low_confidence INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (meeting_id, seq)
     );",
-)];
+    ),
+    // How the speakers of the last processing run were told apart.
+    M::up("ALTER TABLE meetings ADD COLUMN speaker_analysis TEXT;"),
+];
 
 /// Which tracks a meeting recorded.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -160,6 +164,8 @@ impl MeetingStatus {
 #[serde(rename_all = "snake_case")]
 pub enum MeetingStage {
     Transcribing,
+    /// Telling speakers apart on device, once Codex is done.
+    Analyzing,
     /// Placing the text of both tracks in order.
     Aligning,
 }
@@ -168,6 +174,7 @@ impl MeetingStage {
     fn as_db(self) -> &'static str {
         match self {
             Self::Transcribing => "transcribing",
+            Self::Analyzing => "analyzing",
             Self::Aligning => "aligning",
         }
     }
@@ -175,7 +182,43 @@ impl MeetingStage {
     fn from_db(value: &str) -> Option<Self> {
         match value {
             "transcribing" => Some(Self::Transcribing),
+            "analyzing" => Some(Self::Analyzing),
             "aligning" => Some(Self::Aligning),
+            _ => None,
+        }
+    }
+}
+
+/// How the speakers of a meeting were told apart.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeakerAnalysis {
+    /// On-device diarization and word times were used.
+    Separated,
+    /// The models were not downloaded: one speaker per track.
+    NoModels,
+    /// The analysis failed or crashed: one speaker per track.
+    Failed,
+    /// This Mac cannot run the analysis: one speaker per track.
+    Unsupported,
+}
+
+impl SpeakerAnalysis {
+    fn as_db(self) -> &'static str {
+        match self {
+            Self::Separated => "separated",
+            Self::NoModels => "no_models",
+            Self::Failed => "failed",
+            Self::Unsupported => "unsupported",
+        }
+    }
+
+    fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "separated" => Some(Self::Separated),
+            "no_models" => Some(Self::NoModels),
+            "failed" => Some(Self::Failed),
+            "unsupported" => Some(Self::Unsupported),
             _ => None,
         }
     }
@@ -296,6 +339,8 @@ pub struct MeetingDetail {
     pub tracks: MeetingTracks,
     pub stage: Option<MeetingStage>,
     pub error: Option<ProcessingError>,
+    /// `None` until the transcript is first built.
+    pub speaker_analysis: Option<SpeakerAnalysis>,
     pub speakers: Vec<MeetingSpeaker>,
     pub turns: Vec<MeetingTurn>,
 }
@@ -484,7 +529,8 @@ impl MeetingsStore {
         let conn = self.connection()?;
         let row = conn
             .query_row(
-                "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind
+                "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind,
+                        speaker_analysis
                  FROM meetings WHERE id = ?1",
                 params![id],
                 |row| {
@@ -496,11 +542,13 @@ impl MeetingsStore {
                         row.get::<_, String>(4)?,
                         row.get::<_, Option<String>>(5)?,
                         row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
                     ))
                 },
             )
             .optional()?;
-        let Some((title, started_at_ms, duration_ms, status, tracks, stage, error)) = row else {
+        let Some((title, started_at_ms, duration_ms, status, tracks, stage, error, analysis)) = row
+        else {
             return Ok(None);
         };
         let speakers = conn
@@ -542,6 +590,7 @@ impl MeetingsStore {
             tracks: MeetingTracks::from_db(&tracks).unwrap_or(MeetingTracks::Both),
             stage: stage.as_deref().and_then(MeetingStage::from_db),
             error: error.as_deref().and_then(ProcessingError::from_db),
+            speaker_analysis: analysis.as_deref().and_then(SpeakerAnalysis::from_db),
             speakers,
             turns,
         }))
@@ -554,6 +603,17 @@ impl MeetingsStore {
             "UPDATE meetings SET status = 'processing', stage = 'transcribing',
                  error_kind = NULL, error_detail = NULL
              WHERE id = ?1 AND status IN ('processing', 'interrupted', 'failed')",
+            params![id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    /// Makes a finished meeting wait for processing again, to tell its
+    /// speakers apart anew. Returns false when it is not finished.
+    pub fn reopen(&self, id: i64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET status = 'processing', stage = NULL
+             WHERE id = ?1 AND status IN ('ready', 'failed')",
             params![id],
         )?;
         Ok(updated > 0)
@@ -665,19 +725,32 @@ impl MeetingsStore {
         Ok(())
     }
 
-    /// Replaces the transcript in one transaction. Speakers keep the name the
-    /// user gave them.
+    /// Replaces the transcript and its speakers in one transaction, with how
+    /// the speakers were told apart. A speaker still present keeps the name
+    /// the user gave them.
     pub fn save_transcript(
         &self,
         id: i64,
         speakers: &[MeetingSpeaker],
         turns: &[MeetingTurn],
+        analysis: SpeakerAnalysis,
+        alignment_score: Option<f32>,
     ) -> Result<()> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         tx.execute(
             "DELETE FROM meeting_turns WHERE meeting_id = ?1",
             params![id],
+        )?;
+        let kept: Vec<String> = speakers.iter().map(|speaker| speaker.key.clone()).collect();
+        tx.execute(
+            "DELETE FROM meeting_speakers
+             WHERE meeting_id = ?1 AND key NOT IN (SELECT value FROM json_each(?2))",
+            params![id, serde_json::to_string(&kept)?],
+        )?;
+        tx.execute(
+            "UPDATE meetings SET speaker_analysis = ?2, alignment_score = ?3 WHERE id = ?1",
+            params![id, analysis.as_db(), alignment_score.map(f64::from)],
         )?;
         for (seq, turn) in turns.iter().enumerate() {
             tx.execute(
@@ -1035,6 +1108,8 @@ mod tests {
                 id,
                 &speakers,
                 &[turn("s1", 0, "Salut."), turn("me", 900, "Hello.")],
+                SpeakerAnalysis::NoModels,
+                None,
             )
             .unwrap();
         store.rename_speaker(id, "s1", "Sam").unwrap();
@@ -1042,12 +1117,48 @@ mod tests {
 
         // Processing again replaces the turns but keeps the rename.
         store
-            .save_transcript(id, &speakers, &[turn("s1", 0, "Salut tout le monde.")])
+            .save_transcript(
+                id,
+                &speakers,
+                &[turn("s1", 0, "Salut tout le monde.")],
+                SpeakerAnalysis::Separated,
+                Some(0.9),
+            )
             .unwrap();
         let detail = store.get(id).unwrap().unwrap();
         assert_eq!(detail.speakers[1].name, "Sam");
         assert_eq!(detail.speakers[1].default_name, "Speaker 2");
         assert_eq!(detail.turns, [turn("s1", 0, "Salut tout le monde.")]);
+        assert_eq!(detail.speaker_analysis, Some(SpeakerAnalysis::Separated));
+
+        // A speaker the new analysis no longer finds is gone.
+        store
+            .save_transcript(
+                id,
+                &speakers[..1],
+                &[turn("me", 0, "Seul.")],
+                SpeakerAnalysis::Failed,
+                None,
+            )
+            .unwrap();
+        let detail = store.get(id).unwrap().unwrap();
+        assert_eq!(detail.speakers.len(), 1);
+        assert_eq!(detail.speaker_analysis, Some(SpeakerAnalysis::Failed));
+    }
+
+    #[test]
+    fn only_a_finished_meeting_can_be_reopened() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert!(!store.reopen(id).unwrap());
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        assert!(store.reopen(id).unwrap());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().status,
+            MeetingStatus::Processing
+        );
+        assert!(store.begin_processing(id).unwrap());
     }
 
     #[test]

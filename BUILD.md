@@ -9,6 +9,10 @@ from source on macOS.
 - [Bun](https://bun.sh/) package manager
 - [Tauri Prerequisites](https://tauri.app/start/prerequisites/)
 - Xcode Command Line Tools
+- On Apple silicon, Xcode 26 or later (Swift 6.2 or later): `src-tauri/build.rs`
+  builds the meetings helper (`src-tauri/swift/MurmurMeetingsHelper`) with
+  SwiftPM. The first build downloads FluidAudio from GitHub. Intel builds use
+  a small C stub instead.
 
 Install the Command Line Tools with:
 

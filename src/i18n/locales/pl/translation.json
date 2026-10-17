@@ -570,6 +570,7 @@
       "transcribing": "Transkrypcja: gotowe części {{done}} z {{total}}…",
       "rateLimited": "Codex poprosił o zwolnienie tempa. Przetwarzanie wznowi się samo…",
       "aligning": "Porządkowanie rozmowy…",
+      "analyzing": "Rozróżnianie mówców…",
       "interrupted": "Nagrywanie zostało przerwane. Nagrany fragment nadal można przepisać.",
       "process": "Przepisz",
       "retry": "Ponów",
@@ -580,6 +581,34 @@
         "parts_failed": "Niektórych części nie udało się przepisać.",
         "no_audio": "Nie udało się odczytać nagrania.",
         "other": "Przetwarzanie nieoczekiwanie się zatrzymało."
+      }
+    },
+    "speakers": {
+      "no_models": "Mówcy nie zostali rozróżnieni, ponieważ modele wykrywania nie były pobrane.",
+      "failed": "Mówcy nie zostali rozróżnieni, ponieważ analiza na urządzeniu nie została ukończona.",
+      "separate": "Rozróżnij mówców",
+      "error": "Nie udało się rozróżnić mówców."
+    },
+    "models": {
+      "title": "Wykrywanie mówców",
+      "description": "Lokalne modele rozróżniają uczestników. Pobierają się raz (około 480 MB), a ten krok nie wysyła nigdzie dźwięku.",
+      "missing": "Nie pobrano",
+      "downloading": "Pobieranie… {{percent}}%",
+      "preparing": "Przygotowywanie modeli dla tego Maca…",
+      "ready": "Gotowe · {{size}}",
+      "failed": "Pobieranie nie powiodło się.",
+      "os_too_old": "Wykrywanie mówców wymaga systemu macOS 14 lub nowszego. Spotkania pokazują jednego mówcę na źródło dźwięku.",
+      "unsupported": "Wykrywanie mówców wymaga Maca z czipem Apple. Spotkania pokazują jednego mówcę na źródło dźwięku.",
+      "download": "Pobierz",
+      "retry": "Spróbuj ponownie",
+      "delete": "Usuń modele",
+      "error": "Nie udało się zaktualizować modeli wykrywania.",
+      "licences": "Licencje modeli",
+      "licencesNote": "Modele są pobierane z Hugging Face przy pierwszym użyciu. Murmur ich nie zawiera.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (czas słów): NVIDIA, CC BY 4.0. Konwersja do Core ML: Fluid Inference.",
+        "diarization": "Diaryzacja Community-1: pyannote, CC BY 4.0, z WeSpeaker i BUT Speech@FIT. Zmodyfikowana konwersja do Core ML: Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, licencja Apache 2.0."
       }
     },
     "transcript": {

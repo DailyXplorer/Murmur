@@ -570,6 +570,7 @@
       "transcribing": "Dökülüyor: {{total}} bölümden {{done}} tanesi tamam…",
       "rateLimited": "Codex yavaşlamayı istedi. İşleme kendiliğinden devam edecek…",
       "aligning": "Konuşma sıraya konuyor…",
+      "analyzing": "Konuşmacılar ayırt ediliyor…",
       "interrupted": "Kayıt yarıda kesildi. Kaydedilen kısım yine de dökülebilir.",
       "process": "Dök",
       "retry": "Yeniden dene",
@@ -580,6 +581,34 @@
         "parts_failed": "Bazı bölümler dökülemedi.",
         "no_audio": "Kayıt okunamadı.",
         "other": "İşleme beklenmedik şekilde durdu."
+      }
+    },
+    "speakers": {
+      "no_models": "Konuşmacı modelleri indirilmediği için konuşmacılar ayırt edilmedi.",
+      "failed": "Cihazdaki analiz tamamlanmadığı için konuşmacılar ayırt edilmedi.",
+      "separate": "Konuşmacıları ayır",
+      "error": "Konuşmacılar ayırt edilemedi."
+    },
+    "models": {
+      "title": "Konuşmacı algılama",
+      "description": "Yerel modeller katılımcıları ayırt eder. Bir kez indirilirler (yaklaşık 480 MB) ve bu adım hiçbir yere ses göndermez.",
+      "missing": "İndirilmedi",
+      "downloading": "İndiriliyor… %{{percent}}",
+      "preparing": "Modeller bu Mac için hazırlanıyor…",
+      "ready": "Hazır · {{size}}",
+      "failed": "İndirme başarısız oldu.",
+      "os_too_old": "Konuşmacı algılama için macOS 14 veya üstü gerekir. Toplantılar her ses kaynağı için bir konuşmacı gösterir.",
+      "unsupported": "Konuşmacı algılama için Apple çipli bir Mac gerekir. Toplantılar her ses kaynağı için bir konuşmacı gösterir.",
+      "download": "İndir",
+      "retry": "Yeniden dene",
+      "delete": "Modelleri sil",
+      "error": "Konuşmacı modelleri güncellenemedi.",
+      "licences": "Model lisansları",
+      "licencesNote": "Modeller ilk kullanımda Hugging Face'ten indirilir. Murmur bunları içermez.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (kelime zamanlaması): NVIDIA, CC BY 4.0. Core ML dönüşümü: Fluid Inference.",
+        "diarization": "Konuşmacı ayrımı Community-1: pyannote, CC BY 4.0, WeSpeaker ve BUT Speech@FIT ile. Değiştirilmiş Core ML dönüşümü: Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache Lisansı 2.0."
       }
     },
     "transcript": {

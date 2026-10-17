@@ -544,6 +544,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::rename_meeting,
             commands::meetings::rename_speaker,
             commands::meetings::retry_meeting,
+            commands::meetings::reanalyze_meeting,
+            commands::meetings::get_meeting_models_status,
+            commands::meetings::download_meeting_models,
+            commands::meetings::cancel_meeting_models_download,
+            commands::meetings::delete_meeting_models,
             commands::meetings::get_meeting_markdown,
             commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
@@ -556,7 +561,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             insights::InsightsUpdated,
             meetings::MeetingStateChanged,
             meetings::MeetingsUpdated,
-            meetings::processor::MeetingProgress
+            meetings::processor::MeetingProgress,
+            meetings::models::MeetingModelsStatus
         ])
 }
 

@@ -570,6 +570,7 @@
       "transcribing": "Transcribiendo: {{done}} de {{total}} partes listas…",
       "rateLimited": "Codex pidió ir más despacio. El procesamiento se reanudará solo…",
       "aligning": "Ordenando la conversación…",
+      "analyzing": "Distinguiendo a los participantes…",
       "interrupted": "La grabación se interrumpió. Lo grabado aún se puede transcribir.",
       "process": "Transcribir",
       "retry": "Reintentar",
@@ -580,6 +581,34 @@
         "parts_failed": "Algunas partes no se pudieron transcribir.",
         "no_audio": "No se pudo leer la grabación.",
         "other": "El procesamiento se detuvo de forma inesperada."
+      }
+    },
+    "speakers": {
+      "no_models": "No se distinguió a los participantes porque los modelos de detección no estaban descargados.",
+      "failed": "No se distinguió a los participantes porque el análisis en el dispositivo no terminó.",
+      "separate": "Distinguir participantes",
+      "error": "No se pudo distinguir a los participantes."
+    },
+    "models": {
+      "title": "Detección de participantes",
+      "description": "Modelos locales distinguen a los participantes. Se descargan una vez (unos 480 MB) y este paso no envía audio a ningún sitio.",
+      "missing": "No descargados",
+      "downloading": "Descargando… {{percent}} %",
+      "preparing": "Preparando los modelos para este Mac…",
+      "ready": "Listos · {{size}}",
+      "failed": "La descarga falló.",
+      "os_too_old": "La detección de participantes requiere macOS 14 o posterior. Las reuniones muestran un participante por fuente de audio.",
+      "unsupported": "La detección de participantes requiere un Mac con chip de Apple. Las reuniones muestran un participante por fuente de audio.",
+      "download": "Descargar",
+      "retry": "Reintentar",
+      "delete": "Eliminar modelos",
+      "error": "No se pudieron actualizar los modelos de detección.",
+      "licences": "Licencias de los modelos",
+      "licencesNote": "Los modelos se descargan de Hugging Face en el primer uso. Murmur no los incluye.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (tiempos de palabras): NVIDIA, CC BY 4.0. Conversión a Core ML de Fluid Inference.",
+        "diarization": "Diarización Community-1: pyannote, CC BY 4.0, con WeSpeaker y BUT Speech@FIT. Conversión a Core ML modificada de Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, licencia Apache 2.0."
       }
     },
     "transcript": {

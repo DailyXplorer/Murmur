@@ -570,6 +570,7 @@
       "transcribing": "Transcription : {{done}} parties sur {{total}} terminées…",
       "rateLimited": "Codex demande de ralentir. Le traitement reprendra tout seul…",
       "aligning": "Remise en ordre de la conversation…",
+      "analyzing": "Identification des intervenants…",
       "interrupted": "L’enregistrement a été interrompu. Ce qui a été enregistré peut quand même être transcrit.",
       "process": "Transcrire",
       "retry": "Réessayer",
@@ -580,6 +581,34 @@
         "parts_failed": "Certaines parties n’ont pas pu être transcrites.",
         "no_audio": "L’enregistrement n’a pas pu être lu.",
         "other": "Le traitement s’est arrêté de façon inattendue."
+      }
+    },
+    "speakers": {
+      "no_models": "Les intervenants n'ont pas été distingués, car les modèles de détection n'étaient pas téléchargés.",
+      "failed": "Les intervenants n'ont pas été distingués, car l'analyse sur l'appareil n'a pas abouti.",
+      "separate": "Distinguer les intervenants",
+      "error": "Impossible de distinguer les intervenants."
+    },
+    "models": {
+      "title": "Détection des intervenants",
+      "description": "Des modèles locaux distinguent les participants. Ils se téléchargent une seule fois (environ 480 Mo), et cette étape n'envoie aucun audio.",
+      "missing": "Non téléchargés",
+      "downloading": "Téléchargement… {{percent}} %",
+      "preparing": "Préparation des modèles pour ce Mac…",
+      "ready": "Prêts · {{size}}",
+      "failed": "Le téléchargement a échoué.",
+      "os_too_old": "La détection des intervenants nécessite macOS 14 ou version ultérieure. Les réunions affichent un intervenant par source audio.",
+      "unsupported": "La détection des intervenants nécessite un Mac avec puce Apple. Les réunions affichent un intervenant par source audio.",
+      "download": "Télécharger",
+      "retry": "Réessayer",
+      "delete": "Supprimer les modèles",
+      "error": "Impossible de mettre à jour les modèles de détection.",
+      "licences": "Licences des modèles",
+      "licencesNote": "Les modèles sont téléchargés depuis Hugging Face à la première utilisation. Murmur ne les inclut pas.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (minutage des mots) : NVIDIA, CC BY 4.0. Conversion Core ML par Fluid Inference.",
+        "diarization": "Diarisation Community-1 : pyannote, CC BY 4.0, avec WeSpeaker et BUT Speech@FIT. Conversion Core ML modifiée par Fluid Inference.",
+        "fluidaudio": "FluidAudio : Fluid Inference, licence Apache 2.0."
       }
     },
     "transcript": {

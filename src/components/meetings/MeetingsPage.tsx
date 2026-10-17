@@ -15,6 +15,8 @@ import {
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
+import { SpeakerModels } from "./SpeakerModels";
+import { useMeetingModels } from "../../hooks/useMeetingModels";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -72,6 +74,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     null,
   );
   const requestRef = useRef(0);
+  const models = useMeetingModels();
   const recording = runtime.state === "recording";
   const now = useNow(recording);
 
@@ -247,6 +250,8 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           </p>
         )}
       </SettingsGroup>
+
+      <SpeakerModels status={models} />
 
       <SettingsGroup title={t("meetings.list.title")}>
         {loading ? (

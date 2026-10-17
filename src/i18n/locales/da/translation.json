@@ -570,6 +570,7 @@
       "transcribing": "Transskriberer: {{done}} af {{total}} dele færdige…",
       "rateLimited": "Codex bad om at sætte tempoet ned. Behandlingen fortsætter af sig selv…",
       "aligning": "Samtalen sættes i rækkefølge…",
+      "analyzing": "Skelner mellem talerne…",
       "interrupted": "Optagelsen blev afbrudt. Det optagne kan stadig transskriberes.",
       "process": "Transskribér",
       "retry": "Prøv igen",
@@ -580,6 +581,34 @@
         "parts_failed": "Nogle dele kunne ikke transskriberes.",
         "no_audio": "Optagelsen kunne ikke læses.",
         "other": "Behandlingen stoppede uventet."
+      }
+    },
+    "speakers": {
+      "no_models": "Talerne blev ikke skelnet fra hinanden, fordi talermodellerne ikke var hentet.",
+      "failed": "Talerne blev ikke skelnet fra hinanden, fordi analysen på enheden ikke blev fuldført.",
+      "separate": "Skeln mellem talere",
+      "error": "Talerne kunne ikke skelnes fra hinanden."
+    },
+    "models": {
+      "title": "Talergenkendelse",
+      "description": "Lokale modeller skelner mellem deltagerne. De hentes én gang (ca. 480 MB), og dette trin sender ingen lyd nogen steder hen.",
+      "missing": "Ikke hentet",
+      "downloading": "Henter… {{percent}} %",
+      "preparing": "Forbereder modellerne til denne Mac…",
+      "ready": "Klar · {{size}}",
+      "failed": "Overførslen mislykkedes.",
+      "os_too_old": "Talergenkendelse kræver macOS 14 eller nyere. Møder viser én taler pr. lydkilde.",
+      "unsupported": "Talergenkendelse kræver en Mac med Apple-chip. Møder viser én taler pr. lydkilde.",
+      "download": "Hent",
+      "retry": "Prøv igen",
+      "delete": "Slet modeller",
+      "error": "Talermodellerne kunne ikke opdateres.",
+      "licences": "Modellicenser",
+      "licencesNote": "Modellerne hentes fra Hugging Face første gang. Murmur indeholder dem ikke.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (ordtider): NVIDIA, CC BY 4.0. Core ML-konvertering af Fluid Inference.",
+        "diarization": "Talerdiarisering Community-1: pyannote, CC BY 4.0, med WeSpeaker og BUT Speech@FIT. Ændret Core ML-konvertering af Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache-licens 2.0."
       }
     },
     "transcript": {

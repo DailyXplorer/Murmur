@@ -734,6 +734,50 @@ async retryMeeting(id: number) : Promise<Result<null, string>> {
 }
 },
 /**
+ * Tells the speakers of a finished meeting apart again, for instance once
+ * the models are downloaded.
+ */
+async reanalyzeMeeting(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reanalyze_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getMeetingModelsStatus() : Promise<Result<MeetingModelsStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting_models_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async downloadMeetingModels() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_meeting_models") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async cancelMeetingModelsDownload() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_meeting_models_download") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async deleteMeetingModels() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_meeting_models") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * The transcript as Markdown, exactly as Export saves it.
  */
 async getMeetingMarkdown(id: number) : Promise<Result<string, string>> {
@@ -795,12 +839,14 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
+meetingModelsStatus: MeetingModelsStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
+meetingModelsStatus: "meeting-models-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated"
@@ -816,6 +862,15 @@ meetingsUpdated: "meetings-updated"
  * Brand accent used by the webviews and native application icons.
  */
 export type AccentColor = "pink" | "blue" | "green" | "yellow" | "orange" | "red"
+export type AnalysisSupport = "available" | 
+/**
+ * The analysis models need macOS 14 or later.
+ */
+"os_too_old" | 
+/**
+ * Intel Macs: one speaker per track.
+ */
+"unsupported"
 /**
  * Where a dictation was sent, grouped the way the Insights page reports it.
  */
@@ -952,19 +1007,28 @@ export type LearnedWord = { word: string;
  */
 heard_as: string }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
-export type MeetingCapabilities = { system_audio: SystemAudioSupport }
+export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
+/**
+ * Telling speakers apart on device.
+ */
+analysis: AnalysisSupport }
 /**
  * Which sources a meeting records. Without system audio support (before
  * macOS 14.4, or on Intel) every mode records the microphone only; the
  * stored choice is kept for when it becomes available.
  */
 export type MeetingCaptureMode = "both" | "system_only" | "mic_only"
-export type MeetingDetail = { id: number; title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks; stage: MeetingStage | null; error: ProcessingError | null; speakers: MeetingSpeaker[]; turns: MeetingTurn[] }
+export type MeetingDetail = { id: number; title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks; stage: MeetingStage | null; error: ProcessingError | null; 
+/**
+ * `None` until the transcript is first built.
+ */
+speaker_analysis: SpeakerAnalysis | null; speakers: MeetingSpeaker[]; turns: MeetingTurn[] }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+export type MeetingModelsStatus = { state: ModelsState; bytes_on_disk: number }
 /**
  * How far processing has come, for the progress bar.
  */
@@ -987,6 +1051,10 @@ key: string; name: string; default_name: string; color_index: number }
  * What processing is doing now.
  */
 export type MeetingStage = "transcribing" | 
+/**
+ * Telling speakers apart on device, once Codex is done.
+ */
+"analyzing" | 
 /**
  * Placing the text of both tracks in order.
  */
@@ -1018,6 +1086,15 @@ export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
+export type ModelsState = 
+/**
+ * This Mac cannot run the analysis.
+ */
+{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; fraction: number } | 
+/**
+ * Compiling the models for this Mac, once.
+ */
+{ state: "preparing" } | { state: "ready" } | { state: "failed" }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -1061,6 +1138,26 @@ export type ShortcutRegistrationError =
  */
 "used_by_another_action"
 export type SoundTheme = "marimba" | "pop" | "custom"
+/**
+ * How the speakers of a meeting were told apart.
+ */
+export type SpeakerAnalysis = 
+/**
+ * On-device diarization and word times were used.
+ */
+"separated" | 
+/**
+ * The models were not downloaded: one speaker per track.
+ */
+"no_models" | 
+/**
+ * The analysis failed or crashed: one speaker per track.
+ */
+"failed" | 
+/**
+ * This Mac cannot run the analysis: one speaker per track.
+ */
+"unsupported"
 export type Streaks = { current: number; longest: number }
 export type SystemAudioSupport = "available" | 
 /**

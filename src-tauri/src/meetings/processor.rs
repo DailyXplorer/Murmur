@@ -3,27 +3,39 @@
 //! piece already transcribed is sent again:
 //!
 //! 1. Transcribing: each track is split into pieces (`chunking`), and the
-//!    pieces Codex has not yet transcribed are sent (`transcribe`).
-//! 2. Aligning: each piece's sentences are spread over the moments its track
-//!    holds speech (`spread`), and both tracks are interleaved into bubbles
+//!    pieces Codex has not yet transcribed are sent (`transcribe`). At the
+//!    same time the on-device analysis (`analysis`) finds the time of each
+//!    word heard and who spoke when.
+//! 2. Aligning: each piece's words get the times of the words heard on
+//!    device (`align`), or, when those cannot be trusted, its sentences are
+//!    spread over the moments the track holds speech (`spread`). Words then
+//!    go to their speaker (`speakers`), echoes of remote voices are taken off
+//!    the microphone (`bleed`), and both tracks are interleaved into bubbles
 //!    (`merge`). Parts that failed show as placeholders, so the user gets
 //!    everything that worked.
 
 use serde::Serialize;
 use specta::Type;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
+use super::align::timing::{sentence_times, time_chunk, words_in};
+use super::align::{TimedToken, TimedWord};
+use super::analysis::{Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
+use super::bleed::remove_echoes;
 use super::chunking::{plan_chunks, speech_threshold, split_chunk};
-use super::merge::{merge, Track, Unit};
+use super::merge::{merge, Track, Unit, PLACEHOLDER};
 use super::paths;
+use super::protocol::{segments, timed_words};
+use super::speakers::{self, speaker_row};
 use super::spread::{spread, voiced_intervals};
 use super::store::{
-    ChunkStatus, MeetingSpeaker, MeetingStage, MeetingTurn, MeetingsStore, ProcessingError,
+    ChunkRow, ChunkStatus, MeetingSpeaker, MeetingStage, MeetingTurn, MeetingsStore,
+    ProcessingError, SpeakerAnalysis,
 };
-use super::tokens::sentences;
+use super::tokens::{sentences, tokenize};
 use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
     ChunkSource, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
@@ -53,6 +65,7 @@ pub struct Processor {
     pub store: Arc<MeetingsStore>,
     pub root: PathBuf,
     pub transcriber: Arc<dyn Transcriber>,
+    pub analyzer: Arc<dyn Analyzer>,
     pub policy: RetryPolicy,
     pub language: Option<String>,
     pub events: Arc<dyn ProcessEvents>,
@@ -65,18 +78,12 @@ fn track_file(track: Track) -> &'static str {
     }
 }
 
-/// The microphone is the user. Remote participants are numbered after them.
-fn speaker_for(track: Track, has_mic: bool) -> MeetingSpeaker {
-    let (key, name, color_index) = match (track, has_mic) {
-        (Track::Mic, _) => ("me", "Me", 0),
-        (Track::System, true) => ("s1", "Speaker 2", 1),
-        (Track::System, false) => ("s1", "Speaker 1", 1),
-    };
-    MeetingSpeaker {
-        key: key.to_string(),
-        name: name.to_string(),
-        default_name: name.to_string(),
-        color_index,
+/// The key of a track's only speaker when its speakers are not told apart:
+/// the microphone is the user, system audio the remote participants.
+fn single_speaker(track: Track) -> &'static str {
+    match track {
+        Track::Mic => "me",
+        Track::System => "s1",
     }
 }
 
@@ -245,77 +252,43 @@ impl Processor {
             policy: self.policy.clone(),
             language: self.language.clone(),
         };
-        let end = runner.run(jobs, operation).await;
-        if end == RunEnd::Cancelled {
-            return Ok(());
-        }
-
-        self.store.set_stage(id, MeetingStage::Aligning)?;
-        self.events.progress(MeetingProgress {
-            id,
-            stage: MeetingStage::Aligning,
-            chunks_done: saver.done.load(Ordering::SeqCst),
-            chunks_total: saver.total,
-            rate_limited: false,
-        });
-        let chunks = self.store.chunks(id)?;
-        let has_mic = source.0.contains_key(&Track::Mic);
-        let mut units = Vec::new();
-        let mut missing = false;
-        for chunk in &chunks {
-            let Some(audio) = source.0.get(&chunk.track) else {
-                continue;
-            };
-            match (chunk.status, chunk.text.as_deref()) {
-                (ChunkStatus::Done, Some(text)) => {
-                    let speaker = speaker_for(chunk.track, has_mic).key;
-                    let intervals = voiced_intervals(
-                        &audio.levels.levels,
-                        audio.threshold,
-                        chunk.start_ms,
-                        chunk.end_ms,
-                    );
-                    units.extend(
-                        spread(sentences(text), &intervals)
-                            .into_iter()
-                            .map(|placed| Unit {
-                                track: chunk.track,
-                                speaker: speaker.clone(),
-                                start_ms: placed.start_ms,
-                                end_ms: placed.end_ms,
-                                tokens: placed.tokens,
-                                // Times are estimated, not measured.
-                                low_confidence: true,
-                            }),
-                    );
-                }
-                (ChunkStatus::Silent | ChunkStatus::Done, _) => {}
-                (ChunkStatus::Pending | ChunkStatus::Failed, _) => {
-                    missing = true;
-                    units.push(Unit::placeholder(chunk.track, chunk.start_ms, chunk.end_ms));
-                }
+        // The remote participants are told apart, or everyone in the room
+        // when only the microphone recorded.
+        let diarize = if source.0.contains_key(&Track::System) {
+            Track::System
+        } else {
+            Track::Mic
+        };
+        let dir = paths::meeting_dir(&self.root, id);
+        let analyzed = AtomicBool::new(false);
+        let transcribing = async {
+            let end = runner.run(jobs, operation.clone()).await;
+            if end != RunEnd::Cancelled && !analyzed.load(Ordering::SeqCst) {
+                self.report_stage(id, MeetingStage::Analyzing, &saver);
             }
-        }
-        let turns: Vec<MeetingTurn> = merge(units)
-            .into_iter()
-            .map(|bubble| MeetingTurn {
-                speaker_key: bubble.speaker,
-                start_ms: bubble.start_ms as i64,
-                end_ms: bubble.end_ms as i64,
-                text: bubble.text,
-                low_confidence: bubble.low_confidence,
-            })
-            .collect();
-        let speakers: Vec<MeetingSpeaker> = source
-            .0
-            .keys()
-            .map(|track| speaker_for(*track, has_mic))
-            .collect();
-        self.store.save_transcript(id, &speakers, &turns)?;
+            end
+        };
+        let analyzing = async {
+            let analysis = self
+                .analysis(&dir, &source, diarize, operation.clone())
+                .await;
+            analyzed.store(true, Ordering::SeqCst);
+            analysis
+        };
+        let (end, analysis) = tokio::join!(transcribing, analyzing);
+        let (Some((analysis, outcome)), false) = (analysis, end == RunEnd::Cancelled) else {
+            return Ok(());
+        };
+
+        self.report_stage(id, MeetingStage::Aligning, &saver);
+        let chunks = self.store.chunks(id)?;
+        let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
+        self.store
+            .save_transcript(id, &built.speakers, &built.turns, outcome, built.score)?;
 
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
-        } else if !missing {
+        } else if !built.missing {
             None
         } else if saver.rate_limited.load(Ordering::SeqCst) {
             Some(ProcessingError::RateLimited)
@@ -325,10 +298,215 @@ impl Processor {
         self.store.finish_processing(id, error)?;
         self.events.updated(id);
         log::info!(
-            "Meeting {id} processed: {} bubbles, outcome {error:?}",
-            turns.len()
+            "Meeting {id} processed: {} bubbles, speakers {outcome:?}, alignment {:?}, outcome {error:?}",
+            built.turns.len(),
+            built.score
         );
         Ok(())
+    }
+
+    fn report_stage(&self, id: i64, stage: MeetingStage, saver: &Saver) {
+        if let Err(error) = self.store.set_stage(id, stage) {
+            log::error!("Meeting {id}: cannot save the stage: {error}");
+        }
+        self.events.progress(MeetingProgress {
+            id,
+            stage,
+            chunks_done: saver.done.load(Ordering::SeqCst),
+            chunks_total: saver.total,
+            rate_limited: false,
+        });
+    }
+
+    /// The analysis saved by an earlier run, or a new one. `None` when
+    /// processing was cancelled.
+    async fn analysis(
+        &self,
+        dir: &Path,
+        source: &TrackFiles,
+        diarize: Track,
+        operation: ProcessingOperation,
+    ) -> Option<(Option<Analysis>, SpeakerAnalysis)> {
+        if let Some(saved) = Analysis::load(dir) {
+            let outcome = saved.outcome();
+            return Some((Some(saved), outcome));
+        }
+        let request = AnalysisRequest {
+            tracks: source
+                .0
+                .iter()
+                .map(|(track, audio)| (*track, audio.path.clone()))
+                .collect(),
+            diarize,
+        };
+        match self.analyzer.analyze(request, operation).await {
+            AnalyzerOutcome::Cancelled => None,
+            AnalyzerOutcome::Unavailable(outcome) => Some((None, outcome)),
+            AnalyzerOutcome::Ran(analysis) => {
+                if let Err(error) = analysis.save(dir) {
+                    log::warn!("Cannot save the meeting analysis: {error}");
+                }
+                let outcome = analysis.outcome();
+                Some((Some(analysis), outcome))
+            }
+        }
+    }
+}
+
+/// The transcript built from the chunks Codex transcribed.
+struct Built {
+    turns: Vec<MeetingTurn>,
+    speakers: Vec<MeetingSpeaker>,
+    /// Some parts could not be transcribed.
+    missing: bool,
+    /// Share of words placed at a measured time, over the chunks that had
+    /// on-device words.
+    score: Option<f32>,
+}
+
+/// Places the words of one transcribed chunk on the track: at the times the
+/// on-device recogniser measured, or spread over the track's speech when
+/// those cannot be trusted. The last word always ends a sentence, so no
+/// sentence runs across chunks.
+fn place_chunk(
+    text: &str,
+    chunk: &ChunkRow,
+    audio: &Audio,
+    words: Option<&Vec<TimedWord>>,
+    score: &mut (f32, usize),
+) -> Vec<TimedToken> {
+    let timing = words.map(|words| {
+        time_chunk(
+            tokenize(text),
+            words_in(words, chunk.start_ms, chunk.end_ms),
+            chunk.start_ms,
+            chunk.end_ms,
+        )
+    });
+    let mut tokens = match timing {
+        Some(timing) => {
+            score.0 += timing.score * timing.comparable as f32;
+            score.1 += timing.comparable;
+            if timing.trusted() {
+                timing.tokens
+            } else {
+                spread_chunk(text, chunk, audio)
+            }
+        }
+        None => spread_chunk(text, chunk, audio),
+    };
+    if let Some(last) = tokens.last_mut() {
+        last.token.sentence_end = true;
+    }
+    tokens
+}
+
+fn spread_chunk(text: &str, chunk: &ChunkRow, audio: &Audio) -> Vec<TimedToken> {
+    let intervals = voiced_intervals(
+        &audio.levels.levels,
+        audio.threshold,
+        chunk.start_ms,
+        chunk.end_ms,
+    );
+    sentence_times(spread(sentences(text), &intervals))
+}
+
+fn build_transcript(
+    chunks: &[ChunkRow],
+    audio: &HashMap<Track, Audio>,
+    analysis: Option<&Analysis>,
+    diarize: Track,
+) -> Built {
+    let words: HashMap<Track, Vec<TimedWord>> = analysis
+        .map(|analysis| {
+            analysis
+                .words
+                .iter()
+                .map(|(track, words)| (*track, timed_words(words)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let turns = analysis
+        .and_then(|analysis| analysis.turns.as_deref())
+        .map(segments);
+    let mut units = Vec::new();
+    let mut missing = false;
+    let mut score = (0.0, 0);
+    for track in [Track::System, Track::Mic] {
+        let Some(track_audio) = audio.get(&track) else {
+            continue;
+        };
+        let mut stream: Vec<TimedToken> = Vec::new();
+        for chunk in chunks.iter().filter(|chunk| chunk.track == track) {
+            match (chunk.status, chunk.text.as_deref()) {
+                (ChunkStatus::Done, Some(text)) => stream.extend(place_chunk(
+                    text,
+                    chunk,
+                    track_audio,
+                    words.get(&track),
+                    &mut score,
+                )),
+                (ChunkStatus::Silent | ChunkStatus::Done, _) => {}
+                (ChunkStatus::Pending | ChunkStatus::Failed, _) => {
+                    missing = true;
+                    units.push(Unit::placeholder(track, chunk.start_ms, chunk.end_ms));
+                }
+            }
+        }
+        let diarized = turns
+            .as_deref()
+            .filter(|_| track == diarize)
+            .and_then(|turns| speakers::assign(&stream, turns));
+        let keys: Vec<String> = match diarized {
+            Some(raw) => {
+                let numbers = speakers::number(&raw);
+                raw.iter().map(|speaker| numbers[speaker].clone()).collect()
+            }
+            None => vec![single_speaker(track).to_string(); stream.len()],
+        };
+        units.extend(speakers::units(track, stream, &keys));
+    }
+    if let (Some(mic), Some(system), Some(system_words)) = (
+        audio.get(&Track::Mic),
+        audio.get(&Track::System),
+        words.get(&Track::System),
+    ) {
+        let removed = remove_echoes(
+            &mut units,
+            system_words,
+            &mic.levels.levels,
+            &system.levels.levels,
+        );
+        if removed > 0 {
+            log::info!("Removed {removed} microphone sentence(s) echoing system audio");
+        }
+    }
+    let turns: Vec<MeetingTurn> = merge(units)
+        .into_iter()
+        .map(|bubble| MeetingTurn {
+            speaker_key: bubble.speaker,
+            start_ms: bubble.start_ms as i64,
+            end_ms: bubble.end_ms as i64,
+            text: bubble.text,
+            low_confidence: bubble.low_confidence,
+        })
+        .collect();
+    let has_me = audio.contains_key(&Track::Mic) && diarize != Track::Mic;
+    let keys: BTreeSet<&str> = turns
+        .iter()
+        .map(|turn| turn.speaker_key.as_str())
+        .filter(|key| *key != PLACEHOLDER)
+        .collect();
+    let mut speakers: Vec<MeetingSpeaker> = keys
+        .into_iter()
+        .map(|key| speaker_row(key, has_me))
+        .collect();
+    speakers.sort_by_key(|speaker| speaker.color_index);
+    Built {
+        speakers,
+        missing,
+        score: (score.1 > 0).then(|| score.0 / score.1 as f32),
+        turns,
     }
 }
 
@@ -381,6 +559,56 @@ mod tests {
         answer: impl Fn(usize) -> Result<String, FailureKind> + Send + Sync + 'static,
     ) -> Arc<FakeCodex> {
         codex_by_audio(move |samples| answer(samples.len() / RATE))
+    }
+
+    /// The on-device analysis as a script.
+    struct FakeAnalyzer {
+        answer: Mutex<Option<AnalyzerOutcome>>,
+        calls: AtomicU32,
+    }
+
+    impl FakeAnalyzer {
+        fn answering(outcome: AnalyzerOutcome) -> Self {
+            Self {
+                answer: Mutex::new(Some(outcome)),
+                calls: AtomicU32::new(0),
+            }
+        }
+
+        fn without_models() -> Self {
+            Self::answering(AnalyzerOutcome::Unavailable(SpeakerAnalysis::NoModels))
+        }
+
+        /// What the real helper printed for the fixture dialogue.
+        fn from_fixture(lines: &str, complete: bool) -> Self {
+            let mut analysis = Analysis {
+                diarized: Some(Track::System),
+                ..Analysis::default()
+            };
+            for line in lines.lines() {
+                analysis.absorb(crate::meetings::protocol::parse_line(line).unwrap());
+            }
+            analysis.complete = complete;
+            Self::answering(AnalyzerOutcome::Ran(analysis))
+        }
+    }
+
+    impl Analyzer for FakeAnalyzer {
+        fn analyze(
+            &self,
+            request: AnalysisRequest,
+            _: ProcessingOperation,
+        ) -> crate::meetings::analysis::AnalyzeFuture {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            assert!(request.tracks.iter().all(|(_, path)| path.is_file()));
+            let answer = self
+                .answer
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or(AnalyzerOutcome::Unavailable(SpeakerAnalysis::NoModels));
+            Box::pin(async move { answer })
+        }
     }
 
     #[derive(Default)]
@@ -446,10 +674,15 @@ mod tests {
         }
 
         fn process(&self, id: i64, codex: Arc<FakeCodex>) {
+            self.process_with(id, codex, Arc::new(FakeAnalyzer::without_models()));
+        }
+
+        fn process_with(&self, id: i64, codex: Arc<FakeCodex>, analyzer: Arc<FakeAnalyzer>) {
             let processor = Processor {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
                 transcriber: codex,
+                analyzer,
                 policy: RetryPolicy {
                     rate_limit_first: Duration::from_millis(1),
                     rate_limit_cap: Duration::from_millis(1),
@@ -635,5 +868,129 @@ mod tests {
         h.store.finish_processing(ready, None).unwrap();
         h.process(ready, Arc::clone(&codex));
         assert!(codex.calls.lock().unwrap().is_empty());
+    }
+
+    /// A fictional dialogue between two `say` voices; `fixtures/dialogue_fr.jsonl`
+    /// is what the helper printed for it. The second voice is poorly heard
+    /// on device, so many of its words are not anchors.
+    const DIALOGUE: [&str; 8] = [
+        "Bonjour à tous, on commence la réunion de suivi du projet.",
+        "Bonjour. Oui, j'ai préparé le point sur le budget.",
+        "Parfait. Où en est la plateforme de facturation ?",
+        "La migration est terminée, il reste les tests de charge.",
+        "D'accord. On peut livrer jeudi prochain ?",
+        "Oui, si l'équipe client valide les scénarios avant mercredi.",
+        "Très bien, je m'occupe de les relancer aujourd'hui.",
+        "Merci. Dernier point, le séminaire est décalé en mars.",
+    ];
+    const FIXTURE: &str = include_str!("fixtures/dialogue_fr.jsonl");
+
+    fn dialogue_meeting(h: &Harness) -> i64 {
+        let id = h.meeting(MeetingTracks::System, 34);
+        track(
+            &paths::meeting_dir(&h.root, id).join(paths::SYSTEM_TRACK),
+            34,
+            &[(0, 34)],
+        );
+        id
+    }
+
+    fn turns(meeting: &crate::meetings::store::MeetingDetail) -> Vec<(&str, &str)> {
+        meeting
+            .turns
+            .iter()
+            .map(|turn| (turn.speaker_key.as_str(), turn.text.as_str()))
+            .collect()
+    }
+
+    #[test]
+    fn each_sentence_goes_to_the_speaker_who_said_it() {
+        let h = harness();
+        let id = dialogue_meeting(&h);
+        let analyzer = Arc::new(FakeAnalyzer::from_fixture(FIXTURE, true));
+        h.process_with(id, codex(|_| Ok(DIALOGUE.join(" "))), Arc::clone(&analyzer));
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Separated));
+        assert_eq!(
+            turns(&meeting),
+            [
+                ("s1", DIALOGUE[0]),
+                ("s2", DIALOGUE[1]),
+                ("s1", DIALOGUE[2]),
+                ("s2", DIALOGUE[3]),
+                ("s1", DIALOGUE[4]),
+                ("s2", DIALOGUE[5]),
+                // The diarizer heard nobody during "Merci.", and the turn
+                // that ended closest is the other voice's.
+                (
+                    "s1",
+                    "Très bien, je m'occupe de les relancer aujourd'hui. Merci."
+                ),
+                ("s2", "Dernier point, le séminaire est décalé en mars."),
+            ]
+        );
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1", "Speaker 2"]);
+        assert!(h
+            .events
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|p| p.stage == MeetingStage::Aligning));
+
+        // The saved analysis is reused: rebuilding runs nothing again.
+        assert!(h.store.reopen(id).unwrap());
+        let again = Arc::new(FakeAnalyzer::without_models());
+        let silent = codex(|_| Ok("never".to_string()));
+        h.process_with(id, Arc::clone(&silent), Arc::clone(&again));
+        assert_eq!(again.calls.load(Ordering::SeqCst), 0);
+        assert!(silent.calls.lock().unwrap().is_empty());
+        assert_eq!(turns(&h.store.get(id).unwrap().unwrap()).len(), 8);
+    }
+
+    #[test]
+    fn a_crashed_analysis_keeps_every_word_under_one_speaker_and_runs_again() {
+        let h = harness();
+        let id = dialogue_meeting(&h);
+        // The helper printed the words, then died before the diarization.
+        let words_only = FIXTURE.lines().next().unwrap();
+        h.process_with(
+            id,
+            codex(|_| Ok(DIALOGUE.join(" "))),
+            Arc::new(FakeAnalyzer::from_fixture(words_only, false)),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Failed));
+        assert!(meeting.turns.iter().all(|turn| turn.speaker_key == "s1"));
+        let text: Vec<&str> = meeting
+            .turns
+            .iter()
+            .map(|turn| turn.text.as_str())
+            .collect();
+        assert_eq!(text.join(" "), DIALOGUE.join(" "));
+
+        // Re-analysing runs the helper again, since it did not finish.
+        assert!(h.store.reopen(id).unwrap());
+        let full = Arc::new(FakeAnalyzer::from_fixture(FIXTURE, true));
+        h.process_with(id, codex(|_| Ok("never".to_string())), Arc::clone(&full));
+        assert_eq!(full.calls.load(Ordering::SeqCst), 1);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Separated));
+        assert_eq!(meeting.speakers.len(), 2);
+    }
+
+    #[test]
+    fn without_models_each_track_has_one_speaker() {
+        let h = harness();
+        let id = dialogue_meeting(&h);
+        h.process(id, codex(|_| Ok(DIALOGUE.join(" "))));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::NoModels));
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1"]);
     }
 }

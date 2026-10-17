@@ -570,6 +570,7 @@
       "transcribing": "Đang chép lời: xong {{done}}/{{total}} phần…",
       "rateLimited": "Codex yêu cầu giảm tốc độ. Quá trình xử lý sẽ tự tiếp tục…",
       "aligning": "Đang sắp xếp cuộc trò chuyện…",
+      "analyzing": "Đang phân biệt người nói…",
       "interrupted": "Bản ghi đã bị gián đoạn. Phần đã ghi vẫn có thể được chép lời.",
       "process": "Chép lời",
       "retry": "Thử lại",
@@ -580,6 +581,34 @@
         "parts_failed": "Một số phần không thể chép lời.",
         "no_audio": "Không thể đọc bản ghi.",
         "other": "Quá trình xử lý dừng đột ngột."
+      }
+    },
+    "speakers": {
+      "no_models": "Chưa phân biệt người nói vì các mô hình nhận dạng chưa được tải xuống.",
+      "failed": "Chưa phân biệt người nói vì quá trình phân tích trên thiết bị chưa hoàn tất.",
+      "separate": "Phân biệt người nói",
+      "error": "Không thể phân biệt người nói."
+    },
+    "models": {
+      "title": "Nhận dạng người nói",
+      "description": "Các mô hình cục bộ phân biệt người tham gia. Chúng được tải xuống một lần (khoảng 480 MB) và bước này không gửi âm thanh đi đâu cả.",
+      "missing": "Chưa tải xuống",
+      "downloading": "Đang tải xuống… {{percent}}%",
+      "preparing": "Đang chuẩn bị mô hình cho máy Mac này…",
+      "ready": "Sẵn sàng · {{size}}",
+      "failed": "Tải xuống không thành công.",
+      "os_too_old": "Nhận dạng người nói cần macOS 14 trở lên. Cuộc họp hiển thị một người nói cho mỗi nguồn âm thanh.",
+      "unsupported": "Nhận dạng người nói cần máy Mac dùng chip Apple. Cuộc họp hiển thị một người nói cho mỗi nguồn âm thanh.",
+      "download": "Tải xuống",
+      "retry": "Thử lại",
+      "delete": "Xóa mô hình",
+      "error": "Không thể cập nhật các mô hình nhận dạng.",
+      "licences": "Giấy phép mô hình",
+      "licencesNote": "Các mô hình được tải từ Hugging Face trong lần dùng đầu tiên. Murmur không kèm theo chúng.",
+      "licence": {
+        "parakeet": "Parakeet TDT 0.6B v3 (thời điểm của từ): NVIDIA, CC BY 4.0. Chuyển đổi sang Core ML bởi Fluid Inference.",
+        "diarization": "Phân tách người nói Community-1: pyannote, CC BY 4.0, cùng WeSpeaker và BUT Speech@FIT. Bản chuyển đổi Core ML đã chỉnh sửa bởi Fluid Inference.",
+        "fluidaudio": "FluidAudio: Fluid Inference, Giấy phép Apache 2.0."
       }
     },
     "transcript": {

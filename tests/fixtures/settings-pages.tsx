@@ -2,14 +2,17 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
+  AnalysisSupport,
   AppSettings,
   AudioDevice,
   HistoryEntry,
   InsightsSummary,
   MeetingDetail,
   MeetingListItem,
+  MeetingModelsStatus,
   MeetingProgress,
   MeetingRuntime,
+  SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
 
@@ -32,6 +35,27 @@ const meetingsEnabled = params.get("meetings") === "1";
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
+const analysis = params.get("analysis") ?? "available";
+const speakerAnalysis = (params.get("speakers") ??
+  "separated") as SpeakerAnalysis;
+const MODELS: Record<string, MeetingModelsStatus> = {
+  downloading: {
+    bytes_on_disk: 210_000_000,
+    state: { fraction: 0.42, state: "downloading" },
+  },
+  missing: { bytes_on_disk: 0, state: { state: "missing" } },
+  ready: { bytes_on_disk: 482_000_000, state: { state: "ready" } },
+};
+const modelsStatus: MeetingModelsStatus =
+  analysis === "available"
+    ? MODELS[params.get("models") ?? "ready"]
+    : {
+        bytes_on_disk: 0,
+        state: {
+          state: "unsupported",
+          support: analysis as AnalysisSupport,
+        },
+      };
 const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
 
 const APP_DATA_DIR =
@@ -245,6 +269,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
           },
         ]
       : [],
+  speaker_analysis: item.id === 3 ? speakerAnalysis : null,
   stage: item.status === "processing" ? "transcribing" : null,
   turns:
     item.id === 3
@@ -315,7 +340,12 @@ const RESPONSES: Record<string, unknown> = {
   export_meeting_markdown: "/Users/user/Documents/2025-10-08 Point hebdo.md",
   get_meeting_markdown: MARKDOWN,
   retry_meeting: null,
-  get_meeting_capabilities: { system_audio: systemAudio },
+  reanalyze_meeting: null,
+  get_meeting_models_status: modelsStatus,
+  download_meeting_models: null,
+  cancel_meeting_models_download: null,
+  delete_meeting_models: null,
+  get_meeting_capabilities: { analysis, system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
   get_meetings: { has_more: false, meetings: MEETINGS },
   open_system_audio_privacy_settings: null,

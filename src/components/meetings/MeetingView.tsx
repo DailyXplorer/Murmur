@@ -6,8 +6,10 @@ import {
   commands,
   events,
   type MeetingDetail,
+  type MeetingModelsStatus,
   type MeetingProgress,
 } from "@/bindings";
+import { useMeetingModels } from "../../hooks/useMeetingModels";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
@@ -86,10 +88,12 @@ const ProcessingBanner: React.FC<{
         ? t("meetings.processing.rateLimited")
         : progress.stage === "aligning"
           ? t("meetings.processing.aligning")
-          : t("meetings.processing.transcribing", {
-              done: progress.chunks_done,
-              total: progress.chunks_total,
-            });
+          : progress.stage === "analyzing"
+            ? t("meetings.processing.analyzing")
+            : t("meetings.processing.transcribing", {
+                done: progress.chunks_done,
+                total: progress.chunks_total,
+              });
     return (
       <div
         role="status"
@@ -134,6 +138,69 @@ const ProcessingBanner: React.FC<{
   return null;
 };
 
+/** Says why speakers were not told apart, and offers to do it now. */
+const SpeakerNotice: React.FC<{
+  meeting: MeetingDetail;
+  models: MeetingModelsStatus | null;
+  onSeparate: () => void;
+}> = ({ meeting, models, onSeparate }) => {
+  const { t } = useTranslation();
+  const analysis = meeting.speaker_analysis;
+  if (
+    meeting.status === "processing" ||
+    (analysis !== "no_models" && analysis !== "failed")
+  ) {
+    return null;
+  }
+  const download = async () => {
+    const result = await commands.downloadMeetingModels();
+    if (result.status === "error") toast.error(t("meetings.models.error"));
+  };
+  const state = models?.state;
+  const action = (() => {
+    switch (state?.state) {
+      case "ready":
+        return (
+          <Button variant="secondary" onClick={onSeparate}>
+            {t("meetings.speakers.separate")}
+          </Button>
+        );
+      case "missing":
+      case "failed":
+        return (
+          <Button variant="secondary" onClick={() => void download()}>
+            {t("meetings.models.download")}
+          </Button>
+        );
+      case "downloading":
+        return (
+          <span className="text-sm text-text/60 tabular-nums">
+            {t("meetings.models.downloading", {
+              percent: Math.round(state.fraction * 100),
+            })}
+          </span>
+        );
+      case "preparing":
+        return (
+          <span className="text-sm text-text/60">
+            {t("meetings.models.preparing")}
+          </span>
+        );
+      default:
+        return null;
+    }
+  })();
+  return (
+    <div
+      role="status"
+      className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
+    >
+      <p className="flex-1 text-sm">{t(`meetings.speakers.${analysis}`)}</p>
+      {action}
+    </div>
+  );
+};
+
 interface MeetingViewProps {
   id: number;
   onBack: () => void;
@@ -148,6 +215,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
+  const models = useMeetingModels();
 
   const load = useCallback(async () => {
     try {
@@ -179,6 +247,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     const result = await commands.retryMeeting(id);
     if (result.status === "error") {
       toast.error(t("meetings.processing.retryError"));
+      return;
+    }
+    setProgress(null);
+    void load();
+  };
+
+  const separate = async () => {
+    const result = await commands.reanalyzeMeeting(id);
+    if (result.status === "error") {
+      toast.error(t("meetings.speakers.error"));
       return;
     }
     setProgress(null);
@@ -233,6 +311,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         meeting={meeting}
         progress={progress}
         onRetry={() => void retry()}
+      />
+      <SpeakerNotice
+        meeting={meeting}
+        models={models}
+        onSeparate={() => void separate()}
       />
       <Tabs<Tab>
         idPrefix={TABS_ID}

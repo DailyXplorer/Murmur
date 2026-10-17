@@ -27,6 +27,13 @@ public func murmurSystemAudioSupport() -> Int32 {
     return osTooOld
 }
 
+/// The on-device analysis helper (FluidAudio) needs macOS 14.
+@_cdecl("murmur_meeting_analysis_support")
+public func murmurMeetingAnalysisSupport() -> Int32 {
+    if #available(macOS 14.0, *) { return ok }
+    return osTooOld
+}
+
 private let sessionLock = NSLock()
 private var session: AnyObject?
 
