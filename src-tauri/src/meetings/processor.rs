@@ -267,8 +267,14 @@ impl Processor {
         stages: &mut Vec<(&'static str, Duration)>,
     ) -> anyhow::Result<CodexVerdict> {
         let started = Instant::now();
-        let summarized =
-            summary::write(&self.store, self.summarizer.as_ref(), id, operation).await?;
+        let summarized = summary::write(
+            &self.store,
+            self.summarizer.as_ref(),
+            &self.policy,
+            id,
+            operation,
+        )
+        .await?;
         stages.push(("summary", started.elapsed()));
         self.events.updated(id);
         if !summarized.settled {
@@ -1456,10 +1462,7 @@ mod tests {
         let h = harness();
         let id = spoken_meeting(&h);
         h.store.rename(id, Some("Mon titre")).unwrap();
-        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
-            kind: FailureKind::RateLimited,
-            detail: String::new(),
-        })]);
+        let summarizer = FakeSummarizer::answering(lasting_summary_rate_limit());
         h.process_all(
             id,
             codex(|_| Ok("Bonjour.".into())),
@@ -1482,7 +1485,7 @@ mod tests {
             Arc::clone(&summarizer),
         );
         assert!(codex_again.calls.lock().unwrap().is_empty());
-        assert_eq!(summarizer.calls(), 2);
+        assert_eq!(summarizer.calls(), SUMMARY_ATTEMPTS + 1);
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
         assert_eq!(meeting.summary.as_deref(), Some("Notes."));
@@ -1495,6 +1498,35 @@ mod tests {
             kind: FailureKind::RateLimited,
             detail: String::new(),
         })
+    }
+
+    /// A summary request and its retries within the harness's rate-limit
+    /// budget.
+    const SUMMARY_ATTEMPTS: usize = 4;
+
+    /// Rate limits on every attempt of one summary.
+    fn lasting_summary_rate_limit() -> Vec<Result<String, CompletionError>> {
+        (0..SUMMARY_ATTEMPTS)
+            .map(|_| rate_limited_summary())
+            .collect()
+    }
+
+    #[test]
+    fn a_brief_summary_rate_limit_is_waited_out_and_does_not_hold_the_queue() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer =
+            FakeSummarizer::answering(vec![rate_limited_summary(), Ok("# Réunion\nNotes.".into())]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::Answered);
+        assert_eq!(summarizer.calls(), 2);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
     }
 
     #[test]
@@ -1554,8 +1586,11 @@ mod tests {
     fn a_summary_retry_codex_refuses_says_codex_is_limiting() {
         let h = harness();
         let id = spoken_meeting(&h);
-        let summarizer =
-            FakeSummarizer::answering(vec![rate_limited_summary(), rate_limited_summary()]);
+        let summarizer = FakeSummarizer::answering(
+            (0..2 * SUMMARY_ATTEMPTS)
+                .map(|_| rate_limited_summary())
+                .collect(),
+        );
         let verdict = h.process_all(
             id,
             codex(|_| Ok("Bonjour.".into())),
