@@ -1,5 +1,6 @@
 //! Each meeting keeps its files in `app_data/meetings/<id>/`.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -106,6 +107,43 @@ pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBu
     Ok(dir)
 }
 
+/// Deletes the folders no meeting owns any more: those of deleted meetings
+/// whose deletion failed, and those `fresh_meeting_dir` moved aside. No
+/// screen lists them, so nothing else ever would. `meetings` holds the id
+/// of every meeting in the library. Returns how many went.
+pub fn remove_orphans(root: &Path, meetings: &HashSet<i64>) -> usize {
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let result = if let Ok(id) = name.parse::<i64>() {
+            if meetings.contains(&id) {
+                continue;
+            }
+            remove_meeting_dir(root, id)
+        } else if name
+            .split_once(".stale-")
+            .is_some_and(|(id, _)| id.parse::<i64>().is_ok())
+            && entry.file_type().is_ok_and(|kind| kind.is_dir())
+            && !fs::symlink_metadata(root).is_ok_and(|root| root.file_type().is_symlink())
+        {
+            fs::remove_dir_all(entry.path())
+        } else {
+            continue;
+        };
+        match result {
+            Ok(()) => removed += 1,
+            Err(error) => log::warn!("Cannot delete the orphan meeting folder {name}: {error}"),
+        }
+    }
+    removed
+}
+
 /// Deletes the named files of a meeting, those that exist. A symlink is
 /// removed, never its target.
 pub fn remove_meeting_files(root: &Path, id: i64, names: &[&str]) -> io::Result<()> {
@@ -138,6 +176,25 @@ mod tests {
         assert!(!dir.exists());
         assert!(root.path().exists());
         remove_meeting_dir(root.path(), 7).unwrap();
+    }
+
+    #[test]
+    fn folders_of_deleted_meetings_are_removed_and_the_rest_kept() {
+        let root = tempfile::tempdir().unwrap();
+        for name in ["1", "2", "3.stale-1700000000000", "models"] {
+            fs::create_dir_all(root.path().join(name)).unwrap();
+            fs::write(root.path().join(name).join(MIC_TRACK), b"audio").unwrap();
+        }
+        let outside = tempfile::tempdir().unwrap();
+        symlink(outside.path(), root.path().join("4.stale-1")).unwrap();
+
+        assert_eq!(remove_orphans(root.path(), &HashSet::from([1])), 2);
+
+        assert!(root.path().join("1").join(MIC_TRACK).exists());
+        assert!(root.path().join("models").join(MIC_TRACK).exists());
+        assert!(!root.path().join("2").exists());
+        assert!(!root.path().join("3.stale-1700000000000").exists());
+        assert!(outside.path().exists());
     }
 
     #[test]

@@ -40,6 +40,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::managers::history::DatabaseStartup;
 use crate::settings::get_settings;
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
@@ -441,10 +442,22 @@ impl MeetingsManager {
         let (store, startup) =
             MeetingsStore::open(app_data.join("meetings.db"), chrono::Utc::now());
         info!("Meetings database: {startup:?}");
-        if let crate::managers::history::DatabaseStartup::Reset { moved_to } = &startup {
-            if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
-                error!("Failed to set aside the recordings of the reset library: {error}");
+        match &startup {
+            DatabaseStartup::Reset { moved_to } => {
+                if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
+                    error!("Failed to set aside the recordings of the reset library: {error}");
+                }
             }
+            // Only a library that opened as it was says which folders are
+            // orphans: deletions that failed finish here.
+            DatabaseStartup::Ready => match store.ids() {
+                Ok(ids) => match paths::remove_orphans(&root, &ids) {
+                    0 => {}
+                    count => info!("Removed {count} orphan meeting folder(s)"),
+                },
+                Err(error) => error!("Failed to list meetings: {error}"),
+            },
+            DatabaseStartup::Unavailable => {}
         }
         match store.recover_interrupted(&root) {
             Ok(0) => {}
