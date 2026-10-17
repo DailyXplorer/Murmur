@@ -757,11 +757,12 @@ impl MeetingsStore {
     }
 
     /// Makes a failed summary wait to be written again. Returns false when
-    /// it did not fail.
+    /// it did not fail, or when the meeting is not Ready: only a Ready
+    /// meeting gets its summary written.
     pub fn retry_summary(&self, id: i64) -> Result<bool> {
         let updated = self.connection()?.execute(
             "UPDATE meetings SET summary_status = 'pending', summary_error = NULL
-             WHERE id = ?1 AND summary_status = 'failed'",
+             WHERE id = ?1 AND status = 'ready' AND summary_status = 'failed'",
             params![id],
         )?;
         Ok(updated > 0)
@@ -1560,6 +1561,17 @@ mod tests {
         assert_eq!(meeting.summary_status, SummaryStatus::Pending);
         assert_eq!(meeting.summary_error, None);
         assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+
+        // A run that ends Failed keeps the failed summary, which only the
+        // meeting's own retry can bring back.
+        store.summary_failed(id, SummaryError::RateLimited).unwrap();
+        assert!(store.reopen(id).unwrap());
+        store
+            .finish_processing(id, Some(ProcessingError::NoAudio))
+            .unwrap();
+        assert!(!store.retry_summary(id).unwrap());
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Failed);
     }
 
     #[test]

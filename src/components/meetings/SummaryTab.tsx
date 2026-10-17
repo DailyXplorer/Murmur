@@ -51,7 +51,9 @@ const SummaryState: React.FC<{
         <p className="flex-1 text-sm">
           {t(`meetings.summary.errors.${error}`)}
         </p>
-        {error !== "nothing_to_summarize" && (
+        {/* Only a Ready meeting gets its summary written; a failed one
+            comes back with the meeting's own retry. */}
+        {meeting.status === "ready" && error !== "nothing_to_summarize" && (
           <Button variant="secondary" onClick={onRetry}>
             {t("meetings.processing.retry")}
           </Button>
