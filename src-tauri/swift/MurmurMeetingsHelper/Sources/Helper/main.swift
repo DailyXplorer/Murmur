@@ -185,6 +185,13 @@ func analyze(models: URL, arguments: [String]) async -> Int32 {
 // Library logs below warnings could hold transcript text.
 AppLogger.minimumLevel = .warning
 
+// Murmur holds stdin open and never writes to it: end of file means Murmur
+// quit or crashed, so the analysis stops instead of running on unseen.
+Thread.detachNewThread {
+    while !FileHandle.standardInput.availableData.isEmpty {}
+    exit(1)
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments)
 else {
