@@ -413,6 +413,11 @@ test("a speaker name being typed survives the meeting reloading", async ({
   await openTranscript(page);
   await page.getByRole("button", { name: "Rename Speakers" }).click();
   const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  // The dialog focuses the first field a frame after opening; typing before
+  // that would land the name there.
+  await expect(
+    dialog.getByRole("textbox", { name: "Name for Me" }),
+  ).toBeFocused();
   const field = dialog.getByRole("textbox", { name: "Name for Speaker 2" });
   await field.fill("Cam");
   const loads = (await callsTo(page, "get_meeting")).length;
