@@ -32,7 +32,8 @@ mod bridge {
     extern "C" {
         pub fn murmur_system_audio_support() -> i32;
         pub fn murmur_system_tap_start(context: *mut c_void, on_samples: SamplesCallback) -> i32;
-        pub fn murmur_system_tap_stop();
+        /// 1 when another app played sound while the tap ran, else 0.
+        pub fn murmur_system_tap_stop() -> i32;
     }
 }
 
@@ -117,15 +118,15 @@ impl Track for SystemCapture {
         self.writer.failed()
     }
 
-    fn finish(self: Box<Self>, duration: Duration) -> Result<(), String> {
+    fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         #[cfg(target_arch = "aarch64")]
         // SAFETY: stops the tap started in `start`; no callback runs after it.
-        unsafe {
-            bridge::murmur_system_tap_stop()
-        };
+        let played = unsafe { bridge::murmur_system_tap_stop() } == 1;
+        #[cfg(not(target_arch = "aarch64"))]
+        let played = false;
         // SAFETY: the tap is stopped, so nothing else uses the feeder.
         drop(unsafe { Box::from_raw(self.context as *mut Feeder) });
-        self.writer.finish(duration).map(|_| ())
+        self.writer.finish(duration).map(|_| played)
     }
 }
 

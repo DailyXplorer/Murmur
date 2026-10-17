@@ -27,6 +27,7 @@ export const AdvancedSettings: React.FC = () => {
         <AutostartToggle descriptionMode="tooltip" grouped={true} />
         <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
+        <MeetingsToggle descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.updates")}>
@@ -41,7 +42,6 @@ export const AdvancedSettings: React.FC = () => {
 
       <SettingsGroup title={t("settings.advanced.groups.experimental")}>
         <ExperimentalToggle descriptionMode="tooltip" grouped={true} />
-        <MeetingsToggle descriptionMode="tooltip" grouped={true} />
         {experimentalEnabled && (
           <LazyStreamClose descriptionMode="tooltip" grouped={true} />
         )}

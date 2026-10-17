@@ -31,7 +31,8 @@
     "meetingStartFailed": "No se pudo iniciar la reunión. Compruebe el micrófono y los permisos de audio.",
     "meetingStopsSoon": "La reunión se detendrá en 5 minutos (límite de 3 horas).",
     "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
-    "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva."
+    "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva.",
+    "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva."
   },
   "sidebar": {
     "general": "General",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Permiso de audio del sistema",
       "description": "macOS pregunta la primera vez que una reunión graba el audio del sistema. Si lo rechazó, vuelva a activar Murmur en los ajustes de privacidad.",
-      "open": "Abrir ajustes"
+      "open": "Abrir ajustes",
+      "silent": "No se grabó audio del sistema, así que faltan los demás participantes. Permite Murmur en Grabación de audio del sistema en los ajustes de privacidad y vuelve a grabar."
     },
     "list": {
       "title": "Grabaciones",

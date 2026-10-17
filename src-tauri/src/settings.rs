@@ -336,12 +336,16 @@ pub struct AppSettings {
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
-    /// Release gate for meeting recording: the Meetings page, its shortcut
-    /// and its tray item exist only while this is on.
-    #[serde(default)]
+    /// Meeting recording, on by default: the Meetings page, its shortcut and
+    /// its tray item exist only while this is on.
+    #[serde(default = "default_meetings_enabled")]
     pub meetings_enabled: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
+}
+
+fn default_meetings_enabled() -> bool {
+    true
 }
 
 fn default_always_on_microphone() -> bool {
@@ -555,7 +559,7 @@ pub fn get_default_settings() -> AppSettings {
         whisper_mode: false,
         extra_recording_buffer_ms: 0,
         overlay_style: default_overlay_style(),
-        meetings_enabled: false,
+        meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
     }
 }
@@ -1144,7 +1148,7 @@ mod tests {
     }
 
     #[test]
-    fn meetings_stay_off_for_existing_users_and_record_both_sources_once_on() {
+    fn meetings_are_on_by_default_and_record_both_sources() {
         let mut stored = default_settings_json();
         let settings_object = stored.as_object_mut().unwrap();
         settings_object.remove("meetings_enabled");
@@ -1156,7 +1160,8 @@ mod tests {
 
         let (settings, _) = parse_stored_settings(&stored);
 
-        assert!(!settings.meetings_enabled);
+        assert!(settings.meetings_enabled);
+        assert!(get_default_settings().meetings_enabled);
         assert_eq!(settings.meeting_capture_mode, MeetingCaptureMode::Both);
         assert_eq!(
             settings.bindings["meeting_toggle"].current_binding,

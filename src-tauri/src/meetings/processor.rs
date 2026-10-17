@@ -23,13 +23,14 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
 use super::analysis::{Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
 use super::archive;
 use super::bleed::remove_echoes;
-use super::chunking::{plan_chunks, speech_threshold, split_chunk};
+use super::chunking::{plan_chunks, speech_threshold, split_chunk, system_audio_missing};
 use super::merge::{merge, Track, Unit, PLACEHOLDER};
 use super::paths;
 use super::protocol::{segments, timed_words};
@@ -211,24 +212,48 @@ impl Processor {
         let Some(meeting) = self.store.get(id)? else {
             return Ok(());
         };
+        let started = Instant::now();
+        let mut stages = Vec::new();
         if meeting.status != MeetingStatus::Ready {
-            self.transcribe(id, operation.clone()).await?;
+            stages = self.transcribe(id, operation.clone()).await?;
         }
         let ready = self
             .store
             .get(id)?
             .is_some_and(|meeting| meeting.status == MeetingStatus::Ready);
-        if !ready || operation.is_cancelled() {
-            return Ok(());
+        if ready && !operation.is_cancelled() {
+            self.finish(id, &operation, &mut stages).await?;
         }
-        let written = summary::write(&self.store, self.summarizer.as_ref(), id, &operation).await?;
+        if !stages.is_empty() {
+            let line = timings_line(
+                meeting.duration_ms.max(0) as u64,
+                &stages,
+                started.elapsed(),
+            );
+            log::info!("Meeting {id} timings: {line}");
+        }
+        Ok(())
+    }
+
+    /// The summary, then the compressed audio.
+    async fn finish(
+        &self,
+        id: i64,
+        operation: &ProcessingOperation,
+        stages: &mut Vec<(&'static str, Duration)>,
+    ) -> anyhow::Result<()> {
+        let started = Instant::now();
+        let written = summary::write(&self.store, self.summarizer.as_ref(), id, operation).await?;
+        stages.push(("summary", started.elapsed()));
         self.events.updated(id);
         if !written {
             return Ok(());
         }
+        let started = Instant::now();
         let (store, root) = (Arc::clone(&self.store), self.root.clone());
         let archived =
             tokio::task::spawn_blocking(move || archive::archive(&store, &root, id)).await?;
+        stages.push(("compression", started.elapsed()));
         match archived {
             Ok(()) => self.events.updated(id),
             Err(error) => log::warn!("Meeting {id}: audio kept uncompressed: {error}"),
@@ -236,27 +261,44 @@ impl Processor {
         Ok(())
     }
 
-    /// The transcript, from the parts Codex has not transcribed yet.
-    async fn transcribe(&self, id: i64, operation: ProcessingOperation) -> anyhow::Result<()> {
+    /// The transcript, from the parts Codex has not transcribed yet, and how
+    /// long each stage took.
+    async fn transcribe(
+        &self,
+        id: i64,
+        operation: ProcessingOperation,
+    ) -> anyhow::Result<Vec<(&'static str, Duration)>> {
         if !self.store.begin_processing(id)? {
-            return Ok(());
+            return Ok(Vec::new());
         }
         self.events.updated(id);
         let Some(meeting) = self.store.get(id)? else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         let recorded = meeting.tracks;
         let dir = paths::meeting_dir(&self.root, id);
+        let started = Instant::now();
         let audio = tokio::task::spawn_blocking(move || read_tracks(&dir, recorded)).await?;
+        let mut stages = vec![("reading", started.elapsed())];
         if audio.is_empty() {
             self.store
                 .finish_processing(id, Some(ProcessingError::NoAudio))?;
             self.events.updated(id);
-            return Ok(());
+            return Ok(stages);
         }
         for (track, audio) in &audio {
             let plan = plan_chunks(&audio.levels.levels, audio.levels.duration_ms);
             self.store.plan_chunks(id, *track, &plan)?;
+        }
+        if let (Some(mic), Some(system)) = (audio.get(&Track::Mic), audio.get(&Track::System)) {
+            // Zeros are what a room meeting records too: they point at the
+            // permission only when another app played sound meanwhile.
+            let silent = self.store.system_played(id)?
+                && system_audio_missing(&mic.levels.levels, &system.levels.levels);
+            if silent {
+                log::warn!("Meeting {id}: system audio holds only digital silence");
+            }
+            self.store.set_system_audio_silent(id, silent)?;
         }
 
         let chunks = self.store.chunks(id)?;
@@ -305,26 +347,31 @@ impl Processor {
         };
         let dir = paths::meeting_dir(&self.root, id);
         let analyzed = AtomicBool::new(false);
+        let started = Instant::now();
         let transcribing = async {
             let end = runner.run(jobs, operation.clone()).await;
             if end != RunEnd::Cancelled && !analyzed.load(Ordering::SeqCst) {
                 self.report_stage(id, MeetingStage::Analyzing, &saver);
             }
-            end
+            (end, started.elapsed())
         };
         let analyzing = async {
             let analysis = self
                 .analysis(&dir, &source, diarize, operation.clone())
                 .await;
             analyzed.store(true, Ordering::SeqCst);
-            analysis
+            (analysis, started.elapsed())
         };
-        let (end, analysis) = tokio::join!(transcribing, analyzing);
+        let ((end, transcribed_in), (analysis, analyzed_in)) =
+            tokio::join!(transcribing, analyzing);
+        stages.push(("transcription", transcribed_in));
+        stages.push(("analysis", analyzed_in));
         let (Some((analysis, outcome)), false) = (analysis, end == RunEnd::Cancelled) else {
-            return Ok(());
+            return Ok(stages);
         };
 
         self.report_stage(id, MeetingStage::Aligning, &saver);
+        let started = Instant::now();
         let chunks = self.store.chunks(id)?;
         let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
         self.store.save_transcript(
@@ -335,6 +382,7 @@ impl Processor {
             built.identity.as_deref(),
             built.score,
         )?;
+        stages.push(("aligning", started.elapsed()));
 
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
@@ -352,7 +400,7 @@ impl Processor {
             built.turns.len(),
             built.score
         );
-        Ok(())
+        Ok(stages)
     }
 
     fn report_stage(&self, id: i64, stage: MeetingStage, saver: &Saver) {
@@ -401,6 +449,25 @@ impl Processor {
             }
         }
     }
+}
+
+/// One log line with how long each stage took, against the meeting's length.
+/// Transcription and analysis run side by side, so stages add up to more
+/// than `total`.
+fn timings_line(audio_ms: u64, stages: &[(&str, Duration)], total: Duration) -> String {
+    let mut parts = vec![format!("audio {:.1} min", audio_ms as f64 / 60_000.0)];
+    parts.extend(
+        stages
+            .iter()
+            .map(|(stage, took)| format!("{stage} {:.1} s", took.as_secs_f64())),
+    );
+    parts.push(format!("total {:.1} s", total.as_secs_f64()));
+    let mut line = parts.join(", ");
+    if audio_ms > 0 && !total.is_zero() {
+        let speed = audio_ms as f64 / 1000.0 / total.as_secs_f64();
+        line.push_str(&format!(" ({speed:.0}x real time)"));
+    }
+    line
 }
 
 /// The transcript built from the chunks Codex transcribed.
@@ -948,6 +1015,69 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.status, MeetingStatus::Ready);
         assert_eq!(meeting.turns.len(), 1);
+        // A quiet call still carries noise: nothing points at the permission.
+        assert!(!meeting.system_audio_silent);
+    }
+
+    /// The user speaks and system audio is pure zeros; `played` says whether
+    /// another app played sound meanwhile. Returns whether the meeting is
+    /// flagged.
+    fn zeros_from_the_system(played: bool) -> bool {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 20);
+        if played {
+            h.store.set_system_played(id).unwrap();
+        }
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 20, &[(2, 10)]);
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: RATE as u32,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(dir.join(paths::SYSTEM_TRACK), spec).unwrap();
+        for _ in 0..20 * RATE {
+            writer.write_sample(0i16).unwrap();
+        }
+        writer.finalize().unwrap();
+
+        h.process(id, codex(|_| Ok("Seul.".to_string())));
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        meeting.system_audio_silent
+    }
+
+    #[test]
+    fn system_audio_of_pure_zeros_while_another_app_played_is_flagged() {
+        assert!(zeros_from_the_system(true));
+    }
+
+    /// A meeting in a room, or a call taken on another device: nothing
+    /// played on the Mac, so zeros are what it should record.
+    #[test]
+    fn system_audio_of_pure_zeros_while_nothing_played_is_not_flagged() {
+        assert!(!zeros_from_the_system(false));
+    }
+
+    #[test]
+    fn the_timing_log_gives_each_stage_and_the_speed() {
+        let line = timings_line(
+            3_600_000,
+            &[
+                ("transcription", Duration::from_secs(150)),
+                ("analysis", Duration::from_millis(61_500)),
+                ("summary", Duration::from_millis(800)),
+            ],
+            Duration::from_secs(180),
+        );
+        assert_eq!(
+            line,
+            "audio 60.0 min, transcription 150.0 s, analysis 61.5 s, summary 0.8 s, \
+             total 180.0 s (20x real time)"
+        );
+        assert!(timings_line(0, &[], Duration::ZERO).ends_with("total 0.0 s"));
     }
 
     #[test]

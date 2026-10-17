@@ -953,8 +953,8 @@ window_names_enabled?: boolean;
  */
 whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle; 
 /**
- * Release gate for meeting recording: the Meetings page, its shortcut
- * and its tray item exist only while this is on.
+ * Meeting recording, on by default: the Meetings page, its shortcut and
+ * its tray item exist only while this is on.
  */
 meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
 export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" | 
@@ -1079,7 +1079,12 @@ summary: string | null; summary_status: SummaryStatus; summary_error: SummaryErr
 /**
  * The size of `audio.m4a`, once compressed.
  */
-audio_bytes: number }
+audio_bytes: number; 
+/**
+ * System audio was recorded as pure silence while the user spoke, which
+ * is what macOS gives when Murmur may not record system audio.
+ */
+system_audio_silent: boolean }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.

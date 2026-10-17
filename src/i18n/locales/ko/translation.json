@@ -31,7 +31,8 @@
     "meetingStartFailed": "회의를 시작할 수 없습니다. 마이크와 오디오 권한을 확인하세요.",
     "meetingStopsSoon": "회의가 5분 후에 중지됩니다(3시간 제한).",
     "meetingStoppedAtLimit": "회의가 3시간 제한에 도달하여 저장되었습니다.",
-    "meetingWriteFailed": "Murmur가 디스크에 쓸 수 없어 회의가 중지되었습니다. 녹음된 내용은 보존됩니다."
+    "meetingWriteFailed": "Murmur가 디스크에 쓸 수 없어 회의가 중지되었습니다. 녹음된 내용은 보존됩니다.",
+    "meetingLowDiskSpace": "이 Mac의 여유 공간이 1.5GB 미만입니다. 긴 회의는 일찍 멈출 수 있지만 녹음된 내용은 보관됩니다."
   },
   "sidebar": {
     "general": "일반",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "시스템 오디오 권한",
       "description": "회의에서 처음 시스템 오디오를 녹음할 때 macOS가 권한을 요청합니다. 거부했다면 개인정보 보호 설정에서 Murmur를 다시 켜세요.",
-      "open": "설정 열기"
+      "open": "설정 열기",
+      "silent": "시스템 오디오가 녹음되지 않아 다른 참가자의 음성이 없습니다. 개인정보 보호 설정의 시스템 오디오 녹음에서 Murmur를 허용한 뒤 다시 녹음하세요."
     },
     "list": {
       "title": "녹음",

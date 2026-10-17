@@ -82,6 +82,8 @@ objc2-service-management = "0.3.2"
 # Accessibility attribute values: window names, the correction watcher and
 # the Insights browser-domain lookup.
 core-foundation = "0.10"
+# Free disk space before a meeting records (statvfs).
+libc = "0.2"
 security-framework = "3.7.0"
 
 [dev-dependencies]

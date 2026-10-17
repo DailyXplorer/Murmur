@@ -31,7 +31,8 @@
     "meetingStartFailed": "De vergadering kon niet starten. Controleer de microfoon en de audiotoestemmingen.",
     "meetingStopsSoon": "De vergadering stopt over 5 minuten (limiet van 3 uur).",
     "meetingStoppedAtLimit": "De vergadering heeft de limiet van 3 uur bereikt en is opgeslagen.",
-    "meetingWriteFailed": "De vergadering is gestopt omdat Murmur niet naar de schijf kon schrijven. Wat is opgenomen, blijft bewaard."
+    "meetingWriteFailed": "De vergadering is gestopt omdat Murmur niet naar de schijf kon schrijven. Wat is opgenomen, blijft bewaard.",
+    "meetingLowDiskSpace": "Er is minder dan 1,5 GB vrij op deze Mac. Een lange vergadering kan eerder stoppen; wat is opgenomen blijft bewaard."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Toestemming voor systeemgeluid",
       "description": "macOS vraagt het de eerste keer dat een vergadering systeemgeluid opneemt. Als je hebt geweigerd, zet Murmur dan weer aan in de privacyinstellingen.",
-      "open": "Instellingen openen"
+      "open": "Instellingen openen",
+      "silent": "Er is geen systeemgeluid opgenomen, dus de andere deelnemers ontbreken. Sta Murmur toe onder Systeemaudio-opname in de privacyinstellingen en neem opnieuw op."
     },
     "list": {
       "title": "Opnames",

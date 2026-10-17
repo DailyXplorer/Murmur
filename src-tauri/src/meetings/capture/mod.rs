@@ -309,11 +309,39 @@ impl CaptureBackend for DeviceCapture {
             origin,
         )?))
     }
+
+    fn free_bytes(&self, dir: &Path) -> Option<u64> {
+        free_bytes(dir)
+    }
+}
+
+/// The space an unprivileged process may still write on the volume of
+/// `path`. Space macOS could purge on demand is not counted, so this errs on
+/// the low side.
+fn free_bytes(path: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stats = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    // SAFETY: `path` is NUL-terminated and `stats` is written before it is read.
+    if unsafe { libc::statvfs(path.as_ptr(), stats.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: statvfs succeeded, so it filled `stats`.
+    let stats = unsafe { stats.assume_init() };
+    #[allow(clippy::unnecessary_cast)]
+    Some(stats.f_bavail as u64 * stats.f_frsize as u64)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn free_space_is_read_for_a_folder_and_unknown_for_a_missing_one() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(free_bytes(dir.path()).is_some_and(|free| free > 0));
+        assert_eq!(free_bytes(&dir.path().join("missing")), None);
+    }
 
     fn sine(sample_rate: u32, seconds: f64) -> Vec<f32> {
         let count = (f64::from(sample_rate) * seconds) as usize;

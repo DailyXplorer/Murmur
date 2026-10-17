@@ -31,7 +31,8 @@
     "meetingStartFailed": "Impossibile avviare la riunione. Controlla il microfono e i permessi audio.",
     "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 3 ore).",
     "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
-    "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato."
+    "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
+    "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato."
   },
   "sidebar": {
     "general": "Generale",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Permesso audio di sistema",
       "description": "macOS lo chiede la prima volta che una riunione registra l'audio di sistema. Se hai rifiutato, riattiva Murmur nelle impostazioni della privacy.",
-      "open": "Apri impostazioni"
+      "open": "Apri impostazioni",
+      "silent": "Non è stato registrato audio di sistema, quindi mancano gli altri partecipanti. Consenti Murmur in Registrazione audio di sistema nelle impostazioni della privacy, poi registra di nuovo."
     },
     "list": {
       "title": "Registrazioni",

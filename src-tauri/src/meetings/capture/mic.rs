@@ -61,10 +61,10 @@ impl Track for MicCapture {
         self.writer.failed()
     }
 
-    fn finish(self: Box<Self>, duration: Duration) -> Result<(), String> {
+    fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.supervisor.join();
-        self.writer.finish(duration).map(|_| ())
+        self.writer.finish(duration).map(|_| false)
     }
 }
 

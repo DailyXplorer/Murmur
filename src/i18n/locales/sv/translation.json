@@ -31,7 +31,8 @@
     "meetingStartFailed": "Mötet kunde inte starta. Kontrollera mikrofonen och ljudbehörigheterna.",
     "meetingStopsSoon": "Mötet stoppas om 5 minuter (gräns på 3 timmar).",
     "meetingStoppedAtLimit": "Mötet nådde gränsen på 3 timmar och sparades.",
-    "meetingWriteFailed": "Mötet stoppades eftersom Murmur inte kunde skriva till disken. Det som spelats in finns kvar."
+    "meetingWriteFailed": "Mötet stoppades eftersom Murmur inte kunde skriva till disken. Det som spelats in finns kvar.",
+    "meetingLowDiskSpace": "Det finns mindre än 1,5 GB ledigt på den här Macen. Ett långt möte kan stoppa i förtid; det som spelats in sparas."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Behörighet för systemljud",
       "description": "macOS frågar första gången ett möte spelar in systemljud. Om du nekade kan du slå på Murmur igen i integritetsinställningarna.",
-      "open": "Öppna inställningar"
+      "open": "Öppna inställningar",
+      "silent": "Inget systemljud spelades in, så de andra deltagarna saknas. Tillåt Murmur under Inspelning av systemljud i integritetsinställningarna och spela in igen."
     },
     "list": {
       "title": "Inspelningar",

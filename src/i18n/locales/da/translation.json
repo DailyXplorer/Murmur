@@ -31,7 +31,8 @@
     "meetingStartFailed": "Mødet kunne ikke starte. Tjek mikrofonen og lydtilladelserne.",
     "meetingStopsSoon": "Mødet stopper om 5 minutter (grænse på 3 timer).",
     "meetingStoppedAtLimit": "Mødet nåede grænsen på 3 timer og blev gemt.",
-    "meetingWriteFailed": "Mødet stoppede, fordi Murmur ikke kunne skrive til disken. Det optagede er bevaret."
+    "meetingWriteFailed": "Mødet stoppede, fordi Murmur ikke kunne skrive til disken. Det optagede er bevaret.",
+    "meetingLowDiskSpace": "Der er under 1,5 GB ledigt på denne Mac. Et langt møde kan stoppe før tid; det optagne bevares."
   },
   "sidebar": {
     "general": "Generelt",
@@ -675,7 +676,8 @@
     "permission": {
       "title": "Tilladelse til systemlyd",
       "description": "macOS spørger første gang, et møde optager systemlyd. Hvis du afviste, kan du slå Murmur til igen i indstillingerne for anonymitet.",
-      "open": "Åbn indstillinger"
+      "open": "Åbn indstillinger",
+      "silent": "Der blev ikke optaget systemlyd, så de andre deltagere mangler. Tillad Murmur under Optagelse af systemlyd i anonymitetsindstillingerne, og optag igen."
     },
     "list": {
       "title": "Optagelser",

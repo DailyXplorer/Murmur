@@ -54,15 +54,17 @@ public func murmurSystemTapStart(
     return status
 }
 
-/// Stops the tap. No callback runs once this returns.
+/// Stops the tap. No callback runs once this returns. Returns 1 when another
+/// app played sound while the tap ran: a tap that gave only zeros then was
+/// denied the audio, not left without any.
 @_cdecl("murmur_system_tap_stop")
-public func murmurSystemTapStop() {
-    guard #available(macOS 14.4, *) else { return }
+public func murmurSystemTapStop() -> Int32 {
+    guard #available(macOS 14.4, *) else { return 0 }
     sessionLock.lock()
     let tap = session as? SystemTap
     session = nil
     sessionLock.unlock()
-    tap?.stop()
+    return tap?.stop() == true ? 1 : 0
 }
 
 @available(macOS 14.4, *)
@@ -80,6 +82,9 @@ private final class SystemTap: @unchecked Sendable {
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
     private var outputListener: AudioObjectPropertyListenerBlock?
+    private var playbackWatch: DispatchSourceTimer?
+    /// Another process had its audio output running at some point.
+    private var othersPlayed = false
     private var stopped = false
     private var mono: [Float] = []
 
@@ -106,13 +111,18 @@ private final class SystemTap: @unchecked Sendable {
                 return status
             }
             listenForOutputChanges()
+            watchPlayback()
             return ok
         }
     }
 
-    func stop() {
-        control.sync {
+    /// Returns whether another process played sound while the tap ran.
+    func stop() -> Bool {
+        let played = control.sync {
             stopped = true
+            playbackWatch?.cancel()
+            playbackWatch = nil
+            if !othersPlayed { othersPlayed = otherProcessPlaysOutput() }
             if let listener = outputListener {
                 var address = defaultOutputAddress
                 AudioObjectRemovePropertyListenerBlock(
@@ -121,10 +131,28 @@ private final class SystemTap: @unchecked Sendable {
             }
             stopDevice()
             destroyTap()
+            return othersPlayed
         }
         // Let an IOProc call already queued finish before the caller frees
         // the context.
         ioQueue.sync {}
+        return played
+    }
+
+    /// Checks every second whether another process plays sound, until one
+    /// does. The process list is readable without the System Audio Recording
+    /// permission, so it tells a denied tap from a Mac that played nothing.
+    private func watchPlayback() {
+        let timer = DispatchSource.makeTimerSource(queue: control)
+        timer.schedule(deadline: .now(), repeating: .seconds(1), leeway: .milliseconds(250))
+        timer.setEventHandler { [weak self] in
+            guard let self, !self.stopped, otherProcessPlaysOutput() else { return }
+            self.othersPlayed = true
+            self.playbackWatch?.cancel()
+            self.playbackWatch = nil
+        }
+        timer.resume()
+        playbackWatch = timer
     }
 
     /// Builds the aggregate device around the current default output, which
@@ -292,6 +320,45 @@ private func defaultOutputUID() -> String? {
           let uid
     else { return nil }
     return uid.takeRetainedValue() as String
+}
+
+/// Whether a process other than Murmur has its audio output running, as
+/// Core Audio reports it per process (macOS 14).
+@available(macOS 14.0, *)
+private func otherProcessPlaysOutput() -> Bool {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyProcessObjectList,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0
+    else { return false }
+    var objects = [AudioObjectID](
+        repeating: AudioObjectID(kAudioObjectUnknown),
+        count: Int(size) / MemoryLayout<AudioObjectID>.size)
+    guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &objects) == noErr
+    else { return false }
+    let own = getpid()
+    return objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size).contains { object in
+        processProperty(object, kAudioProcessPropertyIsRunningOutput, as: UInt32.self) == 1
+            && processProperty(object, kAudioProcessPropertyPID, as: pid_t.self) != own
+    }
+}
+
+private func processProperty<T>(
+    _ object: AudioObjectID, _ selector: AudioObjectPropertySelector, as _: T.Type
+) -> T? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: selector,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var size = UInt32(MemoryLayout<T>.size)
+    let value = UnsafeMutablePointer<T>.allocate(capacity: 1)
+    defer { value.deallocate() }
+    guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, value) == noErr
+    else { return nil }
+    return value.pointee
 }
 
 /// Murmur's own audio object, so its sounds stay out of the meeting. Empty
