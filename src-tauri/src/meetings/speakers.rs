@@ -196,29 +196,68 @@ pub fn assign(tokens: &[TimedToken], segments: &[Segment]) -> Option<Vec<String>
     Some(speakers)
 }
 
-/// Stable keys `s1`, `s2`… for diarized speakers, in order of first word.
-pub fn number(speakers: &[String]) -> HashMap<String, String> {
+/// Keys `s1`, `s2`… for the diarizer's speakers, in order of first turn.
+/// They depend only on the diarization, not on which parts Codex has
+/// transcribed yet, so a Retry keeps each key on the same voice.
+pub fn number(segments: &[Segment]) -> HashMap<String, String> {
+    let mut ordered: Vec<&Segment> = segments.iter().collect();
+    ordered.sort_by_key(|segment| (segment.start_ms, segment.speaker.as_str()));
     let mut keys = HashMap::new();
-    for speaker in speakers {
+    for segment in ordered {
         let next = format!("s{}", keys.len() + 1);
-        keys.entry(speaker.clone()).or_insert(next);
+        keys.entry(segment.speaker.clone()).or_insert(next);
     }
     keys
 }
 
-/// The display row of speaker `key`. Remote speakers are numbered after the
-/// user when the microphone is "Me".
-pub fn speaker_row(key: &str, has_me: bool) -> MeetingSpeaker {
-    let (name, color_index) = match key.strip_prefix('s').and_then(|n| n.parse::<u32>().ok()) {
-        Some(n) => (format!("Speaker {}", n + u32::from(has_me)), n),
-        None => ("Me".to_string(), 0),
+/// Identifies a diarization, so names given to its speakers are dropped
+/// when another one replaces it. FNV-1a, stable across builds.
+pub fn identity(segments: &[Segment]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |bytes: &[u8]| {
+        for byte in bytes {
+            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
+        }
     };
-    MeetingSpeaker {
-        key: key.to_string(),
-        name: name.clone(),
-        default_name: name,
-        color_index,
+    for segment in segments {
+        eat(segment.speaker.as_bytes());
+        eat(&[0]);
+        eat(&segment.start_ms.to_le_bytes());
+        eat(&segment.end_ms.to_le_bytes());
     }
+    format!("{hash:016x}")
+}
+
+/// The display rows of the speakers `keys`. Remote speakers are named in
+/// order of key, after the user when the microphone is "Me"; a key a stray
+/// cluster left unused leaves no gap. Colours follow the key, so a voice
+/// keeps its colour when a Retry adds an earlier speaker.
+pub fn speaker_rows<'a>(
+    keys: impl IntoIterator<Item = &'a str>,
+    has_me: bool,
+) -> Vec<MeetingSpeaker> {
+    let number = |key: &str| key.strip_prefix('s').and_then(|n| n.parse::<u32>().ok());
+    let mut keys: Vec<&str> = keys.into_iter().collect();
+    keys.sort_by_key(|key| number(key));
+    keys.dedup();
+    let mut remote = u32::from(has_me);
+    keys.into_iter()
+        .map(|key| {
+            let (name, color_index) = match number(key) {
+                Some(n) => {
+                    remote += 1;
+                    (format!("Speaker {remote}"), n)
+                }
+                None => ("Me".to_string(), 0),
+            };
+            MeetingSpeaker {
+                key: key.to_string(),
+                name: name.clone(),
+                default_name: name,
+                color_index,
+            }
+        })
+        .collect()
 }
 
 /// Splits a track's words into units at each sentence end and each change
@@ -365,15 +404,41 @@ mod tests {
     }
 
     #[test]
-    fn speakers_are_numbered_by_first_word_after_me() {
-        let keys = number(&["X".into(), "Y".into(), "X".into(), "Z".into()]);
+    fn speakers_are_numbered_by_first_turn_and_named_after_me() {
+        // Turns arrive in any order; the earliest decides.
+        let keys = number(&[
+            segment("Y", 4_000, 5_000),
+            segment("X", 0, 1_000),
+            segment("Z", 6_000, 7_000),
+            segment("X", 8_000, 9_000),
+        ]);
         assert_eq!(keys["X"], "s1");
         assert_eq!(keys["Y"], "s2");
         assert_eq!(keys["Z"], "s3");
-        assert_eq!(speaker_row("s2", true).name, "Speaker 3");
-        assert_eq!(speaker_row("s2", false).name, "Speaker 2");
-        assert_eq!(speaker_row("s2", false).color_index, 2);
-        assert_eq!(speaker_row("me", true).name, "Me");
+
+        // "s2" was a stray cluster: no gap in the names, colours stay put.
+        let rows = speaker_rows(["s3", "me", "s1"], true);
+        let rows: Vec<(&str, &str, u32)> = rows
+            .iter()
+            .map(|row| (row.key.as_str(), row.name.as_str(), row.color_index))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("me", "Me", 0),
+                ("s1", "Speaker 2", 1),
+                ("s3", "Speaker 3", 3)
+            ]
+        );
+        assert_eq!(speaker_rows(["s2"], false)[0].name, "Speaker 1");
+    }
+
+    #[test]
+    fn the_identity_changes_with_the_diarization() {
+        let first = [segment("A", 0, 1_000), segment("B", 1_000, 2_000)];
+        let other = [segment("A", 0, 1_500), segment("B", 1_500, 2_000)];
+        assert_eq!(identity(&first), identity(&first.clone()));
+        assert_ne!(identity(&first), identity(&other));
     }
 
     #[test]

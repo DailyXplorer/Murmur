@@ -75,6 +75,8 @@ static MIGRATIONS: &[M] = &[
     ),
     // How the speakers of the last processing run were told apart.
     M::up("ALTER TABLE meetings ADD COLUMN speaker_analysis TEXT;"),
+    // Which diarization the speaker keys come from (NULL: one per track).
+    M::up("ALTER TABLE meetings ADD COLUMN speaker_identity TEXT;"),
 ];
 
 /// Which tracks a meeting recorded.
@@ -727,13 +729,16 @@ impl MeetingsStore {
 
     /// Replaces the transcript and its speakers in one transaction, with how
     /// the speakers were told apart. A speaker still present keeps the name
-    /// the user gave them.
+    /// the user gave them, unless `identity` (the diarization the keys come
+    /// from, `None` for one speaker per track) changed: the same key may
+    /// then be someone else, so remote speakers get their default names.
     pub fn save_transcript(
         &self,
         id: i64,
         speakers: &[MeetingSpeaker],
         turns: &[MeetingTurn],
         analysis: SpeakerAnalysis,
+        identity: Option<&str>,
         alignment_score: Option<f32>,
     ) -> Result<()> {
         let mut conn = self.connection()?;
@@ -741,6 +746,16 @@ impl MeetingsStore {
         tx.execute(
             "DELETE FROM meeting_turns WHERE meeting_id = ?1",
             params![id],
+        )?;
+        tx.execute(
+            "UPDATE meeting_speakers SET display_name = default_name
+             WHERE meeting_id = ?1 AND key <> 'me'
+               AND (SELECT speaker_identity FROM meetings WHERE id = ?1) IS NOT ?2",
+            params![id, identity],
+        )?;
+        tx.execute(
+            "UPDATE meetings SET speaker_identity = ?2 WHERE id = ?1",
+            params![id, identity],
         )?;
         let kept: Vec<String> = speakers.iter().map(|speaker| speaker.key.clone()).collect();
         tx.execute(
@@ -774,6 +789,8 @@ impl MeetingsStore {
                      (meeting_id, key, default_name, display_name, color_index)
                  VALUES (?1, ?2, ?3, ?3, ?4)
                  ON CONFLICT (meeting_id, key) DO UPDATE SET
+                     display_name = CASE WHEN display_name = default_name
+                         THEN excluded.default_name ELSE display_name END,
                      default_name = excluded.default_name,
                      color_index = excluded.color_index",
                 params![id, speaker.key, speaker.default_name, speaker.color_index],
@@ -1110,18 +1127,22 @@ mod tests {
                 &[turn("s1", 0, "Salut."), turn("me", 900, "Hello.")],
                 SpeakerAnalysis::NoModels,
                 None,
+                None,
             )
             .unwrap();
         store.rename_speaker(id, "s1", "Sam").unwrap();
+        store.rename_speaker(id, "me", "Host").unwrap();
         assert!(store.rename_speaker(id, "s9", "Nobody").is_err());
 
-        // Processing again replaces the turns but keeps the rename.
+        // Processing again from the same speakers replaces the turns but
+        // keeps the renames.
         store
             .save_transcript(
                 id,
                 &speakers,
                 &[turn("s1", 0, "Salut tout le monde.")],
-                SpeakerAnalysis::Separated,
+                SpeakerAnalysis::Failed,
+                None,
                 Some(0.9),
             )
             .unwrap();
@@ -1129,7 +1150,53 @@ mod tests {
         assert_eq!(detail.speakers[1].name, "Sam");
         assert_eq!(detail.speakers[1].default_name, "Speaker 2");
         assert_eq!(detail.turns, [turn("s1", 0, "Salut tout le monde.")]);
+        assert_eq!(detail.speaker_analysis, Some(SpeakerAnalysis::Failed));
+
+        // A new diarization may give "s1" to someone else: only the user
+        // keeps their name.
+        store
+            .save_transcript(
+                id,
+                &speakers,
+                &[turn("s1", 0, "Salut.")],
+                SpeakerAnalysis::Separated,
+                Some("first"),
+                None,
+            )
+            .unwrap();
+        let detail = store.get(id).unwrap().unwrap();
+        assert_eq!(detail.speakers[0].name, "Host");
+        assert_eq!(detail.speakers[1].name, "Speaker 2");
         assert_eq!(detail.speaker_analysis, Some(SpeakerAnalysis::Separated));
+
+        // A name the user never changed follows a new default.
+        let renumbered = [
+            speakers[0].clone(),
+            MeetingSpeaker {
+                name: "Speaker 3".into(),
+                default_name: "Speaker 3".into(),
+                ..speakers[1].clone()
+            },
+            MeetingSpeaker {
+                key: "s2".into(),
+                name: "Speaker 2".into(),
+                default_name: "Speaker 2".into(),
+                color_index: 2,
+            },
+        ];
+        store
+            .save_transcript(
+                id,
+                &renumbered,
+                &[turn("s1", 0, "Salut.")],
+                SpeakerAnalysis::Separated,
+                Some("first"),
+                None,
+            )
+            .unwrap();
+        let detail = store.get(id).unwrap().unwrap();
+        assert_eq!(detail.speakers[1].name, "Speaker 3");
+        assert_eq!(detail.speakers[2].name, "Speaker 2");
 
         // A speaker the new analysis no longer finds is gone.
         store
@@ -1138,6 +1205,7 @@ mod tests {
                 &speakers[..1],
                 &[turn("me", 0, "Seul.")],
                 SpeakerAnalysis::Failed,
+                None,
                 None,
             )
             .unwrap();

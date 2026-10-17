@@ -16,7 +16,7 @@
 
 use serde::Serialize;
 use specta::Type;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
@@ -29,7 +29,7 @@ use super::chunking::{plan_chunks, speech_threshold, split_chunk};
 use super::merge::{merge, Track, Unit, PLACEHOLDER};
 use super::paths;
 use super::protocol::{segments, timed_words};
-use super::speakers::{self, speaker_row};
+use super::speakers::{self, speaker_rows};
 use super::spread::{spread, voiced_intervals};
 use super::store::{
     ChunkRow, ChunkStatus, MeetingSpeaker, MeetingStage, MeetingTurn, MeetingsStore,
@@ -283,8 +283,14 @@ impl Processor {
         self.report_stage(id, MeetingStage::Aligning, &saver);
         let chunks = self.store.chunks(id)?;
         let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
-        self.store
-            .save_transcript(id, &built.speakers, &built.turns, outcome, built.score)?;
+        self.store.save_transcript(
+            id,
+            &built.speakers,
+            &built.turns,
+            outcome,
+            built.identity.as_deref(),
+            built.score,
+        )?;
 
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
@@ -357,6 +363,9 @@ impl Processor {
 struct Built {
     turns: Vec<MeetingTurn>,
     speakers: Vec<MeetingSpeaker>,
+    /// The diarization the speaker keys come from; `None` when each track
+    /// has one speaker.
+    identity: Option<String>,
     /// Some parts could not be transcribed.
     missing: bool,
     /// Share of words placed at a measured time, over the chunks that had
@@ -429,6 +438,8 @@ fn build_transcript(
     let turns = analysis
         .and_then(|analysis| analysis.turns.as_deref())
         .map(segments);
+    let numbers = turns.as_deref().map(speakers::number);
+    let mut identity = None;
     let mut units = Vec::new();
     let mut missing = false;
     let mut score = (0.0, 0);
@@ -457,12 +468,12 @@ fn build_transcript(
             .as_deref()
             .filter(|_| track == diarize)
             .and_then(|turns| speakers::assign(&stream, turns));
-        let keys: Vec<String> = match diarized {
-            Some(raw) => {
-                let numbers = speakers::number(&raw);
+        let keys: Vec<String> = match (diarized, &numbers, &turns) {
+            (Some(raw), Some(numbers), Some(turns)) => {
+                identity = Some(speakers::identity(turns));
                 raw.iter().map(|speaker| numbers[speaker].clone()).collect()
             }
-            None => vec![single_speaker(track).to_string(); stream.len()],
+            _ => vec![single_speaker(track).to_string(); stream.len()],
         };
         units.extend(speakers::units(track, stream, &keys));
     }
@@ -492,18 +503,16 @@ fn build_transcript(
         })
         .collect();
     let has_me = audio.contains_key(&Track::Mic) && diarize != Track::Mic;
-    let keys: BTreeSet<&str> = turns
-        .iter()
-        .map(|turn| turn.speaker_key.as_str())
-        .filter(|key| *key != PLACEHOLDER)
-        .collect();
-    let mut speakers: Vec<MeetingSpeaker> = keys
-        .into_iter()
-        .map(|key| speaker_row(key, has_me))
-        .collect();
-    speakers.sort_by_key(|speaker| speaker.color_index);
+    let speakers = speaker_rows(
+        turns
+            .iter()
+            .map(|turn| turn.speaker_key.as_str())
+            .filter(|key| *key != PLACEHOLDER),
+        has_me,
+    );
     Built {
         speakers,
+        identity,
         missing,
         score: (score.1 > 0).then(|| score.0 / score.1 as f32),
         turns,
@@ -513,6 +522,8 @@ fn build_transcript(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::meetings::analysis::ANALYSIS_FILE;
+    use crate::meetings::protocol::Turn;
     use crate::meetings::store::{MeetingStatus, MeetingTracks};
     use crate::meetings::transcribe::TranscribeFuture;
     use crate::transcription_error::TranscriptionError;
@@ -981,6 +992,123 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Separated));
         assert_eq!(meeting.speakers.len(), 2);
+    }
+
+    fn name_of<'a>(meeting: &'a crate::meetings::store::MeetingDetail, text: &str) -> &'a str {
+        let turn = meeting
+            .turns
+            .iter()
+            .find(|turn| turn.text.contains(text))
+            .unwrap();
+        let speaker = meeting
+            .speakers
+            .iter()
+            .find(|speaker| speaker.key == turn.speaker_key)
+            .unwrap();
+        &speaker.name
+    }
+
+    #[test]
+    fn a_renamed_voice_keeps_its_name_when_a_retry_fills_an_earlier_part() {
+        let h = harness();
+        // 25 minutes of remote speech: three pieces.
+        let id = h.meeting(MeetingTracks::System, 25 * 60);
+        let path = paths::meeting_dir(&h.root, id).join(paths::SYSTEM_TRACK);
+        track(&path, 25 * 60, &[(0, 25 * 60)]);
+        let levels = track_audio::levels(&path).unwrap();
+        let plan = plan_chunks(&levels.levels, levels.duration_ms);
+        h.store.plan_chunks(id, Track::System, &plan).unwrap();
+        // A first voice speaks during the first piece, a second one after.
+        let first_end = plan[0].end_ms as f64 / 1000.0;
+        let analysis = Analysis {
+            diarized: Some(Track::System),
+            turns: Some(vec![
+                Turn {
+                    spk: "A".into(),
+                    s: 0.0,
+                    e: first_end,
+                },
+                Turn {
+                    spk: "B".into(),
+                    s: first_end,
+                    e: 25.0 * 60.0,
+                },
+            ]),
+            complete: true,
+            ..Analysis::default()
+        };
+        // Every piece but the first was transcribed; the first is refused.
+        for idx in 1..plan.len() {
+            h.store
+                .chunk_done(id, Track::System, idx as u32, "Deuxième voix.")
+                .unwrap();
+        }
+        h.process_with(
+            id,
+            codex(|_| Err(FailureKind::Rejected)),
+            Arc::new(FakeAnalyzer::answering(AnalyzerOutcome::Ran(analysis))),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::PartsFailed));
+        let second = meeting
+            .turns
+            .iter()
+            .find(|turn| turn.text.contains("Deuxième"))
+            .unwrap()
+            .speaker_key
+            .clone();
+        h.store.rename_speaker(id, &second, "Bob").unwrap();
+
+        // Retry transcribes the first piece, where the first voice speaks.
+        h.process(id, codex(|_| Ok("Première voix.".to_string())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(name_of(&meeting, "Deuxième"), "Bob");
+        assert_eq!(name_of(&meeting, "Première"), "Speaker 1");
+    }
+
+    #[test]
+    fn separating_speakers_later_gives_the_new_voices_default_names() {
+        let h = harness();
+        let id = dialogue_meeting(&h);
+        h.process(id, codex(|_| Ok(DIALOGUE.join(" "))));
+        // Without the models, the name stands for every remote voice.
+        h.store.rename_speaker(id, "s1", "Client team").unwrap();
+
+        assert!(h.store.reopen(id).unwrap());
+        h.process_with(
+            id,
+            codex(|_| Ok("never".to_string())),
+            Arc::new(FakeAnalyzer::from_fixture(FIXTURE, true)),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Separated));
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1", "Speaker 2"]);
+    }
+
+    #[test]
+    fn analysing_again_with_the_same_result_keeps_the_names() {
+        let h = harness();
+        let id = dialogue_meeting(&h);
+        h.process_with(
+            id,
+            codex(|_| Ok(DIALOGUE.join(" "))),
+            Arc::new(FakeAnalyzer::from_fixture(FIXTURE, true)),
+        );
+        h.store.rename_speaker(id, "s2", "Bob").unwrap();
+
+        // "Separate Speakers" deletes the analysis and runs the models again.
+        assert!(h.store.reopen(id).unwrap());
+        std::fs::remove_file(paths::meeting_dir(&h.root, id).join(ANALYSIS_FILE)).unwrap();
+        h.process_with(
+            id,
+            codex(|_| Ok("never".to_string())),
+            Arc::new(FakeAnalyzer::from_fixture(FIXTURE, true)),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(name_of(&meeting, DIALOGUE[1]), "Bob");
+        assert_eq!(name_of(&meeting, DIALOGUE[0]), "Speaker 1");
     }
 
     #[test]
