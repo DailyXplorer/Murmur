@@ -125,35 +125,45 @@ struct AuthFile {
 }
 
 impl AuthFile {
+    /// A missing file is `SignedOut`, and the only `SignedOut` this returns.
+    /// A file that cannot be read or parsed is `Other`: Codex may be
+    /// mid-rewrite, and that is no reason to stop a meeting run.
     fn read(path: &Path) -> Result<Self, TranscriptionError> {
-        // Codex rewrites the file in place (truncate, then write), so a read
-        // can land on a half-written file. Retry briefly before giving up.
-        let mut last_error = None;
-        for attempt in 0..3 {
+        Self::read_retrying(path, 3)
+    }
+
+    /// Codex rewrites the file in place (truncate, then write), so a read can
+    /// land on a half-written file. Retries every 50 ms, `attempts` times.
+    fn read_retrying(path: &Path, attempts: u32) -> Result<Self, TranscriptionError> {
+        let mut last_error = String::new();
+        for attempt in 0..attempts {
             if attempt > 0 {
                 std::thread::sleep(Duration::from_millis(50));
             }
-            let raw = fs::read_to_string(path).map_err(|_| {
-                TranscriptionError::new(
-                    FailureKind::SignedOut,
-                    format!(
-                        "Codex/ChatGPT session not found at {}. Open the Codex app and sign in.",
-                        path.display()
-                    ),
-                )
-            })?;
+            let raw = match fs::read_to_string(path) {
+                Ok(raw) => raw,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Err(TranscriptionError::new(
+                        FailureKind::SignedOut,
+                        format!(
+                            "Codex/ChatGPT session not found at {}. Open the Codex app and sign in.",
+                            path.display()
+                        ),
+                    ));
+                }
+                Err(error) => {
+                    last_error = error.to_string();
+                    continue;
+                }
+            };
             match serde_json::from_str(&raw) {
                 Ok(json) => return Ok(Self { raw, json }),
-                Err(error) => last_error = Some(error),
+                Err(error) => last_error = error.to_string(),
             }
         }
         Err(TranscriptionError::new(
-            FailureKind::SignedOut,
-            format!(
-                "failed to parse {}: {}",
-                path.display(),
-                last_error.map(|e| e.to_string()).unwrap_or_default()
-            ),
+            FailureKind::Other,
+            format!("failed to read {}: {last_error}", path.display()),
         ))
     }
 
@@ -331,7 +341,13 @@ async fn session_for_request_at(
         Ok(session) => Ok(session),
         // Codex keeps using a not-yet-expired token when a proactive refresh
         // fails for a transient reason; the server decides with a 401.
-        Err(error) if error.kind != FailureKind::SessionExpired && !file.is_expired(now) => {
+        // A sign-out during the refresh is not transient.
+        Err(error)
+            if !matches!(
+                error.kind,
+                FailureKind::SessionExpired | FailureKind::SignedOut
+            ) && !file.is_expired(now) =>
+        {
             warn!("Proactive Codex token refresh failed; using the current token: {error}");
             file.session()
         }
@@ -440,9 +456,10 @@ async fn refresh_to_completion(
 
     // Re-read right before writing. If anything changed while the request
     // was in flight, the other writer wins and our tokens are discarded.
-    // The server has spent the old refresh token by now, so a failed re-read
-    // must not drop the new tokens: they are saved anyway.
-    match AuthFile::read(path) {
+    // A missing file means the user signed out meanwhile: writing would sign
+    // every Codex client back in. A file still unreadable after about a
+    // second is saved over, since the server has spent the old refresh token.
+    match AuthFile::read_retrying(path, 20) {
         Ok(latest) if latest.raw != base.raw => {
             info!(
                 "auth.json changed during the Codex token refresh; keeping the other writer's tokens"
@@ -450,6 +467,10 @@ async fn refresh_to_completion(
             return latest.session();
         }
         Ok(_) => {}
+        Err(error) if error.kind == FailureKind::SignedOut => {
+            info!("Signed out of Codex during the token refresh; discarding the refreshed tokens");
+            return Err(error);
+        }
         Err(_) => warn!("Could not re-read auth.json after the Codex token refresh; saving the refreshed tokens"),
     }
 
@@ -982,6 +1003,55 @@ mod tests {
     }
 
     #[test]
+    fn refresh_does_not_recreate_the_file_after_a_sign_out() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        let path_for_server = path.clone();
+        let (endpoint, _requests) = one_shot_server(
+            200,
+            r#"{"access_token":"murmur-access","refresh_token":"murmur-rt"}"#,
+            move || fs::remove_file(&path_for_server).unwrap(),
+        );
+
+        let error = tauri::async_runtime::block_on(session_for_request_at(&path, &endpoint, now()))
+            .unwrap_err();
+
+        assert_eq!(error.kind, FailureKind::SignedOut);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn refresh_waits_for_a_slow_rewrite_and_keeps_the_new_login() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        let theirs = auth_json("other-account-access", "other-account-rt");
+        let path_for_server = path.clone();
+        let theirs_for_server = theirs.clone();
+        let (endpoint, _requests) = one_shot_server(
+            200,
+            r#"{"access_token":"murmur-access","refresh_token":"murmur-rt"}"#,
+            move || {
+                // A sign-in to another account truncates the file and takes
+                // longer than a few retries to write the rest.
+                fs::write(&path_for_server, "").unwrap();
+                thread::spawn(move || {
+                    thread::sleep(Duration::from_millis(400));
+                    fs::write(&path_for_server, theirs_for_server).unwrap();
+                });
+            },
+        );
+
+        let session =
+            tauri::async_runtime::block_on(session_for_request_at(&path, &endpoint, now()))
+                .unwrap();
+
+        assert_eq!(session.access_token, "other-account-access");
+        assert_eq!(fs::read_to_string(&path).unwrap(), theirs);
+    }
+
+    #[test]
     fn permanent_refresh_failure_reports_an_expired_session() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("auth.json");
@@ -1065,6 +1135,13 @@ mod tests {
         fs::write(&path, "{").unwrap();
         let error = AuthFile::read(&path).unwrap_err();
         assert!(error.detail.contains(&path.display().to_string()));
-        assert_eq!(error.kind, FailureKind::SignedOut);
+        // A half-written file is not a sign-out: it must not end a meeting run.
+        assert_eq!(error.kind, FailureKind::Other);
+
+        fs::remove_file(&path).unwrap();
+        assert_eq!(
+            AuthFile::read(&path).unwrap_err().kind,
+            FailureKind::SignedOut
+        );
     }
 }
