@@ -14,6 +14,8 @@ option requires an API key or local speech-recognition model.
 - A working microphone
 - Codex signed in with a ChatGPT account, or Antigravity signed in on macOS
 - Accessibility permission for global shortcuts and text insertion
+- For meetings with system audio: macOS 14.4 or later on Apple silicon, and
+  the System Audio Recording permission
 - Network access while transcribing
 - Optional: Apple Intelligence for on-device AI cleanup. It needs macOS 26 or
   later, a Mac that supports Apple Intelligence, Apple Intelligence turned on
@@ -81,6 +83,9 @@ does not store anything in the keychain.
   or unsatisfying transcription can be sent again from its recording
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category
+- Meetings: record a call (Option+Command+M or the menu bar), then get a
+  transcript with speakers told apart and a summary with a title. See
+  [Meetings](#meetings)
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
@@ -111,6 +116,32 @@ transcription endpoint publishes no size limit, and the public OpenAI
 transcription API rejects uploads above 25 MB, so Murmur warns before it
 uploads a recording of that size. The upload timeout grows with the recording
 length.
+
+### Meetings
+
+Meetings are on by default and can be turned off in Settings → Advanced.
+Press Option+Command+M, or choose Start Meeting in the menu bar, to start
+recording; press it again to stop. A red pill shows the elapsed time. A
+meeting stops by itself after 3 hours, with a warning 5 minutes before.
+
+- Murmur records two tracks: your microphone ("Me") and the system audio,
+  which holds the other participants. System audio needs macOS 14.4 or later
+  on Apple silicon, and the System Audio Recording permission, which macOS
+  asks for at the first meeting. Without it, meetings record the microphone
+  only. When a meeting's system audio holds nothing but silence while you
+  spoke, the meeting says so and links to the privacy settings.
+- After you stop, Codex transcribes the tracks in pieces of up to 10 minutes,
+  at most 3 at a time. Processing resumes after a quit, without sending a
+  transcribed piece again.
+- On Apple silicon, speaker detection runs on the Mac with
+  [FluidAudio](https://github.com/FluidInference/FluidAudio). Its models
+  (about 480 MB) download during the first meeting. Without them, each track
+  keeps one speaker.
+- Once the transcript is complete, Codex writes a title and a summary. The
+  two tracks are then kept as one compressed `audio.m4a` (about 30 MB per
+  hour), which you can delete while keeping the text.
+- Murmur warns at the start of a meeting when less than 1.5 GB is free on
+  the disk. Three hours take about 700 MB before compression.
 
 ### Permissions after updating to the stable signature
 
@@ -195,6 +226,11 @@ Those names are read on the Mac through Accessibility when a dictation starts,
 only while AI cleanup and the window-names setting are both on. They are never
 stored, and they leave the Mac only inside a Codex cleanup request. Password
 fields and password managers are never read.
+
+Meetings stay on the Mac, apart from two requests: the audio pieces sent to
+Codex for transcription, and the transcript sent to Codex for the summary.
+Speaker detection runs on the Mac. Its models are downloaded from Hugging
+Face once.
 
 History, saved recordings, learned words, and Insights stay on the Mac.
 For Insights, Murmur records the frontmost app of each dictation and, in a
