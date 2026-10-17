@@ -84,6 +84,27 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   expect(deleted?.args).toEqual({ id: 3 });
 });
 
+test("an update keeps every page of the list that is shown", async ({
+  page,
+}) => {
+  await openMeetings(page, "&manyMeetings=1");
+  const items = page.getByRole("listitem");
+  await expect(items).toHaveCount(50);
+
+  await page.getByRole("button", { name: "Show More" }).click();
+  await expect(items).toHaveCount(63);
+
+  const loads = async () =>
+    (await calls(page)).filter((command) => command === "get_meetings").length;
+  const before = await loads();
+  // A meeting still processing reports progress.
+  await page.evaluate(() => window.settingsPages.emitMeetingsUpdated(4));
+  await expect.poll(loads).toBeGreaterThan(before);
+  await page.waitForTimeout(100);
+  await expect(items).toHaveCount(63);
+  await expect(page.getByRole("button", { name: "Show More" })).toHaveCount(0);
+});
+
 test("the start button starts a meeting", async ({ page }) => {
   await openMeetings(page);
   await page.getByRole("button", { name: "Start Meeting" }).click();
