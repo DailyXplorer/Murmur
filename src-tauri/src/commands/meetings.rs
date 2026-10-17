@@ -243,18 +243,20 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
     }
     if enabled {
         meetings::init(&app, false);
-    } else if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
-        manager.shutdown();
     }
     // Only a shortcut that held its keys gives them back.
     let held = crate::shortcut::binding_registers(&settings, meetings::BINDING_ID);
     settings.meetings_enabled = enabled;
     let binding = settings.bindings.get(meetings::BINDING_ID).cloned();
     let yields = crate::shortcut::meeting_shortcut_yields(&settings);
+    // Saved before the shutdown: a meeting still opening its devices sees
+    // meetings off once it has started, and discards itself.
     write_settings(&app, settings);
-    if enabled {
-        if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+    if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+        if enabled {
             manager.resume_processing();
+        } else {
+            manager.shutdown();
         }
     }
 

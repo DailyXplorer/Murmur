@@ -32,7 +32,8 @@
     "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 3 ore).",
     "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
     "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
-    "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato."
+    "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
+    "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato."
   },
   "sidebar": {
     "general": "Generale",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "In attesa di elaborazione…",
       "transcribing": "Trascrizione: {{done}} parti su {{total}} completate…",
+      "transcribingStarted": "Trascrizione in corso…",
       "rateLimited": "Codex chiede di rallentare. L’elaborazione riprenderà da sola…",
       "aligning": "Riordino della conversazione…",
       "analyzing": "Distinzione dei partecipanti…",

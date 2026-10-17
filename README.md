@@ -83,8 +83,8 @@ does not store anything in the keychain.
   or unsatisfying transcription can be sent again from its recording
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category
-- Meetings: record a call (Option+Command+M or the menu bar), then get a
-  transcript with speakers told apart and a summary with a title. See
+- Meetings: record a call (Control+Option+Command+M or the menu bar), then
+  get a transcript with speakers told apart and a summary with a title. See
   [Meetings](#meetings)
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
@@ -120,9 +120,11 @@ length.
 ### Meetings
 
 Meetings are on by default and can be turned off in Settings → Advanced.
-Press Option+Command+M, or choose Start Meeting in the menu bar, to start
-recording; press it again to stop. A red pill shows the elapsed time. A
-meeting stops by itself after 3 hours, with a warning 5 minutes before.
+Press Control+Option+Command+M, or choose Start Meeting in the menu bar, to
+start recording; press it again to stop. You can pick other keys in Settings;
+if another app already holds them, the shortcut field says so. A red pill
+shows the elapsed time. A meeting stops by itself after 3 hours, with a
+warning 5 minutes before.
 
 - Murmur records two tracks: your microphone ("Me") and the system audio,
   which holds the other participants. System audio needs macOS 14.4 or later

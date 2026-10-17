@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Toplantı 5 dakika içinde duracak (3 saat sınırı).",
     "meetingStoppedAtLimit": "Toplantı 3 saat sınırına ulaştı ve kaydedildi.",
     "meetingWriteFailed": "Murmur diske yazamadığı için toplantı durdu. Kaydedilen kısım korunuyor.",
-    "meetingLowDiskSpace": "Bu Mac'te 1,5 GB'tan az boş alan var. Uzun bir toplantı erken durabilir; kaydedilenler saklanır."
+    "meetingLowDiskSpace": "Bu Mac'te 1,5 GB'tan az boş alan var. Uzun bir toplantı erken durabilir; kaydedilenler saklanır.",
+    "meetingSystemAudioInterrupted": "Ses çıkışı değiştikten sonra sistem sesi durdu. Murmur onu geri getirmeyi denemeye devam ediyor; mikrofonunuz hâlâ kaydediliyor."
   },
   "sidebar": {
     "general": "Genel",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "İşlenmeyi bekliyor…",
       "transcribing": "Dökülüyor: {{total}} bölümden {{done}} tanesi tamam…",
+      "transcribingStarted": "Metne dökülüyor…",
       "rateLimited": "Codex yavaşlamayı istedi. İşleme kendiliğinden devam edecek…",
       "aligning": "Konuşma sıraya konuyor…",
       "analyzing": "Konuşmacılar ayırt ediliyor…",

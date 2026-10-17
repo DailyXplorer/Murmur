@@ -48,6 +48,11 @@ pub fn init_shortcuts(app: &AppHandle) {
     let failures = tauri_impl::init_shortcuts(app);
     for (id, binding, _) in failures {
         record_registration_error(app, &id, ShortcutRegistrationError::Unavailable);
+        // The meeting shortcut comes with Meetings, on by default: a user who
+        // never asked for it hears about its keys only in its settings field.
+        if id == crate::meetings::BINDING_ID {
+            continue;
+        }
         user_alert::show(
             app,
             Alert::ShortcutUnavailable {
@@ -755,7 +760,7 @@ mod tests {
             assert!(!binding_registers(&settings, BINDING_ID), "{id}");
             assert_eq!(binding_registers(&settings, id), id != "cancel");
             // Spelled differently, the keys are the same.
-            bound(&mut settings, BINDING_ID, "alt+cmd+m");
+            bound(&mut settings, BINDING_ID, "control+alt+cmd+m");
             assert!(meeting_shortcut_yields(&settings), "{id}");
 
             bound(&mut settings, id, "ctrl+shift+f9");

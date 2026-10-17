@@ -157,15 +157,19 @@ pub fn compress(dir: &Path, tracks: MeetingTracks) -> Result<u64> {
         .into_iter()
         .max()
         .unwrap_or(0);
-    let partial = dir.join(format!("{AUDIO_FILE}.part"));
-    encode(&inputs, &partial)?;
-    let actual = duration_ms(&partial)?;
-    if actual.abs_diff(expected) > DURATION_TOLERANCE_MS {
-        let _ = std::fs::remove_file(&partial);
-        bail!("The compressed audio lasts {actual} ms instead of {expected} ms");
-    }
+    let partial = dir.join(paths::partial(AUDIO_FILE));
     let output = dir.join(AUDIO_FILE);
-    std::fs::rename(&partial, &output)?;
+    let written = encode(&inputs, &partial).and_then(|()| {
+        let actual = duration_ms(&partial)?;
+        if actual.abs_diff(expected) > DURATION_TOLERANCE_MS {
+            bail!("The compressed audio lasts {actual} ms instead of {expected} ms");
+        }
+        Ok(std::fs::rename(&partial, &output)?)
+    });
+    if written.is_err() {
+        let _ = std::fs::remove_file(&partial);
+    }
+    written?;
     Ok(std::fs::metadata(output)?.len())
 }
 
@@ -179,13 +183,20 @@ pub fn restore(dir: &Path, tracks: MeetingTracks) -> Result<()> {
     }
     let partials: Vec<PathBuf> = files
         .iter()
-        .map(|file| dir.join(format!("{file}.part")))
+        .map(|file| dir.join(paths::partial(file)))
         .collect();
-    decode(&source, &partials)?;
-    for (partial, file) in partials.iter().zip(&files) {
-        std::fs::rename(partial, dir.join(file))?;
+    let restored = decode(&source, &partials).and_then(|()| {
+        for (partial, file) in partials.iter().zip(&files) {
+            std::fs::rename(partial, dir.join(file))?;
+        }
+        Ok(())
+    });
+    if restored.is_err() {
+        for partial in &partials {
+            let _ = std::fs::remove_file(partial);
+        }
     }
-    Ok(())
+    restored
 }
 
 /// Stage E: compresses the audio of a transcribed meeting once, then
@@ -354,6 +365,24 @@ mod tests {
             assert!(compress(dir.path(), MeetingTracks::Mic).is_err());
             assert!(dir.path().join(MIC_TRACK).exists());
             assert!(!dir.path().join(AUDIO_FILE).exists());
+        }
+
+        #[test]
+        fn a_failed_restore_leaves_no_half_written_track() {
+            let dir = tempfile::tempdir().unwrap();
+            tone(&dir.path().join(SYSTEM_TRACK), 2, 440.0);
+            compress(dir.path(), MeetingTracks::System).unwrap();
+            std::fs::remove_file(dir.path().join(SYSTEM_TRACK)).unwrap();
+            // One channel cannot fill two tracks.
+            assert!(restore(dir.path(), MeetingTracks::Both).is_err());
+            std::fs::write(dir.path().join(AUDIO_FILE), b"not audio").unwrap();
+            assert!(restore(dir.path(), MeetingTracks::System).is_err());
+
+            let left: Vec<_> = std::fs::read_dir(dir.path())
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            assert_eq!(left, [AUDIO_FILE]);
         }
     }
 }

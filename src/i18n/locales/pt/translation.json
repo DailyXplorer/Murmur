@@ -32,7 +32,8 @@
     "meetingStopsSoon": "A reunião para em 5 minutos (limite de 3 horas).",
     "meetingStoppedAtLimit": "A reunião atingiu o limite de 3 horas e foi salva.",
     "meetingWriteFailed": "A reunião parou porque o Murmur não conseguiu gravar no disco. O que foi gravado foi mantido.",
-    "meetingLowDiskSpace": "Há menos de 1,5 GB livres neste Mac. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido."
+    "meetingLowDiskSpace": "Há menos de 1,5 GB livres neste Mac. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido.",
+    "meetingSystemAudioInterrupted": "O áudio do sistema parou após a mudança da saída de som. O Murmur continua tentando recuperá-lo; seu microfone continua sendo gravado."
   },
   "sidebar": {
     "general": "Geral",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Aguardando processamento…",
       "transcribing": "Transcrevendo: {{done}} de {{total}} partes concluídas…",
+      "transcribingStarted": "Transcrevendo…",
       "rateLimited": "O Codex pediu para desacelerar. O processamento continua sozinho…",
       "aligning": "Organizando a conversa…",
       "analyzing": "Distinguindo os participantes…",

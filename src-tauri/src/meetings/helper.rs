@@ -74,13 +74,16 @@ pub async fn run(
     timeout: Duration,
     mut on_message: impl FnMut(Message),
 ) -> std::io::Result<Ended> {
+    // The helper exits when its stdin closes. Murmur never writes to it, and
+    // the system closes it when Murmur quits, even before a kill could run.
     let mut child = Command::new(program)
         .args(args)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()?;
+    let _stdin = child.stdin.take();
     if let Some(stderr) = child.stderr.take() {
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
@@ -181,6 +184,20 @@ echo '{"type":"done"}'"#,
                 words: vec![]
             }
         );
+    }
+
+    #[test]
+    fn the_helper_stdin_stays_open_while_murmur_waits_for_it() {
+        // The helper exits when its stdin closes, which is how it learns
+        // that Murmur quit; while the run lasts, stdin must stay open.
+        let (ended, messages) = run_script(
+            r#"cat > /dev/null
+echo '{"type":"done"}'"#,
+            Duration::from_millis(500),
+            &operation(),
+        );
+        assert_eq!(ended, Ended::TimedOut);
+        assert!(messages.is_empty());
     }
 
     #[test]

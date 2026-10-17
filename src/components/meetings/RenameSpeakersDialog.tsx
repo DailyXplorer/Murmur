@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { commands, type MeetingSpeaker } from "@/bindings";
@@ -31,15 +31,19 @@ export const RenameSpeakersDialog: React.FC<RenameSpeakersDialogProps> = ({
   const { t } = useTranslation();
   const [names, setNames] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
   const focusRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Filled as the dialog opens only: the meeting reloads while it is open
+  // (summary or compression done), and that must not wipe what is typed.
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setNames(
         Object.fromEntries(speakers.map(({ key, name }) => [key, name])),
       );
     }
-  }, [open, speakers]);
+  }
 
   const changed = speakers.filter(
     ({ key, name }) =>

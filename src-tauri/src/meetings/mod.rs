@@ -55,7 +55,8 @@ use summary::CodexSummarizer;
 use transcribe::{CodexTranscriber, RetryPolicy};
 
 pub const BINDING_ID: &str = "meeting_toggle";
-pub const DEFAULT_BINDING: &str = "option+command+m";
+/// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
+pub const DEFAULT_BINDING: &str = "ctrl+option+command+m";
 pub const TRAY_ITEM_ID: &str = "meeting_toggle";
 
 /// Sent whenever a meeting starts or stops.
@@ -311,6 +312,11 @@ impl MeetingsManager {
         let (store, startup) =
             MeetingsStore::open(app_data.join("meetings.db"), chrono::Utc::now());
         info!("Meetings database: {startup:?}");
+        if let crate::managers::history::DatabaseStartup::Reset { moved_to } = &startup {
+            if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
+                error!("Failed to set aside the recordings of the reset library: {error}");
+            }
+        }
         match store.recover_interrupted(&root) {
             Ok(0) => {}
             Ok(count) => info!("Recovered {count} interrupted meeting(s)"),
@@ -333,7 +339,7 @@ impl MeetingsManager {
         Ok(Self {
             app: app.clone(),
             coordinator: Mutex::new(Coordinator::new(
-                DeviceCapture,
+                DeviceCapture(app.clone()),
                 notifier,
                 SystemClock,
                 Arc::clone(&store),
@@ -376,6 +382,12 @@ impl MeetingsManager {
         let id = coordinator
             .start(settings.meeting_capture_mode)
             .map_err(|error| error.to_string())?;
+        // Opening the devices takes a moment. Meetings turned off meanwhile
+        // found nothing recording to stop, and left no way to stop this one.
+        if !get_settings(&self.app).meetings_enabled {
+            let _ = coordinator.discard();
+            return Err("Meetings were turned off while the meeting started".to_string());
+        }
         info!("Meeting {id} started");
         self.spawn_ticker(id);
         // The speaker models download while the meeting records, so they are
@@ -506,16 +518,8 @@ impl MeetingsManager {
         {
             return Err(format!("Meeting {id} is not finished"));
         }
-        let result = paths::remove_meeting_files(
-            &self.root,
-            id,
-            &[
-                paths::AUDIO_FILE,
-                paths::MIC_TRACK,
-                paths::SYSTEM_TRACK,
-                analysis::ANALYSIS_FILE,
-            ],
-        );
+        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES)
+            .and_then(|()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]));
         self.updated(id);
         result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
     }
@@ -702,6 +706,27 @@ mod tests {
     #[test]
     fn default_binding_is_a_valid_shortcut() {
         crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+    }
+
+    #[test]
+    fn default_binding_leaves_standard_macos_shortcuts_alone() {
+        // A global hotkey swallows its keys in every app, so the default must
+        // not be one macOS apps already use: Option+Command+M minimizes all
+        // windows, Command+M minimizes one, Control+Command+Q locks the screen.
+        let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+        for taken in [
+            "command+m",
+            "option+command+m",
+            "ctrl+command+m",
+            "command+h",
+            "option+command+h",
+            "ctrl+command+q",
+            "ctrl+command+f",
+            "ctrl+command+space",
+        ] {
+            let taken = crate::shortcut::tauri_impl::parse_shortcut(taken).unwrap();
+            assert_ne!(default, taken);
+        }
     }
 
     fn operation(id: u64) -> ProcessingOperation {

@@ -32,7 +32,8 @@
     "meetingStopsSoon": "会議はあと5分で停止します（上限3時間）。",
     "meetingStoppedAtLimit": "会議が上限の3時間に達したため保存しました。",
     "meetingWriteFailed": "Murmur がディスクに書き込めなかったため、会議を停止しました。録音済みの内容は保持されます。",
-    "meetingLowDiskSpace": "この Mac の空き容量が 1.5 GB 未満です。長い会議は途中で止まる場合がありますが、録音済みの部分は保存されます。"
+    "meetingLowDiskSpace": "この Mac の空き容量が 1.5 GB 未満です。長い会議は途中で止まる場合がありますが、録音済みの部分は保存されます。",
+    "meetingSystemAudioInterrupted": "サウンド出力が切り替わった後、システムオーディオが止まりました。Murmur は復旧を試み続けています。マイクは引き続き録音されています。"
   },
   "sidebar": {
     "general": "一般",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "処理を待っています…",
       "transcribing": "文字起こし中：{{total}} 件中 {{done}} 件完了…",
+      "transcribingStarted": "文字起こし中…",
       "rateLimited": "Codex から速度を落とすよう求められました。処理は自動で再開されます…",
       "aligning": "会話を時系列に並べています…",
       "analyzing": "話者を区別しています…",

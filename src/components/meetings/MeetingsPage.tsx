@@ -78,19 +78,30 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
   const recording = runtime.state === "recording";
   const now = useNow(recording);
 
+  /** Rows the list shows: a page, plus one per Show More. */
+  const shownRef = useRef(PAGE_SIZE);
+
+  /** Loads the newest `count` meetings, page by page. Every load builds
+   * the whole list, so the latest one can replace whatever came before. */
   const loadMeetings = useCallback(
-    async (cursor: number | null) => {
+    async (count: number) => {
       const request = ++requestRef.current;
+      shownRef.current = count;
       try {
-        const result = await commands.getMeetings(cursor, PAGE_SIZE);
-        if (request !== requestRef.current) return;
-        if (result.status === "error") throw new Error(result.error);
-        setMeetings((current) =>
-          cursor === null
-            ? result.data.meetings
-            : [...current, ...result.data.meetings],
-        );
-        setHasMore(result.data.has_more);
+        const rows: MeetingListItem[] = [];
+        let more = true;
+        while (more && rows.length < count) {
+          const result = await commands.getMeetings(
+            rows[rows.length - 1]?.id ?? null,
+            PAGE_SIZE,
+          );
+          if (request !== requestRef.current) return;
+          if (result.status === "error") throw new Error(result.error);
+          rows.push(...result.data.meetings);
+          more = result.data.has_more && result.data.meetings.length > 0;
+        }
+        setMeetings(rows);
+        setHasMore(more);
       } catch (error) {
         console.error("Failed to load meetings:", error);
         toast.error(t("meetings.loadError"));
@@ -109,13 +120,13 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     void commands.getMeetingCapabilities().then((capabilities) => {
       if (!disposed) setSystemAudio(capabilities.system_audio);
     });
-    void loadMeetings(null);
+    void loadMeetings(PAGE_SIZE);
     const unlisten = events.meetingStateChanged.listen((event) => {
       setRuntime(event.payload);
-      void loadMeetings(null);
+      void loadMeetings(shownRef.current);
     });
     const updated = events.meetingsUpdated.listen(() => {
-      void loadMeetings(null);
+      void loadMeetings(shownRef.current);
     });
     return () => {
       disposed = true;
@@ -149,7 +160,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     } catch (error) {
       console.error("Failed to delete meeting:", error);
       toast.error(t("meetings.deleteError"));
-      void loadMeetings(null);
+      void loadMeetings(shownRef.current);
     }
   };
 
@@ -315,9 +326,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           <div className="flex justify-center px-4 py-2">
             <Button
               variant="secondary"
-              onClick={() =>
-                void loadMeetings(meetings[meetings.length - 1]?.id ?? null)
-              }
+              onClick={() => void loadMeetings(meetings.length + PAGE_SIZE)}
             >
               {t("meetings.list.loadMore")}
             </Button>

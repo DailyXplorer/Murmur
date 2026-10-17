@@ -36,9 +36,12 @@ jobs:
           swift build -c release --arch arm64
           echo "HELPER=$(swift build -c release --arch arm64 --show-bin-path)/murmur-meetings-helper" >> "$GITHUB_ENV"
 
+      # The helper quits when its stdin closes, as when Murmur quits, so
+      # stdin is held open.
       - name: Download the models
+        shell: bash
         run: |
-          "$HELPER" download --models-dir "$RUNNER_TEMP/models" | tail -n 3
+          "$HELPER" download --models-dir "$RUNNER_TEMP/models" < <(sleep 7200) | tail -n 3
 
       - name: Analyse a synthetic dialogue
         working-directory: src-tauri/swift/MurmurMeetingsHelper/smoke
@@ -48,6 +51,6 @@ jobs:
           test "$(wc -l <<<"$voices")" -eq 2
           python3 make_dialogue.py "$RUNNER_TEMP/dialogue.wav" $voices
           "$HELPER" analyze --models-dir "$RUNNER_TEMP/models" \
-            --system "$RUNNER_TEMP/dialogue.wav" --diarize system \
+            --system "$RUNNER_TEMP/dialogue.wav" --diarize system < <(sleep 7200) \
             | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
           python3 check_analysis.py "$RUNNER_TEMP/analysis.jsonl"

@@ -12,6 +12,7 @@ import type {
   MeetingModelsStatus,
   MeetingProgress,
   MeetingRuntime,
+  MeetingStage,
   SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
@@ -22,6 +23,7 @@ declare global {
       unhandledCommands: string[];
       calls: { command: string; args: unknown }[];
       emitProgress: (progress: MeetingProgress) => Promise<void>;
+      emitMeetingsUpdated: (id: number) => Promise<void>;
     };
   }
 }
@@ -40,6 +42,10 @@ const meetingFailed = params.get("meetingFailed") === "1";
 const analysis = params.get("analysis") ?? "available";
 /** `failed` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
+/** The stage saved for the processing meeting; `transcribing` by default. */
+const processingStage = (params.get("stage") ?? "transcribing") as MeetingStage;
+/** Enough older meetings to fill more than one page of the list. */
+const manyMeetings = params.get("manyMeetings") === "1";
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
 const MODELS: Record<string, MeetingModelsStatus> = {
@@ -95,8 +101,8 @@ const SETTINGS: AppSettings = {
       name: "Cancel",
     },
     meeting_toggle: {
-      current_binding: "option+command+m",
-      default_binding: "option+command+m",
+      current_binding: "ctrl+option+command+m",
+      default_binding: "ctrl+option+command+m",
       description: "Starts recording a meeting, or stops the one in progress.",
       id: "meeting_toggle",
       name: "Start or stop a meeting",
@@ -239,6 +245,16 @@ const MEETINGS: MeetingListItem[] = [
     title: null,
     tracks: "both",
   },
+  ...(manyMeetings
+    ? Array.from({ length: 60 }, (_, index) => ({
+        duration_ms: 30 * MINUTE_MS,
+        id: -index - 1,
+        started_at_ms: NOW * 1000 - (100 + index) * HOUR * 1000,
+        status: "ready" as const,
+        title: `Older meeting ${index + 1}`,
+        tracks: "both" as const,
+      }))
+    : []),
 ];
 const MEETING_RUNTIME: MeetingRuntime = meetingRecording
   ? {
@@ -317,7 +333,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
         ]
       : [],
   speaker_analysis: item.id === 3 ? speakerAnalysis : null,
-  stage: item.status === "processing" ? "transcribing" : null,
+  stage: item.status === "processing" ? processingStage : null,
   turns:
     item.id === 3
       ? [
@@ -362,6 +378,20 @@ const handleMeetingCommand = (
 ): { handled: boolean; value?: unknown } => {
   const meeting = DETAILS.get(args.id as number);
   switch (command) {
+    case "get_meetings": {
+      // Pages of at most 50, newest first, after the `cursor` id.
+      const limit = Math.min((args.limit as number | null) ?? 50, 50);
+      const after = MEETINGS.slice(
+        MEETINGS.findIndex(({ id }) => id === args.cursor) + 1,
+      );
+      return {
+        handled: true,
+        value: {
+          has_more: after.length > limit,
+          meetings: after.slice(0, limit),
+        },
+      };
+    }
     case "get_meeting":
       // A copy, as the real IPC returns: React sees each load as new data.
       return { handled: true, value: structuredClone(meeting) };
@@ -414,7 +444,6 @@ const RESPONSES: Record<string, unknown> = {
   delete_meeting_models: null,
   get_meeting_capabilities: { analysis, system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
-  get_meetings: { has_more: false, meetings: MEETINGS },
   open_system_audio_privacy_settings: null,
   start_meeting: null,
   stop_meeting: null,
@@ -449,6 +478,7 @@ window.settingsPages = {
   unhandledCommands: [],
   calls: [],
   emitProgress: (progress) => events.meetingProgress.emit(progress),
+  emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
 };
 
 mockIPC(

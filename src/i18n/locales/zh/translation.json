@@ -32,7 +32,8 @@
     "meetingStopsSoon": "会议将在 5 分钟后停止（上限 3 小时）。",
     "meetingStoppedAtLimit": "会议已达到 3 小时上限并已保存。",
     "meetingWriteFailed": "Murmur 无法写入磁盘，会议已停止。已录制的内容会保留。",
-    "meetingLowDiskSpace": "这台 Mac 的可用空间不足 1.5 GB。较长的会议可能会提前停止，已录制的内容会保留。"
+    "meetingLowDiskSpace": "这台 Mac 的可用空间不足 1.5 GB。较长的会议可能会提前停止，已录制的内容会保留。",
+    "meetingSystemAudioInterrupted": "声音输出切换后，系统音频已停止录制。Murmur 会继续尝试恢复；麦克风仍在录制。"
   },
   "sidebar": {
     "general": "通用",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "等待处理…",
       "transcribing": "正在转录：已完成 {{done}}/{{total}} 个部分…",
+      "transcribingStarted": "正在转写…",
       "rateLimited": "Codex 要求放慢速度。处理会自动继续…",
       "aligning": "正在整理对话顺序…",
       "analyzing": "正在区分发言人…",

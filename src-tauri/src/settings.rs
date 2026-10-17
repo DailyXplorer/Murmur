@@ -1165,7 +1165,7 @@ mod tests {
         assert_eq!(settings.meeting_capture_mode, MeetingCaptureMode::Both);
         assert_eq!(
             settings.bindings["meeting_toggle"].current_binding,
-            "option+command+m"
+            crate::meetings::DEFAULT_BINDING
         );
         assert_eq!(
             serde_json::to_value(MeetingCaptureMode::SystemOnly).unwrap(),
