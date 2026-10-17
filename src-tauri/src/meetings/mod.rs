@@ -377,6 +377,12 @@ impl MeetingsManager {
         let id = coordinator
             .start(settings.meeting_capture_mode)
             .map_err(|error| error.to_string())?;
+        // Opening the devices takes a moment. Meetings turned off meanwhile
+        // found nothing recording to stop, and left no way to stop this one.
+        if !get_settings(&self.app).meetings_enabled {
+            let _ = coordinator.discard();
+            return Err("Meetings were turned off while the meeting started".to_string());
+        }
         info!("Meeting {id} started");
         self.spawn_ticker(id);
         // The speaker models download while the meeting records, so they are
