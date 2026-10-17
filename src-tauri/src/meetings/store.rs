@@ -82,6 +82,8 @@ static MIGRATIONS: &[M] = &[
     M::up("ALTER TABLE meetings ADD COLUMN audio_deleted INTEGER NOT NULL DEFAULT 0;"),
     // System audio held only zeros: the permission is likely off.
     M::up("ALTER TABLE meetings ADD COLUMN system_audio_silent INTEGER NOT NULL DEFAULT 0;"),
+    // Another app played sound while system audio was recorded.
+    M::up("ALTER TABLE meetings ADD COLUMN system_played INTEGER NOT NULL DEFAULT 0;"),
 ];
 
 /// Which tracks a meeting recorded.
@@ -690,6 +692,28 @@ impl MeetingsStore {
             params![id, silent],
         )?;
         Ok(())
+    }
+
+    /// Notes that another app played sound while meeting `id` recorded
+    /// system audio, so system audio of pure zeros means it was withheld.
+    pub fn set_system_played(&self, id: i64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET system_played = 1 WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn system_played(&self, id: i64) -> Result<bool> {
+        Ok(self
+            .connection()?
+            .query_row(
+                "SELECT system_played FROM meetings WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(false))
     }
 
     /// Saves the summary, and the title it gives the meeting unless the

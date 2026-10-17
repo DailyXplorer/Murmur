@@ -20,8 +20,10 @@ use crate::settings::MeetingCaptureMode;
 pub trait Track: Send {
     /// The track can no longer be written.
     fn failed(&self) -> bool;
-    /// Stops the source and pads the file to `duration`.
-    fn finish(self: Box<Self>, duration: Duration) -> Result<(), String>;
+    /// Stops the source and pads the file to `duration`. Returns whether
+    /// another app played sound while it recorded, which only system audio
+    /// can tell.
+    fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String>;
 }
 
 pub trait CaptureBackend: Send {
@@ -240,10 +242,20 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
     pub fn stop(&mut self) -> Result<i64, MeetingError> {
         let active = self.active.take().ok_or(MeetingError::NotRecording)?;
         let duration = self.clock.now().saturating_duration_since(active.origin);
+        let mut played = false;
         for track in active.tracks {
-            if let Err(error) = track.finish(duration) {
-                error!(
+            match track.finish(duration) {
+                Ok(heard) => played |= heard,
+                Err(error) => error!(
                     "Meeting {}: a track did not close cleanly: {error}",
+                    active.id
+                ),
+            }
+        }
+        if played {
+            if let Err(error) = self.store.set_system_played(active.id) {
+                error!(
+                    "Meeting {}: cannot note system playback: {error}",
                     active.id
                 );
             }
@@ -339,16 +351,17 @@ mod tests {
         name: &'static str,
         log: Log,
         failed: Arc<AtomicBool>,
+        played: bool,
     }
 
     impl Track for FakeTrack {
         fn failed(&self) -> bool {
             self.failed.load(Ordering::SeqCst)
         }
-        fn finish(self: Box<Self>, duration: Duration) -> Result<(), String> {
+        fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
             self.log
                 .push(format!("finish {} {}s", self.name, duration.as_secs()));
-            Ok(())
+            Ok(self.played)
         }
     }
 
@@ -359,6 +372,8 @@ mod tests {
         log: Log,
         failed: Arc<AtomicBool>,
         free_bytes: Option<u64>,
+        /// Another app plays sound while system audio records.
+        system_played: bool,
     }
 
     impl FakeBackend {
@@ -371,6 +386,7 @@ mod tests {
                 name,
                 log: self.log.clone(),
                 failed: Arc::clone(&self.failed),
+                played: name == "system" && self.system_played,
             }))
         }
     }
@@ -460,6 +476,7 @@ mod tests {
             log: log.clone(),
             failed: Arc::clone(&failed),
             free_bytes: Some(100_000_000_000),
+            system_played: false,
         };
         Harness {
             coordinator: Coordinator::new(
@@ -522,6 +539,19 @@ mod tests {
             [(MeetingStatus::Processing, MeetingTracks::Both, 90_000)]
         );
         assert!(paths::meeting_dir(&h.root, id).is_dir());
+    }
+
+    #[test]
+    fn a_meeting_remembers_whether_another_app_played_sound() {
+        let mut h = working();
+        let quiet = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        h.coordinator.backend.system_played = true;
+        let played = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+
+        assert!(!h.store.system_played(quiet).unwrap());
+        assert!(h.store.system_played(played).unwrap());
     }
 
     #[test]

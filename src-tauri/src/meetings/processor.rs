@@ -291,7 +291,10 @@ impl Processor {
             self.store.plan_chunks(id, *track, &plan)?;
         }
         if let (Some(mic), Some(system)) = (audio.get(&Track::Mic), audio.get(&Track::System)) {
-            let silent = system_audio_missing(&mic.levels.levels, &system.levels.levels);
+            // Zeros are what a room meeting records too: they point at the
+            // permission only when another app played sound meanwhile.
+            let silent = self.store.system_played(id)?
+                && system_audio_missing(&mic.levels.levels, &system.levels.levels);
             if silent {
                 log::warn!("Meeting {id}: system audio holds only digital silence");
             }
@@ -1016,10 +1019,15 @@ mod tests {
         assert!(!meeting.system_audio_silent);
     }
 
-    #[test]
-    fn system_audio_of_pure_zeros_while_the_user_speaks_is_flagged() {
+    /// The user speaks and system audio is pure zeros; `played` says whether
+    /// another app played sound meanwhile. Returns whether the meeting is
+    /// flagged.
+    fn zeros_from_the_system(played: bool) -> bool {
         let h = harness();
         let id = h.meeting(MeetingTracks::Both, 20);
+        if played {
+            h.store.set_system_played(id).unwrap();
+        }
         let dir = paths::meeting_dir(&h.root, id);
         track(&dir.join(paths::MIC_TRACK), 20, &[(2, 10)]);
         let spec = hound::WavSpec {
@@ -1038,7 +1046,19 @@ mod tests {
 
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.status, MeetingStatus::Ready);
-        assert!(meeting.system_audio_silent);
+        meeting.system_audio_silent
+    }
+
+    #[test]
+    fn system_audio_of_pure_zeros_while_another_app_played_is_flagged() {
+        assert!(zeros_from_the_system(true));
+    }
+
+    /// A meeting in a room, or a call taken on another device: nothing
+    /// played on the Mac, so zeros are what it should record.
+    #[test]
+    fn system_audio_of_pure_zeros_while_nothing_played_is_not_flagged() {
+        assert!(!zeros_from_the_system(false));
     }
 
     #[test]

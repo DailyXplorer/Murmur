@@ -128,8 +128,9 @@ meeting stops by itself after 3 hours, with a warning 5 minutes before.
   which holds the other participants. System audio needs macOS 14.4 or later
   on Apple silicon, and the System Audio Recording permission, which macOS
   asks for at the first meeting. Without it, meetings record the microphone
-  only. When a meeting's system audio holds nothing but silence while you
-  spoke, the meeting says so and links to the privacy settings.
+  only. When another app played sound during a meeting but its system audio
+  holds nothing but silence while you spoke, the meeting says so and links
+  to the privacy settings.
 - After you stop, Codex transcribes the tracks in pieces of up to 10 minutes,
   at most 3 at a time. Processing resumes after a quit, without sending a
   transcribed piece again.

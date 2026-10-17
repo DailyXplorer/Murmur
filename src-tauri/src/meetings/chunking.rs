@@ -59,7 +59,8 @@ pub fn speech_threshold(levels: &[f32]) -> Option<f32> {
 
 /// System audio that is exact digital zero from start to end while the user
 /// spoke: macOS gives a process tap only zeros when Murmur may not record
-/// system audio, and there is no public way to ask beforehand.
+/// system audio, and there is no public way to ask beforehand. Nothing
+/// played on the Mac gives zeros too, which the caller rules out.
 pub fn system_audio_missing(mic: &[f32], system: &[f32]) -> bool {
     let mic_ms = mic.len() as u64 * FRAME_MS;
     !system.is_empty()
