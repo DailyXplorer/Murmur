@@ -97,9 +97,12 @@ const ProcessingBanner: React.FC<{
   progress: MeetingProgress | null;
   /** Absent when the meeting cannot be processed again. */
   onRetry?: () => void;
-}> = ({ meeting, progress, onRetry }) => {
+  /** Sends a held meeting past the hold, its summary too. */
+  onProcessNow: () => void;
+}> = ({ meeting, progress, onRetry, onProcessNow }) => {
   const { t, i18n } = useTranslation();
-  if (meeting.status === "processing" && meeting.held_until_ms !== null) {
+  // A ready meeting is held too while it waits for its summary.
+  if (meeting.held_until_ms !== null) {
     const time = new Intl.DateTimeFormat(i18n.language, {
       hour: "2-digit",
       minute: "2-digit",
@@ -112,11 +115,9 @@ const ProcessingBanner: React.FC<{
         <p className="flex-1 text-sm">
           {t("meetings.processing.held", { time })}
         </p>
-        {onRetry && (
-          <Button variant="secondary" onClick={onRetry}>
-            {t("meetings.processing.processNow")}
-          </Button>
-        )}
+        <Button variant="secondary" onClick={onProcessNow}>
+          {t("meetings.processing.processNow")}
+        </Button>
       </div>
     );
   }
@@ -403,6 +404,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         meeting={meeting}
         progress={progress}
         onRetry={hasAudio ? () => void retry() : undefined}
+        onProcessNow={() => void retry()}
       />
       {hasAudio && (
         <SpeakerNotice

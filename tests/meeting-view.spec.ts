@@ -407,6 +407,19 @@ test("a meeting held by a rate limit says when it resumes and can go now", async
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 4 }]);
 });
 
+test("a ready meeting whose summary is held says when it resumes, not that it writes", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=pending&held=1");
+  const status = page.locator("article [role=status]");
+  await expect(status).toContainText(
+    /Codex is limiting requests\. Processing resumes at \d{1,2}:\d{2}/,
+  );
+  await expect(page.getByText("Writing the summary…")).toHaveCount(0);
+  await status.getByRole("button", { name: "Process Now" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
+});
+
 test("a speaker name being typed survives the meeting reloading", async ({
   page,
 }) => {

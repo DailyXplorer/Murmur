@@ -97,6 +97,15 @@ impl Default for RetryPolicy {
     }
 }
 
+impl RetryPolicy {
+    /// The wait after `earlier` rate limits in a row.
+    pub fn rate_limit_delay(&self, earlier: u32) -> Duration {
+        self.rate_limit_first
+            .saturating_mul(1 << earlier.min(16))
+            .min(self.rate_limit_cap)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Job {
     pub track: Track,
@@ -263,10 +272,7 @@ impl Shared {
                 );
                 match error.kind {
                     FailureKind::RateLimited => {
-                        let delay = policy
-                            .rate_limit_first
-                            .saturating_mul(1 << rate_limits.min(16))
-                            .min(policy.rate_limit_cap);
+                        let delay = policy.rate_limit_delay(rate_limits);
                         if waited + delay > policy.rate_limit_budget {
                             self.rate_limited_out.store(true, Ordering::SeqCst);
                             return Attempt::Outcome(Outcome::Failed(error.kind));

@@ -602,7 +602,7 @@
       "preparing": "Preparando los modelos para este Mac…",
       "ready": "Listos · {{size}}",
       "failed": "La descarga falló.",
-      "os_too_old": "La detección de participantes requiere macOS 14 o posterior. Las reuniones muestran un participante por fuente de audio.",
+      "os_too_old": "La detección de participantes requiere macOS 15 o posterior. Las reuniones muestran un participante por fuente de audio.",
       "unsupported": "La detección de participantes requiere un Mac con chip de Apple. Las reuniones muestran un participante por fuente de audio.",
       "download": "Descargar",
       "retry": "Reintentar",

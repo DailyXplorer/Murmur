@@ -602,7 +602,7 @@
       "preparing": "正在為這台 Mac 準備模型…",
       "ready": "已就緒 · {{size}}",
       "failed": "下載失敗。",
-      "os_too_old": "發言者辨識需要 macOS 14 或以上版本。會議中每個音訊來源會顯示為一位發言者。",
+      "os_too_old": "發言者辨識需要 macOS 15 或以上版本。會議中每個音訊來源會顯示為一位發言者。",
       "unsupported": "發言者辨識需要搭載 Apple 晶片的 Mac。會議中每個音訊來源會顯示為一位發言者。",
       "download": "下載",
       "retry": "重試",

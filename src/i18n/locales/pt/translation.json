@@ -602,7 +602,7 @@
       "preparing": "A preparar os modelos para este Mac…",
       "ready": "Prontos · {{size}}",
       "failed": "A transferência falhou.",
-      "os_too_old": "A deteção de participantes requer o macOS 14 ou posterior. As reuniões mostram um participante por fonte de áudio.",
+      "os_too_old": "A deteção de participantes requer o macOS 15 ou posterior. As reuniões mostram um participante por fonte de áudio.",
       "unsupported": "A deteção de participantes requer um Mac com chip Apple. As reuniões mostram um participante por fonte de áudio.",
       "download": "Transferir",
       "retry": "Tentar novamente",

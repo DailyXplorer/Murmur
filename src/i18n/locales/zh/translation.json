@@ -602,7 +602,7 @@
       "preparing": "正在为这台 Mac 准备模型…",
       "ready": "已就绪 · {{size}}",
       "failed": "下载失败。",
-      "os_too_old": "发言人识别需要 macOS 14 或更高版本。会议中每个音频来源显示为一位发言人。",
+      "os_too_old": "发言人识别需要 macOS 15 或更高版本。会议中每个音频来源显示为一位发言人。",
       "unsupported": "发言人识别需要搭载 Apple 芯片的 Mac。会议中每个音频来源显示为一位发言人。",
       "download": "下载",
       "retry": "重试",

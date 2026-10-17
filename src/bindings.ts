@@ -897,7 +897,8 @@ meetingsUpdated: "meetings-updated"
 export type AccentColor = "pink" | "blue" | "green" | "yellow" | "orange" | "red"
 export type AnalysisSupport = "available" | 
 /**
- * The analysis models need macOS 14 or later.
+ * The analysis needs macOS 15 or later: on macOS 14 FluidAudio's
+ * speaker diarizer crashes on every run.
  */
 "os_too_old" | 
 /**

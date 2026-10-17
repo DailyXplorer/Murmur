@@ -602,7 +602,7 @@
       "preparing": "Preparing the models for this Mac…",
       "ready": "Ready · {{size}}",
       "failed": "The download failed.",
-      "os_too_old": "Speaker detection needs macOS 14 or later. Meetings show one speaker per audio source.",
+      "os_too_old": "Speaker detection needs macOS 15 or later. Meetings show one speaker per audio source.",
       "unsupported": "Speaker detection needs a Mac with Apple silicon. Meetings show one speaker per audio source.",
       "download": "Download",
       "retry": "Retry",

@@ -15,7 +15,7 @@ use super::export::clock;
 use super::merge::PLACEHOLDER;
 use super::rename::MAX_TITLE_CHARS;
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
-use super::transcribe::CodexVerdict;
+use super::transcribe::{CodexVerdict, RetryPolicy};
 use crate::cleanup::responses::{self, CompletionError, Request};
 use crate::codex_auth;
 use crate::transcription_error::FailureKind;
@@ -315,30 +315,61 @@ pub enum SummaryEnd {
     Cancelled,
 }
 
+/// One request, retried like a transcription piece: rate limits back off
+/// within the policy's budget, and network, timeout and server failures
+/// retry a few times. Each attempt has its own deadline.
 async fn ask(
     summarizer: &dyn Summarizer,
+    policy: &RetryPolicy,
     instructions: String,
     input: String,
     operation: &ProcessingOperation,
 ) -> Result<String, SummaryEnd> {
-    match tokio::time::timeout(
-        DEADLINE,
-        summarizer.complete(instructions, input, operation.clone()),
-    )
-    .await
-    {
-        Ok(Ok(output)) => Ok(output),
-        Ok(Err(CompletionError::Cancelled)) => Err(SummaryEnd::Cancelled),
-        Ok(Err(CompletionError::TooLong)) => Err(SummaryEnd::Failed(SummaryError::TooLong)),
-        Ok(Err(CompletionError::Failed { kind, detail })) => {
-            log::warn!("Meeting summary request failed ({kind:?}): {detail}");
-            Err(SummaryEnd::Failed(SummaryError::of(kind)))
+    let mut transient = 0;
+    let mut rate_limits = 0u32;
+    let mut waited = Duration::ZERO;
+    loop {
+        let kind = match tokio::time::timeout(
+            DEADLINE,
+            summarizer.complete(instructions.clone(), input.clone(), operation.clone()),
+        )
+        .await
+        {
+            Ok(Ok(output)) => return Ok(output),
+            Ok(Err(CompletionError::Cancelled)) => return Err(SummaryEnd::Cancelled),
+            Ok(Err(CompletionError::TooLong)) => {
+                return Err(SummaryEnd::Failed(SummaryError::TooLong))
+            }
+            Ok(Err(CompletionError::Failed { kind, detail })) => {
+                log::warn!("Meeting summary request failed ({kind:?}): {detail}");
+                kind
+            }
+            Ok(Err(other)) => {
+                log::warn!("Meeting summary request failed: {other:?}");
+                return Err(SummaryEnd::Failed(SummaryError::Other));
+            }
+            Err(_) => FailureKind::Timeout,
+        };
+        let delay = match kind {
+            FailureKind::RateLimited => {
+                let delay = policy.rate_limit_delay(rate_limits);
+                rate_limits += 1;
+                waited += delay;
+                (waited <= policy.rate_limit_budget).then_some(delay)
+            }
+            FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
+                transient += 1;
+                policy.transient.get(transient - 1).copied()
+            }
+            _ => None,
+        };
+        let Some(delay) = delay else {
+            return Err(SummaryEnd::Failed(SummaryError::of(kind)));
+        };
+        tokio::select! {
+            _ = operation.cancelled() => return Err(SummaryEnd::Cancelled),
+            _ = tokio::time::sleep(delay) => {}
         }
-        Ok(Err(other)) => {
-            log::warn!("Meeting summary request failed: {other:?}");
-            Err(SummaryEnd::Failed(SummaryError::Other))
-        }
-        Err(_) => Err(SummaryEnd::Failed(SummaryError::Timeout)),
     }
 }
 
@@ -346,6 +377,7 @@ async fn ask(
 /// merged when it is longer than `max_chars`.
 pub async fn summarize(
     summarizer: &dyn Summarizer,
+    policy: &RetryPolicy,
     turns: &[MeetingTurn],
     speakers: &[MeetingSpeaker],
     max_chars: usize,
@@ -357,13 +389,13 @@ pub async fn summarize(
     }
     let transcript = lines.join("\n");
     let result = if transcript.chars().count() <= max_chars {
-        ask(summarizer, instructions(), transcript, operation).await
+        ask(summarizer, policy, instructions(), transcript, operation).await
     } else {
         let parts = sections(&lines, max_chars.min(SECTION_CHARS));
         let count = parts.len();
         let mut notes = Vec::with_capacity(count);
         for (index, part) in parts.into_iter().enumerate() {
-            match ask(summarizer, section_instructions(), part, operation).await {
+            match ask(summarizer, policy, section_instructions(), part, operation).await {
                 Ok(output) => notes.push(format!(
                     "Notes of part {} of {count}:\n\n{}",
                     index + 1,
@@ -374,6 +406,7 @@ pub async fn summarize(
         }
         ask(
             summarizer,
+            policy,
             merge_instructions(),
             notes.join("\n\n"),
             operation,
@@ -423,6 +456,7 @@ impl SummaryError {
 pub async fn write(
     store: &MeetingsStore,
     summarizer: &dyn Summarizer,
+    policy: &RetryPolicy,
     id: i64,
     operation: &ProcessingOperation,
 ) -> anyhow::Result<Summarized> {
@@ -435,6 +469,7 @@ pub async fn write(
     let started = std::time::Instant::now();
     match summarize(
         summarizer,
+        policy,
         &meeting.turns,
         &meeting.speakers,
         MAX_SUMMARY_CHARS,
@@ -623,15 +658,124 @@ mod tests {
         }
     }
 
-    fn run(script: &dyn Summarizer, max_chars: usize) -> SummaryEnd {
+    /// Retries at once, three times for a transient failure and three times
+    /// for a rate limit.
+    fn quick_policy() -> RetryPolicy {
+        RetryPolicy {
+            rate_limit_first: Duration::from_millis(1),
+            rate_limit_cap: Duration::from_millis(1),
+            rate_limit_budget: Duration::from_millis(3),
+            transient: vec![Duration::ZERO; 3],
+        }
+    }
+
+    fn no_retries() -> RetryPolicy {
+        RetryPolicy {
+            rate_limit_budget: Duration::ZERO,
+            transient: vec![],
+            ..quick_policy()
+        }
+    }
+
+    fn run_with(script: &dyn Summarizer, policy: &RetryPolicy, max_chars: usize) -> SummaryEnd {
         let (speakers, turns) = meeting();
         tauri::async_runtime::block_on(summarize(
             script,
+            policy,
             &turns,
             &speakers,
             max_chars,
             &ProcessingOperation::new(OperationId(1)),
         ))
+    }
+
+    fn run(script: &dyn Summarizer, max_chars: usize) -> SummaryEnd {
+        run_with(script, &no_retries(), max_chars)
+    }
+
+    fn failed(kind: FailureKind) -> Result<String, CompletionError> {
+        Err(CompletionError::Failed {
+            kind,
+            detail: String::new(),
+        })
+    }
+
+    #[test]
+    fn brief_rate_limits_and_dropped_streams_are_retried() {
+        let script = Script::new(vec![
+            failed(FailureKind::RateLimited),
+            failed(FailureKind::Network),
+            failed(FailureKind::ServerError),
+            failed(FailureKind::Timeout),
+            failed(FailureKind::RateLimited),
+            Ok("# Budget\nContexte.".into()),
+        ]);
+        assert_eq!(
+            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+            SummaryEnd::Written(Summary {
+                title: Some("Budget".into()),
+                body: "Contexte.".into()
+            })
+        );
+        assert_eq!(script.requests.lock().unwrap().len(), 6);
+    }
+
+    #[test]
+    fn a_lasting_rate_limit_fails_the_summary_once_its_budget_is_spent() {
+        let script = Script::new((0..4).map(|_| failed(FailureKind::RateLimited)).collect());
+        assert_eq!(
+            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+            SummaryEnd::Failed(SummaryError::RateLimited)
+        );
+        assert_eq!(script.requests.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn a_lasting_network_failure_fails_the_summary_after_three_retries() {
+        let script = Script::new((0..4).map(|_| failed(FailureKind::Network)).collect());
+        assert_eq!(
+            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+            SummaryEnd::Failed(SummaryError::Network)
+        );
+        assert_eq!(script.requests.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn a_refused_request_is_not_retried() {
+        for kind in [FailureKind::SignedOut, FailureKind::Rejected] {
+            let script = Script::new(vec![failed(kind)]);
+            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS);
+            assert_eq!(script.requests.lock().unwrap().len(), 1, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn cancelling_during_a_retry_wait_cancels_the_summary() {
+        let script = Script::new(vec![failed(FailureKind::RateLimited)]);
+        let operation = ProcessingOperation::new(OperationId(1));
+        let policy = RetryPolicy {
+            rate_limit_first: Duration::from_secs(600),
+            rate_limit_cap: Duration::from_secs(600),
+            rate_limit_budget: Duration::from_secs(3600),
+            transient: vec![],
+        };
+        let (speakers, turns) = meeting();
+        let end = tauri::async_runtime::block_on(async {
+            let summary = summarize(
+                &script,
+                &policy,
+                &turns,
+                &speakers,
+                MAX_SUMMARY_CHARS,
+                &operation,
+            );
+            let cancel = async {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                operation.cancel();
+            };
+            tokio::join!(summary, cancel).0
+        });
+        assert_eq!(end, SummaryEnd::Cancelled);
     }
 
     #[test]
@@ -676,12 +820,6 @@ mod tests {
 
     #[test]
     fn failures_are_told_apart() {
-        let failed = |kind| {
-            Err(CompletionError::Failed {
-                kind,
-                detail: String::new(),
-            })
-        };
         for (answer, end) in [
             (
                 failed(FailureKind::SignedOut),
@@ -715,6 +853,7 @@ mod tests {
         let script = Script::new(vec![]);
         let end = tauri::async_runtime::block_on(summarize(
             &script,
+            &no_retries(),
             &[turn(PLACEHOLDER, 0, "")],
             &[],
             MAX_SUMMARY_CHARS,

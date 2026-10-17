@@ -602,7 +602,7 @@
       "preparing": "Modellen worden voorbereid voor deze Mac…",
       "ready": "Klaar · {{size}}",
       "failed": "Het downloaden is mislukt.",
-      "os_too_old": "Sprekerherkenning vereist macOS 14 of nieuwer. Vergaderingen tonen één spreker per audiobron.",
+      "os_too_old": "Sprekerherkenning vereist macOS 15 of nieuwer. Vergaderingen tonen één spreker per audiobron.",
       "unsupported": "Sprekerherkenning vereist een Mac met Apple-chip. Vergaderingen tonen één spreker per audiobron.",
       "download": "Downloaden",
       "retry": "Opnieuw",

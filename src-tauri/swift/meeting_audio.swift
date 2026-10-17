@@ -27,10 +27,11 @@ public func murmurSystemAudioSupport() -> Int32 {
     return osTooOld
 }
 
-/// The on-device analysis helper (FluidAudio) needs macOS 14.
+/// The on-device analysis helper (FluidAudio) needs macOS 15: on macOS 14 its
+/// speaker diarizer crashes in BNNS on every run (FluidAudio issue #878).
 @_cdecl("murmur_meeting_analysis_support")
 public func murmurMeetingAnalysisSupport() -> Int32 {
-    if #available(macOS 14.0, *) { return ok }
+    if #available(macOS 15.0, *) { return ok }
     return osTooOld
 }
 
