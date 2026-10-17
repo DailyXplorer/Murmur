@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "회의가 3시간 제한에 도달하여 저장되었습니다.",
     "meetingWriteFailed": "Murmur가 디스크에 쓸 수 없어 회의가 중지되었습니다. 녹음된 내용은 보존됩니다.",
     "meetingLowDiskSpace": "이 Mac의 여유 공간이 1.5GB 미만입니다. 긴 회의는 일찍 멈출 수 있지만 녹음된 내용은 보관됩니다.",
-    "meetingSystemAudioInterrupted": "사운드 출력이 바뀐 뒤 시스템 오디오가 멈췄습니다. Murmur가 계속 복구를 시도하며, 마이크는 계속 녹음됩니다."
+    "meetingSystemAudioInterrupted": "사운드 출력이 바뀐 뒤 시스템 오디오가 멈췄습니다. Murmur가 계속 복구를 시도하며, 마이크는 계속 녹음됩니다.",
+    "meetingMicrophoneInterrupted": "마이크 녹음이 멈췄습니다. Murmur가 계속 복구를 시도합니다. 마이크가 연결되어 있는지 확인하세요."
   },
   "sidebar": {
     "general": "일반",

@@ -288,7 +288,8 @@ fn write_silence(wav: &mut Wav, samples: u64) -> Result<u64, String> {
     Ok(samples)
 }
 
-/// Opens the microphone dictation uses and the default output.
+/// Opens the microphone and input channel dictation uses, and the default
+/// output.
 pub struct DeviceCapture(pub tauri::AppHandle);
 
 impl CaptureBackend for DeviceCapture {
@@ -297,12 +298,12 @@ impl CaptureBackend for DeviceCapture {
     }
 
     fn start_mic(&self, dir: &Path, origin: Instant) -> Result<Box<dyn Track>, String> {
-        let device =
-            crate::managers::audio::preferred_microphone(&crate::settings::get_settings(&self.0));
+        let settings = crate::settings::get_settings(&self.0);
         Ok(Box::new(mic::MicCapture::start(
             &dir.join(MIC_TRACK),
             origin,
-            device,
+            crate::managers::audio::preferred_microphone(&settings),
+            settings.selected_channel,
         )?))
     }
 

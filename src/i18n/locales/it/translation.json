@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
     "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
     "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
-    "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato."
+    "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato.",
+    "meetingMicrophoneInterrupted": "Il microfono ha smesso di registrare. Murmur continua a provare a ripristinarlo; verifica che sia ancora collegato."
   },
   "sidebar": {
     "general": "Generale",

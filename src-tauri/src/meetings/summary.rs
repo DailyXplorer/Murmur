@@ -15,6 +15,7 @@ use super::export::clock;
 use super::merge::PLACEHOLDER;
 use super::rename::MAX_TITLE_CHARS;
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
+use super::transcribe::CodexVerdict;
 use crate::cleanup::responses::{self, CompletionError, Request};
 use crate::codex_auth;
 use crate::transcription_error::FailureKind;
@@ -386,20 +387,50 @@ pub async fn summarize(
     }
 }
 
+/// How writing a summary went.
+pub struct Summarized {
+    /// False when cancelled, or when the meeting was transcribed again or
+    /// re-analysed meanwhile.
+    pub settled: bool,
+    pub codex: CodexVerdict,
+}
+
+impl Summarized {
+    fn not_asked() -> Self {
+        Self {
+            settled: true,
+            codex: CodexVerdict::Unknown,
+        }
+    }
+}
+
+impl SummaryError {
+    fn verdict(self) -> CodexVerdict {
+        match self {
+            Self::RateLimited => CodexVerdict::RateLimited,
+            Self::TooLong | Self::Empty => CodexVerdict::Answered,
+            Self::SignedOut
+            | Self::Network
+            | Self::Timeout
+            | Self::NothingToSummarize
+            | Self::Other => CodexVerdict::Unknown,
+        }
+    }
+}
+
 /// Stage D: writes the summary of a transcribed meeting that has none yet,
-/// and names the meeting unless the user did. Returns false when cancelled,
-/// or when the meeting was transcribed again or re-analysed meanwhile.
+/// and names the meeting unless the user did.
 pub async fn write(
     store: &MeetingsStore,
     summarizer: &dyn Summarizer,
     id: i64,
     operation: &ProcessingOperation,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<Summarized> {
     let Some(meeting) = store.get(id)? else {
-        return Ok(true);
+        return Ok(Summarized::not_asked());
     };
     if meeting.summary_status != SummaryStatus::Pending {
-        return Ok(true);
+        return Ok(Summarized::not_asked());
     }
     let started = std::time::Instant::now();
     match summarize(
@@ -417,13 +448,22 @@ pub async fn write(
                 started.elapsed(),
                 summary.body.chars().count()
             );
-            Ok(store.save_summary(id, summary.title.as_deref(), &summary.body)?)
+            Ok(Summarized {
+                settled: store.save_summary(id, summary.title.as_deref(), &summary.body)?,
+                codex: CodexVerdict::Answered,
+            })
         }
         SummaryEnd::Failed(error) => {
             log::warn!("Meeting {id}: no summary ({error:?})");
-            Ok(store.summary_failed(id, error)?)
+            Ok(Summarized {
+                settled: store.summary_failed(id, error)?,
+                codex: error.verdict(),
+            })
         }
-        SummaryEnd::Cancelled => Ok(false),
+        SummaryEnd::Cancelled => Ok(Summarized {
+            settled: false,
+            codex: CodexVerdict::Unknown,
+        }),
     }
 }
 

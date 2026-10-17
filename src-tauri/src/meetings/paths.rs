@@ -84,6 +84,28 @@ pub fn remove_meeting_dir(root: &Path, id: i64) -> io::Result<()> {
     }
 }
 
+/// Gives new meeting `id` an empty folder. SQLite hands out the id of a
+/// deleted newest meeting again, and files still under it (a folder that
+/// failed to delete) belong to no meeting. When they cannot be deleted they
+/// are moved aside to `<id>.stale-<now_ms>`, which no meeting reads, so the
+/// same failure never blocks every later meeting.
+pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBuf> {
+    if let Err(error) = remove_meeting_dir(root, id) {
+        // Inside a linked root, even a rename would act outside the app's data.
+        if fs::symlink_metadata(root)?.file_type().is_symlink() {
+            return Err(error);
+        }
+        log::warn!("Meeting {id}: cannot delete a stale folder, moving it aside: {error}");
+        fs::rename(
+            meeting_dir(root, id),
+            root.join(format!("{id}.stale-{now_ms}")),
+        )?;
+    }
+    let dir = meeting_dir(root, id);
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 /// Deletes the named files of a meeting, those that exist. A symlink is
 /// removed, never its target.
 pub fn remove_meeting_files(root: &Path, id: i64, names: &[&str]) -> io::Result<()> {

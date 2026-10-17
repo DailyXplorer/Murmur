@@ -33,7 +33,8 @@
     "meetingStoppedAtLimit": "会議が上限の3時間に達したため保存しました。",
     "meetingWriteFailed": "Murmur がディスクに書き込めなかったため、会議を停止しました。録音済みの内容は保持されます。",
     "meetingLowDiskSpace": "この Mac の空き容量が 1.5 GB 未満です。長い会議は途中で止まる場合がありますが、録音済みの部分は保存されます。",
-    "meetingSystemAudioInterrupted": "サウンド出力が切り替わった後、システムオーディオが止まりました。Murmur は復旧を試み続けています。マイクは引き続き録音されています。"
+    "meetingSystemAudioInterrupted": "サウンド出力が切り替わった後、システムオーディオが止まりました。Murmur は復旧を試み続けています。マイクは引き続き録音されています。",
+    "meetingMicrophoneInterrupted": "マイクの録音が止まりました。Murmur は復旧を試み続けています。マイクが接続されたままか確認してください。"
   },
   "sidebar": {
     "general": "一般",

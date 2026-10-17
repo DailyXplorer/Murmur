@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use super::cap::{cap_action, CapAction, CAP};
 use super::capture::system::SystemAudioSupport;
+use super::merge::Track as Source;
 use super::paths;
 use super::store::{MeetingTracks, MeetingsStore};
 use crate::settings::MeetingCaptureMode;
@@ -54,6 +55,9 @@ pub enum MeetingAlert {
     /// System audio stopped after the sound output changed; the microphone
     /// keeps recording.
     SystemAudioInterrupted,
+    /// The microphone stopped (unplugged, or a headset dropped out) and could
+    /// not be reopened yet; the other source keeps recording.
+    MicrophoneInterrupted,
     /// The meeting records, but the disk may fill before it ends.
     LowDiskSpace,
 }
@@ -114,11 +118,11 @@ struct Active {
     id: i64,
     started_at_ms: i64,
     origin: Instant,
-    tracks: Vec<Box<dyn Track>>,
+    tracks: Vec<(Source, Box<dyn Track>)>,
     recorded: MeetingTracks,
     warned: bool,
-    /// A source was lost at the last tick, and the user was told.
-    interrupted: bool,
+    /// The sources lost at the last tick, which the user was told about.
+    interrupted: Vec<Source>,
 }
 
 pub struct Coordinator<B, N, C> {
@@ -185,37 +189,39 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             .store
             .insert_recording(started_at_ms, requested)
             .map_err(storage)?;
-        let dir = paths::meeting_dir(&self.root, id);
-        // SQLite hands out the id of a deleted newest meeting again. Files
-        // still under it (a folder that failed to delete) belong to no
-        // meeting, and an old analysis would be taken for this one's.
-        if let Err(error) =
-            paths::remove_meeting_dir(&self.root, id).and_then(|()| std::fs::create_dir_all(&dir))
-        {
-            self.forget(id);
-            return Err(storage(error));
-        }
+        let dir = match paths::fresh_meeting_dir(&self.root, id, started_at_ms) {
+            Ok(dir) => dir,
+            Err(error) => {
+                self.forget(id);
+                return Err(storage(error));
+            }
+        };
 
         let mut tracks = Vec::new();
         let mut reasons = Vec::new();
-        let mut open = |wanted: bool, result: &dyn Fn() -> Result<Box<dyn Track>, String>| {
-            if !wanted {
-                return false;
-            }
-            match result() {
-                Ok(track) => {
-                    tracks.push(track);
-                    true
+        let mut open =
+            |source: Source, wanted: bool, result: &dyn Fn() -> Result<Box<dyn Track>, String>| {
+                if !wanted {
+                    return false;
                 }
-                Err(reason) => {
-                    warn!("Meeting {id}: a source did not start: {reason}");
-                    reasons.push(reason);
-                    false
+                match result() {
+                    Ok(track) => {
+                        tracks.push((source, track));
+                        true
+                    }
+                    Err(reason) => {
+                        warn!("Meeting {id}: a source did not start: {reason}");
+                        reasons.push(reason);
+                        false
+                    }
                 }
-            }
-        };
-        let mic = open(want_mic, &|| self.backend.start_mic(&dir, origin));
-        let system = open(want_system, &|| self.backend.start_system(&dir, origin));
+            };
+        let mic = open(Source::Mic, want_mic, &|| {
+            self.backend.start_mic(&dir, origin)
+        });
+        let system = open(Source::System, want_system, &|| {
+            self.backend.start_system(&dir, origin)
+        });
 
         let Some(recorded) = MeetingTracks::from_parts(mic, system) else {
             self.forget(id);
@@ -238,7 +244,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             tracks,
             recorded,
             warned: false,
-            interrupted: false,
+            interrupted: Vec::new(),
         });
         self.notifier.runtime_changed(&self.runtime());
         if self
@@ -257,7 +263,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let active = self.active.take().ok_or(MeetingError::NotRecording)?;
         let duration = self.clock.now().saturating_duration_since(active.origin);
         let mut played = false;
-        for track in active.tracks {
+        for (_, track) in active.tracks {
             match track.finish(duration) {
                 Ok(heard) => played |= heard,
                 Err(error) => error!(
@@ -288,7 +294,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
     /// Ends the recording and deletes it.
     pub fn discard(&mut self) -> Result<(), MeetingError> {
         let active = self.active.take().ok_or(MeetingError::NotRecording)?;
-        for track in active.tracks {
+        for (_, track) in active.tracks {
             let _ = track.finish(Duration::ZERO);
         }
         self.forget(active.id);
@@ -302,15 +308,26 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let Some(active) = self.active.as_mut().filter(|active| active.id == id) else {
             return false;
         };
-        if active.tracks.iter().any(|track| track.failed()) {
+        if active.tracks.iter().any(|(_, track)| track.failed()) {
             let _ = self.stop();
             self.notifier.alert(MeetingAlert::WriteFailed);
             return false;
         }
-        let interrupted = active.tracks.iter().any(|track| track.interrupted());
-        if interrupted && !active.interrupted {
-            warn!("Meeting {id}: system audio stopped after an output change");
-            self.notifier.alert(MeetingAlert::SystemAudioInterrupted);
+        let interrupted: Vec<Source> = active
+            .tracks
+            .iter()
+            .filter(|(_, track)| track.interrupted())
+            .map(|(source, _)| *source)
+            .collect();
+        for source in interrupted
+            .iter()
+            .filter(|s| !active.interrupted.contains(s))
+        {
+            warn!("Meeting {id}: {source:?} audio stopped arriving");
+            self.notifier.alert(match source {
+                Source::Mic => MeetingAlert::MicrophoneInterrupted,
+                Source::System => MeetingAlert::SystemAudioInterrupted,
+            });
         }
         active.interrupted = interrupted;
         let elapsed = self.clock.now().saturating_duration_since(active.origin);
@@ -380,7 +397,7 @@ mod tests {
             self.failed.load(Ordering::SeqCst)
         }
         fn interrupted(&self) -> bool {
-            self.name == "system" && self.interrupted.load(Ordering::SeqCst)
+            self.interrupted.load(Ordering::SeqCst)
         }
         fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
             self.log
@@ -395,7 +412,8 @@ mod tests {
         system_works: bool,
         log: Log,
         failed: Arc<AtomicBool>,
-        interrupted: Arc<AtomicBool>,
+        mic_interrupted: Arc<AtomicBool>,
+        system_interrupted: Arc<AtomicBool>,
         free_bytes: Option<u64>,
         /// Another app plays sound while system audio records.
         system_played: bool,
@@ -411,7 +429,11 @@ mod tests {
                 name,
                 log: self.log.clone(),
                 failed: Arc::clone(&self.failed),
-                interrupted: Arc::clone(&self.interrupted),
+                interrupted: Arc::clone(if name == "mic" {
+                    &self.mic_interrupted
+                } else {
+                    &self.system_interrupted
+                }),
                 played: name == "system" && self.system_played,
             }))
         }
@@ -479,7 +501,8 @@ mod tests {
         clock: FakeClock,
         log: Log,
         failed: Arc<AtomicBool>,
-        interrupted: Arc<AtomicBool>,
+        mic_interrupted: Arc<AtomicBool>,
+        system_interrupted: Arc<AtomicBool>,
         root: PathBuf,
         _dir: tempfile::TempDir,
     }
@@ -492,7 +515,8 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let log = Log::default();
         let failed = Arc::new(AtomicBool::new(false));
-        let interrupted = Arc::new(AtomicBool::new(false));
+        let mic_interrupted = Arc::new(AtomicBool::new(false));
+        let system_interrupted = Arc::new(AtomicBool::new(false));
         let clock = FakeClock {
             origin: Instant::now(),
             elapsed: Arc::default(),
@@ -503,7 +527,8 @@ mod tests {
             system_works,
             log: log.clone(),
             failed: Arc::clone(&failed),
-            interrupted: Arc::clone(&interrupted),
+            mic_interrupted: Arc::clone(&mic_interrupted),
+            system_interrupted: Arc::clone(&system_interrupted),
             free_bytes: Some(100_000_000_000),
             system_played: false,
         };
@@ -519,7 +544,8 @@ mod tests {
             clock,
             log,
             failed,
-            interrupted,
+            mic_interrupted,
+            system_interrupted,
             root,
             _dir: dir,
         }
@@ -755,16 +781,33 @@ mod tests {
         let mut h = working();
         let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
         h.log.take();
-        h.interrupted.store(true, Ordering::SeqCst);
+        h.system_interrupted.store(true, Ordering::SeqCst);
 
         assert!(h.coordinator.tick(id));
         assert!(h.coordinator.tick(id));
         assert_eq!(h.log.take(), ["alert SystemAudioInterrupted"]);
 
         // Back, then lost again: worth telling again.
-        h.interrupted.store(false, Ordering::SeqCst);
+        h.system_interrupted.store(false, Ordering::SeqCst);
         assert!(h.coordinator.tick(id));
-        h.interrupted.store(true, Ordering::SeqCst);
+        h.system_interrupted.store(true, Ordering::SeqCst);
+        assert!(h.coordinator.tick(id));
+        assert_eq!(h.log.take(), ["alert SystemAudioInterrupted"]);
+    }
+
+    #[test]
+    fn a_lost_microphone_warns_once_and_the_meeting_keeps_recording() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        h.mic_interrupted.store(true, Ordering::SeqCst);
+
+        assert!(h.coordinator.tick(id));
+        assert!(h.coordinator.tick(id));
+        assert_eq!(h.log.take(), ["alert MicrophoneInterrupted"]);
+
+        // System audio dropping as well is news of its own.
+        h.system_interrupted.store(true, Ordering::SeqCst);
         assert!(h.coordinator.tick(id));
         assert_eq!(h.log.take(), ["alert SystemAudioInterrupted"]);
     }
@@ -782,6 +825,25 @@ mod tests {
         assert_eq!(id, 1);
         assert!(paths::meeting_dir(&h.root, id).is_dir());
         assert!(!stale.join("analysis.json").exists());
+    }
+
+    #[test]
+    fn a_stale_folder_that_cannot_be_deleted_never_blocks_a_new_meeting() {
+        let mut h = working();
+        // Under the id the next meeting gets, an entry the safe delete
+        // refuses to remove.
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("keep.txt"), "keep").unwrap();
+        std::os::unix::fs::symlink(outside.path(), paths::meeting_dir(&h.root, 1)).unwrap();
+
+        for _ in 0..2 {
+            let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+            assert_eq!(id, 1);
+            let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
+            assert!(dir.is_dir() && !dir.file_type().is_symlink());
+            h.coordinator.discard().unwrap();
+        }
+        assert!(outside.path().join("keep.txt").exists());
     }
 
     #[test]

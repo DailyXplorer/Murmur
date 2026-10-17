@@ -28,7 +28,7 @@ pub mod track_audio;
 pub mod transcribe;
 pub mod wav_recovery;
 
-use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -52,7 +52,7 @@ use models::{MeetingModelsStatus, Models};
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
-use transcribe::{CodexTranscriber, RetryPolicy};
+use transcribe::{CodexTranscriber, CodexVerdict, RetryPolicy};
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
@@ -85,32 +85,62 @@ pub struct MeetingCapabilities {
 }
 
 /// Recorded meetings wait here and are processed one at a time, in order.
+/// After a rate-limited meeting the queue holds: only meetings the user
+/// asked for go through, ahead of the others.
 struct ProcessingQueue {
-    sender: tokio::sync::mpsc::UnboundedSender<i64>,
     state: Mutex<QueueState>,
+    changed: tokio::sync::Notify,
 }
 
 struct QueueState {
-    queued: HashSet<i64>,
+    queued: VecDeque<Queued>,
     current: Option<(i64, ProcessingOperation)>,
     paused: bool,
+    /// A rate-limit hold: until then, only `asked` meetings go through.
+    held_until: Option<tokio::time::Instant>,
+    rate_limit: RateLimitHold,
+}
+
+struct Queued {
+    id: i64,
+    /// Queued at the user's request (Retry, Transcribe again...), which a
+    /// rate-limit hold lets through: pressing it is how the user says Codex
+    /// may have freed up.
+    asked: bool,
+}
+
+impl QueueState {
+    /// The meeting to process now or, when none may go, the end of the hold
+    /// (`None`: nothing to wait for but a new meeting).
+    fn take_next(
+        &mut self,
+        now: tokio::time::Instant,
+    ) -> Result<i64, Option<tokio::time::Instant>> {
+        self.held_until = self.held_until.filter(|until| now < *until);
+        let index = match self.held_until {
+            Some(_) => self.queued.iter().position(|queued| queued.asked),
+            None => (!self.queued.is_empty()).then_some(0),
+        };
+        match index.and_then(|index| self.queued.remove(index)) {
+            Some(queued) => Ok(queued.id),
+            None => Err(self.held_until),
+        }
+    }
 }
 
 impl ProcessingQueue {
-    fn new(paused: bool) -> (Self, tokio::sync::mpsc::UnboundedReceiver<i64>) {
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+    fn new(paused: bool) -> Self {
         let state = QueueState {
-            queued: HashSet::new(),
+            queued: VecDeque::new(),
             current: None,
             paused,
+            held_until: None,
+            rate_limit: RateLimitHold::default(),
         };
-        (
-            Self {
-                sender,
-                state: Mutex::new(state),
-            },
-            receiver,
-        )
+        Self {
+            state: Mutex::new(state),
+            changed: tokio::sync::Notify::new(),
+        }
     }
 
     fn state(&self) -> std::sync::MutexGuard<'_, QueueState> {
@@ -120,9 +150,71 @@ impl ProcessingQueue {
     }
 
     fn enqueue(&self, id: i64) {
-        let added = self.state().queued.insert(id);
-        if added && self.sender.send(id).is_err() {
-            error!("Meeting {id}: the processing queue is closed");
+        self.push(id, false);
+    }
+
+    /// Queues a meeting the user just asked for, which a rate-limit hold
+    /// does not keep waiting. Already queued, it keeps its place in line
+    /// and goes through the hold.
+    fn enqueue_asked(&self, id: i64) {
+        self.push(id, true);
+    }
+
+    fn push(&self, id: i64, asked: bool) {
+        {
+            let mut state = self.state();
+            match state.queued.iter_mut().find(|queued| queued.id == id) {
+                Some(queued) => queued.asked |= asked,
+                None => state.queued.push_back(Queued { id, asked }),
+            }
+        }
+        // `notify_one` keeps a permit, so a worker between its check and its
+        // wait still wakes; a stale permit only costs it one more check.
+        self.changed.notify_one();
+    }
+
+    /// Waits for the next meeting to process, past any rate-limit hold.
+    async fn next(&self) -> i64 {
+        loop {
+            let changed = self.changed.notified();
+            let held_until = match self.state().take_next(tokio::time::Instant::now()) {
+                Ok(id) => return id,
+                Err(held_until) => held_until,
+            };
+            match held_until {
+                Some(until) => tokio::select! {
+                    () = tokio::time::sleep_until(until) => {}
+                    () = changed => {}
+                },
+                None => changed.await,
+            }
+        }
+    }
+
+    /// Holds the meetings not asked for during `wait`.
+    #[cfg(test)]
+    fn hold(&self, wait: Duration) {
+        self.state().held_until = Some(tokio::time::Instant::now() + wait);
+    }
+
+    /// Holds or frees the queue from what Codex said while a meeting was
+    /// processed, and returns the wait it starts. Only an answer lifts a hold: a
+    /// pass that asked Codex nothing, such as re-analysing, says nothing
+    /// about its cap.
+    fn codex_said(&self, verdict: CodexVerdict) -> Option<Duration> {
+        let mut state = self.state();
+        match verdict {
+            CodexVerdict::RateLimited => {
+                let wait = state.rate_limit.rate_limited();
+                state.held_until = Some(tokio::time::Instant::now() + wait);
+                Some(wait)
+            }
+            CodexVerdict::Answered => {
+                state.rate_limit.reset();
+                state.held_until = None;
+                None
+            }
+            CodexVerdict::Unknown => None,
         }
     }
 
@@ -132,7 +224,6 @@ impl ProcessingQueue {
     /// or cancelled there, never sent after a pause.
     fn begin(&self, id: i64, operation: &ProcessingOperation) -> bool {
         let mut state = self.state();
-        state.queued.remove(&id);
         if state.paused {
             return false;
         }
@@ -169,6 +260,35 @@ impl ProcessingQueue {
     }
 }
 
+/// How long the queue waits after Codex rate limits a meeting's transcript
+/// or summary, before the next one: Codex would refuse it too, and each
+/// meeting would spend its half hour of retries and fail. The ChatGPT usage
+/// cap frees up over a sliding five-hour window, so each refusal in a row,
+/// with no answer between, doubles the wait.
+#[derive(Default)]
+struct RateLimitHold {
+    in_a_row: u32,
+}
+
+impl RateLimitHold {
+    const FIRST: Duration = Duration::from_secs(30 * 60);
+    const CAP: Duration = Duration::from_secs(4 * 3600);
+
+    /// The wait after one more refusal.
+    fn rate_limited(&mut self) -> Duration {
+        let wait = Self::FIRST
+            .saturating_mul(1 << self.in_a_row.min(8))
+            .min(Self::CAP);
+        self.in_a_row += 1;
+        wait
+    }
+
+    /// Codex answered: the cap has freed up.
+    fn reset(&mut self) {
+        self.in_a_row = 0;
+    }
+}
+
 struct AppEvents(AppHandle);
 
 impl ProcessEvents for AppEvents {
@@ -192,13 +312,13 @@ fn spawn_processing(
     root: PathBuf,
     models: Arc<Models>,
 ) -> Arc<ProcessingQueue> {
-    let (queue, mut receiver) = ProcessingQueue::new(!get_settings(app).meetings_enabled);
-    let queue = Arc::new(queue);
+    let queue = Arc::new(ProcessingQueue::new(!get_settings(app).meetings_enabled));
     let worker = Arc::clone(&queue);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut operations = 0;
-        while let Some(id) = receiver.recv().await {
+        loop {
+            let id = worker.next().await;
             operations += 1;
             let operation = ProcessingOperation::new(OperationId(operations));
             if !worker.begin(id, &operation) {
@@ -225,14 +345,23 @@ fn spawn_processing(
                 events: Arc::new(AppEvents(app.clone())),
             };
             info!("Meeting {id}: processing");
-            if let Err(error) = processor.process(id, operation).await {
-                error!("Meeting {id}: processing failed: {error}");
-                if let Err(error) = store.finish_processing(id, Some(ProcessingError::Other)) {
-                    error!("Meeting {id}: cannot record the failure: {error}");
+            let codex = match processor.process(id, operation).await {
+                Ok(codex) => codex,
+                Err(error) => {
+                    error!("Meeting {id}: processing failed: {error}");
+                    if let Err(error) = store.finish_processing(id, Some(ProcessingError::Other)) {
+                        error!("Meeting {id}: cannot record the failure: {error}");
+                    }
+                    AppEvents(app.clone()).updated(id);
+                    CodexVerdict::Unknown
                 }
-                AppEvents(app.clone()).updated(id);
-            }
+            };
             worker.end();
+            // While held, the meetings still queued wait as they are,
+            // unfailed.
+            if let Some(wait) = worker.codex_said(codex) {
+                info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+            }
         }
     });
     queue
@@ -468,7 +597,7 @@ impl MeetingsManager {
     /// Processes an interrupted meeting, or the parts of a failed one that
     /// are missing.
     pub fn retry(&self, id: i64) {
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
     }
 
     /// Tells the speakers of a finished meeting apart again, with the models
@@ -490,7 +619,7 @@ impl MeetingsManager {
             Err(error) => error!("Meeting {id}: cannot reset the analysis: {error}"),
         }
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -504,7 +633,7 @@ impl MeetingsManager {
             return Err(format!("Meeting {id} has no failed summary"));
         }
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -537,7 +666,7 @@ impl MeetingsManager {
         // A summary still being written is of the transcript that goes.
         self.queue.cancel(id);
         self.updated(id);
-        self.queue.enqueue(id);
+        self.queue.enqueue_asked(id);
         Ok(())
     }
 
@@ -733,21 +862,47 @@ mod tests {
         ProcessingOperation::new(OperationId(id))
     }
 
+    /// The meeting the worker would take next, or `None` when it is still
+    /// waiting after `within`.
+    fn next_within(queue: &ProcessingQueue, within: Duration) -> Option<i64> {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap()
+            .block_on(async { tokio::time::timeout(within, queue.next()).await })
+            .ok()
+    }
+
+    const NOW: Duration = Duration::from_secs(5);
+    const A_MOMENT: Duration = Duration::from_millis(50);
+    const AN_HOUR: Duration = Duration::from_secs(3600);
+
+    #[test]
+    fn meetings_are_processed_in_the_order_they_were_queued() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(2);
+        queue.enqueue(1);
+        queue.enqueue(2);
+        assert_eq!(next_within(&queue, NOW), Some(2));
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        assert_eq!(next_within(&queue, A_MOMENT), None, "queued once");
+    }
+
     #[test]
     fn a_meeting_stopped_as_meetings_turn_off_is_not_processed() {
         // Turning meetings off stops the recording, which queues the meeting,
         // then pauses the queue before the worker picks the meeting up.
-        let (queue, _receiver) = ProcessingQueue::new(false);
+        let queue = ProcessingQueue::new(false);
         queue.enqueue(1);
         queue.pause();
+        assert_eq!(next_within(&queue, NOW), Some(1));
         assert!(!queue.begin(1, &operation(1)));
     }
 
     #[test]
     fn pausing_cancels_the_meeting_in_progress() {
-        let (queue, _receiver) = ProcessingQueue::new(false);
+        let queue = ProcessingQueue::new(false);
         let processing = operation(1);
-        queue.enqueue(1);
         assert!(queue.begin(1, &processing));
         queue.pause();
         assert!(processing.is_cancelled());
@@ -755,17 +910,138 @@ mod tests {
 
     #[test]
     fn a_held_meeting_is_processed_after_resuming() {
-        let (queue, _receiver) = ProcessingQueue::new(true);
+        let queue = ProcessingQueue::new(true);
         queue.enqueue(1);
+        assert_eq!(next_within(&queue, NOW), Some(1));
         assert!(!queue.begin(1, &operation(1)));
         queue.resume();
         queue.enqueue(1);
+        assert_eq!(next_within(&queue, NOW), Some(1));
         assert!(queue.begin(1, &operation(2)));
     }
 
     #[test]
+    fn the_queue_waits_longer_after_each_rate_limited_meeting_in_a_row() {
+        let mut hold = RateLimitHold::default();
+        let mut minutes = || hold.rate_limited().as_secs() / 60;
+        assert_eq!(minutes(), 30);
+        assert_eq!(minutes(), 60);
+        assert_eq!(minutes(), 120);
+        assert_eq!(minutes(), 240);
+        assert_eq!(minutes(), 240, "capped");
+        // A meeting that got through: the cap has freed up.
+        hold.reset();
+        assert_eq!(hold.rate_limited().as_secs() / 60, 30);
+    }
+
+    #[test]
+    fn the_rate_limit_hold_keeps_meetings_queued_on_their_own_waiting() {
+        let queue = ProcessingQueue::new(false);
+        queue.hold(AN_HOUR);
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    #[test]
+    fn a_meeting_queued_on_its_own_goes_once_the_hold_is_over() {
+        let queue = ProcessingQueue::new(false);
+        queue.hold(A_MOMENT);
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+    }
+
+    #[test]
+    fn a_meeting_the_user_asked_for_during_the_hold_goes_through_it() {
+        let queue = Arc::new(ProcessingQueue::new(false));
+        queue.hold(AN_HOUR);
+        let asking = Arc::clone(&queue);
+        let ask = std::thread::spawn(move || {
+            std::thread::sleep(A_MOMENT);
+            asking.enqueue_asked(1);
+        });
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        ask.join().unwrap();
+    }
+
+    #[test]
+    fn retry_during_the_hold_runs_only_that_meeting_ahead_of_the_waiting_ones() {
+        // A was recorded during the hold; then the user retries R.
+        let (a, r) = (1, 2);
+        let queue = ProcessingQueue::new(false);
+        queue.hold(AN_HOUR);
+        queue.enqueue(a);
+        queue.enqueue_asked(r);
+        assert_eq!(next_within(&queue, NOW), Some(r));
+        assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
+        // R got through: Codex freed up.
+        queue.codex_said(CodexVerdict::Answered);
+        assert_eq!(next_within(&queue, NOW), Some(a));
+    }
+
+    fn held_minutes(queue: &ProcessingQueue) -> Option<u64> {
+        let until = queue.state().held_until?;
+        let left = until.saturating_duration_since(tokio::time::Instant::now());
+        Some((left.as_secs() + 30) / 60)
+    }
+
+    #[test]
+    fn a_pass_codex_never_answered_keeps_the_hold() {
+        // R hit the limit and A waits; then a summary retry of M goes
+        // through the hold, and Codex transcribes nothing for it.
+        let (a, m) = (1, 3);
+        let queue = ProcessingQueue::new(false);
+        assert_eq!(
+            queue.codex_said(CodexVerdict::RateLimited),
+            Some(Duration::from_secs(30 * 60))
+        );
+        queue.enqueue(a);
+        queue.enqueue_asked(m);
+        assert_eq!(next_within(&queue, NOW), Some(m));
+        assert_eq!(queue.codex_said(CodexVerdict::Unknown), None);
+        assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
+        assert_eq!(held_minutes(&queue), Some(30));
+        // The next refusal is still one more in a row.
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert_eq!(held_minutes(&queue), Some(60));
+    }
+
+    #[test]
+    fn codex_answering_lifts_the_hold_and_restarts_the_wait() {
+        let queue = ProcessingQueue::new(false);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.enqueue(1);
+        queue.codex_said(CodexVerdict::Answered);
+        assert_eq!(held_minutes(&queue), None);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert_eq!(held_minutes(&queue), Some(30));
+    }
+
+    #[test]
+    fn retrying_a_waiting_meeting_lets_it_through_the_hold() {
+        let queue = ProcessingQueue::new(false);
+        queue.hold(AN_HOUR);
+        queue.enqueue(1);
+        queue.enqueue(2);
+        queue.enqueue_asked(2);
+        assert_eq!(next_within(&queue, NOW), Some(2));
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    #[test]
+    fn a_meeting_asked_for_once_is_held_when_queued_again_on_its_own() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue_asked(1);
+        queue.hold(AN_HOUR);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    #[test]
     fn cancelling_one_meeting_leaves_another_running() {
-        let (queue, _receiver) = ProcessingQueue::new(false);
+        let queue = ProcessingQueue::new(false);
         let processing = operation(1);
         queue.enqueue(1);
         assert!(queue.begin(1, &processing));

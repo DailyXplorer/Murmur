@@ -136,6 +136,18 @@ pub enum RunEnd {
     Cancelled,
 }
 
+/// What Codex said while a meeting was processed, which tells the queue
+/// whether its usage cap has freed up. Later variants win over earlier ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CodexVerdict {
+    /// Codex was not asked, or failed some other way: nothing learned.
+    Unknown,
+    /// Codex answered at least once.
+    Answered,
+    /// Codex refused with a rate limit.
+    RateLimited,
+}
+
 pub struct Runner {
     pub transcriber: Arc<dyn Transcriber>,
     pub source: Arc<dyn ChunkSource>,

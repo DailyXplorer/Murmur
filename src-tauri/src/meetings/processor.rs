@@ -44,7 +44,7 @@ use super::summary::{self, Summarizer};
 use super::tokens::{sentences, tokenize};
 use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
-    ChunkSource, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
+    ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
 };
 use crate::transcription_error::FailureKind;
 use crate::ProcessingOperation;
@@ -125,9 +125,19 @@ struct Saver {
     done: AtomicU32,
     total: u32,
     rate_limited: AtomicBool,
+    /// Codex transcribed at least one piece in this run.
+    answered: AtomicBool,
 }
 
 impl Saver {
+    fn verdict(&self) -> CodexVerdict {
+        if self.answered.load(Ordering::SeqCst) {
+            CodexVerdict::Answered
+        } else {
+            CodexVerdict::Unknown
+        }
+    }
+
     fn report(&self, rate_limited: bool) {
         self.events.progress(MeetingProgress {
             id: self.id,
@@ -144,6 +154,7 @@ impl RunObserver for Saver {
         let saved = match outcome {
             Outcome::Done(text) => {
                 self.done.fetch_add(1, Ordering::SeqCst);
+                self.answered.store(true, Ordering::SeqCst);
                 self.store.chunk_done(self.id, job.track, job.idx, text)
             }
             Outcome::Failed(kind) => {
@@ -168,20 +179,24 @@ impl RunObserver for Saver {
     }
 }
 
-/// Reads the levels of the recorded tracks, first bringing them back from
-/// the compressed audio when they were deleted after an earlier run.
-fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
-    if let Err(error) = archive::restore(dir, recorded) {
-        log::warn!("Cannot restore the meeting tracks: {error}");
-    }
-    let tracks: Vec<Track> = [
+fn recorded_tracks(recorded: MeetingTracks) -> Vec<Track> {
+    [
         (recorded.has_mic(), Track::Mic),
         (recorded.has_system(), Track::System),
     ]
     .into_iter()
     .filter_map(|(recorded, track)| recorded.then_some(track))
-    .collect();
-    tracks
+    .collect()
+}
+
+/// Reads the levels of the recorded tracks, first bringing them back from
+/// the compressed audio when they were deleted after an earlier run. A track
+/// that cannot be read is left out.
+fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
+    if let Err(error) = archive::restore(dir, recorded) {
+        log::warn!("Cannot restore the meeting tracks: {error}");
+    }
+    recorded_tracks(recorded)
         .iter()
         .filter_map(|track| {
             let path = dir.join(track_file(*track));
@@ -207,22 +222,27 @@ impl Processor {
     /// Processes meeting `id` as far as it can: its transcript, then once
     /// that is complete its summary and compressed audio. Each step is
     /// skipped when already done, so this does nothing for a meeting that is
-    /// gone, still recording or done.
-    pub async fn process(&self, id: i64, operation: ProcessingOperation) -> anyhow::Result<()> {
+    /// gone, still recording or done. Returns what Codex said meanwhile.
+    pub async fn process(
+        &self,
+        id: i64,
+        operation: ProcessingOperation,
+    ) -> anyhow::Result<CodexVerdict> {
         let Some(meeting) = self.store.get(id)? else {
-            return Ok(());
+            return Ok(CodexVerdict::Unknown);
         };
         let started = Instant::now();
         let mut stages = Vec::new();
+        let mut codex = CodexVerdict::Unknown;
         if meeting.status != MeetingStatus::Ready {
-            stages = self.transcribe(id, operation.clone()).await?;
+            (stages, codex) = self.transcribe(id, operation.clone()).await?;
         }
         let ready = self
             .store
             .get(id)?
             .is_some_and(|meeting| meeting.status == MeetingStatus::Ready);
         if ready && !operation.is_cancelled() {
-            self.finish(id, &operation, &mut stages).await?;
+            codex = codex.max(self.finish(id, &operation, &mut stages).await?);
         }
         if !stages.is_empty() {
             let line = timings_line(
@@ -232,7 +252,7 @@ impl Processor {
             );
             log::info!("Meeting {id} timings: {line}");
         }
-        Ok(())
+        Ok(codex)
     }
 
     /// The summary, then the compressed audio.
@@ -241,13 +261,14 @@ impl Processor {
         id: i64,
         operation: &ProcessingOperation,
         stages: &mut Vec<(&'static str, Duration)>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<CodexVerdict> {
         let started = Instant::now();
-        let written = summary::write(&self.store, self.summarizer.as_ref(), id, operation).await?;
+        let summarized =
+            summary::write(&self.store, self.summarizer.as_ref(), id, operation).await?;
         stages.push(("summary", started.elapsed()));
         self.events.updated(id);
-        if !written {
-            return Ok(());
+        if !summarized.settled {
+            return Ok(summarized.codex);
         }
         let started = Instant::now();
         let (store, root) = (Arc::clone(&self.store), self.root.clone());
@@ -258,22 +279,22 @@ impl Processor {
             Ok(()) => self.events.updated(id),
             Err(error) => log::warn!("Meeting {id}: audio kept uncompressed: {error}"),
         }
-        Ok(())
+        Ok(summarized.codex)
     }
 
-    /// The transcript, from the parts Codex has not transcribed yet, and how
-    /// long each stage took.
+    /// The transcript, from the parts Codex has not transcribed yet, how
+    /// long each stage took and what Codex said.
     async fn transcribe(
         &self,
         id: i64,
         operation: ProcessingOperation,
-    ) -> anyhow::Result<Vec<(&'static str, Duration)>> {
+    ) -> anyhow::Result<(Vec<(&'static str, Duration)>, CodexVerdict)> {
         if !self.store.begin_processing(id)? {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), CodexVerdict::Unknown));
         }
         self.events.updated(id);
         let Some(meeting) = self.store.get(id)? else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), CodexVerdict::Unknown));
         };
         let recorded = meeting.tracks;
         let dir = paths::meeting_dir(&self.root, id);
@@ -284,7 +305,7 @@ impl Processor {
             self.store
                 .finish_processing(id, Some(ProcessingError::NoAudio))?;
             self.events.updated(id);
-            return Ok(stages);
+            return Ok((stages, CodexVerdict::Unknown));
         }
         for (track, audio) in &audio {
             let plan = plan_chunks(&audio.levels.levels, audio.levels.duration_ms);
@@ -328,6 +349,7 @@ impl Processor {
                 .filter(|chunk| chunk.status != ChunkStatus::Silent)
                 .count() as u32,
             rate_limited: AtomicBool::new(false),
+            answered: AtomicBool::new(false),
         });
         saver.report(false);
         let source = Arc::new(TrackFiles(audio));
@@ -367,7 +389,7 @@ impl Processor {
         stages.push(("transcription", transcribed_in));
         stages.push(("analysis", analyzed_in));
         let (Some((analysis, outcome)), false) = (analysis, end == RunEnd::Cancelled) else {
-            return Ok(stages);
+            return Ok((stages, saver.verdict()));
         };
 
         self.report_stage(id, MeetingStage::Aligning, &saver);
@@ -384,8 +406,15 @@ impl Processor {
         )?;
         stages.push(("aligning", started.elapsed()));
 
+        // A recorded track that could not be read leaves one side of the
+        // conversation out: never a Ready meeting, nor a summary of half of it.
+        let unreadable = recorded_tracks(recorded)
+            .iter()
+            .any(|track| !source.0.contains_key(track));
         let error = if end == RunEnd::SignedOut {
             Some(ProcessingError::SignedOut)
+        } else if unreadable {
+            Some(ProcessingError::NoAudio)
         } else if !built.missing {
             None
         } else if saver.rate_limited.load(Ordering::SeqCst) {
@@ -400,7 +429,12 @@ impl Processor {
             built.turns.len(),
             built.score
         );
-        Ok(stages)
+        let codex = if error == Some(ProcessingError::RateLimited) {
+            CodexVerdict::RateLimited
+        } else {
+            saver.verdict()
+        };
+        Ok((stages, codex))
     }
 
     fn report_stage(&self, id: i64, stage: MeetingStage, saver: &Saver) {
@@ -844,8 +878,13 @@ mod tests {
             self.process_with(id, codex, Arc::new(FakeAnalyzer::without_models()));
         }
 
-        fn process_with(&self, id: i64, codex: Arc<FakeCodex>, analyzer: Arc<FakeAnalyzer>) {
-            self.process_all(id, codex, analyzer, FakeSummarizer::answering(vec![]));
+        fn process_with(
+            &self,
+            id: i64,
+            codex: Arc<FakeCodex>,
+            analyzer: Arc<FakeAnalyzer>,
+        ) -> CodexVerdict {
+            self.process_all(id, codex, analyzer, FakeSummarizer::answering(vec![]))
         }
 
         fn process_all(
@@ -854,7 +893,7 @@ mod tests {
             codex: Arc<FakeCodex>,
             analyzer: Arc<FakeAnalyzer>,
             summarizer: Arc<FakeSummarizer>,
-        ) {
+        ) -> CodexVerdict {
             let processor = Processor {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
@@ -873,7 +912,7 @@ mod tests {
             tauri::async_runtime::block_on(
                 processor.process(id, ProcessingOperation::new(OperationId(id as u64))),
             )
-            .unwrap();
+            .unwrap()
         }
     }
 
@@ -1111,6 +1150,31 @@ mod tests {
         assert!(codex.calls.lock().unwrap().is_empty());
     }
 
+    #[test]
+    fn a_recorded_track_that_cannot_be_read_fails_the_meeting_and_keeps_the_other() {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 20);
+        // System audio was recorded, but its file is gone.
+        track(
+            &paths::meeting_dir(&h.root, id).join(paths::MIC_TRACK),
+            20,
+            &[(2, 10)],
+        );
+        let summarizer = FakeSummarizer::answering(vec![]);
+        h.process_all(
+            id,
+            codex(|_| Ok("Seul.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        assert_eq!(summarizer.calls(), 0, "no summary from half a meeting");
+        assert_eq!(turns(&meeting), [("me", "Seul.")]);
+    }
+
     /// A fictional dialogue between two `say` voices; `fixtures/dialogue_fr.jsonl`
     /// is what the helper printed for it. The second voice is poorly heard
     /// on device, so many of its words are not anchors.
@@ -1186,7 +1250,9 @@ mod tests {
         assert!(h.store.reopen(id).unwrap());
         let again = Arc::new(FakeAnalyzer::without_models());
         let silent = codex(|_| Ok("never".to_string()));
-        h.process_with(id, Arc::clone(&silent), Arc::clone(&again));
+        let verdict = h.process_with(id, Arc::clone(&silent), Arc::clone(&again));
+        // Codex was not asked, so this pass says nothing about its limit.
+        assert_eq!(verdict, CodexVerdict::Unknown);
         assert_eq!(again.calls.load(Ordering::SeqCst), 0);
         assert!(silent.calls.lock().unwrap().is_empty());
         assert_eq!(turns(&h.store.get(id).unwrap().unwrap()).len(), 8);
@@ -1423,6 +1489,71 @@ mod tests {
         assert_eq!(meeting.summary.as_deref(), Some("Notes."));
         // The user's title stays.
         assert_eq!(meeting.title.as_deref(), Some("Mon titre"));
+    }
+
+    fn rate_limited_summary() -> Result<String, CompletionError> {
+        Err(CompletionError::Failed {
+            kind: FailureKind::RateLimited,
+            detail: String::new(),
+        })
+    }
+
+    #[test]
+    fn a_meeting_codex_transcribes_says_codex_answered() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            FakeSummarizer::answering(vec![Ok("Notes.".into())]),
+        );
+        assert_eq!(verdict, CodexVerdict::Answered);
+    }
+
+    #[test]
+    fn a_rate_limited_transcription_says_codex_is_limiting() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let verdict = h.process_with(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::RateLimited));
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+    }
+
+    #[test]
+    fn a_summary_retry_codex_refuses_says_codex_is_limiting() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer =
+            FakeSummarizer::answering(vec![rate_limited_summary(), rate_limited_summary()]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        // The words came through, but Codex refused right after.
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+
+        // The meeting stays Ready, and no part is transcribed again.
+        assert!(h.store.retry_summary(id).unwrap());
+        let codex_again = codex(|_| Ok("never".into()));
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&codex_again),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert!(codex_again.calls.lock().unwrap().is_empty());
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary_error, Some(SummaryError::RateLimited));
+        assert_eq!(verdict, CodexVerdict::RateLimited);
     }
 
     #[test]
