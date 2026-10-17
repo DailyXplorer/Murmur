@@ -28,6 +28,13 @@ pub fn meeting_dir(root: &Path, id: i64) -> PathBuf {
     root.join(id.to_string())
 }
 
+/// Whether `name` is a meeting's folder, or one `fresh_meeting_dir` moved
+/// aside.
+fn holds_recordings(name: &str) -> bool {
+    let id = name.split_once(".stale-").map_or(name, |(id, _)| id);
+    id.parse::<i64>().is_ok()
+}
+
 /// After `meetings.db` was found corrupt and moved to `moved_to`, moves the
 /// meetings' folders next to it, to `meetings.corrupt-<time>`: no row points
 /// to them any more, so no screen would list or delete them. The models
@@ -41,10 +48,7 @@ pub fn set_aside_recordings(root: &Path, moved_to: &Path) -> io::Result<()> {
     let aside = root.with_file_name(format!("meetings{suffix}"));
     for entry in fs::read_dir(root)? {
         let entry = entry?;
-        let is_meeting = entry
-            .file_name()
-            .to_str()
-            .is_some_and(|name| name.parse::<i64>().is_ok());
+        let is_meeting = entry.file_name().to_str().is_some_and(holds_recordings);
         if is_meeting && entry.file_type()?.is_dir() {
             fs::create_dir_all(&aside)?;
             fs::rename(entry.path(), aside.join(entry.file_name()))?;
@@ -279,7 +283,7 @@ mod tests {
     fn a_reset_library_sets_the_recordings_aside_and_keeps_the_models() {
         let parent = tempfile::tempdir().unwrap();
         let root = parent.path().join("meetings");
-        for name in ["1", "7", "models"] {
+        for name in ["1", "7", "3.stale-1700000000000", "models"] {
             fs::create_dir_all(root.join(name)).unwrap();
         }
         fs::write(root.join("7").join(MIC_TRACK), b"audio").unwrap();
@@ -290,7 +294,9 @@ mod tests {
         let aside = parent.path().join("meetings.corrupt-20261017-101500");
         assert!(aside.join("7").join(MIC_TRACK).exists());
         assert!(aside.join("1").is_dir());
+        assert!(aside.join("3.stale-1700000000000").is_dir());
         assert!(!root.join("1").exists() && !root.join("7").exists());
+        assert!(!root.join("3.stale-1700000000000").exists());
         assert!(root.join("models").is_dir());
     }
 }

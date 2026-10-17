@@ -192,7 +192,11 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let dir = match paths::fresh_meeting_dir(&self.root, id, started_at_ms) {
             Ok(dir) => dir,
             Err(error) => {
-                self.forget(id);
+                // Nothing of this meeting is on disk: whatever is left under
+                // its id belongs to no meeting.
+                if let Err(error) = self.store.delete(id) {
+                    error!("Meeting {id}: cannot delete its row: {error}");
+                }
                 return Err(storage(error));
             }
         };
@@ -350,17 +354,20 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         if self.active.as_ref().is_some_and(|active| active.id == id) {
             return Err(MeetingError::InUse);
         }
-        self.store.delete(id).map_err(storage)?;
-        paths::remove_meeting_dir(&self.root, id).map_err(storage)
+        // The folder first: a meeting whose audio stays on disk stays listed,
+        // so the user can delete it again.
+        paths::remove_meeting_dir(&self.root, id).map_err(storage)?;
+        self.store.delete(id).map_err(storage)
     }
 
     /// Removes a meeting that never got going.
     fn forget(&self, id: i64) {
-        if let Err(error) = self.store.delete(id) {
-            error!("Meeting {id}: cannot delete its row: {error}");
-        }
         if let Err(error) = paths::remove_meeting_dir(&self.root, id) {
             error!("Meeting {id}: cannot delete its folder: {error}");
+            return;
+        }
+        if let Err(error) = self.store.delete(id) {
+            error!("Meeting {id}: cannot delete its row: {error}");
         }
     }
 }
@@ -844,6 +851,27 @@ mod tests {
             h.coordinator.discard().unwrap();
         }
         assert!(outside.path().join("keep.txt").exists());
+    }
+
+    #[test]
+    fn a_meeting_whose_folder_cannot_be_deleted_stays_listed_to_delete_again() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        // A folder the safe delete refuses to remove.
+        let dir = paths::meeting_dir(&h.root, id);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), &dir).unwrap();
+
+        assert!(h.coordinator.delete(id).is_err());
+        assert!(h.store.get(id).unwrap().is_some());
+
+        std::fs::remove_file(&dir).unwrap();
+        std::fs::create_dir(&dir).unwrap();
+        h.coordinator.delete(id).unwrap();
+        assert!(h.store.get(id).unwrap().is_none());
+        assert!(!dir.exists());
     }
 
     #[test]
