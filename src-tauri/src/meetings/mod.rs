@@ -31,7 +31,7 @@ pub mod wav_recovery;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use chrono::TimeZone;
 use log::{error, info};
@@ -97,8 +97,9 @@ struct QueueState {
     queued: VecDeque<Queued>,
     current: Option<(i64, ProcessingOperation)>,
     paused: bool,
-    /// A rate-limit hold: until then, only `asked` meetings go through.
-    held_until: Option<tokio::time::Instant>,
+    /// A rate-limit hold: until then, only `asked` meetings go through. Wall
+    /// time, as Codex counts its cap: `Instant` stops while the Mac sleeps.
+    held_until: Option<SystemTime>,
     rate_limit: RateLimitHold,
 }
 
@@ -113,10 +114,7 @@ struct Queued {
 impl QueueState {
     /// The meeting to process now or, when none may go, the end of the hold
     /// (`None`: nothing to wait for but a new meeting).
-    fn take_next(
-        &mut self,
-        now: tokio::time::Instant,
-    ) -> Result<i64, Option<tokio::time::Instant>> {
+    fn take_next(&mut self, now: SystemTime) -> Result<i64, Option<SystemTime>> {
         self.held_until = self.held_until.filter(|until| now < *until);
         let index = match self.held_until {
             Some(_) => self.queued.iter().position(|queued| queued.asked),
@@ -174,19 +172,27 @@ impl ProcessingQueue {
         self.changed.notify_one();
     }
 
+    /// How often a held queue looks at the clock again: timers run on uptime,
+    /// so after a sleep only a fresh look sees that the hold has ended.
+    const RECHECK: Duration = Duration::from_secs(60);
+
     /// Waits for the next meeting to process, past any rate-limit hold.
     async fn next(&self) -> i64 {
         loop {
             let changed = self.changed.notified();
-            let held_until = match self.state().take_next(tokio::time::Instant::now()) {
+            let now = SystemTime::now();
+            let held_until = match self.state().take_next(now) {
                 Ok(id) => return id,
                 Err(held_until) => held_until,
             };
             match held_until {
-                Some(until) => tokio::select! {
-                    () = tokio::time::sleep_until(until) => {}
-                    () = changed => {}
-                },
+                Some(until) => {
+                    let left = until.duration_since(now).unwrap_or_default();
+                    tokio::select! {
+                        () = tokio::time::sleep(left.min(Self::RECHECK)) => {}
+                        () = changed => {}
+                    }
+                }
                 None => changed.await,
             }
         }
@@ -195,7 +201,7 @@ impl ProcessingQueue {
     /// Holds the meetings not asked for during `wait`.
     #[cfg(test)]
     fn hold(&self, wait: Duration) {
-        self.state().held_until = Some(tokio::time::Instant::now() + wait);
+        self.state().held_until = Some(SystemTime::now() + wait);
     }
 
     /// Holds or frees the queue from what Codex said while a meeting was
@@ -207,7 +213,7 @@ impl ProcessingQueue {
         match verdict {
             CodexVerdict::RateLimited => {
                 let wait = state.rate_limit.rate_limited();
-                state.held_until = Some(tokio::time::Instant::now() + wait);
+                state.held_until = Some(SystemTime::now() + wait);
                 Some(wait)
             }
             CodexVerdict::Answered => {
@@ -240,9 +246,7 @@ impl ProcessingQueue {
     /// `None` when it is not waiting on one.
     fn held_for(&self, id: i64) -> Option<Duration> {
         let state = self.state();
-        let left = state
-            .held_until?
-            .checked_duration_since(tokio::time::Instant::now())?;
+        let left = state.held_until?.duration_since(SystemTime::now()).ok()?;
         state
             .queued
             .iter()
@@ -987,6 +991,30 @@ mod tests {
     }
 
     #[test]
+    fn a_hold_that_ran_out_while_the_mac_slept_lets_the_queue_go_on_waking() {
+        let queue = ProcessingQueue::new(false);
+        queue.hold(AN_HOUR);
+        queue.enqueue(1);
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .unwrap()
+            .block_on(async {
+                let start = tokio::time::Instant::now();
+                let next = queue.next();
+                tokio::pin!(next);
+                assert!(tokio::time::timeout(NOW, &mut next).await.is_err());
+                // Asleep, the wall clock passes the end of the hold but the
+                // uptime clock, which `Instant` reads on macOS, stands still.
+                queue.state().held_until = Some(SystemTime::now() - A_MOMENT);
+                assert_eq!(next.await, 1);
+                // Within a minute of waking, not when the uptime gets there.
+                assert!(start.elapsed() <= Duration::from_secs(60) + NOW);
+            });
+    }
+
+    #[test]
     fn a_meeting_queued_on_its_own_goes_once_the_hold_is_over() {
         let queue = ProcessingQueue::new(false);
         queue.hold(A_MOMENT);
@@ -1024,7 +1052,7 @@ mod tests {
 
     fn held_minutes(queue: &ProcessingQueue) -> Option<u64> {
         let until = queue.state().held_until?;
-        let left = until.saturating_duration_since(tokio::time::Instant::now());
+        let left = until.duration_since(SystemTime::now()).unwrap_or_default();
         Some((left.as_secs() + 30) / 60)
     }
 
