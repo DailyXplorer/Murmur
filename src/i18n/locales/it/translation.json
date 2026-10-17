@@ -552,7 +552,7 @@
     "title": "Novità in Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Le trascrizioni compaiono quando la riunione è stata elaborata. I riepiloghi arriveranno in una versione successiva.",
+    "notice": "Trascrizioni e riepiloghi compaiono quando la riunione è stata elaborata.",
     "view": {
       "back": "Tutte le riunioni",
       "titleLabel": "Titolo della riunione",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Contenuto della riunione",
         "summary": "Riepilogo",
-        "transcript": "Trascrizione",
-        "summarySoon": "I riepiloghi arriveranno in una versione successiva."
+        "transcript": "Trascrizione"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "In elaborazione",
       "ready": "Pronta",
       "failed": "Non riuscita"
+    },
+    "summary": {
+      "header": "{{count}} min di lettura",
+      "search": "Cerca nel riepilogo",
+      "copy": "Copia riepilogo",
+      "copied": "Riepilogo copiato.",
+      "copyError": "Impossibile copiare il riepilogo.",
+      "export": "Esporta come Markdown",
+      "exported": "Riepilogo salvato.",
+      "exportError": "Impossibile salvare il riepilogo.",
+      "writing": "Scrittura del riepilogo…",
+      "pending": "Il riepilogo viene scritto quando l'intera riunione è trascritta.",
+      "retryError": "Impossibile riprovare il riepilogo.",
+      "errors": {
+        "signed_out": "Accedi a Codex, poi riprova.",
+        "rate_limited": "Codex sta limitando le richieste. Riprova più tardi.",
+        "network": "Impossibile raggiungere Codex. Controlla la connessione, poi riprova.",
+        "timeout": "Codex ha impiegato troppo tempo a rispondere.",
+        "too_long": "Il riepilogo è risultato troppo lungo.",
+        "empty": "Codex ha restituito un riepilogo vuoto.",
+        "nothing_to_summarize": "Non è stato trascritto nulla, quindi non c'è niente da riassumere.",
+        "other": "Impossibile scrivere il riepilogo."
+      }
+    },
+    "audio": {
+      "tracks": "Audio conservato",
+      "compressed": "Audio conservato · {{size}}",
+      "deleted": "Audio eliminato. Trascrizione e riepilogo restano.",
+      "retranscribe": "Trascrivi di nuovo",
+      "delete": "Elimina audio",
+      "deleteError": "Impossibile eliminare l'audio.",
+      "retranscribeError": "Impossibile trascrivere di nuovo la riunione.",
+      "deleteDialog": {
+        "title": "Eliminare l'audio di questa riunione?",
+        "description": "La registrazione viene eliminata e non può essere recuperata. Trascrizione e riepilogo restano, ma la riunione non potrà più essere trascritta di nuovo."
+      },
+      "retranscribeDialog": {
+        "title": "Trascrivere di nuovo questa riunione?",
+        "description": "Codex trascrive di nuovo la registrazione, e trascrizione e riepilogo vengono sostituiti. Un titolo che hai scelto resta."
+      }
     }
   }
 }

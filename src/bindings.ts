@@ -745,6 +745,39 @@ async reanalyzeMeeting(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Asks Codex again for a summary that failed.
+ */
+async retryMeetingSummary(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("retry_meeting_summary", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Deletes a finished meeting's audio; its transcript and summary stay.
+ */
+async deleteMeetingAudio(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_meeting_audio", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Transcribes a finished meeting again from its audio.
+ */
+async retranscribeMeeting(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("retranscribe_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async getMeetingModelsStatus() : Promise<Result<MeetingModelsStatus, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_meeting_models_status") };
@@ -778,23 +811,23 @@ async deleteMeetingModels() : Promise<Result<null, string>> {
 }
 },
 /**
- * The transcript as Markdown, exactly as Export saves it.
+ * The summary or the transcript as Markdown, exactly as Export saves it.
  */
-async getMeetingMarkdown(id: number) : Promise<Result<string, string>> {
+async getMeetingMarkdown(id: number, kind: MeetingMarkdownKind) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_meeting_markdown", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting_markdown", { id, kind }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
 /**
- * Asks where to save the transcript and writes it there. Returns the path,
- * or `None` when the user cancels.
+ * Asks where to save the summary or the transcript and writes it there.
+ * Returns the path, or `None` when the user cancels.
  */
-async exportMeetingMarkdown(id: number) : Promise<Result<string | null, string>> {
+async exportMeetingMarkdown(id: number, kind: MeetingMarkdownKind) : Promise<Result<string | null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("export_meeting_markdown", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("export_meeting_markdown", { id, kind }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -930,6 +963,22 @@ export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "apple
  */
 "unsupportedLanguage"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
+/**
+ * Where a meeting's audio is.
+ */
+export type AudioState = 
+/**
+ * The tracks as recorded, until processing compresses them.
+ */
+"tracks" | 
+/**
+ * `audio.m4a`.
+ */
+"compressed" | 
+/**
+ * The user deleted it.
+ */
+"deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type CategoryUsage = { category: AppCategory; count: number }
@@ -1022,12 +1071,24 @@ export type MeetingDetail = { id: number; title: string | null; started_at_ms: n
 /**
  * `None` until the transcript is first built.
  */
-speaker_analysis: SpeakerAnalysis | null; speakers: MeetingSpeaker[]; turns: MeetingTurn[] }
+speaker_analysis: SpeakerAnalysis | null; speakers: MeetingSpeaker[]; turns: MeetingTurn[]; 
+/**
+ * Markdown with `[[key]]` markers where people are named.
+ */
+summary: string | null; summary_status: SummaryStatus; summary_error: SummaryError | null; audio: AudioState; 
+/**
+ * The size of `audio.m4a`, once compressed.
+ */
+audio_bytes: number }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+/**
+ * Which tab Copy and Export take their text from.
+ */
+export type MeetingMarkdownKind = "summary" | "transcript"
 export type MeetingModelsStatus = { state: ModelsState; bytes_on_disk: number }
 /**
  * How far processing has come, for the progress bar.
@@ -1159,6 +1220,35 @@ export type SpeakerAnalysis =
  */
 "unsupported"
 export type Streaks = { current: number; longest: number }
+/**
+ * What went wrong writing a summary, as the user is told.
+ */
+export type SummaryError = 
+/**
+ * Codex needs a new sign-in.
+ */
+"signed_out" | "rate_limited" | 
+/**
+ * Codex could not be reached, or answered with an error.
+ */
+"network" | "timeout" | 
+/**
+ * The reply ran past its length cap.
+ */
+"too_long" | 
+/**
+ * The reply had no summary in it.
+ */
+"empty" | 
+/**
+ * No words were transcribed: there is nothing to summarise.
+ */
+"nothing_to_summarize" | "other"
+export type SummaryStatus = 
+/**
+ * Not written yet: it is once the whole transcript is.
+ */
+"pending" | "ready" | "failed"
 export type SystemAudioSupport = "available" | 
 /**
  * Process taps need macOS 14.4 or later.

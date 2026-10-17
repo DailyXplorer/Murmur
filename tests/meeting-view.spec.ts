@@ -11,6 +11,14 @@ const openMeeting = async (page: Page, title: RegExp, query = "") => {
   await page.getByRole("button", { name: title }).click();
 };
 
+/** Opens the ready meeting on its Transcript tab. */
+const openTranscript = async (page: Page, query = "") => {
+  await openMeeting(page, /Point hebdo produit/, query);
+  await page.getByRole("tab", { name: "Transcript" }).click();
+};
+
+const summary = (page: Page) => page.getByRole("region", { name: "Summary" });
+
 const callsTo = (page: Page, command: string) =>
   page.evaluate(
     (name) =>
@@ -31,11 +39,16 @@ test("a meeting shows its transcript in order, with a name at each change of spe
   await expect(page.getByLabel("Meeting Title")).toHaveValue(
     "Point hebdo produit",
   );
+  // A ready meeting opens on its summary.
+  await expect(page.getByRole("tab", { name: "Summary" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Transcript" }).click();
   await expect(page.getByRole("tab", { name: "Transcript" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(page.getByRole("tab", { name: "Summary" })).toBeDisabled();
   await expect(page.getByText("Speakers: 2 · 1:12:05")).toBeVisible();
 
   const items = bubbles(page);
@@ -72,7 +85,7 @@ test("the title saves on Enter and reverts on Escape", async ({ page }) => {
 test("search ignores case and accents and cycles through the matches", async ({
   page,
 }) => {
-  await openMeeting(page, /Point hebdo produit/);
+  await openTranscript(page);
   await page.getByRole("button", { name: "Search Transcript" }).click();
   const search = page.getByRole("textbox", { name: "Search Transcript" });
 
@@ -97,7 +110,7 @@ test("search ignores case and accents and cycles through the matches", async ({
 });
 
 test("clicking a speaker's name renames them everywhere", async ({ page }) => {
-  await openMeeting(page, /Point hebdo produit/);
+  await openTranscript(page);
   await bubbles(page).nth(0).getByRole("button", { name: "Speaker 2" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
@@ -121,7 +134,7 @@ test("clicking a speaker's name renames them everywhere", async ({ page }) => {
 test("the rename dialog opens from the header and saves nothing unchanged", async ({
   page,
 }) => {
-  await openMeeting(page, /Point hebdo produit/);
+  await openTranscript(page);
   await page.getByRole("button", { name: "Rename Speakers" }).click();
   const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
   await expect(dialog.getByRole("textbox")).toHaveCount(2);
@@ -137,7 +150,7 @@ test("copy puts the same Markdown as export on the clipboard", async ({
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await openMeeting(page, /Point hebdo produit/);
+  await openTranscript(page);
 
   await page.getByRole("button", { name: "Copy Transcript" }).click();
   await expect(page.getByText("Transcript copied.")).toBeVisible();
@@ -147,7 +160,153 @@ test("copy puts the same Markdown as export on the clipboard", async ({
 
   await page.getByRole("button", { name: "Export as Markdown" }).click();
   await expect(page.getByText("Transcript saved.")).toBeVisible();
-  expect(await callsTo(page, "export_meeting_markdown")).toEqual([{ id: 3 }]);
+  expect(await callsTo(page, "export_meeting_markdown")).toEqual([
+    { id: 3, kind: "transcript" },
+  ]);
+});
+
+test("a ready meeting's summary names people and shows its read time", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+
+  await expect(page.getByText("1 min read")).toBeVisible();
+  await expect(summary(page)).toContainText(
+    "Weekly product check-in between Me and Speaker 2.",
+  );
+  await expect(
+    summary(page).getByRole("heading", { name: "Payment integration" }),
+  ).toBeVisible();
+  await expect(summary(page).getByRole("listitem")).toHaveCount(5);
+  await expect(summary(page)).not.toContainText("[[");
+  expect(
+    await page.evaluate(() => window.settingsPages.unhandledCommands),
+  ).toEqual([]);
+});
+
+test("renaming a speaker renames them in the summary too", async ({ page }) => {
+  await openTranscript(page);
+  await bubbles(page).nth(0).getByRole("button", { name: "Speaker 2" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  await dialog
+    .getByRole("textbox", { name: "Name for Speaker 2" })
+    .fill("Camille");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Summary" }).click();
+  await expect(summary(page)).toContainText("between Me and Camille.");
+  await expect(summary(page)).toContainText("Camille — tell the support team");
+  await expect(summary(page)).not.toContainText("Speaker 2");
+});
+
+test("summary search ignores case and cycles through the matches", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await page.getByRole("button", { name: "Search Summary" }).click();
+  const search = page.getByRole("textbox", { name: "Search Summary" });
+
+  await search.fill("PAYMENT");
+  await expect(page.getByText("1/1")).toBeVisible();
+  await expect(page.locator("mark")).toHaveText("Payment");
+
+  await search.fill("the");
+  await expect(page.getByText("1/4")).toBeVisible();
+  await search.press("Enter");
+  await expect(page.getByText("2/4")).toBeVisible();
+  await expect(page.locator("mark[data-current]")).toHaveCount(1);
+  await search.press("Escape");
+  await expect(page.locator("mark")).toHaveCount(0);
+});
+
+test("the summary copies and exports as Markdown", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openMeeting(page, /Point hebdo produit/);
+
+  await page.getByRole("button", { name: "Copy Summary" }).click();
+  await expect(page.getByText("Summary copied.")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "# Point hebdo produit\n\n## Summary\n",
+  );
+  await page.getByRole("button", { name: "Export as Markdown" }).click();
+  await expect(page.getByText("Summary saved.")).toBeVisible();
+  expect(await callsTo(page, "export_meeting_markdown")).toEqual([
+    { id: 3, kind: "summary" },
+  ]);
+});
+
+test("a failed summary shows why, and Retry writes it", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=failed");
+  const alert = page.locator("article [role=alert]");
+  await expect(alert).toContainText(
+    "Codex is limiting requests right now. Retry later.",
+  );
+  // The transcript is unaffected.
+  await expect(
+    page.getByRole("button", { name: "Copy Summary" }),
+  ).toBeDisabled();
+
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect
+    .poll(() => callsTo(page, "retry_meeting_summary"))
+    .toEqual([{ id: 3 }]);
+  await expect(summary(page)).toContainText("Weekly product check-in");
+  await expect(alert).toHaveCount(0);
+});
+
+test("a summary on its way says so", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=pending");
+  await expect(page.locator("article [role=status]")).toContainText(
+    "Writing the summary…",
+  );
+  await openMeeting(page, /09:41 · Interrupted/);
+  await page.getByRole("tab", { name: "Summary" }).click();
+  await expect(
+    page.getByText(
+      "The summary is written once the whole meeting is transcribed.",
+    ),
+  ).toBeVisible();
+});
+
+test("deleting the audio asks first and keeps the text", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await expect(page.getByText("Audio kept · 35 MB")).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete Audio" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Delete this meeting's audio?",
+  });
+  await dialog.getByRole("button", { name: "Delete Audio" }).click();
+  await expect
+    .poll(() => callsTo(page, "delete_meeting_audio"))
+    .toEqual([{ id: 3 }]);
+  await expect(
+    page.getByText("Audio deleted. The transcript and summary stay."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Transcribe Again" }),
+  ).toHaveCount(0);
+  await expect(summary(page)).toContainText("Weekly product check-in");
+});
+
+test("transcribing again asks first", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await page.getByRole("button", { name: "Transcribe Again" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Transcribe this meeting again?",
+  });
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(await callsTo(page, "retranscribe_meeting")).toEqual([]);
+
+  await page.getByRole("button", { name: "Transcribe Again" }).click();
+  await dialog.getByRole("button", { name: "Transcribe Again" }).click();
+  await expect
+    .poll(() => callsTo(page, "retranscribe_meeting"))
+    .toEqual([{ id: 3 }]);
 });
 
 test("processing shows live progress, including a rate-limit pause", async ({

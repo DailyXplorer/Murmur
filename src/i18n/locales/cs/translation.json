@@ -552,7 +552,7 @@
     "title": "Novinky v Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Přepisy se zobrazí po zpracování schůzky. Shrnutí přijdou v pozdější verzi.",
+    "notice": "Přepisy a shrnutí se zobrazí po zpracování schůzky.",
     "view": {
       "back": "Všechny schůzky",
       "titleLabel": "Název schůzky",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Obsah schůzky",
         "summary": "Shrnutí",
-        "transcript": "Přepis",
-        "summarySoon": "Shrnutí přijdou v pozdější verzi."
+        "transcript": "Přepis"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Zpracovává se",
       "ready": "Připraveno",
       "failed": "Selhalo"
+    },
+    "summary": {
+      "header": "{{count}} min čtení",
+      "search": "Hledat ve shrnutí",
+      "copy": "Kopírovat shrnutí",
+      "copied": "Shrnutí zkopírováno.",
+      "copyError": "Shrnutí se nepodařilo zkopírovat.",
+      "export": "Exportovat jako Markdown",
+      "exported": "Shrnutí uloženo.",
+      "exportError": "Shrnutí se nepodařilo uložit.",
+      "writing": "Píše se shrnutí…",
+      "pending": "Shrnutí se napíše, až bude přepsaná celá schůzka.",
+      "retryError": "Shrnutí se nepodařilo zkusit znovu.",
+      "errors": {
+        "signed_out": "Přihlaste se do Codexu a zkuste to znovu.",
+        "rate_limited": "Codex teď omezuje požadavky. Zkuste to později.",
+        "network": "Codex není dostupný. Zkontrolujte připojení a zkuste to znovu.",
+        "timeout": "Codex odpovídal příliš dlouho.",
+        "too_long": "Shrnutí vyšlo příliš dlouhé.",
+        "empty": "Codex vrátil prázdné shrnutí.",
+        "nothing_to_summarize": "Nic nebylo přepsáno, takže není co shrnout.",
+        "other": "Shrnutí se nepodařilo napsat."
+      }
+    },
+    "audio": {
+      "tracks": "Zvuk je uložen",
+      "compressed": "Zvuk je uložen · {{size}}",
+      "deleted": "Zvuk byl smazán. Přepis a shrnutí zůstávají.",
+      "retranscribe": "Přepsat znovu",
+      "delete": "Smazat zvuk",
+      "deleteError": "Zvuk se nepodařilo smazat.",
+      "retranscribeError": "Schůzku se nepodařilo přepsat znovu.",
+      "deleteDialog": {
+        "title": "Smazat zvuk této schůzky?",
+        "description": "Nahrávka se smaže a nelze ji obnovit. Přepis a shrnutí zůstanou, ale schůzku už nebude možné přepsat znovu."
+      },
+      "retranscribeDialog": {
+        "title": "Přepsat tuto schůzku znovu?",
+        "description": "Codex nahrávku přepíše znovu a přepis i shrnutí se nahradí. Název, který jste zadali, zůstane."
+      }
     }
   }
 }

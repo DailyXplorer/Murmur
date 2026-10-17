@@ -552,7 +552,7 @@
     "title": "Neu in Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkripte erscheinen, sobald ein Meeting verarbeitet ist. Zusammenfassungen folgen in einer späteren Version.",
+    "notice": "Transkripte und Zusammenfassungen erscheinen, sobald ein Meeting verarbeitet ist.",
     "view": {
       "back": "Alle Meetings",
       "titleLabel": "Meeting-Titel",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Meeting-Inhalt",
         "summary": "Zusammenfassung",
-        "transcript": "Transkript",
-        "summarySoon": "Zusammenfassungen folgen in einer späteren Version."
+        "transcript": "Transkript"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Wird verarbeitet",
       "ready": "Fertig",
       "failed": "Fehlgeschlagen"
+    },
+    "summary": {
+      "header": "{{count}} Min. Lesezeit",
+      "search": "Zusammenfassung durchsuchen",
+      "copy": "Zusammenfassung kopieren",
+      "copied": "Zusammenfassung kopiert.",
+      "copyError": "Die Zusammenfassung konnte nicht kopiert werden.",
+      "export": "Als Markdown exportieren",
+      "exported": "Zusammenfassung gespeichert.",
+      "exportError": "Die Zusammenfassung konnte nicht gespeichert werden.",
+      "writing": "Zusammenfassung wird geschrieben…",
+      "pending": "Die Zusammenfassung wird geschrieben, sobald das ganze Meeting transkribiert ist.",
+      "retryError": "Die Zusammenfassung konnte nicht erneut angefordert werden.",
+      "errors": {
+        "signed_out": "Melde dich bei Codex an und versuche es erneut.",
+        "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
+        "network": "Codex ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
+        "timeout": "Codex hat zu lange für die Antwort gebraucht.",
+        "too_long": "Die Zusammenfassung ist zu lang geworden.",
+        "empty": "Codex hat eine leere Zusammenfassung geliefert.",
+        "nothing_to_summarize": "Es wurde nichts transkribiert, daher gibt es nichts zusammenzufassen.",
+        "other": "Die Zusammenfassung konnte nicht geschrieben werden."
+      }
+    },
+    "audio": {
+      "tracks": "Audio gespeichert",
+      "compressed": "Audio gespeichert · {{size}}",
+      "deleted": "Audio gelöscht. Transkript und Zusammenfassung bleiben erhalten.",
+      "retranscribe": "Erneut transkribieren",
+      "delete": "Audio löschen",
+      "deleteError": "Das Audio konnte nicht gelöscht werden.",
+      "retranscribeError": "Das Meeting konnte nicht erneut transkribiert werden.",
+      "deleteDialog": {
+        "title": "Audio dieses Meetings löschen?",
+        "description": "Die Aufnahme wird gelöscht und kann nicht wiederhergestellt werden. Transkript und Zusammenfassung bleiben erhalten, aber das Meeting kann nicht erneut transkribiert werden."
+      },
+      "retranscribeDialog": {
+        "title": "Dieses Meeting erneut transkribieren?",
+        "description": "Codex transkribiert die Aufnahme erneut, und Transkript und Zusammenfassung werden ersetzt. Ein von dir gewählter Titel bleibt erhalten."
+      }
     }
   }
 }

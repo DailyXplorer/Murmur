@@ -552,7 +552,7 @@
     "title": "Nuevo en Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Las transcripciones aparecen cuando se procesa la reunión. Los resúmenes llegarán en una versión posterior.",
+    "notice": "Las transcripciones y los resúmenes aparecen cuando se procesa la reunión.",
     "view": {
       "back": "Todas las reuniones",
       "titleLabel": "Título de la reunión",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "Contenido de la reunión",
         "summary": "Resumen",
-        "transcript": "Transcripción",
-        "summarySoon": "Los resúmenes llegarán en una versión posterior."
+        "transcript": "Transcripción"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "Procesando",
       "ready": "Lista",
       "failed": "Fallida"
+    },
+    "summary": {
+      "header": "{{count}} min de lectura",
+      "search": "Buscar en el resumen",
+      "copy": "Copiar resumen",
+      "copied": "Resumen copiado.",
+      "copyError": "No se pudo copiar el resumen.",
+      "export": "Exportar como Markdown",
+      "exported": "Resumen guardado.",
+      "exportError": "No se pudo guardar el resumen.",
+      "writing": "Redactando el resumen…",
+      "pending": "El resumen se redacta cuando toda la reunión está transcrita.",
+      "retryError": "No se pudo reintentar el resumen.",
+      "errors": {
+        "signed_out": "Inicia sesión en Codex y vuelve a intentarlo.",
+        "rate_limited": "Codex está limitando las solicitudes. Vuelve a intentarlo más tarde.",
+        "network": "No se pudo conectar con Codex. Revisa la conexión y vuelve a intentarlo.",
+        "timeout": "Codex tardó demasiado en responder.",
+        "too_long": "El resumen salió demasiado largo.",
+        "empty": "Codex devolvió un resumen vacío.",
+        "nothing_to_summarize": "No se transcribió nada, así que no hay nada que resumir.",
+        "other": "No se pudo redactar el resumen."
+      }
+    },
+    "audio": {
+      "tracks": "Audio guardado",
+      "compressed": "Audio guardado · {{size}}",
+      "deleted": "Audio eliminado. La transcripción y el resumen se conservan.",
+      "retranscribe": "Volver a transcribir",
+      "delete": "Eliminar audio",
+      "deleteError": "No se pudo eliminar el audio.",
+      "retranscribeError": "No se pudo volver a transcribir la reunión.",
+      "deleteDialog": {
+        "title": "¿Eliminar el audio de esta reunión?",
+        "description": "La grabación se elimina y no se puede recuperar. La transcripción y el resumen se conservan, pero la reunión no se podrá volver a transcribir."
+      },
+      "retranscribeDialog": {
+        "title": "¿Volver a transcribir esta reunión?",
+        "description": "Codex vuelve a transcribir la grabación, y la transcripción y el resumen se reemplazan. Se conserva el título que hayas puesto."
+      }
     }
   }
 }

@@ -552,7 +552,7 @@
     "title": "Murmur v{{version}} 新功能"
   },
   "meetings": {
-    "notice": "会议处理完成后会显示转录内容。摘要将在后续版本中提供。",
+    "notice": "会议处理完成后会显示转写和摘要。",
     "view": {
       "back": "所有会议",
       "titleLabel": "会议标题",
@@ -561,8 +561,7 @@
       "tabs": {
         "label": "会议内容",
         "summary": "摘要",
-        "transcript": "转录",
-        "summarySoon": "摘要将在后续版本中提供。"
+        "transcript": "转录"
       }
     },
     "processing": {
@@ -691,6 +690,46 @@
       "processing": "处理中",
       "ready": "已就绪",
       "failed": "失败"
+    },
+    "summary": {
+      "header": "{{count}} 分钟读完",
+      "search": "搜索摘要",
+      "copy": "复制摘要",
+      "copied": "摘要已复制。",
+      "copyError": "无法复制摘要。",
+      "export": "导出为 Markdown",
+      "exported": "摘要已保存。",
+      "exportError": "无法保存摘要。",
+      "writing": "正在撰写摘要…",
+      "pending": "整场会议转写完成后才会撰写摘要。",
+      "retryError": "无法重试摘要。",
+      "errors": {
+        "signed_out": "请登录 Codex 后重试。",
+        "rate_limited": "Codex 目前正在限制请求。请稍后重试。",
+        "network": "无法连接 Codex。请检查网络连接后重试。",
+        "timeout": "Codex 响应时间过长。",
+        "too_long": "摘要过长。",
+        "empty": "Codex 返回了空摘要。",
+        "nothing_to_summarize": "没有转写出任何内容，因此没有可摘要的内容。",
+        "other": "无法撰写摘要。"
+      }
+    },
+    "audio": {
+      "tracks": "音频已保留",
+      "compressed": "音频已保留 · {{size}}",
+      "deleted": "音频已删除。转写和摘要仍会保留。",
+      "retranscribe": "重新转写",
+      "delete": "删除音频",
+      "deleteError": "无法删除音频。",
+      "retranscribeError": "无法重新转写会议。",
+      "deleteDialog": {
+        "title": "删除这场会议的音频？",
+        "description": "录音将被删除且无法恢复。转写和摘要会保留，但会议将无法重新转写。"
+      },
+      "retranscribeDialog": {
+        "title": "重新转写这场会议？",
+        "description": "Codex 会重新转写录音，转写和摘要将被替换。你设置的标题会保留。"
+      }
     }
   }
 }

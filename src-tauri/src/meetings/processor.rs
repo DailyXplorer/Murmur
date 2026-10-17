@@ -13,6 +13,9 @@
 //!    the microphone (`bleed`), and both tracks are interleaved into bubbles
 //!    (`merge`). Parts that failed show as placeholders, so the user gets
 //!    everything that worked.
+//! 3. Once the whole transcript is there, Codex writes the summary and the
+//!    title (`summary`), and the tracks are compressed into one small file
+//!    (`archive`). A meeting transcribed again gets its tracks back from it.
 
 use serde::Serialize;
 use specta::Type;
@@ -24,6 +27,7 @@ use std::sync::Arc;
 use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
 use super::analysis::{Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
+use super::archive;
 use super::bleed::remove_echoes;
 use super::chunking::{plan_chunks, speech_threshold, split_chunk};
 use super::merge::{merge, Track, Unit, PLACEHOLDER};
@@ -32,9 +36,10 @@ use super::protocol::{segments, timed_words};
 use super::speakers::{self, speaker_rows};
 use super::spread::{spread, voiced_intervals};
 use super::store::{
-    ChunkRow, ChunkStatus, MeetingSpeaker, MeetingStage, MeetingTurn, MeetingsStore,
-    ProcessingError, SpeakerAnalysis,
+    ChunkRow, ChunkStatus, MeetingSpeaker, MeetingStage, MeetingStatus, MeetingTracks, MeetingTurn,
+    MeetingsStore, ProcessingError, SpeakerAnalysis,
 };
+use super::summary::{self, Summarizer};
 use super::tokens::{sentences, tokenize};
 use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
@@ -66,6 +71,7 @@ pub struct Processor {
     pub root: PathBuf,
     pub transcriber: Arc<dyn Transcriber>,
     pub analyzer: Arc<dyn Analyzer>,
+    pub summarizer: Arc<dyn Summarizer>,
     pub policy: RetryPolicy,
     pub language: Option<String>,
     pub events: Arc<dyn ProcessEvents>,
@@ -161,7 +167,19 @@ impl RunObserver for Saver {
     }
 }
 
-fn read_tracks(dir: &Path, tracks: &[Track]) -> HashMap<Track, Audio> {
+/// Reads the levels of the recorded tracks, first bringing them back from
+/// the compressed audio when they were deleted after an earlier run.
+fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
+    if let Err(error) = archive::restore(dir, recorded) {
+        log::warn!("Cannot restore the meeting tracks: {error}");
+    }
+    let tracks: Vec<Track> = [
+        (recorded.has_mic(), Track::Mic),
+        (recorded.has_system(), Track::System),
+    ]
+    .into_iter()
+    .filter_map(|(recorded, track)| recorded.then_some(track))
+    .collect();
     tracks
         .iter()
         .filter_map(|track| {
@@ -185,9 +203,41 @@ fn read_tracks(dir: &Path, tracks: &[Track]) -> HashMap<Track, Audio> {
 }
 
 impl Processor {
-    /// Processes meeting `id` as far as it can. Does nothing for a meeting
-    /// that is gone, still recording or already done.
+    /// Processes meeting `id` as far as it can: its transcript, then once
+    /// that is complete its summary and compressed audio. Each step is
+    /// skipped when already done, so this does nothing for a meeting that is
+    /// gone, still recording or done.
     pub async fn process(&self, id: i64, operation: ProcessingOperation) -> anyhow::Result<()> {
+        let Some(meeting) = self.store.get(id)? else {
+            return Ok(());
+        };
+        if meeting.status != MeetingStatus::Ready {
+            self.transcribe(id, operation.clone()).await?;
+        }
+        let ready = self
+            .store
+            .get(id)?
+            .is_some_and(|meeting| meeting.status == MeetingStatus::Ready);
+        if !ready || operation.is_cancelled() {
+            return Ok(());
+        }
+        let written = summary::write(&self.store, self.summarizer.as_ref(), id, &operation).await?;
+        self.events.updated(id);
+        if !written {
+            return Ok(());
+        }
+        let (store, root) = (Arc::clone(&self.store), self.root.clone());
+        let archived =
+            tokio::task::spawn_blocking(move || archive::archive(&store, &root, id)).await?;
+        match archived {
+            Ok(()) => self.events.updated(id),
+            Err(error) => log::warn!("Meeting {id}: audio kept uncompressed: {error}"),
+        }
+        Ok(())
+    }
+
+    /// The transcript, from the parts Codex has not transcribed yet.
+    async fn transcribe(&self, id: i64, operation: ProcessingOperation) -> anyhow::Result<()> {
         if !self.store.begin_processing(id)? {
             return Ok(());
         }
@@ -195,15 +245,9 @@ impl Processor {
         let Some(meeting) = self.store.get(id)? else {
             return Ok(());
         };
-        let wanted: Vec<Track> = [
-            (meeting.tracks.has_mic(), Track::Mic),
-            (meeting.tracks.has_system(), Track::System),
-        ]
-        .into_iter()
-        .filter_map(|(recorded, track)| recorded.then_some(track))
-        .collect();
+        let recorded = meeting.tracks;
         let dir = paths::meeting_dir(&self.root, id);
-        let audio = tokio::task::spawn_blocking(move || read_tracks(&dir, &wanted)).await?;
+        let audio = tokio::task::spawn_blocking(move || read_tracks(&dir, recorded)).await?;
         if audio.is_empty() {
             self.store
                 .finish_processing(id, Some(ProcessingError::NoAudio))?;
@@ -522,9 +566,11 @@ fn build_transcript(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cleanup::responses::CompletionError;
     use crate::meetings::analysis::ANALYSIS_FILE;
     use crate::meetings::protocol::Turn;
-    use crate::meetings::store::{MeetingStatus, MeetingTracks};
+    use crate::meetings::store::{AudioState, SummaryStatus};
+    use crate::meetings::summary::SummaryError;
     use crate::meetings::transcribe::TranscribeFuture;
     use crate::transcription_error::TranscriptionError;
     use crate::OperationId;
@@ -622,6 +668,43 @@ mod tests {
         }
     }
 
+    /// Codex writing summaries as a script: the next answer each time.
+    struct FakeSummarizer {
+        answers: Mutex<Vec<Result<String, CompletionError>>>,
+        inputs: Mutex<Vec<String>>,
+    }
+
+    impl FakeSummarizer {
+        fn answering(answers: Vec<Result<String, CompletionError>>) -> Arc<Self> {
+            Arc::new(Self {
+                answers: Mutex::new(answers),
+                inputs: Mutex::default(),
+            })
+        }
+
+        fn calls(&self) -> usize {
+            self.inputs.lock().unwrap().len()
+        }
+    }
+
+    impl Summarizer for FakeSummarizer {
+        fn complete(
+            &self,
+            _: String,
+            input: String,
+            _: ProcessingOperation,
+        ) -> crate::meetings::summary::CompleteFuture {
+            self.inputs.lock().unwrap().push(input);
+            let mut answers = self.answers.lock().unwrap();
+            let answer = if answers.is_empty() {
+                Ok("# Réunion\nNotes.".to_string())
+            } else {
+                answers.remove(0)
+            };
+            Box::pin(async move { answer })
+        }
+    }
+
     #[derive(Default)]
     struct Events(Mutex<Vec<MeetingProgress>>);
 
@@ -689,11 +772,22 @@ mod tests {
         }
 
         fn process_with(&self, id: i64, codex: Arc<FakeCodex>, analyzer: Arc<FakeAnalyzer>) {
+            self.process_all(id, codex, analyzer, FakeSummarizer::answering(vec![]));
+        }
+
+        fn process_all(
+            &self,
+            id: i64,
+            codex: Arc<FakeCodex>,
+            analyzer: Arc<FakeAnalyzer>,
+            summarizer: Arc<FakeSummarizer>,
+        ) {
             let processor = Processor {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
                 transcriber: codex,
                 analyzer,
+                summarizer,
                 policy: RetryPolicy {
                     rate_limit_first: Duration::from_millis(1),
                     rate_limit_cap: Duration::from_millis(1),
@@ -1109,6 +1203,145 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(name_of(&meeting, DIALOGUE[1]), "Bob");
         assert_eq!(name_of(&meeting, DIALOGUE[0]), "Speaker 1");
+    }
+
+    fn spoken_meeting(h: &Harness) -> i64 {
+        let id = h.meeting(MeetingTracks::Both, 20);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::SYSTEM_TRACK), 20, &[(1, 6)]);
+        track(&dir.join(paths::MIC_TRACK), 20, &[(8, 14)]);
+        id
+    }
+
+    #[test]
+    fn a_transcribed_meeting_gets_its_summary_title_and_small_audio() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![Ok(
+            "# Point budget\n\n[[s1]] et [[me]] valident le budget.".into(),
+        )]);
+        h.process_all(
+            id,
+            codex(|_| Ok("Le budget est validé.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.title.as_deref(), Some("Point budget"));
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(
+            meeting.summary.as_deref(),
+            Some("[[s1]] et [[me]] valident le budget.")
+        );
+        // Codex read the speaker-labelled transcript.
+        let input = summarizer.inputs.lock().unwrap()[0].clone();
+        assert!(input.contains("[[s1]] Speaker 2: Le budget est validé."));
+        assert!(input.contains("[[me]] Me: Le budget est validé."));
+
+        let dir = paths::meeting_dir(&h.root, id);
+        if cfg!(target_arch = "aarch64") {
+            assert_eq!(meeting.audio, AudioState::Compressed);
+            assert!(dir.join(paths::AUDIO_FILE).exists());
+            assert!(!dir.join(paths::MIC_TRACK).exists());
+            assert!(!dir.join(paths::SYSTEM_TRACK).exists());
+        }
+        assert!(h.store.waiting_for_processing().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_failed_summary_keeps_the_meeting_ready_and_retry_writes_it() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        h.store.rename(id, Some("Mon titre")).unwrap();
+        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
+            kind: FailureKind::RateLimited,
+            detail: String::new(),
+        })]);
+        h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.turns.len(), 2);
+        assert_eq!(meeting.summary_status, SummaryStatus::Failed);
+        assert_eq!(meeting.summary_error, Some(SummaryError::RateLimited));
+
+        // Retry asks for the summary only.
+        assert!(h.store.retry_summary(id).unwrap());
+        let codex_again = codex(|_| Ok("never".into()));
+        h.process_all(
+            id,
+            Arc::clone(&codex_again),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert!(codex_again.calls.lock().unwrap().is_empty());
+        assert_eq!(summarizer.calls(), 2);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+        // The user's title stays.
+        assert_eq!(meeting.title.as_deref(), Some("Mon titre"));
+    }
+
+    #[test]
+    fn no_summary_is_written_while_parts_are_missing() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![]);
+        h.process_all(
+            id,
+            codex(|_| Err(FailureKind::Rejected)),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(summarizer.calls(), 0);
+        // The tracks stay for the retry.
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        assert!(paths::meeting_dir(&h.root, id)
+            .join(paths::MIC_TRACK)
+            .exists());
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[test]
+    fn a_meeting_is_transcribed_again_from_its_compressed_audio() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        h.process(id, codex(|_| Ok("Première version.".into())));
+        let dir = paths::meeting_dir(&h.root, id);
+        assert!(!dir.join(paths::MIC_TRACK).exists());
+
+        assert!(h.store.retranscribe(id).unwrap());
+        let summarizer = FakeSummarizer::answering(vec![Ok("# Nouveau\nNotes.".into())]);
+        let again = codex(|seconds| Ok(format!("Version de {seconds} secondes.")));
+        h.process_all(
+            id,
+            Arc::clone(&again),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        // Both tracks were decoded at their full length and sent again.
+        let sent = again.calls.lock().unwrap().clone();
+        assert_eq!(sent.len(), 2);
+        assert!(sent.iter().all(|seconds| (19..=20).contains(seconds)));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert!(meeting
+            .turns
+            .iter()
+            .all(|turn| turn.text.contains("Version")));
+        assert_eq!(meeting.title.as_deref(), Some("Nouveau"));
+        assert_eq!(meeting.audio, AudioState::Compressed);
+        assert!(!dir.join(paths::MIC_TRACK).exists());
     }
 
     #[test]
