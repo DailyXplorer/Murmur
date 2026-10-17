@@ -130,8 +130,12 @@ struct Saver {
 }
 
 impl Saver {
+    /// A piece that ran out of rate-limit budget holds the queue, whatever
+    /// else ended the run and however many pieces Codex answered first.
     fn verdict(&self) -> CodexVerdict {
-        if self.answered.load(Ordering::SeqCst) {
+        if self.rate_limited.load(Ordering::SeqCst) {
+            CodexVerdict::RateLimited
+        } else if self.answered.load(Ordering::SeqCst) {
             CodexVerdict::Answered
         } else {
             CodexVerdict::Unknown
@@ -429,12 +433,7 @@ impl Processor {
             built.turns.len(),
             built.score
         );
-        let codex = if error == Some(ProcessingError::RateLimited) {
-            CodexVerdict::RateLimited
-        } else {
-            saver.verdict()
-        };
-        Ok((stages, codex))
+        Ok((stages, saver.verdict()))
     }
 
     fn report_stage(&self, id: i64, stage: MeetingStage, saver: &Saver) {
@@ -1523,6 +1522,32 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.error, Some(ProcessingError::RateLimited));
         assert_eq!(verdict, CodexVerdict::RateLimited);
+    }
+
+    #[test]
+    fn a_run_that_ran_out_of_rate_limit_budget_holds_the_queue_after_earlier_answers() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let saver = Saver {
+            id,
+            store: Arc::clone(&h.store),
+            events: Arc::clone(&h.events) as Arc<dyn ProcessEvents>,
+            done: AtomicU32::new(0),
+            total: 2,
+            rate_limited: AtomicBool::new(false),
+            answered: AtomicBool::new(false),
+        };
+        let job = |track| Job {
+            track,
+            idx: 0,
+            start_ms: 0,
+            end_ms: 20_000,
+        };
+        saver.finished(&job(Track::System), &Outcome::Done("Bonjour.".into()));
+        assert_eq!(saver.verdict(), CodexVerdict::Answered);
+        // The run then ends on something else, such as an unreadable track.
+        saver.finished(&job(Track::Mic), &Outcome::Failed(FailureKind::RateLimited));
+        assert_eq!(saver.verdict(), CodexVerdict::RateLimited);
     }
 
     #[test]
