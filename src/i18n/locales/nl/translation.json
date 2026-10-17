@@ -32,7 +32,8 @@
     "meetingStopsSoon": "De vergadering stopt over 5 minuten (limiet van 3 uur).",
     "meetingStoppedAtLimit": "De vergadering heeft de limiet van 3 uur bereikt en is opgeslagen.",
     "meetingWriteFailed": "De vergadering is gestopt omdat Murmur niet naar de schijf kon schrijven. Wat is opgenomen, blijft bewaard.",
-    "meetingLowDiskSpace": "Er is minder dan 1,5 GB vrij op deze Mac. Een lange vergadering kan eerder stoppen; wat is opgenomen blijft bewaard."
+    "meetingLowDiskSpace": "Er is minder dan 1,5 GB vrij op deze Mac. Een lange vergadering kan eerder stoppen; wat is opgenomen blijft bewaard.",
+    "meetingSystemAudioInterrupted": "Het systeemgeluid stopte nadat de geluidsuitvoer wijzigde. Murmur blijft proberen het te herstellen; je microfoon wordt nog steeds opgenomen."
   },
   "sidebar": {
     "general": "Algemeen",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Wacht op verwerking…",
       "transcribing": "Transcriberen: {{done}} van {{total}} delen klaar…",
+      "transcribingStarted": "Bezig met transcriberen…",
       "rateLimited": "Codex vraagt om het rustiger aan te doen. De verwerking gaat vanzelf verder…",
       "aligning": "Gesprek wordt op volgorde gezet…",
       "analyzing": "Sprekers worden onderscheiden…",

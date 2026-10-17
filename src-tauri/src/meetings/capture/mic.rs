@@ -65,6 +65,12 @@ impl Track for MicCapture {
         self.writer.failed()
     }
 
+    /// A stalled microphone is reopened in the background and the gap is
+    /// filled, so it never counts as lost.
+    fn interrupted(&self) -> bool {
+        false
+    }
+
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.supervisor.join();

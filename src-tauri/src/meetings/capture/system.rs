@@ -34,6 +34,8 @@ mod bridge {
         pub fn murmur_system_tap_start(context: *mut c_void, on_samples: SamplesCallback) -> i32;
         /// 1 when another app played sound while the tap ran, else 0.
         pub fn murmur_system_tap_stop() -> i32;
+        /// 1 while the device could not be rebuilt after an output change.
+        pub fn murmur_system_tap_interrupted() -> i32;
     }
 }
 
@@ -116,6 +118,14 @@ impl SystemCapture {
 impl Track for SystemCapture {
     fn failed(&self) -> bool {
         self.writer.failed()
+    }
+
+    fn interrupted(&self) -> bool {
+        #[cfg(target_arch = "aarch64")]
+        // SAFETY: takes no arguments and only reads the tap's state.
+        return unsafe { bridge::murmur_system_tap_interrupted() } == 1;
+        #[cfg(not(target_arch = "aarch64"))]
+        false
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {

@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Mødet stopper om 5 minutter (grænse på 3 timer).",
     "meetingStoppedAtLimit": "Mødet nåede grænsen på 3 timer og blev gemt.",
     "meetingWriteFailed": "Mødet stoppede, fordi Murmur ikke kunne skrive til disken. Det optagede er bevaret.",
-    "meetingLowDiskSpace": "Der er under 1,5 GB ledigt på denne Mac. Et langt møde kan stoppe før tid; det optagne bevares."
+    "meetingLowDiskSpace": "Der er under 1,5 GB ledigt på denne Mac. Et langt møde kan stoppe før tid; det optagne bevares.",
+    "meetingSystemAudioInterrupted": "Systemlyden stoppede, efter at lydudgangen blev skiftet. Murmur prøver fortsat at få den tilbage; din mikrofon optages stadig."
   },
   "sidebar": {
     "general": "Generelt",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Venter på behandling…",
       "transcribing": "Transskriberer: {{done}} af {{total}} dele færdige…",
+      "transcribingStarted": "Transskriberer…",
       "rateLimited": "Codex bad om at sætte tempoet ned. Behandlingen fortsætter af sig selv…",
       "aligning": "Samtalen sættes i rækkefølge…",
       "analyzing": "Skelner mellem talerne…",

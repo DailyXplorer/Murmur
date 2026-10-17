@@ -71,6 +71,9 @@ impl Alert {
                 MeetingAlert::StoppedAtLimit => &strings.meeting_stopped_at_limit,
                 MeetingAlert::WriteFailed => &strings.meeting_write_failed,
                 MeetingAlert::LowDiskSpace => &strings.meeting_low_disk_space,
+                MeetingAlert::SystemAudioInterrupted => {
+                    &strings.meeting_system_audio_interrupted
+                }
             }
             .clone(),
         }
@@ -145,6 +148,7 @@ mod tests {
             MeetingAlert::StoppedAtLimit,
             MeetingAlert::WriteFailed,
             MeetingAlert::LowDiskSpace,
+            MeetingAlert::SystemAudioInterrupted,
         ];
         let messages: std::collections::HashSet<_> = alerts
             .iter()

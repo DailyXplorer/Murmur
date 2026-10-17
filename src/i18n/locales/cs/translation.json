@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Schůzka se zastaví za 5 minut (limit 3 hodiny).",
     "meetingStoppedAtLimit": "Schůzka dosáhla limitu 3 hodin a byla uložena.",
     "meetingWriteFailed": "Schůzka se zastavila, protože Murmur nemohl zapisovat na disk. Nahraný záznam zůstal zachován.",
-    "meetingLowDiskSpace": "Na tomto Macu je volných méně než 1,5 GB. Dlouhá schůzka se může zastavit dříve; co se nahraje, zůstane zachováno."
+    "meetingLowDiskSpace": "Na tomto Macu je volných méně než 1,5 GB. Dlouhá schůzka se může zastavit dříve; co se nahraje, zůstane zachováno.",
+    "meetingSystemAudioInterrupted": "Systémový zvuk se po změně zvukového výstupu přestal nahrávat. Murmur se ho dál pokouší obnovit; mikrofon se nahrává dál."
   },
   "sidebar": {
     "general": "Obecné",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Čeká na zpracování…",
       "transcribing": "Přepisování: hotovo {{done}} z {{total}} částí…",
+      "transcribingStarted": "Přepisuje se…",
       "rateLimited": "Codex požádal o zpomalení. Zpracování bude pokračovat samo…",
       "aligning": "Řazení konverzace…",
       "analyzing": "Rozlišování mluvčích…",

@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Spotkanie zakończy się za 5 minut (limit 3 godzin).",
     "meetingStoppedAtLimit": "Spotkanie osiągnęło limit 3 godzin i zostało zapisane.",
     "meetingWriteFailed": "Spotkanie zostało zatrzymane, ponieważ Murmur nie mógł zapisywać na dysku. Nagrana część została zachowana.",
-    "meetingLowDiskSpace": "Na tym Macu jest mniej niż 1,5 GB wolnego miejsca. Długie spotkanie może zatrzymać się wcześniej; nagrany fragment zostanie zachowany."
+    "meetingLowDiskSpace": "Na tym Macu jest mniej niż 1,5 GB wolnego miejsca. Długie spotkanie może zatrzymać się wcześniej; nagrany fragment zostanie zachowany.",
+    "meetingSystemAudioInterrupted": "Dźwięk systemowy przestał się nagrywać po zmianie wyjścia audio. Murmur wciąż próbuje go przywrócić; mikrofon jest nadal nagrywany."
   },
   "sidebar": {
     "general": "Ogólne",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Oczekuje na przetworzenie…",
       "transcribing": "Transkrypcja: gotowe części {{done}} z {{total}}…",
+      "transcribingStarted": "Transkrypcja w toku…",
       "rateLimited": "Codex poprosił o zwolnienie tempa. Przetwarzanie wznowi się samo…",
       "aligning": "Porządkowanie rozmowy…",
       "analyzing": "Rozróżnianie mówców…",

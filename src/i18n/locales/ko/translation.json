@@ -32,7 +32,8 @@
     "meetingStopsSoon": "회의가 5분 후에 중지됩니다(3시간 제한).",
     "meetingStoppedAtLimit": "회의가 3시간 제한에 도달하여 저장되었습니다.",
     "meetingWriteFailed": "Murmur가 디스크에 쓸 수 없어 회의가 중지되었습니다. 녹음된 내용은 보존됩니다.",
-    "meetingLowDiskSpace": "이 Mac의 여유 공간이 1.5GB 미만입니다. 긴 회의는 일찍 멈출 수 있지만 녹음된 내용은 보관됩니다."
+    "meetingLowDiskSpace": "이 Mac의 여유 공간이 1.5GB 미만입니다. 긴 회의는 일찍 멈출 수 있지만 녹음된 내용은 보관됩니다.",
+    "meetingSystemAudioInterrupted": "사운드 출력이 바뀐 뒤 시스템 오디오가 멈췄습니다. Murmur가 계속 복구를 시도하며, 마이크는 계속 녹음됩니다."
   },
   "sidebar": {
     "general": "일반",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "처리 대기 중…",
       "transcribing": "받아쓰는 중: {{total}}개 중 {{done}}개 완료…",
+      "transcribingStarted": "받아쓰는 중…",
       "rateLimited": "Codex가 속도를 늦춰 달라고 요청했습니다. 처리는 자동으로 재개됩니다…",
       "aligning": "대화를 순서대로 정리하는 중…",
       "analyzing": "화자를 구분하는 중…",

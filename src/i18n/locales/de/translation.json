@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 3 Stunden).",
     "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
     "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten.",
-    "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten."
+    "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
+    "meetingSystemAudioInterrupted": "Der Systemton wurde nach einem Wechsel der Audioausgabe unterbrochen. Murmur versucht weiter, ihn wiederherzustellen; dein Mikrofon wird weiter aufgenommen."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Wartet auf Verarbeitung…",
       "transcribing": "Transkription: {{done}} von {{total}} Teilen fertig…",
+      "transcribingStarted": "Wird transkribiert…",
       "rateLimited": "Codex bittet um eine Pause. Die Verarbeitung geht von selbst weiter…",
       "aligning": "Gespräch wird geordnet…",
       "analyzing": "Sprecher werden unterschieden…",

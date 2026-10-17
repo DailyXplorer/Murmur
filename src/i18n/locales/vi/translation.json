@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Cuộc họp sẽ dừng sau 5 phút (giới hạn 3 giờ).",
     "meetingStoppedAtLimit": "Cuộc họp đã đạt giới hạn 3 giờ và đã được lưu.",
     "meetingWriteFailed": "Cuộc họp đã dừng vì Murmur không thể ghi vào ổ đĩa. Phần đã ghi vẫn được giữ.",
-    "meetingLowDiskSpace": "Máy Mac này còn trống dưới 1,5 GB. Cuộc họp dài có thể dừng sớm; phần đã ghi vẫn được giữ lại."
+    "meetingLowDiskSpace": "Máy Mac này còn trống dưới 1,5 GB. Cuộc họp dài có thể dừng sớm; phần đã ghi vẫn được giữ lại.",
+    "meetingSystemAudioInterrupted": "Âm thanh hệ thống đã dừng sau khi đầu ra âm thanh thay đổi. Murmur vẫn đang cố khôi phục; micrô của bạn vẫn được ghi."
   },
   "sidebar": {
     "general": "Chung",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Đang chờ xử lý…",
       "transcribing": "Đang chép lời: xong {{done}}/{{total}} phần…",
+      "transcribingStarted": "Đang chép lời…",
       "rateLimited": "Codex yêu cầu giảm tốc độ. Quá trình xử lý sẽ tự tiếp tục…",
       "aligning": "Đang sắp xếp cuộc trò chuyện…",
       "analyzing": "Đang phân biệt người nói…",

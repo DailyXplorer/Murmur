@@ -32,7 +32,8 @@
     "meetingStopsSoon": "Mötet stoppas om 5 minuter (gräns på 3 timmar).",
     "meetingStoppedAtLimit": "Mötet nådde gränsen på 3 timmar och sparades.",
     "meetingWriteFailed": "Mötet stoppades eftersom Murmur inte kunde skriva till disken. Det som spelats in finns kvar.",
-    "meetingLowDiskSpace": "Det finns mindre än 1,5 GB ledigt på den här Macen. Ett långt möte kan stoppa i förtid; det som spelats in sparas."
+    "meetingLowDiskSpace": "Det finns mindre än 1,5 GB ledigt på den här Macen. Ett långt möte kan stoppa i förtid; det som spelats in sparas.",
+    "meetingSystemAudioInterrupted": "Systemljudet slutade spelas in efter att ljudutgången bytts. Murmur fortsätter att försöka få tillbaka det; din mikrofon spelas fortfarande in."
   },
   "sidebar": {
     "general": "Allmänt",
@@ -568,6 +569,7 @@
     "processing": {
       "waiting": "Väntar på bearbetning…",
       "transcribing": "Transkriberar: {{done}} av {{total}} delar klara…",
+      "transcribingStarted": "Transkriberar…",
       "rateLimited": "Codex bad om att sakta ner. Bearbetningen fortsätter av sig själv…",
       "aligning": "Samtalet sätts i ordning…",
       "analyzing": "Skiljer talarna åt…",

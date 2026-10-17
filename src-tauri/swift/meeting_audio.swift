@@ -67,6 +67,17 @@ public func murmurSystemTapStop() -> Int32 {
     return tap?.stop() == true ? 1 : 0
 }
 
+/// 1 while the system audio device has been down for a few seconds after an
+/// output change, despite the retries; the recording then holds silence.
+@_cdecl("murmur_system_tap_interrupted")
+public func murmurSystemTapInterrupted() -> Int32 {
+    guard #available(macOS 14.4, *) else { return 0 }
+    sessionLock.lock()
+    let tap = session as? SystemTap
+    sessionLock.unlock()
+    return tap?.interrupted() == true ? 1 : 0
+}
+
 @available(macOS 14.4, *)
 private final class SystemTap: @unchecked Sendable {
     private let context: UnsafeMutableRawPointer?
@@ -86,6 +97,10 @@ private final class SystemTap: @unchecked Sendable {
     /// Another process had its audio output running at some point.
     private var othersPlayed = false
     private var stopped = false
+    /// When rebuilding the device after an output change first failed.
+    private var downSince: Date?
+    /// Output changes seen, so only the latest one's rebuild retries.
+    private var rebuilds = 0
     private var mono: [Float] = []
 
     init(context: UnsafeMutableRawPointer?, callback: MurmurSamplesCallback) {
@@ -225,6 +240,13 @@ private final class SystemTap: @unchecked Sendable {
         }
     }
 
+    func interrupted() -> Bool {
+        control.sync {
+            guard let downSince else { return false }
+            return Date().timeIntervalSince(downSince) >= 3
+        }
+    }
+
     /// Headphones plugged in or a Bluetooth device connected: the global tap
     /// keeps hearing everything, but the aggregate device is rebuilt around
     /// the new output. Rust fills the short gap with silence.
@@ -232,13 +254,30 @@ private final class SystemTap: @unchecked Sendable {
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self, !self.stopped else { return }
             self.stopDevice()
-            _ = self.startDevice()
+            self.rebuilds += 1
+            self.rebuild(self.rebuilds, retryIn: 0.5)
         }
         var address = defaultOutputAddress
         if AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &address, control, listener) == noErr
         {
             outputListener = listener
+        }
+    }
+
+    /// Starts the device, and while that fails (no default output yet, or
+    /// one still starting up mid-switch) tries again, waiting twice as long
+    /// each time up to 5 seconds, until it works or the tap stops. Runs on
+    /// `control`; a later output change replaces the retries of `attempt`.
+    private func rebuild(_ attempt: Int, retryIn delay: TimeInterval) {
+        guard !stopped, attempt == rebuilds else { return }
+        if startDevice() == ok {
+            downSince = nil
+            return
+        }
+        if downSince == nil { downSince = Date() }
+        control.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.rebuild(attempt, retryIn: min(delay * 2, 5))
         }
     }
 
