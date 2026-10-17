@@ -74,4 +74,23 @@ jobs:
             fi
           done
 
-          cargo audit --ignore RUSTSEC-2026-0235
+          # RUSTSEC-2026-0367/0368/0369 affect zip extraction. zip is pulled in
+          # only by tauri-plugin-updater on Windows (it installs .tar.gz on
+          # macOS), so it is not built for either architecture we ship. Fail
+          # before ignoring them if that ever changes.
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            if ! dependency_tree="$(cargo tree --locked --target "$target" --invert zip 2>&1)"; then
+              echo "$dependency_tree" >&2
+              exit 1
+            fi
+            if grep -q '^zip v' <<<"$dependency_tree"; then
+              echo "zip advisories are now reachable on $target" >&2
+              exit 1
+            fi
+          done
+
+          cargo audit \
+            --ignore RUSTSEC-2026-0235 \
+            --ignore RUSTSEC-2026-0367 \
+            --ignore RUSTSEC-2026-0368 \
+            --ignore RUSTSEC-2026-0369
