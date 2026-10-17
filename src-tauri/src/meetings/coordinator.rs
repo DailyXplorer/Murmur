@@ -185,16 +185,13 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             .store
             .insert_recording(started_at_ms, requested)
             .map_err(storage)?;
-        let dir = paths::meeting_dir(&self.root, id);
-        // SQLite hands out the id of a deleted newest meeting again. Files
-        // still under it (a folder that failed to delete) belong to no
-        // meeting, and an old analysis would be taken for this one's.
-        if let Err(error) =
-            paths::remove_meeting_dir(&self.root, id).and_then(|()| std::fs::create_dir_all(&dir))
-        {
-            self.forget(id);
-            return Err(storage(error));
-        }
+        let dir = match paths::fresh_meeting_dir(&self.root, id, started_at_ms) {
+            Ok(dir) => dir,
+            Err(error) => {
+                self.forget(id);
+                return Err(storage(error));
+            }
+        };
 
         let mut tracks = Vec::new();
         let mut reasons = Vec::new();
@@ -782,6 +779,25 @@ mod tests {
         assert_eq!(id, 1);
         assert!(paths::meeting_dir(&h.root, id).is_dir());
         assert!(!stale.join("analysis.json").exists());
+    }
+
+    #[test]
+    fn a_stale_folder_that_cannot_be_deleted_never_blocks_a_new_meeting() {
+        let mut h = working();
+        // Under the id the next meeting gets, an entry the safe delete
+        // refuses to remove.
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("keep.txt"), "keep").unwrap();
+        std::os::unix::fs::symlink(outside.path(), paths::meeting_dir(&h.root, 1)).unwrap();
+
+        for _ in 0..2 {
+            let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+            assert_eq!(id, 1);
+            let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
+            assert!(dir.is_dir() && !dir.file_type().is_symlink());
+            h.coordinator.discard().unwrap();
+        }
+        assert!(outside.path().join("keep.txt").exists());
     }
 
     #[test]
