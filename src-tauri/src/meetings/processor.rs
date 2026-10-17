@@ -376,11 +376,14 @@ impl Processor {
             language: self.language.clone(),
         };
         // The remote participants are told apart, or everyone in the room
-        // when only the microphone recorded.
-        let diarize = if source.0.contains_key(&Track::System) {
-            Track::System
-        } else {
+        // when system audio holds no speech: a meeting held in person.
+        let system_spoke = chunks
+            .iter()
+            .any(|chunk| chunk.track == Track::System && chunk.status != ChunkStatus::Silent);
+        let diarize = if source.0.contains_key(&Track::Mic) && !system_spoke {
             Track::Mic
+        } else {
+            Track::System
         };
         let dir = paths::meeting_dir(&self.root, id);
         let analyzed = AtomicBool::new(false);
@@ -469,7 +472,9 @@ impl Processor {
         diarize: Track,
         operation: ProcessingOperation,
     ) -> Option<(Option<Analysis>, SpeakerAnalysis)> {
-        if let Some(saved) = Analysis::load(dir) {
+        // One saved before the speakers were told apart on another track is
+        // run again.
+        if let Some(saved) = Analysis::load(dir).filter(|saved| saved.diarized == Some(diarize)) {
             let outcome = saved.outcome();
             return Some((Some(saved), outcome));
         }
@@ -733,6 +738,8 @@ mod tests {
     struct FakeAnalyzer {
         answer: Mutex<Option<AnalyzerOutcome>>,
         calls: AtomicU32,
+        /// The track it was last asked to tell the speakers apart on.
+        diarize: Mutex<Option<Track>>,
     }
 
     impl FakeAnalyzer {
@@ -740,6 +747,7 @@ mod tests {
             Self {
                 answer: Mutex::new(Some(outcome)),
                 calls: AtomicU32::new(0),
+                diarize: Mutex::default(),
             }
         }
 
@@ -749,10 +757,19 @@ mod tests {
 
         /// What the real helper printed for the fixture dialogue.
         fn from_fixture(lines: &str, complete: bool) -> Self {
+            Self::from_fixture_on(Track::System, lines, complete)
+        }
+
+        /// The fixture dialogue, as if it had been heard on `track`.
+        fn from_fixture_on(track: Track, lines: &str, complete: bool) -> Self {
             let mut analysis = Analysis {
-                diarized: Some(Track::System),
+                diarized: Some(track),
                 ..Analysis::default()
             };
+            let lines = lines.replace(
+                r#""track":"system""#,
+                &format!(r#""track":"{}""#, track_name(track)),
+            );
             for line in lines.lines() {
                 analysis.absorb(crate::meetings::protocol::parse_line(line).unwrap());
             }
@@ -768,6 +785,7 @@ mod tests {
             _: ProcessingOperation,
         ) -> crate::meetings::analysis::AnalyzeFuture {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            *self.diarize.lock().unwrap() = Some(request.diarize);
             assert!(request.tracks.iter().all(|(_, path)| path.is_file()));
             let answer = self
                 .answer
@@ -855,6 +873,29 @@ mod tests {
             writer.write_sample(value).unwrap();
         }
         writer.finalize().unwrap();
+    }
+
+    /// Writes a track of pure digital zeros, what system audio records when
+    /// nothing plays on the Mac.
+    fn zeros(path: &Path, seconds: usize) {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: RATE as u32,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).unwrap();
+        for _ in 0..seconds * RATE {
+            writer.write_sample(0i16).unwrap();
+        }
+        writer.finalize().unwrap();
+    }
+
+    fn track_name(track: Track) -> &'static str {
+        match track {
+            Track::Mic => "mic",
+            Track::System => "system",
+        }
     }
 
     struct Harness {
@@ -1088,17 +1129,7 @@ mod tests {
         }
         let dir = paths::meeting_dir(&h.root, id);
         track(&dir.join(paths::MIC_TRACK), 20, &[(2, 10)]);
-        let spec = hound::WavSpec {
-            channels: 1,
-            sample_rate: RATE as u32,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        };
-        let mut writer = hound::WavWriter::create(dir.join(paths::SYSTEM_TRACK), spec).unwrap();
-        for _ in 0..20 * RATE {
-            writer.write_sample(0i16).unwrap();
-        }
-        writer.finalize().unwrap();
+        zeros(&dir.join(paths::SYSTEM_TRACK), 20);
 
         h.process(id, codex(|_| Ok("Seul.".to_string())));
 
@@ -1725,6 +1756,38 @@ mod tests {
         assert_eq!(meeting.title.as_deref(), Some("Nouveau"));
         assert_eq!(meeting.audio, AudioState::Compressed);
         assert!(!dir.join(paths::MIC_TRACK).exists());
+    }
+
+    /// A meeting in a room with both tracks recorded: nothing played on the
+    /// Mac and every voice is on the microphone, so that is where the
+    /// speakers are told apart.
+    #[test]
+    fn the_voices_of_a_room_are_told_apart_on_the_microphone() {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 34);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 34, &[(0, 34)]);
+        zeros(&dir.join(paths::SYSTEM_TRACK), 34);
+        let analyzer = Arc::new(FakeAnalyzer::from_fixture_on(Track::Mic, FIXTURE, true));
+        h.process_with(id, codex(|_| Ok(DIALOGUE.join(" "))), Arc::clone(&analyzer));
+
+        assert_eq!(*analyzer.diarize.lock().unwrap(), Some(Track::Mic));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.speaker_analysis, Some(SpeakerAnalysis::Separated));
+        let keys: Vec<&str> = turns(&meeting).iter().map(|(key, _)| *key).collect();
+        assert_eq!(keys, ["s1", "s2", "s1", "s2", "s1", "s2", "s1", "s2"]);
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1", "Speaker 2"]);
+    }
+
+    #[test]
+    fn the_remote_voices_are_told_apart_when_system_audio_holds_speech() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let analyzer = Arc::new(FakeAnalyzer::without_models());
+        h.process_with(id, codex(|_| Ok("Bonjour.".into())), Arc::clone(&analyzer));
+        assert_eq!(*analyzer.diarize.lock().unwrap(), Some(Track::System));
     }
 
     /// Deleting a meeting cancels its run, maybe while the tracks are read;
