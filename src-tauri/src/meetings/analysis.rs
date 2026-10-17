@@ -55,9 +55,10 @@ impl Analysis {
         }
     }
 
-    /// How the speakers can be told apart with this analysis.
+    /// How the speakers can be told apart with this analysis. Turns that
+    /// name nobody did not tell anyone apart.
     pub fn outcome(&self) -> SpeakerAnalysis {
-        if self.turns.is_some() {
+        if self.turns.as_ref().is_some_and(|turns| !turns.is_empty()) {
             SpeakerAnalysis::Separated
         } else if self.models_missing {
             SpeakerAnalysis::NoModels
@@ -199,8 +200,16 @@ mod tests {
         assert_eq!(analysis.turns, None);
         assert_eq!(analysis.outcome(), SpeakerAnalysis::Failed);
 
+        // Silence: nobody to tell apart, so the user may try again.
         analysis.absorb(
             parse_line(r#"{"type":"diarization","track":"system","segments":[]}"#).unwrap(),
+        );
+        assert_eq!(analysis.outcome(), SpeakerAnalysis::Failed);
+        analysis.absorb(
+            parse_line(
+                r#"{"type":"diarization","track":"system","segments":[{"spk":"X","s":0,"e":1}]}"#,
+            )
+            .unwrap(),
         );
         assert_eq!(analysis.outcome(), SpeakerAnalysis::Separated);
 
