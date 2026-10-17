@@ -836,12 +836,6 @@ pub fn write_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Res
     Ok(())
 }
 
-pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
-    let settings = get_settings(app);
-
-    settings.bindings
-}
-
 pub fn get_history_limit(app: &AppHandle) -> usize {
     let settings = get_settings(app);
     settings.history_limit

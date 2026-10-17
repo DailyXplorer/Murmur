@@ -171,7 +171,8 @@
           "restore": "Orijinal kısayol geri yüklenemedi",
           "set": "Kısayol ayarlanamadı: {{error}}",
           "reset": "Kısayol orijinal değerine sıfırlanamadı",
-          "registrationFailed": "Bu kısayolu başka bir uygulama kullanıyor. Farklı bir tane seçin."
+          "registrationFailed": "Bu kısayolu başka bir uygulama kullanıyor. Farklı bir tane seçin.",
+          "usedByAnotherAction": "Bu kısayolu başka bir Murmur eylemi kullanıyor. Farklı bir tane seçin."
         }
       },
       "language": {

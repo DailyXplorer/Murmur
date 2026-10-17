@@ -171,7 +171,8 @@
           "restore": "Nie udało się przywrócić oryginalnego skrótu",
           "set": "Nie udało się ustawić skrótu: {{error}}",
           "reset": "Nie udało się zresetować skrótu do wartości domyślnej",
-          "registrationFailed": "Inna aplikacja używa tego skrótu. Wybierz inny."
+          "registrationFailed": "Inna aplikacja używa tego skrótu. Wybierz inny.",
+          "usedByAnotherAction": "Inna akcja Murmura używa tego skrótu. Wybierz inny."
         }
       },
       "language": {

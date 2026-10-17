@@ -171,7 +171,8 @@
           "restore": "원래 단축키 복원에 실패했습니다",
           "set": "단축키 설정 실패: {{error}}",
           "reset": "단축키를 원래 값으로 재설정하는데 실패했습니다",
-          "registrationFailed": "다른 앱이 이 단축키를 사용 중입니다. 다른 단축키를 선택하세요."
+          "registrationFailed": "다른 앱이 이 단축키를 사용 중입니다. 다른 단축키를 선택하세요.",
+          "usedByAnotherAction": "Murmur의 다른 동작이 이 단축키를 사용 중입니다. 다른 단축키를 선택하세요."
         }
       },
       "language": {

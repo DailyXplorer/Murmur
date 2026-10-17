@@ -171,7 +171,8 @@
           "restore": "Không thể khôi phục phím tắt gốc",
           "set": "Không thể đặt phím tắt: {{error}}",
           "reset": "Không thể đặt lại phím tắt về giá trị gốc",
-          "registrationFailed": "Ứng dụng khác đang dùng phím tắt này. Hãy chọn phím tắt khác."
+          "registrationFailed": "Ứng dụng khác đang dùng phím tắt này. Hãy chọn phím tắt khác.",
+          "usedByAnotherAction": "Một thao tác khác của Murmur đang dùng phím tắt này. Hãy chọn phím tắt khác."
         }
       },
       "language": {

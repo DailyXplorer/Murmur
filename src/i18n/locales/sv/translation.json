@@ -171,7 +171,8 @@
           "restore": "Misslyckades med att återställa ursprungligt kortkommando",
           "set": "Misslyckades med att ställa in kortkommando: {{error}}",
           "reset": "Misslyckades med att återställa kortkommando till ursprungsvärdet",
-          "registrationFailed": "En annan app använder det här kortkommandot. Välj ett annat."
+          "registrationFailed": "En annan app använder det här kortkommandot. Välj ett annat.",
+          "usedByAnotherAction": "En annan åtgärd i Murmur använder det här kortkommandot. Välj ett annat."
         }
       },
       "language": {

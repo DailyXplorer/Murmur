@@ -171,7 +171,8 @@
           "restore": "无法恢复原始快捷键",
           "set": "无法设置快捷键: {{error}}",
           "reset": "无法将快捷键重置为原始值",
-          "registrationFailed": "其他应用正在使用此快捷键。请选择其他快捷键。"
+          "registrationFailed": "其他应用正在使用此快捷键。请选择其他快捷键。",
+          "usedByAnotherAction": "Murmur 的其他操作正在使用此快捷键。请选择其他快捷键。"
         }
       },
       "language": {

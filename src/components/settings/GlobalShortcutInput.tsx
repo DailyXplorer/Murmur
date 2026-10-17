@@ -13,7 +13,7 @@ import {
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import { useShortcutCaptureStore } from "../../stores/shortcutCaptureStore";
-import { commands } from "@/bindings";
+import { commands, type ShortcutRegistrationError } from "@/bindings";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
@@ -53,7 +53,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   } = useShortcutCaptureStore();
   const editingShortcutId = capturingId === shortcutId ? shortcutId : null;
   const [originalBinding, setOriginalBinding] = useState<string>("");
-  const [registrationFailed, setRegistrationFailed] = useState(false);
+  const [registrationError, setRegistrationError] =
+    useState<ShortcutRegistrationError>();
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
 
   const bindings = getSetting("bindings") || {};
@@ -64,7 +65,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       commands
         .getShortcutRegistrationErrors()
         .then((errors) => {
-          if (active) setRegistrationFailed(errors[shortcutId] !== undefined);
+          if (active) setRegistrationError(errors[shortcutId]);
         })
         .catch(() => undefined);
     void refresh();
@@ -287,12 +288,14 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
             ariaLabel={`${t("common.reset")}: ${translatedName}`}
           />
         </div>
-        {registrationFailed && (
+        {registrationError && (
           <p
             role="alert"
             className="text-end text-xs text-red-600 dark:text-red-400"
           >
-            {t("settings.general.shortcut.errors.registrationFailed")}
+            {registrationError === "used_by_another_action"
+              ? t("settings.general.shortcut.errors.usedByAnotherAction")
+              : t("settings.general.shortcut.errors.registrationFailed")}
           </p>
         )}
       </div>

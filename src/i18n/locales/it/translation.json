@@ -171,7 +171,8 @@
           "restore": "Errore nel ripristino della scorciatoia originale",
           "set": "Errore nella configurazione della scorciatoia: {{error}}",
           "reset": "Errore nella reinizializzazione della scorciatoia al valore originale",
-          "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa."
+          "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa.",
+          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa."
         }
       },
       "language": {

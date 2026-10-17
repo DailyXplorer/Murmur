@@ -171,7 +171,8 @@
           "restore": "Ursprüngliches Tastenkürzel konnte nicht wiederhergestellt werden",
           "set": "Tastenkürzel konnte nicht gesetzt werden: {{error}}",
           "reset": "Tastenkürzel konnte nicht auf Originalwert zurückgesetzt werden",
-          "registrationFailed": "Eine andere App verwendet dieses Kürzel. Wähle ein anderes."
+          "registrationFailed": "Eine andere App verwendet dieses Kürzel. Wähle ein anderes.",
+          "usedByAnotherAction": "Eine andere Murmur-Aktion verwendet dieses Kürzel. Wähle ein anderes."
         }
       },
       "language": {

@@ -171,7 +171,8 @@
           "restore": "Herstellen van originele sneltoets mislukt",
           "set": "Instellen van sneltoets mislukt: {{error}}",
           "reset": "Sneltoets terugzetten naar standaardwaarde mislukt",
-          "registrationFailed": "Een andere app gebruikt deze sneltoets. Kies een andere."
+          "registrationFailed": "Een andere app gebruikt deze sneltoets. Kies een andere.",
+          "usedByAnotherAction": "Een andere Murmur-actie gebruikt deze sneltoets. Kies een andere."
         }
       },
       "language": {

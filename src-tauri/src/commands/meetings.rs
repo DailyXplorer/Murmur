@@ -104,14 +104,30 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
     } else if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
         manager.shutdown();
     }
+    // Only a shortcut that held its keys gives them back.
+    let held = crate::shortcut::binding_registers(&settings, meetings::BINDING_ID);
     settings.meetings_enabled = enabled;
     let binding = settings.bindings.get(meetings::BINDING_ID).cloned();
+    let yields = crate::shortcut::meeting_shortcut_yields(&settings);
     write_settings(&app, settings);
 
     if let Some(binding) = binding {
-        if enabled {
+        if yields {
+            // Another action already uses these keys and keeps them; the
+            // shortcut field says so until the user picks other keys.
+            crate::shortcut::record_registration_error(
+                &app,
+                meetings::BINDING_ID,
+                crate::shortcut::ShortcutRegistrationError::UsedByAnotherAction,
+            );
+        } else if enabled {
             if let Err(error) = crate::shortcut::register_shortcut(&app, binding.clone()) {
                 log::warn!("Meeting shortcut is unavailable: {error}");
+                crate::shortcut::record_registration_error(
+                    &app,
+                    meetings::BINDING_ID,
+                    crate::shortcut::ShortcutRegistrationError::Unavailable,
+                );
                 user_alert::show(
                     &app,
                     Alert::ShortcutUnavailable {
@@ -119,8 +135,13 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
                     },
                 );
             }
-        } else if let Err(error) = crate::shortcut::unregister_shortcut(&app, binding) {
-            log::debug!("Meeting shortcut was not registered: {error}");
+        } else {
+            crate::shortcut::clear_registration_error(&app, meetings::BINDING_ID);
+            if held {
+                if let Err(error) = crate::shortcut::unregister_shortcut(&app, binding) {
+                    log::debug!("Meeting shortcut was not registered: {error}");
+                }
+            }
         }
     }
     crate::utils::update_tray_menu(&app, None);

@@ -171,7 +171,8 @@
           "restore": "Échec de la restauration du raccourci original",
           "set": "Échec de la définition du raccourci : {{error}}",
           "reset": "Échec de la réinitialisation du raccourci à sa valeur d'origine",
-          "registrationFailed": "Une autre application utilise ce raccourci. Choisissez-en un autre."
+          "registrationFailed": "Une autre application utilise ce raccourci. Choisissez-en un autre.",
+          "usedByAnotherAction": "Une autre action de Murmur utilise ce raccourci. Choisissez-en un autre."
         }
       },
       "language": {

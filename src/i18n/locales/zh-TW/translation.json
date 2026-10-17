@@ -171,7 +171,8 @@
           "restore": "無法還原原始快捷鍵",
           "set": "無法設定快捷鍵: {{error}}",
           "reset": "無法將快捷鍵重設為原始值",
-          "registrationFailed": "其他 App 正在使用此快速鍵。請選擇其他快速鍵。"
+          "registrationFailed": "其他 App 正在使用此快速鍵。請選擇其他快速鍵。",
+          "usedByAnotherAction": "Murmur 的其他操作正在使用此快速鍵。請選擇其他快速鍵。"
         }
       },
       "language": {

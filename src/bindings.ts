@@ -22,9 +22,9 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
 }
 },
 /**
- * Shortcuts that failed to register at startup, keyed by binding id.
+ * Shortcuts that hold no hotkey, keyed by binding id.
  */
-async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: string }>> {
+async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: ShortcutRegistrationError }>> {
     return await TAURI_INVOKE("get_shortcut_registration_errors");
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -919,6 +919,18 @@ export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
+/**
+ * Why a binding holds no hotkey.
+ */
+export type ShortcutRegistrationError =
+/**
+ * macOS refused the keys, usually because another app holds them.
+ */
+"unavailable" |
+/**
+ * Another Murmur action already uses the keys, and keeps them.
+ */
+"used_by_another_action"
 export type SoundTheme = "marimba" | "pop" | "custom"
 export type SystemAudioSupport = "available" |
 /**

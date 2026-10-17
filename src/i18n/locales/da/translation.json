@@ -171,7 +171,8 @@
           "restore": "Kunne ikke gendanne den oprindelige genvej",
           "set": "Kunne ikke indstille genvej: {{error}}",
           "reset": "Kunne ikke nulstille genvej til oprindelig indstilling",
-          "registrationFailed": "En anden app bruger denne genvej. Vælg en anden."
+          "registrationFailed": "En anden app bruger denne genvej. Vælg en anden.",
+          "usedByAnotherAction": "En anden handling i Murmur bruger denne genvej. Vælg en anden."
         }
       },
       "language": {

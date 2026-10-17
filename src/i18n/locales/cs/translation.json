@@ -171,7 +171,8 @@
           "restore": "Nepodařilo se obnovit původní zkratku",
           "set": "Nepodařilo se nastavit zkratku: {{error}}",
           "reset": "Nepodařilo se vrátit zkratku na původní hodnotu",
-          "registrationFailed": "Tuto zkratku používá jiná aplikace. Zvolte jinou."
+          "registrationFailed": "Tuto zkratku používá jiná aplikace. Zvolte jinou.",
+          "usedByAnotherAction": "Tuto zkratku používá jiná akce v Murmuru. Zvolte jinou."
         }
       },
       "language": {

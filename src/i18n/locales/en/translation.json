@@ -171,7 +171,8 @@
           "restore": "Failed to restore original shortcut",
           "set": "Failed to set shortcut: {{error}}",
           "reset": "Failed to reset shortcut to original value",
-          "registrationFailed": "Another app is using this shortcut. Choose a different one."
+          "registrationFailed": "Another app is using this shortcut. Choose a different one.",
+          "usedByAnotherAction": "Another Murmur action uses this shortcut. Choose a different one."
         }
       },
       "language": {
