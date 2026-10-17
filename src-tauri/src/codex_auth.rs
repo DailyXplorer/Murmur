@@ -26,7 +26,7 @@ use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::transcription_error::{FailureKind, TranscriptionError};
@@ -36,7 +36,7 @@ const REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_REFRESH_TOKEN_URL_OVERRI
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const ACCESS_TOKEN_REFRESH_WINDOW_MINUTES: i64 = 5;
 const TOKEN_REFRESH_INTERVAL_DAYS: i64 = 8;
-const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
 const PERMANENT_REFRESH_CODES: [&str; 3] = [
     "refresh_token_expired",
     "refresh_token_reused",
@@ -47,6 +47,40 @@ const PERMANENT_REFRESH_CODES: [&str; 3] = [
 /// dropped caller never releases it halfway. The GUI and `--transcribe-file` are separate
 /// processes and rely on the re-read checks instead, as Codex processes do.
 static REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// How many refresh tasks are under way, and the signal each one gives when
+/// it ends. Quitting waits for them: see `wait_for_refreshes`.
+static REFRESHES: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
+
+/// Counts one refresh task for as long as it lives.
+struct RefreshInFlight;
+
+impl RefreshInFlight {
+    fn start() -> Self {
+        *REFRESHES.0.lock().unwrap_or_else(PoisonError::into_inner) += 1;
+        Self
+    }
+}
+
+impl Drop for RefreshInFlight {
+    fn drop(&mut self) {
+        *REFRESHES.0.lock().unwrap_or_else(PoisonError::into_inner) -= 1;
+        REFRESHES.1.notify_all();
+    }
+}
+
+/// Waits up to `timeout` for the refreshes under way to end, and says
+/// whether they did. A refresh cut off by the process exiting would have
+/// spent the old refresh token without saving the new one, which signs every
+/// Codex client out.
+pub fn wait_for_refreshes(timeout: Duration) -> bool {
+    let (count, ended) = &REFRESHES;
+    let count = count.lock().unwrap_or_else(PoisonError::into_inner);
+    let (_count, wait) = ended
+        .wait_timeout_while(count, timeout, |count| *count > 0)
+        .unwrap_or_else(PoisonError::into_inner);
+    !wait.timed_out()
+}
 
 /// Hashes of refresh tokens the server rejected for good, so the status check
 /// can report "sign in again" without a network call.
@@ -339,7 +373,9 @@ async fn refresh(
     let path = path.to_path_buf();
     let endpoint = endpoint.to_string();
     let seen_access_token = seen.access_token().map(str::to_string);
+    let in_flight = RefreshInFlight::start();
     tauri::async_runtime::spawn(async move {
+        let _in_flight = in_flight;
         refresh_to_completion(&path, &endpoint, seen_access_token.as_deref(), reason, now).await
     })
     .await
@@ -834,6 +870,38 @@ mod tests {
             );
             thread::sleep(Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn quitting_waits_until_a_refresh_under_way_saved_the_rotated_tokens() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        fs::write(&path, auth_json(&expiring_token(), "rt-old")).unwrap();
+        let (arrived_tx, arrived_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let (endpoint, _requests) = one_shot_server(
+            200,
+            r#"{"id_token":"new-id","access_token":"new-access","refresh_token":"rt-new"}"#,
+            move || {
+                arrived_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+            },
+        );
+        tauri::async_runtime::block_on(async {
+            tokio::select! {
+                _ = session_for_request_at(&path, &endpoint, now()) => {
+                    panic!("the refresh finished before the server replied")
+                }
+                _ = arrived_rx => {}
+            }
+        });
+
+        assert!(!wait_for_refreshes(Duration::from_millis(50)));
+        release_tx.send(()).unwrap();
+        assert!(wait_for_refreshes(Duration::from_secs(5)));
+
+        let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved["tokens"]["refresh_token"], "rt-new");
     }
 
     #[test]
