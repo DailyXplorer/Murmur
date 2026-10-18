@@ -23,10 +23,8 @@ const growViewportToContent = async (page: Page) => {
       ),
     ),
   );
-  await page.setViewportSize({
-    width: VIEWPORT.width,
-    height: VIEWPORT.height + overflow,
-  });
+  const { width, height } = page.viewportSize() ?? VIEWPORT;
+  await page.setViewportSize({ width, height: height + overflow });
 };
 
 test.describe("settings screenshots", () => {
@@ -160,6 +158,26 @@ test.describe("settings screenshots", () => {
       expect(
         await page.evaluate(() => window.settingsPages.unhandledCommands),
       ).toEqual([]);
+    });
+  }
+
+  // The settings window opens at 680×570.
+  for (const models of ["missing", "downloading", "ready"] as const) {
+    test(`meetings page at the default window size (models ${models})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 680, height: 570 });
+      await page.goto(`/tests/fixtures/settings-pages.html?models=${models}`);
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.waitForTimeout(500);
+      await growViewportToContent(page);
+      await page.screenshot({
+        path: `${outputDir}/meetings-models-${models}.png`,
+        fullPage: true,
+      });
     });
   }
 
