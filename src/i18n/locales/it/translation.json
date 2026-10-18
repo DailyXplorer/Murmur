@@ -686,9 +686,8 @@
       "title": "Audio di sistema",
       "description": "macOS lo chiede la prima volta che una riunione registra l'audio di sistema. Se hai rifiutato, riattiva Murmur nelle impostazioni della privacy.",
       "open": "Apri impostazioni",
-      "silent": "Non è stato registrato audio di sistema, quindi mancano gli altri partecipanti. Consenti Murmur in Registrazione audio di sistema nelle impostazioni della privacy, poi registra di nuovo.",
-      "silentAllowed": "Non è stato catturato alcun suono da altre app, quindi mancano gli altri partecipanti, anche se Murmur ha il permesso di registrare l’audio di sistema. Segnalalo perché venga corretto.",
-      "report": "Segnala un problema"
+      "silent": "Non è stato registrato audio di sistema. Consenti Murmur in Registrazione audio di sistema.",
+      "silentAllowed": "Non è stato catturato alcun suono da altre app."
     },
     "list": {
       "title": "Registrazioni",

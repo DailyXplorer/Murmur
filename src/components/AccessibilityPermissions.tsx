@@ -102,7 +102,7 @@ const AccessibilityPermissions: React.FC = () => {
             </button>
           </div>
         ) : permissionState === "request" ? (
-          <Button variant="secondary" onClick={handleButtonClick}>
+          <Button onClick={handleButtonClick}>
             {t("onboarding.permissions.accessibility.action")}
           </Button>
         ) : null}

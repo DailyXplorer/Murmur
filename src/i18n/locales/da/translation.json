@@ -686,9 +686,8 @@
       "title": "Tilladelse til systemlyd",
       "description": "macOS spørger første gang, et møde optager systemlyd. Hvis du afviste, kan du slå Murmur til igen i indstillingerne for anonymitet.",
       "open": "Åbn indstillinger",
-      "silent": "Der blev ikke optaget systemlyd, så de andre deltagere mangler. Tillad Murmur under Optagelse af systemlyd i anonymitetsindstillingerne, og optag igen.",
-      "silentAllowed": "Der blev ikke opfanget lyd fra andre apps, så de andre deltagere mangler, selvom Murmur må optage systemlyd. Rapportér det, så det kan blive rettet.",
-      "report": "Rapportér et problem"
+      "silent": "Der blev ikke optaget systemlyd. Tillad Murmur under Optagelse af systemlyd.",
+      "silentAllowed": "Der blev ikke opfanget lyd fra andre apps."
     },
     "list": {
       "title": "Optagelser",

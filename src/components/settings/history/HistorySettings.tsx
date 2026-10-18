@@ -17,34 +17,11 @@ import {
 import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { IconButton } from "../../ui/IconButton";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { HistoryLimit } from "../HistoryLimit";
 import { RecordingRetentionPeriodSelector } from "../RecordingRetentionPeriod";
-
-const IconButton: React.FC<{
-  onClick: () => void;
-  title: string;
-  disabled?: boolean;
-  active?: boolean;
-  children: React.ReactNode;
-}> = ({ onClick, title, disabled, active, children }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={title}
-    data-control="icon"
-    className={`flex size-control cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:text-text/20 disabled:active:scale-100 ${
-      active
-        ? "bg-logo-primary/10 text-logo-primary hover:bg-logo-primary/20 hover:text-logo-primary/80"
-        : "text-text/50 hover:bg-mid-gray/10 hover:text-logo-primary"
-    }`}
-    title={title}
-  >
-    {children}
-  </button>
-);
 
 const PAGE_SIZE = 30;
 
@@ -62,7 +39,7 @@ const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
   onClick,
   label,
 }) => (
-  <Button onClick={onClick} variant="secondary" title={label}>
+  <Button onClick={onClick} title={label}>
     <FolderOpenIcon size={15} aria-hidden="true" />
     <span>{label}</span>
   </Button>
@@ -551,11 +528,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center">
         <p className="text-sm font-medium">{formattedDate}</p>
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
           <IconButton
             onClick={handleCopyText}
             disabled={!hasTranscription || retrying}
-            title={t("settings.history.copyToClipboard")}
+            label={t("settings.history.copyToClipboard")}
           >
             {showCopied ? (
               <CheckIcon size={15} aria-hidden="true" />
@@ -567,7 +544,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             onClick={onToggleSaved}
             disabled={retrying}
             active={entry.saved}
-            title={
+            label={
               entry.saved
                 ? t("settings.history.unsave")
                 : t("settings.history.save")
@@ -582,7 +559,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           <IconButton
             onClick={handleRetranscribe}
             disabled={retrying || !hasRecording}
-            title={t("settings.history.retranscribe")}
+            label={t("settings.history.retranscribe")}
           >
             <ArrowCounterClockwiseIcon
               size={15}
@@ -597,7 +574,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           <IconButton
             onClick={handleDeleteEntry}
             disabled={retrying}
-            title={t("settings.history.delete")}
+            label={t("settings.history.delete")}
           >
             <TrashIcon size={15} aria-hidden="true" />
           </IconButton>
@@ -661,7 +638,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       )}
       {!hasTranscription && hasRecording && !retrying && (
         <div>
-          <Button onClick={handleRetranscribe} variant="secondary">
+          <Button onClick={handleRetranscribe}>
             <ArrowCounterClockwiseIcon size={15} aria-hidden="true" />
             <span>{t("settings.history.retry")}</span>
           </Button>

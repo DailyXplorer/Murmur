@@ -686,9 +686,8 @@
       "title": "Audio del sistema",
       "description": "macOS pregunta la primera vez que una reunión graba el audio del sistema. Si lo rechazó, vuelva a activar Murmur en los ajustes de privacidad.",
       "open": "Abrir ajustes",
-      "silent": "No se grabó audio del sistema, así que faltan los demás participantes. Permite Murmur en Grabación de audio del sistema en los ajustes de privacidad y vuelve a grabar.",
-      "silentAllowed": "No se captó sonido de otras apps, así que faltan los demás participantes, aunque Murmur tiene permiso para grabar el audio del sistema. Infórmalo para que se pueda corregir.",
-      "report": "Informar de un problema"
+      "silent": "No se grabó audio del sistema. Permite Murmur en Grabación de audio del sistema.",
+      "silentAllowed": "No se captó sonido de otras apps."
     },
     "list": {
       "title": "Grabaciones",

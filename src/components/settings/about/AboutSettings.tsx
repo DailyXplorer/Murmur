@@ -70,7 +70,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.sourceCode.description")}
           grouped={true}
         >
-          <Button variant="secondary" onClick={handleSourceClick}>
+          <Button onClick={handleSourceClick}>
             {t("settings.about.sourceCode.button")}
           </Button>
         </SettingContainer>
@@ -80,7 +80,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.modelLicences.description")}
           grouped={true}
         >
-          <Button variant="secondary" onClick={() => setLicences(true)}>
+          <Button onClick={() => setLicences(true)}>
             {t("settings.about.modelLicences.button")}
           </Button>
         </SettingContainer>

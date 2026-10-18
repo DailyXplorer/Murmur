@@ -5,7 +5,7 @@ import { CaretUpIcon } from "@phosphor-icons/react/dist/csr/CaretUp";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { findMatches } from "@/lib/meetings/search";
-import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 import { Input } from "../ui/Input";
 
 interface Match {
@@ -13,24 +13,6 @@ interface Match {
   start: number;
   end: number;
 }
-
-export const IconButton: React.FC<{
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}> = ({ label, onClick, disabled, children }) => (
-  <Button
-    variant="ghost"
-    size="icon"
-    aria-label={label}
-    title={label}
-    disabled={disabled}
-    onClick={onClick}
-  >
-    {children}
-  </Button>
-);
 
 /**
  * Search across the texts of a tab, ignoring case and accents. `highlight`
@@ -148,7 +130,7 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
 }) => {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-11 items-center gap-2 rounded-xl bg-mid-gray/10 px-3 py-1">
+    <div className="flex min-h-11 items-center gap-2 rounded-xl bg-mid-gray/10 py-1 pl-3 pr-2">
       {search.searching ? (
         <>
           <Input
@@ -181,26 +163,6 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
                   })
                 : t("meetings.transcript.noMatches")}
           </span>
-          <IconButton
-            label={t("meetings.transcript.previousMatch")}
-            disabled={search.count === 0}
-            onClick={() => search.step(-1)}
-          >
-            <CaretUpIcon size={15} aria-hidden="true" />
-          </IconButton>
-          <IconButton
-            label={t("meetings.transcript.nextMatch")}
-            disabled={search.count === 0}
-            onClick={() => search.step(1)}
-          >
-            <CaretDownIcon size={15} aria-hidden="true" />
-          </IconButton>
-          <IconButton
-            label={t("meetings.transcript.closeSearch")}
-            onClick={search.close}
-          >
-            <XIcon size={15} aria-hidden="true" />
-          </IconButton>
         </>
       ) : (
         <>
@@ -210,16 +172,47 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           <span className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-mid-gray tabular-nums">
             {label}
           </span>
+        </>
+      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {search.searching ? (
+          <>
+            <IconButton
+              size="compact"
+              label={t("meetings.transcript.previousMatch")}
+              disabled={search.count === 0}
+              onClick={() => search.step(-1)}
+            >
+              <CaretUpIcon size={15} aria-hidden="true" />
+            </IconButton>
+            <IconButton
+              size="compact"
+              label={t("meetings.transcript.nextMatch")}
+              disabled={search.count === 0}
+              onClick={() => search.step(1)}
+            >
+              <CaretDownIcon size={15} aria-hidden="true" />
+            </IconButton>
+            <IconButton
+              size="compact"
+              label={t("meetings.transcript.closeSearch")}
+              onClick={search.close}
+            >
+              <XIcon size={15} aria-hidden="true" />
+            </IconButton>
+          </>
+        ) : (
           <IconButton
+            size="compact"
             label={searchLabel}
             disabled={!hasText}
             onClick={search.open}
           >
             <MagnifyingGlassIcon size={15} aria-hidden="true" />
           </IconButton>
-        </>
-      )}
-      {children}
+        )}
+        {children}
+      </div>
     </div>
   );
 };

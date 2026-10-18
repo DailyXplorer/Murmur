@@ -9,7 +9,8 @@ import { type MeetingDetail } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import { speakerColor } from "@/lib/meetings/speakerColors";
 import { Button } from "../ui/Button";
-import { IconButton, TabHeaderBar, useTextSearch } from "./TabHeaderBar";
+import { IconButton } from "../ui/IconButton";
+import { TabHeaderBar, useTextSearch } from "./TabHeaderBar";
 import { useMeetingMarkdown } from "./useMeetingMarkdown";
 
 /** The speaker key of a part that could not be transcribed. */
@@ -70,6 +71,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
         hasText={hasText}
       >
         <IconButton
+          size="compact"
           label={t("meetings.transcript.copy")}
           disabled={!hasText}
           onClick={() => void copy()}
@@ -77,6 +79,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
           <CopyIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
+          size="compact"
           label={t("meetings.transcript.export")}
           disabled={!hasText}
           onClick={() => void exportMarkdown()}
@@ -84,6 +87,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
           <DownloadSimpleIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
+          size="compact"
           label={t("meetings.transcript.renameSpeakers")}
           disabled={meeting.speakers.length === 0}
           onClick={() => onRenameSpeaker(null)}
@@ -122,7 +126,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
                     })}
                   </span>
                   {meeting.status === "failed" && onRetry && (
-                    <Button variant="secondary" size="chip" onClick={onRetry}>
+                    <Button size="chip" onClick={onRetry}>
                       {t("meetings.processing.retry")}
                     </Button>
                   )}

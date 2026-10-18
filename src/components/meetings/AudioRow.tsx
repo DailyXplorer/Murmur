@@ -47,30 +47,24 @@ export const AudioRow: React.FC<{
         : t("meetings.audio.tracks");
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-mid-gray/20 px-1 pt-3">
-      <WaveformIcon
-        size={15}
-        className="shrink-0 text-mid-gray"
-        aria-hidden="true"
-      />
-      <p className="min-w-0 flex-1 text-xs text-mid-gray">{label}</p>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-mid-gray/20 pt-3 pl-1">
+      <p className="flex min-w-0 flex-1 items-center gap-2 text-xs text-mid-gray tabular-nums">
+        <WaveformIcon size={15} className="shrink-0" aria-hidden="true" />
+        <span className="min-w-0">{label}</span>
+      </p>
       {finished && meeting.audio !== "deleted" && (
-        <>
-          <Button
-            variant="ghost"
-            size="chip"
-            onClick={() => setPending("retranscribe")}
-          >
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="chip" onClick={() => setPending("retranscribe")}>
             {t("meetings.audio.retranscribe")}
           </Button>
           <Button
-            variant="ghost"
+            variant="danger"
             size="chip"
             onClick={() => setPending("delete")}
           >
             {t("meetings.audio.delete")}
           </Button>
-        </>
+        </div>
       )}
       <Dialog
         open={pending !== null}
@@ -85,7 +79,7 @@ export const AudioRow: React.FC<{
         closeLabel={t("common.close")}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setPending(null)}>
+            <Button onClick={() => setPending(null)}>
               {t("meetings.cancel")}
             </Button>
             <Button

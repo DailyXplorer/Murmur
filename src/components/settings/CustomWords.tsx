@@ -117,7 +117,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                     key={word}
                     onClick={() => handleRemoveWord(word)}
                     disabled={isUpdating("custom_words")}
-                    variant="secondary"
                     size="chip"
                     className="max-w-full min-w-0 gap-1"
                     aria-label={t("settings.advanced.customWords.remove", {

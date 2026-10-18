@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
-import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 import { Dropdown, DropdownOption } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -57,15 +57,12 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
           }
           options={options}
         />
-        <Button
-          variant="ghost"
-          size="icon"
+        <IconButton
           onClick={handlePlayBothSounds}
-          aria-label={t("settings.debug.soundTheme.preview")}
-          title={t("settings.debug.soundTheme.preview")}
+          label={t("settings.debug.soundTheme.preview")}
         >
           <PlayIcon size={15} aria-hidden="true" />
-        </Button>
+        </IconButton>
       </div>
     </SettingContainer>
   );

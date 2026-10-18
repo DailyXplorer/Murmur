@@ -63,10 +63,7 @@ export const SpeakerModels: React.FC<{
         );
       case "failed":
         return (
-          <Button
-            variant="secondary"
-            onClick={() => void run(commands.downloadMeetingModels)}
-          >
+          <Button onClick={() => void run(commands.downloadMeetingModels)}>
             {t("meetings.models.retry")}
           </Button>
         );
@@ -74,7 +71,6 @@ export const SpeakerModels: React.FC<{
       case "preparing":
         return (
           <Button
-            variant="secondary"
             onClick={() => void run(commands.cancelMeetingModelsDownload)}
           >
             {t("meetings.cancel")}
@@ -83,7 +79,7 @@ export const SpeakerModels: React.FC<{
       case "ready":
         return (
           <Button
-            variant="ghost"
+            variant="danger"
             onClick={() => void run(commands.deleteMeetingModels)}
           >
             {t("meetings.models.delete")}

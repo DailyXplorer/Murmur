@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   commands,
   events,
@@ -117,7 +116,7 @@ const ProcessingBanner: React.FC<{
         <p className="flex-1 text-sm">
           {t("meetings.processing.held", { time })}
         </p>
-        <Button variant="secondary" onClick={onProcessNow}>
+        <Button onClick={onProcessNow}>
           {t("meetings.processing.processNow")}
         </Button>
       </div>
@@ -180,7 +179,7 @@ const ProcessingBanner: React.FC<{
       >
         <p className="flex-1 text-sm">{message}</p>
         {onRetry && (
-          <Button variant="secondary" onClick={onRetry}>
+          <Button onClick={onRetry}>
             {meeting.status === "interrupted"
               ? t("meetings.processing.process")
               : t("meetings.processing.retry")}
@@ -215,14 +214,14 @@ const SpeakerNotice: React.FC<{
     switch (state?.state) {
       case "ready":
         return (
-          <Button variant="secondary" onClick={onSeparate}>
+          <Button onClick={onSeparate}>
             {t("meetings.speakers.separate")}
           </Button>
         );
       case "missing":
       case "failed":
         return (
-          <Button variant="secondary" onClick={() => void download()}>
+          <Button onClick={() => void download()}>
             {t("meetings.models.download")}
           </Button>
         );
@@ -255,11 +254,10 @@ const SpeakerNotice: React.FC<{
   );
 };
 
-/** System audio held only silence: macOS likely kept it from Murmur. */
-const REPORT_URL =
-  "https://github.com/DailyXplorer/Murmur/issues/new?template=bug_report.md";
-
-/** Points to the privacy settings only while the permission is missing. */
+/**
+ * One quiet line when system audio held only silence. Nothing else playing is
+ * the usual cause, so only a missing permission gets a link to fix it.
+ */
 const SystemAudioNotice: React.FC = () => {
   const { t } = useTranslation();
   const [permission, setPermission] = useState<SystemAudioPermission | null>(
@@ -269,32 +267,23 @@ const SystemAudioNotice: React.FC = () => {
     void commands.getSystemAudioPermission().then(setPermission);
   }, []);
   if (permission === null) return null;
-  const granted = permission === "granted";
   return (
-    <div
-      role="status"
-      className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
-    >
-      <p className="flex-1 text-sm">
-        {t(
-          granted
-            ? "meetings.permission.silentAllowed"
-            : "meetings.permission.silent",
-        )}
-      </p>
-      {granted ? (
-        <Button variant="secondary" onClick={() => void openUrl(REPORT_URL)}>
-          {t("meetings.permission.report")}
-        </Button>
+    <p role="status" className="px-1 text-xs text-text/60">
+      {permission === "granted" ? (
+        t("meetings.permission.silentAllowed")
       ) : (
-        <Button
-          variant="secondary"
-          onClick={() => void commands.openSystemAudioPrivacySettings()}
-        >
-          {t("meetings.permission.open")}
-        </Button>
+        <>
+          {t("meetings.permission.silent")}{" "}
+          <button
+            type="button"
+            className="cursor-pointer rounded-sm font-medium text-text underline decoration-logo-primary decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+            onClick={() => void commands.openSystemAudioPrivacySettings()}
+          >
+            {t("meetings.permission.open")}
+          </button>
+        </>
       )}
-    </div>
+    </p>
   );
 };
 
@@ -379,7 +368,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   };
 
   const back = (
-    <Button variant="ghost" className="-ml-2" onClick={onBack}>
+    <Button size="chip" onClick={onBack}>
       <ArrowLeftIcon size={15} aria-hidden="true" />
       <span>{t("meetings.view.back")}</span>
     </Button>

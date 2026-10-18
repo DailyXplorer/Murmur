@@ -11,7 +11,8 @@ import {
   type SummaryBlock,
 } from "@/lib/meetings/summary";
 import { Button } from "../ui/Button";
-import { IconButton, TabHeaderBar, useTextSearch } from "./TabHeaderBar";
+import { IconButton } from "../ui/IconButton";
+import { TabHeaderBar, useTextSearch } from "./TabHeaderBar";
 import { useMeetingMarkdown } from "./useMeetingMarkdown";
 
 interface SummaryTabProps {
@@ -54,9 +55,7 @@ const SummaryState: React.FC<{
         {/* Only a Ready meeting gets its summary written; a failed one
             comes back with the meeting's own retry. */}
         {meeting.status === "ready" && error !== "nothing_to_summarize" && (
-          <Button variant="secondary" onClick={onRetry}>
-            {t("meetings.processing.retry")}
-          </Button>
+          <Button onClick={onRetry}>{t("meetings.processing.retry")}</Button>
         )}
       </div>
     );
@@ -175,6 +174,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
         hasText={hasText}
       >
         <IconButton
+          size="compact"
           label={t("meetings.summary.copy")}
           disabled={!hasText}
           onClick={() => void copy()}
@@ -182,6 +182,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
           <CopyIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
+          size="compact"
           label={t("meetings.summary.export")}
           disabled={!hasText}
           onClick={() => void exportMarkdown()}
