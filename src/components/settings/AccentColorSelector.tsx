@@ -56,14 +56,10 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
               <label
                 key={accentColor}
                 title={label}
-                className={`relative flex size-control shrink-0 items-center justify-center rounded-full transition-[transform,box-shadow] duration-150 ${
+                className={`group relative flex size-control shrink-0 items-center justify-center rounded-full transition-transform duration-150 ${
                   disabled
                     ? "cursor-wait opacity-60"
                     : "cursor-pointer active:scale-[0.96]"
-                } ${
-                  selected
-                    ? "shadow-[0_0_0_2px_var(--color-background),0_0_0_4px_var(--color-text)]"
-                    : "hover:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-text)_14%,transparent)]"
                 }`}
               >
                 <input
@@ -76,15 +72,23 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
                   onChange={() => handleAccentChange(accentColor)}
                   className="peer absolute inset-0 m-0 size-full cursor-inherit opacity-0"
                 />
+                {/* Selected, the swatch wears the range sliders' white knob
+                    edge: a white gap, a thin neutral line, a soft shadow. */}
                 <span
-                  className="pointer-events-none flex size-7 items-center justify-center rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-text peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+                  className={`pointer-events-none flex size-6 items-center justify-center rounded-full ring-1 ring-black/10 ring-inset transition-shadow duration-150 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-logo-primary dark:ring-white/10 ${
+                    selected
+                      ? "shadow-[0_0_0_2px_#fff,0_0_0_3px_rgb(0_0_0/0.18),0_1px_3px_3px_rgb(0_0_0/0.2)]"
+                      : disabled
+                        ? ""
+                        : "group-hover:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-text)_14%,transparent)]"
+                  }`}
                   style={{
                     backgroundColor: ACCENT_COLOR_PREVIEWS[accentColor],
                   }}
                 >
                   {selected && (
                     <CheckIcon
-                      className="size-4 text-[#0f0f0f]"
+                      className="size-3.5 text-[#0f0f0f]"
                       weight="bold"
                       aria-hidden="true"
                     />
