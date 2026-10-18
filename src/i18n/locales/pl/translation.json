@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Pokaż nowości",
         "description": "Pokazuj informacje o wydaniu po aktualizacjach Murmur"
+      },
+      "modelLicences": {
+        "description": "Licencje modeli wykrywania mówców",
+        "button": "Pokaż licencje"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Nowości w Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkrypcje i podsumowania pojawiają się po przetworzeniu spotkania.",
     "view": {
       "back": "Wszystkie spotkania",
       "titleLabel": "Tytuł spotkania",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "Dźwięk systemowy wymaga systemu macOS 14.4 lub nowszego na Apple silicon, więc spotkania nagrywają tylko mikrofon.",
     "permission": {
-      "title": "Uprawnienie do dźwięku systemowego",
+      "title": "Dźwięk systemowy",
       "description": "macOS zapyta, gdy spotkanie po raz pierwszy nagrywa dźwięk systemowy. Jeśli odmówiono, ponownie włącz Murmur w ustawieniach prywatności.",
       "open": "Otwórz ustawienia",
       "silent": "Nie nagrano dźwięku systemowego, więc brakuje pozostałych uczestników. Zezwól Murmur w sekcji Nagrywanie dźwięku systemowego w ustawieniach prywatności i nagraj ponownie."

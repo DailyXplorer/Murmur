@@ -435,6 +435,10 @@
         "title": "Ontwikkeling ondersteunen",
         "description": "Help ons om te blijven bouwen aan Murmur",
         "button": "Doneren"
+      },
+      "modelLicences": {
+        "description": "Licenties van de modellen voor sprekerherkenning",
+        "button": "Licenties bekijken"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     }
   },
   "meetings": {
-    "notice": "Transcripties en samenvattingen verschijnen zodra een vergadering is verwerkt.",
     "view": {
       "back": "Alle vergaderingen",
       "titleLabel": "Titel van de vergadering",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "Systeemgeluid vereist macOS 14.4 of nieuwer op Apple silicon, dus vergaderingen nemen alleen je microfoon op.",
     "permission": {
-      "title": "Toestemming voor systeemgeluid",
+      "title": "Systeemgeluid",
       "description": "macOS vraagt het de eerste keer dat een vergadering systeemgeluid opneemt. Als je hebt geweigerd, zet Murmur dan weer aan in de privacyinstellingen.",
       "open": "Instellingen openen",
       "silent": "Er is geen systeemgeluid opgenomen, dus de andere deelnemers ontbreken. Sta Murmur toe onder Systeemaudio-opname in de privacyinstellingen en neem opnieuw op."

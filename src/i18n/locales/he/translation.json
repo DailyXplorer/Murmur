@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "הצג מה חדש",
         "description": "הצג הערות גרסה לאחר עדכוני Murmur"
+      },
+      "modelLicences": {
+        "description": "רישיונות המודלים לזיהוי דוברים",
+        "button": "הצגת הרישיונות"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "חדש ב-Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "תמלולים וסיכומים מופיעים אחרי שהפגישה מעובדת.",
     "view": {
       "back": "כל הפגישות",
       "titleLabel": "כותרת הפגישה",

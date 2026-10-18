@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "顯示新功能",
         "description": "Murmur 更新後顯示版本資訊"
+      },
+      "modelLicences": {
+        "description": "發言者辨識模型的授權",
+        "button": "查看授權"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Murmur v{{version}} 新功能"
   },
   "meetings": {
-    "notice": "會議處理完成後會顯示逐字稿和摘要。",
     "view": {
       "back": "所有會議",
       "titleLabel": "會議標題",

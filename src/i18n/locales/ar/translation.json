@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "إظهار الجديد",
         "description": "إظهار ملاحظات الإصدار بعد تحديثات Murmur"
+      },
+      "modelLicences": {
+        "description": "تراخيص نماذج التعرّف على المتحدثين",
+        "button": "عرض التراخيص"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "الجديد في Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "تظهر النصوص والملخصات بعد معالجة الاجتماع.",
     "view": {
       "back": "كل الاجتماعات",
       "titleLabel": "عنوان الاجتماع",

@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Afficher les nouveautés",
         "description": "Afficher les notes de version après les mises à jour de Murmur"
+      },
+      "modelLicences": {
+        "description": "Licences des modèles de détection des intervenants",
+        "button": "Voir les licences"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Nouveautés de Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Les transcriptions et les résumés apparaissent une fois la réunion traitée.",
     "view": {
       "back": "Toutes les réunions",
       "titleLabel": "Titre de la réunion",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "L’audio du système nécessite macOS 14.4 ou version ultérieure sur Apple silicon : les réunions n’enregistrent que votre microphone.",
     "permission": {
-      "title": "Autorisation de l’audio du système",
+      "title": "Audio du système",
       "description": "macOS demande l’autorisation la première fois qu’une réunion enregistre l’audio du système. Si vous avez refusé, réactivez Murmur dans les réglages de confidentialité.",
       "open": "Ouvrir les réglages",
       "silent": "Aucun son système n’a été enregistré : les autres participants manquent. Autorisez Murmur dans Enregistrement audio du système, dans les réglages de confidentialité, puis enregistrez à nouveau."

@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Visa nyheter",
         "description": "Visa versionsinformation efter Murmur-uppdateringar"
+      },
+      "modelLicences": {
+        "description": "Licenser för modellerna för talaridentifiering",
+        "button": "Visa licenser"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Nytt i Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkriptioner och sammanfattningar visas när mötet har bearbetats.",
     "view": {
       "back": "Alla möten",
       "titleLabel": "Mötets titel",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "Systemljud kräver macOS 14.4 eller senare på Apple silicon, så möten spelar bara in mikrofonen.",
     "permission": {
-      "title": "Behörighet för systemljud",
+      "title": "Systemljud",
       "description": "macOS frågar första gången ett möte spelar in systemljud. Om du nekade kan du slå på Murmur igen i integritetsinställningarna.",
       "open": "Öppna inställningar",
       "silent": "Inget systemljud spelades in, så de andra deltagarna saknas. Tillåt Murmur under Inspelning av systemljud i integritetsinställningarna och spela in igen."

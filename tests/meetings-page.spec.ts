@@ -1,6 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const fixture = "/tests/fixtures/settings-pages.html";
+
+const localesDir = fileURLToPath(
+  new URL("../src/i18n/locales/", import.meta.url),
+);
+const LOCALES = readdirSync(localesDir).map((locale) => {
+  const { sidebar, meetings } = JSON.parse(
+    readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
+  ) as {
+    sidebar: { meetings: string };
+    meetings: { permission: { title: string } };
+  };
+  return { locale, page: sidebar.meetings, title: meetings.permission.title };
+});
 
 const sidebarButton = (page: Page, name: string) =>
   page.getByRole("navigation").getByRole("button", { name, exact: true });
@@ -203,4 +218,89 @@ test("without system audio support the sources are fixed to the microphone", asy
   await expect(page.getByRole("button", { name: "Open Settings" })).toHaveCount(
     0,
   );
+});
+
+test("the page starts with the recording controls, and its buttons show text only", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  await expect(page.getByText(/Transcripts and summaries appear/)).toHaveCount(
+    0,
+  );
+  const start = page.getByRole("button", { name: "Start Meeting" });
+  await expect(start).toBeVisible();
+  await expect(start.locator("svg")).toHaveCount(0);
+
+  await openMeetings(page, "&meeting=recording");
+  const stop = page.getByRole("button", { name: "Stop", exact: true });
+  await expect(stop).toBeVisible();
+  await expect(stop.locator("svg")).toHaveCount(0);
+});
+
+const speakerGroup = (page: Page) =>
+  page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Speaker Detection", exact: true }),
+  });
+
+test("speaker detection has no licences button, in any state", async ({
+  page,
+}) => {
+  for (const models of ["missing", "downloading", "ready"]) {
+    await openMeetings(page, `&models=${models}`);
+    await expect(speakerGroup(page).getByRole("button")).not.toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Licences/ })).toHaveCount(0);
+  }
+});
+
+test("the download progress sits in the models row, under its title", async ({
+  page,
+}) => {
+  await openMeetings(page, "&models=downloading");
+  const group = speakerGroup(page);
+  const title = group.getByRole("heading", { name: "Downloading… 42%" });
+  const bar = group.getByRole("progressbar", { name: "Downloading… 42%" });
+  const cancel = group.getByRole("button", { name: "Cancel" });
+  await expect(bar).toHaveAttribute("aria-valuenow", "42");
+
+  const [titleBox, barBox, cancelBox] = await Promise.all([
+    title.boundingBox(),
+    bar.boundingBox(),
+    cancel.boundingBox(),
+  ]);
+  if (!titleBox || !barBox || !cancelBox) throw new Error("not laid out");
+  // In the text column: the title's left edge, below it, clear of Cancel.
+  expect(Math.abs(barBox.x - titleBox.x)).toBeLessThanOrEqual(1);
+  expect(barBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+  expect(barBox.x + barBox.width).toBeLessThan(cancelBox.x);
+});
+
+test("the system audio row's title fits at the default window size in every language", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 680, height: 570 });
+  for (const { locale, page: meetings, title } of LOCALES) {
+    await page.goto(`${fixture}?meetings=1&lang=${locale}`);
+    await sidebarButton(page, meetings).click();
+    const heading = page.getByRole("heading", { name: title, exact: true });
+    // Room left beside the title and its info button. macOS draws text a
+    // little wider than this browser, so a bare fit is not enough.
+    const room = await heading.evaluate((element) => {
+      const line = element.parentElement as HTMLElement;
+      const used = Array.from(line.children).reduce(
+        (sum, child) => sum + (child as HTMLElement).offsetWidth,
+        element.scrollWidth - element.offsetWidth,
+      );
+      return line.clientWidth - used;
+    });
+    expect.soft(room, `${locale}: ${title}`).toBeGreaterThanOrEqual(16);
+  }
+});
+
+test("the speaker models' licences open from About", async ({ page }) => {
+  await page.goto(fixture);
+  await sidebarButton(page, "About").click();
+  await page.getByRole("button", { name: "View Licences" }).click();
+  const dialog = page.getByRole("dialog", { name: "Model Licences" });
+  await expect(dialog).toContainText("pyannote, CC BY 4.0");
+  await expect(dialog).toContainText("Murmur doesn't include them.");
 });

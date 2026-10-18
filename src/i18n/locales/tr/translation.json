@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Yenilikleri Göster",
         "description": "Murmur güncellemelerinden sonra sürüm notlarını göster"
+      },
+      "modelLicences": {
+        "description": "Konuşmacı algılama modellerinin lisansları",
+        "button": "Lisansları göster"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Murmur v{{version}} yenilikleri"
   },
   "meetings": {
-    "notice": "Dökümler ve özetler toplantı işlendikten sonra görünür.",
     "view": {
       "back": "Tüm toplantılar",
       "titleLabel": "Toplantı başlığı",
