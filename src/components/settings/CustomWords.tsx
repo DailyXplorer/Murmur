@@ -74,8 +74,9 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           description={t("settings.advanced.customWords.description")}
           descriptionMode={descriptionMode}
           grouped={grouped}
+          layout="stacked"
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex items-center gap-2">
             <Input
               type="text"
               className="min-w-0 flex-1"
@@ -93,7 +94,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                 customWords.length >= MAX_CUSTOM_WORDS ||
                 isUpdating("custom_words")
               }
-              size="chip"
               className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}

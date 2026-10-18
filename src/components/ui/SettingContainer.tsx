@@ -8,6 +8,8 @@ interface SettingContainerProps {
   children: React.ReactNode;
   /** Shown under the title and description, in the text column. */
   detail?: React.ReactNode;
+  /** A small label beside the title, such as "Experimental". */
+  badge?: React.ReactNode;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   layout?: "horizontal" | "stacked";
@@ -118,6 +120,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   description,
   children,
   detail,
+  badge,
   descriptionMode = "tooltip",
   grouped = false,
   layout = "horizontal",
@@ -142,6 +145,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
               position={tooltipPosition}
             />
           )}
+          {badge}
         </div>
         {descriptionMode === "inline" && (
           <p
@@ -173,6 +177,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
               position={tooltipPosition}
             />
           )}
+          {badge}
         </div>
         {descriptionMode === "inline" && (
           <p

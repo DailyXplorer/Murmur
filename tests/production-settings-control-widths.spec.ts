@@ -29,36 +29,21 @@ test("real settings controls consume the shared rail", async ({ page }) => {
   const historyLabel = page
     .getByTestId("production-history-limit")
     .getByText("entries", { exact: true });
-  const customWordsInput = page
-    .getByTestId("production-custom-words")
-    .getByPlaceholder("Add a word");
   const provider = page
     .getByTestId("production-transcription")
     .getByRole("button", { name: "Antigravity", exact: true });
-  const geminiStatus = page
-    .getByTestId("production-transcription")
-    .getByText("Configuration detected", { exact: true })
-    .last();
 
-  await expect(geminiStatus).toBeVisible();
-
-  const slots = [
-    microphone,
-    language,
-    shortcut,
-    historyLabel,
-    customWordsInput,
-    provider,
-    geminiStatus,
-  ].map(controlSlot);
+  // Custom Words and the provider statuses sit on their own line under the
+  // title, so only the controls beside their titles share the rail.
+  const slots = [microphone, language, shortcut, historyLabel, provider].map(
+    controlSlot,
+  );
   const slotNames = [
     "microphone",
     "language",
     "shortcut",
     "history limit",
-    "custom words",
     "provider",
-    "Antigravity status",
   ];
   const slotMeasurements = await Promise.all(
     slots.map((slot) =>
@@ -103,12 +88,6 @@ test("real settings controls consume the shared rail", async ({ page }) => {
       end: page.getByTestId("production-shortcut").getByRole("button").last(),
       start: shortcut,
     },
-    {
-      end: page
-        .getByTestId("production-custom-words")
-        .getByRole("button", { name: "Add" }),
-      start: customWordsInput,
-    },
   ];
   for (const { end, start } of compositeControls) {
     const [endBox, startBox] = await Promise.all([
@@ -121,11 +100,6 @@ test("real settings controls consume the shared rail", async ({ page }) => {
       (endBox?.x ?? 0) + (endBox?.width ?? 0) - (startBox?.x ?? 0),
     ).toBeCloseTo(RAIL_WIDTH, 1);
   }
-
-  // The field is the control; the Add button beside it must not take the rail.
-  const customWordsBox = await customWordsInput.boundingBox();
-  expect(customWordsBox).not.toBeNull();
-  expect(customWordsBox?.width ?? 0).toBeGreaterThanOrEqual(RAIL_WIDTH * 0.6);
 
   const historyBox = await historyLabel.boundingBox();
   expect(historyBox).not.toBeNull();

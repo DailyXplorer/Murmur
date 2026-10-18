@@ -23,6 +23,17 @@ import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
 
+/** A provider's status under its title, then the action that fixes it. */
+const ProviderStatusLine: React.FC<{
+  status: string;
+  children?: React.ReactNode;
+}> = ({ status, children }) => (
+  <div className="flex items-center justify-between gap-3">
+    <span className="min-w-0 text-pretty text-sm text-text/80">{status}</span>
+    {children}
+  </div>
+);
+
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
@@ -110,24 +121,25 @@ export const TranscriptionSettings: React.FC = () => {
           title={t("onboarding.providerLabels.codex")}
           description={t("settings.transcription.sessionDescription")}
           grouped={true}
+          layout="stacked"
         >
-          <span className="text-sm text-text/80">
-            {t(statusTranslationKey(statuses.codex))}
-          </span>
+          <ProviderStatusLine
+            status={t(statusTranslationKey(statuses.codex))}
+          />
         </SettingContainer>
 
         <SettingContainer
           title={t("onboarding.providerLabels.antigravity")}
           description={t("onboarding.provider.antigravityDescription")}
           grouped={true}
-        >
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
-            <span className="rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
+          layout="stacked"
+          badge={
+            <span className="ms-1.5 shrink-0 rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
               {t("onboarding.provider.experimental")}
             </span>
-            <span className="min-w-0 flex-auto truncate text-end text-sm text-text/80">
-              {t(statusTranslationKey(statuses.gemini))}
-            </span>
+          }
+        >
+          <ProviderStatusLine status={t(statusTranslationKey(statuses.gemini))}>
             {statuses.gemini.kind === "unavailable" &&
               statuses.gemini.reason === "notInstalled" && (
                 <Button
@@ -146,7 +158,7 @@ export const TranscriptionSettings: React.FC = () => {
                   {t("settings.transcription.openAntigravity")}
                 </Button>
               )}
-          </div>
+          </ProviderStatusLine>
         </SettingContainer>
       </SettingsGroup>
 
