@@ -159,6 +159,34 @@ test("the audio row's actions are filled buttons of one size, Delete in red", as
   );
 });
 
+test("Delete stays readable when Murmur's theme differs from macOS's", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
+  const remove = page.getByRole("button", { name: "Delete Audio" });
+  // The colour animates, so let it settle before reading it.
+  const colorUnder = async (
+    appTheme: "light" | "dark" | "system",
+    osScheme: "light" | "dark",
+  ) => {
+    await page.emulateMedia({ colorScheme: osScheme });
+    await page.evaluate((theme) => {
+      if (theme === "system") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = theme;
+    }, appTheme);
+    await page.waitForTimeout(400);
+    return cssOf(remove, "color");
+  };
+
+  const light = await colorUnder("system", "light");
+  const dark = await colorUnder("system", "dark");
+  expect(light).not.toBe(dark);
+  await colorUnder("light", "dark");
+  await expect(remove).toHaveCSS("color", light);
+  await colorUnder("dark", "light");
+  await expect(remove).toHaveCSS("color", dark);
+});
+
 test("text buttons are filled from the start, icon buttons only tint on hover", async ({
   page,
 }) => {

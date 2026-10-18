@@ -3,6 +3,19 @@
 @import "@fontsource-variable/instrument-sans/wght-italic.css";
 @import "./styles/theme.css";
 
+/* `dark:` follows the theme chosen in Murmur (`data-theme`, see
+   lib/utils/theme.ts) and the system appearance only while none is set. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
 /* Register the shared color tokens (src/styles/theme.css) as Tailwind
    utilities */
 @theme inline {
