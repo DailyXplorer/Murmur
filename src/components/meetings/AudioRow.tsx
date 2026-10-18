@@ -54,14 +54,10 @@ export const AudioRow: React.FC<{
       </p>
       {finished && meeting.audio !== "deleted" && (
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="chip" onClick={() => setPending("retranscribe")}>
+          <Button onClick={() => setPending("retranscribe")}>
             {t("meetings.audio.retranscribe")}
           </Button>
-          <Button
-            variant="danger"
-            size="chip"
-            onClick={() => setPending("delete")}
-          >
+          <Button onClick={() => setPending("delete")}>
             {t("meetings.audio.delete")}
           </Button>
         </div>
@@ -82,10 +78,7 @@ export const AudioRow: React.FC<{
             <Button onClick={() => setPending(null)}>
               {t("meetings.cancel")}
             </Button>
-            <Button
-              variant={pending === "delete" ? "danger" : "primary"}
-              onClick={() => void confirm()}
-            >
+            <Button onClick={() => void confirm()}>
               {pending === "delete"
                 ? t("meetings.audio.delete")
                 : t("meetings.audio.retranscribe")}

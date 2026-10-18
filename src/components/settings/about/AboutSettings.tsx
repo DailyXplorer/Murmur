@@ -60,7 +60,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.supportDevelopment.description")}
           grouped={true}
         >
-          <Button variant="primary" onClick={handleDonateClick}>
+          <Button onClick={handleDonateClick}>
             {t("settings.about.supportDevelopment.button")}
           </Button>
         </SettingContainer>

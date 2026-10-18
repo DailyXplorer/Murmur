@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historie",
-      "openFolder": "Otevřít složku nahrávek",
+      "openFolder": "Otevřít složku",
       "loading": "Načítám historii...",
       "empty": "Zatím žádné přepisy. Začněte nahrávat a vytvořte si historii!",
       "copyToClipboard": "Kopírovat přepis do schránky",

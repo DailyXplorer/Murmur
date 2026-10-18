@@ -93,7 +93,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                 customWords.length >= MAX_CUSTOM_WORDS ||
                 isUpdating("custom_words")
               }
-              variant="primary"
               className="shrink-0"
             >
               {t("settings.advanced.customWords.add")}

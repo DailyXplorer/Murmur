@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historik",
-      "openFolder": "Öppna mapp för inspelningar",
+      "openFolder": "Öppna mapp",
       "loading": "Laddar historik...",
       "empty": "Inga transkriptioner ännu. Börja spela in för att bygga upp din historik!",
       "copyToClipboard": "Kopiera transkription till urklipp",

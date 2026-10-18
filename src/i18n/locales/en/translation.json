@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "History",
-      "openFolder": "Open Recordings Folder",
+      "openFolder": "Open Folder",
       "loading": "Loading history...",
       "empty": "No transcriptions yet. Start recording to build your history!",
       "copyToClipboard": "Copy transcription to clipboard",

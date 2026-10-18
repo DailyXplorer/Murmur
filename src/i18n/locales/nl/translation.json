@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Geschiedenis",
-      "openFolder": "Opnamemap openen",
+      "openFolder": "Map openen",
       "loading": "Geschiedenis laden...",
       "empty": "Nog geen transcripties. Start met opnemen om je geschiedenis op te bouwen!",
       "copyToClipboard": "Transcriptie naar klembord kopiëren",

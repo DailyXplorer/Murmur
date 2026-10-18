@@ -38,12 +38,14 @@
 }
 
 /* One size for every form control: fields, dropdown triggers, path fields and
-   the buttons beside them (h-control, size-control), and one minimum width
-   so short button labels such as "Open" stay a comfortable target
-   (min-w-control-button). */
+   the buttons beside them (h-control, size-control), and one width for every
+   text button (min-w-control-button), so buttons side by side match. It fits
+   the longest English label, "Open Codex setup", with room for WebKit drawing
+   text a little wider than Chromium; tests/button-widths.spec.ts checks every
+   label. Longer translations widen their button. */
 @theme {
   --spacing-control: 2.5rem;
-  --spacing-control-button: 6rem;
+  --spacing-control-button: 10.5rem;
 }
 
 :root {

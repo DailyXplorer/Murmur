@@ -196,14 +196,12 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
             {recording ? (
               <>
                 <Button
-                  variant="danger"
                   disabled={busy}
                   onClick={() => setDiscardId(runtime.id)}
                 >
                   {t("meetings.discard")}
                 </Button>
                 <Button
-                  variant="primary"
                   disabled={busy}
                   onClick={() =>
                     void run(commands.stopMeeting, "meetings.stopError")
@@ -214,7 +212,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               </>
             ) : (
               <Button
-                variant="primary"
                 disabled={busy}
                 onClick={() =>
                   void run(commands.startMeeting, "meetings.startError")
@@ -344,7 +341,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               {t("meetings.discardDialog.keep")}
             </Button>
             <Button
-              variant="danger"
               onClick={() => {
                 if (discardId === null) return;
                 setDiscardId(null);
@@ -377,7 +373,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               {t("meetings.cancel")}
             </Button>
             <Button
-              variant="danger"
               onClick={() => pendingDelete && void deleteMeeting(pendingDelete)}
             >
               {t("common.delete")}

@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historial",
-      "openFolder": "Abrir carpeta de grabaciones",
+      "openFolder": "Abrir carpeta",
       "loading": "Cargando historial...",
       "empty": "Aún no hay transcripciones. ¡Comienza a grabar para crear tu historial!",
       "copyToClipboard": "Copiar transcripción al portapapeles",

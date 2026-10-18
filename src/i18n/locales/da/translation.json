@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historik",
-      "openFolder": "Åbn optagelsesmappe",
+      "openFolder": "Åbn mappe",
       "loading": "Indlæser historik...",
       "empty": "Ingen transskriptioner endnu. Start optagelse for at opbygge din historik!",
       "copyToClipboard": "Kopiér transskription til udklipsholder",

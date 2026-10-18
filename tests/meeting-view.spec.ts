@@ -131,7 +131,7 @@ test("the icon actions of each tab sit together as a toolbar", async ({
   ]);
 });
 
-test("the audio row's actions are filled buttons of one size, Delete in red", async ({
+test("the audio row's actions are the same pink button, side by side", async ({
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
@@ -143,14 +143,13 @@ test("the audio row's actions are filled buttons of one size, Delete in red", as
     again.boundingBox(),
     remove.boundingBox(),
   ]);
+  expect(againBox?.width).toBe(removeBox?.width);
   expect(againBox?.height).toBe(removeBox?.height);
   expect(againBox?.y).toBe(removeBox?.y);
   await expect(again).not.toHaveCSS("background-color", TRANSPARENT);
-  await expect(remove).not.toHaveCSS("background-color", TRANSPARENT);
-  await expect(remove).not.toHaveCSS(
-    "background-color",
-    await cssOf(again, "background-color"),
-  );
+  for (const property of ["background-color", "color"]) {
+    await expect(remove).toHaveCSS(property, await cssOf(again, property));
+  }
   // The row ends where the tab content ends.
   const panel = await page.getByRole("tabpanel").boundingBox();
   expect((removeBox?.x ?? 0) + (removeBox?.width ?? 0)).toBeCloseTo(
@@ -159,12 +158,34 @@ test("the audio row's actions are filled buttons of one size, Delete in red", as
   );
 });
 
-test("Delete stays readable when Murmur's theme differs from macOS's", async ({
+test("deleting the meeting or its audio asks with a pink button, never red", async ({
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
-  const remove = page.getByRole("button", { name: "Delete Audio" });
-  // The colour animates, so let it settle before reading it.
+  const again = page.getByRole("button", { name: "Transcribe Again" });
+  const pink = await cssOf(again, "background-color");
+  await page.getByRole("button", { name: "Delete Audio" }).click();
+  const confirm = page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete Audio" });
+  await expect(confirm).toHaveCSS("background-color", pink);
+  const classes = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("button")).map((b) => b.className),
+  );
+  expect(classes.filter((name) => /\bred-/.test(name))).toEqual([]);
+});
+
+test("dark: follows Murmur's theme even when macOS's differs", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  // The live log viewer's error colours use these classes.
+  const probe = await page.evaluateHandle(() => {
+    const span = document.createElement("span");
+    span.className = "text-red-600 dark:text-red-400";
+    document.body.append(span);
+    return span;
+  });
   const colorUnder = async (
     appTheme: "light" | "dark" | "system",
     osScheme: "light" | "dark",
@@ -174,17 +195,14 @@ test("Delete stays readable when Murmur's theme differs from macOS's", async ({
       if (theme === "system") delete document.documentElement.dataset.theme;
       else document.documentElement.dataset.theme = theme;
     }, appTheme);
-    await page.waitForTimeout(400);
-    return cssOf(remove, "color");
+    return probe.evaluate((span) => getComputedStyle(span).color);
   };
 
   const light = await colorUnder("system", "light");
   const dark = await colorUnder("system", "dark");
   expect(light).not.toBe(dark);
-  await colorUnder("light", "dark");
-  await expect(remove).toHaveCSS("color", light);
-  await colorUnder("dark", "light");
-  await expect(remove).toHaveCSS("color", dark);
+  expect(await colorUnder("light", "dark")).toBe(light);
+  expect(await colorUnder("dark", "light")).toBe(dark);
 });
 
 test("text buttons are filled from the start, icon buttons only tint on hover", async ({
