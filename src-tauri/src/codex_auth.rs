@@ -46,7 +46,7 @@ const PERMANENT_REFRESH_CODES: [&str; 3] = [
 /// One Murmur refresh at a time, held inside the detached refresh task so a
 /// dropped caller never releases it halfway. The GUI and `--transcribe-file` are separate
 /// processes and rely on the re-read checks instead, as Codex processes do.
-static REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub(crate) static REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// How many refresh tasks are under way, and the signal each one gives when
 /// it ends. Quitting waits for them: see `wait_for_refreshes`.
@@ -165,6 +165,20 @@ impl AuthFile {
             FailureKind::Other,
             format!("failed to read {}: {last_error}", path.display()),
         ))
+    }
+
+    /// `read_retrying` on a blocking thread: its retries sleep, and the
+    /// refresh runs them while holding `REFRESH_LOCK`.
+    async fn load(path: &Path, attempts: u32) -> Result<Self, TranscriptionError> {
+        let path = path.to_path_buf();
+        tauri::async_runtime::spawn_blocking(move || Self::read_retrying(&path, attempts))
+            .await
+            .map_err(|error| {
+                TranscriptionError::new(
+                    FailureKind::Other,
+                    format!("reading auth.json failed: {error}"),
+                )
+            })?
     }
 
     fn token(&self, name: &str) -> Option<&str> {
@@ -333,7 +347,7 @@ async fn session_for_request_at(
     endpoint: &str,
     now: DateTime<Utc>,
 ) -> Result<Session, TranscriptionError> {
-    let file = AuthFile::read(path)?;
+    let file = AuthFile::load(path, 3).await?;
     let Some(reason) = file.refresh_reason(now) else {
         return file.session();
     };
@@ -360,7 +374,7 @@ pub async fn recover_from_unauthorized(
     path: &Path,
     rejected: &Session,
 ) -> Result<Session, TranscriptionError> {
-    let file = AuthFile::read(path)?;
+    let file = AuthFile::load(path, 3).await?;
     // Another process may have refreshed since our request left.
     if file.access_token() != Some(rejected.access_token.as_str()) {
         return file.session();
@@ -416,7 +430,7 @@ async fn refresh_to_completion(
 
     // Guarded reload: if the tokens changed since `seen`, someone else (Codex,
     // or a concurrent Murmur request) refreshed already. Use their result.
-    let base = AuthFile::read(path)?;
+    let base = AuthFile::load(path, 3).await?;
     if base.access_token() != seen_access_token {
         info!("Codex session changed on disk; using the refreshed tokens");
         return base.session();
@@ -436,7 +450,7 @@ async fn refresh_to_completion(
         Err(RefreshFailure::Permanent(detail)) => {
             // A `refresh_token_reused` answer usually means Codex rotated the
             // token a moment ago; its new tokens are on disk.
-            let latest = AuthFile::read(path)?;
+            let latest = AuthFile::load(path, 3).await?;
             if latest.refresh_token() != Some(refresh_token) {
                 return latest.session();
             }
@@ -459,7 +473,7 @@ async fn refresh_to_completion(
     // A missing file means the user signed out meanwhile: writing would sign
     // every Codex client back in. A file still unreadable after about a
     // second is saved over, since the server has spent the old refresh token.
-    match AuthFile::read_retrying(path, 20) {
+    match AuthFile::load(path, 20).await {
         Ok(latest) if latest.raw != base.raw => {
             info!(
                 "auth.json changed during the Codex token refresh; keeping the other writer's tokens"

@@ -85,7 +85,12 @@ pub(crate) async fn transcribe_at(
         Some(path) => path.to_path_buf(),
         None => codex_auth::auth_path()?,
     };
-    let mut session = codex_auth::session_for_request(&auth_path).await?;
+    // A refresh under way may hold the session for a while. Dropping the wait
+    // is safe: the refresh runs detached and still saves its tokens.
+    let mut session = tokio::select! {
+        _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
+        session = codex_auth::session_for_request(&auth_path) => session?,
+    };
     let mut recovered_from_unauthorized = false;
     let mut retries = 0;
 
@@ -104,7 +109,10 @@ pub(crate) async fn transcribe_at(
         // Like Codex: on the first 401, refresh once and resend once.
         if error.kind == FailureKind::SessionExpired && !recovered_from_unauthorized {
             recovered_from_unauthorized = true;
-            session = codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+            session = tokio::select! {
+                _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
+                session = codex_auth::recover_from_unauthorized(&auth_path, &session) => session?,
+            };
             continue;
         }
 
@@ -471,6 +479,55 @@ mod tests {
         assert!(matches!(result, Err(RequestError::Cancelled)));
         assert!(closed_rx.recv_timeout(Duration::from_secs(1)).unwrap());
         server.join().unwrap();
+    }
+
+    #[test]
+    fn cancellation_stops_waiting_for_a_token_refresh() {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        // Expires within the refresh window: the request refreshes first.
+        let expiring = format!(
+            "header.{}.signature",
+            URL_SAFE_NO_PAD.encode(
+                serde_json::json!({"exp": chrono::Utc::now().timestamp() + 60}).to_string()
+            )
+        );
+        let auth = |access_token: &str| {
+            serde_json::json!({"tokens": {"access_token": access_token, "refresh_token": "rt"}})
+                .to_string()
+        };
+        std::fs::write(&path, auth(&expiring)).unwrap();
+        let operation = ProcessingOperation::new(OperationId(8));
+        let request_operation = operation.clone();
+        let request_path = path.clone();
+
+        tauri::async_runtime::block_on(async {
+            // Another refresh is under way.
+            let other_refresh = codex_auth::REFRESH_LOCK.lock().await;
+            let request = tauri::async_runtime::spawn(async move {
+                transcribe_at(
+                    "http://127.0.0.1:9",
+                    Some(&request_path),
+                    &[0.1; 160],
+                    None,
+                    1,
+                    &request_operation,
+                )
+                .await
+            });
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(operation.cancel());
+            let result = tokio::time::timeout(Duration::from_secs(1), request)
+                .await
+                .expect("a cancel must not wait for the refresh")
+                .unwrap();
+            assert!(result.unwrap_err().to_string().contains("cancelled"));
+            // The other refresh saved new tokens, so the queued one ends offline.
+            std::fs::write(&path, auth("fresh")).unwrap();
+            drop(other_refresh);
+        });
+        assert!(codex_auth::wait_for_refreshes(Duration::from_secs(5)));
     }
 
     #[test]
