@@ -140,9 +140,46 @@ impl Models {
         }
     }
 
+    /// Next to the models folder, so deleting the models keeps it. Written
+    /// when the user deletes the models or cancels their download; a meeting
+    /// start then leaves them alone until the user downloads them again.
+    fn declined_marker(&self) -> PathBuf {
+        self.dir.with_extension("declined")
+    }
+
+    /// The user asked for the models.
+    pub fn download(self: &Arc<Self>) {
+        match std::fs::remove_file(self.declined_marker()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => log::error!("Cannot clear the declined meeting models marker: {error}"),
+        }
+        self.start_download();
+    }
+
+    /// A meeting started: fetch the models while it records, unless the user
+    /// deleted them or cancelled their download.
+    pub fn download_unless_declined(self: &Arc<Self>) {
+        if !self.declined_marker().exists() {
+            self.start_download();
+        }
+    }
+
+    /// The user cancelled the download.
+    pub fn decline_download(&self) {
+        self.decline();
+        self.cancel_download();
+    }
+
+    fn decline(&self) {
+        if let Err(error) = std::fs::write(self.declined_marker(), b"") {
+            log::error!("Cannot remember that the meeting models were declined: {error}");
+        }
+    }
+
     /// Starts downloading in the background, unless the models are there,
     /// already coming, or cannot run on this Mac.
-    pub fn start_download(self: &Arc<Self>) {
+    fn start_download(self: &Arc<Self>) {
         if self.support != AnalysisSupport::Available {
             return;
         }
@@ -242,6 +279,7 @@ impl Models {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("Cannot delete the models: {error}")),
         }
+        self.decline();
         if self.support == AnalysisSupport::Available {
             self.set(ModelsState::Missing);
         }
@@ -301,6 +339,34 @@ mod tests {
         assert!(!path.exists());
         assert_eq!(ready.status().state, ModelsState::Missing);
         assert_eq!(ready.status().bytes_on_disk, 0);
+    }
+
+    #[test]
+    fn deleted_models_stay_deleted_until_asked_for_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join(READY_MARKER), b"").unwrap();
+        models(&path, AnalysisSupport::Available).delete().unwrap();
+
+        // A meeting starts, even after a restart.
+        let after_restart = models(&path, AnalysisSupport::Available);
+        after_restart.download_unless_declined();
+        assert_eq!(after_restart.status().state, ModelsState::Missing);
+
+        after_restart.download();
+        assert_ne!(after_restart.status().state, ModelsState::Missing);
+        assert!(!path.with_extension("declined").exists());
+    }
+
+    #[test]
+    fn a_download_the_user_cancelled_does_not_start_with_the_next_meeting() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        let missing = models(&path, AnalysisSupport::Available);
+        missing.decline_download();
+        missing.download_unless_declined();
+        assert_eq!(missing.status().state, ModelsState::Missing);
     }
 
     #[test]
