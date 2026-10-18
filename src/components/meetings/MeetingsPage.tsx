@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { RecordIcon } from "@phosphor-icons/react/dist/csr/Record";
-import { StopIcon } from "@phosphor-icons/react/dist/csr/Stop";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import {
   commands,
@@ -181,8 +179,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
 
   return (
     <SettingsPage label={t("sidebar.meetings")}>
-      <p className="px-1 text-sm text-text/60">{t("meetings.notice")}</p>
-
       <SettingsGroup title={t("meetings.recording.title")}>
         <SettingContainer
           title={
@@ -212,8 +208,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                     void run(commands.stopMeeting, "meetings.stopError")
                   }
                 >
-                  <StopIcon size={15} weight="fill" aria-hidden="true" />
-                  <span>{t("meetings.stop")}</span>
+                  {t("meetings.stop")}
                 </Button>
               </>
             ) : (
@@ -224,8 +219,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                   void run(commands.startMeeting, "meetings.startError")
                 }
               >
-                <RecordIcon size={15} weight="fill" aria-hidden="true" />
-                <span>{t("meetings.start")}</span>
+                {t("meetings.start")}
               </Button>
             )}
           </div>

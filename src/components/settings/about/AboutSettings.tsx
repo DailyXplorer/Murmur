@@ -6,10 +6,12 @@ import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { Button } from "../../ui/Button";
 import { SettingsPage } from "../../ui/SettingsPage";
+import { ModelLicencesDialog } from "../../meetings/ModelLicencesDialog";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
+  const [licences, setLicences] = useState(false);
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -72,7 +74,18 @@ export const AboutSettings: React.FC = () => {
             {t("settings.about.sourceCode.button")}
           </Button>
         </SettingContainer>
+
+        <SettingContainer
+          title={t("meetings.models.licences")}
+          description={t("settings.about.modelLicences.description")}
+          grouped={true}
+        >
+          <Button variant="secondary" onClick={() => setLicences(true)}>
+            {t("settings.about.modelLicences.button")}
+          </Button>
+        </SettingContainer>
       </SettingsGroup>
+      <ModelLicencesDialog open={licences} onOpenChange={setLicences} />
     </SettingsPage>
   );
 };

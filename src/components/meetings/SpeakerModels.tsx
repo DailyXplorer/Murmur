@@ -1,24 +1,20 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { commands, type MeetingModelsStatus } from "@/bindings";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../ui/Button";
-import { Dialog } from "../ui/Dialog";
 import { SettingContainer } from "../ui/SettingContainer";
 import { SettingsGroup } from "../ui/SettingsGroup";
 
-const LICENCES = ["parakeet", "diarization", "fluidaudio"] as const;
-
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
 
-/** Download, cancel or delete the on-device speaker models, with progress
- * and the models' licences. */
+/** Download, cancel or delete the on-device speaker models, with progress.
+ * Their licences are in About. */
 export const SpeakerModels: React.FC<{
   status: MeetingModelsStatus | null;
 }> = ({ status }) => {
   const { t, i18n } = useTranslation();
-  const [licences, setLicences] = useState(false);
   if (!status) return null;
   const { state } = status;
 
@@ -102,46 +98,26 @@ export const SpeakerModels: React.FC<{
         title={label}
         description={t("meetings.models.description")}
         grouped={true}
+        detail={
+          state.state === "downloading" && (
+            <div
+              role="progressbar"
+              aria-label={label}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              className="mt-1 mb-1.5 h-1.5 overflow-hidden rounded-full bg-mid-gray/20"
+            >
+              <div
+                className="h-full rounded-full bg-logo-primary transition-[width] duration-300"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          )
+        }
       >
         <div className="flex justify-end gap-2">{action}</div>
       </SettingContainer>
-      {state.state === "downloading" && (
-        <div className="px-4 pb-3">
-          <div
-            role="progressbar"
-            aria-label={label}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-            className="h-1.5 overflow-hidden rounded-full bg-mid-gray/20"
-          >
-            <div
-              className="h-full rounded-full bg-logo-primary transition-[width] duration-300"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <div className="px-4 pb-3">
-        <Button variant="ghost" onClick={() => setLicences(true)}>
-          {t("meetings.models.licences")}
-        </Button>
-      </div>
-      <Dialog
-        open={licences}
-        onOpenChange={setLicences}
-        title={t("meetings.models.licences")}
-        closeLabel={t("common.close")}
-      >
-        <ul className="list-disc space-y-2 pl-5 text-sm text-text/80">
-          {LICENCES.map((key) => (
-            <li key={key}>{t(`meetings.models.licence.${key}`)}</li>
-          ))}
-        </ul>
-        <p className="mt-3 text-sm text-text/60">
-          {t("meetings.models.licencesNote")}
-        </p>
-      </Dialog>
     </SettingsGroup>
   );
 };

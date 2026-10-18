@@ -435,6 +435,10 @@
         "title": "Support Development",
         "description": "Help us continue building Murmur",
         "button": "Donate"
+      },
+      "modelLicences": {
+        "description": "Licences of the speaker detection models",
+        "button": "View Licences"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     }
   },
   "meetings": {
-    "notice": "Transcripts and summaries appear once a meeting is processed.",
     "view": {
       "back": "All Meetings",
       "titleLabel": "Meeting Title",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "System audio needs macOS 14.4 or later on Apple silicon, so meetings record your microphone only.",
     "permission": {
-      "title": "System Audio Permission",
+      "title": "System Audio Access",
       "description": "macOS asks the first time a meeting records system audio. If you declined, turn Murmur back on in the privacy settings.",
       "open": "Open Settings",
       "silent": "No system audio was recorded, so the other participants are missing. Allow Murmur under System Audio Recording in the privacy settings, then record again."

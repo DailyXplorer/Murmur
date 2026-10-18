@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "새 소식 표시",
         "description": "Murmur 업데이트 후 릴리스 노트를 표시합니다"
+      },
+      "modelLicences": {
+        "description": "화자 감지 모델의 라이선스",
+        "button": "라이선스 보기"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Murmur v{{version}}의 새 소식"
   },
   "meetings": {
-    "notice": "회의가 처리되면 녹취록과 요약이 표시됩니다.",
     "view": {
       "back": "모든 회의",
       "titleLabel": "회의 제목",

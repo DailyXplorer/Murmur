@@ -435,6 +435,10 @@
         "title": "Støt udviklingen",
         "description": "Hjælp os med at fortsætte udviklingen af Murmur",
         "button": "Donér"
+      },
+      "modelLicences": {
+        "description": "Licenser for modellerne til talergenkendelse",
+        "button": "Vis licenser"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     }
   },
   "meetings": {
-    "notice": "Transskriptioner og resuméer vises, når mødet er behandlet.",
     "view": {
       "back": "Alle møder",
       "titleLabel": "Mødets titel",

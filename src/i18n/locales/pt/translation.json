@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Mostrar novidades",
         "description": "Mostrar notas de versão após atualizações do Murmur"
+      },
+      "modelLicences": {
+        "description": "Licenças dos modelos de deteção de participantes",
+        "button": "Ver licenças"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Novidades no Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "As transcrições e os resumos aparecem quando a reunião é processada.",
     "view": {
       "back": "Todas as reuniões",
       "titleLabel": "Título da reunião",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "O áudio do sistema exige macOS 14.4 ou posterior em Apple silicon, então as reuniões gravam apenas o microfone.",
     "permission": {
-      "title": "Permissão de áudio do sistema",
+      "title": "Áudio do sistema",
       "description": "O macOS pergunta na primeira vez que uma reunião grava o áudio do sistema. Se você recusou, reative o Murmur nos ajustes de privacidade.",
       "open": "Abrir ajustes",
       "silent": "Nenhum áudio do sistema foi gravado, por isso faltam os outros participantes. Permita o Murmur em Gravação de áudio do sistema nos ajustes de privacidade e grave de novo."

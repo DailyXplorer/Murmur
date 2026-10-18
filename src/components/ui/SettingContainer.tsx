@@ -6,6 +6,8 @@ interface SettingContainerProps {
   title: string;
   description: string;
   children: React.ReactNode;
+  /** Shown under the title and description, in the text column. */
+  detail?: React.ReactNode;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   layout?: "horizontal" | "stacked";
@@ -115,6 +117,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   title,
   description,
   children,
+  detail,
   descriptionMode = "tooltip",
   grouped = false,
   layout = "horizontal",
@@ -147,6 +150,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
             {description}
           </p>
         )}
+        {detail}
         <div className="w-full">{children}</div>
       </div>
     );
@@ -177,6 +181,7 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
             {description}
           </p>
         )}
+        {detail}
       </div>
       <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">
         {children}

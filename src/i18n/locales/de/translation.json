@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Neuerungen anzeigen",
         "description": "Versionshinweise nach Murmur-Updates anzeigen"
+      },
+      "modelLicences": {
+        "description": "Lizenzen der Modelle für die Sprechererkennung",
+        "button": "Lizenzen anzeigen"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Neu in Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Transkripte und Zusammenfassungen erscheinen, sobald ein Meeting verarbeitet ist.",
     "view": {
       "back": "Alle Meetings",
       "titleLabel": "Meeting-Titel",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "Systemton braucht macOS 14.4 oder neuer auf Apple silicon, daher nehmen Meetings nur dein Mikrofon auf.",
     "permission": {
-      "title": "Berechtigung für Systemton",
+      "title": "Zugriff auf Systemton",
       "description": "macOS fragt, wenn ein Meeting zum ersten Mal Systemton aufnimmt. Wenn du abgelehnt hast, aktiviere Murmur in den Datenschutzeinstellungen wieder.",
       "open": "Einstellungen öffnen",
       "silent": "Es wurde kein Systemton aufgenommen, daher fehlen die anderen Teilnehmenden. Erlaube Murmur unter „Systemaudioaufnahme“ in den Datenschutzeinstellungen und nimm erneut auf."

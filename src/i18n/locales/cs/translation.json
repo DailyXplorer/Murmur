@@ -435,6 +435,10 @@
       "whatsNewUpdates": {
         "label": "Zobrazovat novinky",
         "description": "Zobrazovat poznámky k vydání po aktualizacích Murmur"
+      },
+      "modelLicences": {
+        "description": "Licence modelů pro rozpoznávání mluvčích",
+        "button": "Zobrazit licence"
       }
     },
     "transcription": {
@@ -556,7 +560,6 @@
     "title": "Novinky v Murmur v{{version}}"
   },
   "meetings": {
-    "notice": "Přepisy a shrnutí se zobrazí po zpracování schůzky.",
     "view": {
       "back": "Všechny schůzky",
       "titleLabel": "Název schůzky",
@@ -680,7 +683,7 @@
     },
     "systemAudioUnavailable": "Systémový zvuk vyžaduje macOS 14.4 nebo novější na Apple silicon, schůzky proto nahrávají jen mikrofon.",
     "permission": {
-      "title": "Oprávnění k systémovému zvuku",
+      "title": "Systémový zvuk",
       "description": "macOS se zeptá, když schůzka poprvé nahrává systémový zvuk. Pokud jste odmítli, znovu Murmur povolte v nastavení soukromí.",
       "open": "Otevřít nastavení",
       "silent": "Nenahrál se žádný systémový zvuk, takže ostatní účastníci chybí. Povolte Murmur v části Nahrávání systémového zvuku v nastavení soukromí a nahrávejte znovu."
