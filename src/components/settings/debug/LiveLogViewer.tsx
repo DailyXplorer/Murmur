@@ -1,8 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
+import { PauseIcon } from "@phosphor-icons/react/dist/csr/Pause";
+import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { SettingContainer } from "../../ui/SettingContainer";
-import { Button } from "../../ui/Button";
+import { IconButton, IconToolbar } from "../../ui/IconButton";
 
 // Maximum number of lines kept in memory / rendered at once.
 const MAX_LINES = 1000;
@@ -193,19 +198,42 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
             {t("settings.debug.liveLogs.lineCount", { count: logs.length })}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button onClick={() => setPaused((p) => !p)}>
-            {paused
-              ? t("settings.debug.liveLogs.resume")
-              : t("settings.debug.liveLogs.pause")}
-          </Button>
-          <Button onClick={handleCopy} disabled={logs.length === 0}>
-            {copied ? t("settings.debug.liveLogs.copied") : t("common.copy")}
-          </Button>
-          <Button onClick={handleClear} disabled={logs.length === 0}>
-            {t("common.clear")}
-          </Button>
-        </div>
+        <IconToolbar>
+          <IconButton
+            label={
+              paused
+                ? t("settings.debug.liveLogs.resume")
+                : t("settings.debug.liveLogs.pause")
+            }
+            onClick={() => setPaused((p) => !p)}
+          >
+            {paused ? (
+              <PlayIcon size={15} aria-hidden="true" />
+            ) : (
+              <PauseIcon size={15} aria-hidden="true" />
+            )}
+          </IconButton>
+          <IconButton
+            label={
+              copied ? t("settings.debug.liveLogs.copied") : t("common.copy")
+            }
+            onClick={handleCopy}
+            disabled={logs.length === 0}
+          >
+            {copied ? (
+              <CheckIcon size={15} aria-hidden="true" />
+            ) : (
+              <CopyIcon size={15} aria-hidden="true" />
+            )}
+          </IconButton>
+          <IconButton
+            label={t("common.clear")}
+            onClick={handleClear}
+            disabled={logs.length === 0}
+          >
+            <TrashIcon size={15} aria-hidden="true" />
+          </IconButton>
+        </IconToolbar>
       </div>
 
       <div

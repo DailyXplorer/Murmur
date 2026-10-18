@@ -27,8 +27,6 @@ const lookup = (locale: string, key: string) =>
 /** Every label a text button shows, with whether an icon sits before it. */
 const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["common.open"],
-  ["common.copy"],
-  ["common.clear"],
   ["common.delete"],
   ["onboarding.permissions.accessibility.action"],
   ["onboarding.permissions.grant"],
@@ -40,9 +38,6 @@ const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["settings.history.openFolder", "icon"],
   ["settings.history.retry", "icon"],
   ["settings.debug.whatsNewPreview.button"],
-  ["settings.debug.liveLogs.resume"],
-  ["settings.debug.liveLogs.pause"],
-  ["settings.debug.liveLogs.copied"],
   ["settings.about.supportDevelopment.button"],
   ["settings.about.sourceCode.button"],
   ["settings.about.modelLicences.button"],
@@ -112,8 +107,9 @@ test("every English text button label fits the one shared width", async ({
   }
 });
 
-/** The visible text buttons: width, the shared width, and whether the label
- * or the button itself is cut off. */
+/** The visible text buttons: width, the shared width, whether the label is
+ * cut off, and the first element around the button that it sticks out of, on
+ * either side: there it is clipped, or covers the title beside its row. */
 const textButtons = (page: Page) =>
   page.evaluate(() =>
     Array.from(
@@ -122,19 +118,15 @@ const textButtons = (page: Page) =>
       .filter((button) => button.getClientRects().length > 0)
       .map((button) => {
         const box = button.getBoundingClientRect();
-        let clippedBy: string | null =
-          box.right > window.innerWidth + 0.5 ? "window" : null;
+        let sticksOutOf: string | null = null;
         for (
           let parent = button.parentElement;
-          parent && !clippedBy;
+          parent && !sticksOutOf;
           parent = parent.parentElement
         ) {
-          const { overflowX } = getComputedStyle(parent);
-          if (
-            overflowX !== "visible" &&
-            box.right > parent.getBoundingClientRect().right + 0.5
-          ) {
-            clippedBy = parent.className;
+          const bounds = parent.getBoundingClientRect();
+          if (box.left < bounds.left - 0.5 || box.right > bounds.right + 0.5) {
+            sticksOutOf = parent.className || parent.tagName;
           }
         }
         return {
@@ -142,7 +134,7 @@ const textButtons = (page: Page) =>
           width: box.width,
           shared: parseFloat(getComputedStyle(button).minWidth),
           labelCut: button.scrollWidth > button.clientWidth + 0.5,
-          clippedBy,
+          sticksOutOf,
         };
       }),
   );
@@ -153,6 +145,7 @@ const SCREENS: { name: string; query: string; page: string; meeting?: true }[] =
     { name: "About", query: "", page: "sidebar.about" },
     { name: "Advanced", query: "", page: "sidebar.advanced" },
     { name: "History", query: "", page: "sidebar.history" },
+    { name: "Debug", query: "", page: "sidebar.debug" },
     { name: "Meetings", query: "&meeting=recording", page: "sidebar.meetings" },
     {
       name: "meeting",
@@ -200,7 +193,7 @@ test.describe("at the default window size", () => {
         for (const button of await textButtons(page)) {
           const where = `${screen.name}: ${button.label}`;
           expect.soft(button.labelCut, where).toBe(false);
-          expect.soft(button.clippedBy, where).toBeNull();
+          expect.soft(button.sticksOutOf, where).toBeNull();
           expect
             .soft(button.width, where)
             .toBeGreaterThanOrEqual(button.shared - 0.5);
