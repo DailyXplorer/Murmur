@@ -369,6 +369,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
 
   const back = (
     <Button size="chip" onClick={onBack}>
+      {/* eslint-disable-next-line murmur/no-icon-in-text-button -- the one text button that keeps its icon */}
       <ArrowLeftIcon size={15} aria-hidden="true" />
       <span>{t("meetings.view.back")}</span>
     </Button>
