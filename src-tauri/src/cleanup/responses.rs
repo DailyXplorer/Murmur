@@ -184,7 +184,10 @@ impl SseText {
             let Some(data) = line.trim_end().strip_prefix("data:") else {
                 continue;
             };
-            let Ok(event) = serde_json::from_str::<StreamEvent>(data.trim()) else {
+            let Ok(json) = serde_json::from_str::<serde_json::Value>(data.trim()) else {
+                continue;
+            };
+            let Ok(event) = StreamEvent::deserialize(&json) else {
                 continue;
             };
             match event.kind.as_str() {
@@ -197,16 +200,39 @@ impl SseText {
                 }
                 "response.completed" => return Ok(Some(std::mem::take(&mut self.text))),
                 "response.failed" | "response.incomplete" | "error" => {
-                    return Err(CompletionError::failed(
-                        FailureKind::ServerError,
-                        format!("cleanup stream reported {}", event.kind),
-                    ));
+                    return Err(stream_failure(&event.kind, &json));
                 }
                 _ => {}
             }
         }
         Ok(None)
     }
+}
+
+/// Classes a failed stream the way an HTTP answer would be, from the codes
+/// the Codex CLI reads (`codex-api/src/sse/responses.rs`).
+fn stream_failure(event: &str, json: &serde_json::Value) -> CompletionError {
+    let response = json.get("response");
+    let reason = response
+        .and_then(|response| response.pointer("/incomplete_details/reason"))
+        .and_then(serde_json::Value::as_str);
+    let code = response
+        .and_then(|response| response.get("error"))
+        .or_else(|| json.get("error"))
+        .unwrap_or(json)
+        .get("code")
+        .and_then(serde_json::Value::as_str);
+    let kind = match (reason, code) {
+        (Some("max_output_tokens"), _) => return CompletionError::TooLong,
+        (Some("content_filter"), _) => FailureKind::Rejected,
+        (_, Some("rate_limit_exceeded" | "slow_down" | "insufficient_quota")) => {
+            FailureKind::RateLimited
+        }
+        (_, Some("context_length_exceeded")) => FailureKind::TooLarge,
+        _ => FailureKind::ServerError,
+    };
+    let what = reason.or(code).unwrap_or("no code");
+    CompletionError::failed(kind, format!("cleanup stream reported {event} ({what})"))
 }
 
 #[derive(Deserialize)]
@@ -311,6 +337,59 @@ event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{
                 ..
             })
         ));
+    }
+
+    fn failure_kind(event: &str) -> Option<FailureKind> {
+        match feed(&mut SseText::new(100), &format!("data: {event}\n")) {
+            Err(CompletionError::Failed { kind, .. }) => Some(kind),
+            Err(CompletionError::TooLong) => None,
+            _ => panic!("{event} must fail"),
+        }
+    }
+
+    #[test]
+    fn stream_failures_are_classified_like_http_answers() {
+        for code in ["rate_limit_exceeded", "slow_down", "insufficient_quota"] {
+            assert_eq!(
+                failure_kind(&format!(
+                    r#"{{"type":"response.failed","response":{{"error":{{"code":"{code}","message":"x"}}}}}}"#
+                )),
+                Some(FailureKind::RateLimited),
+                "{code}"
+            );
+        }
+        assert_eq!(
+            failure_kind(
+                r#"{"type":"response.failed","response":{"error":{"code":"context_length_exceeded"}}}"#
+            ),
+            Some(FailureKind::TooLarge)
+        );
+        assert_eq!(
+            failure_kind(r#"{"type":"error","code":"rate_limit_exceeded","message":"x"}"#),
+            Some(FailureKind::RateLimited)
+        );
+        assert_eq!(
+            failure_kind(r#"{"type":"error","error":{"code":"insufficient_quota"}}"#),
+            Some(FailureKind::RateLimited)
+        );
+        assert_eq!(
+            failure_kind(
+                r#"{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}"#
+            ),
+            None
+        );
+        assert_eq!(
+            failure_kind(
+                r#"{"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}"#
+            ),
+            Some(FailureKind::Rejected)
+        );
+        assert_eq!(
+            failure_kind(
+                r#"{"type":"response.failed","response":{"error":{"code":"server_is_overloaded"}}}"#
+            ),
+            Some(FailureKind::ServerError)
+        );
     }
 
     #[test]
