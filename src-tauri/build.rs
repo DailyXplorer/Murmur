@@ -99,6 +99,7 @@ const APP_COMMANDS: &[&str] = &[
     "get_meeting_markdown",
     "export_meeting_markdown",
     "get_meeting_capabilities",
+    "get_system_audio_permission",
     "open_system_audio_privacy_settings",
     "change_meetings_enabled_setting",
     "change_meeting_capture_mode_setting",

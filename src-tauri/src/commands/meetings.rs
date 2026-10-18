@@ -222,6 +222,14 @@ pub fn get_meeting_capabilities() -> MeetingCapabilities {
     }
 }
 
+/// Whether the warning about a silent system track should point to the
+/// privacy settings.
+#[tauri::command]
+#[specta::specta]
+pub fn get_system_audio_permission() -> meetings::capture::system::SystemAudioPermission {
+    meetings::capture::system::permission()
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_system_audio_privacy_settings() -> Result<(), String> {

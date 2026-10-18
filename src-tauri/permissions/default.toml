@@ -103,6 +103,7 @@ permissions = [
   "allow-get-meeting-markdown",
   "allow-export-meeting-markdown",
   "allow-get-meeting-capabilities",
+  "allow-get-system-audio-permission",
   "allow-open-system-audio-privacy-settings",
   "allow-change-meetings-enabled-setting",
   "allow-change-meeting-capture-mode-setting",

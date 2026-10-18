@@ -686,7 +686,9 @@
       "title": "Zugriff auf Systemton",
       "description": "macOS fragt, wenn ein Meeting zum ersten Mal Systemton aufnimmt. Wenn du abgelehnt hast, aktiviere Murmur in den Datenschutzeinstellungen wieder.",
       "open": "Einstellungen öffnen",
-      "silent": "Es wurde kein Systemton aufgenommen, daher fehlen die anderen Teilnehmenden. Erlaube Murmur unter „Systemaudioaufnahme“ in den Datenschutzeinstellungen und nimm erneut auf."
+      "silent": "Es wurde kein Systemton aufgenommen, daher fehlen die anderen Teilnehmenden. Erlaube Murmur unter „Systemaudioaufnahme“ in den Datenschutzeinstellungen und nimm erneut auf.",
+      "silentAllowed": "Es wurde kein Ton aus anderen Apps aufgenommen, daher fehlen die anderen Teilnehmenden, obwohl Murmur Systemaudio aufnehmen darf. Bitte melde das, damit es behoben wird.",
+      "report": "Problem melden"
     },
     "list": {
       "title": "Aufnahmen",

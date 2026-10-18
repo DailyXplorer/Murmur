@@ -46,6 +46,17 @@ impl From<crate::transcription_error::TranscriptionError> for CompletionError {
 }
 
 impl CompletionError {
+    /// The server does not serve this model to this account, as it answers
+    /// for a model outside the ChatGPT plan: HTTP 400, "The 'x' model is not
+    /// supported when using Codex with a ChatGPT account."
+    pub fn is_model_unsupported(&self) -> bool {
+        matches!(
+            self,
+            Self::Failed { kind: FailureKind::Rejected, detail }
+                if detail.contains("HTTP 400") && detail.contains("model is not supported")
+        )
+    }
+
     fn failed(kind: FailureKind, detail: impl Into<String>) -> Self {
         Self::Failed {
             kind,
@@ -265,11 +276,74 @@ fn pick_fast_model(models_cache_json: &str) -> Option<String> {
 
 /// The standard (not fast) model the account can use, for work where
 /// quality matters more than speed; the fast model when none is listed.
-pub fn default_model(codex_home: &Path) -> String {
-    std::fs::read_to_string(codex_home.join("models_cache.json"))
-        .ok()
+///
+/// The list comes from the server when it answers, since it depends on the
+/// account's plan: the Codex CLI's cache keeps the list of the plan it was
+/// fetched under, so after a downgrade it names models the server refuses.
+pub async fn default_model(models_url: &str, session: &Session, codex_home: &Path) -> String {
+    let cached = std::fs::read_to_string(codex_home.join("models_cache.json")).ok();
+    let listed = match live_models(models_url, session, cached.as_deref()).await {
+        Ok(json) => Some(json),
+        Err(error) => {
+            log::warn!("Codex model list unavailable, using the cached one: {error}");
+            cached
+        }
+    };
+    listed
         .and_then(|json| pick_model(&json, false))
         .unwrap_or_else(|| fast_model(codex_home))
+}
+
+/// Where the account's model list is served, next to the responses endpoint.
+pub fn models_url(responses_url: &str) -> String {
+    format!("{}/models", responses_url.trim_end_matches("/responses"))
+}
+
+/// The server requires the Codex CLI version it filters the list by; the one
+/// that wrote the cache, or the one Murmur was last checked against.
+const CLIENT_VERSION: &str = "0.159.0";
+
+async fn live_models(url: &str, session: &Session, cached: Option<&str>) -> Result<String, String> {
+    let client_version = cached
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|json| json["client_version"].as_str().map(str::to_string))
+        .unwrap_or_else(|| CLIENT_VERSION.to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(crate::codex_transcribe::user_agent())
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut builder = client
+        .get(url)
+        .query(&[("client_version", client_version)])
+        .header("Authorization", format!("Bearer {}", session.access_token))
+        .header("originator", "Codex Desktop");
+    if let Some(account_id) = session.account_id.as_deref() {
+        builder = builder.header("ChatGPT-Account-Id", account_id);
+    }
+    let response = builder.send().await.map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+    let json = response.text().await.map_err(|error| error.to_string())?;
+    serde_json::from_str::<ModelsCache>(&json).map_err(|error| error.to_string())?;
+    Ok(json)
+}
+
+/// Models the server refused for this account since launch.
+static REFUSED_MODELS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Keeps `model` out of every later choice until Murmur quits.
+pub fn forget_model(model: &str) {
+    if let Ok(mut refused) = REFUSED_MODELS.lock() {
+        refused.push(model.to_string());
+    }
+}
+
+fn is_refused(model: &str) -> bool {
+    REFUSED_MODELS
+        .lock()
+        .is_ok_and(|refused| refused.iter().any(|slug| slug == model))
 }
 
 /// The listed model of the first rank in the fast or the standard tier.
@@ -279,6 +353,7 @@ fn pick_model(models_cache_json: &str, fast: bool) -> Option<String> {
         .models
         .into_iter()
         .filter(|model| model.visibility.as_deref() != Some("hide"))
+        .filter(|model| !is_refused(&model.slug))
         .filter(|model| {
             let slug = model.slug.to_ascii_lowercase();
             FAST_MODEL_MARKERS
@@ -410,29 +485,61 @@ event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{
 
     #[test]
     fn the_first_listed_standard_model_is_the_default() {
-        let directory = tempfile::tempdir().unwrap();
-        let cache = directory.path().join("models_cache.json");
-        std::fs::write(
-            &cache,
-            r#"{"models":[
+        let cache = r#"{"models":[
             {"slug":"gpt-6-luna","visibility":"list","priority":0},
             {"slug":"gpt-6.1-sol","visibility":"list","priority":3},
             {"slug":"gpt-6.2-sol","visibility":"list","priority":1},
             {"slug":"secret-max","visibility":"hide","priority":0}
-        ]}"#,
-        )
-        .unwrap();
-        assert_eq!(default_model(directory.path()), "gpt-6.2-sol");
+        ]}"#;
+        assert_eq!(pick_model(cache, false).as_deref(), Some("gpt-6.2-sol"));
+        assert_eq!(
+            pick_model(r#"{"models":[{"slug":"gpt-6-luna"}]}"#, false),
+            None
+        );
+    }
 
-        // With only a fast model listed, that one.
-        std::fs::write(&cache, r#"{"models":[{"slug":"gpt-6-luna"}]}"#).unwrap();
-        assert_eq!(default_model(directory.path()), "gpt-6-luna");
+    #[test]
+    fn a_refused_model_is_never_picked_again() {
+        let cache = r#"{"models":[
+            {"slug":"gpt-test-refused-sol","priority":1},
+            {"slug":"gpt-test-kept-terra","priority":2}
+        ]}"#;
+        assert_eq!(
+            pick_model(cache, false).as_deref(),
+            Some("gpt-test-refused-sol")
+        );
+        forget_model("gpt-test-refused-sol");
+        assert_eq!(
+            pick_model(cache, false).as_deref(),
+            Some("gpt-test-kept-terra")
+        );
+    }
+
+    #[test]
+    fn only_the_plan_refusal_counts_as_an_unsupported_model() {
+        let refusal = CompletionError::failed(
+            FailureKind::Rejected,
+            r#"cleanup failed with HTTP 400 Bad Request: {"detail":"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account."}"#,
+        );
+        assert!(refusal.is_model_unsupported());
+        let other = CompletionError::failed(
+            FailureKind::Rejected,
+            "cleanup failed with HTTP 400 Bad Request: {}",
+        );
+        assert!(!other.is_model_unsupported());
+    }
+
+    #[test]
+    fn the_models_endpoint_sits_next_to_the_responses_one() {
+        assert_eq!(
+            models_url(RESPONSES_URL),
+            "https://chatgpt.com/backend-api/codex/models"
+        );
     }
 
     #[test]
     fn a_missing_cache_falls_back_to_the_known_fast_model() {
         let directory = tempfile::tempdir().unwrap();
         assert_eq!(fast_model(directory.path()), FALLBACK_MODEL);
-        assert_eq!(default_model(directory.path()), FALLBACK_MODEL);
     }
 }

@@ -836,6 +836,13 @@ async exportMeetingMarkdown(id: number, kind: MeetingMarkdownKind) : Promise<Res
 async getMeetingCapabilities() : Promise<MeetingCapabilities> {
     return await TAURI_INVOKE("get_meeting_capabilities");
 },
+/**
+ * Whether the warning about a silent system track should point to the
+ * privacy settings.
+ */
+async getSystemAudioPermission() : Promise<SystemAudioPermission> {
+    return await TAURI_INVOKE("get_system_audio_permission");
+},
 async openSystemAudioPrivacySettings() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_system_audio_privacy_settings") };
@@ -1260,6 +1267,14 @@ export type SummaryStatus =
  * Not written yet: it is once the whole transcript is.
  */
 "pending" | "ready" | "failed"
+/**
+ * The "System Audio Recording" permission, as macOS reports it now.
+ */
+export type SystemAudioPermission = "granted" | "denied" | 
+/**
+ * Not asked yet, or macOS does not say.
+ */
+"unknown"
 export type SystemAudioSupport = "available" | 
 /**
  * Process taps need macOS 14.4 or later.

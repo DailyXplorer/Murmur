@@ -36,6 +36,31 @@ mod bridge {
         pub fn murmur_system_tap_stop() -> i32;
         /// 1 while the device could not be rebuilt after an output change.
         pub fn murmur_system_tap_interrupted() -> i32;
+        /// 0 allowed, 1 denied, 2 not asked yet or unknown.
+        pub fn murmur_system_audio_permission() -> i32;
+    }
+}
+
+/// The "System Audio Recording" permission, as macOS reports it now.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemAudioPermission {
+    Granted,
+    Denied,
+    /// Not asked yet, or macOS does not say.
+    Unknown,
+}
+
+pub fn permission() -> SystemAudioPermission {
+    #[cfg(target_arch = "aarch64")]
+    // SAFETY: takes no arguments and only reads the permission.
+    let code = unsafe { bridge::murmur_system_audio_permission() };
+    #[cfg(not(target_arch = "aarch64"))]
+    let code = 2;
+    match code {
+        0 => SystemAudioPermission::Granted,
+        1 => SystemAudioPermission::Denied,
+        _ => SystemAudioPermission::Unknown,
     }
 }
 

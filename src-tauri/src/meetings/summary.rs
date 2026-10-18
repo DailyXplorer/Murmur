@@ -283,8 +283,11 @@ impl Summarizer for CodexSummarizer {
                 Some(path) => path,
                 None => codex_auth::auth_path()?,
             };
-            let model = responses::default_model(auth_path.parent().unwrap_or(&auth_path));
-            let request = Request {
+            let codex_home = auth_path.parent().unwrap_or(&auth_path);
+            let mut session = codex_auth::session_for_request(&auth_path).await?;
+            let model =
+                responses::default_model(&responses::models_url(&url), &session, codex_home).await;
+            let mut request = Request {
                 model: &model,
                 instructions: &instructions,
                 user_message: &input,
@@ -292,14 +295,21 @@ impl Summarizer for CodexSummarizer {
                 effort: "medium",
                 verbosity: "medium",
             };
-            let session = codex_auth::session_for_request(&auth_path).await?;
-            match responses::complete(&url, &session, &request, &operation).await {
-                Err(CompletionError::Failed {
-                    kind: FailureKind::SessionExpired,
-                    ..
-                }) => {
-                    let session =
-                        codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+            let mut result = responses::complete(&url, &session, &request, &operation).await;
+            if let Err(CompletionError::Failed {
+                kind: FailureKind::SessionExpired,
+                ..
+            }) = result
+            {
+                session = codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+                result = responses::complete(&url, &session, &request, &operation).await;
+            }
+            let fast = responses::fast_model(codex_home);
+            match result {
+                Err(error) if error.is_model_unsupported() && model != fast => {
+                    log::warn!("Codex refused {model} for this account; summarising with {fast}");
+                    responses::forget_model(&model);
+                    request.model = &fast;
                     responses::complete(&url, &session, &request, &operation).await
                 }
                 other => other,
@@ -931,8 +941,15 @@ mod tests {
             r#"{"models":[{"slug":"gpt-6-luna","priority":0},{"slug":"gpt-6.2-sol","priority":1}]}"#,
         )
         .unwrap();
+        let listed = http(
+            "200 OK",
+            "application/json",
+            &std::fs::read_to_string(dir.path().join("models_cache.json")).unwrap(),
+        );
         let (url, bodies) = fake_codex(vec![
+            listed.clone(),
             http("429 Too Many Requests", "application/json", "{}"),
+            listed,
             sse("# Budget\n\nRéunion entre [[me]] et [[s1]]."),
         ]);
         let codex = CodexSummarizer {
@@ -951,7 +968,7 @@ mod tests {
                 body: "Réunion entre [[me]] et [[s1]].".into()
             })
         );
-        let request: serde_json::Value = serde_json::from_str(&bodies.lock().unwrap()[1]).unwrap();
+        let request: serde_json::Value = serde_json::from_str(&bodies.lock().unwrap()[3]).unwrap();
         assert_eq!(request["model"], "gpt-6.2-sol");
         assert_eq!(request["reasoning"]["effort"], "medium");
         assert_eq!(request["text"]["verbosity"], "medium");
@@ -959,6 +976,92 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("[00:05] [[me]] Me: Oui, il est validé."));
+    }
+
+    fn signed_in(dir: &std::path::Path, cached_models: &str) -> PathBuf {
+        std::fs::write(
+            dir.join("auth.json"),
+            serde_json::json!({
+                "auth_mode": "chatgpt",
+                "tokens": {"access_token": "token", "refresh_token": "refresh", "account_id": "acct"},
+                "last_refresh": chrono::Utc::now().to_rfc3339(),
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(dir.join("models_cache.json"), cached_models).unwrap();
+        dir.join("auth.json")
+    }
+
+    fn model_of(body: &str) -> String {
+        let request: serde_json::Value = serde_json::from_str(body).unwrap();
+        request["model"].as_str().unwrap().to_string()
+    }
+
+    /// The cache still lists the models of a plan the account left; the
+    /// server's own list is the one that counts.
+    #[test]
+    fn the_standard_model_comes_from_the_account_s_live_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(
+            dir.path(),
+            r#"{"client_version":"0.159.0","models":[{"slug":"gpt-test-paid-sol","priority":1},{"slug":"gpt-test-free-luna","priority":4}]}"#,
+        );
+        let (url, bodies) = fake_codex(vec![
+            http(
+                "200 OK",
+                "application/json",
+                r#"{"models":[{"slug":"gpt-test-free-luna","priority":4},{"slug":"gpt-test-free-terra","priority":8}]}"#,
+            ),
+            sse("# Budget\n\nRéunion."),
+        ]);
+        let codex = CodexSummarizer {
+            url,
+            auth_path: Some(auth_path),
+        };
+        assert!(matches!(
+            run(&codex, MAX_SUMMARY_CHARS),
+            SummaryEnd::Written(_)
+        ));
+        assert_eq!(model_of(&bodies.lock().unwrap()[1]), "gpt-test-free-terra");
+    }
+
+    /// The live list is unavailable and the cached one names a model the
+    /// plan lacks: the fast model writes the summary, now and for the rest
+    /// of the session.
+    #[test]
+    fn a_model_the_plan_refuses_falls_back_to_the_fast_one_for_the_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(
+            dir.path(),
+            r#"{"models":[{"slug":"gpt-test-gone-sol","priority":1},{"slug":"gpt-test-gone-luna","priority":4}]}"#,
+        );
+        let unavailable = http("503 Service Unavailable", "application/json", "{}");
+        let (url, bodies) = fake_codex(vec![
+            unavailable.clone(),
+            http(
+                "400 Bad Request",
+                "application/json",
+                r#"{"detail":"The 'gpt-test-gone-sol' model is not supported when using Codex with a ChatGPT account."}"#,
+            ),
+            sse("# Budget\n\nRéunion."),
+            unavailable,
+            sse("# Budget\n\nRéunion."),
+        ]);
+        let codex = CodexSummarizer {
+            url,
+            auth_path: Some(auth_path),
+        };
+        for _ in 0..2 {
+            assert!(matches!(
+                run(&codex, MAX_SUMMARY_CHARS),
+                SummaryEnd::Written(_)
+            ));
+        }
+        let bodies = bodies.lock().unwrap();
+        assert_eq!(model_of(&bodies[1]), "gpt-test-gone-sol");
+        assert_eq!(model_of(&bodies[2]), "gpt-test-gone-luna");
+        assert_eq!(model_of(&bodies[4]), "gpt-test-gone-luna");
     }
 
     #[test]

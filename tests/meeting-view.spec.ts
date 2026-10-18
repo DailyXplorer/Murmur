@@ -37,15 +37,46 @@ test("a meeting whose system audio was pure silence points to the privacy settin
   await openMeeting(page, /Point hebdo produit/);
   await expect(page.getByText(/No system audio was recorded/)).toHaveCount(0);
 
-  await openMeeting(page, /Point hebdo produit/, "&systemAudioSilent=1");
+  await openMeeting(
+    page,
+    /Point hebdo produit/,
+    "&systemAudioSilent=1&systemAudioPermission=denied",
+  );
   const notice = page
     .getByRole("status")
     .filter({ hasText: "No system audio was recorded" });
   await expect(notice).toBeVisible();
+  await expect(notice).toContainText("System Audio Recording");
   await notice.getByRole("button", { name: "Open Settings" }).click();
   expect(
     await callsTo(page, "open_system_audio_privacy_settings"),
   ).toHaveLength(1);
+});
+
+test("with the permission allowed, a silent system track is not blamed on it", async ({
+  page,
+}) => {
+  await openMeeting(
+    page,
+    /Point hebdo produit/,
+    "&systemAudioSilent=1&systemAudioPermission=granted",
+  );
+  const notice = page
+    .getByRole("status")
+    .filter({ hasText: "No sound from other apps was captured" });
+  await expect(notice).toBeVisible();
+  await expect(notice).not.toContainText("System Audio Recording");
+  await expect(
+    notice.getByRole("button", { name: "Open Settings" }),
+  ).toHaveCount(0);
+  await expect(
+    notice.getByRole("button", { name: "Report a Problem" }),
+  ).toBeVisible();
+});
+
+test("audio under a megabyte shows its size in kilobytes", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
+  await expect(page.getByText("Audio kept · 351 kB")).toBeVisible();
 });
 
 test("a meeting shows its transcript in order, with a name at each change of speaker", async ({

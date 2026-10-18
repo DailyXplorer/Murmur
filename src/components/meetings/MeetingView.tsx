@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   commands,
   events,
@@ -9,6 +10,7 @@ import {
   type MeetingModelsStatus,
   type MeetingProgress,
   type MeetingStage,
+  type SystemAudioPermission,
 } from "@/bindings";
 import { useMeetingModels } from "../../hooks/useMeetingModels";
 import { Button } from "../ui/Button";
@@ -254,20 +256,44 @@ const SpeakerNotice: React.FC<{
 };
 
 /** System audio held only silence: macOS likely kept it from Murmur. */
+const REPORT_URL =
+  "https://github.com/DailyXplorer/Murmur/issues/new?template=bug_report.md";
+
+/** Points to the privacy settings only while the permission is missing. */
 const SystemAudioNotice: React.FC = () => {
   const { t } = useTranslation();
+  const [permission, setPermission] = useState<SystemAudioPermission | null>(
+    null,
+  );
+  useEffect(() => {
+    void commands.getSystemAudioPermission().then(setPermission);
+  }, []);
+  if (permission === null) return null;
+  const granted = permission === "granted";
   return (
     <div
       role="status"
       className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
     >
-      <p className="flex-1 text-sm">{t("meetings.permission.silent")}</p>
-      <Button
-        variant="secondary"
-        onClick={() => void commands.openSystemAudioPrivacySettings()}
-      >
-        {t("meetings.permission.open")}
-      </Button>
+      <p className="flex-1 text-sm">
+        {t(
+          granted
+            ? "meetings.permission.silentAllowed"
+            : "meetings.permission.silent",
+        )}
+      </p>
+      {granted ? (
+        <Button variant="secondary" onClick={() => void openUrl(REPORT_URL)}>
+          {t("meetings.permission.report")}
+        </Button>
+      ) : (
+        <Button
+          variant="secondary"
+          onClick={() => void commands.openSystemAudioPrivacySettings()}
+        >
+          {t("meetings.permission.open")}
+        </Button>
+      )}
     </div>
   );
 };
