@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historia",
-      "openFolder": "Otwórz folder nagrań",
+      "openFolder": "Otwórz folder",
       "loading": "Wczytywanie historii...",
       "empty": "Brak transkrypcji. Rozpocznij nagrywanie, aby zbudować historię!",
       "copyToClipboard": "Kopiuj transkrypcję do schowka",
@@ -686,9 +686,8 @@
       "title": "Dźwięk systemowy",
       "description": "macOS zapyta, gdy spotkanie po raz pierwszy nagrywa dźwięk systemowy. Jeśli odmówiono, ponownie włącz Murmur w ustawieniach prywatności.",
       "open": "Otwórz ustawienia",
-      "silent": "Nie nagrano dźwięku systemowego, więc brakuje pozostałych uczestników. Zezwól Murmur w sekcji Nagrywanie dźwięku systemowego w ustawieniach prywatności i nagraj ponownie.",
-      "silentAllowed": "Nie przechwycono dźwięku z innych aplikacji, więc brakuje pozostałych uczestników, choć Murmur ma pozwolenie na nagrywanie dźwięku systemowego. Zgłoś to, aby można było to naprawić.",
-      "report": "Zgłoś problem"
+      "silent": "Nie nagrano dźwięku systemowego. Zezwól Murmur w sekcji Nagrywanie dźwięku systemowego.",
+      "silentAllowed": "Nie przechwycono dźwięku z innych aplikacji."
     },
     "list": {
       "title": "Nagrania",

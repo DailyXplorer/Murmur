@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historique",
-      "openFolder": "Ouvrir le dossier des enregistrements",
+      "openFolder": "Ouvrir le dossier",
       "loading": "Chargement de l'historique...",
       "empty": "Pas encore de transcriptions. Commencez à enregistrer pour créer votre historique !",
       "copyToClipboard": "Copier la transcription dans le presse-papiers",
@@ -686,9 +686,8 @@
       "title": "Audio du système",
       "description": "macOS demande l’autorisation la première fois qu’une réunion enregistre l’audio du système. Si vous avez refusé, réactivez Murmur dans les réglages de confidentialité.",
       "open": "Ouvrir les réglages",
-      "silent": "Aucun son système n’a été enregistré : les autres participants manquent. Autorisez Murmur dans Enregistrement audio du système, dans les réglages de confidentialité, puis enregistrez à nouveau.",
-      "silentAllowed": "Aucun son des autres apps n’a été capté : les autres participants manquent, alors que Murmur a l’autorisation d’enregistrer le son du système. Signalez-le pour qu’il soit corrigé.",
-      "report": "Signaler un problème"
+      "silent": "Aucun son système n’a été enregistré. Autorisez Murmur dans Enregistrement audio du système.",
+      "silentAllowed": "Aucun son des autres apps n’a été capté."
     },
     "list": {
       "title": "Enregistrements",

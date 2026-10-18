@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Lịch sử",
-      "openFolder": "Mở thư mục ghi âm",
+      "openFolder": "Mở thư mục",
       "loading": "Đang tải lịch sử...",
       "empty": "Chưa có bản ghi nào. Bắt đầu ghi âm để xây dựng lịch sử của bạn!",
       "copyToClipboard": "Sao chép bản ghi vào clipboard",
@@ -686,9 +686,8 @@
       "title": "Âm thanh hệ thống",
       "description": "macOS sẽ hỏi lần đầu một cuộc họp ghi âm thanh hệ thống. Nếu bạn đã từ chối, hãy bật lại Murmur trong cài đặt quyền riêng tư.",
       "open": "Mở cài đặt",
-      "silent": "Không ghi được âm thanh hệ thống nên thiếu những người tham gia khác. Hãy cho phép Murmur trong mục Ghi âm thanh hệ thống ở cài đặt quyền riêng tư, rồi ghi lại.",
-      "silentAllowed": "Không thu được âm thanh từ các ứng dụng khác nên thiếu những người tham gia khác, dù Murmur đã được phép ghi âm thanh hệ thống. Hãy báo cáo để lỗi được khắc phục.",
-      "report": "Báo cáo sự cố"
+      "silent": "Không ghi được âm thanh hệ thống. Hãy cho phép Murmur trong mục Ghi âm thanh hệ thống.",
+      "silentAllowed": "Không thu được âm thanh từ các ứng dụng khác."
     },
     "list": {
       "title": "Bản ghi",

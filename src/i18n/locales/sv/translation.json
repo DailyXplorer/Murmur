@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historik",
-      "openFolder": "Öppna mapp för inspelningar",
+      "openFolder": "Öppna mapp",
       "loading": "Laddar historik...",
       "empty": "Inga transkriptioner ännu. Börja spela in för att bygga upp din historik!",
       "copyToClipboard": "Kopiera transkription till urklipp",
@@ -686,9 +686,8 @@
       "title": "Systemljud",
       "description": "macOS frågar första gången ett möte spelar in systemljud. Om du nekade kan du slå på Murmur igen i integritetsinställningarna.",
       "open": "Öppna inställningar",
-      "silent": "Inget systemljud spelades in, så de andra deltagarna saknas. Tillåt Murmur under Inspelning av systemljud i integritetsinställningarna och spela in igen.",
-      "silentAllowed": "Inget ljud från andra appar fångades, så de andra deltagarna saknas, fast Murmur får spela in systemljud. Rapportera det så att det kan åtgärdas.",
-      "report": "Rapportera ett problem"
+      "silent": "Inget systemljud spelades in. Tillåt Murmur under Inspelning av systemljud.",
+      "silentAllowed": "Inget ljud från andra appar fångades."
     },
     "list": {
       "title": "Inspelningar",

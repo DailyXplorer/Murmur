@@ -142,21 +142,15 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
         {status.kind === "unavailable" && (
           <div className="mt-2 flex flex-wrap gap-2 ps-6">
             {!isGemini ? (
-              <Button variant="secondary" onClick={() => void openCodexSetup()}>
+              <Button onClick={() => void openCodexSetup()}>
                 {t("onboarding.provider.setupCodex")}
               </Button>
             ) : status.reason === "notInstalled" ? (
-              <Button
-                variant="secondary"
-                onClick={() => void installAntigravity()}
-              >
+              <Button onClick={() => void installAntigravity()}>
                 {t("settings.transcription.installAntigravity")}
               </Button>
             ) : (
-              <Button
-                variant="secondary"
-                onClick={() => void openAntigravity()}
-              >
+              <Button onClick={() => void openAntigravity()}>
                 {t("settings.transcription.openAntigravity")}
               </Button>
             )}
@@ -201,7 +195,6 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
           )}
           <div className="mt-2 flex justify-end gap-2">
             <Button
-              variant="secondary"
               onClick={() => void refreshStatuses()}
               disabled={isCompleting}
             >

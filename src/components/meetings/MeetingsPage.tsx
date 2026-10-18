@@ -19,6 +19,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Dropdown } from "../ui/Dropdown";
+import { IconButton } from "../ui/IconButton";
 import { SettingContainer } from "../ui/SettingContainer";
 import { SettingsGroup } from "../ui/SettingsGroup";
 import { SettingsPage } from "../ui/SettingsPage";
@@ -195,14 +196,12 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
             {recording ? (
               <>
                 <Button
-                  variant="ghost"
                   disabled={busy}
                   onClick={() => setDiscardId(runtime.id)}
                 >
                   {t("meetings.discard")}
                 </Button>
                 <Button
-                  variant="primary"
                   disabled={busy}
                   onClick={() =>
                     void run(commands.stopMeeting, "meetings.stopError")
@@ -213,7 +212,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               </>
             ) : (
               <Button
-                variant="primary"
                 disabled={busy}
                 onClick={() =>
                   void run(commands.startMeeting, "meetings.startError")
@@ -250,7 +248,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
             grouped={true}
           >
             <Button
-              variant="secondary"
               onClick={() => void commands.openSystemAudioPrivacySettings()}
             >
               {t("meetings.permission.open")}
@@ -308,16 +305,13 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                       })}
                     </p>
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <IconButton
                     disabled={live}
-                    aria-label={t("meetings.delete")}
-                    title={t("meetings.delete")}
+                    label={t("meetings.delete")}
                     onClick={() => setPendingDelete(meeting)}
                   >
                     <TrashIcon size={15} aria-hidden="true" />
-                  </Button>
+                  </IconButton>
                 </li>
               );
             })}
@@ -326,7 +320,6 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         {hasMore && !loading && (
           <div className="flex justify-center px-4 py-2">
             <Button
-              variant="secondary"
               onClick={() => void loadMeetings(meetings.length + PAGE_SIZE)}
             >
               {t("meetings.list.loadMore")}
@@ -344,11 +337,10 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         closeLabel={t("common.close")}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setDiscardId(null)}>
+            <Button onClick={() => setDiscardId(null)}>
               {t("meetings.discardDialog.keep")}
             </Button>
             <Button
-              variant="danger"
               onClick={() => {
                 if (discardId === null) return;
                 setDiscardId(null);
@@ -377,11 +369,10 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         closeLabel={t("common.close")}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setPendingDelete(null)}>
+            <Button onClick={() => setPendingDelete(null)}>
               {t("meetings.cancel")}
             </Button>
             <Button
-              variant="danger"
               onClick={() => pendingDelete && void deleteMeeting(pendingDelete)}
             >
               {t("common.delete")}

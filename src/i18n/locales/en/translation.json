@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "History",
-      "openFolder": "Open Recordings Folder",
+      "openFolder": "Open Folder",
       "loading": "Loading history...",
       "empty": "No transcriptions yet. Start recording to build your history!",
       "copyToClipboard": "Copy transcription to clipboard",
@@ -686,9 +686,8 @@
       "title": "System Audio Access",
       "description": "macOS asks the first time a meeting records system audio. If you declined, turn Murmur back on in the privacy settings.",
       "open": "Open Settings",
-      "silent": "No system audio was recorded, so the other participants are missing. Allow Murmur under System Audio Recording in the privacy settings, then record again.",
-      "silentAllowed": "No sound from other apps was captured, so the other participants are missing, even though Murmur is allowed to record system audio. Please report it so it can be fixed.",
-      "report": "Report a Problem"
+      "silent": "No system audio was recorded. Allow Murmur under System Audio Recording.",
+      "silentAllowed": "No sound from other apps was captured."
     },
     "list": {
       "title": "Recordings",

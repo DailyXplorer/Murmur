@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const fixture = "/tests/fixtures/settings-pages.html?meetings=1";
 
@@ -28,6 +28,46 @@ const callsTo = (page: Page, command: string) =>
     command,
   );
 
+const TRANSPARENT = "rgba(0, 0, 0, 0)";
+
+const cssOf = (locator: Locator, property: string) =>
+  locator.evaluate(
+    (element, name) => getComputedStyle(element).getPropertyValue(name),
+    property,
+  );
+
+/** One line of text as small as the date chip's, not a card. */
+const expectOneSmallLine = async (page: Page, notice: Locator) => {
+  const chip = page.getByText(/Oct \d+/);
+  await expect(notice).toHaveCSS("font-size", await cssOf(chip, "font-size"));
+  await expect(notice).toHaveCSS("border-top-width", "0px");
+  const lineHeight = parseFloat(await cssOf(notice, "line-height"));
+  const box = await notice.boundingBox();
+  expect(box?.height).toBeLessThanOrEqual(lineHeight + 1);
+};
+
+/** The buttons, in this order, are squares smaller than a form control, a
+ * few pixels apart. */
+const expectToolbar = async (page: Page, labels: string[]) => {
+  const boxes = await Promise.all(
+    labels.map((label) =>
+      page.getByRole("button", { name: label, exact: true }).boundingBox(),
+    ),
+  );
+  for (const box of boxes) {
+    expect(box?.width).toBe(box?.height);
+    expect(box?.height).toBeGreaterThanOrEqual(24);
+    expect(box?.height).toBeLessThanOrEqual(30);
+  }
+  for (let index = 1; index < boxes.length; index++) {
+    const gap =
+      (boxes[index]?.x ?? 0) -
+      ((boxes[index - 1]?.x ?? 0) + (boxes[index - 1]?.width ?? 0));
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThanOrEqual(4);
+  }
+};
+
 const bubbles = (page: Page) =>
   page.getByRole("list", { name: "Transcript" }).getByRole("listitem");
 
@@ -47,13 +87,16 @@ test("a meeting whose system audio was pure silence points to the privacy settin
     .filter({ hasText: "No system audio was recorded" });
   await expect(notice).toBeVisible();
   await expect(notice).toContainText("System Audio Recording");
-  await notice.getByRole("button", { name: "Open Settings" }).click();
+  await expectOneSmallLine(page, notice);
+  const open = notice.getByRole("button", { name: "Open Settings" });
+  await expect(open).toHaveCSS("background-color", TRANSPARENT);
+  await open.click();
   expect(
     await callsTo(page, "open_system_audio_privacy_settings"),
   ).toHaveLength(1);
 });
 
-test("with the permission allowed, a silent system track is not blamed on it", async ({
+test("with the permission allowed, a silent system track is one quiet line", async ({
   page,
 }) => {
   await openMeeting(
@@ -61,17 +104,119 @@ test("with the permission allowed, a silent system track is not blamed on it", a
     /Point hebdo produit/,
     "&systemAudioSilent=1&systemAudioPermission=granted",
   );
-  const notice = page
-    .getByRole("status")
-    .filter({ hasText: "No sound from other apps was captured" });
+  const notice = page.getByRole("status").filter({
+    hasText: "No sound from other apps was captured.",
+  });
   await expect(notice).toBeVisible();
   await expect(notice).not.toContainText("System Audio Recording");
-  await expect(
-    notice.getByRole("button", { name: "Open Settings" }),
-  ).toHaveCount(0);
-  await expect(
-    notice.getByRole("button", { name: "Report a Problem" }),
-  ).toBeVisible();
+  await expect(notice.getByRole("button")).toHaveCount(0);
+  await expectOneSmallLine(page, notice);
+});
+
+test("the icon actions of each tab sit together as a toolbar", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await expectToolbar(page, [
+    "Search Summary",
+    "Copy Summary",
+    "Export as Markdown",
+  ]);
+  await page.getByRole("tab", { name: "Transcript" }).click();
+  await expectToolbar(page, [
+    "Search Transcript",
+    "Copy Transcript",
+    "Export as Markdown",
+    "Rename Speakers",
+  ]);
+});
+
+test("the audio row's actions are the same pink button, side by side", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
+  const again = page.getByRole("button", { name: "Transcribe Again" });
+  const remove = page.getByRole("button", { name: "Delete Audio" });
+  await expect(again).toBeVisible();
+  await expect(remove).toBeVisible();
+  const [againBox, removeBox] = await Promise.all([
+    again.boundingBox(),
+    remove.boundingBox(),
+  ]);
+  expect(againBox?.width).toBe(removeBox?.width);
+  expect(againBox?.height).toBe(removeBox?.height);
+  expect(againBox?.y).toBe(removeBox?.y);
+  await expect(again).not.toHaveCSS("background-color", TRANSPARENT);
+  for (const property of ["background-color", "color"]) {
+    await expect(remove).toHaveCSS(property, await cssOf(again, property));
+  }
+  // The row ends where the tab content ends.
+  const panel = await page.getByRole("tabpanel").boundingBox();
+  expect((removeBox?.x ?? 0) + (removeBox?.width ?? 0)).toBeCloseTo(
+    (panel?.x ?? 0) + (panel?.width ?? 0),
+    0,
+  );
+});
+
+test("deleting the meeting or its audio asks with a pink button, never red", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
+  const again = page.getByRole("button", { name: "Transcribe Again" });
+  const pink = await cssOf(again, "background-color");
+  await page.getByRole("button", { name: "Delete Audio" }).click();
+  const confirm = page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete Audio" });
+  await expect(confirm).toHaveCSS("background-color", pink);
+  const classes = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("button")).map((b) => b.className),
+  );
+  expect(classes.filter((name) => /\bred-/.test(name))).toEqual([]);
+});
+
+test("dark: follows Murmur's theme even when macOS's differs", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  // The live log viewer's error colours use these classes.
+  const probe = await page.evaluateHandle(() => {
+    const span = document.createElement("span");
+    span.className = "text-red-600 dark:text-red-400";
+    document.body.append(span);
+    return span;
+  });
+  const colorUnder = async (
+    appTheme: "light" | "dark" | "system",
+    osScheme: "light" | "dark",
+  ) => {
+    await page.emulateMedia({ colorScheme: osScheme });
+    await page.evaluate((theme) => {
+      if (theme === "system") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = theme;
+    }, appTheme);
+    return probe.evaluate((span) => getComputedStyle(span).color);
+  };
+
+  const light = await colorUnder("system", "light");
+  const dark = await colorUnder("system", "dark");
+  expect(light).not.toBe(dark);
+  expect(await colorUnder("light", "dark")).toBe(light);
+  expect(await colorUnder("dark", "light")).toBe(dark);
+});
+
+test("text buttons are filled from the start, icon buttons only tint on hover", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  const back = page.getByRole("button", { name: "All Meetings" });
+  await expect(back).not.toHaveCSS("background-color", TRANSPARENT);
+
+  const copy = page.getByRole("button", { name: "Copy Summary" });
+  await expect(copy).toHaveCSS("background-color", TRANSPARENT);
+  await copy.hover();
+  await expect(copy).not.toHaveCSS("background-color", TRANSPARENT);
+  await expect(copy).toHaveCSS("border-top-width", "0px");
 });
 
 test("audio under a megabyte shows its size in kilobytes", async ({ page }) => {

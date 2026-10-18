@@ -7,6 +7,7 @@ import {
   FloatingLayerContext,
 } from "./FloatingLayerContext";
 import { useDismissableLayer } from "./DismissableLayer";
+import { IconButton } from "./IconButton";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -203,14 +204,13 @@ export const Dialog: React.FC<DialogProps> = ({
               )}
             </div>
             {dismissible && showCloseButton && (
-              <button
-                type="button"
+              <IconButton
+                size="compact"
+                label={closeLabel}
                 onClick={() => onOpenChange(false)}
-                aria-label={closeLabel}
-                className="shrink-0 cursor-pointer rounded-md border border-transparent p-1 text-mid-gray transition-colors hover:border-mid-gray/20 hover:bg-mid-gray/10 hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-logo-primary"
               >
                 <XIcon size={15} aria-hidden="true" />
-              </button>
+              </IconButton>
             )}
           </div>
           <div

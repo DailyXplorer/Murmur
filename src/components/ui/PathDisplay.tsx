@@ -27,7 +27,7 @@ export const PathDisplay: React.FC<PathDisplayProps> = ({
         aria-label={label}
         className="min-w-0 flex-1 cursor-text select-text truncate"
       />
-      <Button onClick={onOpen} variant="secondary" disabled={disabled}>
+      <Button onClick={onOpen} disabled={disabled}>
         {t("common.open")}
       </Button>
     </div>

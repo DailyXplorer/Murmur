@@ -312,7 +312,7 @@
     },
     "history": {
       "title": "Historie",
-      "openFolder": "Otevřít složku nahrávek",
+      "openFolder": "Otevřít složku",
       "loading": "Načítám historii...",
       "empty": "Zatím žádné přepisy. Začněte nahrávat a vytvořte si historii!",
       "copyToClipboard": "Kopírovat přepis do schránky",
@@ -686,9 +686,8 @@
       "title": "Systémový zvuk",
       "description": "macOS se zeptá, když schůzka poprvé nahrává systémový zvuk. Pokud jste odmítli, znovu Murmur povolte v nastavení soukromí.",
       "open": "Otevřít nastavení",
-      "silent": "Nenahrál se žádný systémový zvuk, takže ostatní účastníci chybí. Povolte Murmur v části Nahrávání systémového zvuku v nastavení soukromí a nahrávejte znovu.",
-      "silentAllowed": "Nezachytil se žádný zvuk z jiných aplikací, takže ostatní účastníci chybí, přestože Murmur smí nahrávat systémový zvuk. Nahlaste to, aby se to dalo opravit.",
-      "report": "Nahlásit problém"
+      "silent": "Nenahrál se žádný systémový zvuk. Povolte Murmur v části Nahrávání systémového zvuku.",
+      "silentAllowed": "Nezachytil se žádný zvuk z jiných aplikací."
     },
     "list": {
       "title": "Nahrávky",

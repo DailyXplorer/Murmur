@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
+import { IconButton } from "./IconButton";
 
 interface ResetButtonProps {
   onClick: () => void;
@@ -11,19 +12,13 @@ interface ResetButtonProps {
 
 export const ResetButton: React.FC<ResetButtonProps> = React.memo(
   ({ onClick, disabled = false, className = "", ariaLabel, children }) => (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      data-control="icon"
-      className={`inline-flex size-control items-center justify-center rounded-md border border-transparent transition-all duration-150 ${
-        disabled
-          ? "opacity-50 cursor-not-allowed text-text/40"
-          : "hover:bg-logo-primary/30 active:bg-logo-primary/50 active:translate-y-[1px] hover:cursor-pointer hover:border-logo-primary text-text/80"
-      } ${className}`}
+    <IconButton
+      label={ariaLabel}
+      className={className}
       onClick={onClick}
       disabled={disabled}
     >
       {children ?? <ArrowCounterClockwiseIcon size={18} />}
-    </button>
+    </IconButton>
   ),
 );

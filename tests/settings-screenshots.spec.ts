@@ -181,6 +181,72 @@ test.describe("settings screenshots", () => {
     });
   }
 
+  test.describe("buttons at the default window size", () => {
+    test.use({
+      viewport: { width: 680, height: 570 },
+      deviceScaleFactor: 2,
+      colorScheme: "light",
+    });
+
+    const openMeetingAt = async (page: Page, query: string) => {
+      await page.goto(`/tests/fixtures/settings-pages.html?meetings=1${query}`);
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+      await page.waitForTimeout(500);
+    };
+
+    test("meeting views", async ({ page }) => {
+      await openMeetingAt(page, "");
+      await page.screenshot({ path: `${outputDir}/meeting-summary.png` });
+
+      await openMeetingAt(
+        page,
+        "&systemAudioSilent=1&systemAudioPermission=granted",
+      );
+      await page.screenshot({
+        path: `${outputDir}/meeting-silent-granted.png`,
+      });
+
+      await openMeetingAt(
+        page,
+        "&systemAudioSilent=1&systemAudioPermission=denied",
+      );
+      await page.screenshot({
+        path: `${outputDir}/meeting-silent-denied.png`,
+      });
+
+      await openMeetingAt(page, "&audioBytes=350623");
+      await page.getByRole("tab", { name: "Transcript" }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${outputDir}/meeting-transcript.png` });
+
+      await page
+        .getByRole("button", { name: "Delete Audio" })
+        .scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${outputDir}/meeting-footer.png` });
+    });
+
+    for (const section of ["Transcription", "Meetings", "Advanced", "About"]) {
+      test(`${section} page`, async ({ page }) => {
+        await page.goto("/tests/fixtures/settings-pages.html?meetings=1");
+        await page
+          .getByRole("navigation")
+          .getByRole("button", { name: section, exact: true })
+          .click();
+        await page.waitForTimeout(500);
+        await growViewportToContent(page);
+        await page.screenshot({
+          path: `${outputDir}/page-${section.toLowerCase()}.png`,
+          fullPage: true,
+        });
+      });
+    }
+  });
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

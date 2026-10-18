@@ -48,7 +48,7 @@ export const WhatsNewPreview: React.FC<WhatsNewPreviewProps> = ({
         descriptionMode={descriptionMode}
         grouped={grouped}
       >
-        <Button variant="secondary" onClick={preview} disabled={isLoading}>
+        <Button onClick={preview} disabled={isLoading}>
           {t("settings.debug.whatsNewPreview.button")}
         </Button>
       </SettingContainer>

@@ -89,11 +89,8 @@ export const RenameSpeakersDialog: React.FC<RenameSpeakersDialogProps> = ({
       initialFocusRef={focusRef}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            {t("meetings.cancel")}
-          </Button>
+          <Button onClick={onClose}>{t("meetings.cancel")}</Button>
           <Button
-            variant="primary"
             disabled={saving || !valid || changed.length === 0}
             onClick={() => void save()}
           >
