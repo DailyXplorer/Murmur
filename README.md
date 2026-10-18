@@ -3,8 +3,8 @@
 <p align="center">
   <a href="https://github.com/DailyXplorer/Murmur/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DailyXplorer/Murmur?style=for-the-badge&color=f49ac1"></a>
   <a href="https://github.com/DailyXplorer/Murmur/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/DailyXplorer/Murmur/total?style=for-the-badge&color=f49ac1"></a>
-  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-111111?style=for-the-badge&logo=apple&logoColor=white">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111?style=for-the-badge"></a>
+  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-f49ac1?style=for-the-badge&logo=apple&logoColor=white">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-f49ac1?style=for-the-badge"></a>
   <a href="https://github.com/DailyXplorer/Murmur/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/DailyXplorer/Murmur?style=for-the-badge&color=f49ac1"></a>
 </p>
 
