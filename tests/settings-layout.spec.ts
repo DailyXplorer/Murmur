@@ -221,3 +221,42 @@ for (const theme of ["light", "dark"] as const) {
     expect(indicator.bottom).toBeGreaterThanOrEqual(8);
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`toggle knobs look like the slider knob, on or off (${theme})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await openSection(page, "General", `?theme=${theme}`);
+    const toggles = page.getByRole("main").getByRole("checkbox");
+    const knobs = await toggles.evaluateAll((inputs) =>
+      inputs.map((input) => {
+        const knob = getComputedStyle(input.nextElementSibling!, "::after");
+        return {
+          checked: (input as HTMLInputElement).checked,
+          background: knob.backgroundColor,
+          border: [
+            knob.borderTopColor,
+            knob.borderRightColor,
+            knob.borderBottomColor,
+            knob.borderLeftColor,
+          ],
+          // Tailwind puts empty ring layers in front of every shadow.
+          shadow: knob.boxShadow.replaceAll(
+            "rgba(0, 0, 0, 0) 0px 0px 0px 0px, ",
+            "",
+          ),
+        };
+      }),
+    );
+
+    expect(knobs.map((knob) => knob.checked)).toEqual(
+      expect.arrayContaining([true, false]),
+    );
+    for (const knob of knobs) {
+      expect(knob.background).toBe("rgb(255, 255, 255)");
+      expect(knob.border).toEqual(Array(4).fill("rgba(0, 0, 0, 0.18)"));
+      expect(knob.shadow).toBe("rgba(0, 0, 0, 0.25) 0px 1px 3px 0px");
+    }
+  });
+}

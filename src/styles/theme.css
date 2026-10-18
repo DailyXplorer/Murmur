@@ -36,6 +36,10 @@
   --color-mid-gray: #808080;
   /* Dark enough to remain distinct from every pastel accent in both themes. */
   --color-slider-track: #525252;
+  /* The white knob of range sliders and toggle switches, like native macOS
+     controls, so it suits every accent colour in both themes. */
+  --knob-border: rgb(0 0 0 / 0.18);
+  --knob-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
 
   /* Active palette — defaults to light, follows the OS via the media query
      below, or is forced by `data-theme` (see the overrides below). */

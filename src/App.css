@@ -119,8 +119,8 @@
   filter: var(--accent-image-filter);
 }
 
-/* Range inputs: a neutral white knob, like native macOS sliders, so it suits
-   every accent colour instead of the system blue default. */
+/* Range inputs: the shared white knob (theme.css) instead of the system blue
+   default. */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -128,8 +128,8 @@ input[type="range"]::-webkit-slider-thumb {
   height: 16px;
   border-radius: 9999px;
   background: #fff;
-  border: 1px solid rgb(0 0 0 / 0.18);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  border: 1px solid var(--knob-border);
+  box-shadow: var(--knob-shadow);
   cursor: pointer;
 }
 
@@ -138,8 +138,8 @@ input[type="range"]::-moz-range-thumb {
   height: 16px;
   border-radius: 9999px;
   background: #fff;
-  border: 1px solid rgb(0 0 0 / 0.18);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  border: 1px solid var(--knob-border);
+  box-shadow: var(--knob-shadow);
   cursor: pointer;
 }
 
