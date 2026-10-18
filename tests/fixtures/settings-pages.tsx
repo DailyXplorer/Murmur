@@ -25,6 +25,9 @@ declare global {
       emitProgress: (progress: MeetingProgress) => Promise<void>;
       emitMeetingsUpdated: (id: number) => Promise<void>;
       emitMeetingState: (runtime: MeetingRuntime) => Promise<void>;
+      /** Keeps list loads waiting, each with the list as it was asked for. */
+      holdMeetingLoads: () => void;
+      releaseMeetingLoads: () => void;
     };
   }
 }
@@ -384,6 +387,9 @@ const MARKDOWN = "# Point hebdo produit\n\n## Transcript\n";
 const SUMMARY_MARKDOWN = "# Point hebdo produit\n\n## Summary\n";
 
 /** Commands whose answer depends on their arguments or changes the data. */
+let meetingLoadsHeld: Promise<void> | null = null;
+let releaseMeetingLoads = () => {};
+
 const handleMeetingCommand = (
   command: string,
   args: Record<string, unknown>,
@@ -396,14 +402,21 @@ const handleMeetingCommand = (
       const after = MEETINGS.slice(
         MEETINGS.findIndex(({ id }) => id === args.cursor) + 1,
       );
+      const page = {
+        has_more: after.length > limit,
+        meetings: after.slice(0, limit),
+      };
       return {
         handled: true,
-        value: {
-          has_more: after.length > limit,
-          meetings: after.slice(0, limit),
-        },
+        value: meetingLoadsHeld ? meetingLoadsHeld.then(() => page) : page,
       };
     }
+    case "delete_meeting":
+      MEETINGS.splice(
+        MEETINGS.findIndex(({ id }) => id === args.id),
+        1,
+      );
+      return { handled: true, value: null };
     case "get_meeting":
       // A copy, as the real IPC returns: React sees each load as new data.
       return { handled: true, value: structuredClone(meeting) };
@@ -444,7 +457,6 @@ const handleMeetingCommand = (
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   change_meetings_enabled_setting: null,
-  delete_meeting: null,
   discard_meeting: null,
   export_meeting_markdown: "/Users/user/Documents/2025-10-08 Point hebdo.md",
   retry_meeting: null,
@@ -492,6 +504,15 @@ window.settingsPages = {
   emitProgress: (progress) => events.meetingProgress.emit(progress),
   emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
   emitMeetingState: (runtime) => events.meetingStateChanged.emit(runtime),
+  holdMeetingLoads: () => {
+    meetingLoadsHeld = new Promise((resolve) => {
+      releaseMeetingLoads = () => {
+        meetingLoadsHeld = null;
+        resolve();
+      };
+    });
+  },
+  releaseMeetingLoads: () => releaseMeetingLoads(),
 };
 
 mockIPC(

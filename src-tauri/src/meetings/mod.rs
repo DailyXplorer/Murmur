@@ -612,7 +612,9 @@ impl MeetingsManager {
         self.queue.cancel(id);
         self.coordinator()
             .delete(id)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        self.updated(id);
+        Ok(())
     }
 
     pub fn detail(&self, id: i64) -> Result<MeetingDetail, String> {
