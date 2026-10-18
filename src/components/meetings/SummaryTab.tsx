@@ -174,7 +174,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
         hasText={hasText}
       >
         <IconButton
-          size="compact"
           label={t("meetings.summary.copy")}
           disabled={!hasText}
           onClick={() => void copy()}
@@ -182,7 +181,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
           <CopyIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
-          size="compact"
           label={t("meetings.summary.export")}
           disabled={!hasText}
           onClick={() => void exportMarkdown()}

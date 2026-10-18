@@ -71,7 +71,6 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
         hasText={hasText}
       >
         <IconButton
-          size="compact"
           label={t("meetings.transcript.copy")}
           disabled={!hasText}
           onClick={() => void copy()}
@@ -79,7 +78,6 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
           <CopyIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
-          size="compact"
           label={t("meetings.transcript.export")}
           disabled={!hasText}
           onClick={() => void exportMarkdown()}
@@ -87,7 +85,6 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
           <DownloadSimpleIcon size={15} aria-hidden="true" />
         </IconButton>
         <IconButton
-          size="compact"
           label={t("meetings.transcript.renameSpeakers")}
           disabled={meeting.speakers.length === 0}
           onClick={() => onRenameSpeaker(null)}

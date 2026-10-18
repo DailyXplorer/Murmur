@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Statistiken kunde inte läsas in.",
-    "privacy": "Statistiken beräknas på den här Macen och stannar här. Ingen dikterad text sparas för den.",
     "wpm": {
       "title": "Ord per minut",
       "window": "Senaste 30 dagarna",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Användning per app",
-      "description": "Vart dina dikteringar gick, per appkategori.",
       "empty": "Appkategorier registreras bara för nya dikteringar. Diktera i valfri app för att fylla i det här.",
       "totalApps": "Använda appar",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Svit",
-      "description": "Dagar med minst en diktering, i din lokala tidszon.",
       "current": "Nuvarande svit",
       "longest": "Längsta svit",
       "heatmapLabel": "Dikteringar per dag de senaste 20 veckorna",

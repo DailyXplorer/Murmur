@@ -5,7 +5,7 @@ import { CaretUpIcon } from "@phosphor-icons/react/dist/csr/CaretUp";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { findMatches } from "@/lib/meetings/search";
-import { IconButton } from "../ui/IconButton";
+import { IconButton, IconToolbar } from "../ui/IconButton";
 import { Input } from "../ui/Input";
 
 interface Match {
@@ -174,11 +174,10 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           </span>
         </>
       )}
-      <div className="flex shrink-0 items-center gap-1">
+      <IconToolbar>
         {search.searching ? (
           <>
             <IconButton
-              size="compact"
               label={t("meetings.transcript.previousMatch")}
               disabled={search.count === 0}
               onClick={() => search.step(-1)}
@@ -186,7 +185,6 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
               <CaretUpIcon size={15} aria-hidden="true" />
             </IconButton>
             <IconButton
-              size="compact"
               label={t("meetings.transcript.nextMatch")}
               disabled={search.count === 0}
               onClick={() => search.step(1)}
@@ -194,7 +192,6 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
               <CaretDownIcon size={15} aria-hidden="true" />
             </IconButton>
             <IconButton
-              size="compact"
               label={t("meetings.transcript.closeSearch")}
               onClick={search.close}
             >
@@ -203,7 +200,6 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           </>
         ) : (
           <IconButton
-            size="compact"
             label={searchLabel}
             disabled={!hasText}
             onClick={search.open}
@@ -212,7 +208,7 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           </IconButton>
         )}
         {children}
-      </div>
+      </IconToolbar>
     </div>
   );
 };

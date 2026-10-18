@@ -35,7 +35,8 @@ declare global {
 const params = new URLSearchParams(window.location.search);
 const language = params.get("lang") ?? "en";
 const showOnboarding = params.get("onboarding") === "1";
-const geminiSignedOut = params.get("gemini") === "notSignedIn";
+/** `notSignedIn` or `ready`; not installed by default. */
+const gemini = params.get("gemini");
 const appleIntelligence = params.get("apple") ?? "available";
 /** On by default, as in the app; `meetings=0` turns them off. */
 const meetingsEnabled = params.get("meetings") !== "0";
@@ -484,7 +485,10 @@ const RESPONSES: Record<string, unknown> = {
   get_available_output_devices: OUTPUTS,
   get_codex_auth_status: { expired: false, signed_in: true },
   get_default_settings: SETTINGS,
-  get_gemini_status: { installed: geminiSignedOut, signed_in: false },
+  get_gemini_status: {
+    installed: gemini === "notSignedIn" || gemini === "ready",
+    signed_in: gemini === "ready",
+  },
   get_history_entries: { entries: HISTORY, has_more: false },
   get_insights: INSIGHTS,
   get_log_dir_path: LOG_DIR,

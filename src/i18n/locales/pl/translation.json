@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Nie udało się wczytać statystyk.",
-    "privacy": "Statystyki są obliczane na tym Macu i tu pozostają. Nie zapisuje się dla nich żadnego dyktowanego tekstu.",
     "wpm": {
       "title": "Słowa na minutę",
       "window": "Ostatnie 30 dni",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Użycie według aplikacji",
-      "description": "Dokąd trafiły Twoje dyktowania, według kategorii aplikacji.",
       "empty": "Kategorie aplikacji są zapisywane tylko dla nowych dyktowań. Dyktuj w dowolnej aplikacji, aby wypełnić tę sekcję.",
       "totalApps": "Używane aplikacje",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Seria",
-      "description": "Dni z co najmniej jednym dyktowaniem, w Twojej lokalnej strefie czasowej.",
       "current": "Obecna seria",
       "longest": "Najdłuższa seria",
       "heatmapLabel": "Dyktowania dziennie w ciągu ostatnich 20 tygodni",

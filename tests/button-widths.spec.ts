@@ -228,15 +228,15 @@ test.describe("at the default window size", () => {
       const field = page.getByPlaceholder(
         lookup(locale, "settings.advanced.customWords.placeholder"),
       );
-      const rail = field.locator(
-        "xpath=ancestor::div[contains(@class, 'settings-control-rail-width')][1]",
+      const row = field.locator(
+        "xpath=ancestor::div[contains(@class, 'px-4')][1]",
       );
-      const [fieldBox, railBox] = await Promise.all([
+      const [fieldBox, rowBox] = await Promise.all([
         field.boundingBox(),
-        rail.boundingBox(),
+        row.boundingBox(),
       ]);
       expect(fieldBox?.width ?? 0).toBeGreaterThanOrEqual(
-        (railBox?.width ?? 0) * 0.6,
+        (rowBox?.width ?? 0) * 0.6,
       );
     });
   }

@@ -17,7 +17,7 @@ import {
 import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
-import { IconButton } from "../../ui/IconButton";
+import { IconButton, IconToolbar } from "../../ui/IconButton";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { HistoryLimit } from "../HistoryLimit";
@@ -528,7 +528,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center">
         <p className="text-sm font-medium">{formattedDate}</p>
-        <div className="flex items-center gap-1">
+        <IconToolbar>
           <IconButton
             onClick={handleCopyText}
             disabled={!hasTranscription || retrying}
@@ -578,7 +578,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           >
             <TrashIcon size={15} aria-hidden="true" />
           </IconButton>
-        </div>
+        </IconToolbar>
       </div>
 
       <p

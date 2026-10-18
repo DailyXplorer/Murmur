@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Não foi possível carregar as estatísticas.",
-    "privacy": "As estatísticas são calculadas neste Mac e ficam aqui. Nenhum texto ditado é guardado para elas.",
     "wpm": {
       "title": "Palavras por minuto",
       "window": "Últimos 30 dias",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Uso por aplicativo",
-      "description": "Para onde foram seus ditados, por categoria de aplicativo.",
       "empty": "As categorias de aplicativo são registradas apenas para novos ditados. Dite em qualquer aplicativo para preencher esta seção.",
       "totalApps": "Aplicativos usados",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Sequência",
-      "description": "Dias com pelo menos um ditado, no seu fuso horário local.",
       "current": "Sequência atual",
       "longest": "Maior sequência",
       "heatmapLabel": "Ditados por dia nas últimas 20 semanas",

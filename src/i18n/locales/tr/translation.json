@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "İstatistikler yüklenemedi.",
-    "privacy": "İstatistikler bu Mac'te hesaplanır ve burada kalır. Bunlar için dikte edilen metin saklanmaz.",
     "wpm": {
       "title": "Dakikada kelime",
       "window": "Son 30 gün",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Uygulamaya göre kullanım",
-      "description": "Dikteleriniz uygulama kategorisine göre nereye gitti.",
       "empty": "Uygulama kategorileri yalnızca yeni dikteler için kaydedilir. Bu bölümü doldurmak için herhangi bir uygulamada dikte edin.",
       "totalApps": "Kullanılan uygulamalar",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Seri",
-      "description": "Yerel saat diliminizde en az bir dikte yapılan günler.",
       "current": "Mevcut seri",
       "longest": "En uzun seri",
       "heatmapLabel": "Son 20 haftada günlük dikteler",

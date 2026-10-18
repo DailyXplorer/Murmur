@@ -81,14 +81,19 @@ const StatTile: React.FC<{
   children?: React.ReactNode;
 }> = ({ icon: TileIcon, label, value, tooltip, children }) => (
   <section className="flex min-w-0 flex-col gap-1 rounded-lg border border-mid-gray/20 bg-background p-4">
-    <div className="flex h-5 items-center gap-1.5 text-mid-gray">
+    {/* Two lines high in every tile, so a label that wraps keeps the values
+        level. The info icon flows with the label and wraps with its last
+        word, leaving a long single word the full width. */}
+    <div className="flex min-h-8 items-center gap-1.5 text-mid-gray">
       <TileIcon size={16} aria-hidden="true" className="shrink-0" />
-      <h2 className="truncate text-xs font-medium uppercase tracking-wide">
-        {label}
-      </h2>
-      {tooltip && (
-        <DescriptionTooltip description={tooltip} position="bottom" />
-      )}
+      <div className="min-w-0 text-balance text-xs leading-4 font-medium uppercase tracking-wide">
+        <h2 className="inline">{label}</h2>
+        {tooltip && (
+          <span className="ms-1 inline-flex h-4 items-center align-top">
+            <DescriptionTooltip description={tooltip} position="bottom" />
+          </span>
+        )}
+      </div>
     </div>
     <p className="text-3xl font-semibold tabular-nums">{value}</p>
     <div className="text-pretty text-xs text-mid-gray">{children}</div>
@@ -315,21 +320,13 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
         </StatTile>
       </div>
 
-      <SettingsGroup
-        title={t("insights.apps.title")}
-        description={t("insights.apps.description")}
-      >
+      <SettingsGroup title={t("insights.apps.title")}>
         <AppUsage summary={summary} />
       </SettingsGroup>
 
-      <SettingsGroup
-        title={t("insights.streak.title")}
-        description={t("insights.streak.description")}
-      >
+      <SettingsGroup title={t("insights.streak.title")}>
         <Streak summary={summary} />
       </SettingsGroup>
-
-      <p className="px-4 text-xs text-mid-gray">{t("insights.privacy")}</p>
     </SettingsPage>
   );
 };
