@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Statistiken konnten nicht geladen werden.",
-    "privacy": "Statistiken werden auf diesem Mac berechnet und bleiben hier. Dafür wird kein diktierter Text gespeichert.",
     "wpm": {
       "title": "Wörter pro Minute",
       "window": "Letzte 30 Tage",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Nutzung nach App",
-      "description": "Wohin deine Diktate gingen, nach App-Kategorie.",
       "empty": "App-Kategorien werden nur für neue Diktate erfasst. Diktiere in einer beliebigen App, damit sich dieser Bereich füllt.",
       "totalApps": "Genutzte Apps",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Serie",
-      "description": "Tage mit mindestens einem Diktat, in deiner lokalen Zeitzone.",
       "current": "Aktuelle Serie",
       "longest": "Längste Serie",
       "heatmapLabel": "Diktate pro Tag in den letzten 20 Wochen",

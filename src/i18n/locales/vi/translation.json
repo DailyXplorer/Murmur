@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Không thể tải thống kê.",
-    "privacy": "Thống kê được tính trên máy Mac này và chỉ lưu tại đây. Không có văn bản đọc chính tả nào được lưu cho chúng.",
     "wpm": {
       "title": "Từ mỗi phút",
       "window": "30 ngày qua",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Sử dụng theo ứng dụng",
-      "description": "Nơi các lượt đọc chính tả của bạn được gửi tới, theo loại ứng dụng.",
       "empty": "Loại ứng dụng chỉ được ghi lại cho các lượt đọc chính tả mới. Hãy đọc chính tả trong bất kỳ ứng dụng nào để điền phần này.",
       "totalApps": "Số ứng dụng đã dùng",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Chuỗi ngày",
-      "description": "Những ngày có ít nhất một lượt đọc chính tả, theo múi giờ địa phương của bạn.",
       "current": "Chuỗi hiện tại",
       "longest": "Chuỗi dài nhất",
       "heatmapLabel": "Số lượt đọc chính tả mỗi ngày trong 20 tuần qua",

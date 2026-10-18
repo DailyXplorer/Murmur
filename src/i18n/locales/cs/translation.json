@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Statistiky se nepodařilo načíst.",
-    "privacy": "Statistiky se počítají na tomto Macu a zůstávají na něm. Neukládá se pro ně žádný diktovaný text.",
     "wpm": {
       "title": "Slova za minutu",
       "window": "Posledních 30 dní",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Využití podle aplikace",
-      "description": "Kam vaše diktáty putovaly, podle kategorie aplikace.",
       "empty": "Kategorie aplikací se zaznamenávají jen u nových diktátů. Diktujte v libovolné aplikaci a tato sekce se vyplní.",
       "totalApps": "Použité aplikace",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Série",
-      "description": "Dny s alespoň jedním diktátem ve vašem místním časovém pásmu.",
       "current": "Aktuální série",
       "longest": "Nejdelší série",
       "heatmapLabel": "Diktáty za den za posledních 20 týdnů",

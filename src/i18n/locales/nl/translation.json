@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Inzichten konden niet worden geladen.",
-    "privacy": "Inzichten worden op deze Mac berekend en blijven hier. Er wordt geen gedicteerde tekst voor bewaard.",
     "wpm": {
       "title": "Woorden per minuut",
       "window": "Laatste 30 dagen",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Gebruik per app",
-      "description": "Waar je dicteringen naartoe gingen, per app-categorie.",
       "empty": "App-categorieën worden alleen voor nieuwe dicteringen vastgelegd. Dicteer in een willekeurige app om dit te vullen.",
       "totalApps": "Gebruikte apps",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Reeks",
-      "description": "Dagen met minstens één dictering, in je lokale tijdzone.",
       "current": "Huidige reeks",
       "longest": "Langste reeks",
       "heatmapLabel": "Dicteringen per dag in de laatste 20 weken",

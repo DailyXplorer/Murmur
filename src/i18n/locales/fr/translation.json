@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Impossible de charger les statistiques.",
-    "privacy": "Les statistiques sont calculées sur ce Mac et y restent. Aucun texte dicté n'est conservé pour elles.",
     "wpm": {
       "title": "Mots par minute",
       "window": "30 derniers jours",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Utilisation par application",
-      "description": "Où sont allées vos dictées, par catégorie d'application.",
       "empty": "Les catégories d'application ne sont enregistrées que pour les nouvelles dictées. Dictez dans n'importe quelle application pour remplir cette section.",
       "totalApps": "Applications utilisées",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Série",
-      "description": "Jours avec au moins une dictée, dans votre fuseau horaire local.",
       "current": "Série en cours",
       "longest": "Plus longue série",
       "heatmapLabel": "Dictées par jour sur les 20 dernières semaines",

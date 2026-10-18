@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "No se pudieron cargar las estadísticas.",
-    "privacy": "Las estadísticas se calculan en este Mac y se quedan aquí. No se guarda ningún texto dictado para ellas.",
     "wpm": {
       "title": "Palabras por minuto",
       "window": "Últimos 30 días",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Uso por aplicación",
-      "description": "A dónde fueron tus dictados, por categoría de aplicación.",
       "empty": "Las categorías de aplicación solo se registran para los dictados nuevos. Dicta en cualquier aplicación para ver esta sección.",
       "totalApps": "Aplicaciones usadas",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Racha",
-      "description": "Días con al menos un dictado, en tu zona horaria local.",
       "current": "Racha actual",
       "longest": "Racha más larga",
       "heatmapLabel": "Dictados por día en las últimas 20 semanas",

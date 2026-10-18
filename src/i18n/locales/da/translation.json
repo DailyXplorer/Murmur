@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Statistikken kunne ikke indlæses.",
-    "privacy": "Statistikken beregnes på denne Mac og bliver her. Der gemmes ingen dikteret tekst til den.",
     "wpm": {
       "title": "Ord pr. minut",
       "window": "Seneste 30 dage",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Brug pr. app",
-      "description": "Hvor dine dikteringer endte, efter appkategori.",
       "empty": "Appkategorier registreres kun for nye dikteringer. Diktér i en hvilken som helst app for at udfylde dette.",
       "totalApps": "Brugte apps",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Stime",
-      "description": "Dage med mindst én diktering, i din lokale tidszone.",
       "current": "Nuværende stime",
       "longest": "Længste stime",
       "heatmapLabel": "Dikteringer pr. dag de seneste 20 uger",

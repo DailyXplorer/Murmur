@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Impossibile caricare le statistiche.",
-    "privacy": "Le statistiche vengono calcolate su questo Mac e restano qui. Nessun testo dettato viene salvato per esse.",
     "wpm": {
       "title": "Parole al minuto",
       "window": "Ultimi 30 giorni",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Utilizzo per app",
-      "description": "Dove sono finite le tue dettature, per categoria di app.",
       "empty": "Le categorie di app vengono registrate solo per le nuove dettature. Detta in qualsiasi app per vedere questa sezione.",
       "totalApps": "App utilizzate",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Serie",
-      "description": "Giorni con almeno una dettatura, nel tuo fuso orario locale.",
       "current": "Serie attuale",
       "longest": "Serie più lunga",
       "heatmapLabel": "Dettature al giorno nelle ultime 20 settimane",

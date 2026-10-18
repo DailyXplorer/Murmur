@@ -48,7 +48,6 @@
   },
   "insights": {
     "error": "Insights could not be loaded.",
-    "privacy": "Insights are calculated on this Mac and stay here. No dictated text is stored for them.",
     "wpm": {
       "title": "Words per minute",
       "window": "Last 30 days",
@@ -73,7 +72,6 @@
     },
     "apps": {
       "title": "Usage by app",
-      "description": "Where your dictations went, by app category.",
       "empty": "App categories are recorded for new dictations only. Dictate in any app to see this fill in.",
       "totalApps": "Total apps used",
       "categories": {
@@ -88,7 +86,6 @@
     },
     "streak": {
       "title": "Streak",
-      "description": "Days with at least one dictation, in your local time zone.",
       "current": "Current streak",
       "longest": "Longest streak",
       "heatmapLabel": "Dictations per day over the last 20 weeks",
