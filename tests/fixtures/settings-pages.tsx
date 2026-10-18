@@ -41,6 +41,7 @@ const appleIntelligence = params.get("apple") ?? "available";
 const meetingsEnabled = params.get("meetings") !== "0";
 const systemAudioSilent = params.get("systemAudioSilent") === "1";
 const systemAudioPermission = params.get("systemAudioPermission") ?? "granted";
+const audioBytes = Number(params.get("audioBytes") ?? 34_600_000);
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
@@ -331,7 +332,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   ...item,
   ...summaryOf(item),
   audio: item.id === 3 ? "compressed" : "tracks",
-  audio_bytes: item.id === 3 ? 34_600_000 : 0,
+  audio_bytes: item.id === 3 ? audioBytes : 0,
   system_audio_silent: item.id === 3 && systemAudioSilent,
   error: item.status === "failed" ? "parts_failed" : null,
   held_until_ms:

@@ -74,6 +74,11 @@ test("with the permission allowed, a silent system track is not blamed on it", a
   ).toBeVisible();
 });
 
+test("audio under a megabyte shows its size in kilobytes", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
+  await expect(page.getByText("Audio kept · 351 kB")).toBeVisible();
+});
+
 test("a meeting shows its transcript in order, with a name at each change of speaker", async ({
   page,
 }) => {
