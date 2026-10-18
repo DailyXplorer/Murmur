@@ -334,6 +334,17 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Restarts into the installed update and shows the settings window again.
+ */
+async relaunchAfterUpdate() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("relaunch_after_update") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
 },
