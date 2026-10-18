@@ -246,6 +246,7 @@ for (const theme of ["light", "dark"] as const) {
             "rgba(0, 0, 0, 0) 0px 0px 0px 0px, ",
             "",
           ),
+          transition: [knob.transitionProperty, knob.transitionDuration],
         };
       }),
     );
@@ -257,6 +258,8 @@ for (const theme of ["light", "dark"] as const) {
       expect(knob.background).toBe("rgb(255, 255, 255)");
       expect(knob.border).toEqual(Array(4).fill("rgba(0, 0, 0, 0.18)"));
       expect(knob.shadow).toBe("rgba(0, 0, 0, 0.25) 0px 1px 3px 0px");
+      // The knob slides to its new side instead of jumping there.
+      expect(knob.transition).toEqual(["translate", "0.2s"]);
     }
   });
 }
