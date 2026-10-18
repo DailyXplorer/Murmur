@@ -125,7 +125,7 @@ export const TranscriptionSettings: React.FC = () => {
             <span className="rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
               {t("onboarding.provider.experimental")}
             </span>
-            <span className="min-w-0 flex-1 truncate text-end text-sm text-text/80">
+            <span className="min-w-0 flex-auto truncate text-end text-sm text-text/80">
               {t(statusTranslationKey(statuses.gemini))}
             </span>
             {statuses.gemini.kind === "unavailable" &&

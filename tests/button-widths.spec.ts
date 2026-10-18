@@ -37,7 +37,6 @@ const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["onboarding.provider.continue"],
   ["settings.transcription.installAntigravity"],
   ["settings.transcription.openAntigravity"],
-  ["settings.advanced.customWords.add"],
   ["settings.history.openFolder", "icon"],
   ["settings.history.retry", "icon"],
   ["settings.debug.whatsNewPreview.button"],
@@ -150,6 +149,7 @@ const textButtons = (page: Page) =>
 
 const SCREENS: { name: string; query: string; page: string; meeting?: true }[] =
   [
+    { name: "Transcription", query: "", page: "sidebar.transcription" },
     { name: "About", query: "", page: "sidebar.about" },
     { name: "Advanced", query: "", page: "sidebar.advanced" },
     { name: "History", query: "", page: "sidebar.history" },
@@ -207,6 +207,38 @@ test.describe("at the default window size", () => {
         }
       }
     });
+
+    test(`text beside a button keeps its room in ${locale}`, async ({
+      page,
+    }) => {
+      await visit(
+        page,
+        locale,
+        SCREENS.find(({ name }) => name === "Transcription")!,
+      );
+      const status = page.getByText(
+        lookup(locale, "settings.transcription.notInstalled"),
+        { exact: true },
+      );
+      expect(
+        await status.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5),
+        "Antigravity status is cut off",
+      ).toBe(true);
+
+      const field = page.getByPlaceholder(
+        lookup(locale, "settings.advanced.customWords.placeholder"),
+      );
+      const rail = field.locator(
+        "xpath=ancestor::div[contains(@class, 'settings-control-rail-width')][1]",
+      );
+      const [fieldBox, railBox] = await Promise.all([
+        field.boundingBox(),
+        rail.boundingBox(),
+      ]);
+      expect(fieldBox?.width ?? 0).toBeGreaterThanOrEqual(
+        (railBox?.width ?? 0) * 0.6,
+      );
+    });
   }
 });
 
@@ -219,7 +251,11 @@ test("buttons side by side have the same width", async ({ page }) => {
   );
   expect(new Set(about.map((box) => box?.width)).size).toBe(1);
 
-  await visit(page, "en", SCREENS[4]);
+  await visit(
+    page,
+    "en",
+    SCREENS.find(({ name }) => name === "meeting")!,
+  );
   const footer = await Promise.all(
     ["Transcribe Again", "Delete Audio"].map((name) =>
       page.getByRole("button", { name, exact: true }).boundingBox(),

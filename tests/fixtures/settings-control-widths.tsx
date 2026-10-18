@@ -131,17 +131,12 @@ const SettingsControlWidthsFixture: React.FC = () => {
             data-testid="custom-word-chips"
             className="flex flex-wrap justify-start gap-1"
           >
-            <Button size="chip" variant="secondary">
-              Acme
-            </Button>
-            <Button size="chip" variant="secondary">
-              Long custom transcription term
-            </Button>
+            <Button size="chip">Acme</Button>
+            <Button size="chip">Long custom transcription term</Button>
             <Button
               className="max-w-full min-w-0 gap-1"
               data-testid="long-custom-word"
               size="chip"
-              variant="secondary"
             >
               <span className="min-w-0 truncate">{LONG_CUSTOM_WORD}</span>
               <XIcon className="shrink-0" size={12} />
@@ -160,9 +155,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
             <span className="min-w-0 flex-1 truncate text-sm text-text/80">
               Gemini transcription service is not installed
             </span>
-            <Button className="shrink-0" variant="secondary">
-              Install
-            </Button>
+            <Button className="shrink-0">Install</Button>
           </div>
         </SettingContainer>
 

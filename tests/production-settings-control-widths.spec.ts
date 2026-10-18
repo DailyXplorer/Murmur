@@ -122,6 +122,11 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     ).toBeCloseTo(RAIL_WIDTH, 1);
   }
 
+  // The field is the control; the Add button beside it must not take the rail.
+  const customWordsBox = await customWordsInput.boundingBox();
+  expect(customWordsBox).not.toBeNull();
+  expect(customWordsBox?.width ?? 0).toBeGreaterThanOrEqual(RAIL_WIDTH * 0.6);
+
   const historyBox = await historyLabel.boundingBox();
   expect(historyBox).not.toBeNull();
   expect((historyBox?.x ?? 0) + (historyBox?.width ?? 0)).toBeCloseTo(
