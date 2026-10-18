@@ -237,6 +237,32 @@ test("summary search ignores case and cycles through the matches", async ({
   await expect(page.locator("mark")).toHaveCount(0);
 });
 
+test("the search counter stays within the matches when the text changes", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await page.getByRole("button", { name: "Search Summary" }).click();
+  const search = page.getByRole("textbox", { name: "Search Summary" });
+
+  // "Speaker 2" three times, and "November".
+  await search.fill("er");
+  await expect(page.getByText("1/4")).toBeVisible();
+  await search.press("Shift+Enter");
+  await expect(page.getByText("4/4")).toBeVisible();
+
+  await page.evaluate(async () => {
+    await window.__TAURI_INTERNALS__.invoke("rename_speaker", {
+      id: 3,
+      key: "s1",
+      name: "Camille",
+    });
+    await window.settingsPages.emitMeetingsUpdated(3);
+  });
+  await expect(summary(page)).toContainText("between Me and Camille.");
+  await expect(page.getByText("1/1")).toBeVisible();
+  await expect(page.locator("mark[data-current]")).toHaveText("er");
+});
+
 test("the summary copies and exports as Markdown", async ({
   page,
   context,
