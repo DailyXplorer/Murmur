@@ -2,6 +2,7 @@
 //! one responses call (or one per hour of talk, then one to merge them, for
 //! a very long meeting). People appear in the summary only as `[[key]]`
 //! markers, so renaming a speaker changes the summary without rewriting it.
+//! The title is plain text about the topic and names no one.
 
 use serde::Serialize;
 use specta::Type;
@@ -45,7 +46,7 @@ Then one such section per topic, in the order the topics came up. Then, only whe
 - <owner> — <task> — <due date, only when one was stated>
 Translate the headings \"Decisions\" and \"Action items\" into the language of the meeting.
 
-Refer to the people of the transcript only by their marker, exactly as written there, such as [[me]] or [[s2]]; never write their names. When a speaker says \"I\" or \"I will\", the owner is that speaker's marker.
+Refer to the people of the transcript only by their marker, exactly as written there, such as [[me]] or [[s2]]; never write their names. When a speaker says \"I\" or \"I will\", the owner is that speaker's marker. The title is about the topic only: it names no one, by marker or otherwise.
 Leave a blank line between blocks. No preamble, no code fences, no closing remarks. Do not invent anything that was not said.";
 
 const TRANSCRIPT_FORMAT: &str = "Each line of the transcript is one passage: \"[time] [[key]] Name: text\", where [[key]] is the speaker's marker.";
@@ -176,8 +177,10 @@ fn sections(lines: &[String], max_chars: usize) -> Vec<String> {
 }
 
 /// Reads the reply: the first line `# Title` is the title, the rest the
-/// body, with code fences removed and lists at most two levels deep.
-pub fn parse(output: &str) -> Result<Summary, SummaryError> {
+/// body, with code fences removed and lists at most two levels deep. The
+/// title is plain text that a rename does not reach, so a marker Codex put
+/// in it despite the rules becomes the speaker's name as it is now.
+pub fn parse(output: &str, speakers: &[MeetingSpeaker]) -> Result<Summary, SummaryError> {
     let mut lines: Vec<&str> = output.trim().lines().collect();
     if lines
         .first()
@@ -194,6 +197,11 @@ pub fn parse(output: &str) -> Result<Summary, SummaryError> {
         if let Some(heading) = lines[first].trim().strip_prefix("# ") {
             let heading = heading.trim().trim_matches('*').trim();
             if !heading.is_empty() {
+                let names = speakers
+                    .iter()
+                    .map(|speaker| (speaker.key.as_str(), speaker.name.clone()))
+                    .collect();
+                let heading = resolve_markers(heading, &names);
                 title = Some(heading.chars().take(MAX_TITLE_CHARS).collect::<String>());
             }
             lines.remove(first);
@@ -423,7 +431,7 @@ pub async fn summarize(
         )
         .await
     };
-    match result.map(|output| parse(&output)) {
+    match result.map(|output| parse(&output, speakers)) {
         Ok(Ok(summary)) => SummaryEnd::Written(summary),
         Ok(Err(error)) => SummaryEnd::Failed(error),
         Err(end) => end,
@@ -569,6 +577,7 @@ mod tests {
             "# <title of at most 8 words>",
             "**Action items**",
             "[[me]] or [[s2]]",
+            "The title is about the topic only",
             "language most of the transcript",
         ] {
             assert!(text.contains(needle), "{needle}");
@@ -580,7 +589,7 @@ mod tests {
     fn the_title_line_and_the_body_are_read_apart() {
         let output = "# Point budget et planning\n\nRéunion de suivi entre [[me]] et [[s1]].\n\n**Budget**\n- Validé par [[s1]]\n";
         assert_eq!(
-            parse(output),
+            parse(output, &[]),
             Ok(Summary {
                 title: Some("Point budget et planning".into()),
                 body: "Réunion de suivi entre [[me]] et [[s1]].\n\n**Budget**\n- Validé par [[s1]]"
@@ -593,7 +602,7 @@ mod tests {
     fn code_fences_are_removed_and_a_missing_title_stays_missing() {
         let output = "```markdown\nWeekly sync between [[me]] and [[s2]].\n\n**Hiring**\n- Two offers out\n```";
         assert_eq!(
-            parse(output),
+            parse(output, &[]),
             Ok(Summary {
                 title: None,
                 body: "Weekly sync between [[me]] and [[s2]].\n\n**Hiring**\n- Two offers out"
@@ -606,23 +615,23 @@ mod tests {
     fn lists_are_kept_to_two_levels() {
         let output = "# T\n**Plan**\n* one\n    - two\n      + three\n- four";
         assert_eq!(
-            parse(output).unwrap().body,
+            parse(output, &[]).unwrap().body,
             "**Plan**\n- one\n  - two\n  - three\n- four"
         );
     }
 
     #[test]
     fn a_reply_without_a_body_is_empty() {
-        assert_eq!(parse("# Only a title\n\n"), Err(SummaryError::Empty));
-        assert_eq!(parse("  \n"), Err(SummaryError::Empty));
-        assert_eq!(parse("```\n```"), Err(SummaryError::Empty));
+        assert_eq!(parse("# Only a title\n\n", &[]), Err(SummaryError::Empty));
+        assert_eq!(parse("  \n", &[]), Err(SummaryError::Empty));
+        assert_eq!(parse("```\n```", &[]), Err(SummaryError::Empty));
     }
 
     #[test]
     fn a_long_title_is_cut() {
         let output = format!("# {}\nBody.", "a".repeat(200));
         assert_eq!(
-            parse(&output).unwrap().title.unwrap().chars().count(),
+            parse(&output, &[]).unwrap().title.unwrap().chars().count(),
             MAX_TITLE_CHARS
         );
     }
@@ -799,6 +808,28 @@ mod tests {
             })
         );
         assert_eq!(script.requests.lock().unwrap().len(), 1);
+    }
+
+    /// A marker Codex put in the title despite the rules becomes a name.
+    #[test]
+    fn a_marker_in_the_title_becomes_the_speaker_s_name() {
+        let script = Script::new(vec![Ok(
+            "# Entretien avec [[s1]]\nPoint entre [[me]] et [[s1]].".into(),
+        )]);
+        assert_eq!(
+            run(&script, MAX_SUMMARY_CHARS),
+            SummaryEnd::Written(Summary {
+                title: Some("Entretien avec Camille".into()),
+                body: "Point entre [[me]] et [[s1]].".into()
+            })
+        );
+        // Named before the title is cut, so a marker at the limit is not split.
+        let start = "a".repeat(MAX_TITLE_CHARS - 4);
+        let script = Script::new(vec![Ok(format!("# {start} [[s1]]\nCorps."))]);
+        let SummaryEnd::Written(summary) = run(&script, MAX_SUMMARY_CHARS) else {
+            panic!("no summary");
+        };
+        assert_eq!(summary.title, Some(format!("{start} Cam")));
     }
 
     #[test]
