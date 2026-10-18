@@ -234,7 +234,6 @@ checkCapability(
     "opener:allow-default-urls",
     "updater:allow-check",
     "updater:allow-download-and-install",
-    "process:allow-restart",
     "macos-permissions:allow-check-accessibility-permission",
     "macos-permissions:allow-check-microphone-permission",
     "macos-permissions:allow-request-microphone-permission",

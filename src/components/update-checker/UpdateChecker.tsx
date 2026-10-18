@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
+import { commands } from "@/bindings";
 import { ProgressBar } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -149,7 +149,8 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
             break;
         }
       });
-      await relaunch();
+      const relaunched = await commands.relaunchAfterUpdate();
+      if (relaunched.status === "error") throw new Error(relaunched.error);
     } catch (error) {
       console.error("Failed to install update:", error);
       toast.error(t("footer.updateAvailableShort"), {

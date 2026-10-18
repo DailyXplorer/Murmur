@@ -41,6 +41,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_whats_new_last_seen_version_setting",
     "change_show_tray_icon_setting",
     "show_main_window_command",
+    "relaunch_after_update",
     "cancel_operation",
     "get_app_dir_path",
     "get_app_settings",

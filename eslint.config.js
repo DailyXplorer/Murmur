@@ -1,5 +1,6 @@
 import i18next from "eslint-plugin-i18next";
 import tsParser from "@typescript-eslint/parser";
+import noIconInTextButton from "./eslint-rules/no-icon-in-text-button.js";
 
 export default [
   {
@@ -14,8 +15,10 @@ export default [
     },
     plugins: {
       i18next,
+      murmur: { rules: { "no-icon-in-text-button": noIconInTextButton } },
     },
     rules: {
+      "murmur/no-icon-in-text-button": "error",
       // Catch text in JSX that should be translated
       "i18next/no-literal-string": [
         "error",

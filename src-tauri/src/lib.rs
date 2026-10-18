@@ -175,6 +175,76 @@ fn prepare_settings_window_for_active_space(
     Ok(())
 }
 
+/// Index of the first screen frame holding `point`, edges included, all in
+/// AppKit's global coordinates.
+fn screen_containing(
+    frames: &[objc2_foundation::NSRect],
+    point: objc2_foundation::NSPoint,
+) -> Option<usize> {
+    frames.iter().position(|frame| {
+        (frame.min().x..=frame.max().x).contains(&point.x)
+            && (frame.min().y..=frame.max().y).contains(&point.y)
+    })
+}
+
+/// The frame origin that centers a window of `size` in `visible`, a screen's
+/// frame without the menu bar and Dock, as Rectangle's Center does.
+/// NSWindow.center() would sit it "somewhat above center" instead. A window
+/// too large for the area keeps its left edge and title bar inside it.
+fn centered_window_origin(
+    visible: objc2_foundation::NSRect,
+    size: objc2_foundation::NSSize,
+) -> objc2_foundation::NSPoint {
+    let x = if size.width > visible.size.width {
+        visible.origin.x
+    } else {
+        visible.origin.x + ((visible.size.width - size.width) / 2.0).floor()
+    };
+    let y = if size.height > visible.size.height {
+        visible.max().y - size.height
+    } else {
+        visible.origin.y + ((visible.size.height - size.height) / 2.0).floor()
+    };
+    objc2_foundation::NSPoint::new(x, y)
+}
+
+/// Centers the settings window, at its current size, on the screen under the
+/// pointer. Every show of the window goes through here.
+fn center_settings_window_on_pointer_screen(
+    main_window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    use objc2_app_kit::{NSEvent, NSScreen, NSWindow, NSWindowStyleMask};
+
+    let Some(mtm) = objc2::MainThreadMarker::new() else {
+        log::error!("Settings window centering must run on the main thread");
+        return Ok(());
+    };
+    let native_window = main_window.ns_window()?.cast::<NSWindow>();
+
+    // The NSWindow belongs to the live WebviewWindow and is only borrowed here.
+    unsafe {
+        let native_window = &*native_window;
+        if native_window
+            .styleMask()
+            .contains(NSWindowStyleMask::FullScreen)
+        {
+            return Ok(());
+        }
+        let screens = NSScreen::screens(mtm).to_vec();
+        let frames: Vec<_> = screens.iter().map(|screen| screen.frame()).collect();
+        let screen = screen_containing(&frames, NSEvent::mouseLocation())
+            .map(|index| screens[index].clone())
+            .or_else(|| native_window.screen())
+            .or_else(|| NSScreen::mainScreen(mtm));
+        if let Some(screen) = screen {
+            let origin = centered_window_origin(screen.visibleFrame(), native_window.frame().size);
+            native_window.setFrameOrigin(origin);
+        }
+    }
+
+    Ok(())
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
         let app = app.clone();
@@ -185,6 +255,9 @@ fn show_main_window(app: &AppHandle) {
             }
             if let Err(e) = window.unminimize() {
                 log::error!("Failed to unminimize webview window: {}", e);
+            }
+            if let Err(e) = center_settings_window_on_pointer_screen(&window) {
+                log::error!("Failed to center settings window: {}", e);
             }
             if let Err(e) = window.show() {
                 log::error!("Failed to show webview window: {}", e);
@@ -347,6 +420,35 @@ fn show_main_window_command(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Left in the app data folder by an update relaunch. The restarted process
+/// gets the same arguments as before and would apply "Start hidden" again;
+/// this marker tells it the user is waiting for the window instead.
+const UPDATE_RELAUNCH_MARKER: &str = "show-settings-after-update";
+
+fn leave_update_relaunch_marker(app_data_dir: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(app_data_dir)?;
+    std::fs::write(app_data_dir.join(UPDATE_RELAUNCH_MARKER), b"")
+}
+
+/// Whether this launch follows an update relaunch. The marker is removed, so
+/// it shows the window once and a later login start stays hidden.
+fn take_update_relaunch_marker(app_data_dir: &std::path::Path) -> bool {
+    std::fs::remove_file(app_data_dir.join(UPDATE_RELAUNCH_MARKER)).is_ok()
+}
+
+/// Restarts into the installed update and shows the settings window again.
+#[tauri::command]
+#[specta::specta]
+fn relaunch_after_update(app: AppHandle) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    if let Err(e) = leave_update_relaunch_marker(&app_data_dir) {
+        // The update is installed either way; only the window stays hidden.
+        log::warn!("Failed to mark the update relaunch: {e}");
+    }
+    app.request_restart();
+    Ok(())
+}
+
 /// Convert an unexpected panic on the headless worker into a normal CLI
 /// failure. Without this guard the Tauri event loop remains alive after the
 /// worker exits, leaving `--transcribe-file` hung indefinitely.
@@ -498,6 +600,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_whats_new_last_seen_version_setting,
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
+            relaunch_after_update,
             commands::cancel_operation,
             commands::get_app_dir_path,
             commands::get_app_settings,
@@ -760,8 +863,13 @@ pub fn run(cli_args: CliArgs) {
 
             // If start_hidden but tray is disabled, we must show the window
             // anyway. Without a tray icon, the dock is the only way back in.
+            // An update relaunch also shows it: the user just clicked Install.
             let tray_available = settings.show_tray_icon && !cli_args.no_tray;
-            if !should_hide || !tray_available {
+            let update_relaunch = app
+                .path()
+                .app_data_dir()
+                .is_ok_and(|dir| take_update_relaunch_marker(&dir));
+            if !should_hide || !tray_available || update_relaunch {
                 show_main_window(&app_handle);
             }
 
@@ -836,7 +944,12 @@ pub fn run(cli_args: CliArgs) {
 mod headless_guard_tests {
     use super::{normalize_generated_bindings_source, run_headless_guarded};
 
-    use super::{settings_window_collection_behavior, settings_window_needs_order_out};
+    use super::{
+        centered_window_origin, leave_update_relaunch_marker, screen_containing,
+        settings_window_collection_behavior, settings_window_needs_order_out,
+        take_update_relaunch_marker,
+    };
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
 
     #[test]
     fn settings_window_moves_to_active_space_without_joining_every_space() {
@@ -857,6 +970,65 @@ mod headless_guard_tests {
         assert!(!settings_window_needs_order_out(false, false));
         assert!(!settings_window_needs_order_out(true, true));
         assert!(!settings_window_needs_order_out(false, true));
+    }
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+    }
+
+    #[test]
+    fn settings_window_is_centered_in_the_visible_frame() {
+        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
+        // a 70-point Dock. The vertical center is the visible frame's, not the
+        // slightly higher spot NSWindow.center() picks.
+        let visible = rect(0.0, 70.0, 1512.0, 879.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        assert_eq!((origin.x, origin.y), (416.0, 224.0));
+    }
+
+    #[test]
+    fn settings_window_is_centered_on_a_secondary_screen() {
+        // A screen left of the main one has negative AppKit coordinates.
+        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        assert_eq!((origin.x, origin.y), (-1300.0, 42.0));
+    }
+
+    #[test]
+    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
+        let visible = rect(0.0, 0.0, 600.0, 500.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        // Left edge and top edge stay inside the visible frame.
+        assert_eq!((origin.x, origin.y + 570.0), (0.0, 500.0));
+    }
+
+    #[test]
+    fn an_update_relaunch_shows_the_window_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let app_data_dir = dir.path().join("not-created-yet");
+        assert!(!take_update_relaunch_marker(&app_data_dir));
+
+        leave_update_relaunch_marker(&app_data_dir).unwrap();
+        assert!(take_update_relaunch_marker(&app_data_dir));
+        // The next start, at login for instance, follows "Start hidden" again.
+        assert!(!take_update_relaunch_marker(&app_data_dir));
+    }
+
+    #[test]
+    fn the_screen_under_the_pointer_is_the_one_containing_it() {
+        let screens = [
+            rect(0.0, 0.0, 1512.0, 982.0),
+            rect(1512.0, -100.0, 1920.0, 1080.0),
+        ];
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
+            Some(1)
+        );
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
+            Some(0)
+        );
+        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
     }
 
     /// `MURMUR_WRITE_BINDINGS=1 cargo test bindings_are_current` rewrites the

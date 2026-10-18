@@ -45,6 +45,7 @@ permissions = [
   "allow-change-whats-new-last-seen-version-setting",
   "allow-change-show-tray-icon-setting",
   "allow-show-main-window-command",
+  "allow-relaunch-after-update",
   "allow-cancel-operation",
   "allow-get-app-dir-path",
   "allow-get-app-settings",

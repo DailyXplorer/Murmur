@@ -3,7 +3,6 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
-import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
 import { StarIcon } from "@phosphor-icons/react/dist/csr/Star";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { useTranslation } from "react-i18next";
@@ -29,21 +28,6 @@ interface PendingHistoryEntry {
   entry: HistoryEntry;
   revision: number;
 }
-
-interface OpenRecordingsButtonProps {
-  onClick: () => void;
-  label: string;
-}
-
-const OpenRecordingsButton: React.FC<OpenRecordingsButtonProps> = ({
-  onClick,
-  label,
-}) => (
-  <Button onClick={onClick} title={label}>
-    <FolderOpenIcon size={15} aria-hidden="true" />
-    <span>{label}</span>
-  </Button>
-);
 
 const upsertHistoryEntry = (
   entries: HistoryEntry[],
@@ -423,10 +407,9 @@ export const HistorySettings: React.FC = () => {
       <SettingsGroup
         title={t("settings.history.title")}
         action={
-          <OpenRecordingsButton
-            onClick={openRecordingsFolder}
-            label={t("settings.history.openFolder")}
-          />
+          <Button onClick={openRecordingsFolder}>
+            {t("settings.history.openFolder")}
+          </Button>
         }
       >
         {content}
@@ -639,8 +622,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       {!hasTranscription && hasRecording && !retrying && (
         <div>
           <Button onClick={handleRetranscribe}>
-            <ArrowCounterClockwiseIcon size={15} aria-hidden="true" />
-            <span>{t("settings.history.retry")}</span>
+            {t("settings.history.retry")}
           </Button>
         </div>
       )}
