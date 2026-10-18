@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "声音主题",
-        "description": "选择录制开始和停止反馈的声音主题"
+        "description": "选择录制开始和停止反馈的声音主题",
+        "preview": "试听声音主题"
       },
       "wordCorrectionThreshold": {
         "title": "词汇修正阈值",

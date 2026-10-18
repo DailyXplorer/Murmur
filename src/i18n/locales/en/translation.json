@@ -369,7 +369,8 @@
       },
       "soundTheme": {
         "label": "Sound Theme",
-        "description": "Choose a sound theme for recording start and stop feedback"
+        "description": "Choose a sound theme for recording start and stop feedback",
+        "preview": "Preview Sound Theme"
       },
       "wordCorrectionThreshold": {
         "title": "Word Correction Threshold",

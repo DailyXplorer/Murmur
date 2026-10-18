@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Ljudtema",
-        "description": "Välj ett ljudtema för återkoppling vid start och stopp av inspelning"
+        "description": "Välj ett ljudtema för återkoppling vid start och stopp av inspelning",
+        "preview": "Lyssna på ljudtemat"
       },
       "wordCorrectionThreshold": {
         "title": "Tröskelvärde för ordkorrigering",

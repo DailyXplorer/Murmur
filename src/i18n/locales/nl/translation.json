@@ -369,7 +369,8 @@
       },
       "soundTheme": {
         "label": "Geluidsthema",
-        "description": "Kies een geluidsthema voor feedback bij het starten en stoppen van opnames"
+        "description": "Kies een geluidsthema voor feedback bij het starten en stoppen van opnames",
+        "preview": "Geluidsthema beluisteren"
       },
       "wordCorrectionThreshold": {
         "title": "Drempelwaarde woordcorrectie",

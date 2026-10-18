@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Tema de Som",
-        "description": "Escolha um tema de som para feedback de início e parada de gravação"
+        "description": "Escolha um tema de som para feedback de início e parada de gravação",
+        "preview": "Ouvir o tema de som"
       },
       "wordCorrectionThreshold": {
         "title": "Limite de Correção de Palavras",

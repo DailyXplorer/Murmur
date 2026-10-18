@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Zvukový motiv",
-        "description": "Vyberte zvukový motiv pro odezvu při startu a ukončení nahrávání"
+        "description": "Vyberte zvukový motiv pro odezvu při startu a ukončení nahrávání",
+        "preview": "Přehrát zvukový motiv"
       },
       "wordCorrectionThreshold": {
         "title": "Práh korekce slov",

@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Chủ đề âm thanh",
-        "description": "Chọn chủ đề âm thanh cho phản hồi bắt đầu và kết thúc ghi âm"
+        "description": "Chọn chủ đề âm thanh cho phản hồi bắt đầu và kết thúc ghi âm",
+        "preview": "Nghe thử chủ đề âm thanh"
       },
       "wordCorrectionThreshold": {
         "title": "Ngưỡng sửa từ",
