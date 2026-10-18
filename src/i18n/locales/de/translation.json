@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Sound-Thema",
-        "description": "Sound-Thema für Aufnahme-Start und -Stop-Feedback auswählen"
+        "description": "Sound-Thema für Aufnahme-Start und -Stop-Feedback auswählen",
+        "preview": "Sound-Thema anhören"
       },
       "wordCorrectionThreshold": {
         "title": "Wortkorrektur-Schwelle",

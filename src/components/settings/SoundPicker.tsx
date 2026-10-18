@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
 import { Button } from "../ui/Button";
 import { Dropdown, DropdownOption } from "../ui/Dropdown";
@@ -15,6 +16,7 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
   label,
   description,
 }) => {
+  const { t } = useTranslation();
   const { getSetting, updateSetting } = useSettings();
   const playTestSound = useSettingsStore((state) => state.playTestSound);
   const customSounds = useSettingsStore((state) => state.customSounds);
@@ -59,9 +61,10 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
           variant="ghost"
           size="icon"
           onClick={handlePlayBothSounds}
-          title="Preview sound theme (plays start then stop)"
+          aria-label={t("settings.debug.soundTheme.preview")}
+          title={t("settings.debug.soundTheme.preview")}
         >
-          <PlayIcon size={15} />
+          <PlayIcon size={15} aria-hidden="true" />
         </Button>
       </div>
     </SettingContainer>

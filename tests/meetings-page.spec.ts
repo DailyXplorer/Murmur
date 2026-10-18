@@ -84,6 +84,36 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   expect(deleted?.args).toEqual({ id: 3 });
 });
 
+test("a list load already on its way does not bring a deleted meeting back", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  const items = page.getByRole("listitem");
+  await expect(items).toHaveCount(3);
+
+  const loads = async () =>
+    (await calls(page)).filter((command) => command === "get_meetings").length;
+  const before = await loads();
+  // A progress update starts a load that answers after the delete.
+  await page.evaluate(() => {
+    window.settingsPages.holdMeetingLoads();
+    void window.settingsPages.emitMeetingsUpdated(4);
+  });
+  await expect.poll(loads).toBeGreaterThan(before);
+
+  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(items).toHaveCount(2);
+
+  await page.evaluate(() => window.settingsPages.releaseMeetingLoads());
+  await page.waitForTimeout(100);
+  await expect(items).toHaveCount(2);
+  await expect(page.getByText("Point hebdo produit")).toHaveCount(0);
+});
+
 test("an update keeps every page of the list that is shown", async ({
   page,
 }) => {

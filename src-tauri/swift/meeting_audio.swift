@@ -91,6 +91,9 @@ private final class SystemTap: @unchecked Sendable {
 
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var tapUID = ""
+    private var tapDescription: CATapDescription?
+    /// Waits for Murmur's own audio object when the tap started without it.
+    private var processListener: AudioObjectPropertyListenerBlock?
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
     private var outputListener: AudioObjectPropertyListenerBlock?
@@ -111,7 +114,8 @@ private final class SystemTap: @unchecked Sendable {
 
     func start() -> Int32 {
         control.sync {
-            let description = CATapDescription(stereoGlobalTapButExcludeProcesses: ownProcessObjects())
+            let own = ownProcessObjects()
+            let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own)
             description.uuid = UUID()
             description.isPrivate = true
             description.muteBehavior = .unmuted
@@ -121,15 +125,64 @@ private final class SystemTap: @unchecked Sendable {
             else { return tapFailed }
             tapID = tap
             tapUID = description.uuid.uuidString
+            tapDescription = description
             let status = startDevice()
             if status != ok {
                 destroyTap()
                 return status
             }
+            if own.isEmpty { excludeOwnProcessOnceItAppears() }
             listenForOutputChanges()
             watchPlayback()
             return ok
         }
+    }
+
+    /// Murmur gets an audio object only once it first plays a sound, such as
+    /// a dictation chime. Until then the tap cannot exclude it, so the
+    /// process list is watched and the tap updated as soon as it appears.
+    private func excludeOwnProcessOnceItAppears() {
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, !self.stopped, self.processListener != nil else { return }
+            if self.excludeOwnProcess() { self.stopWatchingProcesses() }
+        }
+        var address = processListAddress
+        if AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &address, control, listener) == noErr
+        {
+            processListener = listener
+        }
+        // It may have appeared between the first look and the listener.
+        if excludeOwnProcess() { stopWatchingProcesses() }
+    }
+
+    /// Returns whether Murmur's audio object is now out of the tap.
+    private func excludeOwnProcess() -> Bool {
+        let own = ownProcessObjects()
+        guard !own.isEmpty, let description = tapDescription else { return false }
+        description.processes = own
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioTapPropertyDescription,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var value = description
+        let status = withUnsafeMutablePointer(to: &value) { pointer in
+            AudioObjectSetPropertyData(
+                tapID, &address, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), pointer)
+        }
+        if status != noErr {
+            NSLog("Murmur: cannot exclude its own sounds from the meeting tap (%d)", status)
+        }
+        // Retrying on every process change would not help.
+        return true
+    }
+
+    private func stopWatchingProcesses() {
+        guard let listener = processListener else { return }
+        var address = processListAddress
+        AudioObjectRemovePropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &address, control, listener)
+        processListener = nil
     }
 
     /// Returns whether another process played sound while the tap ran.
@@ -145,6 +198,7 @@ private final class SystemTap: @unchecked Sendable {
                     AudioObjectID(kAudioObjectSystemObject), &address, control, listener)
                 outputListener = nil
             }
+            stopWatchingProcesses()
             stopDevice()
             destroyTap()
             return othersPlayed
@@ -335,6 +389,11 @@ private final class SystemTap: @unchecked Sendable {
         return format
     }
 }
+
+private var processListAddress = AudioObjectPropertyAddress(
+    mSelector: kAudioHardwarePropertyProcessObjectList,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain)
 
 private var defaultOutputAddress = AudioObjectPropertyAddress(
     mSelector: kAudioHardwarePropertyDefaultOutputDevice,

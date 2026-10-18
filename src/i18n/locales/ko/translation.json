@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "사운드 테마",
-        "description": "녹음 시작 및 정지 피드백을 위한 사운드 테마를 선택하세요"
+        "description": "녹음 시작 및 정지 피드백을 위한 사운드 테마를 선택하세요",
+        "preview": "사운드 테마 미리 듣기"
       },
       "wordCorrectionThreshold": {
         "title": "단어 수정 임계값",

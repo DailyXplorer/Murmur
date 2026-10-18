@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "聲音主題",
-        "description": "選擇錄製開始和停止回饋的聲音主題"
+        "description": "選擇錄製開始和停止回饋的聲音主題",
+        "preview": "試聽聲音主題"
       },
       "wordCorrectionThreshold": {
         "title": "詞彙修正閾值",

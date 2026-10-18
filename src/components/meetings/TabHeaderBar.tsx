@@ -40,7 +40,7 @@ export const IconButton: React.FC<{
 export const useTextSearch = (texts: string[]) => {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
-  const [current, setCurrent] = useState(0);
+  const [chosen, setChosen] = useState(0);
   const currentMark = useRef<HTMLElement | null>(null);
 
   const matches = useMemo<Match[]>(
@@ -66,14 +66,17 @@ export const useTextSearch = (texts: string[]) => {
     return map;
   }, [matches]);
 
-  useEffect(() => setCurrent(0), [query]);
+  // The text can change under the search and leave fewer matches.
+  const current = Math.min(chosen, Math.max(matches.length - 1, 0));
+
+  useEffect(() => setChosen(0), [query]);
   useEffect(() => {
     currentMark.current?.scrollIntoView({ block: "center" });
   }, [current, matches]);
 
   const step = (by: number) => {
     if (matches.length === 0) return;
-    setCurrent((index) => (index + by + matches.length) % matches.length);
+    setChosen((current + by + matches.length) % matches.length);
   };
 
   const close = () => {

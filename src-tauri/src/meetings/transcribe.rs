@@ -61,6 +61,7 @@ impl Transcriber for CodexTranscriber {
                 auth_path.as_deref(),
                 &samples,
                 language.as_deref(),
+                MAX_PARALLEL,
                 &operation,
             )
             .await

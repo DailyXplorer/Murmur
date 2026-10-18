@@ -572,7 +572,7 @@ impl MeetingsManager {
         self.spawn_ticker(id);
         // The speaker models download while the meeting records, so they are
         // ready when it stops.
-        self.models.start_download();
+        self.models.download_unless_declined();
         Ok(())
     }
 
@@ -612,7 +612,9 @@ impl MeetingsManager {
         self.queue.cancel(id);
         self.coordinator()
             .delete(id)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        self.updated(id);
+        Ok(())
     }
 
     pub fn detail(&self, id: i64) -> Result<MeetingDetail, String> {
@@ -731,11 +733,11 @@ impl MeetingsManager {
     }
 
     pub fn download_models(&self) {
-        self.models.start_download();
+        self.models.download();
     }
 
     pub fn cancel_models_download(&self) {
-        self.models.cancel_download();
+        self.models.decline_download();
     }
 
     pub fn delete_models(&self) -> Result<(), String> {

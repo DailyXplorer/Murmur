@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Tema de sonido",
-        "description": "Elige un tema de sonido para la retroalimentación de inicio y parada de grabación"
+        "description": "Elige un tema de sonido para la retroalimentación de inicio y parada de grabación",
+        "preview": "Escuchar el tema de sonido"
       },
       "wordCorrectionThreshold": {
         "title": "Umbral de corrección de palabras",

@@ -23,7 +23,8 @@ const WAV_BYTES_PER_SAMPLE: usize = 2;
 pub const UPLOAD_SOFT_LIMIT_BYTES: usize = 25 * 1024 * 1024;
 
 /// Covers connect, upload and response. Long recordings get one extra second
-/// per 64 KiB, which assumes at least ~512 kbit/s of upstream bandwidth.
+/// per 64 KiB, which assumes at least ~512 kbit/s of upstream bandwidth,
+/// shared by the uploads that run at once.
 const BASE_REQUEST_TIMEOUT_SECS: u64 = 60;
 const TIMEOUT_BYTES_PER_EXTRA_SECOND: u64 = 64 * 1024;
 
@@ -46,9 +47,10 @@ pub fn upload_size_for_samples(sample_count: usize) -> usize {
     44 + sample_count * WAV_BYTES_PER_SAMPLE
 }
 
-fn request_timeout(upload_bytes: usize) -> Duration {
+fn request_timeout(upload_bytes: usize, uploads_at_once: usize) -> Duration {
+    let bytes_on_the_uplink = upload_bytes as u64 * uploads_at_once.max(1) as u64;
     Duration::from_secs(
-        BASE_REQUEST_TIMEOUT_SECS + upload_bytes as u64 / TIMEOUT_BYTES_PER_EXTRA_SECOND,
+        BASE_REQUEST_TIMEOUT_SECS + bytes_on_the_uplink / TIMEOUT_BYTES_PER_EXTRA_SECOND,
     )
 }
 
@@ -57,16 +59,17 @@ pub async fn transcribe(
     language: Option<&str>,
     operation: &ProcessingOperation,
 ) -> Result<String> {
-    transcribe_at(TRANSCRIBE_URL, None, samples, language, operation).await
+    transcribe_at(TRANSCRIBE_URL, None, samples, language, 1, operation).await
 }
 
 /// `transcribe` against `url`, with the session in `auth_path` (the Codex
-/// default when `None`).
+/// default when `None`), while `uploads_at_once` requests share the uplink.
 pub(crate) async fn transcribe_at(
     url: &str,
     auth_path: Option<&Path>,
     samples: &[f32],
     language: Option<&str>,
+    uploads_at_once: usize,
     operation: &ProcessingOperation,
 ) -> Result<String> {
     if samples.is_empty() {
@@ -77,11 +80,17 @@ pub(crate) async fn transcribe_at(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
+    let timeout = request_timeout(wav.len(), uploads_at_once);
     let auth_path = match auth_path {
         Some(path) => path.to_path_buf(),
         None => codex_auth::auth_path()?,
     };
-    let mut session = codex_auth::session_for_request(&auth_path).await?;
+    // A refresh under way may hold the session for a while. Dropping the wait
+    // is safe: the refresh runs detached and still saves its tokens.
+    let mut session = tokio::select! {
+        _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
+        session = codex_auth::session_for_request(&auth_path) => session?,
+    };
     let mut recovered_from_unauthorized = false;
     let mut retries = 0;
 
@@ -89,8 +98,9 @@ pub(crate) async fn transcribe_at(
         if operation.is_cancelled() {
             return Err(anyhow!("Codex transcription cancelled"));
         }
-        let error = match transcribe_with_session_at(url, &session, &wav, language, operation).await
-        {
+        let result =
+            transcribe_with_session_at(url, &session, &wav, language, timeout, operation).await;
+        let error = match result {
             Ok(text) => return Ok(text),
             Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
             Err(RequestError::Failed(error)) => error,
@@ -99,7 +109,10 @@ pub(crate) async fn transcribe_at(
         // Like Codex: on the first 401, refresh once and resend once.
         if error.kind == FailureKind::SessionExpired && !recovered_from_unauthorized {
             recovered_from_unauthorized = true;
-            session = codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+            session = tokio::select! {
+                _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
+                session = codex_auth::recover_from_unauthorized(&auth_path, &session) => session?,
+            };
             continue;
         }
 
@@ -124,13 +137,14 @@ async fn transcribe_with_session_at(
     session: &Session,
     wav: &[u8],
     language: Option<&str>,
+    timeout: Duration,
     operation: &ProcessingOperation,
 ) -> Result<String, RequestError> {
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
     let client = reqwest::Client::builder()
         .user_agent(user_agent())
         .connect_timeout(Duration::from_secs(10))
-        .timeout(request_timeout(wav.len()))
+        .timeout(timeout)
         .build()
         .map_err(|error| {
             failed(
@@ -304,9 +318,23 @@ mod tests {
 
     #[test]
     fn timeout_scales_with_upload_size() {
-        assert_eq!(request_timeout(100_000), Duration::from_secs(61));
+        assert_eq!(request_timeout(100_000, 1), Duration::from_secs(61));
         let fifteen_minutes = upload_size_for_samples(15 * 60 * SAMPLE_RATE as usize);
-        assert_eq!(request_timeout(fifteen_minutes), Duration::from_secs(499));
+        assert_eq!(
+            request_timeout(fifteen_minutes, 1),
+            Duration::from_secs(499)
+        );
+    }
+
+    #[test]
+    fn parallel_uploads_each_get_their_share_of_the_uplink() {
+        let five_minutes = upload_size_for_samples(5 * 60 * SAMPLE_RATE as usize);
+        let alone = request_timeout(five_minutes, 1);
+        let shared = request_timeout(five_minutes, 3);
+        assert_eq!(alone, Duration::from_secs(206));
+        // Three at once on the same uplink take three times as long to send.
+        assert_eq!(shared, Duration::from_secs(499));
+        assert_eq!(request_timeout(five_minutes, 0), alone);
     }
 
     #[test]
@@ -342,7 +370,12 @@ mod tests {
         };
         let operation = ProcessingOperation::new(OperationId(3));
         match tauri::async_runtime::block_on(transcribe_with_session_at(
-            &endpoint, &session, b"wav", None, &operation,
+            &endpoint,
+            &session,
+            b"wav",
+            None,
+            request_timeout(3, 1),
+            &operation,
         )) {
             Err(RequestError::Failed(error)) => error.kind,
             _ => panic!("{status_line} must fail"),
@@ -380,7 +413,12 @@ mod tests {
         };
         let operation = ProcessingOperation::new(OperationId(4));
         match tauri::async_runtime::block_on(transcribe_with_session_at(
-            &endpoint, &session, b"wav", None, &operation,
+            &endpoint,
+            &session,
+            b"wav",
+            None,
+            request_timeout(3, 1),
+            &operation,
         )) {
             Err(RequestError::Failed(error)) => assert_eq!(error.kind, FailureKind::Network),
             _ => panic!("a closed port must fail"),
@@ -427,8 +465,15 @@ mod tests {
         };
         let request_operation = operation.clone();
         let request = tauri::async_runtime::spawn(async move {
-            transcribe_with_session_at(&endpoint, &session, b"test wav", None, &request_operation)
-                .await
+            transcribe_with_session_at(
+                &endpoint,
+                &session,
+                b"test wav",
+                None,
+                request_timeout(8, 1),
+                &request_operation,
+            )
+            .await
         });
 
         accepted_rx.recv_timeout(Duration::from_secs(1)).unwrap();
@@ -437,6 +482,55 @@ mod tests {
         assert!(matches!(result, Err(RequestError::Cancelled)));
         assert!(closed_rx.recv_timeout(Duration::from_secs(1)).unwrap());
         server.join().unwrap();
+    }
+
+    #[test]
+    fn cancellation_stops_waiting_for_a_token_refresh() {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        // Expires within the refresh window: the request refreshes first.
+        let expiring = format!(
+            "header.{}.signature",
+            URL_SAFE_NO_PAD.encode(
+                serde_json::json!({"exp": chrono::Utc::now().timestamp() + 60}).to_string()
+            )
+        );
+        let auth = |access_token: &str| {
+            serde_json::json!({"tokens": {"access_token": access_token, "refresh_token": "rt"}})
+                .to_string()
+        };
+        std::fs::write(&path, auth(&expiring)).unwrap();
+        let operation = ProcessingOperation::new(OperationId(8));
+        let request_operation = operation.clone();
+        let request_path = path.clone();
+
+        tauri::async_runtime::block_on(async {
+            // Another refresh is under way.
+            let other_refresh = codex_auth::REFRESH_LOCK.lock().await;
+            let request = tauri::async_runtime::spawn(async move {
+                transcribe_at(
+                    "http://127.0.0.1:9",
+                    Some(&request_path),
+                    &[0.1; 160],
+                    None,
+                    1,
+                    &request_operation,
+                )
+                .await
+            });
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(operation.cancel());
+            let result = tokio::time::timeout(Duration::from_secs(1), request)
+                .await
+                .expect("a cancel must not wait for the refresh")
+                .unwrap();
+            assert!(result.unwrap_err().to_string().contains("cancelled"));
+            // The other refresh saved new tokens, so the queued one ends offline.
+            std::fs::write(&path, auth("fresh")).unwrap();
+            drop(other_refresh);
+        });
+        assert!(codex_auth::wait_for_refreshes(Duration::from_secs(5)));
     }
 
     #[test]

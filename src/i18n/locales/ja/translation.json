@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "サウンドテーマ",
-        "description": "録音開始・停止フィードバックのサウンドテーマを選択"
+        "description": "録音開始・停止フィードバックのサウンドテーマを選択",
+        "preview": "サウンドテーマを試聴"
       },
       "wordCorrectionThreshold": {
         "title": "単語修正しきい値",

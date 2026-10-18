@@ -157,6 +157,9 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
 
   const deleteMeeting = async (meeting: MeetingListItem) => {
     setPendingDelete(null);
+    // A load already on its way may still hold the meeting: drop its answer.
+    // The backend announces the delete, which loads the list again.
+    requestRef.current += 1;
     setMeetings((current) => current.filter(({ id }) => id !== meeting.id));
     try {
       const result = await commands.deleteMeeting(meeting.id);

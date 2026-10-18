@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "Thème sonore",
-        "description": "Choisir un thème sonore pour les retours de début et de fin d'enregistrement"
+        "description": "Choisir un thème sonore pour les retours de début et de fin d'enregistrement",
+        "preview": "Écouter le thème sonore"
       },
       "wordCorrectionThreshold": {
         "title": "Seuil de correction des mots",

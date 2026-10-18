@@ -362,7 +362,8 @@
       },
       "soundTheme": {
         "label": "ערכת צלילים",
-        "description": "בחר ערכת צלילים להתחלה ולסיום ההקלטה"
+        "description": "בחר ערכת צלילים להתחלה ולסיום ההקלטה",
+        "preview": "השמעת ערכת הצלילים"
       },
       "wordCorrectionThreshold": {
         "title": "סף תיקון מילים",

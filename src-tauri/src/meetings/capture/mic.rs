@@ -234,8 +234,9 @@ where
     device.build_input_stream(
         config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
-            feeder.push(mono(data, channels, channel), sample_rate);
-            heard.mark(Instant::now());
+            let samples = mono(data, channels, channel);
+            heard.mark(Instant::now(), &samples);
+            feeder.push(samples, sample_rate);
         },
         move |error| {
             log::error!("Meeting microphone stream error: {error}");
@@ -248,10 +249,12 @@ where
 /// Without audio this long, reopening the microphone did not bring it back.
 const LOST: Duration = Duration::from_secs(6);
 
-/// When the microphone last delivered audio, across every reopen.
+/// When the microphone last delivered audio, across every reopen, and
+/// whether any of it was more than digital zeros.
 struct Heard {
     epoch: Instant,
     last_ms: AtomicU64,
+    voiced: AtomicBool,
 }
 
 impl Heard {
@@ -259,12 +262,16 @@ impl Heard {
         Self {
             epoch,
             last_ms: AtomicU64::new(0),
+            voiced: AtomicBool::new(false),
         }
     }
 
-    fn mark(&self, now: Instant) {
+    fn mark(&self, now: Instant, samples: &[f32]) {
         let ms = now.saturating_duration_since(self.epoch).as_millis() as u64;
         self.last_ms.store(ms, Ordering::SeqCst);
+        if samples.iter().any(|sample| *sample != 0.0) {
+            self.voiced.store(true, Ordering::Relaxed);
+        }
     }
 
     fn silent_for(&self, now: Instant) -> Duration {
@@ -272,8 +279,13 @@ impl Heard {
         now.saturating_duration_since(last)
     }
 
+    /// No audio for a while, or only digital zeros since the start: what
+    /// macOS delivers when the microphone permission is denied, since a
+    /// working microphone always has a noise floor.
     fn lost(&self, now: Instant) -> bool {
-        self.silent_for(now) > LOST
+        let never_voiced = !self.voiced.load(Ordering::Relaxed)
+            && now.saturating_duration_since(self.epoch) > LOST;
+        self.silent_for(now) > LOST || never_voiced
     }
 }
 
@@ -326,9 +338,29 @@ mod tests {
             "never heard"
         );
 
-        heard.mark(start + Duration::from_secs(10));
+        heard.mark(start + Duration::from_secs(10), &[0.01, -0.02]);
         assert!(!heard.lost(start + Duration::from_secs(10) + LOST));
         assert!(heard.lost(start + Duration::from_secs(11) + LOST));
+    }
+
+    #[test]
+    fn a_microphone_giving_only_digital_zeros_counts_as_lost() {
+        // What macOS delivers when the microphone permission is denied.
+        let start = Instant::now();
+        let denied = Heard::new(start);
+        for second in 1..=10 {
+            denied.mark(start + Duration::from_secs(second), &[0.0; 4]);
+        }
+        assert!(!denied.lost(start + LOST));
+        assert!(denied.lost(start + Duration::from_secs(10)));
+
+        // A real microphone always has a noise floor; a later mute is fine.
+        let muted = Heard::new(start);
+        muted.mark(start + Duration::from_secs(1), &[0.0, 0.0001]);
+        for second in 2..=10 {
+            muted.mark(start + Duration::from_secs(second), &[0.0; 4]);
+        }
+        assert!(!muted.lost(start + Duration::from_secs(10)));
     }
 
     fn devices() -> Vec<(String, &'static str)> {

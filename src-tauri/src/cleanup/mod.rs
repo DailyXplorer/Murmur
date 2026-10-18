@@ -219,7 +219,11 @@ async fn clean_with_codex(
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
     let auth_path = codex_auth::auth_path()?;
-    let session = codex_auth::session_for_request(&auth_path).await?;
+    // Dropping a wait on a refresh is safe: the refresh runs detached.
+    let session = tokio::select! {
+        _ = operation.cancelled() => return Err(CompletionError::Cancelled),
+        session = codex_auth::session_for_request(&auth_path) => session?,
+    };
     let model = responses::fast_model(auth_path.parent().unwrap_or(&auth_path));
     let outcome = clean_with_session(
         responses::RESPONSES_URL,
@@ -235,7 +239,10 @@ async fn clean_with_codex(
             kind: FailureKind::SessionExpired,
             ..
         }) => {
-            let session = codex_auth::recover_from_unauthorized(&auth_path, &session).await?;
+            let session = tokio::select! {
+                _ = operation.cancelled() => return Err(CompletionError::Cancelled),
+                session = codex_auth::recover_from_unauthorized(&auth_path, &session) => session?,
+            };
             clean_with_session(
                 responses::RESPONSES_URL,
                 &session,

@@ -320,7 +320,7 @@ fn build_meetings_helper() {
                 .arg(PACKAGE)
                 .args(extra)
                 .output()
-                .expect("swift runs (Xcode 16.3 or later is needed for the meetings helper)")
+                .expect("swift runs (Xcode 26 or later, with Swift 6.2, is needed for the meetings helper)")
         };
         let built = swift_build(&[]);
         assert!(
