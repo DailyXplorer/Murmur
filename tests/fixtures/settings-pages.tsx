@@ -40,6 +40,7 @@ const appleIntelligence = params.get("apple") ?? "available";
 /** On by default, as in the app; `meetings=0` turns them off. */
 const meetingsEnabled = params.get("meetings") !== "0";
 const systemAudioSilent = params.get("systemAudioSilent") === "1";
+const systemAudioPermission = params.get("systemAudioPermission") ?? "granted";
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
@@ -468,6 +469,7 @@ const RESPONSES: Record<string, unknown> = {
   delete_meeting_models: null,
   get_meeting_capabilities: { analysis, system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
+  get_system_audio_permission: systemAudioPermission,
   open_system_audio_privacy_settings: null,
   start_meeting: null,
   stop_meeting: null,

@@ -686,7 +686,9 @@
       "title": "Systeemgeluid",
       "description": "macOS vraagt het de eerste keer dat een vergadering systeemgeluid opneemt. Als je hebt geweigerd, zet Murmur dan weer aan in de privacyinstellingen.",
       "open": "Instellingen openen",
-      "silent": "Er is geen systeemgeluid opgenomen, dus de andere deelnemers ontbreken. Sta Murmur toe onder Systeemaudio-opname in de privacyinstellingen en neem opnieuw op."
+      "silent": "Er is geen systeemgeluid opgenomen, dus de andere deelnemers ontbreken. Sta Murmur toe onder Systeemaudio-opname in de privacyinstellingen en neem opnieuw op.",
+      "silentAllowed": "Er is geen geluid van andere apps opgevangen, dus de andere deelnemers ontbreken, terwijl Murmur systeemaudio mag opnemen. Meld dit zodat het opgelost kan worden.",
+      "report": "Probleem melden"
     },
     "list": {
       "title": "Opnames",

@@ -556,6 +556,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::get_meeting_markdown,
             commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
+            commands::meetings::get_system_audio_permission,
             commands::meetings::open_system_audio_privacy_settings,
             commands::meetings::change_meetings_enabled_setting,
             commands::meetings::change_meeting_capture_mode_setting,

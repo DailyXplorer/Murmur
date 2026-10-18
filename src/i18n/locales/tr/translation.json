@@ -686,7 +686,9 @@
       "title": "Sistem sesi izni",
       "description": "Bir toplantı sistem sesini ilk kez kaydettiğinde macOS izin ister. Reddettiyseniz Murmur'u gizlilik ayarlarında yeniden etkinleştirin.",
       "open": "Ayarları aç",
-      "silent": "Sistem sesi kaydedilmedi, bu yüzden diğer katılımcılar eksik. Gizlilik ayarlarında Sistem Sesi Kaydı altında Murmur'a izin verin, sonra yeniden kaydedin."
+      "silent": "Sistem sesi kaydedilmedi, bu yüzden diğer katılımcılar eksik. Gizlilik ayarlarında Sistem Sesi Kaydı altında Murmur'a izin verin, sonra yeniden kaydedin.",
+      "silentAllowed": "Diğer uygulamalardan ses alınamadı, bu yüzden diğer katılımcılar eksik; oysa Murmur'un sistem sesini kaydetme izni var. Düzeltilebilmesi için lütfen bildirin.",
+      "report": "Sorun Bildir"
     },
     "list": {
       "title": "Kayıtlar",

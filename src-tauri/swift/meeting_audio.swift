@@ -79,6 +79,37 @@ public func murmurSystemTapInterrupted() -> Int32 {
     return tap?.interrupted() == true ? 1 : 0
 }
 
+/// Whether System Audio Recording is allowed: 0 yes, 1 denied, 2 not asked
+/// yet or unknown.
+@_cdecl("murmur_system_audio_permission")
+public func murmurSystemAudioPermission() -> Int32 {
+    audioCapturePermission()
+}
+
+private let permissionGranted: Int32 = 0
+private let permissionDenied: Int32 = 1
+private let permissionUnknown: Int32 = 2
+
+private typealias TCCPreflight = @convention(c) (CFString, CFDictionary?) -> Int32
+
+/// TCC's own preflight, read the way AudioCap reads it: no public API
+/// tells this permission.
+private let tccPreflight: TCCPreflight? = {
+    guard let tcc = dlopen(
+        "/System/Library/PrivateFrameworks/TCC.framework/Versions/A/TCC", RTLD_NOW),
+        let symbol = dlsym(tcc, "TCCAccessPreflight")
+    else { return nil }
+    return unsafeBitCast(symbol, to: TCCPreflight.self)
+}()
+
+private func audioCapturePermission() -> Int32 {
+    switch tccPreflight?("kTCCServiceAudioCapture" as CFString, nil) {
+    case permissionGranted: return permissionGranted
+    case permissionDenied: return permissionDenied
+    default: return permissionUnknown
+    }
+}
+
 @available(macOS 14.4, *)
 private final class SystemTap: @unchecked Sendable {
     private let context: UnsafeMutableRawPointer?
@@ -100,6 +131,8 @@ private final class SystemTap: @unchecked Sendable {
     private var playbackWatch: DispatchSourceTimer?
     /// Another process had its audio output running at some point.
     private var othersPlayed = false
+    /// The tap was made before System Audio Recording was allowed.
+    private var awaitingPermission = false
     private var stopped = false
     /// When rebuilding the device after an output change first failed.
     private var downSince: Date?
@@ -114,18 +147,7 @@ private final class SystemTap: @unchecked Sendable {
 
     func start() -> Int32 {
         control.sync {
-            let own = ownProcessObjects()
-            let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own)
-            description.uuid = UUID()
-            description.isPrivate = true
-            description.muteBehavior = .unmuted
-            var tap = AudioObjectID(kAudioObjectUnknown)
-            guard AudioHardwareCreateProcessTap(description, &tap) == noErr,
-                  tap != kAudioObjectUnknown
-            else { return tapFailed }
-            tapID = tap
-            tapUID = description.uuid.uuidString
-            tapDescription = description
+            guard let own = createTap() else { return tapFailed }
             let status = startDevice()
             if status != ok {
                 destroyTap()
@@ -136,6 +158,42 @@ private final class SystemTap: @unchecked Sendable {
             watchPlayback()
             return ok
         }
+    }
+
+    /// Creates the tap and returns the processes it leaves out, or nil.
+    private func createTap() -> [AudioObjectID]? {
+        let own = ownProcessObjects()
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own)
+        description.uuid = UUID()
+        description.isPrivate = true
+        description.muteBehavior = .unmuted
+        awaitingPermission = audioCapturePermission() != permissionGranted
+        var tap = AudioObjectID(kAudioObjectUnknown)
+        guard AudioHardwareCreateProcessTap(description, &tap) == noErr,
+              tap != kAudioObjectUnknown
+        else { return nil }
+        tapID = tap
+        tapUID = description.uuid.uuidString
+        tapDescription = description
+        return own
+    }
+
+    /// A tap that was running when the user allowed System Audio Recording
+    /// keeps delivering zeros, so it is built again once the grant lands.
+    private func rebuildTapWithPermission() {
+        NSLog("Murmur: System Audio Recording allowed, rebuilding the meeting tap")
+        stopWatchingProcesses()
+        stopDevice()
+        destroyTap()
+        guard let own = createTap() else {
+            NSLog("Murmur: cannot rebuild the meeting tap")
+            awaitingPermission = false
+            if downSince == nil { downSince = Date() }
+            return
+        }
+        if own.isEmpty { excludeOwnProcessOnceItAppears() }
+        rebuilds += 1
+        rebuild(rebuilds, retryIn: 0.5)
     }
 
     /// Murmur gets an audio object only once it first plays a sound, such as
@@ -212,12 +270,18 @@ private final class SystemTap: @unchecked Sendable {
     /// Checks every second whether another process plays sound, until one
     /// does. The process list is readable without the System Audio Recording
     /// permission, so it tells a denied tap from a Mac that played nothing.
+    /// Meanwhile a tap made before the permission was allowed (the first
+    /// meeting, whose start shows the prompt) is rebuilt once it is.
     private func watchPlayback() {
         let timer = DispatchSource.makeTimerSource(queue: control)
         timer.schedule(deadline: .now(), repeating: .seconds(1), leeway: .milliseconds(250))
         timer.setEventHandler { [weak self] in
-            guard let self, !self.stopped, otherProcessPlaysOutput() else { return }
-            self.othersPlayed = true
+            guard let self, !self.stopped else { return }
+            if !self.othersPlayed { self.othersPlayed = otherProcessPlaysOutput() }
+            if self.awaitingPermission, audioCapturePermission() == permissionGranted {
+                self.rebuildTapWithPermission()
+            }
+            guard self.othersPlayed, !self.awaitingPermission else { return }
             self.playbackWatch?.cancel()
             self.playbackWatch = nil
         }
