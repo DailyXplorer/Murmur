@@ -191,6 +191,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           }
           description={t("meetings.recording.description")}
           grouped={true}
+          layout="stacked"
         >
           <div className="flex justify-end gap-2">
             {recording ? (

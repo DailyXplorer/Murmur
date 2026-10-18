@@ -34,7 +34,8 @@
     "meetingWriteFailed": "A reunião parou porque o Murmur não conseguiu gravar no disco. O que foi gravado foi mantido.",
     "meetingLowDiskSpace": "Há menos de 1,5 GB livres neste Mac. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido.",
     "meetingSystemAudioInterrupted": "O áudio do sistema parou após a mudança da saída de som. O Murmur continua tentando recuperá-lo; seu microfone continua sendo gravado.",
-    "meetingMicrophoneInterrupted": "O microfone parou de gravar. O Murmur continua tentando recuperá-lo; verifique se ele ainda está conectado."
+    "meetingMicrophoneInterrupted": "O microfone parou de gravar. O Murmur continua tentando recuperá-lo; verifique se ele ainda está conectado.",
+    "meetingMicrophoneDenied": "O acesso ao microfone está desativado, então a reunião não grava sua voz. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Microfone."
   },
   "sidebar": {
     "general": "Geral",

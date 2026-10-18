@@ -34,7 +34,8 @@
     "meetingWriteFailed": "La réunion s’est arrêtée car Murmur n’a pas pu écrire sur le disque. Ce qui a été enregistré est conservé.",
     "meetingLowDiskSpace": "Il reste moins de 1,5 Go sur ce Mac. Une longue réunion peut s’arrêter plus tôt ; ce qui est enregistré est conservé.",
     "meetingSystemAudioInterrupted": "L’audio système s’est arrêté après le changement de sortie audio. Murmur continue d’essayer de le rétablir ; votre micro est toujours enregistré.",
-    "meetingMicrophoneInterrupted": "Le micro a cessé d’enregistrer. Murmur continue d’essayer de le rétablir ; vérifiez qu’il est toujours branché."
+    "meetingMicrophoneInterrupted": "Le micro a cessé d’enregistrer. Murmur continue d’essayer de le rétablir ; vérifiez qu’il est toujours branché.",
+    "meetingMicrophoneDenied": "L’accès au microphone est désactivé : la réunion n’enregistre pas votre voix. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Microphone."
   },
   "sidebar": {
     "general": "Général",

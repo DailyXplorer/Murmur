@@ -34,7 +34,8 @@
     "meetingWriteFailed": "Cuộc họp đã dừng vì Murmur không thể ghi vào ổ đĩa. Phần đã ghi vẫn được giữ.",
     "meetingLowDiskSpace": "Máy Mac này còn trống dưới 1,5 GB. Cuộc họp dài có thể dừng sớm; phần đã ghi vẫn được giữ lại.",
     "meetingSystemAudioInterrupted": "Âm thanh hệ thống đã dừng sau khi đầu ra âm thanh thay đổi. Murmur vẫn đang cố khôi phục; micrô của bạn vẫn được ghi.",
-    "meetingMicrophoneInterrupted": "Micrô đã ngừng ghi. Murmur vẫn đang cố khôi phục; hãy kiểm tra micrô vẫn còn được kết nối."
+    "meetingMicrophoneInterrupted": "Micrô đã ngừng ghi. Murmur vẫn đang cố khôi phục; hãy kiểm tra micrô vẫn còn được kết nối.",
+    "meetingMicrophoneDenied": "Quyền truy cập micrô đang tắt nên cuộc họp không ghi lại giọng của bạn. Hãy cho phép Murmur trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Micrô."
   },
   "sidebar": {
     "general": "Chung",

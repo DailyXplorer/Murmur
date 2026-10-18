@@ -34,7 +34,8 @@
     "meetingWriteFailed": "Mötet stoppades eftersom Murmur inte kunde skriva till disken. Det som spelats in finns kvar.",
     "meetingLowDiskSpace": "Det finns mindre än 1,5 GB ledigt på den här Macen. Ett långt möte kan stoppa i förtid; det som spelats in sparas.",
     "meetingSystemAudioInterrupted": "Systemljudet slutade spelas in efter att ljudutgången bytts. Murmur fortsätter att försöka få tillbaka det; din mikrofon spelas fortfarande in.",
-    "meetingMicrophoneInterrupted": "Mikrofonen slutade spela in. Murmur fortsätter att försöka få tillbaka den; kontrollera att den fortfarande är ansluten."
+    "meetingMicrophoneInterrupted": "Mikrofonen slutade spela in. Murmur fortsätter att försöka få tillbaka den; kontrollera att den fortfarande är ansluten.",
+    "meetingMicrophoneDenied": "Mikrofonåtkomst är avstängd, så mötet spelar inte in din röst. Tillåt Murmur i Systeminställningar → Integritet och säkerhet → Mikrofon."
   },
   "sidebar": {
     "general": "Allmänt",

@@ -317,6 +317,15 @@ impl CaptureBackend for DeviceCapture {
     fn free_bytes(&self, dir: &Path) -> Option<u64> {
         free_bytes(dir)
     }
+
+    /// Restricted (1) or denied (2). Not asked yet (0) lets macOS show its
+    /// prompt when the microphone opens.
+    fn microphone_denied(&self) -> bool {
+        matches!(
+            crate::commands::get_microphone_authorization_status(),
+            Ok(1 | 2)
+        )
+    }
 }
 
 /// The space an unprivileged process may still write on the volume of

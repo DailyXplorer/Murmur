@@ -34,7 +34,8 @@
     "meetingWriteFailed": "De vergadering is gestopt omdat Murmur niet naar de schijf kon schrijven. Wat is opgenomen, blijft bewaard.",
     "meetingLowDiskSpace": "Er is minder dan 1,5 GB vrij op deze Mac. Een lange vergadering kan eerder stoppen; wat is opgenomen blijft bewaard.",
     "meetingSystemAudioInterrupted": "Het systeemgeluid stopte nadat de geluidsuitvoer wijzigde. Murmur blijft proberen het te herstellen; je microfoon wordt nog steeds opgenomen.",
-    "meetingMicrophoneInterrupted": "De microfoon neemt niet meer op. Murmur blijft proberen hem te herstellen; controleer of hij nog verbonden is."
+    "meetingMicrophoneInterrupted": "De microfoon neemt niet meer op. Murmur blijft proberen hem te herstellen; controleer of hij nog verbonden is.",
+    "meetingMicrophoneDenied": "Microfoontoegang staat uit, dus deze vergadering neemt je stem niet op. Sta Murmur toe via Systeeminstellingen → Privacy & Beveiliging → Microfoon."
   },
   "sidebar": {
     "general": "Algemeen",
