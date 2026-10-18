@@ -98,9 +98,9 @@ pub(crate) async fn transcribe_at(
         if operation.is_cancelled() {
             return Err(anyhow!("Codex transcription cancelled"));
         }
-        let error = match transcribe_with_session_at(url, &session, &wav, language, timeout, operation)
-            .await
-        {
+        let result =
+            transcribe_with_session_at(url, &session, &wav, language, timeout, operation).await;
+        let error = match result {
             Ok(text) => return Ok(text),
             Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
             Err(RequestError::Failed(error)) => error,
@@ -320,7 +320,10 @@ mod tests {
     fn timeout_scales_with_upload_size() {
         assert_eq!(request_timeout(100_000, 1), Duration::from_secs(61));
         let fifteen_minutes = upload_size_for_samples(15 * 60 * SAMPLE_RATE as usize);
-        assert_eq!(request_timeout(fifteen_minutes, 1), Duration::from_secs(499));
+        assert_eq!(
+            request_timeout(fifteen_minutes, 1),
+            Duration::from_secs(499)
+        );
     }
 
     #[test]
