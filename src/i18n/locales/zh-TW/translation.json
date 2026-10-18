@@ -34,7 +34,8 @@
     "meetingWriteFailed": "Murmur 無法寫入磁碟，會議已停止。已錄製的內容會保留。",
     "meetingLowDiskSpace": "這台 Mac 的可用空間不足 1.5 GB。較長的會議可能會提早停止，已錄製的內容會保留。",
     "meetingSystemAudioInterrupted": "聲音輸出切換後，系統音訊已停止錄製。Murmur 會持續嘗試恢復；麥克風仍在錄製。",
-    "meetingMicrophoneInterrupted": "麥克風已停止錄製。Murmur 會持續嘗試恢復；請確認它是否仍已連接。"
+    "meetingMicrophoneInterrupted": "麥克風已停止錄製。Murmur 會持續嘗試恢復；請確認它是否仍已連接。",
+    "meetingMicrophoneDenied": "麥克風存取已關閉，此會議不會錄下你的聲音。請在系統設定 → 隱私與安全性 → 麥克風中允許 Murmur。"
   },
   "sidebar": {
     "general": "一般",

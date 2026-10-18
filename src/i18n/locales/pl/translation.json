@@ -34,7 +34,8 @@
     "meetingWriteFailed": "Spotkanie zostało zatrzymane, ponieważ Murmur nie mógł zapisywać na dysku. Nagrana część została zachowana.",
     "meetingLowDiskSpace": "Na tym Macu jest mniej niż 1,5 GB wolnego miejsca. Długie spotkanie może zatrzymać się wcześniej; nagrany fragment zostanie zachowany.",
     "meetingSystemAudioInterrupted": "Dźwięk systemowy przestał się nagrywać po zmianie wyjścia audio. Murmur wciąż próbuje go przywrócić; mikrofon jest nadal nagrywany.",
-    "meetingMicrophoneInterrupted": "Mikrofon przestał nagrywać. Murmur wciąż próbuje go przywrócić; sprawdź, czy jest nadal podłączony."
+    "meetingMicrophoneInterrupted": "Mikrofon przestał nagrywać. Murmur wciąż próbuje go przywrócić; sprawdź, czy jest nadal podłączony.",
+    "meetingMicrophoneDenied": "Dostęp do mikrofonu jest wyłączony, więc spotkanie nie nagrywa Twojego głosu. Zezwól Murmur w Ustawienia systemowe → Prywatność i ochrona → Mikrofon."
   },
   "sidebar": {
     "general": "Ogólne",

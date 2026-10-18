@@ -73,6 +73,7 @@ impl Alert {
                 MeetingAlert::LowDiskSpace => &strings.meeting_low_disk_space,
                 MeetingAlert::SystemAudioInterrupted => &strings.meeting_system_audio_interrupted,
                 MeetingAlert::MicrophoneInterrupted => &strings.meeting_microphone_interrupted,
+                MeetingAlert::MicrophoneDenied => &strings.meeting_microphone_denied,
             }
             .clone(),
         }
@@ -149,6 +150,7 @@ mod tests {
             MeetingAlert::LowDiskSpace,
             MeetingAlert::SystemAudioInterrupted,
             MeetingAlert::MicrophoneInterrupted,
+            MeetingAlert::MicrophoneDenied,
         ];
         let messages: std::collections::HashSet<_> = alerts
             .iter()

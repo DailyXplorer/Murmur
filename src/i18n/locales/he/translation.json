@@ -34,7 +34,8 @@
     "meetingWriteFailed": "הפגישה נעצרה כי Murmur לא הצליח לכתוב לדיסק. מה שהוקלט נשמר.",
     "meetingLowDiskSpace": "פנויים ב-Mac הזה פחות מ-1.5 GB. פגישה ארוכה עלולה להיעצר מוקדם; מה שהוקלט נשמר.",
     "meetingSystemAudioInterrupted": "הקלטת שמע המערכת נעצרה לאחר שינוי פלט השמע. Murmur ממשיך לנסות לשחזר אותה; המיקרופון שלך עדיין מוקלט.",
-    "meetingMicrophoneInterrupted": "המיקרופון הפסיק להקליט. Murmur ממשיך לנסות לשחזר אותו; ודא שהוא עדיין מחובר."
+    "meetingMicrophoneInterrupted": "המיקרופון הפסיק להקליט. Murmur ממשיך לנסות לשחזר אותו; ודא שהוא עדיין מחובר.",
+    "meetingMicrophoneDenied": "הגישה למיקרופון כבויה, ולכן הפגישה לא מקליטה את הקול שלך. אפשר את Murmur ב-System Settings > Privacy & Security > Microphone."
   },
   "sidebar": {
     "general": "כללי",

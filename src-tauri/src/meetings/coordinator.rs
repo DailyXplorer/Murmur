@@ -36,6 +36,8 @@ pub trait CaptureBackend: Send {
     fn start_system(&self, dir: &Path, origin: Instant) -> Result<Box<dyn Track>, String>;
     /// Bytes free for new files on the volume of `dir`, when it can be read.
     fn free_bytes(&self, dir: &Path) -> Option<u64>;
+    /// macOS refuses Murmur the microphone, which then gives only silence.
+    fn microphone_denied(&self) -> bool;
 }
 
 /// Below this much free space a meeting warns at start: three hours of both
@@ -58,6 +60,9 @@ pub enum MeetingAlert {
     /// The microphone stopped (unplugged, or a headset dropped out) and could
     /// not be reopened yet; the other source keeps recording.
     MicrophoneInterrupted,
+    /// The microphone permission is off, so the microphone track records
+    /// silence; only Privacy & Security can turn it back on.
+    MicrophoneDenied,
     /// The meeting records, but the disk may fill before it ends.
     LowDiskSpace,
 }
@@ -240,6 +245,10 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             } else {
                 MeetingAlert::MicrophoneUnavailable
             });
+        }
+        if mic && self.backend.microphone_denied() {
+            warn!("Meeting {id}: the microphone permission is off");
+            self.notifier.alert(MeetingAlert::MicrophoneDenied);
         }
         self.active = Some(Active {
             id,
@@ -435,6 +444,7 @@ mod tests {
         free_bytes: Option<u64>,
         /// Another app plays sound while system audio records.
         system_played: bool,
+        microphone_denied: bool,
     }
 
     impl FakeBackend {
@@ -472,6 +482,9 @@ mod tests {
         fn free_bytes(&self, dir: &Path) -> Option<u64> {
             assert!(dir.is_dir());
             self.free_bytes
+        }
+        fn microphone_denied(&self) -> bool {
+            self.microphone_denied
         }
     }
 
@@ -557,6 +570,7 @@ mod tests {
             system_interrupted: Arc::clone(&system_interrupted),
             free_bytes: Some(100_000_000_000),
             system_played: false,
+            microphone_denied: false,
         };
         Harness {
             coordinator: Coordinator::new(
@@ -660,6 +674,28 @@ mod tests {
             assert!(!h.log.take().iter().any(|entry| entry.starts_with("alert")));
             h.coordinator.stop().unwrap();
         }
+    }
+
+    #[test]
+    fn a_denied_microphone_warns_at_start_and_the_meeting_records() {
+        let mut h = working();
+        h.coordinator.backend.microphone_denied = true;
+        h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert_eq!(
+            h.log.take(),
+            [
+                "start mic",
+                "start system",
+                "alert MicrophoneDenied",
+                "recording Both"
+            ]
+        );
+        h.coordinator.stop().unwrap();
+
+        // System audio alone does not use the microphone.
+        h.log.take();
+        h.coordinator.start(MeetingCaptureMode::SystemOnly).unwrap();
+        assert!(!h.log.take().iter().any(|entry| entry.starts_with("alert")));
     }
 
     #[test]
