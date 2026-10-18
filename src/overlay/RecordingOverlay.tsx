@@ -45,12 +45,14 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
     return () => window.clearInterval(timer);
   }, []);
   const warning = now >= stopsAtMs - CAP_WARNING_MS;
+  // Woken past the cap, the meeting stops within a tick: never read past it.
+  const elapsed = Math.min(now, stopsAtMs) - startedAtMs;
   return (
     <div
       className={`ov-capsule ov-meeting${warning ? " warning" : ""}`}
       role="timer"
     >
-      <span>{formatDuration(now - startedAtMs)}</span>
+      <span>{formatDuration(elapsed)}</span>
     </div>
   );
 };

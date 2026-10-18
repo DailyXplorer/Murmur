@@ -339,8 +339,14 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             });
         }
         active.interrupted = interrupted;
-        let elapsed = self.clock.now().saturating_duration_since(active.origin);
-        match cap_action(elapsed, active.warned) {
+        // The cap counts wall-clock time, as the pill does: a Mac asleep
+        // records nothing, but a meeting left running overnight stops on
+        // waking. `Instant` stands still in sleep, so it only guards against
+        // the clock being set back.
+        let awake = self.clock.now().saturating_duration_since(active.origin);
+        let wall = u64::try_from(self.clock.unix_ms() - active.started_at_ms)
+            .map_or(Duration::ZERO, Duration::from_millis);
+        match cap_action(awake.max(wall), active.warned) {
             CapAction::None => true,
             CapAction::Warn => {
                 active.warned = true;
@@ -490,11 +496,17 @@ mod tests {
     struct FakeClock {
         origin: Instant,
         elapsed: Arc<Mutex<Duration>>,
+        /// Wall-clock time without `Instant` time, as during a Mac's sleep.
+        asleep: Arc<Mutex<Duration>>,
     }
 
     impl FakeClock {
         fn advance(&self, by: Duration) {
             *self.elapsed.lock().unwrap() += by;
+        }
+
+        fn sleep(&self, by: Duration) {
+            *self.asleep.lock().unwrap() += by;
         }
     }
 
@@ -503,7 +515,8 @@ mod tests {
             self.origin + *self.elapsed.lock().unwrap()
         }
         fn unix_ms(&self) -> i64 {
-            1_760_000_000_000 + self.elapsed.lock().unwrap().as_millis() as i64
+            let wall = *self.elapsed.lock().unwrap() + *self.asleep.lock().unwrap();
+            1_760_000_000_000 + wall.as_millis() as i64
         }
     }
 
@@ -532,6 +545,7 @@ mod tests {
         let clock = FakeClock {
             origin: Instant::now(),
             elapsed: Arc::default(),
+            asleep: Arc::default(),
         };
         let backend = FakeBackend {
             support,
@@ -781,6 +795,27 @@ mod tests {
         );
         assert_eq!(statuses(&h.store)[0].0, MeetingStatus::Processing);
         assert!(!h.coordinator.tick(id));
+    }
+
+    #[test]
+    fn time_asleep_counts_toward_the_cap_but_not_into_the_audio() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+
+        h.clock.advance(Duration::from_secs(3600));
+        h.clock.sleep(Duration::from_secs(2 * 3600));
+        assert!(!h.coordinator.tick(id));
+        assert_eq!(
+            h.log.take(),
+            [
+                "finish mic 3600s",
+                "finish system 3600s",
+                "idle",
+                "recorded",
+                "alert StoppedAtLimit"
+            ]
+        );
     }
 
     #[test]

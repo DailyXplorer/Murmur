@@ -380,3 +380,21 @@ test("the meeting pill ticks without moving, turns amber near the cap and gives 
   await expect(pill).toHaveText("2:56:00");
   await expect(pill).toHaveClass(/warning/);
 });
+
+test("after a sleep past the cap the pill reads the cap until the meeting stops", async ({
+  page,
+}) => {
+  const now = Date.parse("2026-10-17T10:00:00Z");
+  const cap = 3 * 3600 * 1000;
+  await page.clock.install({ time: now - 1_000 });
+  await page.clock.pauseAt(now);
+  await page.setViewportSize(RECORDING_WINDOW);
+  await openOverlay(page);
+  const startedAt = now - cap - 20 * 60 * 1000;
+
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: startedAt,
+    stops_at_ms: startedAt + cap,
+  });
+  await expect(page.locator(".ov-meeting")).toHaveText("3:00:00");
+});
