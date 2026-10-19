@@ -757,6 +757,9 @@ mais
 maintenant
 maison
 mal
+marche
+mari
+marre
 matin
 me
 même
@@ -808,6 +811,7 @@ place
 plus
 point
 porte
+poule
 pour
 pourquoi
 pouvoir
