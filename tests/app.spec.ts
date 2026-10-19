@@ -253,6 +253,68 @@ test.describe("Murmur App", () => {
     }
   });
 
+  test("the Learned badge reads on its word chip for every accent", async ({
+    page,
+  }) => {
+    await page.goto("/tests/fixtures/settings-pages.html");
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Transcription", exact: true })
+      .click();
+    const badge = page
+      .getByRole("button", { name: "Remove Playwright" })
+      .getByText("Learned", { exact: true });
+    await expect(badge).toBeVisible();
+
+    const samples = await badge.evaluate((element) => {
+      const chip = element.closest("button");
+      const accents = ["pink", "blue", "green", "yellow", "orange", "red"];
+      const themes = ["light", "dark"];
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+
+      if (!chip) throw new Error("Word chip is unavailable");
+      if (!context) throw new Error("Canvas 2D context is unavailable");
+
+      /** The colour `layers` give painted one over the other. */
+      const paint = (...layers: string[]): number[] => {
+        context.clearRect(0, 0, 1, 1);
+        for (const layer of layers) {
+          context.fillStyle = "#000000";
+          context.fillStyle = layer;
+          context.fillRect(0, 0, 1, 1);
+        }
+        return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      };
+
+      return themes.flatMap((theme) => {
+        document.documentElement.dataset.theme = theme;
+
+        return accents.map((accent) => {
+          document.documentElement.dataset.accentColor = accent;
+          const chipColor = getComputedStyle(chip).backgroundColor;
+          const badgeStyles = getComputedStyle(element);
+
+          return {
+            accent,
+            theme,
+            background: paint(chipColor, badgeStyles.backgroundColor),
+            text: paint(chipColor, badgeStyles.color),
+          };
+        });
+      });
+    });
+
+    for (const { accent, theme, background, text } of samples) {
+      expect(
+        contrastRatio(background, text),
+        `${accent} in ${theme} mode keeps the Learned badge above 4.5:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   test("primary button keeps a contrasting legacy focus fallback", async ({
     page,
   }) => {
