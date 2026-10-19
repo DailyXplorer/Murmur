@@ -1,4 +1,5 @@
 use crate::dictionary::{is_everyday_word, ELISIONS};
+use crate::meetings::tokens::is_title;
 use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -185,6 +186,24 @@ fn written_as_name(span: &[&str], opens_sentence: bool) -> bool {
         && body.starts_with(char::is_uppercase)
 }
 
+/// Whether the word after `before` opens a sentence. A closing mark written
+/// apart, as in « on a gagné ! » Allez, is looked through to the word it
+/// closes, and a title's full stop ("Dr.", "M.") ends no sentence.
+fn opens_sentence(before: &[&str]) -> bool {
+    for word in before.iter().rev() {
+        if extract_punctuation(word)
+            .1
+            .contains(['.', '!', '?', ':', '…'])
+        {
+            return !is_title(word);
+        }
+        if word.chars().any(char::is_alphanumeric) {
+            return false;
+        }
+    }
+    true
+}
+
 /// The closest custom-word key for a span whose edge words both belong to
 /// the match.
 fn match_span<'k>(
@@ -277,10 +296,7 @@ fn candidate_spans<'a>(
             {
                 continue;
             }
-            let opens_sentence = start == 0
-                || extract_punctuation(words[start - 1])
-                    .1
-                    .contains(['.', '!', '?', ':', '…']);
+            let opens_sentence = opens_sentence(&words[..start]);
             let mut best = None;
             let elided = split_elision(span[0]).map(|(elision, rest)| {
                 let mut span = span.to_vec();
@@ -686,6 +702,9 @@ mod tests {
             ("Zach", "ask Zack first", "ask Zach first"),
             ("Luka", "je vois Luca demain", "je vois Luka demain"),
             ("Sarah", "call Sara today", "call Sarah today"),
+            // A title's full stop ends no sentence.
+            ("Zach", "ask Dr. Zack first", "ask Dr. Zach first"),
+            ("Luka", "j'ai vu M. Luca hier", "j'ai vu M. Luka hier"),
         ];
         for (word, input, expected) in cases {
             assert_eq!(
@@ -716,6 +735,9 @@ mod tests {
             ("Mona", "I told Mom"),
             ("Nina", "Nine people came."),
             ("Nina", "Done. Nine people came."),
+            // A closing mark written apart, after the sentence end.
+            ("Alex", "Il a crié « on a gagné ! » Allez, on rentre."),
+            ("Alex", "Il a crié \" on a gagné ! \" Allez, on rentre."),
             ("Pam", "the PM said"),
             ("Jess", "le code JS"),
             ("Avi", "the API returns"),
