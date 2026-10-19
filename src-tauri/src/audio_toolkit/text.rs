@@ -700,8 +700,8 @@ mod tests {
             ("la musique de D'Angelo", "la musique de D'Angelo", 0),
             // An everyday word after the elision is what the user said.
             (
-                "Bonjour, je m'appelle Louis",
-                "Bonjour, je m'appelle Louis",
+                "Bonjour, je m'appelle Marc",
+                "Bonjour, je m'appelle Marc",
                 0,
             ),
             ("il s'appelle Paul", "il s'appelle Paul", 0),
