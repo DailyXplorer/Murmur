@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "声音",
+      "defaultDevice": "默认",
       "microphone": {
         "title": "麦克风",
         "description": "选择您偏好的麦克风设备",

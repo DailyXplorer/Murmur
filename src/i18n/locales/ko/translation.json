@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "사운드",
+      "defaultDevice": "기본값",
       "microphone": {
         "title": "마이크",
         "description": "선호하는 마이크 장치를 선택하세요",

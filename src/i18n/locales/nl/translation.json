@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Geluid",
+      "defaultDevice": "Standaard",
       "microphone": {
         "title": "Microfoon",
         "description": "Selecteer de gewenste microfoon",

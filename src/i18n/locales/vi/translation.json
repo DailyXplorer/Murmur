@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Âm thanh",
+      "defaultDevice": "Mặc định",
       "microphone": {
         "title": "Micrô",
         "description": "Chọn thiết bị micrô ưa thích của bạn",

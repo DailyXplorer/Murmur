@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Lyd",
+      "defaultDevice": "Standard",
       "microphone": {
         "title": "Mikrofon",
         "description": "Vælg din foretrukne mikrofonenhed",

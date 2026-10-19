@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "الصوت",
+      "defaultDevice": "الافتراضي",
       "microphone": {
         "title": "الميكروفون",
         "description": "اختر جهاز الميكروفون المفضل لديك",

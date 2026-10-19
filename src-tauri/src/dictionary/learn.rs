@@ -11,7 +11,8 @@
 //! another ("Q3" -> "Q4", "iOS" -> "macOS", "John" -> "Joan"): the
 //! transcript already held a name, so the user changed what they meant.
 //! Chinese and Japanese, written without spaces, are never learned: only a
-//! Latin term fixed inside them, which is cut out of the text around it.
+//! Latin term fixed inside them, which is cut out of the text around it. A
+//! possessive or a French elision kept on both sides is cut off the same way.
 
 use crate::insights::stats::is_cjk;
 use natural::phonetics::soundex;
@@ -80,30 +81,30 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         if !(1..=2).contains(&replaced.len()) || replacement.len() != 1 {
             continue;
         }
-        let word = core(replacement[0]);
         let heard_as = replaced
             .iter()
             .map(|w| core(w))
             .collect::<Vec<_>>()
             .join(" ");
+        let (heard_as, word) = without_clitics(&heard_as, core(replacement[0]));
         let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
         let heard_at_sentence_start = hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]);
-        let heard_a_term = replaced
-            .iter()
+        let heard_a_term = heard_as
+            .split_whitespace()
             .enumerate()
-            .any(|(i, w)| looks_like_a_term(core(w), i == 0 && heard_at_sentence_start));
+            .any(|(i, w)| looks_like_a_term(w, i == 0 && heard_at_sentence_start));
         if looks_like_a_term(word, sentence_start)
             && !heard_a_term
-            && !said_on_purpose(&heard_as, word)
-            && sounds_alike(&heard_as, word)
-            && !only_inflected(&heard_as, word)
-            && !only_extended(&heard_as, word)
-            && !kept_elsewhere(&heard_as, &new)
+            && !said_on_purpose(heard_as, word)
+            && sounds_alike(heard_as, word)
+            && !only_inflected(heard_as, word)
+            && !only_extended(heard_as, word)
+            && !kept_elsewhere(heard_as, &new)
             && !learned.iter().any(|known| known.word == word)
         {
             learned.push(Correction {
                 word: word.to_string(),
-                heard_as,
+                heard_as: heard_as.to_string(),
             });
         }
         if learned.len() == MAX_LEARNED_PER_DICTATION {
@@ -196,6 +197,31 @@ fn push_hunk(hunks: &mut Vec<Hunk>, old: std::ops::Range<usize>, new: std::ops::
 /// of "R&D" or the `-` of "GPT-4" are part of the word.
 fn core(word: &str) -> &str {
     word.trim_matches(|c: char| !c.is_alphanumeric())
+}
+
+/// French elisions, written against the next word: "d'Anthropic".
+const ELISIONS: [&str; 12] = [
+    "c", "d", "j", "l", "m", "n", "s", "t", "qu", "jusqu", "lorsqu", "puisqu",
+];
+
+/// A clitic on both sides is grammar around the name, not part of it:
+/// "clawd's" -> "Claude's" fixes "Claude", and "d'antropic" ->
+/// "d'Anthropic" fixes "Anthropic". Only a lowercase elision is one, so
+/// "O'Brien" stays whole.
+fn without_clitics<'a>(heard: &'a str, word: &'a str) -> (&'a str, &'a str) {
+    let elided = |text: &'a str| {
+        text.split_once(['\'', '’'])
+            .filter(|(elision, _)| ELISIONS.contains(elision))
+    };
+    let (heard, word) = match (elided(heard), elided(word)) {
+        (Some((a, heard)), Some((b, word))) if a == b => (heard, word),
+        _ => (heard, word),
+    };
+    let possessive = |text: &'a str| text.strip_suffix("'s").or_else(|| text.strip_suffix("’s"));
+    match (possessive(heard), possessive(word)) {
+        (Some(heard), Some(word)) => (heard, word),
+        _ => (heard, word),
+    }
 }
 
 fn letters(text: &str) -> String {
@@ -478,6 +504,34 @@ mod tests {
         assert_eq!(
             learned("時々clawdを使う", "時々Claudeを使う"),
             vec![pair("Claude", "clawd")]
+        );
+    }
+
+    #[test]
+    fn a_possessive_or_an_elision_on_both_sides_is_not_part_of_the_name() {
+        assert_eq!(
+            learned("I read clawd's answer.", "I read Claude's answer."),
+            vec![pair("Claude", "clawd")]
+        );
+        assert_eq!(
+            learned("I read clawd’s answer.", "I read Claude’s answer."),
+            vec![pair("Claude", "clawd")]
+        );
+        assert!(learned("I read the cloud's answer", "I read the Claude's answer").is_empty());
+        assert_eq!(
+            learned(
+                "le modèle d'antropic est bon",
+                "le modèle d'Anthropic est bon"
+            ),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("c'est l’antropic", "c'est l’Anthropic"),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("ask o'brian today", "ask O'Brien today"),
+            vec![pair("O'Brien", "o'brian")]
         );
     }
 

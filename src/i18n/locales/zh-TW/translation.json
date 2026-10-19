@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "聲音",
+      "defaultDevice": "預設",
       "microphone": {
         "title": "麥克風",
         "description": "選擇您偏好的麥克風裝置",

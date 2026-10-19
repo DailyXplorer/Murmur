@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Som",
+      "defaultDevice": "Padrão",
       "microphone": {
         "title": "Microfone",
         "description": "Selecione seu dispositivo de microfone preferido",

@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Звук",
+      "defaultDevice": "За замовчуванням",
       "microphone": {
         "title": "Мікрофон",
         "description": "Оберіть бажаний мікрофон",

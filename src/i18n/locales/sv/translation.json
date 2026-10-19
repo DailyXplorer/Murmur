@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Ljud",
+      "defaultDevice": "Standard",
       "microphone": {
         "title": "Mikrofon",
         "description": "Välj din föredragna mikrofonenhet",

@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Son",
+      "defaultDevice": "Par défaut",
       "microphone": {
         "title": "Microphone",
         "description": "Sélectionnez votre périphérique d'entrée audio",

@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Ses",
+      "defaultDevice": "Varsayılan",
       "microphone": {
         "title": "Mikrofon",
         "description": "Tercih ettiğiniz mikrofon cihazını seçin",

@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Suono",
+      "defaultDevice": "Predefinito",
       "microphone": {
         "title": "Microfono",
         "description": "Scegli il microfono preferito",

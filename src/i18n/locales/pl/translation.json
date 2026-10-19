@@ -178,6 +178,7 @@
     },
     "sound": {
       "title": "Dźwięk",
+      "defaultDevice": "Domyślne",
       "microphone": {
         "title": "Mikrofon",
         "description": "Wybierz preferowane urządzenie mikrofonowe",
