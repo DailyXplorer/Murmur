@@ -75,7 +75,6 @@
         "hours": "{{hours}} godz.",
         "hoursMinutes": "{{hours}} godz. {{minutes}} min"
       },
-      "baseline": "w porównaniu z pisaniem {{wpm}} słów/min",
       "formula": "Dla każdego dyktowania czas, jaki zajęłoby wpisanie jego słów z prędkością {{wpm}} słów na minutę, minus czas mówienia, nigdy poniżej zera."
     },
     "apps": {

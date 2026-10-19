@@ -75,7 +75,6 @@
         "hours": "{{hours}} t",
         "hoursMinutes": "{{hours}} t {{minutes}} min"
       },
-      "baseline": "sammenlignet med at skrive {{wpm}} ord/min",
       "formula": "For hver diktering den tid, det ville tage at skrive ordene med {{wpm}} ord i minuttet, minus den tid, du talte, aldrig under nul."
     },
     "apps": {

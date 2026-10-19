@@ -75,7 +75,6 @@
         "hours": "{{hours}} h",
         "hoursMinutes": "{{hours}} h {{minutes}} min"
       },
-      "baseline": "rispetto a digitare a {{wpm}} parole/min",
       "formula": "Per ogni dettatura, il tempo necessario a digitarne le parole a {{wpm}} parole al minuto, meno il tempo passato a parlare, mai sotto zero."
     },
     "apps": {

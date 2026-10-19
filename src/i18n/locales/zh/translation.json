@@ -75,7 +75,6 @@
         "hours": "{{hours}} 小时",
         "hoursMinutes": "{{hours}} 小时 {{minutes}} 分钟"
       },
-      "baseline": "相比每分钟打 {{wpm}} 个词",
       "formula": "每次听写按每分钟 {{wpm}} 个词计算打出这些词所需的时间，减去说话所用的时间，最低为零。"
     },
     "apps": {

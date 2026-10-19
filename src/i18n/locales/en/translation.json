@@ -75,7 +75,6 @@
         "hours": "{{hours}} h",
         "hoursMinutes": "{{hours}} h {{minutes}} min"
       },
-      "baseline": "vs typing at {{wpm}} wpm",
       "formula": "For each dictation, the time its words would take to type at {{wpm}} words per minute, minus the time you spent speaking, never below zero."
     },
     "apps": {

@@ -75,7 +75,6 @@
         "hours": "{{hours}} h",
         "hoursMinutes": "{{hours}} h {{minutes}} min"
       },
-      "baseline": "em comparação a digitar a {{wpm}} palavras/min",
       "formula": "Para cada ditado, o tempo que levaria para digitar as palavras a {{wpm}} palavras por minuto, menos o tempo que você passou falando, nunca abaixo de zero."
     },
     "apps": {

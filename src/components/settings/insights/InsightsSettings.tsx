@@ -313,11 +313,7 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
           tooltip={t("insights.timeSaved.formula", {
             wpm: format.number.format(TYPING_WPM),
           })}
-        >
-          {t("insights.timeSaved.baseline", {
-            wpm: format.number.format(TYPING_WPM),
-          })}
-        </StatTile>
+        />
       </div>
 
       <SettingsGroup title={t("insights.apps.title")}>

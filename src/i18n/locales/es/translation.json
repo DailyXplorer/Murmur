@@ -75,7 +75,6 @@
         "hours": "{{hours}} h",
         "hoursMinutes": "{{hours}} h {{minutes}} min"
       },
-      "baseline": "frente a escribir a {{wpm}} palabras/min",
       "formula": "Para cada dictado, el tiempo que tardarías en escribir sus palabras a {{wpm}} palabras por minuto, menos el tiempo que pasaste hablando, nunca por debajo de cero."
     },
     "apps": {

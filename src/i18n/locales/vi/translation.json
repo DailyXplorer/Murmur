@@ -75,7 +75,6 @@
         "hours": "{{hours}} giờ",
         "hoursMinutes": "{{hours}} giờ {{minutes}} phút"
       },
-      "baseline": "so với gõ {{wpm}} từ/phút",
       "formula": "Với mỗi lần đọc chính tả, thời gian cần để gõ các từ đó với tốc độ {{wpm}} từ mỗi phút trừ đi thời gian bạn nói, không bao giờ dưới 0."
     },
     "apps": {

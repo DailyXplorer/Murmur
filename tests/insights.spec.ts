@@ -19,7 +19,6 @@ test("shows speed, totals, time saved, app usage and streak", async ({
     has: page.getByRole("heading", { name: "Time saved" }),
   });
   await expect(timeSaved.getByText("14 h 25 min")).toBeVisible();
-  await expect(timeSaved.getByText("vs typing at 40 wpm")).toBeVisible();
   await expect(
     timeSaved.getByRole("button", {
       name: "For each dictation, the time its words would take to type at 40 words per minute, minus the time you spent speaking, never below zero.",

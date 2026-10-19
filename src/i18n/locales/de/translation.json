@@ -75,7 +75,6 @@
         "hours": "{{hours}} Std.",
         "hoursMinutes": "{{hours}} Std. {{minutes}} Min."
       },
-      "baseline": "gegenüber Tippen mit {{wpm}} Wörtern/Min.",
       "formula": "Für jedes Diktat die Zeit, die das Tippen seiner Wörter mit {{wpm}} Wörtern pro Minute dauern würde, abzüglich deiner Sprechzeit, nie unter null."
     },
     "apps": {

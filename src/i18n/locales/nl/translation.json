@@ -75,7 +75,6 @@
         "hours": "{{hours}} u",
         "hoursMinutes": "{{hours}} u {{minutes}} min"
       },
-      "baseline": "vergeleken met typen op {{wpm}} woorden/min",
       "formula": "Per dictaat de tijd die het typen van de woorden op {{wpm}} woorden per minuut zou kosten, min de tijd die je sprak, nooit onder nul."
     },
     "apps": {

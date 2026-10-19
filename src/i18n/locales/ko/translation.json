@@ -75,7 +75,6 @@
         "hours": "{{hours}}시간",
         "hoursMinutes": "{{hours}}시간 {{minutes}}분"
       },
-      "baseline": "분당 {{wpm}}단어 타이핑 대비",
       "formula": "받아쓰기마다 그 단어를 분당 {{wpm}}단어로 입력하는 데 걸리는 시간에서 말한 시간을 뺀 값이며, 0보다 작아지지 않습니다."
     },
     "apps": {
