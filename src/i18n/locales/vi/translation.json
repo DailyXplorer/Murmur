@@ -11,7 +11,6 @@
     "errorServer": "Dịch vụ chép lời đang gặp sự cố. Hãy thử lại từ Lịch sử.",
     "errorSessionExpired": "Phiên Codex đã hết hạn. Hãy mở Codex và đăng nhập lại.",
     "errorSignedOut": "Chưa đăng nhập Codex. Hãy mở Codex và đăng nhập.",
-    "errorGeminiSessionExpired": "Phiên Gemini trong Antigravity đã kết thúc. Hãy mở Antigravity và đăng nhập lại.",
     "errorTooLarge": "Bản ghi này quá dài đối với dịch vụ. Hãy thử bản ngắn hơn.",
     "errorTranscription": "Chép lời thất bại. Hãy thử lại từ Lịch sử.",
     "errorPaste": "Không dán được. Văn bản có trong bảng nhớ tạm và trong Lịch sử.",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "Chọn dịch vụ phiên âm",
-      "description": "Chọn một dịch vụ đã được cấu hình để hoàn tất thiết lập. Murmur phát hiện cấu hình cục bộ nhưng không xác minh kết nối đang hoạt động.",
-      "antigravityDescription": "Sử dụng cấu hình Antigravity được phát hiện trên máy Mac này.",
-      "experimental": "Thử nghiệm",
+      "title": "Kết nối Codex",
+      "description": "Đăng nhập Codex trên máy Mac này để hoàn tất thiết lập. Murmur phát hiện cấu hình cục bộ nhưng không xác minh kết nối đang hoạt động.",
       "configured": "Đã phát hiện cấu hình",
-      "selectionRequired": "Chọn một dịch vụ phiên âm đã được cấu hình để tiếp tục.",
       "retry": "Thử lại",
       "continue": "Tiếp tục",
-      "providerChangeFailed": "Không thể lưu dịch vụ phiên âm đã chọn. Vui lòng thử lại.",
       "completionFailed": "Không thể hoàn tất thiết lập. Hãy làm mới trạng thái và thử lại.",
-      "openFailed": "Không thể mở Antigravity.",
-      "installFailed": "Không thể mở trang tải xuống Antigravity.",
       "setupCodex": "Mở thiết lập Codex",
       "codexSetupFailed": "Không thể mở thiết lập Codex."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Không phát hiện cấu hình"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "Giao diện"
       }
     },
-    "languageAutoOnly": "Antigravity tự động phát hiện ngôn ngữ. Lựa chọn ngôn ngữ Codex của bạn sẽ được giữ lại khi chuyển về Codex.",
     "sound": {
       "title": "Âm thanh",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "Đang kiểm tra cấu hình…",
       "statusUnavailable": "Không thể lấy trạng thái",
       "missing": "Chưa đăng nhập",
-      "providerTitle": "Dịch vụ phiên âm",
-      "providerDescription": "Chọn dịch vụ chép lời cho các bản đọc mới.",
-      "notInstalled": "Chưa cài đặt Antigravity",
-      "installAntigravity": "Cài đặt",
-      "openAntigravity": "Mở Antigravity",
       "groups": {
         "service": "Dịch vụ",
         "processing": "Xử lý văn bản",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "Dọn dẹp và định dạng bằng AI",
         "description": "Xóa từ đệm, chỉ giữ cách diễn đạt cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Nếu thất bại hoặc mất quá nhiều thời gian, bản chép lời gốc sẽ được dán."
-      },
-      "cleanupEngine": {
-        "title": "Công cụ dọn dẹp",
-        "description": "Apple Intelligence chạy trên máy Mac này: miễn phí, không giới hạn, ngoại tuyến và riêng tư. Codex dùng phiên ChatGPT của bạn và tính vào giới hạn sử dụng của phiên đó.",
-        "options": {
-          "apple": "Apple Intelligence (trên máy Mac này)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Khi Apple Intelligence không thể chạy, Codex sẽ dọn dẹp văn bản nếu bạn đã đăng nhập; nếu không, bản chép lời gốc sẽ được dán.",
-          "available": "Sẵn sàng trên máy Mac này",
-          "deviceNotEligible": "Không được hỗ trợ trên máy Mac này",
-          "appleIntelligenceNotEnabled": "Bật Apple Intelligence trong Cài đặt hệ thống",
-          "modelNotReady": "Vẫn đang tải xuống, hãy thử lại sau",
-          "unsupportedOs": "Yêu cầu macOS 26 trở lên",
-          "unavailable": "Hiện không khả dụng",
-          "unsupportedLanguage": "Không khả dụng bằng {{language}}"
-        }
       },
       "windowNames": {
         "title": "Tên từ cửa sổ đang hoạt động",

@@ -16,7 +16,6 @@ mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
 mod dictionary;
-mod gemini_transcribe;
 mod helpers;
 mod input;
 mod insights;
@@ -515,10 +514,6 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         }
     };
     let audio_secs = samples.len() as f64 / 16_000.0;
-    let backend = match get_settings(app).transcription_provider {
-        settings::TranscriptionProvider::Codex => "chatgpt-session",
-        settings::TranscriptionProvider::Gemini => "antigravity-session",
-    };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
     let text = match tm.transcribe_sync(samples) {
@@ -539,7 +534,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         println!(
             "{}",
             serde_json::json!({
-                "backend": backend,
+                "backend": "chatgpt-session",
                 "audio_secs": audio_secs,
                 "transcribe_ms": elapsed_ms,
                 "rtf": rtf,
@@ -548,7 +543,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         );
     } else {
         println!(
-            "backend={backend} audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
+            "backend=chatgpt-session audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
         );
         println!("text: {}", text);
     }
@@ -570,7 +565,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_start_hidden_setting,
             shortcut::change_autostart_setting,
             shortcut::change_selected_language_setting,
-            shortcut::change_transcription_provider_setting,
             shortcut::change_overlay_position_setting,
             shortcut::change_overlay_style_setting,
             shortcut::change_debug_mode_setting,
@@ -591,8 +585,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
             commands::cleanup::change_ai_cleanup_setting,
-            commands::cleanup::change_cleanup_engine_setting,
-            commands::cleanup::get_apple_intelligence_status,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
             shortcut::change_app_language_setting,
@@ -627,8 +619,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
-            commands::transcription::get_gemini_status,
-            commands::transcription::open_antigravity,
             commands::transcription::complete_onboarding,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
@@ -801,7 +791,7 @@ pub fn run(cli_args: CliArgs) {
                     handle
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
-                        .shutdown_and_wait(std::time::Duration::from_secs(3));
+                        .shutdown();
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();

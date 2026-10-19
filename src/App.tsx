@@ -25,13 +25,11 @@ import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
-import { commands, type TranscriptionProvider } from "@/bindings";
+import { commands } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 type OnboardingState =
-  | { kind: "permissions"; configuredProvider: TranscriptionProvider }
-  | { kind: "provider"; configuredProvider: TranscriptionProvider }
-  | { kind: "done" };
+  { kind: "permissions" } | { kind: "provider" } | { kind: "done" };
 
 /** Mirrors `FailureKind` in src-tauri/src/transcription_error.rs. */
 type FailureKind =
@@ -48,7 +46,6 @@ type FailureKind =
 interface TranscriptionErrorEvent {
   kind: FailureKind;
   detail: string;
-  provider: TranscriptionProvider;
 }
 
 /** The same messages the overlay and notifications show. */
@@ -63,16 +60,6 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   rejected: "tray.errorTranscription",
   other: "tray.errorTranscription",
 };
-
-/** Gemini runs on the Antigravity session, not on Codex's. */
-const failureMessageKey = ({ kind, provider }: TranscriptionErrorEvent) =>
-  provider === "gemini" && (kind === "session_expired" || kind === "signed_out")
-    ? "tray.errorGeminiSessionExpired"
-    : FAILURE_MESSAGE_KEYS[kind];
-
-const transcriptionProviderFromSettings = (
-  provider: TranscriptionProvider | undefined,
-): TranscriptionProvider => (provider === "gemini" ? "gemini" : "codex");
 
 const initializeKeyboardAutomation = async () => {
   const [enigoResult, shortcutsResult] = await Promise.all([
@@ -117,7 +104,6 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
-  const configuredProviderRef = useRef<TranscriptionProvider>("codex");
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -152,10 +138,7 @@ function App() {
           return;
         }
         await revealMainWindowForPermissions();
-        setOnboardingState({
-          kind: "permissions",
-          configuredProvider: configuredProviderRef.current,
-        });
+        setOnboardingState({ kind: "permissions" });
       }
     };
 
@@ -225,7 +208,7 @@ function App() {
       "transcription-error",
       (event) => {
         toast.error(t("errors.transcriptionFailedTitle"), {
-          description: t(failureMessageKey(event.payload)),
+          description: t(FAILURE_MESSAGE_KEYS[event.payload.kind]),
           action: {
             label: t("transcriptionFailedAction"),
             onClick: () => setCurrentSection("transcription"),
@@ -241,12 +224,6 @@ function App() {
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
-      const configuredProvider = transcriptionProviderFromSettings(
-        settingsResult.status === "ok"
-          ? settingsResult.data.transcription_provider
-          : undefined,
-      );
-      configuredProviderRef.current = configuredProvider;
       const hasCompletedOnboarding =
         settingsResult.status === "ok" &&
         settingsResult.data.onboarding_completed === true;
@@ -258,7 +235,7 @@ function App() {
           ]);
           if (!hasAccessibility || !hasMicrophone) {
             await revealMainWindowForPermissions();
-            setOnboardingState({ kind: "permissions", configuredProvider });
+            setOnboardingState({ kind: "permissions" });
             return;
           }
         } catch (e) {
@@ -270,7 +247,7 @@ function App() {
         } catch (e) {
           console.warn("Failed to initialize:", e);
           await revealMainWindowForPermissions();
-          setOnboardingState({ kind: "permissions", configuredProvider });
+          setOnboardingState({ kind: "permissions" });
           return;
         }
 
@@ -279,36 +256,22 @@ function App() {
         refreshOutputDevices();
         setOnboardingState({ kind: "done" });
       } else {
-        setOnboardingState({ kind: "permissions", configuredProvider });
+        setOnboardingState({ kind: "permissions" });
       }
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
-      setOnboardingState({
-        kind: "permissions",
-        configuredProvider: "codex",
-      });
+      setOnboardingState({ kind: "permissions" });
     }
   };
 
   const handlePermissionsComplete = useCallback(() => {
-    setOnboardingState((current) => {
-      if (current?.kind !== "permissions") return current;
-      return {
-        kind: "provider",
-        configuredProvider: current.configuredProvider,
-      };
-    });
+    setOnboardingState((current) =>
+      current?.kind === "permissions" ? { kind: "provider" } : current,
+    );
   }, []);
 
-  const handleProviderComplete = async (
-    provider: TranscriptionProvider,
-  ): Promise<boolean> => {
+  const handleProviderComplete = async (): Promise<boolean> => {
     try {
-      const persisted = await updateSetting("transcription_provider", provider);
-      if (!persisted) {
-        toast.error(t("onboarding.provider.providerChangeFailed"));
-        return false;
-      }
       const result = await commands.completeOnboarding();
       if (result.status === "error") {
         console.warn("Failed to complete onboarding:", result.error);
@@ -321,7 +284,6 @@ function App() {
       toast.error(t("onboarding.provider.completionFailed"));
       return false;
     }
-    configuredProviderRef.current = provider;
     setOnboardingState({ kind: "done" });
     return true;
   };
@@ -353,12 +315,7 @@ function App() {
       <AccessibilityOnboarding onComplete={handlePermissionsComplete} />
     );
   } else if (onboardingState.kind === "provider") {
-    content = (
-      <ProviderOnboarding
-        configuredProvider={onboardingState.configuredProvider}
-        onComplete={handleProviderComplete}
-      />
-    );
+    content = <ProviderOnboarding onComplete={handleProviderComplete} />;
   } else {
     content = (
       <div

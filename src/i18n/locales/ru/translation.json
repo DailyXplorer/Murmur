@@ -11,7 +11,6 @@
     "errorServer": "В службе транскрипции неполадки. Повторите из истории.",
     "errorSessionExpired": "Сеанс Codex истёк. Откройте Codex и войдите снова.",
     "errorSignedOut": "Вход в Codex не выполнен. Откройте Codex и войдите.",
-    "errorGeminiSessionExpired": "Сеанс Gemini в Antigravity завершён. Откройте Antigravity и войдите снова.",
     "errorTooLarge": "Запись слишком длинная для службы. Попробуйте покороче.",
     "errorTranscription": "Не удалось выполнить транскрипцию. Повторите из истории.",
     "errorPaste": "Не удалось вставить. Текст в буфере обмена и в истории.",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "Выберите службу транскрипции",
-      "description": "Выберите настроенную службу, чтобы завершить настройку. Murmur определяет локальную конфигурацию, но не проверяет активное соединение.",
-      "antigravityDescription": "Использует конфигурацию Antigravity, найденную на этом Mac.",
-      "experimental": "Экспериментальная",
+      "title": "Подключите Codex",
+      "description": "Войдите в Codex на этом Mac, чтобы завершить настройку. Murmur определяет локальную конфигурацию, но не проверяет активное соединение.",
       "configured": "Конфигурация обнаружена",
-      "selectionRequired": "Выберите настроенную службу транскрипции, чтобы продолжить.",
       "retry": "Повторить",
       "continue": "Продолжить",
-      "providerChangeFailed": "Не удалось сохранить выбранную службу транскрипции. Повторите попытку.",
       "completionFailed": "Не удалось завершить настройку. Обновите состояние и повторите попытку.",
-      "openFailed": "Не удалось открыть Antigravity.",
-      "installFailed": "Не удалось открыть страницу загрузки Antigravity.",
       "setupCodex": "Открыть настройку Codex",
       "codexSetupFailed": "Не удалось открыть настройку Codex."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Конфигурация не обнаружена"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "Внешний вид"
       }
     },
-    "languageAutoOnly": "Antigravity определяет язык автоматически. Выбор языка Codex сохранится, когда вы вернётесь к Codex.",
     "sound": {
       "title": "Звук",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "Проверка конфигурации…",
       "statusUnavailable": "Статус недоступен",
       "missing": "Вы не вошли в систему",
-      "providerTitle": "Сервис транскрибации",
-      "providerDescription": "Выберите сервис транскрибации для новых диктовок.",
-      "notInstalled": "Antigravity не установлен",
-      "installAntigravity": "Установить",
-      "openAntigravity": "Открыть Antigravity",
       "groups": {
         "service": "Сервис",
         "processing": "Обработка текста",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "Очистка и форматирование с ИИ",
         "description": "Удаляет слова-паразиты, оставляет только окончательный вариант, когда вы себя поправляете, исправляет пунктуацию и оформляет списки и продиктованные переносы строк. Никогда не переводит и не переписывает. Если не удалось или заняло слишком много времени, вставляется исходная расшифровка."
-      },
-      "cleanupEngine": {
-        "title": "Движок очистки",
-        "description": "Apple Intelligence работает на этом Mac: бесплатно, без ограничений, офлайн и конфиденциально. Codex использует ваш сеанс ChatGPT и расходует его лимиты.",
-        "options": {
-          "apple": "Apple Intelligence (на этом Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Если Apple Intelligence не может работать, текст очищает Codex, когда вы вошли в систему; иначе вставляется исходная расшифровка.",
-          "available": "Готово на этом Mac",
-          "deviceNotEligible": "Не поддерживается на этом Mac",
-          "appleIntelligenceNotEnabled": "Включите Apple Intelligence в Системных настройках",
-          "modelNotReady": "Ещё загружается, попробуйте позже",
-          "unsupportedOs": "Требуется macOS 26 или новее",
-          "unavailable": "Сейчас недоступно",
-          "unsupportedLanguage": "Недоступно на языке {{language}}"
-        }
       },
       "windowNames": {
         "title": "Имена из активного окна",

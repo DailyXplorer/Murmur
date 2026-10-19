@@ -11,7 +11,6 @@
     "errorServer": "ट्रान्सक्रिप्सन सेवामा समस्या छ। इतिहासबाट फेरि प्रयास गर्नुहोस्।",
     "errorSessionExpired": "तपाईंको Codex सत्र समाप्त भयो। Codex खोलेर फेरि साइन इन गर्नुहोस्।",
     "errorSignedOut": "Codex मा साइन इन गरिएको छैन। Codex खोलेर साइन इन गर्नुहोस्।",
-    "errorGeminiSessionExpired": "Antigravity मा तपाईंको Gemini सत्र समाप्त भयो। Antigravity खोलेर फेरि साइन इन गर्नुहोस्।",
     "errorTooLarge": "यो रेकर्डिङ सेवाका लागि धेरै लामो छ। छोटो रेकर्डिङ प्रयास गर्नुहोस्।",
     "errorTranscription": "ट्रान्सक्रिप्सन असफल भयो। इतिहासबाट फेरि प्रयास गर्नुहोस्।",
     "errorPaste": "पेस्ट गर्न सकिएन। टेक्स्ट क्लिपबोर्ड र इतिहासमा छ।",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "ट्रान्सक्रिप्सन सेवा छान्नुहोस्",
-      "description": "सेटअप पूरा गर्न कन्फिगर गरिएको सेवा छान्नुहोस्। Murmur ले स्थानीय कन्फिगरेसन पत्ता लगाउँछ, तर सक्रिय जडान प्रमाणित गर्दैन।",
-      "antigravityDescription": "यस Mac मा पत्ता लागेको Antigravity कन्फिगरेसन प्रयोग गर्छ।",
-      "experimental": "प्रयोगात्मक",
+      "title": "Codex जडान गर्नुहोस्",
+      "description": "सेटअप पूरा गर्न यो Mac मा Codex मा साइन इन गर्नुहोस्। Murmur ले स्थानीय कन्फिगरेसन पत्ता लगाउँछ, तर सक्रिय जडान प्रमाणित गर्दैन।",
       "configured": "कन्फिगरेसन पत्ता लाग्यो",
-      "selectionRequired": "अगाडि बढ्न कन्फिगर गरिएको ट्रान्सक्रिप्सन सेवा छान्नुहोस्।",
       "retry": "फेरि प्रयास गर्नुहोस्",
       "continue": "जारी राख्नुहोस्",
-      "providerChangeFailed": "छानिएको ट्रान्सक्रिप्सन सेवा बचत गर्न सकिएन। फेरि प्रयास गर्नुहोस्।",
       "completionFailed": "सेटअप पूरा गर्न सकिएन। स्थिति रिफ्रेस गरेर फेरि प्रयास गर्नुहोस्।",
-      "openFailed": "Antigravity खोल्न सकिएन।",
-      "installFailed": "Antigravity डाउनलोड पृष्ठ खोल्न सकिएन।",
       "setupCodex": "Codex सेटअप खोल्नुहोस्",
       "codexSetupFailed": "Codex सेटअप खोल्न सकिएन।"
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "कन्फिगरेसन पत्ता लागेन"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "रूप"
       }
     },
-    "languageAutoOnly": "Antigravity ले भाषा स्वचालित रूपमा पत्ता लगाउँछ। Codex मा फर्किँदा तपाईंको Codex भाषा चयन सुरक्षित रहन्छ।",
     "sound": {
       "title": "साउन्ड",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "कन्फिगरेसन जाँच्दै…",
       "statusUnavailable": "स्थिति उपलब्ध छैन",
       "missing": "साइन इन गरिएको छैन",
-      "providerTitle": "ट्रान्सक्रिप्सन सेवा",
-      "providerDescription": "नयाँ डिक्टेसनका लागि ट्रान्सक्रिप्सन सेवा छान्नुहोस्।",
-      "notInstalled": "Antigravity स्थापना गरिएको छैन",
-      "installAntigravity": "स्थापना गर्नुहोस्",
-      "openAntigravity": "Antigravity खोल्नुहोस्",
       "groups": {
         "service": "सेवा",
         "processing": "पाठ प्रशोधन",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "AI सफाइ र ढाँचा",
         "description": "भराइ शब्दहरू हटाउँछ, आफैँलाई सच्याउँदा तपाईंको अन्तिम शब्दावली मात्र राख्छ, विराम चिह्न मिलाउँछ र सूची तथा बोलिएका लाइन ब्रेकहरू ढाँचामा राख्छ। यसले कहिल्यै अनुवाद वा पुनर्लेखन गर्दैन। असफल भएमा वा धेरै समय लागेमा मूल ट्रान्सक्रिप्ट टाँसिन्छ।"
-      },
-      "cleanupEngine": {
-        "title": "सफाइ इन्जिन",
-        "description": "Apple Intelligence यो Mac मा चल्छ: निःशुल्क, असीमित, अफलाइन र निजी। Codex ले तपाईंको ChatGPT सत्र प्रयोग गर्छ र यसको प्रयोग सीमामा गनिन्छ।",
-        "options": {
-          "apple": "Apple Intelligence (यो Mac मा)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Apple Intelligence चल्न नसक्दा, साइन इन भएमा Codex ले तपाईंको पाठ सफा गर्छ; नत्र मूल ट्रान्सक्रिप्ट टाँसिन्छ।",
-          "available": "यो Mac मा तयार",
-          "deviceNotEligible": "यो Mac मा समर्थित छैन",
-          "appleIntelligenceNotEnabled": "सिस्टम सेटिङ्समा Apple Intelligence सक्रिय गर्नुहोस्",
-          "modelNotReady": "अझै डाउनलोड हुँदैछ, पछि फेरि प्रयास गर्नुहोस्",
-          "unsupportedOs": "macOS 26 वा पछिको संस्करण आवश्यक छ",
-          "unavailable": "अहिले उपलब्ध छैन",
-          "unsupportedLanguage": "{{language}} मा उपलब्ध छैन"
-        }
       },
       "windowNames": {
         "title": "सक्रिय विन्डोका नामहरू",

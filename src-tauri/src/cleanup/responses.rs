@@ -26,14 +26,6 @@ pub enum CompletionError {
         kind: FailureKind,
         detail: String,
     },
-    /// The on-device model gave no reply.
-    Apple(super::apple::AppleError),
-}
-
-impl From<super::apple::AppleError> for CompletionError {
-    fn from(error: super::apple::AppleError) -> Self {
-        Self::Apple(error)
-    }
 }
 
 impl From<crate::transcription_error::TranscriptionError> for CompletionError {

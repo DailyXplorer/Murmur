@@ -37,48 +37,15 @@ const settingRow = (page: Page, title: string) =>
 const isTruncated = (locator: Locator) =>
   locator.evaluate((element) => element.scrollWidth > element.clientWidth);
 
-const GEMINI_STATUS = {
-  notInstalled: "Antigravity not installed",
-  notSignedIn: "Configuration not detected",
-  ready: "Configuration detected",
-};
+test("Codex row stacks its status under the title", async ({ page }) => {
+  await openSection(page, "Transcription");
+  const row = settingRow(page, "Codex");
+  const title = await box(row.getByRole("heading"));
+  const status = row.getByText("Configuration detected", { exact: true });
 
-for (const [gemini, statusText] of Object.entries(GEMINI_STATUS)) {
-  test(`Antigravity row stacks its status under the title (${gemini})`, async ({
-    page,
-  }) => {
-    await openSection(page, "Transcription", `?gemini=${gemini}`);
-    const row = settingRow(page, "Antigravity");
-    const title = await box(row.getByRole("heading"));
-    const badge = await box(row.getByText("Experimental", { exact: true }));
-    const status = row.getByText(statusText, { exact: true });
-
-    expect(
-      Math.abs(badge.y + badge.height / 2 - (title.y + title.height / 2)),
-    ).toBeLessThan(2);
-    expect(badge.x).toBeGreaterThan(title.x + title.width);
-    expect((await box(status)).y).toBeGreaterThanOrEqual(
-      title.y + title.height,
-    );
-    expect(await isTruncated(status)).toBe(false);
-
-    const action = row.getByRole("button", {
-      name: /Install|Open Antigravity/,
-    });
-    if (gemini === "ready") {
-      await expect(action).toHaveCount(0);
-    } else {
-      const button = await box(action);
-      const statusBox = await box(status);
-      expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
-      expect(
-        Math.abs(
-          button.y + button.height / 2 - (statusBox.y + statusBox.height / 2),
-        ),
-      ).toBeLessThan(2);
-    }
-  });
-}
+  expect((await box(status)).y).toBeGreaterThanOrEqual(title.y + title.height);
+  expect(await isTruncated(status)).toBe(false);
+});
 
 test("Custom Words puts a full-width field under its title", async ({
   page,

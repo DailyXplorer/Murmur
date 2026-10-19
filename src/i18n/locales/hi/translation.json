@@ -11,7 +11,6 @@
     "errorServer": "ट्रांसक्रिप्शन सेवा में समस्या है. इतिहास से फिर से कोशिश करें.",
     "errorSessionExpired": "आपका Codex सत्र समाप्त हो गया. Codex खोलें और फिर से साइन इन करें.",
     "errorSignedOut": "Codex में साइन इन नहीं है. Codex खोलें और साइन इन करें.",
-    "errorGeminiSessionExpired": "Antigravity में आपका Gemini सत्र समाप्त हो गया. Antigravity खोलें और फिर से साइन इन करें.",
     "errorTooLarge": "यह रिकॉर्डिंग सेवा के लिए बहुत लंबी है. छोटी रिकॉर्डिंग आज़माएं.",
     "errorTranscription": "ट्रांसक्रिप्शन विफल रहा. इतिहास से फिर से कोशिश करें.",
     "errorPaste": "पेस्ट नहीं हो सका. टेक्स्ट क्लिपबोर्ड और इतिहास में है.",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "ट्रांसक्रिप्शन सेवा चुनें",
-      "description": "सेटअप पूरा करने के लिए कॉन्फ़िगर की गई सेवा चुनें। Murmur स्थानीय कॉन्फ़िगरेशन पहचानता है, लेकिन लाइव कनेक्शन सत्यापित नहीं करता।",
-      "antigravityDescription": "इस Mac पर मिली Antigravity कॉन्फ़िगरेशन का उपयोग करता है।",
-      "experimental": "प्रयोगात्मक",
+      "title": "Codex कनेक्ट करें",
+      "description": "सेटअप पूरा करने के लिए इस Mac पर Codex में साइन इन करें। Murmur स्थानीय कॉन्फ़िगरेशन पहचानता है, लेकिन लाइव कनेक्शन सत्यापित नहीं करता।",
       "configured": "कॉन्फ़िगरेशन मिली",
-      "selectionRequired": "आगे बढ़ने के लिए कॉन्फ़िगर की गई ट्रांसक्रिप्शन सेवा चुनें।",
       "retry": "फिर से कोशिश करें",
       "continue": "जारी रखें",
-      "providerChangeFailed": "चुनी गई ट्रांसक्रिप्शन सेवा सहेजी नहीं जा सकी। फिर से कोशिश करें।",
       "completionFailed": "सेटअप पूरा नहीं हो सका। स्थिति ताज़ा करें और फिर से कोशिश करें।",
-      "openFailed": "Antigravity खोला नहीं जा सका।",
-      "installFailed": "Antigravity डाउनलोड पेज खोला नहीं जा सका।",
       "setupCodex": "Codex सेटअप खोलें",
       "codexSetupFailed": "Codex सेटअप खोला नहीं जा सका।"
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "कॉन्फ़िगरेशन नहीं मिली"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "दिखावट"
       }
     },
-    "languageAutoOnly": "Antigravity भाषा को अपने आप पहचानता है। Codex भाषा चयन वापस आने पर सुरक्षित रहेगा।",
     "sound": {
       "title": "आवाज़",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "कॉन्फ़िगरेशन जाँची जा रही है…",
       "statusUnavailable": "स्थिति उपलब्ध नहीं है",
       "missing": "साइन इन नहीं है",
-      "providerTitle": "ट्रांसक्रिप्शन सेवा",
-      "providerDescription": "नई डिक्टेशन के लिए ट्रांसक्रिप्शन सेवा चुनें।",
-      "notInstalled": "Antigravity इंस्टॉल नहीं है",
-      "installAntigravity": "इंस्टॉल करें",
-      "openAntigravity": "Antigravity खोलें",
       "groups": {
         "service": "सेवा",
         "processing": "टेक्स्ट प्रोसेसिंग",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "AI से सफ़ाई और फ़ॉर्मैटिंग",
         "description": "भराव शब्द हटाता है, खुद को सुधारने पर केवल आपका अंतिम शब्दांकन रखता है, विराम चिह्न ठीक करता है और सूचियों व बोले गए लाइन ब्रेक को फ़ॉर्मेट करता है। यह कभी अनुवाद या दोबारा लेखन नहीं करता। विफल होने या बहुत देर लगने पर मूल ट्रांसक्रिप्ट पेस्ट किया जाता है।"
-      },
-      "cleanupEngine": {
-        "title": "सफ़ाई इंजन",
-        "description": "Apple Intelligence इस Mac पर चलता है: मुफ़्त, असीमित, ऑफ़लाइन और निजी। Codex आपके ChatGPT सत्र का उपयोग करता है और उसकी उपयोग सीमा में गिना जाता है।",
-        "options": {
-          "apple": "Apple Intelligence (इस Mac पर)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "जब Apple Intelligence नहीं चल सकता, तो साइन इन होने पर Codex आपका टेक्स्ट साफ़ करता है; अन्यथा मूल ट्रांसक्रिप्ट पेस्ट किया जाता है।",
-          "available": "इस Mac पर तैयार",
-          "deviceNotEligible": "इस Mac पर समर्थित नहीं",
-          "appleIntelligenceNotEnabled": "सिस्टम सेटिंग्स में Apple Intelligence चालू करें",
-          "modelNotReady": "अभी डाउनलोड हो रहा है, बाद में फिर कोशिश करें",
-          "unsupportedOs": "macOS 26 या बाद का संस्करण चाहिए",
-          "unavailable": "अभी उपलब्ध नहीं",
-          "unsupportedLanguage": "{{language}} में उपलब्ध नहीं"
-        }
       },
       "windowNames": {
         "title": "सक्रिय विंडो से नाम",

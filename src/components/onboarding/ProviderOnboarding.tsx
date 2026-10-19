@@ -2,61 +2,34 @@ import { useCallback, useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { commands, type TranscriptionProvider } from "@/bindings";
 import {
-  isConfiguredProvider,
   statusTranslationKey,
-  useProviderStatuses,
+  useCodexStatus,
 } from "@/components/transcription/providerStatus";
 import { Button } from "../ui/Button";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 
 interface ProviderOnboardingProps {
-  configuredProvider: TranscriptionProvider;
-  onComplete: (provider: TranscriptionProvider) => Promise<boolean>;
+  onComplete: () => Promise<boolean>;
 }
 
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
-  configuredProvider,
   onComplete,
 }) => {
   const { t } = useTranslation();
-  const { invalidatePendingRefreshes, refreshStatuses, statuses } =
-    useProviderStatuses();
-  const [selectedProvider, setSelectedProvider] =
-    useState<TranscriptionProvider>(configuredProvider);
+  const { invalidatePendingRefreshes, refreshStatus, status } =
+    useCodexStatus();
   const [isCompleting, setIsCompleting] = useState(false);
 
   useEffect(() => {
-    void refreshStatuses();
-    const handleFocus = () => void refreshStatuses();
+    void refreshStatus();
+    const handleFocus = () => void refreshStatus();
     window.addEventListener("focus", handleFocus);
     return () => {
       invalidatePendingRefreshes();
       window.removeEventListener("focus", handleFocus);
     };
-  }, [invalidatePendingRefreshes, refreshStatuses]);
-
-  const openAntigravity = useCallback(async () => {
-    try {
-      const result = await commands.openAntigravity();
-      if (result.status === "error") {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      console.warn("Failed to open Antigravity:", error);
-      toast.error(t("onboarding.provider.openFailed"));
-    }
-  }, [t]);
-
-  const installAntigravity = useCallback(async () => {
-    try {
-      await openUrl("https://antigravity.google/");
-    } catch (error) {
-      console.warn("Failed to open the Antigravity download page:", error);
-      toast.error(t("onboarding.provider.installFailed"));
-    }
-  }, [t]);
+  }, [invalidatePendingRefreshes, refreshStatus]);
 
   const openCodexSetup = useCallback(async () => {
     try {
@@ -67,98 +40,21 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     }
   }, [t]);
 
-  const selectedStatus = statuses[selectedProvider];
-  const canComplete = !isCompleting && isConfiguredProvider(selectedStatus);
+  const canComplete = !isCompleting && status.kind === "configured";
 
   const complete = useCallback(async () => {
     if (!canComplete) return;
 
     setIsCompleting(true);
     try {
-      const completed = await onComplete(selectedProvider);
+      const completed = await onComplete();
       if (!completed) {
-        await refreshStatuses();
+        await refreshStatus();
       }
     } finally {
       setIsCompleting(false);
     }
-  }, [canComplete, onComplete, refreshStatuses, selectedProvider]);
-
-  const renderProvider = (
-    provider: TranscriptionProvider,
-    title: string,
-    description: string,
-  ) => {
-    const status = statuses[provider];
-    const isSelected = selectedProvider === provider;
-    const isAvailable = isConfiguredProvider(status);
-    const isGemini = provider === "gemini";
-
-    return (
-      <div
-        key={provider}
-        className={`rounded-lg border p-2 transition-colors ${
-          isSelected
-            ? "border-logo-primary bg-logo-primary/10"
-            : "border-mid-gray/20 bg-white/5"
-        }`}
-      >
-        <button
-          type="button"
-          role="radio"
-          aria-checked={isSelected}
-          aria-label={title}
-          disabled={!isAvailable || isCompleting}
-          onClick={() => setSelectedProvider(provider)}
-          className="flex w-full items-start gap-3 text-start disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span
-            aria-hidden="true"
-            className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border ${
-              isSelected ? "border-logo-primary" : "border-mid-gray/80"
-            }`}
-          >
-            {isSelected && (
-              <span className="size-2 rounded-full bg-logo-primary" />
-            )}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-2 font-medium text-text">
-              {title}
-              {isGemini && (
-                <span className="rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
-                  {t("onboarding.provider.experimental")}
-                </span>
-              )}
-            </span>
-            <span className="mt-0.5 block text-sm text-text/65">
-              {description}
-            </span>
-            <span className="mt-1 block text-sm text-text/80">
-              {t(statusTranslationKey(status))}
-            </span>
-          </span>
-        </button>
-        {status.kind === "unavailable" && (
-          <div className="mt-2 flex flex-wrap gap-2 ps-6">
-            {!isGemini ? (
-              <Button onClick={() => void openCodexSetup()}>
-                {t("onboarding.provider.setupCodex")}
-              </Button>
-            ) : status.reason === "notInstalled" ? (
-              <Button onClick={() => void installAntigravity()}>
-                {t("settings.transcription.installAntigravity")}
-              </Button>
-            ) : (
-              <Button onClick={() => void openAntigravity()}>
-                {t("settings.transcription.openAntigravity")}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  }, [canComplete, onComplete, refreshStatus]);
 
   return (
     <div
@@ -176,26 +72,30 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
               {t("onboarding.provider.description")}
             </p>
           </div>
-          <div role="radiogroup" className="flex flex-col gap-2">
-            {renderProvider(
-              "codex",
-              t("onboarding.providerLabels.codex"),
-              t("settings.transcription.sessionDescription"),
-            )}
-            {renderProvider(
-              "gemini",
-              t("onboarding.providerLabels.antigravity"),
-              t("onboarding.provider.antigravityDescription"),
+          <div className="rounded-lg border border-mid-gray/20 bg-white/5 p-2">
+            <span className="block font-medium text-text">
+              {t("onboarding.providerLabels.codex")}
+            </span>
+            <span className="mt-0.5 block text-sm text-text/65">
+              {t("settings.transcription.sessionDescription")}
+            </span>
+            <span
+              className="mt-1 block text-sm text-text/80"
+              aria-live="polite"
+            >
+              {t(statusTranslationKey(status))}
+            </span>
+            {status.kind === "unavailable" && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button onClick={() => void openCodexSetup()}>
+                  {t("onboarding.provider.setupCodex")}
+                </Button>
+              </div>
             )}
           </div>
-          {!canComplete && selectedStatus.kind !== "checking" && (
-            <p className="mt-2 text-sm text-text/70" aria-live="polite">
-              {t("onboarding.provider.selectionRequired")}
-            </p>
-          )}
           <div className="mt-2 flex justify-end gap-2">
             <Button
-              onClick={() => void refreshStatuses()}
+              onClick={() => void refreshStatus()}
               disabled={isCompleting}
             >
               {t("onboarding.provider.retry")}

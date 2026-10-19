@@ -370,10 +370,6 @@ async fn ask(
                 log::warn!("Meeting summary request failed ({kind:?}): {detail}");
                 kind
             }
-            Ok(Err(other)) => {
-                log::warn!("Meeting summary request failed: {other:?}");
-                return Err(SummaryEnd::Failed(SummaryError::Other));
-            }
             Err(_) => FailureKind::Timeout,
         };
         let delay = match kind {
@@ -1124,36 +1120,5 @@ mod tests {
         ] {
             assert_eq!(SummaryError::from_db(error.as_db()), Some(error));
         }
-    }
-
-    /// No meeting code may reach Apple's on-device models.
-    #[test]
-    fn meetings_never_use_apple_intelligence() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/meetings");
-        let mut pending = vec![std::path::PathBuf::from(dir)];
-        let mut checked = 0;
-        while let Some(path) = pending.pop() {
-            if path.is_dir() {
-                pending.extend(
-                    std::fs::read_dir(&path)
-                        .unwrap()
-                        .map(|entry| entry.unwrap().path()),
-                );
-            } else if path.extension().is_some_and(|ext| ext == "rs") {
-                let source = std::fs::read_to_string(&path).unwrap();
-                for forbidden in ["apple::", "FoundationModels", "clean_with_apple"] {
-                    assert!(
-                        !source
-                            .lines()
-                            .filter(|line| !line.contains("forbidden in"))
-                            .any(|line| line.contains(forbidden)),
-                        "{} uses {forbidden}",
-                        path.display()
-                    );
-                }
-                checked += 1;
-            }
-        }
-        assert!(checked > 10);
     }
 }

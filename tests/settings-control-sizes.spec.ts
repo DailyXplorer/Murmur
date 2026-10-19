@@ -136,24 +136,6 @@ for (const language of ["en", "fr", "de", "ru"]) {
       });
     }
 
-    test("Transcription with Antigravity signed out", async ({ page }) => {
-      await page.goto(
-        `/tests/fixtures/settings-pages.html?lang=${language}&gemini=notSignedIn`,
-      );
-      const sectionButton = page
-        .getByRole("navigation")
-        .getByRole("button")
-        .nth(SECTIONS.indexOf("Transcription"));
-      await sectionButton.click();
-      await expect(sectionButton).toHaveAttribute("aria-current", "page");
-      await expect(
-        page.locator('[data-control="text"]', { hasText: "Antigravity" }),
-      ).toBeVisible();
-
-      const { violations } = await sizeViolations(page);
-      expect(violations).toEqual([]);
-    });
-
     test("language picker search field", async ({ page }) => {
       await page.goto(`/tests/fixtures/settings-pages.html?lang=${language}`);
       await page.locator('[aria-haspopup="listbox"]').nth(2).click();

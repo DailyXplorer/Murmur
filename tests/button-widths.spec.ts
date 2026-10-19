@@ -33,8 +33,6 @@ const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["onboarding.provider.setupCodex"],
   ["onboarding.provider.retry"],
   ["onboarding.provider.continue"],
-  ["settings.transcription.installAntigravity"],
-  ["settings.transcription.openAntigravity"],
   ["settings.history.openFolder", "icon"],
   ["settings.history.retry", "icon"],
   ["settings.debug.whatsNewPreview.button"],
@@ -209,15 +207,6 @@ test.describe("at the default window size", () => {
         locale,
         SCREENS.find(({ name }) => name === "Transcription")!,
       );
-      const status = page.getByText(
-        lookup(locale, "settings.transcription.notInstalled"),
-        { exact: true },
-      );
-      expect(
-        await status.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5),
-        "Antigravity status is cut off",
-      ).toBe(true);
-
       const field = page.getByPlaceholder(
         lookup(locale, "settings.advanced.customWords.placeholder"),
       );

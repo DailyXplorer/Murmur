@@ -11,7 +11,6 @@
     "errorServer": "יש תקלה בשירות התמלול. נסה שוב מההיסטוריה.",
     "errorSessionExpired": "פג תוקף ההתחברות ל-Codex. פתח את Codex והתחבר מחדש.",
     "errorSignedOut": "לא מחובר ל-Codex. פתח את Codex והתחבר.",
-    "errorGeminiSessionExpired": "ההתחברות ל-Gemini ב-Antigravity הסתיימה. פתח את Antigravity והתחבר מחדש.",
     "errorTooLarge": "ההקלטה ארוכה מדי עבור השירות. נסה הקלטה קצרה יותר.",
     "errorTranscription": "התמלול נכשל. נסה שוב מההיסטוריה.",
     "errorPaste": "ההדבקה נכשלה. הטקסט נמצא בלוח ובהיסטוריה.",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "בחירת שירות תמלול",
-      "description": "בחר שירות שהוגדר כדי להשלים את ההגדרה. Murmur מזהה תצורה מקומית ואינו מאמת חיבור פעיל.",
-      "antigravityDescription": "משתמש בתצורת Antigravity שזוהתה ב‑Mac זה.",
-      "experimental": "ניסיוני",
+      "title": "חיבור Codex",
+      "description": "התחבר ל-Codex ב-Mac הזה כדי להשלים את ההגדרה. Murmur מזהה תצורה מקומית ואינו מאמת חיבור פעיל.",
       "configured": "זוהתה תצורה",
-      "selectionRequired": "בחר שירות תמלול מוגדר כדי להמשיך.",
       "retry": "נסה שוב",
       "continue": "המשך",
-      "providerChangeFailed": "לא ניתן לשמור את שירות התמלול שנבחר. נסה שוב.",
       "completionFailed": "לא ניתן להשלים את ההגדרה. רענן את המצב ונסה שוב.",
-      "openFailed": "לא ניתן לפתוח את Antigravity.",
-      "installFailed": "לא ניתן לפתוח את דף ההורדה של Antigravity.",
       "setupCodex": "פתיחת הגדרת Codex",
       "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "לא זוהתה תצורה"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "מראה"
       }
     },
-    "languageAutoOnly": "Antigravity מזהה את השפה אוטומטית. בחירת השפה של Codex נשמרת כשתחזור אליו.",
     "sound": {
       "title": "שמע",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "בודק את ההגדרה…",
       "statusUnavailable": "הסטטוס אינו זמין",
       "missing": "לא מחובר",
-      "providerTitle": "שירות תמלול",
-      "providerDescription": "בחרו את שירות התמלול להכתבות חדשות.",
-      "notInstalled": "Antigravity אינו מותקן",
-      "installAntigravity": "התקנה",
-      "openAntigravity": "פתיחת Antigravity",
       "groups": {
         "service": "שירות",
         "processing": "עיבוד טקסט",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "ניקוי ועיצוב בבינה מלאכותית",
         "description": "מסיר מילות מילוי, משאיר רק את הניסוח הסופי כשאתם מתקנים את עצמכם, מתקן פיסוק ומעצב רשימות ומעברי שורה מוכתבים. לעולם אינו מתרגם או משכתב. אם הוא נכשל או לוקח יותר מדי זמן, התמלול הגולמי מודבק."
-      },
-      "cleanupEngine": {
-        "title": "מנוע ניקוי",
-        "description": "Apple Intelligence פועל ב-Mac הזה: חינמי, ללא הגבלה, לא מקוון ופרטי. Codex משתמש בסשן ה-ChatGPT שלכם ונספר במגבלות השימוש שלו.",
-        "options": {
-          "apple": "Apple Intelligence (ב-Mac הזה)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "כש-Apple Intelligence לא יכול לפעול, Codex מנקה את הטקסט אם אתם מחוברים; אחרת התמלול הגולמי מודבק.",
-          "available": "מוכן ב-Mac הזה",
-          "deviceNotEligible": "לא נתמך ב-Mac הזה",
-          "appleIntelligenceNotEnabled": "הפעילו את Apple Intelligence בהגדרות המערכת",
-          "modelNotReady": "עדיין בהורדה, נסו שוב מאוחר יותר",
-          "unsupportedOs": "דורש macOS 26 ואילך",
-          "unavailable": "לא זמין כרגע",
-          "unsupportedLanguage": "לא זמין ב{{language}}"
-        }
       },
       "windowNames": {
         "title": "שמות מהחלון הפעיל",

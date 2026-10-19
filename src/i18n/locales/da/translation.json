@@ -11,7 +11,6 @@
     "errorServer": "Transskriptionstjenesten har problemer. Prøv igen fra historikken.",
     "errorSessionExpired": "Din Codex-session er udløbet. Åbn Codex, og log ind igen.",
     "errorSignedOut": "Ikke logget ind på Codex. Åbn Codex, og log ind.",
-    "errorGeminiSessionExpired": "Din Gemini-session i Antigravity er afsluttet. Åbn Antigravity, og log ind igen.",
     "errorTooLarge": "Denne optagelse er for lang til tjenesten. Prøv en kortere.",
     "errorTranscription": "Transskriptionen mislykkedes. Prøv igen fra historikken.",
     "errorPaste": "Kunne ikke indsætte. Teksten ligger i udklipsholderen og i historikken.",
@@ -116,24 +115,17 @@
       }
     },
     "provider": {
-      "title": "Vælg en transskriptionstjeneste",
-      "description": "Vælg en konfigureret tjeneste for at afslutte opsætningen. Murmur registrerer lokal konfiguration, men bekræfter ikke en aktiv forbindelse.",
-      "antigravityDescription": "Bruger Antigravity-konfigurationen, der er fundet på denne Mac.",
-      "experimental": "Eksperimentel",
+      "title": "Forbind Codex",
+      "description": "Log ind på Codex på denne Mac for at afslutte opsætningen. Murmur registrerer lokal konfiguration, men bekræfter ikke en aktiv forbindelse.",
       "configured": "Konfiguration fundet",
-      "selectionRequired": "Vælg en konfigureret transskriptionstjeneste for at fortsætte.",
       "retry": "Prøv igen",
       "continue": "Fortsæt",
-      "providerChangeFailed": "Den valgte transskriptionstjeneste kunne ikke gemmes. Prøv igen.",
       "completionFailed": "Opsætningen kunne ikke fuldføres. Opdater status, og prøv igen.",
-      "openFailed": "Antigravity kunne ikke åbnes.",
-      "installFailed": "Antigravity-downloadsiden kunne ikke åbnes.",
       "setupCodex": "Åbn Codex-opsætning",
       "codexSetupFailed": "Codex-opsætningen kunne ikke åbnes."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Konfiguration ikke fundet"
     }
   },
@@ -184,7 +176,6 @@
         "appearance": "Udseende"
       }
     },
-    "languageAutoOnly": "Antigravity registrerer sproget automatisk. Dit Codex-sprogvalg bevares, når du skifter tilbage.",
     "sound": {
       "title": "Lyd",
       "microphone": {
@@ -443,11 +434,6 @@
       "checking": "Kontrollerer konfiguration…",
       "statusUnavailable": "Status er ikke tilgængelig",
       "missing": "Ikke logget ind",
-      "providerTitle": "Transskriptionstjeneste",
-      "providerDescription": "Vælg transskriptionstjenesten til nye dikteringer.",
-      "notInstalled": "Antigravity er ikke installeret",
-      "installAntigravity": "Installer",
-      "openAntigravity": "Åbn Antigravity",
       "groups": {
         "service": "Tjeneste",
         "processing": "Tekstbehandling",
@@ -457,25 +443,6 @@
       "aiCleanup": {
         "title": "AI-oprydning og formatering",
         "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Den oversætter eller omskriver aldrig. Hvis den fejler eller tager for lang tid, indsættes den rå transskription."
-      },
-      "cleanupEngine": {
-        "title": "Oprydningsmotor",
-        "description": "Apple Intelligence kører på denne Mac: gratis, ubegrænset, offline og privat. Codex bruger din ChatGPT-session og tæller med i dens forbrugsgrænser.",
-        "options": {
-          "apple": "Apple Intelligence (på denne Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Når Apple Intelligence ikke kan køre, rydder Codex op i teksten, hvis du er logget ind; ellers indsættes den rå transskription.",
-          "available": "Klar på denne Mac",
-          "deviceNotEligible": "Understøttes ikke på denne Mac",
-          "appleIntelligenceNotEnabled": "Slå Apple Intelligence til i Systemindstillinger",
-          "modelNotReady": "Hentes stadig, prøv igen senere",
-          "unsupportedOs": "Kræver macOS 26 eller nyere",
-          "unavailable": "Ikke tilgængelig lige nu",
-          "unsupportedLanguage": "Ikke tilgængelig på {{language}}"
-        }
       },
       "windowNames": {
         "title": "Navne fra det aktive vindue",
