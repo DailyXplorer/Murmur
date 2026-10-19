@@ -97,7 +97,7 @@ jobs:
             echo "1. Sign in to Codex on this PC first, so that \`%USERPROFILE%\\.codex\\auth.json\` exists."
             echo "2. Download \`${asset}\` below and run it."
             echo "3. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
-            echo "4. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and starts. A new beta installs over it."
+            echo "4. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one."
             echo
             echo "SHA-256 of \`${asset}\`: \`${checksum}\`"
           } > notes.md

@@ -28,10 +28,20 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     }
 
     let manager = app.autolaunch();
-    // Removing a Run entry that was never written fails on every launch.
     #[cfg(target_os = "windows")]
-    if manager.is_enabled().is_ok_and(|current| current == enabled) {
-        return;
+    {
+        // The plugin opens the per-user Run key without creating it, and a
+        // new profile may not have one yet.
+        use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+        if let Err(e) = RegKey::predef(HKEY_CURRENT_USER)
+            .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run")
+        {
+            log::warn!("Failed to open the Run key for autostart: {e}");
+        }
+        // Removing a Run entry that was never written fails on every launch.
+        if manager.is_enabled().is_ok_and(|current| current == enabled) {
+            return;
+        }
     }
     let result = if enabled {
         manager.enable()
