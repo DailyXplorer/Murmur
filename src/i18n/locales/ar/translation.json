@@ -11,6 +11,7 @@
     "errorServer": "تواجه خدمة النسخ مشكلات. أعد المحاولة من السجل.",
     "errorSessionExpired": "انتهت صلاحية جلسة Codex. افتح Codex وسجّل الدخول مجددًا.",
     "errorSignedOut": "لم يتم تسجيل الدخول إلى Codex. افتح Codex وسجّل الدخول.",
+    "errorGeminiSessionExpired": "انتهت جلسة Gemini في Antigravity. افتح Antigravity وسجّل الدخول مجددًا.",
     "errorTooLarge": "هذا التسجيل طويل جدًا بالنسبة للخدمة. جرّب تسجيلًا أقصر.",
     "errorTranscription": "فشل النسخ. أعد المحاولة من السجل.",
     "errorPaste": "تعذر اللصق. النص موجود في الحافظة وفي السجل.",

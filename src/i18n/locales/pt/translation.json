@@ -11,6 +11,7 @@
     "errorServer": "O serviço de transcrição está com problemas. Tente novamente pelo histórico.",
     "errorSessionExpired": "Sua sessão do Codex expirou. Abra o Codex e entre novamente.",
     "errorSignedOut": "Sem sessão no Codex. Abra o Codex e entre.",
+    "errorGeminiSessionExpired": "Sua sessão do Gemini no Antigravity terminou. Abra o Antigravity e entre novamente.",
     "errorTooLarge": "Esta gravação é longa demais para o serviço. Tente uma mais curta.",
     "errorTranscription": "A transcrição falhou. Tente novamente pelo histórico.",
     "errorPaste": "Não foi possível colar. O texto está na área de transferência e no histórico.",

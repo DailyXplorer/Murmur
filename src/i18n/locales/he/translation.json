@@ -11,6 +11,7 @@
     "errorServer": "יש תקלה בשירות התמלול. נסה שוב מההיסטוריה.",
     "errorSessionExpired": "פג תוקף ההתחברות ל-Codex. פתח את Codex והתחבר מחדש.",
     "errorSignedOut": "לא מחובר ל-Codex. פתח את Codex והתחבר.",
+    "errorGeminiSessionExpired": "ההתחברות ל-Gemini ב-Antigravity הסתיימה. פתח את Antigravity והתחבר מחדש.",
     "errorTooLarge": "ההקלטה ארוכה מדי עבור השירות. נסה הקלטה קצרה יותר.",
     "errorTranscription": "התמלול נכשל. נסה שוב מההיסטוריה.",
     "errorPaste": "ההדבקה נכשלה. הטקסט נמצא בלוח ובהיסטוריה.",

@@ -11,6 +11,7 @@
     "errorServer": "Le service de transcription rencontre des problèmes. Réessayez depuis l'historique.",
     "errorSessionExpired": "Votre session Codex a expiré. Ouvrez Codex et reconnectez-vous.",
     "errorSignedOut": "Non connecté à Codex. Ouvrez Codex et connectez-vous.",
+    "errorGeminiSessionExpired": "Votre session Gemini dans Antigravity a pris fin. Ouvrez Antigravity et reconnectez-vous.",
     "errorTooLarge": "Cet enregistrement est trop long pour le service. Essayez plus court.",
     "errorTranscription": "La transcription a échoué. Réessayez depuis l'historique.",
     "errorPaste": "Collage impossible. Le texte est dans le presse-papiers et dans l'historique.",

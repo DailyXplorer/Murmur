@@ -11,6 +11,7 @@
     "errorServer": "Il servizio di trascrizione ha dei problemi. Riprova dalla cronologia.",
     "errorSessionExpired": "La sessione di Codex è scaduta. Apri Codex e accedi di nuovo.",
     "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",
+    "errorGeminiSessionExpired": "La sessione di Gemini in Antigravity è terminata. Apri Antigravity e accedi di nuovo.",
     "errorTooLarge": "Questa registrazione è troppo lunga per il servizio. Provane una più breve.",
     "errorTranscription": "Trascrizione non riuscita. Riprova dalla cronologia.",
     "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",

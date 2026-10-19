@@ -11,6 +11,7 @@
     "errorServer": "文字起こしサービスで問題が発生しています。履歴から再試行してください。",
     "errorSessionExpired": "Codex のセッションが期限切れです。Codex を開いて再度サインインしてください。",
     "errorSignedOut": "Codex にサインインしていません。Codex を開いてサインインしてください。",
+    "errorGeminiSessionExpired": "Antigravity の Gemini セッションが終了しました。Antigravity を開いて再度サインインしてください。",
     "errorTooLarge": "この録音はサービスには長すぎます。短い録音でお試しください。",
     "errorTranscription": "文字起こしに失敗しました。履歴から再試行してください。",
     "errorPaste": "貼り付けできませんでした。テキストはクリップボードと履歴にあります。",

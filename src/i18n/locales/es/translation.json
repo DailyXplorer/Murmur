@@ -11,6 +11,7 @@
     "errorServer": "El servicio de transcripción tiene problemas. Reinténtelo desde el historial.",
     "errorSessionExpired": "Su sesión de Codex ha caducado. Abra Codex e inicie sesión de nuevo.",
     "errorSignedOut": "No ha iniciado sesión en Codex. Abra Codex e inicie sesión.",
+    "errorGeminiSessionExpired": "Su sesión de Gemini en Antigravity ha finalizado. Abra Antigravity e inicie sesión de nuevo.",
     "errorTooLarge": "Esta grabación es demasiado larga para el servicio. Pruebe con una más corta.",
     "errorTranscription": "La transcripción falló. Reinténtelo desde el historial.",
     "errorPaste": "No se pudo pegar. El texto está en el portapapeles y en el historial.",

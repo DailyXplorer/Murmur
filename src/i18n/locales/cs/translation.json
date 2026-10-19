@@ -11,6 +11,7 @@
     "errorServer": "Služba přepisu má potíže. Zkuste to znovu z historie.",
     "errorSessionExpired": "Relace Codex vypršela. Otevřete Codex a znovu se přihlaste.",
     "errorSignedOut": "Nejste přihlášeni do Codex. Otevřete Codex a přihlaste se.",
+    "errorGeminiSessionExpired": "Relace Gemini v Antigravity skončila. Otevřete Antigravity a znovu se přihlaste.",
     "errorTooLarge": "Tato nahrávka je pro službu příliš dlouhá. Zkuste kratší.",
     "errorTranscription": "Přepis se nezdařil. Zkuste to znovu z historie.",
     "errorPaste": "Vložení se nezdařilo. Text je ve schránce a v historii.",

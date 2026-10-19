@@ -11,6 +11,7 @@
     "errorServer": "轉錄服務發生問題。請從歷史記錄重試。",
     "errorSessionExpired": "你的 Codex 工作階段已過期。請開啟 Codex 並重新登入。",
     "errorSignedOut": "尚未登入 Codex。請開啟 Codex 並登入。",
+    "errorGeminiSessionExpired": "你在 Antigravity 中的 Gemini 工作階段已結束。請開啟 Antigravity 並重新登入。",
     "errorTooLarge": "此錄音對該服務來說太長。請嘗試較短的錄音。",
     "errorTranscription": "轉錄失敗。請從歷史記錄重試。",
     "errorPaste": "無法貼上。文字已在剪貼簿和歷史記錄中。",

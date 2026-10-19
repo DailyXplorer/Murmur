@@ -48,6 +48,7 @@ type FailureKind =
 interface TranscriptionErrorEvent {
   kind: FailureKind;
   detail: string;
+  provider: TranscriptionProvider;
 }
 
 /** The same messages the overlay and notifications show. */
@@ -62,6 +63,12 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   rejected: "tray.errorTranscription",
   other: "tray.errorTranscription",
 };
+
+/** Gemini runs on the Antigravity session, not on Codex's. */
+const failureMessageKey = ({ kind, provider }: TranscriptionErrorEvent) =>
+  provider === "gemini" && (kind === "session_expired" || kind === "signed_out")
+    ? "tray.errorGeminiSessionExpired"
+    : FAILURE_MESSAGE_KEYS[kind];
 
 const transcriptionProviderFromSettings = (
   provider: TranscriptionProvider | undefined,
@@ -218,7 +225,7 @@ function App() {
       "transcription-error",
       (event) => {
         toast.error(t("errors.transcriptionFailedTitle"), {
-          description: t(FAILURE_MESSAGE_KEYS[event.payload.kind]),
+          description: t(failureMessageKey(event.payload)),
           action: {
             label: t("transcriptionFailedAction"),
             onClick: () => setCurrentSection("transcription"),

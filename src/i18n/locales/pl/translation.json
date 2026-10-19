@@ -11,6 +11,7 @@
     "errorServer": "Usługa transkrypcji ma problemy. Spróbuj ponownie z historii.",
     "errorSessionExpired": "Sesja Codex wygasła. Otwórz Codex i zaloguj się ponownie.",
     "errorSignedOut": "Nie zalogowano do Codex. Otwórz Codex i zaloguj się.",
+    "errorGeminiSessionExpired": "Sesja Gemini w Antigravity wygasła. Otwórz Antigravity i zaloguj się ponownie.",
     "errorTooLarge": "To nagranie jest za długie dla usługi. Spróbuj krótszego.",
     "errorTranscription": "Transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
     "errorPaste": "Nie udało się wkleić. Tekst jest w schowku i w historii.",

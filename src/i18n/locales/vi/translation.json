@@ -11,6 +11,7 @@
     "errorServer": "Dịch vụ chép lời đang gặp sự cố. Hãy thử lại từ Lịch sử.",
     "errorSessionExpired": "Phiên Codex đã hết hạn. Hãy mở Codex và đăng nhập lại.",
     "errorSignedOut": "Chưa đăng nhập Codex. Hãy mở Codex và đăng nhập.",
+    "errorGeminiSessionExpired": "Phiên Gemini trong Antigravity đã kết thúc. Hãy mở Antigravity và đăng nhập lại.",
     "errorTooLarge": "Bản ghi này quá dài đối với dịch vụ. Hãy thử bản ngắn hơn.",
     "errorTranscription": "Chép lời thất bại. Hãy thử lại từ Lịch sử.",
     "errorPaste": "Không dán được. Văn bản có trong bảng nhớ tạm và trong Lịch sử.",

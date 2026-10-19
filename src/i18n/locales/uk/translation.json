@@ -11,6 +11,7 @@
     "errorServer": "У службі транскрипції проблеми. Повторіть з історії.",
     "errorSessionExpired": "Сеанс Codex завершився. Відкрийте Codex і увійдіть знову.",
     "errorSignedOut": "Вхід у Codex не виконано. Відкрийте Codex і увійдіть.",
+    "errorGeminiSessionExpired": "Сеанс Gemini в Antigravity завершився. Відкрийте Antigravity і увійдіть знову.",
     "errorTooLarge": "Запис задовгий для служби. Спробуйте коротший.",
     "errorTranscription": "Не вдалося виконати транскрипцію. Повторіть з історії.",
     "errorPaste": "Не вдалося вставити. Текст у буфері обміну та в історії.",

@@ -35,6 +35,7 @@ struct RecordingErrorEvent {
 struct TranscriptionErrorEvent {
     kind: FailureKind,
     detail: String,
+    provider: TranscriptionProvider,
 }
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
@@ -672,9 +673,10 @@ impl ShortcutAction for TranscribeAction {
                                 TranscriptionErrorEvent {
                                     kind,
                                     detail: format!("{err:#}"),
+                                    provider,
                                 },
                             );
-                            user_alert::show(&ah, Alert::Transcription(kind));
+                            user_alert::show(&ah, Alert::Transcription(kind, provider));
                             // Save entry with empty text so user can retry
                             if wav_saved {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {

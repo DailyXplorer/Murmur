@@ -11,6 +11,7 @@
     "errorServer": "Transkriberingstjänsten har problem. Försök igen från historiken.",
     "errorSessionExpired": "Din Codex-session har gått ut. Öppna Codex och logga in igen.",
     "errorSignedOut": "Inte inloggad i Codex. Öppna Codex och logga in.",
+    "errorGeminiSessionExpired": "Din Gemini-session i Antigravity har avslutats. Öppna Antigravity och logga in igen.",
     "errorTooLarge": "Inspelningen är för lång för tjänsten. Prova en kortare.",
     "errorTranscription": "Transkriberingen misslyckades. Försök igen från historiken.",
     "errorPaste": "Det gick inte att klistra in. Texten finns i urklipp och i historiken.",

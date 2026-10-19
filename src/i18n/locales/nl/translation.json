@@ -11,6 +11,7 @@
     "errorServer": "De transcriptiedienst heeft problemen. Probeer het opnieuw via Geschiedenis.",
     "errorSessionExpired": "Je Codex-sessie is verlopen. Open Codex en log opnieuw in.",
     "errorSignedOut": "Niet ingelogd bij Codex. Open Codex en log in.",
+    "errorGeminiSessionExpired": "Je Gemini-sessie in Antigravity is beëindigd. Open Antigravity en log opnieuw in.",
     "errorTooLarge": "Deze opname is te lang voor de dienst. Probeer een kortere.",
     "errorTranscription": "Transcriptie mislukt. Probeer het opnieuw via Geschiedenis.",
     "errorPaste": "Plakken mislukt. De tekst staat op het klembord en in Geschiedenis.",

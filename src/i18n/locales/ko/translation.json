@@ -11,6 +11,7 @@
     "errorServer": "음성 인식 서비스에 문제가 있습니다. 기록에서 다시 시도하세요.",
     "errorSessionExpired": "Codex 세션이 만료되었습니다. Codex를 열고 다시 로그인하세요.",
     "errorSignedOut": "Codex에 로그인되어 있지 않습니다. Codex를 열고 로그인하세요.",
+    "errorGeminiSessionExpired": "Antigravity의 Gemini 세션이 종료되었습니다. Antigravity를 열고 다시 로그인하세요.",
     "errorTooLarge": "이 녹음은 서비스에 비해 너무 깁니다. 더 짧게 녹음해 보세요.",
     "errorTranscription": "음성 인식에 실패했습니다. 기록에서 다시 시도하세요.",
     "errorPaste": "붙여넣지 못했습니다. 텍스트는 클립보드와 기록에 있습니다.",
