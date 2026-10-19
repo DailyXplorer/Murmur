@@ -125,7 +125,13 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     });
     void loadMeetings(PAGE_SIZE);
     const unlisten = events.meetingStateChanged.listen((event) => {
-      setRuntime(event.payload);
+      const next = event.payload;
+      setRuntime(next);
+      // A meeting that stopped takes its dialog with it: the next meeting
+      // may get the same id.
+      setDiscardId((id) =>
+        next.state === "recording" && next.id === id ? id : null,
+      );
       void loadMeetings(shownRef.current);
     });
     const updated = events.meetingsUpdated.listen(() => {
