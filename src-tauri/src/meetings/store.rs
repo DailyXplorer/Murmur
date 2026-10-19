@@ -88,6 +88,12 @@ fn migrations() -> Migrations<'static> {
         M::up("ALTER TABLE meetings ADD COLUMN system_played INTEGER NOT NULL DEFAULT 0;"),
         // Codex titles from 1.7.0 to 1.7.6 could hold speaker markers.
         M::up_with_hook("", name_speakers_in_titles),
+        // The highest id ever given, as AUTOINCREMENT keeps it: the run of a
+        // deleted meeting may still write by id, so no meeting reuses one.
+        M::up(
+            "CREATE TABLE meeting_last_id (id INTEGER NOT NULL);
+    INSERT INTO meeting_last_id SELECT COALESCE(MAX(id), 0) FROM meetings;",
+        ),
     ])
 }
 
@@ -478,13 +484,21 @@ impl MeetingsStore {
     }
 
     pub fn insert_recording(&self, started_at_ms: i64, tracks: MeetingTracks) -> Result<i64> {
-        let conn = self.connection()?;
-        conn.execute(
-            "INSERT INTO meetings (started_at_ms, capture_mode, status)
-             VALUES (?1, ?2, 'recording')",
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        tx.execute(
+            "UPDATE meeting_last_id
+             SET id = MAX(id, (SELECT COALESCE(MAX(id), 0) FROM meetings)) + 1",
+            [],
+        )?;
+        tx.execute(
+            "INSERT INTO meetings (id, started_at_ms, capture_mode, status)
+             VALUES ((SELECT id FROM meeting_last_id), ?1, ?2, 'recording')",
             params![started_at_ms, tracks.as_db()],
         )?;
-        Ok(conn.last_insert_rowid())
+        let id = tx.last_insert_rowid();
+        tx.commit()?;
+        Ok(id)
     }
 
     pub fn set_tracks(&self, id: i64, tracks: MeetingTracks) -> Result<()> {
@@ -866,7 +880,7 @@ impl MeetingsStore {
 
     pub fn set_stage(&self, id: i64, stage: MeetingStage) -> Result<()> {
         self.connection()?.execute(
-            "UPDATE meetings SET stage = ?2 WHERE id = ?1",
+            "UPDATE meetings SET stage = ?2 WHERE id = ?1 AND status = 'processing'",
             params![id, stage.as_db()],
         )?;
         Ok(())
@@ -977,6 +991,7 @@ impl MeetingsStore {
     /// the user gave them, unless `identity` (the diarization the keys come
     /// from, `None` for one speaker per track) changed: the same key may
     /// then be someone else, so remote speakers get their default names.
+    /// Only a meeting being processed gets one, as with `plan_chunks`.
     pub fn save_transcript(
         &self,
         id: i64,
@@ -988,6 +1003,14 @@ impl MeetingsStore {
     ) -> Result<()> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
+        let processing: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM meetings WHERE id = ?1 AND status = 'processing')",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if !processing {
+            return Ok(());
+        }
         let previous: Vec<(String, String)> = tx
             .prepare(
                 "SELECT speaker_key, text FROM meeting_turns WHERE meeting_id = ?1 ORDER BY seq",
@@ -1340,6 +1363,44 @@ mod tests {
         store.set_system_audio_silent(live, true).unwrap();
         assert!(store.chunks(live).unwrap().is_empty());
         assert!(!store.get(live).unwrap().unwrap().system_audio_silent);
+    }
+
+    /// The run of a deleted meeting may still be saving its transcript: the
+    /// next meeting must not take its id, nor its folder.
+    #[test]
+    fn a_deleted_meeting_id_is_never_given_again() {
+        let (_dir, store) = store();
+        let kept = recorded(&store);
+        let deleted = recorded(&store);
+        store.delete(deleted).unwrap();
+        let next = store.insert_recording(0, MeetingTracks::Both).unwrap();
+        assert!(next > deleted && kept < deleted);
+    }
+
+    #[test]
+    fn only_a_meeting_being_processed_gets_a_transcript_or_a_stage() {
+        let (_dir, store) = store();
+        let live = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        let me = MeetingSpeaker {
+            key: "me".into(),
+            name: "Me".into(),
+            default_name: "Me".into(),
+            color_index: 0,
+        };
+        let turn = MeetingTurn {
+            speaker_key: "me".into(),
+            start_ms: 0,
+            end_ms: 1_000,
+            text: "Deleted.".into(),
+            low_confidence: false,
+        };
+        store
+            .save_transcript(live, &[me], &[turn], SpeakerAnalysis::Separated, None, None)
+            .unwrap();
+        store.set_stage(live, MeetingStage::Aligning).unwrap();
+        let detail = store.get(live).unwrap().unwrap();
+        assert!(detail.turns.is_empty() && detail.speakers.is_empty());
+        assert_eq!((detail.stage, detail.speaker_analysis), (None, None));
     }
 
     #[test]
@@ -1712,7 +1773,7 @@ mod tests {
     #[test]
     fn new_speaker_keys_make_the_summary_be_written_again() {
         let (_dir, store) = store();
-        let id = ready(&store);
+        let id = recorded(&store);
         let speakers = [MeetingSpeaker {
             key: "s1".into(),
             name: "Speaker 1".into(),
@@ -1732,8 +1793,10 @@ mod tests {
                 .unwrap()
         };
         save(None);
+        store.finish_processing(id, None).unwrap();
         store.save_summary(id, None, "Notes by [[s1]].").unwrap();
         // The same keys keep the summary.
+        assert!(store.reopen(id).unwrap());
         save(None);
         assert_eq!(
             store.get(id).unwrap().unwrap().summary_status,
@@ -1775,10 +1838,11 @@ mod tests {
         };
         let speakers = [speaker("me", "Me", 0), speaker("s1", "Speaker 1", 1)];
         let titled = |title: &str| {
-            let id = ready(&store);
+            let id = recorded(&store);
             store
                 .save_transcript(id, &speakers, &[], SpeakerAnalysis::Separated, None, None)
                 .unwrap();
+            store.finish_processing(id, None).unwrap();
             store.rename_speaker(id, "s1", "Camille").unwrap();
             store.save_summary(id, Some(title), "Notes.").unwrap();
             id
@@ -1787,10 +1851,10 @@ mod tests {
         let edited = titled("Brouillon");
         store.rename(edited, Some("Notes sur [[s1]]")).unwrap();
         // The library as 1.7.6 left it.
-        Connection::open(&path)
-            .unwrap()
-            .pragma_update(None, "user_version", 6)
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("DROP TABLE meeting_last_id; PRAGMA user_version = 6;")
             .unwrap();
+        drop(conn);
 
         let (store, startup) = MeetingsStore::open(path, now());
         assert_eq!(startup, DatabaseStartup::Ready);
