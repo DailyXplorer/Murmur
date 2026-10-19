@@ -14,7 +14,7 @@
 //! calling (main) thread once the transcript is published.
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex, Once};
 use std::time::{Duration, Instant};
 
@@ -28,7 +28,7 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData, GetClipboardOwner,
-    GetClipboardSequenceNumber, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
+    OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{
@@ -159,8 +159,6 @@ struct Transaction {
     /// The user's clipboard from before the paste. When it was over budget,
     /// settlement erases the transcript instead.
     previous: Mutex<Result<Vec<SavedFormat>, CaptureLimit>>,
-    /// The clipboard sequence number while it holds Murmur's transcript.
-    sequence: AtomicU32,
     /// The owner window, as an integer so it can cross threads.
     window: AtomicIsize,
     settled: AtomicBool,
@@ -175,7 +173,6 @@ impl Transaction {
             transcript: transcript.to_string(),
             preserve_transcript,
             previous: Mutex::new(Ok(Vec::new())),
-            sequence: AtomicU32::new(0),
             window: AtomicIsize::new(0),
             settled: AtomicBool::new(false),
             finished: (Mutex::new(false), Condvar::new()),
@@ -284,8 +281,8 @@ fn clipboard_formats() -> Vec<u32> {
 }
 
 /// Replaces the open clipboard with the transcript promise and the
-/// exclusion formats. Returns the new sequence number.
-fn publish_promise() -> Result<u32, String> {
+/// exclusion formats.
+fn publish_promise() -> Result<(), String> {
     // SAFETY: the caller has the clipboard open for its window, which owns
     // it after EmptyClipboard.
     unsafe {
@@ -306,7 +303,7 @@ fn publish_promise() -> Result<u32, String> {
                 return Err(format!("SetClipboardData failed: {e}"));
             }
         }
-        Ok(GetClipboardSequenceNumber())
+        Ok(())
     }
 }
 
@@ -334,7 +331,6 @@ fn capture_and_publish(window: HWND, transaction: &Transaction) -> Result<(), St
         *lock(&transaction.previous) = previous;
         published
     })?
-    .map(|sequence| transaction.sequence.store(sequence, Ordering::SeqCst))
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -354,13 +350,10 @@ fn settle(window: HWND, transaction: &Transaction) {
         let state = lock(&transaction.state);
         (state.ownership_lost, state.injection_failed)
     };
-    let sequence = transaction.sequence.load(Ordering::SeqCst);
-    // SAFETY: plain query.
-    let still_ours = !ownership_lost && unsafe { GetClipboardSequenceNumber() } == sequence;
     // If the chord never reached the target, keeping the transcript is the
     // only non-destructive outcome.
     let decision = decide_settlement(
-        still_ours,
+        !ownership_lost && owns_clipboard(window),
         transaction.preserve_transcript || injection_failed,
     );
     if decision == ClipboardSettlement::LeaveUntouched {
@@ -370,10 +363,10 @@ fn settle(window: HWND, transaction: &Transaction) {
     let outcome = with_clipboard(window, || {
         // The clipboard is now open by this thread, so nothing can change
         // between this check and the writes below.
-        // SAFETY: plain query, then writes on the clipboard opened above.
-        if unsafe { GetClipboardSequenceNumber() } != sequence {
+        if lock(&transaction.state).ownership_lost || !owns_clipboard(window) {
             return "clipboard changed before settlement; leaving it untouched";
         }
+        // SAFETY: the clipboard is open for this thread's window.
         let _ = unsafe { EmptyClipboard() };
         if decision == ClipboardSettlement::KeepTranscript {
             write_format(
@@ -398,19 +391,23 @@ fn settle(window: HWND, transaction: &Transaction) {
     }
 }
 
+/// Whether `window` still owns the clipboard. Writing to the clipboard takes
+/// `EmptyClipboard`, which makes the writer the owner and sends the previous
+/// owner `WM_DESTROYCLIPBOARD`; a reader leaves the owner in place. (The
+/// sequence number is no guide: rendering for a reader changes it too.)
+fn owns_clipboard(window: HWND) -> bool {
+    // SAFETY: plain query.
+    unsafe { GetClipboardOwner() }.is_ok_and(|owner| owner == window)
+}
+
 /// The transcript, rendered for whoever asked: the system has the clipboard
 /// open on the reader's behalf.
 fn render_on_request(transaction: &Transaction) {
     lock(&transaction.state).record_receipt(Instant::now());
-    if write_format(
+    write_format(
         u32::from(CF_UNICODETEXT.0),
         &unicode_text_bytes(&transaction.transcript),
-    ) {
-        // The reader holds the clipboard open, so this number is still ours.
-        // SAFETY: plain query.
-        let sequence = unsafe { GetClipboardSequenceNumber() };
-        transaction.sequence.store(sequence, Ordering::SeqCst);
-    }
+    );
 }
 
 unsafe extern "system" fn window_proc(
@@ -681,10 +678,7 @@ pub(super) fn run(
             return ReliablePasteOutcome::Skipped;
         }
     };
-    info!(
-        "[reliable-paste] published transcript as delayed render (sequence {})",
-        transaction.sequence.load(Ordering::SeqCst)
-    );
+    info!("[reliable-paste] published transcript as delayed render");
 
     // The target may read while Control is still held.
     lock(&transaction.state).injected_at = Some(Instant::now());

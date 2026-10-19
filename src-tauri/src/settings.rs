@@ -1106,7 +1106,7 @@ mod tests {
             .expect("all AppSettings fields need serde defaults");
         assert!(!settings.audio_feedback);
         assert!(settings.ai_cleanup_enabled);
-        assert!(settings.window_names_enabled);
+        assert_eq!(settings.window_names_enabled, cfg!(target_os = "macos"));
         assert!(!settings.whisper_mode);
         assert_eq!(settings.accent_color, AccentColor::Pink);
         assert_eq!(
@@ -1181,6 +1181,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn cleanup_engine_defaults_to_apple_for_new_and_existing_users() {
         assert_eq!(get_default_settings().cleanup_engine, CleanupEngine::Apple);

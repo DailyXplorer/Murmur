@@ -1600,8 +1600,10 @@ mod tests {
             assert!(dir.join(paths::AUDIO_FILE).exists());
             assert!(!dir.join(paths::MIC_TRACK).exists());
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
+            // Without the archive bridge, the tracks still wait to be
+            // compressed.
+            assert!(h.store.waiting_for_processing().unwrap().is_empty());
         }
-        assert!(h.store.waiting_for_processing().unwrap().is_empty());
     }
 
     #[test]
