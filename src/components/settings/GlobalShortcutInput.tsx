@@ -56,6 +56,9 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [registrationError, setRegistrationError] =
     useState<ShortcutRegistrationError>();
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
+  // The optimistic update re-attaches the key listeners while the first
+  // combo is still being saved; a second combo then must not start another.
+  const committing = useRef(false);
 
   const bindings = getSetting("bindings") || {};
 
@@ -91,6 +94,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     const commit = async (newShortcut: string) => {
       if (!bindings[editingShortcutId]) return;
+      committing.current = true;
       try {
         await updateBinding(editingShortcutId, newShortcut);
       } catch (error) {
@@ -113,6 +117,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
       // Re-registers all bindings (the one just committed is already
       // registered; re-registering it fails cleanly and is ignored)
+      committing.current = false;
       endCapture(editingShortcutId);
       setHeldModifiers([]);
       setOriginalBinding("");
@@ -125,6 +130,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (cleanup) return;
       if (e.repeat) return;
       e.preventDefault();
+      if (committing.current) return;
 
       const key = normalizeKey(getKeyName(e));
       const modifiers = modifiersHeld(e);
