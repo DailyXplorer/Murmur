@@ -174,8 +174,9 @@ fn written_as_name(span: &[&str], opens_sentence: bool) -> bool {
     let [word] = span else {
         return false;
     };
-    let (prefix, suffix) = extract_punctuation(word);
-    let body = &word[prefix.len()..word.len() - suffix.len()];
+    // Trimming, not slicing between the punctuation edges: a word of
+    // punctuation alone ("?", "«") reports itself as both edges.
+    let body = word.trim_matches(|c: char| !c.is_alphanumeric());
     let letters: Vec<char> = body.chars().filter(|c| c.is_alphabetic()).collect();
     let acronym = letters.len() >= 2 && letters.iter().all(|c| c.is_uppercase());
     !opens_sentence
@@ -807,6 +808,28 @@ mod tests {
             assert_eq!(
                 apply_custom_words_counted(input, &words, 0.18),
                 (expected.to_string(), fixes),
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_word_made_only_of_punctuation_stays_as_written() {
+        let words = vec!["Max".to_string()];
+        for (input, expected) in [
+            ("Tu viens ?", "Tu viens ?"),
+            ("C'est ça !", "C'est ça !"),
+            ("Note : demain", "Note : demain"),
+            ("« Bonjour »", "« Bonjour »"),
+            // Words are joined back with plain spaces.
+            ("Tu viens\u{202f}?", "Tu viens ?"),
+            ("R & D", "R & D"),
+            ("this – that", "this – that"),
+            ("wait …", "wait …"),
+        ] {
+            assert_eq!(
+                apply_custom_words_counted(input, &words, 0.18),
+                (expected.to_string(), 0),
                 "input: {input}"
             );
         }
