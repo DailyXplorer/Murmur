@@ -1,3 +1,4 @@
+use crate::dictionary::{is_common_word, ELISIONS};
 use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -62,6 +63,9 @@ fn supports_soundex(key: &str) -> bool {
     !key.is_empty() && key.chars().all(|c| c.is_ascii_alphabetic())
 }
 
+/// The longest word too short for a reliable Soundex code.
+const MAX_SHORT_WORD_LEN: usize = 4;
+
 /// Scores a candidate against one custom-word key: normalized Levenshtein
 /// distance, boosted when both sound alike. Lower is closer; 0.0 is exact.
 fn match_score(candidate: &str, key: &str) -> f64 {
@@ -73,9 +77,13 @@ fn match_score(candidate: &str, key: &str) -> f64 {
     };
 
     // Soundex is an English/ASCII phonetic algorithm. Numeric terms can
-    // still use edit distance, but must not receive a phonetic boost.
-    let phonetic_match =
-        supports_soundex(candidate) && supports_soundex(key) && soundex(candidate, key);
+    // still use edit distance, but must not receive a phonetic boost. Nor
+    // can short words: Soundex keeps their first letter and consonants
+    // only, so "an" sounds like "Anne" and "marche" like "Marc".
+    let phonetic_match = supports_soundex(candidate)
+        && supports_soundex(key)
+        && candidate.len().min(key.len()) > MAX_SHORT_WORD_LEN
+        && soundex(candidate, key);
 
     if phonetic_match {
         levenshtein_score * 0.3
@@ -146,6 +154,9 @@ struct SpanMatch<'a> {
     start: usize,
     len: usize,
     replacement: &'a String,
+    /// A French elision on the first word, kept before the replacement: the
+    /// "l'" of "l'iPhone".
+    elision: &'a str,
     /// A possessive or plural ending of the last word, kept after the
     /// replacement: the "'s" of "ChatGPT's", the "s" of "iPhones".
     ending: &'a str,
@@ -159,7 +170,13 @@ fn match_span<'k>(
     custom_word_match_keys: &'k [CustomWordMatchKey],
     threshold: f64,
 ) -> Option<(&'k CustomWordMatchKey, f64)> {
-    let (key, score) = find_best_match(&build_ngram(span), custom_word_match_keys, threshold)?;
+    let candidate = build_ngram(span);
+    let (key, score) = find_best_match(&candidate, custom_word_match_keys, threshold)?;
+    // An everyday word is what the user said, unless it is the custom word
+    // itself: "an" never becomes "Anne", "mari" never becomes "Marie".
+    if span.len() == 1 && candidate != key.key && is_common_word(&candidate) {
+        return None;
+    }
     // An edge word that matches no part of the custom word, or does not
     // bring the span closer to it, is an ordinary word the span would
     // swallow: "my" in "my I phone" for iPhone, "is" in "CHARGE B is" for
@@ -195,9 +212,21 @@ fn endings(word: &str) -> impl Iterator<Item = (String, &str)> {
     })
 }
 
+/// A French elision written against a word, with any punctuation before
+/// it, and the rest of the word: "«l'" and "iPhone" for "«l'iPhone".
+/// "O'Brien" has none: "o" is not an elision.
+fn split_elision(word: &str) -> Option<(&str, &str)> {
+    let (at, apostrophe) = word.char_indices().find(|(_, c)| matches!(c, '\'' | '’'))?;
+    let (elision, rest) = word.split_at(at + apostrophe.len_utf8());
+    let head = word[..at].trim_start_matches(|c: char| !c.is_alphanumeric());
+    (ELISIONS.contains(&head.to_lowercase().as_str()) && rest.starts_with(char::is_alphanumeric))
+        .then_some((elision, rest))
+}
+
 /// Every span of up to [`MAX_SPAN_WORDS`] words that matches a custom word and
-/// whose edge words both belong to the match. A possessive ending is set
-/// aside before matching whenever that brings the span closer. A plural
+/// whose edge words both belong to the match. A French elision and a
+/// possessive ending are set aside before matching whenever that brings the
+/// span closer. A plural
 /// ending only when the whole span already matched, so "dans" never
 /// becomes a plural of the name "Dan".
 fn candidate_spans<'a>(
@@ -218,26 +247,40 @@ fn candidate_spans<'a>(
             {
                 continue;
             }
-            let whole = match_span(span, custom_word_match_keys, threshold);
-            let mut best = whole.map(|(key, score)| (key, score, ""));
-            for (stem, ending) in endings(span[len - 1]) {
-                if whole.is_none() && !ending.starts_with(['\'', '’']) {
-                    continue;
+            let mut best = None;
+            let elided = split_elision(span[0]).map(|(elision, rest)| {
+                let mut span = span.to_vec();
+                span[0] = rest;
+                (elision, span)
+            });
+            for (elision, span) in std::iter::once(("", span.to_vec())).chain(elided) {
+                let whole = match_span(&span, custom_word_match_keys, threshold);
+                if let Some((key, score)) = whole {
+                    if best.is_none_or(|(_, best_score, _, _)| score < best_score) {
+                        best = Some((key, score, elision, ""));
+                    }
                 }
-                let mut stemmed = span.to_vec();
-                stemmed[len - 1] = &stem;
-                if let Some((key, score)) = match_span(&stemmed, custom_word_match_keys, threshold)
-                {
-                    if best.is_none_or(|(_, best_score, _)| score < best_score) {
-                        best = Some((key, score, ending));
+                for (stem, ending) in endings(span[len - 1]) {
+                    if whole.is_none() && !ending.starts_with(['\'', '’']) {
+                        continue;
+                    }
+                    let mut stemmed = span.clone();
+                    stemmed[len - 1] = &stem;
+                    if let Some((key, score)) =
+                        match_span(&stemmed, custom_word_match_keys, threshold)
+                    {
+                        if best.is_none_or(|(_, best_score, _, _)| score < best_score) {
+                            best = Some((key, score, elision, ending));
+                        }
                     }
                 }
             }
-            if let Some((key, score, ending)) = best {
+            if let Some((key, score, elision, ending)) = best {
                 spans.push(SpanMatch {
                     start,
                     len,
                     replacement: &custom_words[key.word_index],
+                    elision,
                     ending,
                     score,
                 });
@@ -318,10 +361,14 @@ pub fn apply_custom_words_counted(
         };
         let span_words = &words[i..i + span.len];
         let original = span_words.join(" ");
-        // Keep the punctuation around the first and last words of the span.
-        let (prefix, _) = extract_punctuation(span_words[0]);
+        // Keep the punctuation around the first and last words of the span,
+        // and the elision, which already holds the punctuation before it.
+        let prefix = match span.elision {
+            "" => extract_punctuation(span_words[0]).0,
+            elision => elision,
+        };
         let (_, suffix) = extract_punctuation(span_words[span.len - 1]);
-        let corrected = preserve_case_pattern(&original, span.replacement);
+        let corrected = preserve_case_pattern(&original[span.elision.len()..], span.replacement);
         let replaced = format!("{prefix}{corrected}{}{suffix}", span.ending);
         if replaced != original {
             replacements += 1;
@@ -561,6 +608,51 @@ mod tests {
             ("ask chat gpt's view", "ask ChatGPT's view", 1),
             ("my I phones", "my iPhones", 1),
             ("je vais dans le bureau", "je vais dans le bureau", 0),
+        ];
+        for (input, expected, fixes) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &words, 0.18),
+                (expected.to_string(), fixes),
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_short_name_never_rewrites_an_everyday_word() {
+        let cases = [
+            ("Anne", "I ate an apple", "I ate an apple"),
+            ("Anne", "il y a un an", "il y a un an"),
+            ("Marc", "ça marche bien", "ça marche bien"),
+            ("Marie", "mon mari arrive", "mon mari arrive"),
+            ("Jean", "j'en ai marre", "j'en ai marre"),
+            ("Paul", "un pull rouge", "un pull rouge"),
+            // The name itself, in any case, still takes the user's spelling.
+            ("Anne", "ask anne first", "ask Anne first"),
+            ("Marc", "MARC est là", "MARC est là"),
+        ];
+        for (word, input, expected) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &[word.to_string()], 0.18).0,
+                expected,
+                "{word}: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_custom_word_keeps_the_french_elision_in_front_of_it() {
+        let words: Vec<String> = ["iPhone", "Anthropic", "Excel", "D'Angelo"]
+            .iter()
+            .map(|w| w.to_string())
+            .collect();
+        let cases = [
+            ("j'adore l'iPhone", "j'adore l'iPhone", 0),
+            ("le modèle d'Anthropic", "le modèle d'Anthropic", 0),
+            ("le modèle d’Anthropic.", "le modèle d’Anthropic.", 0),
+            ("un fichier d'excel", "un fichier d'Excel", 1),
+            ("L'I phone est mort", "L'iPhone est mort", 1),
+            ("la musique de D'Angelo", "la musique de D'Angelo", 0),
         ];
         for (input, expected, fixes) in cases {
             assert_eq!(

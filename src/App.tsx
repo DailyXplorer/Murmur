@@ -28,8 +28,12 @@ import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
+/** `returning`: setup was finished before, and a permission went missing
+ * since. Granting it again leads back to the app, not to the Codex step. */
 type OnboardingState =
-  { kind: "permissions" } | { kind: "provider" } | { kind: "done" };
+  | { kind: "permissions"; returning: boolean }
+  | { kind: "provider" }
+  | { kind: "done" };
 
 /** Mirrors `FailureKind` in src-tauri/src/transcription_error.rs. */
 type FailureKind =
@@ -138,7 +142,7 @@ function App() {
           return;
         }
         await revealMainWindowForPermissions();
-        setOnboardingState({ kind: "permissions" });
+        setOnboardingState({ kind: "permissions", returning: true });
       }
     };
 
@@ -235,7 +239,7 @@ function App() {
           ]);
           if (!hasAccessibility || !hasMicrophone) {
             await revealMainWindowForPermissions();
-            setOnboardingState({ kind: "permissions" });
+            setOnboardingState({ kind: "permissions", returning: true });
             return;
           }
         } catch (e) {
@@ -247,7 +251,7 @@ function App() {
         } catch (e) {
           console.warn("Failed to initialize:", e);
           await revealMainWindowForPermissions();
-          setOnboardingState({ kind: "permissions" });
+          setOnboardingState({ kind: "permissions", returning: true });
           return;
         }
 
@@ -256,18 +260,19 @@ function App() {
         refreshOutputDevices();
         setOnboardingState({ kind: "done" });
       } else {
-        setOnboardingState({ kind: "permissions" });
+        setOnboardingState({ kind: "permissions", returning: false });
       }
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
-      setOnboardingState({ kind: "permissions" });
+      setOnboardingState({ kind: "permissions", returning: false });
     }
   };
 
   const handlePermissionsComplete = useCallback(() => {
-    setOnboardingState((current) =>
-      current?.kind === "permissions" ? { kind: "provider" } : current,
-    );
+    setOnboardingState((current) => {
+      if (current?.kind !== "permissions") return current;
+      return current.returning ? { kind: "done" } : { kind: "provider" };
+    });
   }, []);
 
   const handleProviderComplete = async (): Promise<boolean> => {

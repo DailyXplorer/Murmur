@@ -24,6 +24,10 @@ const createDeferred = <T,>(): Deferred<T> => {
 const query = new URLSearchParams(window.location.search);
 const appLanguage = query.get("lang") === "fr" ? "fr" : "en";
 let codexConfigured = query.get("codex") === "configured";
+/** A user who finished setup long ago and lost Accessibility since: the
+ * first check finds it missing, the next one finds it granted again. */
+const returning = query.get("returning") === "1";
+let accessibilityRevoked = returning;
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
@@ -76,7 +80,7 @@ const rejectStatusRefresh = (index: number) => {
 
 let backendSettings: AppSettings = {
   app_language: appLanguage,
-  onboarding_completed: false,
+  onboarding_completed: returning,
   selected_language: "fr",
 };
 
@@ -129,6 +133,11 @@ mockIPC(
       case "get_available_output_devices":
         return [];
       case "plugin:macos-permissions|check_accessibility_permission":
+        if (accessibilityRevoked) {
+          accessibilityRevoked = false;
+          return false;
+        }
+        return true;
       case "plugin:macos-permissions|check_microphone_permission":
         return true;
       case "get_microphone_authorization_status":

@@ -205,7 +205,7 @@ fn core(word: &str) -> &str {
 }
 
 /// French elisions, written against the next word: "d'Anthropic".
-const ELISIONS: [&str; 12] = [
+pub(crate) const ELISIONS: [&str; 12] = [
     "c", "d", "j", "l", "m", "n", "s", "t", "qu", "jusqu", "lorsqu", "puisqu",
 ];
 
@@ -297,7 +297,7 @@ fn sounds_alike(heard: &str, word: &str) -> bool {
 }
 
 /// Everyday English and French words and common first names, lowercase.
-fn is_common_word(word: &str) -> bool {
+pub(crate) fn is_common_word(word: &str) -> bool {
     static WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
     WORDS
         .get_or_init(|| include_str!("common_words.txt").lines().collect())

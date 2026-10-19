@@ -214,6 +214,20 @@ test("returns to permissions when post-onboarding initialization fails", async (
     .toContain("complete");
 });
 
+test("a returning user who grants a permission again goes straight back to the app", async ({
+  page,
+}) => {
+  // Signed out of Codex: the provider step would have no way out.
+  await page.goto(`${fixturePath}?returning=1`);
+  await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Connect Codex" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => window.providerOnboardingFixture.calls()),
+  ).toContain("show_main_window_command");
+});
+
 test("fits the French provider step at the native minimum window size", async ({
   page,
 }) => {

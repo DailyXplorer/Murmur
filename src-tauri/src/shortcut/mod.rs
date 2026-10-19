@@ -493,6 +493,8 @@ pub fn change_update_checks_setting(app: AppHandle, enabled: bool) -> Result<(),
     let mut value = settings::get_settings(&app);
     value.update_checks_enabled = enabled;
     settings::write_settings(&app, value);
+    // The tray's "Check for Updates…" item follows the setting.
+    tray::update_tray_menu(&app, None);
     Ok(())
 }
 

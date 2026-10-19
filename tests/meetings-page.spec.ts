@@ -347,6 +347,27 @@ test("a double click on a speaker models button runs only its first action", asy
   expect(await actions()).toEqual(["delete_meeting_models"]);
 });
 
+test("a double click on Start or Stop runs only its first action", async ({
+  page,
+}) => {
+  const actions = async () =>
+    (await calls(page)).filter((command) =>
+      ["start_meeting", "stop_meeting", "discard_meeting"].includes(command),
+    );
+  const start = page.getByRole("button", { name: "Start Meeting" });
+  const stop = page.getByRole("button", { name: "Stop", exact: true });
+
+  await openMeetings(page, "&meeting=recording");
+  await doubleClickAcrossStates(page, stop, start);
+  await page.waitForTimeout(100);
+  expect(await actions()).toEqual(["stop_meeting"]);
+
+  await openMeetings(page);
+  await doubleClickAcrossStates(page, start, stop);
+  await page.waitForTimeout(100);
+  expect(await actions()).toEqual(["start_meeting"]);
+});
+
 test("the system audio row's title fits at the default window size in every language", async ({
   page,
 }) => {
