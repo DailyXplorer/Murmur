@@ -7,6 +7,7 @@ mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod autostart;
+mod chinese_script;
 mod cleanup;
 pub mod cli;
 mod clipboard;
