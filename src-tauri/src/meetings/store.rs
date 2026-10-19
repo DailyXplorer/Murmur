@@ -5,8 +5,8 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use log::warn;
-use rusqlite::{params, Connection, OptionalExtension};
-use rusqlite_migration::{Migrations, M};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite_migration::{HookResult, Migrations, M};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
@@ -15,14 +15,15 @@ use std::path::{Path, PathBuf};
 use super::chunking::ChunkPlan;
 use super::merge::Track;
 use super::paths;
-use super::summary::SummaryError;
+use super::summary::{named_title, SummaryError};
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::{open_or_reset_database, DatabaseStartup};
 
-static MIGRATIONS: &[M] = &[
-    M::up(
-        "CREATE TABLE meetings (
+fn migrations() -> Migrations<'static> {
+    Migrations::new(vec![
+        M::up(
+            "CREATE TABLE meetings (
         id              INTEGER PRIMARY KEY,
         started_at_ms   INTEGER NOT NULL,
         ended_at_ms     INTEGER,
@@ -74,18 +75,45 @@ static MIGRATIONS: &[M] = &[
         low_confidence INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (meeting_id, seq)
     );",
-    ),
-    // How the speakers of the last processing run were told apart.
-    M::up("ALTER TABLE meetings ADD COLUMN speaker_analysis TEXT;"),
-    // Which diarization the speaker keys come from (NULL: one per track).
-    M::up("ALTER TABLE meetings ADD COLUMN speaker_identity TEXT;"),
-    // The user deleted the audio; the text stays.
-    M::up("ALTER TABLE meetings ADD COLUMN audio_deleted INTEGER NOT NULL DEFAULT 0;"),
-    // System audio held only zeros: the permission is likely off.
-    M::up("ALTER TABLE meetings ADD COLUMN system_audio_silent INTEGER NOT NULL DEFAULT 0;"),
-    // Another app played sound while system audio was recorded.
-    M::up("ALTER TABLE meetings ADD COLUMN system_played INTEGER NOT NULL DEFAULT 0;"),
-];
+        ),
+        // How the speakers of the last processing run were told apart.
+        M::up("ALTER TABLE meetings ADD COLUMN speaker_analysis TEXT;"),
+        // Which diarization the speaker keys come from (NULL: one per track).
+        M::up("ALTER TABLE meetings ADD COLUMN speaker_identity TEXT;"),
+        // The user deleted the audio; the text stays.
+        M::up("ALTER TABLE meetings ADD COLUMN audio_deleted INTEGER NOT NULL DEFAULT 0;"),
+        // System audio held only zeros: the permission is likely off.
+        M::up("ALTER TABLE meetings ADD COLUMN system_audio_silent INTEGER NOT NULL DEFAULT 0;"),
+        // Another app played sound while system audio was recorded.
+        M::up("ALTER TABLE meetings ADD COLUMN system_played INTEGER NOT NULL DEFAULT 0;"),
+        // Codex titles from 1.7.0 to 1.7.6 could hold speaker markers.
+        M::up_with_hook("", name_speakers_in_titles),
+    ])
+}
+
+/// Gives the speaker markers left in Codex titles the speakers' names, as
+/// `summary::parse` does for a new title. A title the user typed is theirs.
+fn name_speakers_in_titles(tx: &Transaction) -> HookResult {
+    let titles: Vec<(i64, String)> = tx
+        .prepare("SELECT id, title FROM meetings WHERE title_edited = 0 AND title LIKE '%[[%'")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    for (id, title) in titles {
+        let speakers: Vec<(String, String)> = tx
+            .prepare("SELECT key, display_name FROM meeting_speakers WHERE meeting_id = ?1")?
+            .query_map(params![id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let names = speakers
+            .iter()
+            .map(|(key, name)| (key.as_str(), name.clone()))
+            .collect();
+        tx.execute(
+            "UPDATE meetings SET title = ?2 WHERE id = ?1",
+            params![id, named_title(&title, &names)],
+        )?;
+    }
+    Ok(())
+}
 
 /// Which tracks a meeting recorded.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -431,7 +459,7 @@ fn init_database(db_path: &Path) -> Result<()> {
         )
         .into());
     }
-    Migrations::new(MIGRATIONS.to_vec()).to_latest(&mut conn)?;
+    migrations().to_latest(&mut conn)?;
     Ok(())
 }
 
@@ -1112,7 +1140,7 @@ mod tests {
 
     #[test]
     fn migrations_are_valid() {
-        Migrations::new(MIGRATIONS.to_vec()).validate().unwrap();
+        migrations().validate().unwrap();
     }
 
     #[test]
@@ -1729,5 +1757,48 @@ mod tests {
             }
         );
         assert!(store.list(None, 1).unwrap().meetings.is_empty());
+    }
+
+    /// Codex titles from 1.7.0 to 1.7.6 could hold speaker markers; the
+    /// first launch after them gives those titles the speakers' names.
+    #[test]
+    fn titles_saved_with_speaker_markers_get_the_speakers_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("meetings.db");
+        let (store, _) = MeetingsStore::open(path.clone(), now());
+        let speaker = |key: &str, name: &str, color_index| MeetingSpeaker {
+            key: key.into(),
+            name: name.into(),
+            default_name: name.into(),
+            color_index,
+        };
+        let speakers = [speaker("me", "Me", 0), speaker("s1", "Speaker 1", 1)];
+        let titled = |title: &str| {
+            let id = ready(&store);
+            store
+                .save_transcript(id, &speakers, &[], SpeakerAnalysis::Separated, None, None)
+                .unwrap();
+            store.rename_speaker(id, "s1", "Camille").unwrap();
+            store.save_summary(id, Some(title), "Notes.").unwrap();
+            id
+        };
+        let written = titled("Point avec [[s1]] et [[me]], [[s9]]");
+        let edited = titled("Brouillon");
+        store.rename(edited, Some("Notes sur [[s1]]")).unwrap();
+        // The library as 1.7.6 left it.
+        Connection::open(&path)
+            .unwrap()
+            .pragma_update(None, "user_version", 6)
+            .unwrap();
+
+        let (store, startup) = MeetingsStore::open(path, now());
+        assert_eq!(startup, DatabaseStartup::Ready);
+        let title = |id| store.get(id).unwrap().unwrap().title;
+        assert_eq!(
+            title(written).as_deref(),
+            Some("Point avec Camille et Me, s9")
+        );
+        // A title the user typed is theirs.
+        assert_eq!(title(edited).as_deref(), Some("Notes sur [[s1]]"));
     }
 }
