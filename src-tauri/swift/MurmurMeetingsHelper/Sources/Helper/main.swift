@@ -1,10 +1,13 @@
 // murmur-meetings-helper: on-device analysis of a recorded meeting.
 //
 //   download --models-dir <dir>
-//   analyze  --models-dir <dir> [--system <wav>] [--mic <wav>] [--diarize system|mic|none]
+//   analyze  --models-dir <dir> [--system <wav>] [--mic <wav>]
+//   diarize  --models-dir <dir> (--system <wav> | --mic <wav>)
 //
-// Prints one JSON object per line on stdout (see `meetings/protocol.rs`).
-// `analyze` never downloads: missing models are reported as an error.
+// `analyze` prints the words heard on each track, `diarize` who spoke when
+// on one track: Murmur picks it from those words. Prints one JSON object per
+// line on stdout (see `meetings/protocol.rs`). Neither downloads: missing
+// models are reported as an error.
 
 import FluidAudio
 import Foundation
@@ -157,25 +160,31 @@ func diarize(_ url: URL, track: String, models: URL) async {
     }
 }
 
+/// The tracks named on the command line, system audio first.
+func tracks(in arguments: [String]) -> [(String, URL)] {
+    ["system", "mic"].compactMap { track in
+        value(of: "--\(track)", in: arguments).map { (track, URL(fileURLWithPath: $0)) }
+    }
+}
+
 func analyze(models: URL, arguments: [String]) async -> Int32 {
     // Everything the analysis needs is already on disk.
     ModelHub.offlineMode = true
-    var tracks: [(String, URL)] = []
-    for track in ["system", "mic"] {
-        if let path = value(of: "--\(track)", in: arguments) {
-            tracks.append((track, URL(fileURLWithPath: path)))
-        }
-    }
-    let diarized = value(of: "--diarize", in: arguments) ?? "none"
     do {
         let asr = try await AsrModels.load(from: asrDirectory(models), version: .v3)
-        for (track, url) in tracks {
+        for (track, url) in tracks(in: arguments) {
             await transcribe(url, track: track, models: asr)
         }
     } catch {
         fail("asr", error)
     }
-    if let (track, url) = tracks.first(where: { $0.0 == diarized }) {
+    emit(Done())
+    return 0
+}
+
+func diarize(models: URL, arguments: [String]) async -> Int32 {
+    ModelHub.offlineMode = true
+    if let (track, url) = tracks(in: arguments).first {
         await diarize(url, track: track, models: models)
     }
     emit(Done())
@@ -195,7 +204,7 @@ Thread.detachNewThread {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments)
 else {
-    FileHandle.standardError.write(Data("usage: download|analyze --models-dir <dir> …\n".utf8))
+    FileHandle.standardError.write(Data("usage: download|analyze|diarize --models-dir <dir> …\n".utf8))
     exit(2)
 }
 let models = URL(fileURLWithPath: modelsPath, isDirectory: true)
@@ -204,6 +213,8 @@ case "download":
     exit(await download(models: models))
 case "analyze":
     exit(await analyze(models: models, arguments: arguments))
+case "diarize":
+    exit(await diarize(models: models, arguments: arguments))
 default:
     FileHandle.standardError.write(Data("unknown command \(command)\n".utf8))
     exit(2)

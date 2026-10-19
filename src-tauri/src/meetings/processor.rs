@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
-use super::analysis::{Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
+use super::analysis::{diarized_track, Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
 use super::archive;
 use super::bleed::remove_echoes;
 use super::chunking::{
@@ -107,11 +107,12 @@ fn single_speaker(track: Track, room_voices: usize) -> String {
     }
 }
 
-/// The track whose voices are told apart: system audio, where the remote
+/// The track whose voices are told apart when no words were heard on device
+/// to pick it (`analysis::diarized_track`): system audio, where the remote
 /// participants are, unless it holds too little speech for that, both in
 /// time and next to the microphone's. Then the meeting was held in person
 /// and every voice is on the microphone.
-fn diarized_track(audio: &HashMap<Track, Audio>) -> Track {
+fn track_by_levels(audio: &HashMap<Track, Audio>) -> Track {
     let speech = |track| {
         audio.get(&track).map(|audio| {
             voiced_ms(
@@ -414,7 +415,7 @@ impl Processor {
             policy: self.policy.clone(),
             language: self.language.clone(),
         };
-        let diarize = diarized_track(&source.0);
+        let by_levels = track_by_levels(&source.0);
         let dir = paths::meeting_dir(&self.root, id);
         let analyzed = AtomicBool::new(false);
         let started = Instant::now();
@@ -427,7 +428,7 @@ impl Processor {
         };
         let analyzing = async {
             let analysis = self
-                .analysis(&dir, &source, diarize, operation.clone())
+                .analysis(&dir, &source, by_levels, operation.clone())
                 .await;
             analyzed.store(true, Ordering::SeqCst);
             (analysis, started.elapsed())
@@ -443,14 +444,22 @@ impl Processor {
         self.report_stage(id, MeetingStage::Aligning, &saver);
         let started = Instant::now();
         let chunks = self.store.chunks(id)?;
+        let diarize = analysis
+            .as_ref()
+            .and_then(|analysis| analysis.diarized)
+            .unwrap_or(by_levels);
         let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
         // A recorded track that could not be read leaves one side of the
         // conversation out: never a Ready meeting, nor a summary of half of
-        // it, nor half a transcript in place of the whole one.
+        // it, nor half a transcript in place of the whole one. Nor does a
+        // run that left out more than the transcript it would replace, as
+        // "Transcribe again" does while Codex cannot answer.
         let unreadable = recorded_tracks(recorded)
             .iter()
             .any(|track| !source.0.contains_key(track));
-        if !unreadable || meeting.turns.is_empty() {
+        let replaces = meeting.turns.is_empty()
+            || (!unreadable && untranscribed_ms(&built.turns) <= untranscribed_ms(&meeting.turns));
+        if replaces {
             self.store.save_transcript(
                 id,
                 &built.speakers,
@@ -502,12 +511,14 @@ impl Processor {
         &self,
         dir: &Path,
         source: &TrackFiles,
-        diarize: Track,
+        by_levels: Track,
         operation: ProcessingOperation,
     ) -> Option<(Option<Analysis>, SpeakerAnalysis)> {
-        // One saved before the speakers were told apart on another track is
-        // run again.
-        if let Some(saved) = Analysis::load(dir).filter(|saved| saved.diarized == Some(diarize)) {
+        // One saved before its words picked the track whose voices are told
+        // apart, and that told them apart on the other, is run again.
+        if let Some(saved) = Analysis::load(dir)
+            .filter(|saved| saved.diarized == Some(diarized_track(&saved.words, by_levels)))
+        {
             let outcome = saved.outcome();
             return Some((Some(saved), outcome));
         }
@@ -517,7 +528,7 @@ impl Processor {
                 .iter()
                 .map(|(track, audio)| (*track, audio.path.clone()))
                 .collect(),
-            diarize,
+            by_levels,
         };
         match self.analyzer.analyze(request, operation).await {
             AnalyzerOutcome::Cancelled => None,
@@ -550,6 +561,15 @@ fn timings_line(audio_ms: u64, stages: &[(&str, Duration)], total: Duration) -> 
         line.push_str(&format!(" ({speed:.0}x real time)"));
     }
     line
+}
+
+/// How much track audio a transcript leaves out, in milliseconds.
+fn untranscribed_ms(turns: &[MeetingTurn]) -> i64 {
+    turns
+        .iter()
+        .filter(|turn| turn.speaker_key == PLACEHOLDER)
+        .map(|turn| turn.end_ms - turn.start_ms)
+        .sum()
 }
 
 /// The transcript built from the chunks Codex transcribed.
@@ -723,12 +743,13 @@ mod tests {
     use crate::cleanup::responses::CompletionError;
     use crate::meetings::analysis::ANALYSIS_FILE;
     use crate::meetings::chunking;
-    use crate::meetings::protocol::Turn;
+    use crate::meetings::protocol::{Turn, Word};
     use crate::meetings::store::{AudioState, SummaryStatus};
     use crate::meetings::summary::SummaryError;
     use crate::meetings::transcribe::TranscribeFuture;
     use crate::transcription_error::TranscriptionError;
     use crate::OperationId;
+    use std::collections::BTreeMap;
     use std::sync::Mutex;
     use std::time::Duration;
 
@@ -777,7 +798,7 @@ mod tests {
     struct FakeAnalyzer {
         answer: Mutex<Option<AnalyzerOutcome>>,
         calls: AtomicU32,
-        /// The track it was last asked to tell the speakers apart on.
+        /// The track its words last picked to tell the speakers apart on.
         diarize: Mutex<Option<Track>>,
     }
 
@@ -799,12 +820,16 @@ mod tests {
             Self::from_fixture_on(Track::System, lines, complete)
         }
 
-        /// The fixture dialogue, as if it had been heard on `track`.
+        /// The fixture dialogue, as if it had been heard on `track`. On the
+        /// microphone, nothing is heard on system audio.
         fn from_fixture_on(track: Track, lines: &str, complete: bool) -> Self {
             let mut analysis = Analysis {
                 diarized: Some(track),
                 ..Analysis::default()
             };
+            if track == Track::Mic {
+                analysis.words.insert(Track::System, Vec::new());
+            }
             let lines = lines.replace(
                 r#""track":"system""#,
                 &format!(r#""track":"{}""#, track_name(track)),
@@ -824,14 +849,23 @@ mod tests {
             _: ProcessingOperation,
         ) -> crate::meetings::analysis::AnalyzeFuture {
             self.calls.fetch_add(1, Ordering::SeqCst);
-            *self.diarize.lock().unwrap() = Some(request.diarize);
             assert!(request.tracks.iter().all(|(_, path)| path.is_file()));
-            let answer = self
+            let mut answer = self
                 .answer
                 .lock()
                 .unwrap()
                 .take()
                 .unwrap_or(AnalyzerOutcome::Unavailable(SpeakerAnalysis::NoModels));
+            // Like the helper, it tells apart the voices of the track its
+            // words pick; scripted turns of another track were never heard.
+            if let AnalyzerOutcome::Ran(analysis) = &mut answer {
+                let diarize = diarized_track(&analysis.words, request.by_levels);
+                if analysis.diarized != Some(diarize) {
+                    analysis.turns = None;
+                }
+                analysis.diarized = Some(diarize);
+                *self.diarize.lock().unwrap() = Some(diarize);
+            }
             Box::pin(async move { answer })
         }
     }
@@ -1890,36 +1924,183 @@ mod tests {
 
     const ROOM: f32 = -58.0;
 
-    /// An hour-long call where the user presents and three remote
-    /// participants ask questions for a few minutes at the end: theirs are
-    /// the voices told apart, and the user stays "Me".
+    /// Without words heard on device, an hour-long call where the user
+    /// presents and three remote participants ask questions for a few
+    /// minutes at the end: the levels pick system audio.
     #[test]
     fn a_call_where_the_user_presents_tells_the_remote_voices_apart() {
         let audio = HashMap::from([
             (Track::Mic, speech_for(3_600, 2_700, ROOM)),
             (Track::System, speech_for(3_600, 150, DIGITAL_SILENCE_DBFS)),
         ]);
-        assert_eq!(diarized_track(&audio), Track::System);
+        assert_eq!(track_by_levels(&audio), Track::System);
     }
 
-    /// A call nobody answered rings on the Mac during an hour-long meeting
-    /// held in a room: the room's voices are still the ones told apart.
+    /// Without words heard on device, a call nobody answered rings on the
+    /// Mac during an hour-long meeting held in a room: the levels pick the
+    /// microphone.
     #[test]
     fn a_call_ringing_on_the_mac_keeps_the_voices_of_a_room_apart() {
         let audio = HashMap::from([
             (Track::Mic, speech_for(3_600, 2_000, ROOM)),
             (Track::System, speech_for(3_600, 30, DIGITAL_SILENCE_DBFS)),
         ]);
-        assert_eq!(diarized_track(&audio), Track::Mic);
+        assert_eq!(track_by_levels(&audio), Track::Mic);
     }
 
+    const PRESENTING: &str = "Voici les chiffres du trimestre.";
+    const QUESTIONS: [&str; 2] = [
+        "On peut revoir le budget de cette année.",
+        "Et le planning du projet pour le mois prochain.",
+    ];
+
+    /// The words of `text` as heard on device, one every half second from
+    /// `from` seconds.
+    fn heard(text: &str, from: f64) -> Vec<Word> {
+        text.split_whitespace()
+            .enumerate()
+            .map(|(i, word)| {
+                let s = from + i as f64 * 0.5;
+                Word {
+                    w: word.into(),
+                    s,
+                    e: s + 0.4,
+                }
+            })
+            .collect()
+    }
+
+    fn said_by(speaker: &str, s: f64, e: f64) -> Turn {
+        Turn {
+            spk: speaker.into(),
+            s,
+            e,
+        }
+    }
+
+    /// A call where the user presents, and two remote participants then ask
+    /// a question each: ten seconds of remote speech, far less than the
+    /// user's. Returns the meeting and what the helper heard.
+    fn brief_remote_call(h: &Harness) -> (i64, Analysis) {
+        let id = h.meeting(MeetingTracks::Both, 130);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 130, &[(0, 100), (112, 130)]);
+        track(&dir.join(paths::SYSTEM_TRACK), 130, &[(100, 110)]);
+        let analysis = Analysis {
+            words: BTreeMap::from([
+                (Track::Mic, heard(PRESENTING, 1.0)),
+                (
+                    Track::System,
+                    [heard(QUESTIONS[0], 100.0), heard(QUESTIONS[1], 105.0)].concat(),
+                ),
+            ]),
+            diarized: Some(Track::System),
+            turns: Some(vec![said_by("A", 100.0, 105.0), said_by("B", 105.0, 110.0)]),
+            complete: true,
+            ..Analysis::default()
+        };
+        (id, analysis)
+    }
+
+    fn brief_remote_codex() -> Arc<FakeCodex> {
+        codex_by_audio(|samples| {
+            let presenting = samples[50 * RATE..51 * RATE].iter().any(|s| s.abs() > 0.1);
+            Ok(if presenting {
+                PRESENTING.to_string()
+            } else {
+                QUESTIONS.join(" ")
+            })
+        })
+    }
+
+    /// The words heard on system audio make it the side of the call whose
+    /// voices are told apart, however little the remote side spoke: the
+    /// user stays "Me".
     #[test]
-    fn the_remote_voices_are_told_apart_when_system_audio_holds_speech() {
+    fn a_call_where_the_remote_side_speaks_briefly_tells_its_voices_apart() {
         let h = harness();
-        let id = spoken_meeting(&h);
-        let analyzer = Arc::new(FakeAnalyzer::without_models());
-        h.process_with(id, codex(|_| Ok("Bonjour.".into())), Arc::clone(&analyzer));
+        let (id, analysis) = brief_remote_call(&h);
+        let analyzer = Arc::new(FakeAnalyzer::answering(AnalyzerOutcome::Ran(analysis)));
+        h.process_with(id, brief_remote_codex(), Arc::clone(&analyzer));
+
         assert_eq!(*analyzer.diarize.lock().unwrap(), Some(Track::System));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(
+            turns(&meeting),
+            [
+                ("me", PRESENTING),
+                ("s1", QUESTIONS[0]),
+                ("s2", QUESTIONS[1])
+            ]
+        );
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Me", "Speaker 2", "Speaker 3"]);
+    }
+
+    /// An analysis saved on the microphone of such a call, as the levels
+    /// picked it before, is run again on system audio.
+    #[test]
+    fn an_analysis_saved_on_the_track_its_words_rule_out_runs_again() {
+        let h = harness();
+        let (id, analysis) = brief_remote_call(&h);
+        let on_the_mic = Analysis {
+            diarized: Some(Track::Mic),
+            turns: Some(vec![said_by("A", 0.0, 100.0)]),
+            ..analysis.clone()
+        };
+        on_the_mic.save(&paths::meeting_dir(&h.root, id)).unwrap();
+        let analyzer = Arc::new(FakeAnalyzer::answering(AnalyzerOutcome::Ran(analysis)));
+        h.process_with(id, brief_remote_codex(), Arc::clone(&analyzer));
+
+        assert_eq!(analyzer.calls.load(Ordering::SeqCst), 1);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Me", "Speaker 2", "Speaker 3"]);
+    }
+
+    /// A call rings unanswered for 25 seconds on the Mac during a short
+    /// meeting held in a room: louder than the room in the levels, but
+    /// nothing was said there, so the room's voices are told apart.
+    #[test]
+    fn a_ring_on_the_mac_keeps_the_voices_of_a_room_apart() {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 300);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 300, &[(0, 180)]);
+        zeros_but(&dir.join(paths::SYSTEM_TRACK), 300, &[(200, 225)]);
+        let analysis = Analysis {
+            words: BTreeMap::from([
+                (
+                    Track::Mic,
+                    [heard(QUESTIONS[0], 10.0), heard(QUESTIONS[1], 100.0)].concat(),
+                ),
+                (Track::System, Vec::new()),
+            ]),
+            diarized: Some(Track::Mic),
+            turns: Some(vec![said_by("A", 0.0, 90.0), said_by("B", 90.0, 180.0)]),
+            complete: true,
+            ..Analysis::default()
+        };
+        let analyzer = Arc::new(FakeAnalyzer::answering(AnalyzerOutcome::Ran(analysis)));
+        let codex = codex_by_audio(|samples| {
+            let room = samples[50 * RATE..51 * RATE].iter().any(|s| s.abs() > 0.1);
+            Ok(if room {
+                QUESTIONS.join(" ")
+            } else {
+                "Ding.".to_string()
+            })
+        });
+        h.process_with(id, codex, Arc::clone(&analyzer));
+
+        assert_eq!(*analyzer.diarize.lock().unwrap(), Some(Track::Mic));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(
+            turns(&meeting),
+            [("s1", QUESTIONS[0]), ("s2", QUESTIONS[1]), ("s3", "Ding.")]
+        );
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1", "Speaker 2", "Speaker 3"]);
     }
 
     /// Deleting a meeting cancels its run, maybe while the tracks are read;
@@ -1986,6 +2167,79 @@ mod tests {
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
         assert_eq!(meeting.summary, before.summary);
         assert_eq!(turns(&meeting), turns(&before));
+    }
+
+    /// "Transcribe again" while Codex cannot answer: the transcript, its
+    /// summary and the names the user gave stay until a Retry, once Codex
+    /// answers, completes the new transcript.
+    fn transcribing_again_while_codex_fails(failure: FailureKind, error: ProcessingError) {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        h.process(id, codex(|_| Ok("Bonjour.".into())));
+        h.store.rename_speaker(id, "s1", "Camille").unwrap();
+        h.store.rename_speaker(id, "me", "Alex").unwrap();
+        let before = h.store.get(id).unwrap().unwrap();
+        assert_eq!(before.summary_status, SummaryStatus::Ready);
+
+        assert!(h.store.retranscribe(id).unwrap());
+        h.process(id, codex(move |_| Err(failure)));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.error, Some(error));
+        assert_eq!(turns(&meeting), turns(&before));
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(meeting.summary, before.summary);
+        assert_eq!(meeting.speakers, before.speakers);
+
+        h.process(id, codex(|_| Ok("Au revoir.".into())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert!(meeting.turns.iter().all(|turn| turn.text == "Au revoir."));
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Alex", "Camille"]);
+    }
+
+    #[test]
+    fn transcribing_again_signed_out_keeps_the_transcript_and_the_names() {
+        transcribing_again_while_codex_fails(
+            FailureKind::SessionExpired,
+            ProcessingError::SignedOut,
+        );
+    }
+
+    #[test]
+    fn transcribing_again_offline_keeps_the_transcript_and_the_names() {
+        transcribing_again_while_codex_fails(FailureKind::Network, ProcessingError::PartsFailed);
+    }
+
+    /// A transcript with a part missing stays when transcribing it again
+    /// leaves more of the meeting out.
+    #[test]
+    fn transcribing_again_keeps_a_partial_transcript_that_holds_more() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        // System audio speaks at 2 s; its piece is refused.
+        h.process(
+            id,
+            codex_by_audio(|samples| {
+                if samples[2 * RATE..3 * RATE].iter().any(|s| s.abs() > 0.1) {
+                    Err(FailureKind::Rejected)
+                } else {
+                    Ok("Oui.".into())
+                }
+            }),
+        );
+        h.store.rename_speaker(id, "me", "Alex").unwrap();
+        let before = h.store.get(id).unwrap().unwrap();
+        assert_eq!(before.error, Some(ProcessingError::PartsFailed));
+        assert!(turns(&before).contains(&("me", "Oui.")));
+
+        assert!(h.store.retranscribe(id).unwrap());
+        h.process(id, codex(|_| Err(FailureKind::Rejected)));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::PartsFailed));
+        assert_eq!(turns(&meeting), turns(&before));
+        assert_eq!(meeting.speakers, before.speakers);
     }
 
     #[test]

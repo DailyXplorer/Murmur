@@ -15,13 +15,31 @@ use std::time::Duration;
 use super::helper::{self, AnalysisSupport, Ended};
 use super::merge::Track;
 use super::models::Models;
-use super::protocol::{ErrorCode, Message, Turn, Word};
+use super::protocol::{timed_words, ErrorCode, Message, Turn, Word};
 use super::store::SpeakerAnalysis;
 use crate::ProcessingOperation;
 
 pub const ANALYSIS_FILE: &str = "analysis.json";
 /// A 3-hour meeting takes a few minutes; this only catches a hung helper.
 const ANALYZE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+/// System audio where this many words were heard holds the remote side of
+/// a call, however long the user spoke. A ringtone or a chime gives next to
+/// none; 45 seconds of questions give about a hundred.
+const REMOTE_WORDS: usize = 15;
+
+/// The track whose voices are told apart, from the words heard on each:
+/// system audio when the remote side of a call spoke there, that much or
+/// more than the microphone, else the microphone, where every voice of a
+/// meeting held in a room is. Without the words of both tracks, `by_levels`
+/// decides.
+pub fn diarized_track(words: &BTreeMap<Track, Vec<Word>>, by_levels: Track) -> Track {
+    let heard = |track| words.get(&track).map(|words| timed_words(words).len());
+    match (heard(Track::Mic), heard(Track::System)) {
+        (Some(mic), Some(system)) if system >= REMOTE_WORDS || system > mic => Track::System,
+        (Some(_), Some(_)) => Track::Mic,
+        _ => by_levels,
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Analysis {
@@ -87,7 +105,9 @@ impl Analysis {
 
 pub struct AnalysisRequest {
     pub tracks: Vec<(Track, PathBuf)>,
-    pub diarize: Track,
+    /// The track whose voices are told apart when the words heard on device
+    /// cannot say (`diarized_track`).
+    pub by_levels: Track,
 }
 
 pub enum AnalyzerOutcome {
@@ -125,35 +145,46 @@ impl Analyzer for HelperAnalyzer {
                     AnalyzerOutcome::Unavailable(SpeakerAnalysis::NoModels)
                 };
             }
-            let mut analysis = Analysis {
-                diarized: Some(request.diarize),
-                ..Analysis::default()
-            };
+            let mut analysis = Analysis::default();
             let Some(program) = helper::helper_path() else {
                 log::error!("The meetings helper is missing from the app");
                 return AnalyzerOutcome::Ran(analysis);
             };
-            let mut args: Vec<OsString> = vec![
-                "analyze".into(),
-                "--models-dir".into(),
-                models.dir().as_os_str().to_owned(),
-            ];
-            for (track, path) in &request.tracks {
-                args.push(format!("--{}", track_arg(*track)).into());
-                args.push(path.clone().into_os_string());
-            }
-            args.push("--diarize".into());
-            args.push(track_arg(request.diarize).into());
             let started = std::time::Instant::now();
-            let ended = helper::run(&program, &args, &operation, ANALYZE_TIMEOUT, |message| {
-                analysis.absorb(message)
-            })
+            // The words first: what was said on each track picks the one
+            // whose voices are told apart.
+            let mut ended = run_helper(
+                &program,
+                "analyze",
+                &models,
+                &request.tracks,
+                &operation,
+                &mut analysis,
+            )
             .await;
+            if ended == Some(Ended::Done) && !analysis.models_missing {
+                let diarize = diarized_track(&analysis.words, request.by_levels);
+                analysis.diarized = Some(diarize);
+                let track: Vec<(Track, PathBuf)> = request
+                    .tracks
+                    .into_iter()
+                    .filter(|(track, _)| *track == diarize)
+                    .collect();
+                ended = run_helper(
+                    &program,
+                    "diarize",
+                    &models,
+                    &track,
+                    &operation,
+                    &mut analysis,
+                )
+                .await;
+            }
             match ended {
-                Ok(Ended::Done) => analysis.complete = true,
-                Ok(Ended::Cancelled) => return AnalyzerOutcome::Cancelled,
-                Ok(ended) => log::warn!("Meeting analysis ended early: {ended:?}"),
-                Err(error) => log::error!("Cannot run the meetings helper: {error}"),
+                Some(Ended::Done) => analysis.complete = true,
+                Some(Ended::Cancelled) => return AnalyzerOutcome::Cancelled,
+                Some(ended) => log::warn!("Meeting analysis ended early: {ended:?}"),
+                None => {}
             }
             if analysis.models_missing {
                 // Run again once the models are back.
@@ -168,6 +199,33 @@ impl Analyzer for HelperAnalyzer {
             AnalyzerOutcome::Ran(analysis)
         })
     }
+}
+
+/// Runs one helper `command` on `tracks`, adding what it prints to
+/// `analysis`. `None` when the helper cannot be run.
+async fn run_helper(
+    program: &Path,
+    command: &str,
+    models: &Models,
+    tracks: &[(Track, PathBuf)],
+    operation: &ProcessingOperation,
+    analysis: &mut Analysis,
+) -> Option<Ended> {
+    let mut args: Vec<OsString> = vec![
+        command.into(),
+        "--models-dir".into(),
+        models.dir().as_os_str().to_owned(),
+    ];
+    for (track, path) in tracks {
+        args.push(format!("--{}", track_arg(*track)).into());
+        args.push(path.clone().into_os_string());
+    }
+    helper::run(program, &args, operation, ANALYZE_TIMEOUT, |message| {
+        analysis.absorb(message)
+    })
+    .await
+    .inspect_err(|error| log::error!("Cannot run the meetings helper: {error}"))
+    .ok()
 }
 
 fn track_arg(track: Track) -> &'static str {
@@ -235,5 +293,38 @@ mod tests {
         assert_eq!(Analysis::load(dir.path()), Some(analysis));
         std::fs::write(dir.path().join(ANALYSIS_FILE), "{").unwrap();
         assert_eq!(Analysis::load(dir.path()), None);
+    }
+
+    fn heard(text: &str, count: usize) -> Vec<Word> {
+        (0..count)
+            .map(|i| Word {
+                w: text.into(),
+                s: i as f64,
+                e: i as f64 + 0.5,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_words_heard_on_system_audio_pick_the_track_whose_voices_are_told_apart() {
+        // An hour of presenting, then 45 seconds of remote questions.
+        let call = BTreeMap::from([
+            (Track::Mic, heard("mot", 7_000)),
+            (Track::System, heard("question", 100)),
+        ]);
+        assert_eq!(diarized_track(&call, Track::Mic), Track::System);
+        // A short call where the user stayed muted.
+        let muted = BTreeMap::from([(Track::Mic, Vec::new()), (Track::System, heard("oui", 5))]);
+        assert_eq!(diarized_track(&muted, Track::Mic), Track::System);
+        // A ringtone or a chime in a room: louder than the room, maybe, but
+        // next to nothing was said there.
+        for system in [Vec::new(), heard("ding", 2), heard("…", 40)] {
+            let room = BTreeMap::from([(Track::Mic, heard("mot", 700)), (Track::System, system)]);
+            assert_eq!(diarized_track(&room, Track::System), Track::Mic);
+        }
+        // A track that was not heard leaves the choice to the levels.
+        let system_only = BTreeMap::from([(Track::System, heard("ding", 2))]);
+        assert_eq!(diarized_track(&system_only, Track::System), Track::System);
+        assert_eq!(diarized_track(&BTreeMap::new(), Track::Mic), Track::Mic);
     }
 }

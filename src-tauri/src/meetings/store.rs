@@ -821,7 +821,8 @@ impl MeetingsStore {
     /// Makes a finished meeting with audio wait to be transcribed from
     /// scratch: its pieces are forgotten. Its transcript and summary stay
     /// until a new transcript replaces them, as the audio may turn out
-    /// unreadable. Returns false when it is not finished or has no audio.
+    /// unreadable or Codex may not answer. Returns false when it is not
+    /// finished or has no audio.
     pub fn retranscribe(&self, id: i64) -> Result<bool> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
