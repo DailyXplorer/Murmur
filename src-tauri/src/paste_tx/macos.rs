@@ -23,7 +23,11 @@ use objc2_foundation::{NSArray, NSData, NSInteger, NSObject, NSString};
 use tauri::AppHandle;
 use tokio::sync::oneshot;
 
-use super::{evaluate, ReliablePasteOutcome, TxState, WaitDecision};
+use super::{
+    claim_before_pasteboard_mutation, decide_settlement, evaluate, same_pending, CaptureBudget,
+    CaptureLimit, ClipboardSettlement, PasteboardAdmission, ReliablePasteOutcome, TxState,
+    WaitDecision, CAPTURE_BUDGET,
+};
 use crate::clipboard::{
     frontmost_target, send_paste_if_target_unchanged, send_return_if_target_unchanged,
     FrontmostTarget, PasteReleaseReceipt,
@@ -93,28 +97,6 @@ impl MurmurPasteProvider {
         let this = Self::alloc().set_ivars(ProviderIvars { state, text });
         unsafe { msg_send![super(this), init] }
     }
-}
-
-/// Limits on saving the previous clipboard. Reading a type the source app
-/// provided lazily makes that app render it synchronously on our main thread,
-/// right before the paste, so the save must stay small and quick.
-#[derive(Debug, Clone, Copy)]
-struct CaptureBudget {
-    max_bytes: usize,
-    max_duration: Duration,
-}
-
-const CAPTURE_BUDGET: CaptureBudget = CaptureBudget {
-    max_bytes: 32 * 1024 * 1024,
-    max_duration: Duration::from_millis(150),
-};
-
-/// Why the previous clipboard was not saved. Settlement then erases the
-/// transcript instead of restoring.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CaptureLimit {
-    Bytes,
-    Time,
 }
 
 /// Promises and expensive renderings that the source app produces on demand.
@@ -387,23 +369,6 @@ fn settle(pending: &Arc<Mutex<MacPending>>) {
     finish_settlement(&mut p);
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum ClipboardSettlement {
-    RestorePrevious,
-    KeepTranscript,
-    LeaveUntouched,
-}
-
-fn decide_settlement(still_ours: bool, preserve_transcript: bool) -> ClipboardSettlement {
-    if !still_ours {
-        ClipboardSettlement::LeaveUntouched
-    } else if preserve_transcript {
-        ClipboardSettlement::KeepTranscript
-    } else {
-        ClipboardSettlement::RestorePrevious
-    }
-}
-
 /// If a previous transaction is still holding the clipboard, settle it before
 /// publishing a new promise or before the app exits.
 pub(super) fn flush_pending() {
@@ -414,38 +379,6 @@ pub(super) fn flush_pending() {
     if let Some(previous) = previous {
         settle(&previous);
     }
-}
-
-#[derive(Debug, PartialEq)]
-enum PasteboardAdmission {
-    Claimed,
-    Cancelled,
-    TargetChanged,
-}
-
-/// Rejected callbacks must not settle an older transaction or publish text.
-fn claim_before_pasteboard_mutation<F>(
-    operation: &ProcessingOperation,
-    target_is_current: impl FnOnce() -> bool,
-    mutation: F,
-) -> PasteboardAdmission
-where
-    F: FnOnce(),
-{
-    if !target_is_current() {
-        return PasteboardAdmission::TargetChanged;
-    }
-    let Some(_permit) = operation.try_enter_paste() else {
-        return PasteboardAdmission::Cancelled;
-    };
-    mutation();
-    PasteboardAdmission::Claimed
-}
-
-fn same_pending<T>(current: Option<&Arc<Mutex<T>>>, candidate: &Arc<Mutex<T>>) -> bool {
-    current
-        .map(|pending| Arc::ptr_eq(pending, candidate))
-        .unwrap_or(false)
 }
 
 fn is_current_pending(candidate: &Arc<Mutex<MacPending>>) -> bool {
@@ -668,19 +601,6 @@ pub(super) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::operation::OperationId;
-
-    #[test]
-    fn restores_the_previous_clipboard_only_while_murmur_still_owns_it() {
-        assert_eq!(
-            decide_settlement(true, false),
-            ClipboardSettlement::RestorePrevious
-        );
-        assert_eq!(
-            decide_settlement(false, false),
-            ClipboardSettlement::LeaveUntouched
-        );
-    }
 
     #[test]
     fn saved_clipboard_round_trips_every_item_and_type() {
@@ -863,81 +783,6 @@ mod tests {
 
     fn release(pasteboard: &NSPasteboard) {
         let _: () = unsafe { msg_send![pasteboard, releaseGlobally] };
-    }
-
-    #[test]
-    fn copy_to_clipboard_always_keeps_transcript() {
-        assert_eq!(
-            decide_settlement(true, true),
-            ClipboardSettlement::KeepTranscript
-        );
-    }
-
-    #[test]
-    fn failed_injection_keeps_transcript_for_recovery() {
-        let preserve_transcript = false;
-        let injection_failed = true;
-        assert_eq!(
-            decide_settlement(true, preserve_transcript || injection_failed),
-            ClipboardSettlement::KeepTranscript
-        );
-    }
-
-    #[test]
-    fn cancellation_before_queued_callback_leaves_live_pending_unsettled() {
-        let operation = ProcessingOperation::new(OperationId(7));
-        let pending = Arc::new(Mutex::new(Some("live-pr64-transaction")));
-        assert!(operation.cancel());
-
-        let pending_for_mutation = pending.clone();
-        assert_eq!(
-            claim_before_pasteboard_mutation(
-                &operation,
-                || true,
-                move || {
-                    pending_for_mutation.lock().unwrap().take();
-                }
-            ),
-            PasteboardAdmission::Cancelled
-        );
-        assert_eq!(*pending.lock().unwrap(), Some("live-pr64-transaction"));
-    }
-
-    #[test]
-    fn target_changed_before_publication_leaves_clipboard_and_pending_untouched() {
-        let operation = ProcessingOperation::new(OperationId(8));
-        let mut pending = Some("previous-transaction");
-        let mut clipboard = "original-clipboard";
-        let captured_target = "application-a";
-        let current_target = "application-b";
-
-        let admission = claim_before_pasteboard_mutation(
-            &operation,
-            || current_target == captured_target,
-            || {
-                pending.take();
-                clipboard = "transcript";
-            },
-        );
-
-        assert_eq!(admission, PasteboardAdmission::TargetChanged);
-        assert_eq!(pending, Some("previous-transaction"));
-        assert_eq!(clipboard, "original-clipboard");
-        assert!(operation.try_enter_paste().is_some());
-    }
-
-    #[test]
-    fn auto_submit_guard_accepts_only_the_current_transaction() {
-        fn pending() -> Arc<Mutex<()>> {
-            Arc::new(Mutex::new(()))
-        }
-
-        let current = pending();
-        let superseded = pending();
-
-        assert!(same_pending(Some(&current), &current));
-        assert!(!same_pending(Some(&current), &superseded));
-        assert!(!same_pending(None, &current));
     }
 
     #[test]
