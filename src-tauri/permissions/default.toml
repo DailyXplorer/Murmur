@@ -71,6 +71,7 @@ permissions = [
   "allow-get-microphone-channels",
   "allow-set-selected-channel",
   "allow-get-codex-auth-status",
+  "allow-test-codex-connection",
   "allow-get-gemini-status",
   "allow-open-antigravity",
   "allow-complete-onboarding",

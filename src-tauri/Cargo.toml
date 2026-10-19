@@ -113,6 +113,8 @@ windows = { version = "0.61.3", features = [
 ] }
 # Microphone privacy consent, kept by Windows in the registry.
 winreg = "0.55"
+# Only for the Debug page's connection test, which compares TLS stacks.
+reqwest = { version = "0.12", features = ["rustls-tls"] }
 
 [dev-dependencies]
 tempfile = "3"

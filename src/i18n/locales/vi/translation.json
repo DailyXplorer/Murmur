@@ -414,6 +414,13 @@
         "button": "Xem trước",
         "noNotes": "Không tìm thấy ghi chú phát hành được đóng gói",
         "error": "Không thể xem trước ghi chú phát hành"
+      },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
       }
     },
     "about": {

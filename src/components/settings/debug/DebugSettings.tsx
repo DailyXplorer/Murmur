@@ -10,6 +10,7 @@ import { AlwaysOnMicrophone } from "../AlwaysOnMicrophone";
 import { SoundPicker } from "../SoundPicker";
 import { ClamshellMicrophoneSelector } from "../ClamshellMicrophoneSelector";
 import { WhatsNewPreview } from "./WhatsNewPreview";
+import { ConnectionProbe } from "./ConnectionProbe";
 import { isWindows } from "@/lib/platform";
 
 export const DebugSettings: React.FC = () => {
@@ -32,6 +33,9 @@ export const DebugSettings: React.FC = () => {
             descriptionMode="tooltip"
             grouped={true}
           />
+        )}
+        {isWindows && (
+          <ConnectionProbe descriptionMode="tooltip" grouped={true} />
         )}
         <LiveLogViewer descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>

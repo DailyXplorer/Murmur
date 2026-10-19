@@ -371,6 +371,13 @@
         "noNotes": "बंडल की गई कोई रिलीज़ नोट नहीं मिली",
         "error": "रिलीज़ नोट की झलक नहीं दिखाई जा सकी"
       },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
+      },
       "soundTheme": {
         "label": "साउंड थीम",
         "description": "रिकॉर्डिंग शुरू और बंद होने के फ़ीडबैक के लिए कोई साउंड थीम चुनें",

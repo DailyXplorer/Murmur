@@ -173,7 +173,7 @@ async fn transcribe_with_session_at(
     let mut request = client
         .post(url)
         .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("originator", "Codex Desktop")
+        .header("originator", originator())
         .header("OAI-Product-Sku", "CODEX")
         .multipart(form);
 
@@ -255,6 +255,23 @@ fn api_language(language: &str) -> &str {
     }
 }
 
+/// The Codex CLI version Murmur was last checked against.
+pub(crate) const CODEX_CLI_VERSION: &str = "0.159.0";
+
+/// The `originator` header sent with every chatgpt.com request.
+///
+/// On Windows, Cloudflare challenged "Codex Desktop" sent with a User-Agent
+/// that did not match it, so Murmur presents itself as the Codex CLI, with
+/// the CLI's originator and User-Agent, as `codex-rs/login` builds them.
+pub(crate) fn originator() -> &'static str {
+    if cfg!(windows) {
+        "codex_cli_rs"
+    } else {
+        "Codex Desktop"
+    }
+}
+
+#[cfg(not(windows))]
 pub(crate) fn user_agent() -> String {
     let arch = if cfg!(target_arch = "aarch64") {
         "arm64"
@@ -264,7 +281,39 @@ pub(crate) fn user_agent() -> String {
     format!("Murmur/{} (Mac OS; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
-fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
+#[cfg(windows)]
+pub(crate) fn user_agent() -> String {
+    codex_cli_user_agent(&windows_version(), std::env::consts::ARCH)
+}
+
+/// `codex_cli_rs/<version> (<os> <os version>; <arch>) <terminal>`, the
+/// terminal being `unknown` outside one.
+pub(crate) fn codex_cli_user_agent(windows_version: &str, arch: &str) -> String {
+    format!("codex_cli_rs/{CODEX_CLI_VERSION} (Windows {windows_version}; {arch}) unknown")
+}
+
+/// `10.0.26100` on Windows 11 24H2, the format Codex reads from the OS.
+#[cfg(windows)]
+fn windows_version() -> String {
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+    use winreg::RegKey;
+    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    VERSION
+        .get_or_init(|| {
+            let read = || -> std::io::Result<String> {
+                let key = RegKey::predef(HKEY_LOCAL_MACHINE)
+                    .open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")?;
+                let major: u32 = key.get_value("CurrentMajorVersionNumber")?;
+                let minor: u32 = key.get_value("CurrentMinorVersionNumber")?;
+                let build: String = key.get_value("CurrentBuildNumber")?;
+                Ok(format!("{major}.{minor}.{build}"))
+            };
+            read().unwrap_or_else(|_| "10.0".to_string())
+        })
+        .clone()
+}
+
+pub(crate) fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
     let spec = WavSpec {
         channels: 1,
         sample_rate: SAMPLE_RATE,
@@ -414,6 +463,77 @@ mod tests {
             );
         });
         endpoint
+    }
+
+    /// The headers of the transcription request Murmur sends.
+    fn transcription_request_headers() -> Vec<(String, String)> {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let (head_tx, head_rx) = mpsc::channel();
+        thread::spawn(move || {
+            use std::io::Write;
+            let (mut peer, _) = listener.accept().unwrap();
+            let mut buffer = [0_u8; 8192];
+            let read = peer.read(&mut buffer).unwrap();
+            head_tx
+                .send(String::from_utf8_lossy(&buffer[..read]).into_owned())
+                .unwrap();
+            let body = r#"{"text":"ok"}"#;
+            let _ = write!(
+                peer,
+                "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        });
+        let session = Session {
+            access_token: "test-token".to_string(),
+            account_id: Some("account".to_string()),
+        };
+        let operation = ProcessingOperation::new(OperationId(5));
+        assert!(tauri::async_runtime::block_on(transcribe_with_session_at(
+            &endpoint,
+            &session,
+            b"wav",
+            None,
+            request_timeout(3, 1),
+            &operation,
+        ))
+        .is_ok());
+        let head = head_rx.recv().unwrap();
+        head.split("\r\n\r\n")
+            .next()
+            .unwrap()
+            .lines()
+            .skip(1)
+            .filter_map(|line| line.split_once(": "))
+            .map(|(name, value)| (name.to_ascii_lowercase(), value.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn transcription_presents_one_consistent_client_identity() {
+        let headers = transcription_request_headers();
+        let header = |name: &str| {
+            headers
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.as_str())
+                .unwrap_or_else(|| panic!("no {name} header in {headers:?}"))
+        };
+        let user_agent = header("user-agent");
+        if cfg!(windows) {
+            assert_eq!(header("originator"), "codex_cli_rs");
+            assert!(
+                user_agent.starts_with("codex_cli_rs/0.159.0 (Windows 10.")
+                    && user_agent.ends_with(&format!("; {}) unknown", std::env::consts::ARCH)),
+                "{user_agent}"
+            );
+        } else {
+            assert_eq!(header("originator"), "Codex Desktop");
+            assert!(user_agent.starts_with("Murmur/"), "{user_agent}");
+        }
+        assert_eq!(header("authorization"), "Bearer test-token");
+        assert_eq!(header("chatgpt-account-id"), "account");
     }
 
     fn failure_kind_for(status_line: &'static str) -> FailureKind {

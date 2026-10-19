@@ -414,6 +414,13 @@
         "button": "预览",
         "noNotes": "未找到内置发行说明",
         "error": "无法预览发行说明"
+      },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
       }
     },
     "about": {

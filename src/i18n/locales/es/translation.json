@@ -414,6 +414,13 @@
         "button": "Vista previa",
         "noNotes": "No se encontraron notas de la versión incluidas",
         "error": "No se pudo mostrar la vista previa de las notas de la versión"
+      },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
       }
     },
     "about": {

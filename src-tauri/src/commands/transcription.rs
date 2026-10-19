@@ -21,6 +21,14 @@ pub fn get_codex_auth_status() -> CodexAuthStatus {
 
 #[tauri::command]
 #[specta::specta]
+/// Debug page: which client identities and transports reach chatgpt.com
+/// past Cloudflare from this computer.
+pub async fn test_codex_connection() -> Vec<crate::connection_probe::ProbeResult> {
+    crate::connection_probe::run().await
+}
+
+#[tauri::command]
+#[specta::specta]
 /// Signature verification runs off the AppKit thread. This only reports local
 /// configuration, not whether the cloud will accept a transcription.
 pub async fn get_gemini_status() -> GeminiStatus {

@@ -67,6 +67,7 @@ const APP_COMMANDS: &[&str] = &[
     "get_microphone_channels",
     "set_selected_channel",
     "get_codex_auth_status",
+    "test_codex_connection",
     "get_gemini_status",
     "open_antigravity",
     "complete_onboarding",

@@ -371,6 +371,13 @@
         "noNotes": "Geen meegeleverde release-notes gevonden",
         "error": "Voorbeeld van release-notes laden mislukt"
       },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
+      },
       "soundTheme": {
         "label": "Geluidsthema",
         "description": "Kies een geluidsthema voor feedback bij het starten en stoppen van opnames",

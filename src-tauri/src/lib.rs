@@ -15,6 +15,7 @@ mod clipboard;
 mod codex_auth;
 mod codex_transcribe;
 mod commands;
+mod connection_probe;
 mod dictation_gesture;
 mod dictionary;
 #[cfg(target_os = "windows")]
@@ -667,6 +668,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
+            commands::transcription::test_codex_connection,
             commands::transcription::get_gemini_status,
             commands::transcription::open_antigravity,
             commands::transcription::complete_onboarding,

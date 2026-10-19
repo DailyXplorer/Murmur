@@ -371,6 +371,13 @@
         "noNotes": "कुनै बन्डल गरिएको रिलिज नोट भेटिएन",
         "error": "रिलिज नोट पूर्वावलोकन गर्न सकिएन"
       },
+      "connectionProbe": {
+        "title": "Test Connection",
+        "description": "Send a small request to chatgpt.com with several client identities and show which ones get past Cloudflare",
+        "button": "Test",
+        "running": "Testing…",
+        "result": "{{name}}: {{outcome}}"
+      },
       "soundTheme": {
         "label": "साउन्ड थिम",
         "description": "रेकर्डिङ सुरु र बन्द फिडब्याकका लागि साउन्ड थिम छान्नुहोस्",

@@ -108,7 +108,7 @@ pub async fn complete(
     let mut builder = client
         .post(url)
         .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("originator", "Codex Desktop")
+        .header("originator", crate::codex_transcribe::originator())
         .header("Accept", "text/event-stream")
         .json(&body);
     if let Some(account_id) = session.account_id.as_deref() {
@@ -301,13 +301,11 @@ pub fn models_url(responses_url: &str) -> String {
 
 /// The server requires the Codex CLI version it filters the list by; the one
 /// that wrote the cache, or the one Murmur was last checked against.
-const CLIENT_VERSION: &str = "0.159.0";
-
 async fn live_models(url: &str, session: &Session, cached: Option<&str>) -> Result<String, String> {
     let client_version = cached
         .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
         .and_then(|json| json["client_version"].as_str().map(str::to_string))
-        .unwrap_or_else(|| CLIENT_VERSION.to_string());
+        .unwrap_or_else(|| crate::codex_transcribe::CODEX_CLI_VERSION.to_string());
     let client = reqwest::Client::builder()
         .user_agent(crate::codex_transcribe::user_agent())
         .timeout(Duration::from_secs(10))
@@ -317,7 +315,7 @@ async fn live_models(url: &str, session: &Session, cached: Option<&str>) -> Resu
         .get(url)
         .query(&[("client_version", client_version)])
         .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("originator", "Codex Desktop");
+        .header("originator", crate::codex_transcribe::originator());
     if let Some(account_id) = session.account_id.as_deref() {
         builder = builder.header("ChatGPT-Account-Id", account_id);
     }

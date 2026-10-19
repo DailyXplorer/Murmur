@@ -559,6 +559,13 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
+ * Debug page: which client identities and transports reach chatgpt.com
+ * past Cloudflare from this computer.
+ */
+async testCodexConnection() : Promise<ProbeResult[]> {
+    return await TAURI_INVOKE("test_codex_connection");
+},
+/**
  * Signature verification runs off the AppKit thread. This only reports local
  * configuration, not whether the cloud will accept a transcription.
  */
@@ -1215,6 +1222,15 @@ export type ProcessingError =
  * Processing stopped on an unexpected error.
  */
 "other"
+export type ProbeResult = { name: string;
+/**
+ * `<status> <content-type> cf-mitigated=<value>`, or the transport error.
+ */
+outcome: string;
+/**
+ * Cloudflare forwarded the request: the answer is not its HTML challenge.
+ */
+passed: boolean }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
