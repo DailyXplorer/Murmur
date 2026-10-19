@@ -99,6 +99,32 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   expect(deleted?.args).toEqual({ id: 3 });
 });
 
+test("a double click on a meeting's trash leaves the confirmation open", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  const trash = page
+    .getByRole("listitem")
+    .nth(1)
+    .getByRole("button", { name: "Delete Meeting" });
+
+  // The trash lies outside the dialog, so the second click lands on the
+  // backdrop that the first one put up.
+  const box = await trash.boundingBox();
+  if (!box) throw new Error("not laid out");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ clickCount: 1 });
+  await page.mouse.up({ clickCount: 1 });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete this meeting?");
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
+  await page.waitForTimeout(100);
+
+  await expect(dialog).toContainText("Delete this meeting?");
+  expect(await calls(page)).not.toContain("delete_meeting");
+});
+
 test("a list load already on its way does not bring a deleted meeting back", async ({
   page,
 }) => {
