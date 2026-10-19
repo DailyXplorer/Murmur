@@ -1061,7 +1061,11 @@ export type InsightsSummary = { total_dictations: number; total_words: number;
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
  */
-words_per_minute: number | null; words_corrected: number; dictionary_fixes: number; 
+words_per_minute: number | null;
+/**
+ * Against typing at [`stats::TYPING_WPM`], over the same dictations as `total_words`.
+ */
+minutes_saved: number;
 /**
  * Non-empty categories, most used first.
  */

@@ -14,9 +14,9 @@ import { EnvelopeSimpleIcon } from "@phosphor-icons/react/dist/csr/EnvelopeSimpl
 import { FileTextIcon } from "@phosphor-icons/react/dist/csr/FileText";
 import { FireIcon } from "@phosphor-icons/react/dist/csr/Fire";
 import { GaugeIcon } from "@phosphor-icons/react/dist/csr/Gauge";
-import { MagicWandIcon } from "@phosphor-icons/react/dist/csr/MagicWand";
 import { RobotIcon } from "@phosphor-icons/react/dist/csr/Robot";
 import { TextAaIcon } from "@phosphor-icons/react/dist/csr/TextAa";
+import { TimerIcon } from "@phosphor-icons/react/dist/csr/Timer";
 import { TrophyIcon } from "@phosphor-icons/react/dist/csr/Trophy";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import {
@@ -33,7 +33,9 @@ import {
   CATEGORY_LABEL_KEYS,
   monthLabelColumns,
   parseLocalDate,
+  timeSaved,
   toWeeks,
+  TYPING_WPM,
   wordEquivalence,
 } from "./insightsModel";
 
@@ -271,7 +273,7 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
   const { t } = useTranslation();
   const format = useFormatters();
   const equivalence = wordEquivalence(summary.total_words);
-  const fixes = summary.words_corrected + summary.dictionary_fixes;
+  const saved = timeSaved(summary.minutes_saved);
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
@@ -302,21 +304,19 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
             : t("insights.words.empty")}
         </StatTile>
         <StatTile
-          icon={MagicWandIcon}
-          label={t("insights.fixes.title")}
-          value={format.number.format(fixes)}
-          tooltip={t("insights.fixes.description")}
+          icon={TimerIcon}
+          label={t("insights.timeSaved.title")}
+          value={t(`insights.timeSaved.value.${saved.unit}`, {
+            hours: format.number.format(saved.hours),
+            minutes: format.number.format(saved.minutes),
+          })}
+          tooltip={t("insights.timeSaved.formula", {
+            wpm: format.number.format(TYPING_WPM),
+          })}
         >
-          <span className="block">
-            {t("insights.fixes.wordsCorrected", {
-              value: format.number.format(summary.words_corrected),
-            })}
-          </span>
-          <span className="block">
-            {t("insights.fixes.dictionaryFixes", {
-              value: format.number.format(summary.dictionary_fixes),
-            })}
-          </span>
+          {t("insights.timeSaved.baseline", {
+            wpm: format.number.format(TYPING_WPM),
+          })}
         </StatTile>
       </div>
 

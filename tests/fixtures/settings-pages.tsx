@@ -215,7 +215,6 @@ const INSIGHTS: InsightsSummary = {
     { category: "emails", count: 12 },
   ],
   categorized_dictations: 107,
-  dictionary_fixes: 18,
   heatmap: Array.from({ length: 182 }, (_, index) => {
     const date = new Date(Date.UTC(2025, 3, 1) + index * 86_400_000);
     const count = index % 6 === 0 ? 0 : (index * 5) % 9;
@@ -225,10 +224,10 @@ const INSIGHTS: InsightsSummary = {
       level: count === 0 ? 0 : Math.min(4, Math.ceil(count / 2)),
     };
   }),
+  minutes_saved: 273,
   streaks: { current: 6, longest: 21 },
   total_dictations: 412,
   total_words: 15_380,
-  words_corrected: 7,
   words_per_minute: 138,
 };
 

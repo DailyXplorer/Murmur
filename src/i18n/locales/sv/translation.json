@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × en roman"
       }
     },
-    "fixes": {
-      "title": "Rättelser",
-      "description": "Felhörda namn som du rättade efter att Murmur klistrat in, räknade en gång per ord som Murmur lärde sig, plus ord som din egen ordlista ersatte automatiskt.",
-      "wordsCorrected": "Rättade ord: {{value}}",
-      "dictionaryFixes": "Ordlisterättelser: {{value}}"
+    "timeSaved": {
+      "title": "Sparad tid",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "baseline": "jämfört med att skriva {{wpm}} ord/min",
+      "formula": "För varje diktering tiden det skulle ta att skriva orden i {{wpm}} ord per minut, minus tiden du talade, aldrig under noll."
     },
     "apps": {
       "title": "Användning per app",

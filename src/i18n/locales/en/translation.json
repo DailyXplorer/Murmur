@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × a novel"
       }
     },
-    "fixes": {
-      "title": "Fixes made",
-      "description": "Misheard names you fixed after Murmur pasted, counted once for each word Murmur learned, plus words your custom dictionary replaced automatically.",
-      "wordsCorrected": "Words corrected: {{value}}",
-      "dictionaryFixes": "Dictionary fixes: {{value}}"
+    "timeSaved": {
+      "title": "Time saved",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "baseline": "vs typing at {{wpm}} wpm",
+      "formula": "For each dictation, the time its words would take to type at {{wpm}} words per minute, minus the time you spent speaking, never below zero."
     },
     "apps": {
       "title": "Usage by app",

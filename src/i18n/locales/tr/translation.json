@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × bir roman"
       }
     },
-    "fixes": {
-      "title": "Düzeltmeler",
-      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz yanlış duyulmuş adlar (Murmur'un öğrendiği her kelime için bir kez sayılır) ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
-      "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
-      "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
+    "timeSaved": {
+      "title": "Kazanılan zaman",
+      "value": {
+        "minutes": "{{minutes}} dk",
+        "hours": "{{hours}} sa",
+        "hoursMinutes": "{{hours}} sa {{minutes}} dk"
+      },
+      "baseline": "dakikada {{wpm}} kelime yazmaya kıyasla",
+      "formula": "Her dikte için, kelimelerini dakikada {{wpm}} kelimeyle yazmanın alacağı süreden konuşarak geçirdiğiniz süre çıkarılır; sonuç hiçbir zaman sıfırın altına düşmez."
     },
     "apps": {
       "title": "Uygulamaya göre kullanım",

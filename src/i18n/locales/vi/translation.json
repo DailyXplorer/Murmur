@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × một cuốn tiểu thuyết"
       }
     },
-    "fixes": {
-      "title": "Lần sửa",
-      "description": "Những tên bị nghe nhầm mà bạn đã sửa sau khi Murmur dán, mỗi từ Murmur học được tính một lần, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
-      "wordsCorrected": "Từ đã sửa: {{value}}",
-      "dictionaryFixes": "Sửa bằng từ điển: {{value}}"
+    "timeSaved": {
+      "title": "Thời gian tiết kiệm",
+      "value": {
+        "minutes": "{{minutes}} phút",
+        "hours": "{{hours}} giờ",
+        "hoursMinutes": "{{hours}} giờ {{minutes}} phút"
+      },
+      "baseline": "so với gõ {{wpm}} từ/phút",
+      "formula": "Với mỗi lần đọc chính tả, thời gian cần để gõ các từ đó với tốc độ {{wpm}} từ mỗi phút trừ đi thời gian bạn nói, không bao giờ dưới 0."
     },
     "apps": {
       "title": "Sử dụng theo ứng dụng",

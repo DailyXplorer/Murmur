@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × ein Roman"
       }
     },
-    "fixes": {
-      "title": "Korrekturen",
-      "description": "Falsch erkannte Namen, die du nach dem Einfügen durch Murmur korrigiert hast, einmal pro Wort gezählt, das Murmur gelernt hat, plus Wörter, die dein eigenes Wörterbuch automatisch ersetzt hat.",
-      "wordsCorrected": "Korrigierte Wörter: {{value}}",
-      "dictionaryFixes": "Wörterbuch-Korrekturen: {{value}}"
+    "timeSaved": {
+      "title": "Gesparte Zeit",
+      "value": {
+        "minutes": "{{minutes}} Min.",
+        "hours": "{{hours}} Std.",
+        "hoursMinutes": "{{hours}} Std. {{minutes}} Min."
+      },
+      "baseline": "gegenüber Tippen mit {{wpm}} Wörtern/Min.",
+      "formula": "Für jedes Diktat die Zeit, die das Tippen seiner Wörter mit {{wpm}} Wörtern pro Minute dauern würde, abzüglich deiner Sprechzeit, nie unter null."
     },
     "apps": {
       "title": "Nutzung nach App",

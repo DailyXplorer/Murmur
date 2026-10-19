@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × román"
       }
     },
-    "fixes": {
-      "title": "Opravy",
-      "description": "Špatně rozpoznaná jména, která jste opravili po vložení textu Murmurem, počítaná jednou za každé slovo, které se Murmur naučil, plus slova, která váš vlastní slovník automaticky nahradil.",
-      "wordsCorrected": "Opravená slova: {{value}}",
-      "dictionaryFixes": "Opravy slovníkem: {{value}}"
+    "timeSaved": {
+      "title": "Ušetřený čas",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "baseline": "oproti psaní rychlostí {{wpm}} slov/min",
+      "formula": "U každého diktátu doba, kterou by trvalo napsat jeho slova rychlostí {{wpm}} slov za minutu, minus doba mluvení, nikdy méně než nula."
     },
     "apps": {
       "title": "Využití podle aplikace",

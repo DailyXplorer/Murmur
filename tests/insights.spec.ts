@@ -6,16 +6,26 @@ const openInsights = async (page: Page, query = "") => {
   await page.waitForFunction(() => window.insights?.ready === true);
 };
 
-test("shows speed, totals, fixes, app usage and streak", async ({ page }) => {
+test("shows speed, totals, time saved, app usage and streak", async ({
+  page,
+}) => {
   await openInsights(page);
   const main = page.getByRole("main", { name: "Insights" });
 
   await expect(main.getByText("142", { exact: true })).toBeVisible();
   await expect(main.getByText("48,210", { exact: true })).toBeVisible();
   await expect(main.getByText("≈ 6.4 × a short story")).toBeVisible();
-  await expect(main.getByText("57", { exact: true })).toBeVisible();
-  await expect(main.getByText("Words corrected: 12")).toBeVisible();
-  await expect(main.getByText("Dictionary fixes: 45")).toBeVisible();
+  const timeSaved = main.locator("section", {
+    has: page.getByRole("heading", { name: "Time saved" }),
+  });
+  await expect(timeSaved.getByText("14 h 25 min")).toBeVisible();
+  await expect(timeSaved.getByText("vs typing at 40 wpm")).toBeVisible();
+  await expect(
+    timeSaved.getByRole("button", {
+      name: "For each dictation, the time its words would take to type at 40 words per minute, minus the time you spent speaking, never below zero.",
+    }),
+  ).toBeVisible();
+  await expect(main.getByText("Fixes made")).toHaveCount(0);
 
   const rows = main.getByRole("listitem");
   await expect(rows).toHaveText([
@@ -52,6 +62,7 @@ test("explains the empty state before any dictation", async ({ page }) => {
   await expect(main.getByText("–", { exact: true })).toBeVisible();
   await expect(main.getByText("Not enough timed dictations yet")).toBeVisible();
   await expect(main.getByText("Start dictating to fill this in")).toBeVisible();
+  await expect(main.getByText("0 min", { exact: true })).toBeVisible();
   await expect(
     main.getByText(
       "App categories are recorded for new dictations only. Dictate in any app to see this fill in.",
@@ -71,8 +82,7 @@ test("refreshes when the backend reports new insights", async ({ page }) => {
       total_dictations: 40,
       total_words: 1_250,
       words_per_minute: 120,
-      words_corrected: 0,
-      dictionary_fixes: 3,
+      minutes_saved: 21,
       categories: [{ category: "documents", count: 1 }],
       categorized_dictations: 1,
       apps_used: 1,
@@ -83,7 +93,40 @@ test("refreshes when the backend reports new insights", async ({ page }) => {
 
   await expect(main.getByText("1,250", { exact: true })).toBeVisible();
   await expect(main.getByText("≈ 13 × a typical email")).toBeVisible();
+  await expect(main.getByText("21 min", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.insights.requests())).toBe(2);
+});
+
+test("shows time saved in minutes below two hours, then in hours", async ({
+  page,
+}) => {
+  await openInsights(page, "?data=empty");
+  const main = page.getByRole("main", { name: "Insights" });
+  await expect(main.getByText("0 min", { exact: true })).toBeVisible();
+
+  for (const [minutes, shown] of [
+    [59, "59 min"],
+    [119, "119 min"],
+    [120, "2 h"],
+    [125, "2 h 5 min"],
+  ] as const) {
+    await page.evaluate(
+      (minutes_saved) =>
+        window.insights.publish({
+          total_dictations: 1,
+          total_words: 1,
+          words_per_minute: null,
+          minutes_saved,
+          categories: [],
+          categorized_dictations: 0,
+          apps_used: 0,
+          streaks: { current: 0, longest: 0 },
+          heatmap: [],
+        }),
+      minutes,
+    );
+    await expect(main.getByText(shown, { exact: true })).toBeVisible();
+  }
 });
 
 for (const theme of ["light", "dark"] as const) {

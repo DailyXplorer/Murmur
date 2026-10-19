@@ -68,11 +68,15 @@
         "novels": "≈ 장편 소설 {{amount}}권 분량"
       }
     },
-    "fixes": {
-      "title": "수정",
-      "description": "Murmur가 붙여 넣은 뒤 직접 수정한 잘못 인식된 이름(Murmur가 학습한 단어마다 한 번)과 사용자 사전이 자동으로 바꾼 단어를 합한 값입니다.",
-      "wordsCorrected": "수정한 단어: {{value}}",
-      "dictionaryFixes": "사전 수정: {{value}}"
+    "timeSaved": {
+      "title": "절약한 시간",
+      "value": {
+        "minutes": "{{minutes}}분",
+        "hours": "{{hours}}시간",
+        "hoursMinutes": "{{hours}}시간 {{minutes}}분"
+      },
+      "baseline": "분당 {{wpm}}단어 타이핑 대비",
+      "formula": "받아쓰기마다 그 단어를 분당 {{wpm}}단어로 입력하는 데 걸리는 시간에서 말한 시간을 뺀 값이며, 0보다 작아지지 않습니다."
     },
     "apps": {
       "title": "앱별 사용량",

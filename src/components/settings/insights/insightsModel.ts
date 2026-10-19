@@ -31,6 +31,25 @@ export const wordEquivalence = (words: number): WordEquivalence | null => {
   return { unit: tier.unit, amount: Math.max(amount, 0.1) };
 };
 
+/** The typing speed `minutes_saved` is measured against (`stats::TYPING_WPM`). */
+export const TYPING_WPM = 40;
+
+export interface TimeSaved {
+  unit: "minutes" | "hours" | "hoursMinutes";
+  hours: number;
+  minutes: number;
+}
+
+/** Minutes below two hours, then hours with any leftover minutes. */
+export const timeSaved = (totalMinutes: number): TimeSaved => {
+  if (totalMinutes < 120) {
+    return { unit: "minutes", hours: 0, minutes: totalMinutes };
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { unit: minutes === 0 ? "hours" : "hoursMinutes", hours, minutes };
+};
+
 export const CATEGORY_LABEL_KEYS: Record<AppCategory, string> = {
   ai_prompts: "insights.apps.categories.aiPrompts",
   personal_messages: "insights.apps.categories.personalMessages",

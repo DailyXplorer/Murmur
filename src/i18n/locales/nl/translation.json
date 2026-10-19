@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × een roman"
       }
     },
-    "fixes": {
-      "title": "Correcties",
-      "description": "Verkeerd verstane namen die je hebt gecorrigeerd nadat Murmur had geplakt, één keer geteld per woord dat Murmur heeft geleerd, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
-      "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
-      "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
+    "timeSaved": {
+      "title": "Tijd bespaard",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} u",
+        "hoursMinutes": "{{hours}} u {{minutes}} min"
+      },
+      "baseline": "vergeleken met typen op {{wpm}} woorden/min",
+      "formula": "Per dictaat de tijd die het typen van de woorden op {{wpm}} woorden per minuut zou kosten, min de tijd die je sprak, nooit onder nul."
     },
     "apps": {
       "title": "Gebruik per app",

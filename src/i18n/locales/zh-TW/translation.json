@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} 部長篇小說"
       }
     },
-    "fixes": {
-      "title": "修正",
-      "description": "Murmur 貼上後你更正的聽錯名稱（Murmur 每學會一個詞計一次），加上自訂詞典自動替換的字詞。",
-      "wordsCorrected": "修正的字詞：{{value}}",
-      "dictionaryFixes": "詞典修正：{{value}}"
+    "timeSaved": {
+      "title": "節省的時間",
+      "value": {
+        "minutes": "{{minutes}} 分鐘",
+        "hours": "{{hours}} 小時",
+        "hoursMinutes": "{{hours}} 小時 {{minutes}} 分鐘"
+      },
+      "baseline": "相較於每分鐘打 {{wpm}} 個詞",
+      "formula": "每次聽寫按每分鐘 {{wpm}} 個詞計算打出這些詞所需的時間，減去說話所用的時間，最低為零。"
     },
     "apps": {
       "title": "依應用程式統計",

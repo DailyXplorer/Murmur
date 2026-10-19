@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} 部长篇小说"
       }
     },
-    "fixes": {
-      "title": "修正",
-      "description": "Murmur 粘贴后你更正的听错的名称（Murmur 每学会一个词计一次），加上自定义词典自动替换的字词。",
-      "wordsCorrected": "修正的字词：{{value}}",
-      "dictionaryFixes": "词典修正：{{value}}"
+    "timeSaved": {
+      "title": "节省的时间",
+      "value": {
+        "minutes": "{{minutes}} 分钟",
+        "hours": "{{hours}} 小时",
+        "hoursMinutes": "{{hours}} 小时 {{minutes}} 分钟"
+      },
+      "baseline": "相比每分钟打 {{wpm}} 个词",
+      "formula": "每次听写按每分钟 {{wpm}} 个词计算打出这些词所需的时间，减去说话所用的时间，最低为零。"
     },
     "apps": {
       "title": "按应用统计",

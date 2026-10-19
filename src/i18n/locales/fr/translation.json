@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × un roman"
       }
     },
-    "fixes": {
-      "title": "Corrections",
-      "description": "Noms mal transcrits que vous avez corrigés après le collage par Murmur, comptés une fois par mot appris par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
-      "wordsCorrected": "Mots corrigés : {{value}}",
-      "dictionaryFixes": "Corrections du dictionnaire : {{value}}"
+    "timeSaved": {
+      "title": "Temps gagné",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "baseline": "par rapport à une frappe à {{wpm}} mots/min",
+      "formula": "Pour chaque dictée, le temps qu'il faudrait pour taper ses mots à {{wpm}} mots par minute, moins le temps passé à parler, jamais en dessous de zéro."
     },
     "apps": {
       "title": "Utilisation par application",

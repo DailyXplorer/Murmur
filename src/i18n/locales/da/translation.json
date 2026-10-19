@@ -68,11 +68,15 @@
         "novels": "≈ {{amount}} × en roman"
       }
     },
-    "fixes": {
-      "title": "Rettelser",
-      "description": "Forkert hørte navne, du rettede, efter Murmur indsatte teksten, talt én gang for hvert ord, Murmur lærte, plus ord, din egen ordbog erstattede automatisk.",
-      "wordsCorrected": "Rettede ord: {{value}}",
-      "dictionaryFixes": "Ordbogsrettelser: {{value}}"
+    "timeSaved": {
+      "title": "Sparet tid",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} t",
+        "hoursMinutes": "{{hours}} t {{minutes}} min"
+      },
+      "baseline": "sammenlignet med at skrive {{wpm}} ord/min",
+      "formula": "For hver diktering den tid, det ville tage at skrive ordene med {{wpm}} ord i minuttet, minus den tid, du talte, aldrig under nul."
     },
     "apps": {
       "title": "Brug pr. app",
