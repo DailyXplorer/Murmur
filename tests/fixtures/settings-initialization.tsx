@@ -49,7 +49,6 @@ const TEST_SETTINGS: AppSettings = {
   selected_language: "auto",
   selected_microphone: "Default",
   theme: "system",
-  transcription_provider: "gemini",
 };
 
 const respondAfterDelay = <Value,>(value: Value): Promise<Value> =>

@@ -11,7 +11,6 @@
     "errorServer": "Der Transkriptionsdienst hat Probleme. Versuche es im Verlauf erneut.",
     "errorSessionExpired": "Deine Codex-Sitzung ist abgelaufen. Öffne Codex und melde dich erneut an.",
     "errorSignedOut": "Nicht bei Codex angemeldet. Öffne Codex und melde dich an.",
-    "errorGeminiSessionExpired": "Deine Gemini-Sitzung in Antigravity ist beendet. Öffne Antigravity und melde dich erneut an.",
     "errorTooLarge": "Diese Aufnahme ist zu lang für den Dienst. Versuche eine kürzere.",
     "errorTranscription": "Transkription fehlgeschlagen. Versuche es im Verlauf erneut.",
     "errorPaste": "Einfügen nicht möglich. Der Text ist in der Zwischenablage und im Verlauf.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "Transkriptionsdienst auswählen",
-      "description": "Wähle einen eingerichteten Dienst, um die Einrichtung abzuschließen. Murmur erkennt eine lokale Konfiguration, prüft aber keine aktive Verbindung.",
-      "antigravityDescription": "Verwendet die auf diesem Mac erkannte Antigravity-Konfiguration.",
-      "experimental": "Experimentell",
+      "title": "Codex verbinden",
+      "description": "Melde dich auf diesem Mac bei Codex an, um die Einrichtung abzuschließen. Murmur erkennt eine lokale Konfiguration, prüft aber keine aktive Verbindung.",
       "configured": "Konfiguration erkannt",
-      "selectionRequired": "Wähle einen eingerichteten Transkriptionsdienst, um fortzufahren.",
       "retry": "Erneut versuchen",
       "continue": "Weiter",
-      "providerChangeFailed": "Der ausgewählte Transkriptionsdienst konnte nicht gespeichert werden. Bitte erneut versuchen.",
       "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
-      "openFailed": "Antigravity konnte nicht geöffnet werden.",
-      "installFailed": "Die Antigravity-Downloadseite konnte nicht geöffnet werden.",
       "setupCodex": "Codex-Einrichtung öffnen",
       "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Keine Konfiguration erkannt"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "Darstellung"
       }
     },
-    "languageAutoOnly": "Antigravity erkennt die Sprache automatisch. Deine Codex-Sprachauswahl bleibt erhalten, wenn du zurückwechselst.",
     "sound": {
       "title": "Ton",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "Konfiguration wird geprüft…",
       "statusUnavailable": "Status nicht verfügbar",
       "missing": "Nicht angemeldet",
-      "providerTitle": "Transkriptionsdienst",
-      "providerDescription": "Wähle den Transkriptionsdienst für neue Diktate.",
-      "notInstalled": "Antigravity ist nicht installiert",
-      "installAntigravity": "Installieren",
-      "openAntigravity": "Antigravity öffnen",
       "groups": {
         "service": "Dienst",
         "processing": "Textverarbeitung",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "KI-Bereinigung und Formatierung",
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt."
-      },
-      "cleanupEngine": {
-        "title": "Bereinigungs-Engine",
-        "description": "Apple Intelligence läuft auf diesem Mac: kostenlos, unbegrenzt, offline und privat. Codex nutzt deine ChatGPT-Sitzung und zählt gegen deren Nutzungslimits.",
-        "options": {
-          "apple": "Apple Intelligence (auf diesem Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Wenn Apple Intelligence nicht laufen kann, bereinigt Codex deinen Text, sofern du angemeldet bist; sonst wird das Rohtranskript eingefügt.",
-          "available": "Bereit auf diesem Mac",
-          "deviceNotEligible": "Auf diesem Mac nicht unterstützt",
-          "appleIntelligenceNotEnabled": "Aktiviere Apple Intelligence in den Systemeinstellungen",
-          "modelNotReady": "Wird noch geladen, versuche es später erneut",
-          "unsupportedOs": "Erfordert macOS 26 oder neuer",
-          "unavailable": "Derzeit nicht verfügbar",
-          "unsupportedLanguage": "Nicht verfügbar auf {{language}}"
-        }
       },
       "windowNames": {
         "title": "Namen aus dem aktiven Fenster",

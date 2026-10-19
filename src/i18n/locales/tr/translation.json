@@ -11,7 +11,6 @@
     "errorServer": "Transkripsiyon hizmetinde sorun var. Geçmiş'ten yeniden deneyin.",
     "errorSessionExpired": "Codex oturumunuzun süresi doldu. Codex'i açıp yeniden oturum açın.",
     "errorSignedOut": "Codex'te oturum açılmamış. Codex'i açıp oturum açın.",
-    "errorGeminiSessionExpired": "Antigravity'deki Gemini oturumunuz sona erdi. Antigravity'yi açıp yeniden oturum açın.",
     "errorTooLarge": "Bu kayıt hizmet için çok uzun. Daha kısa bir kayıt deneyin.",
     "errorTranscription": "Transkripsiyon başarısız oldu. Geçmiş'ten yeniden deneyin.",
     "errorPaste": "Yapıştırılamadı. Metin panoda ve Geçmiş'te.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "Bir transkripsiyon hizmeti seçin",
-      "description": "Kurulumu tamamlamak için yapılandırılmış bir hizmet seçin. Murmur yerel yapılandırmayı algılar, ancak etkin bir bağlantıyı doğrulamaz.",
-      "antigravityDescription": "Bu Mac'te algılanan Antigravity yapılandırmasını kullanır.",
-      "experimental": "Deneysel",
+      "title": "Codex'i bağlayın",
+      "description": "Kurulumu tamamlamak için bu Mac'te Codex'e giriş yapın. Murmur yerel yapılandırmayı algılar, ancak etkin bir bağlantıyı doğrulamaz.",
       "configured": "Yapılandırma algılandı",
-      "selectionRequired": "Devam etmek için yapılandırılmış bir transkripsiyon hizmeti seçin.",
       "retry": "Yeniden dene",
       "continue": "Devam et",
-      "providerChangeFailed": "Seçilen transkripsiyon hizmeti kaydedilemedi. Lütfen yeniden deneyin.",
       "completionFailed": "Kurulum tamamlanamadı. Durumu yenileyip yeniden deneyin.",
-      "openFailed": "Antigravity açılamadı.",
-      "installFailed": "Antigravity indirme sayfası açılamadı.",
       "setupCodex": "Codex kurulumunu aç",
       "codexSetupFailed": "Codex kurulumu açılamadı."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Yapılandırma algılanmadı"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "Görünüm"
       }
     },
-    "languageAutoOnly": "Antigravity dili otomatik olarak algılar. Codex'e geri döndüğünüzde Codex dil seçiminiz korunur.",
     "sound": {
       "title": "Ses",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "Yapılandırma kontrol ediliyor…",
       "statusUnavailable": "Durum kullanılamıyor",
       "missing": "Oturum açılmadı",
-      "providerTitle": "Transkripsiyon hizmeti",
-      "providerDescription": "Yeni dikte işlemleri için transkripsiyon hizmetini seçin.",
-      "notInstalled": "Antigravity yüklü değil",
-      "installAntigravity": "Yükle",
-      "openAntigravity": "Antigravity'yi aç",
       "groups": {
         "service": "Hizmet",
         "processing": "Metin işleme",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "Yapay zekâ ile temizleme ve biçimlendirme",
         "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ile dikte edilen satır sonlarını biçimlendirir. Asla çevirmez veya yeniden yazmaz. Başarısız olursa ya da çok uzun sürerse ham transkript yapıştırılır."
-      },
-      "cleanupEngine": {
-        "title": "Temizleme motoru",
-        "description": "Apple Intelligence bu Mac’te çalışır: ücretsiz, sınırsız, çevrimdışı ve gizli. Codex ChatGPT oturumunuzu kullanır ve kullanım sınırlarından düşer.",
-        "options": {
-          "apple": "Apple Intelligence (bu Mac’te)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Apple Intelligence çalışamadığında, oturum açtıysanız metninizi Codex temizler; aksi halde ham transkript yapıştırılır.",
-          "available": "Bu Mac’te hazır",
-          "deviceNotEligible": "Bu Mac’te desteklenmiyor",
-          "appleIntelligenceNotEnabled": "Sistem Ayarları’nda Apple Intelligence’ı açın",
-          "modelNotReady": "Hâlâ indiriliyor, daha sonra tekrar deneyin",
-          "unsupportedOs": "macOS 26 veya üstü gerekir",
-          "unavailable": "Şu anda kullanılamıyor",
-          "unsupportedLanguage": "{{language}} dilinde kullanılamıyor"
-        }
       },
       "windowNames": {
         "title": "Etkin penceredeki adlar",

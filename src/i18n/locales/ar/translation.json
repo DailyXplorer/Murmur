@@ -11,7 +11,6 @@
     "errorServer": "تواجه خدمة النسخ مشكلات. أعد المحاولة من السجل.",
     "errorSessionExpired": "انتهت صلاحية جلسة Codex. افتح Codex وسجّل الدخول مجددًا.",
     "errorSignedOut": "لم يتم تسجيل الدخول إلى Codex. افتح Codex وسجّل الدخول.",
-    "errorGeminiSessionExpired": "انتهت جلسة Gemini في Antigravity. افتح Antigravity وسجّل الدخول مجددًا.",
     "errorTooLarge": "هذا التسجيل طويل جدًا بالنسبة للخدمة. جرّب تسجيلًا أقصر.",
     "errorTranscription": "فشل النسخ. أعد المحاولة من السجل.",
     "errorPaste": "تعذر اللصق. النص موجود في الحافظة وفي السجل.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "اختر خدمة النسخ",
-      "description": "اختر خدمة مهيأة لإكمال الإعداد. يكتشف Murmur التهيئة المحلية ولا يتحقق من اتصال مباشر.",
-      "antigravityDescription": "يستخدم تهيئة Antigravity المكتشفة على هذا الـ Mac.",
-      "experimental": "تجريبي",
+      "title": "ربط Codex",
+      "description": "سجّل الدخول إلى Codex على هذا الـ Mac لإكمال الإعداد. يكتشف Murmur التهيئة المحلية ولا يتحقق من اتصال مباشر.",
       "configured": "تم اكتشاف التهيئة",
-      "selectionRequired": "اختر خدمة نسخ مهيأة للمتابعة.",
       "retry": "إعادة المحاولة",
       "continue": "متابعة",
-      "providerChangeFailed": "تعذر حفظ خدمة النسخ المحددة. يرجى إعادة المحاولة.",
       "completionFailed": "تعذر إكمال الإعداد. حدّث الحالة وحاول مرة أخرى.",
-      "openFailed": "تعذر فتح Antigravity.",
-      "installFailed": "تعذر فتح صفحة تنزيل Antigravity.",
       "setupCodex": "فتح إعداد Codex",
       "codexSetupFailed": "تعذر فتح إعداد Codex."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "لم يتم اكتشاف تهيئة"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "المظهر"
       }
     },
-    "languageAutoOnly": "يكتشف Antigravity اللغة تلقائيًا. يتم الاحتفاظ باختيار لغة Codex عند العودة إليه.",
     "sound": {
       "title": "الصوت",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "جارٍ التحقق من الإعداد…",
       "statusUnavailable": "الحالة غير متاحة",
       "missing": "غير مسجّل الدخول",
-      "providerTitle": "خدمة النسخ",
-      "providerDescription": "اختر خدمة النسخ المستخدمة للإملاءات الجديدة.",
-      "notInstalled": "Antigravity غير مثبت",
-      "installAntigravity": "تثبيت",
-      "openAntigravity": "فتح Antigravity",
       "groups": {
         "service": "الخدمة",
         "processing": "معالجة النص",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "التنظيف والتنسيق بالذكاء الاصطناعي",
         "description": "يزيل كلمات الحشو، ويحتفظ بصياغتك النهائية فقط عندما تصحح نفسك، ويصلح علامات الترقيم، وينسق القوائم وفواصل الأسطر المملاة. لا يترجم ولا يعيد الصياغة أبدًا. إذا فشل أو استغرق وقتًا طويلاً، يُلصق النص الخام."
-      },
-      "cleanupEngine": {
-        "title": "محرك التنظيف",
-        "description": "يعمل Apple Intelligence على جهاز Mac هذا: مجاني وغير محدود ودون اتصال وخاص. يستخدم Codex جلسة ChatGPT الخاصة بك ويستهلك من حدود استخدامها.",
-        "options": {
-          "apple": "Apple Intelligence (على جهاز Mac هذا)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "عندما يتعذر تشغيل Apple Intelligence، ينظف Codex نصك إذا كنت مسجلاً الدخول؛ وإلا يُلصق النص الخام.",
-          "available": "جاهز على جهاز Mac هذا",
-          "deviceNotEligible": "غير مدعوم على جهاز Mac هذا",
-          "appleIntelligenceNotEnabled": "شغّل Apple Intelligence من إعدادات النظام",
-          "modelNotReady": "لا يزال قيد التنزيل، حاول لاحقًا",
-          "unsupportedOs": "يتطلب macOS 26 أو أحدث",
-          "unavailable": "غير متاح حاليًا",
-          "unsupportedLanguage": "غير متاح باللغة {{language}}"
-        }
       },
       "windowNames": {
         "title": "الأسماء من النافذة النشطة",

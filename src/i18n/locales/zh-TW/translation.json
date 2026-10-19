@@ -11,7 +11,6 @@
     "errorServer": "轉錄服務發生問題。請從歷史記錄重試。",
     "errorSessionExpired": "你的 Codex 工作階段已過期。請開啟 Codex 並重新登入。",
     "errorSignedOut": "尚未登入 Codex。請開啟 Codex 並登入。",
-    "errorGeminiSessionExpired": "你在 Antigravity 中的 Gemini 工作階段已結束。請開啟 Antigravity 並重新登入。",
     "errorTooLarge": "此錄音對該服務來說太長。請嘗試較短的錄音。",
     "errorTranscription": "轉錄失敗。請從歷史記錄重試。",
     "errorPaste": "無法貼上。文字已在剪貼簿和歷史記錄中。",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "選擇轉錄服務",
-      "description": "選擇已設定的服務以完成設定。Murmur 會偵測本機設定，但不會驗證即時連線。",
-      "antigravityDescription": "使用此 Mac 上偵測到的 Antigravity 設定。",
-      "experimental": "實驗性",
+      "title": "連接 Codex",
+      "description": "在這台 Mac 上登入 Codex 以完成設定。Murmur 會偵測本機設定，但不會驗證即時連線。",
       "configured": "已偵測到設定",
-      "selectionRequired": "請選擇已設定的轉錄服務以繼續。",
       "retry": "重試",
       "continue": "繼續",
-      "providerChangeFailed": "無法儲存所選轉錄服務。請重試。",
       "completionFailed": "無法完成設定。請重新整理狀態後再試一次。",
-      "openFailed": "無法開啟 Antigravity。",
-      "installFailed": "無法開啟 Antigravity 下載頁面。",
       "setupCodex": "開啟 Codex 設定",
       "codexSetupFailed": "無法開啟 Codex 設定。"
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "未偵測到設定"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "外觀"
       }
     },
-    "languageAutoOnly": "Antigravity 會自動偵測語言。切換回 Codex 時，會保留你的 Codex 語言選擇。",
     "sound": {
       "title": "聲音",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "正在檢查設定…",
       "statusUnavailable": "無法取得狀態",
       "missing": "尚未登入",
-      "providerTitle": "轉錄服務",
-      "providerDescription": "選擇新語音輸入使用的轉錄服務。",
-      "notInstalled": "尚未安裝 Antigravity",
-      "installAntigravity": "安裝",
-      "openAntigravity": "開啟 Antigravity",
       "groups": {
         "service": "服務",
         "processing": "文字處理",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "AI 清理與排版",
         "description": "刪除贅詞，在你自我修正時只保留最終說法，修正標點，並整理清單和口述的換行。絕不翻譯或改寫。如果失敗或耗時過久，將貼上原始逐字稿。"
-      },
-      "cleanupEngine": {
-        "title": "清理引擎",
-        "description": "Apple Intelligence 在這台 Mac 上執行：免費、無限制、離線且私密。Codex 使用你的 ChatGPT 工作階段，並消耗其使用額度。",
-        "options": {
-          "apple": "Apple Intelligence（在這台 Mac 上）",
-          "codex": "Codex（ChatGPT）"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "當 Apple Intelligence 無法執行時，若你已登入，將由 Codex 清理文字；否則貼上原始逐字稿。",
-          "available": "已在這台 Mac 上就緒",
-          "deviceNotEligible": "這台 Mac 不支援",
-          "appleIntelligenceNotEnabled": "請在系統設定中開啟 Apple Intelligence",
-          "modelNotReady": "仍在下載，請稍後再試",
-          "unsupportedOs": "需要 macOS 26 或以上版本",
-          "unavailable": "目前無法使用",
-          "unsupportedLanguage": "不支援{{language}}"
-        }
       },
       "windowNames": {
         "title": "目前視窗中的名稱",

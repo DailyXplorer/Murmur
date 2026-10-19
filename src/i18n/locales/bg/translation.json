@@ -11,7 +11,6 @@
     "errorServer": "Услугата за транскрипция има проблеми. Опитайте отново от историята.",
     "errorSessionExpired": "Сесията ви в Codex е изтекла. Отворете Codex и влезте отново.",
     "errorSignedOut": "Не сте влезли в Codex. Отворете Codex и влезте.",
-    "errorGeminiSessionExpired": "Сесията ви за Gemini в Antigravity е приключила. Отворете Antigravity и влезте отново.",
     "errorTooLarge": "Записът е твърде дълъг за услугата. Опитайте с по-кратък.",
     "errorTranscription": "Транскрипцията не успя. Опитайте отново от историята.",
     "errorPaste": "Поставянето не успя. Текстът е в клипборда и в историята.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "Изберете услуга за транскрипция",
-      "description": "Изберете конфигурирана услуга, за да завършите настройката. Murmur открива локална конфигурация, но не проверява активна връзка.",
-      "antigravityDescription": "Използва конфигурацията на Antigravity, открита на този Mac.",
-      "experimental": "Експериментално",
+      "title": "Свържете Codex",
+      "description": "Влезте в Codex на този Mac, за да завършите настройката. Murmur открива локална конфигурация, но не проверява активна връзка.",
       "configured": "Конфигурацията е открита",
-      "selectionRequired": "Изберете конфигурирана услуга за транскрипция, за да продължите.",
       "retry": "Опитайте отново",
       "continue": "Продължи",
-      "providerChangeFailed": "Избраната услуга за транскрипция не можа да бъде запазена. Опитайте отново.",
       "completionFailed": "Настройката не можа да бъде завършена. Обновете състоянието и опитайте отново.",
-      "openFailed": "Antigravity не можа да бъде отворен.",
-      "installFailed": "Страницата за изтегляне на Antigravity не можа да бъде отворена.",
       "setupCodex": "Отваряне на настройката на Codex",
       "codexSetupFailed": "Неуспешно отваряне на настройката на Codex."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Не е открита конфигурация"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "Външен вид"
       }
     },
-    "languageAutoOnly": "Antigravity открива езика автоматично. Изборът ви на език за Codex се запазва, когато се върнете към него.",
     "sound": {
       "title": "Звук",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "Проверка на конфигурацията…",
       "statusUnavailable": "Състоянието не е налично",
       "missing": "Не сте влезли в профила си",
-      "providerTitle": "Услуга за транскрипция",
-      "providerDescription": "Изберете услугата за транскрипция за новите диктовки.",
-      "notInstalled": "Antigravity не е инсталиран",
-      "installAntigravity": "Инсталиране",
-      "openAntigravity": "Отвори Antigravity",
       "groups": {
         "service": "Услуга",
         "processing": "Обработка на текста",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "Почистване и форматиране с ИИ",
         "description": "Премахва думите паразити, запазва само окончателната ви формулировка, когато се поправяте, коригира пунктуацията и форматира списъци и диктувани нови редове. Никога не превежда и не пренаписва. Ако се провали или отнеме твърде дълго, се поставя суровата транскрипция."
-      },
-      "cleanupEngine": {
-        "title": "Двигател за изчистване",
-        "description": "Apple Intelligence работи на този Mac: безплатно, без ограничения, офлайн и поверително. Codex използва сесията ви в ChatGPT и изразходва нейните лимити.",
-        "options": {
-          "apple": "Apple Intelligence (на този Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Когато Apple Intelligence не може да работи, Codex изчиства текста, ако сте влезли; иначе се поставя суровата транскрипция.",
-          "available": "Готово на този Mac",
-          "deviceNotEligible": "Не се поддържа на този Mac",
-          "appleIntelligenceNotEnabled": "Включете Apple Intelligence в Системни настройки",
-          "modelNotReady": "Все още се изтегля, опитайте по-късно",
-          "unsupportedOs": "Изисква macOS 26 или по-нова",
-          "unavailable": "В момента не е налично",
-          "unsupportedLanguage": "Не е налично на {{language}}"
-        }
       },
       "windowNames": {
         "title": "Имена от активния прозорец",

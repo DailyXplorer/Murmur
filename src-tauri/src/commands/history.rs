@@ -102,7 +102,6 @@ pub async fn retry_history_entry_transcription(
         Ok(path) => crate::audio_toolkit::read_wav_samples(&path).map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),
     };
-    let provider = crate::settings::get_settings(&app).transcription_provider;
     retranscribe(
         samples,
         move |samples| async move {
@@ -111,7 +110,7 @@ pub async fn retry_history_entry_transcription(
             // user-requested retry.
             let operation = ProcessingOperation::new(OperationId(0));
             let transcription = transcription_manager
-                .transcribe_with_provider(Arc::new(samples), operation.clone(), provider)
+                .transcribe_samples(Arc::new(samples), operation.clone())
                 .await
                 .map_err(|e| e.to_string())?
                 .text;
@@ -123,16 +122,7 @@ pub async fn retry_history_entry_transcription(
             // A retry gets the same cleanup as the dictation it replaces; the
             // raw transcript stays in the entry. The window the user dictated
             // into is gone, so there are no window names to pass.
-            Ok(
-                process_transcription_output(
-                    &app,
-                    &transcription,
-                    provider,
-                    Vec::new(),
-                    &operation,
-                )
-                .await,
-            )
+            Ok(process_transcription_output(&app, &transcription, Vec::new(), &operation).await)
         },
         |text| {
             history_manager

@@ -1,84 +1,46 @@
 import { useCallback, useRef, useState } from "react";
-import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
 import { commands } from "@/bindings";
 
 export type ProviderStatus =
   | { kind: "checking" }
   | { kind: "configured" }
-  | {
-      kind: "unavailable";
-      reason: "notInstalled" | "notSignedIn" | "sessionExpired";
-    }
+  | { kind: "unavailable"; reason: "notSignedIn" | "sessionExpired" }
   | { kind: "error" };
 
-export interface ProviderStatuses {
-  codex: ProviderStatus;
-  gemini: ProviderStatus;
-}
-
-export const CHECKING_PROVIDER_STATUSES: ProviderStatuses = {
-  codex: { kind: "checking" },
-  gemini: { kind: "checking" },
-};
-
-const codexStatusFrom = (
-  result: PromiseSettledResult<CodexAuthStatus>,
-): ProviderStatus => {
-  if (result.status === "rejected") return { kind: "error" };
-  if (result.value.signed_in) return { kind: "configured" };
-  return {
-    kind: "unavailable",
-    reason: result.value.expired ? "sessionExpired" : "notSignedIn",
-  };
-};
-
-const geminiStatusFrom = (
-  result: PromiseSettledResult<GeminiStatus>,
-): ProviderStatus => {
-  if (result.status === "rejected") return { kind: "error" };
-  if (!result.value.installed) {
-    return { kind: "unavailable", reason: "notInstalled" };
-  }
-  return result.value.signed_in
-    ? { kind: "configured" }
-    : { kind: "unavailable", reason: "notSignedIn" };
-};
-
 /**
- * Reads local provider configuration without claiming a live connection.
+ * Reads the local Codex session without claiming a live connection.
  * A request sequence keeps delayed focus checks from replacing newer results.
  */
-export const useProviderStatuses = () => {
-  const [statuses, setStatuses] = useState<ProviderStatuses>(
-    CHECKING_PROVIDER_STATUSES,
-  );
+export const useCodexStatus = () => {
+  const [status, setStatus] = useState<ProviderStatus>({ kind: "checking" });
   const requestSequence = useRef(0);
 
-  const refreshStatuses = useCallback(async () => {
+  const refreshStatus = useCallback(async () => {
     const sequence = ++requestSequence.current;
-    setStatuses(CHECKING_PROVIDER_STATUSES);
-    const [codex, gemini] = await Promise.allSettled([
-      commands.getCodexAuthStatus(),
-      commands.getGeminiStatus(),
-    ]);
+    setStatus({ kind: "checking" });
+    let next: ProviderStatus;
+    try {
+      const auth = await commands.getCodexAuthStatus();
+      next = auth.signed_in
+        ? { kind: "configured" }
+        : {
+            kind: "unavailable",
+            reason: auth.expired ? "sessionExpired" : "notSignedIn",
+          };
+    } catch {
+      next = { kind: "error" };
+    }
 
     if (sequence !== requestSequence.current) return;
-
-    setStatuses({
-      codex: codexStatusFrom(codex),
-      gemini: geminiStatusFrom(gemini),
-    });
+    setStatus(next);
   }, []);
 
   const invalidatePendingRefreshes = useCallback(() => {
     requestSequence.current += 1;
   }, []);
 
-  return { invalidatePendingRefreshes, refreshStatuses, statuses };
+  return { invalidatePendingRefreshes, refreshStatus, status };
 };
-
-export const isConfiguredProvider = (status: ProviderStatus): boolean =>
-  status.kind === "configured";
 
 export const statusTranslationKey = (status: ProviderStatus): string => {
   switch (status.kind) {
@@ -88,8 +50,6 @@ export const statusTranslationKey = (status: ProviderStatus): string => {
       return "onboarding.provider.configured";
     case "unavailable":
       switch (status.reason) {
-        case "notInstalled":
-          return "settings.transcription.notInstalled";
         case "sessionExpired":
           return "settings.transcription.sessionExpired";
         case "notSignedIn":

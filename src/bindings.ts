@@ -91,14 +91,6 @@ async changeSelectedLanguageSetting(language: string) : Promise<Result<null, str
     else return { status: "error", error: String(e) };
 }
 },
-async changeTranscriptionProviderSetting(provider: TranscriptionProvider) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_transcription_provider_setting", { provider }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async changeOverlayPositionSetting(position: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_overlay_position_setting", { position }) };
@@ -258,17 +250,6 @@ async changeAiCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
-},
-async changeCleanupEngineSetting(engine: CleanupEngine) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_engine_setting", { engine }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async getAppleIntelligenceStatus() : Promise<AppleIntelligenceStatus> {
-    return await TAURI_INVOKE("get_apple_intelligence_status");
 },
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
@@ -559,26 +540,8 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
- * Signature verification runs off the AppKit thread. This only reports local
- * configuration, not whether the cloud will accept a transcription.
- */
-async getGeminiStatus() : Promise<GeminiStatus> {
-    return await TAURI_INVOKE("get_gemini_status");
-},
-/**
- * Opens Antigravity after an explicit user action so the user can sign in.
- */
-async openAntigravity() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("open_antigravity") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-/**
- * The provider shown by onboarding must remain selected. Losing its local
- * configuration cannot silently change where the next recording is sent.
+ * Onboarding ends only once a Codex session exists, so the first recording
+ * has somewhere to go.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
@@ -951,16 +914,16 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  * Which input channel to use on the selected microphone device.
  * None means "average all channels".
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
  * Required guarded paste path. AppKit does not identify the process
  * reading promised data, so settlement waits a bounded window. macOS only.
  */
 reliable_paste?: boolean; 
 /**
- * AI cleanup and formatting of each transcript, by `cleanup_engine`.
+ * AI cleanup and formatting of each transcript by the Codex session.
  */
-ai_cleanup_enabled?: boolean; cleanup_engine?: CleanupEngine; 
+ai_cleanup_enabled?: boolean; 
 /**
  * Dictionary words learned from corrections; each is also in `custom_words`.
  */
@@ -978,11 +941,6 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * its tray item exist only while this is on.
  */
 meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
-export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" | 
-/**
- * The model runs, but not in the selected dictation language.
- */
-"unsupportedLanguage"
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1003,11 +961,6 @@ export type AudioState =
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 export type CategoryUsage = { category: AppCategory; count: number }
-/**
- * Which model runs AI cleanup. Apple's on-device model is free, offline
- * and does not spend the user's Codex allowance, so it is the default.
- */
-export type CleanupEngine = "apple" | "codex"
 /**
  * What happened to a transcript, as kept in history.
  */
@@ -1037,7 +990,6 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
-export type GeminiStatus = { installed: boolean; signed_in: boolean }
 export type HeatmapDay = { 
 /**
  * Local calendar date, `YYYY-MM-DD`.
@@ -1302,7 +1254,6 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
-export type TranscriptionProvider = "codex" | "gemini"
 
 /** tauri-specta globals **/
 

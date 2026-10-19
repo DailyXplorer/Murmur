@@ -4,7 +4,7 @@
 //! window keeps its own toasts.
 
 use crate::meetings::coordinator::MeetingAlert;
-use crate::settings::{get_settings, SettingsRecovery, TranscriptionProvider};
+use crate::settings::{get_settings, SettingsRecovery};
 use crate::transcription_error::FailureKind;
 use crate::tray_i18n::{get_tray_translations, TrayStrings};
 use tauri::AppHandle;
@@ -12,8 +12,8 @@ use tauri_plugin_notification::NotificationExt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Alert {
-    /// A dictation failed with the provider that transcribed it.
-    Transcription(FailureKind, TranscriptionProvider),
+    /// A dictation failed to transcribe.
+    Transcription(FailureKind),
     PasteFailed,
     RecordingFailed,
     MicrophoneDenied,
@@ -44,17 +44,11 @@ impl Alert {
 
     fn message(&self, strings: &TrayStrings) -> String {
         match self {
-            Self::Transcription(kind, provider) => match kind {
+            Self::Transcription(kind) => match kind {
                 FailureKind::Network => &strings.error_network,
                 FailureKind::Timeout => &strings.error_timeout,
                 FailureKind::RateLimited => &strings.error_rate_limited,
                 FailureKind::ServerError => &strings.error_server,
-                // Gemini runs on the Antigravity session, not on Codex's.
-                FailureKind::SessionExpired | FailureKind::SignedOut
-                    if *provider == TranscriptionProvider::Gemini =>
-                {
-                    &strings.error_gemini_session_expired
-                }
                 FailureKind::SessionExpired => &strings.error_session_expired,
                 FailureKind::SignedOut => &strings.error_signed_out,
                 FailureKind::TooLarge => &strings.error_too_large,
@@ -147,27 +141,10 @@ mod tests {
         ];
         let messages: std::collections::HashSet<_> = kinds
             .iter()
-            .map(|kind| Alert::Transcription(*kind, TranscriptionProvider::Codex).message(&strings))
+            .map(|kind| Alert::Transcription(*kind).message(&strings))
             .collect();
         assert_eq!(messages.len(), kinds.len());
         assert!(messages.iter().all(|message| !message.is_empty()));
-    }
-
-    /// Signing in to Codex again cannot fix Gemini, which runs on the
-    /// Antigravity session.
-    #[test]
-    fn an_ended_gemini_session_sends_the_user_to_antigravity() {
-        let strings = get_tray_translations(Some("en".to_string()));
-        let message = |kind, provider| Alert::Transcription(kind, provider).message(&strings);
-        for kind in [FailureKind::SessionExpired, FailureKind::SignedOut] {
-            let gemini = message(kind, TranscriptionProvider::Gemini);
-            assert!(gemini.contains("Antigravity"), "{gemini}");
-            assert!(!gemini.contains("Codex"), "{gemini}");
-        }
-        assert_eq!(
-            message(FailureKind::Network, TranscriptionProvider::Gemini),
-            message(FailureKind::Network, TranscriptionProvider::Codex)
-        );
     }
 
     #[test]

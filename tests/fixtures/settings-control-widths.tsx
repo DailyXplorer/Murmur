@@ -145,17 +145,17 @@ const SettingsControlWidthsFixture: React.FC = () => {
         </div>
 
         <SettingContainer
-          title="Gemini status"
+          title="Service status"
           description="Status and action share the same rail"
         >
           <div
-            data-testid="gemini-status"
+            data-testid="status-action"
             className="flex min-w-0 items-center gap-2"
           >
             <span className="min-w-0 flex-1 truncate text-sm text-text/80">
-              Gemini transcription service is not installed
+              The transcription service is not signed in
             </span>
-            <Button className="shrink-0">Install</Button>
+            <Button className="shrink-0">Open</Button>
           </div>
         </SettingContainer>
 

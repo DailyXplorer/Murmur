@@ -4,7 +4,7 @@ use crate::cleanup::{ProcessedText, PromptContext};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, OverlayStyle, TranscriptionProvider};
+use crate::settings::{get_settings, OverlayStyle};
 use crate::shortcut;
 use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
@@ -34,7 +34,6 @@ struct RecordingErrorEvent {
 struct TranscriptionErrorEvent {
     kind: FailureKind,
     detail: String,
-    provider: TranscriptionProvider,
 }
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
@@ -184,46 +183,21 @@ fn save_history(
     }
 }
 
-fn output_language_for_provider(
-    provider: TranscriptionProvider,
-    selected_language: &str,
-) -> Option<&str> {
-    (provider == TranscriptionProvider::Codex).then_some(selected_language)
-}
-
-/// The language dictations are cleaned in, or "auto" when it is not known.
-pub(crate) fn cleanup_language(provider: TranscriptionProvider, selected_language: &str) -> &str {
-    output_language_for_provider(provider, selected_language).unwrap_or("auto")
-}
-
 /// Converts the Chinese variant, then runs AI cleanup when it is on and a
-/// Codex session exists, whichever provider transcribed. `names` come from
-/// the window the user dictated into.
+/// Codex session exists. `names` come from the window the user dictated into.
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
-    provider: TranscriptionProvider,
     names: Vec<String>,
     operation: &ProcessingOperation,
 ) -> ProcessedText {
     let settings = get_settings(app);
-    // Gemini does not accept Murmur's language preference. Preserve the
-    // stored selection for a later Codex dictation, but do not let an old
-    // Chinese-variant preference rewrite Gemini output.
-    let final_text = crate::chinese_script::in_chosen_script(
-        output_language_for_provider(provider, &settings.selected_language),
-        transcription,
-    );
+    let final_text =
+        crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
-    if !settings.ai_cleanup_enabled {
+    if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
         return ProcessedText::unprocessed(final_text);
     }
-    let Some(engine) = crate::cleanup::engine_for(
-        settings.cleanup_engine,
-        cleanup_language(provider, &settings.selected_language),
-    ) else {
-        return ProcessedText::unprocessed(final_text);
-    };
     // The setting may have been turned off while the user was dictating.
     let context = PromptContext {
         vocabulary: settings.custom_words.clone(),
@@ -232,12 +206,11 @@ pub(crate) async fn process_transcription_output(
         } else {
             Vec::new()
         },
-        language: output_language_for_provider(provider, &settings.selected_language)
-            .filter(|language| *language != "auto")
-            .map(str::to_string),
+        language: (settings.selected_language != "auto")
+            .then(|| settings.selected_language.clone()),
         faint_speech: settings.whisper_mode,
     };
-    crate::cleanup::clean(engine, final_text, &context, operation).await
+    crate::cleanup::clean(final_text, &context, operation).await
 }
 
 impl ShortcutAction for TranscribeAction {
@@ -470,17 +443,14 @@ impl ShortcutAction for TranscribeAction {
                         .take()
                         .map(|wav| wav.write(Arc::clone(&samples)));
 
-                    let provider = get_settings(&ah).transcription_provider;
-                    if provider == TranscriptionProvider::Codex
-                        && crate::codex_transcribe::upload_size_for_samples(sample_count)
-                            > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
+                    if crate::codex_transcribe::upload_size_for_samples(sample_count)
+                        > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
                     {
                         user_alert::show(&ah, Alert::LongRecording);
                     }
                     let transcription_time = Instant::now();
-                    let transcription_result = tm
-                        .transcribe_with_provider(samples, operation.clone(), provider)
-                        .await;
+                    let transcription_result =
+                        tm.transcribe_samples(samples, operation.clone()).await;
 
                     let wav_saved = match wav_handle {
                         None => false,
@@ -528,7 +498,6 @@ impl ShortcutAction for TranscribeAction {
                                 process_transcription_output(
                                     &ah,
                                     &transcription,
-                                    provider,
                                     window_names,
                                     &operation,
                                 ),
@@ -621,10 +590,9 @@ impl ShortcutAction for TranscribeAction {
                                 TranscriptionErrorEvent {
                                     kind,
                                     detail: format!("{err:#}"),
-                                    provider,
                                 },
                             );
-                            user_alert::show(&ah, Alert::Transcription(kind, provider));
+                            user_alert::show(&ah, Alert::Transcription(kind));
                             // Save entry with empty text so user can retry
                             if wav_saved {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
@@ -697,12 +665,8 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        complete_unless_cancelled, output_language_for_provider, paste_outcome_commits_history,
-        PendingWav,
-    };
+    use super::{complete_unless_cancelled, paste_outcome_commits_history, PendingWav};
     use crate::clipboard::PasteOutcome;
-    use crate::settings::TranscriptionProvider;
     use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -803,18 +767,6 @@ mod tests {
         assert!(PendingWav::reserve(wav_path.clone()).is_err());
 
         assert_eq!(fs::read(&wav_path).unwrap(), b"history-owned wav");
-    }
-
-    #[test]
-    fn gemini_ignores_a_preserved_codex_chinese_variant_preference() {
-        assert_eq!(
-            output_language_for_provider(TranscriptionProvider::Gemini, "zh-Hant"),
-            None
-        );
-        assert_eq!(
-            output_language_for_provider(TranscriptionProvider::Codex, "zh-Hant"),
-            Some("zh-Hant")
-        );
     }
 
     #[test]
