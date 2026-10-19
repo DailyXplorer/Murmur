@@ -36,7 +36,6 @@ import {
   timeSaved,
   toWeeks,
   TYPING_WPM,
-  wordEquivalence,
 } from "./insightsModel";
 
 const CATEGORY_ICONS: Record<AppCategory, Icon> = {
@@ -80,8 +79,7 @@ const StatTile: React.FC<{
   label: string;
   value: string;
   tooltip?: string;
-  children?: React.ReactNode;
-}> = ({ icon: TileIcon, label, value, tooltip, children }) => (
+}> = ({ icon: TileIcon, label, value, tooltip }) => (
   <section className="flex min-w-0 flex-col gap-1 rounded-lg border border-mid-gray/20 bg-background p-4">
     {/* Two lines high in every tile, so a label that wraps keeps the values
         level. The info icon flows with the label and wraps with its last
@@ -98,7 +96,6 @@ const StatTile: React.FC<{
       </div>
     </div>
     <p className="text-3xl font-semibold tabular-nums">{value}</p>
-    <div className="text-pretty text-xs text-mid-gray">{children}</div>
   </section>
 );
 
@@ -272,7 +269,6 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
 }) => {
   const { t } = useTranslation();
   const format = useFormatters();
-  const equivalence = wordEquivalence(summary.total_words);
   const saved = timeSaved(summary.minutes_saved);
 
   return (
@@ -287,22 +283,12 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
               : format.number.format(summary.words_per_minute)
           }
           tooltip={t("insights.wpm.formula")}
-        >
-          {summary.words_per_minute === null
-            ? t("insights.wpm.empty")
-            : t("insights.wpm.window")}
-        </StatTile>
+        />
         <StatTile
           icon={TextAaIcon}
           label={t("insights.words.title")}
           value={format.number.format(summary.total_words)}
-        >
-          {equivalence
-            ? t(`insights.words.equivalence.${equivalence.unit}`, {
-                amount: format.number.format(equivalence.amount),
-              })
-            : t("insights.words.empty")}
-        </StatTile>
+        />
         <StatTile
           icon={TimerIcon}
           label={t("insights.timeSaved.title")}

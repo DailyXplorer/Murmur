@@ -14,7 +14,6 @@ test("shows speed, totals, time saved, app usage and streak", async ({
 
   await expect(main.getByText("142", { exact: true })).toBeVisible();
   await expect(main.getByText("48,210", { exact: true })).toBeVisible();
-  await expect(main.getByText("≈ 6.4 × a short story")).toBeVisible();
   const timeSaved = main.locator("section", {
     has: page.getByRole("heading", { name: "Time saved" }),
   });
@@ -59,8 +58,6 @@ test("explains the empty state before any dictation", async ({ page }) => {
   const main = page.getByRole("main", { name: "Insights" });
 
   await expect(main.getByText("–", { exact: true })).toBeVisible();
-  await expect(main.getByText("Not enough timed dictations yet")).toBeVisible();
-  await expect(main.getByText("Start dictating to fill this in")).toBeVisible();
   await expect(main.getByText("0 min", { exact: true })).toBeVisible();
   await expect(
     main.getByText(
@@ -91,7 +88,6 @@ test("refreshes when the backend reports new insights", async ({ page }) => {
   );
 
   await expect(main.getByText("1,250", { exact: true })).toBeVisible();
-  await expect(main.getByText("≈ 13 × a typical email")).toBeVisible();
   await expect(main.getByText("21 min", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.insights.requests())).toBe(2);
 });

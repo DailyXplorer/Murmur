@@ -54,19 +54,10 @@
     "error": "Insights could not be loaded.",
     "wpm": {
       "title": "Words per minute",
-      "window": "Last 30 days",
-      "empty": "Not enough timed dictations yet",
       "formula": "Total words dictated in the last 30 days divided by the total recording time of those dictations, in minutes. Recordings shorter than one second are skipped."
     },
     "words": {
-      "title": "Total words",
-      "empty": "Start dictating to fill this in",
-      "equivalence": {
-        "emails": "≈ {{amount}} × a typical email",
-        "pages": "≈ {{amount}} × a book page",
-        "stories": "≈ {{amount}} × a short story",
-        "novels": "≈ {{amount}} × a novel"
-      }
+      "title": "Total words"
     },
     "timeSaved": {
       "title": "Time saved",

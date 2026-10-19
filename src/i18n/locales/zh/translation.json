@@ -54,19 +54,10 @@
     "error": "无法加载数据洞察。",
     "wpm": {
       "title": "每分钟字数",
-      "window": "最近 30 天",
-      "empty": "带时长的听写还不够",
       "formula": "最近 30 天听写的总字数除以这些听写的总录音时长（分钟）。短于一秒的录音不计入。"
     },
     "words": {
-      "title": "总字数",
-      "empty": "开始听写后这里会显示数据",
-      "equivalence": {
-        "emails": "≈ {{amount}} 封普通邮件",
-        "pages": "≈ {{amount}} 页书",
-        "stories": "≈ {{amount}} 篇短篇小说",
-        "novels": "≈ {{amount}} 部长篇小说"
-      }
+      "title": "总字数"
     },
     "timeSaved": {
       "title": "节省的时间",

@@ -54,19 +54,10 @@
     "error": "İstatistikler yüklenemedi.",
     "wpm": {
       "title": "Dakikada kelime",
-      "window": "Son 30 gün",
-      "empty": "Henüz yeterli süreli dikte yok",
       "formula": "Son 30 günde dikte edilen toplam kelime sayısının bu diktelerin dakika cinsinden toplam kayıt süresine bölümü. Bir saniyeden kısa kayıtlar atlanır."
     },
     "words": {
-      "title": "Toplam kelime",
-      "empty": "Bu alanı doldurmak için dikte etmeye başlayın",
-      "equivalence": {
-        "emails": "≈ {{amount}} × tipik bir e-posta",
-        "pages": "≈ {{amount}} × bir kitap sayfası",
-        "stories": "≈ {{amount}} × bir öykü",
-        "novels": "≈ {{amount}} × bir roman"
-      }
+      "title": "Toplam kelime"
     },
     "timeSaved": {
       "title": "Kazanılan zaman",

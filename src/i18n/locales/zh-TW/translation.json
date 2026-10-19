@@ -54,19 +54,10 @@
     "error": "無法載入數據洞察。",
     "wpm": {
       "title": "每分鐘字數",
-      "window": "最近 30 天",
-      "empty": "有時長的聽寫還不夠",
       "formula": "最近 30 天聽寫的總字數除以這些聽寫的總錄音時長（分鐘）。短於一秒的錄音不計入。"
     },
     "words": {
-      "title": "總字數",
-      "empty": "開始聽寫後這裡會顯示資料",
-      "equivalence": {
-        "emails": "≈ {{amount}} 封一般郵件",
-        "pages": "≈ {{amount}} 頁書",
-        "stories": "≈ {{amount}} 篇短篇小說",
-        "novels": "≈ {{amount}} 部長篇小說"
-      }
+      "title": "總字數"
     },
     "timeSaved": {
       "title": "節省的時間",

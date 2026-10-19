@@ -54,19 +54,10 @@
     "error": "Statistikken kunne ikke indlæses.",
     "wpm": {
       "title": "Ord pr. minut",
-      "window": "Seneste 30 dage",
-      "empty": "Endnu ikke nok tidsmålte dikteringer",
       "formula": "Det samlede antal dikterede ord de seneste 30 dage divideret med den samlede optagetid for disse dikteringer, i minutter. Optagelser under ét sekund springes over."
     },
     "words": {
-      "title": "Ord i alt",
-      "empty": "Begynd at diktere for at udfylde dette",
-      "equivalence": {
-        "emails": "≈ {{amount}} × en typisk e-mail",
-        "pages": "≈ {{amount}} × en bogside",
-        "stories": "≈ {{amount}} × en novelle",
-        "novels": "≈ {{amount}} × en roman"
-      }
+      "title": "Ord i alt"
     },
     "timeSaved": {
       "title": "Sparet tid",

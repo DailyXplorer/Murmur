@@ -54,19 +54,10 @@
     "error": "Nie udało się wczytać statystyk.",
     "wpm": {
       "title": "Słowa na minutę",
-      "window": "Ostatnie 30 dni",
-      "empty": "Za mało dyktowań z zarejestrowanym czasem",
       "formula": "Łączna liczba słów podyktowanych w ciągu ostatnich 30 dni podzielona przez łączny czas nagrania tych dyktowań, w minutach. Nagrania krótsze niż sekunda są pomijane."
     },
     "words": {
-      "title": "Łącznie słów",
-      "empty": "Zacznij dyktować, aby to uzupełnić",
-      "equivalence": {
-        "emails": "≈ {{amount}} × typowy e-mail",
-        "pages": "≈ {{amount}} × strona książki",
-        "stories": "≈ {{amount}} × opowiadanie",
-        "novels": "≈ {{amount}} × powieść"
-      }
+      "title": "Łącznie słów"
     },
     "timeSaved": {
       "title": "Zaoszczędzony czas",

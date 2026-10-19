@@ -54,19 +54,10 @@
     "error": "Statistiken konnten nicht geladen werden.",
     "wpm": {
       "title": "Wörter pro Minute",
-      "window": "Letzte 30 Tage",
-      "empty": "Noch nicht genug gemessene Diktate",
       "formula": "Alle in den letzten 30 Tagen diktierten Wörter geteilt durch die gesamte Aufnahmezeit dieser Diktate in Minuten. Aufnahmen unter einer Sekunde werden übersprungen."
     },
     "words": {
-      "title": "Wörter insgesamt",
-      "empty": "Beginne zu diktieren, um diesen Wert zu füllen",
-      "equivalence": {
-        "emails": "≈ {{amount}} × eine typische E-Mail",
-        "pages": "≈ {{amount}} × eine Buchseite",
-        "stories": "≈ {{amount}} × eine Kurzgeschichte",
-        "novels": "≈ {{amount}} × ein Roman"
-      }
+      "title": "Wörter insgesamt"
     },
     "timeSaved": {
       "title": "Gesparte Zeit",

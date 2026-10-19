@@ -54,19 +54,10 @@
     "error": "Não foi possível carregar as estatísticas.",
     "wpm": {
       "title": "Palavras por minuto",
-      "window": "Últimos 30 dias",
-      "empty": "Ainda não há ditados cronometrados suficientes",
       "formula": "Total de palavras ditadas nos últimos 30 dias dividido pelo tempo total de gravação desses ditados, em minutos. Gravações com menos de um segundo são ignoradas."
     },
     "words": {
-      "title": "Total de palavras",
-      "empty": "Comece a ditar para preencher este valor",
-      "equivalence": {
-        "emails": "≈ {{amount}} × um e-mail típico",
-        "pages": "≈ {{amount}} × uma página de livro",
-        "stories": "≈ {{amount}} × um conto",
-        "novels": "≈ {{amount}} × um romance"
-      }
+      "title": "Total de palavras"
     },
     "timeSaved": {
       "title": "Tempo economizado",

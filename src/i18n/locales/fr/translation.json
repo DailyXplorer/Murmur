@@ -54,19 +54,10 @@
     "error": "Impossible de charger les statistiques.",
     "wpm": {
       "title": "Mots par minute",
-      "window": "30 derniers jours",
-      "empty": "Pas encore assez de dictées chronométrées",
       "formula": "Nombre total de mots dictés au cours des 30 derniers jours divisé par la durée totale d'enregistrement de ces dictées, en minutes. Les enregistrements de moins d'une seconde sont ignorés."
     },
     "words": {
-      "title": "Mots au total",
-      "empty": "Commencez à dicter pour remplir ce compteur",
-      "equivalence": {
-        "emails": "≈ {{amount}} × un e-mail type",
-        "pages": "≈ {{amount}} × une page de livre",
-        "stories": "≈ {{amount}} × une nouvelle",
-        "novels": "≈ {{amount}} × un roman"
-      }
+      "title": "Mots au total"
     },
     "timeSaved": {
       "title": "Temps gagné",

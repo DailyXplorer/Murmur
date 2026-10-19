@@ -54,19 +54,10 @@
     "error": "Statistiken kunde inte läsas in.",
     "wpm": {
       "title": "Ord per minut",
-      "window": "Senaste 30 dagarna",
-      "empty": "Inte tillräckligt många tidsatta dikteringar än",
       "formula": "Totalt antal dikterade ord de senaste 30 dagarna delat med den totala inspelningstiden för dessa dikteringar, i minuter. Inspelningar kortare än en sekund hoppas över."
     },
     "words": {
-      "title": "Totalt antal ord",
-      "empty": "Börja diktera för att fylla i det här",
-      "equivalence": {
-        "emails": "≈ {{amount}} × ett vanligt mejl",
-        "pages": "≈ {{amount}} × en boksida",
-        "stories": "≈ {{amount}} × en novell",
-        "novels": "≈ {{amount}} × en roman"
-      }
+      "title": "Totalt antal ord"
     },
     "timeSaved": {
       "title": "Sparad tid",

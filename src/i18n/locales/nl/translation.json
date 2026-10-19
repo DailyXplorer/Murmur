@@ -54,19 +54,10 @@
     "error": "Inzichten konden niet worden geladen.",
     "wpm": {
       "title": "Woorden per minuut",
-      "window": "Laatste 30 dagen",
-      "empty": "Nog niet genoeg getimede dicteringen",
       "formula": "Totaal aantal gedicteerde woorden in de laatste 30 dagen gedeeld door de totale opnametijd van die dicteringen, in minuten. Opnames korter dan één seconde worden overgeslagen."
     },
     "words": {
-      "title": "Woorden in totaal",
-      "empty": "Begin met dicteren om dit te vullen",
-      "equivalence": {
-        "emails": "≈ {{amount}} × een gemiddelde e-mail",
-        "pages": "≈ {{amount}} × een boekpagina",
-        "stories": "≈ {{amount}} × een kort verhaal",
-        "novels": "≈ {{amount}} × een roman"
-      }
+      "title": "Woorden in totaal"
     },
     "timeSaved": {
       "title": "Tijd bespaard",

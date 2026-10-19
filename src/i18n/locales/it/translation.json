@@ -54,19 +54,10 @@
     "error": "Impossibile caricare le statistiche.",
     "wpm": {
       "title": "Parole al minuto",
-      "window": "Ultimi 30 giorni",
-      "empty": "Non ci sono ancora abbastanza dettature cronometrate",
       "formula": "Parole totali dettate negli ultimi 30 giorni divise per il tempo totale di registrazione di quelle dettature, in minuti. Le registrazioni più brevi di un secondo vengono ignorate."
     },
     "words": {
-      "title": "Parole totali",
-      "empty": "Inizia a dettare per vedere questo valore",
-      "equivalence": {
-        "emails": "≈ {{amount}} × un'email tipica",
-        "pages": "≈ {{amount}} × una pagina di libro",
-        "stories": "≈ {{amount}} × un racconto breve",
-        "novels": "≈ {{amount}} × un romanzo"
-      }
+      "title": "Parole totali"
     },
     "timeSaved": {
       "title": "Tempo risparmiato",

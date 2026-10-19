@@ -54,19 +54,10 @@
     "error": "Không thể tải thống kê.",
     "wpm": {
       "title": "Từ mỗi phút",
-      "window": "30 ngày qua",
-      "empty": "Chưa đủ lượt đọc chính tả có thời lượng",
       "formula": "Tổng số từ đọc chính tả trong 30 ngày qua chia cho tổng thời gian ghi âm của các lượt đó, tính bằng phút. Các bản ghi ngắn hơn một giây bị bỏ qua."
     },
     "words": {
-      "title": "Tổng số từ",
-      "empty": "Bắt đầu đọc chính tả để điền số liệu này",
-      "equivalence": {
-        "emails": "≈ {{amount}} × một email thông thường",
-        "pages": "≈ {{amount}} × một trang sách",
-        "stories": "≈ {{amount}} × một truyện ngắn",
-        "novels": "≈ {{amount}} × một cuốn tiểu thuyết"
-      }
+      "title": "Tổng số từ"
     },
     "timeSaved": {
       "title": "Thời gian tiết kiệm",
