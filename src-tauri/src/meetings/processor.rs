@@ -30,7 +30,9 @@ use super::align::{TimedToken, TimedWord};
 use super::analysis::{Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
 use super::archive;
 use super::bleed::remove_echoes;
-use super::chunking::{plan_chunks, speech_threshold, split_chunk, system_audio_missing};
+use super::chunking::{
+    plan_chunks, speech_threshold, split_chunk, system_audio_missing, voiced_ms,
+};
 use super::merge::{merge, Track, Unit, PLACEHOLDER};
 use super::paths;
 use super::protocol::{segments, timed_words};
@@ -85,12 +87,41 @@ fn track_file(track: Track) -> &'static str {
     }
 }
 
+/// System audio with less speech than this share of the microphone's, in
+/// percent, is not a side of the conversation: a notification or a
+/// ringtone during a meeting held in person.
+const MIN_REMOTE_SPEECH_PERCENT: u64 = 10;
+
 /// The key of a track's only speaker when its speakers are not told apart:
-/// the microphone is the user, system audio the remote participants.
-fn single_speaker(track: Track) -> &'static str {
+/// the microphone is the user, system audio the remote participants, or,
+/// after `room_voices` told apart on the microphone, one voice more.
+fn single_speaker(track: Track, room_voices: usize) -> String {
     match track {
-        Track::Mic => "me",
-        Track::System => "s1",
+        Track::Mic => "me".to_string(),
+        Track::System => format!("s{}", room_voices + 1),
+    }
+}
+
+/// The track whose voices are told apart: system audio, where the remote
+/// participants are, unless it holds too little speech for that. Then the
+/// meeting was held in person and every voice is on the microphone.
+fn diarized_track(audio: &HashMap<Track, Audio>) -> Track {
+    let speech = |track| {
+        audio.get(&track).map(|audio| {
+            voiced_ms(
+                &audio.levels.levels,
+                audio.threshold,
+                0,
+                audio.levels.duration_ms,
+            )
+        })
+    };
+    match (speech(Track::Mic), speech(Track::System)) {
+        (Some(mic), Some(system)) if system * 100 > mic * MIN_REMOTE_SPEECH_PERCENT => {
+            Track::System
+        }
+        (Some(_), _) => Track::Mic,
+        (None, _) => Track::System,
     }
 }
 
@@ -375,16 +406,7 @@ impl Processor {
             policy: self.policy.clone(),
             language: self.language.clone(),
         };
-        // The remote participants are told apart, or everyone in the room
-        // when system audio holds no speech: a meeting held in person.
-        let system_spoke = chunks
-            .iter()
-            .any(|chunk| chunk.track == Track::System && chunk.status != ChunkStatus::Silent);
-        let diarize = if source.0.contains_key(&Track::Mic) && !system_spoke {
-            Track::Mic
-        } else {
-            Track::System
-        };
+        let diarize = diarized_track(&source.0);
         let dir = paths::meeting_dir(&self.root, id);
         let analyzed = AtomicBool::new(false);
         let started = Instant::now();
@@ -602,6 +624,10 @@ fn build_transcript(
         .and_then(|analysis| analysis.turns.as_deref())
         .map(segments);
     let numbers = turns.as_deref().map(speakers::number);
+    let room_voices = numbers
+        .as_ref()
+        .filter(|_| diarize == Track::Mic)
+        .map_or(0, HashMap::len);
     let mut identity = None;
     let mut units = Vec::new();
     let mut missing = false;
@@ -636,7 +662,7 @@ fn build_transcript(
                 identity = Some(speakers::identity(turns));
                 raw.iter().map(|speaker| numbers[speaker].clone()).collect()
             }
-            _ => vec![single_speaker(track).to_string(); stream.len()],
+            _ => vec![single_speaker(track, room_voices); stream.len()],
         };
         units.extend(speakers::units(track, stream, &keys));
     }
@@ -881,6 +907,12 @@ mod tests {
     /// Writes a track of pure digital zeros, what system audio records when
     /// nothing plays on the Mac.
     fn zeros(path: &Path, seconds: usize) {
+        zeros_but(path, seconds, &[]);
+    }
+
+    /// Writes digital zeros except for a loud tone in the given seconds: a
+    /// notification or a ringtone on a Mac that plays nothing else.
+    fn zeros_but(path: &Path, seconds: usize, sound: &[(usize, usize)]) {
         let spec = hound::WavSpec {
             channels: 1,
             sample_rate: RATE as u32,
@@ -888,8 +920,17 @@ mod tests {
             sample_format: hound::SampleFormat::Int,
         };
         let mut writer = hound::WavWriter::create(path, spec).unwrap();
-        for _ in 0..seconds * RATE {
-            writer.write_sample(0i16).unwrap();
+        for index in 0..seconds * RATE {
+            let second = index / RATE;
+            let loud = sound
+                .iter()
+                .any(|(from, to)| (*from..*to).contains(&second));
+            let value = if loud {
+                ((index as f32 * 0.11).sin() * 3_000.0) as i16
+            } else {
+                0
+            };
+            writer.write_sample(value).unwrap();
         }
         writer.finalize().unwrap();
     }
@@ -1782,6 +1823,43 @@ mod tests {
         assert_eq!(keys, ["s1", "s2", "s1", "s2", "s1", "s2", "s1", "s2"]);
         let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(names, ["Speaker 1", "Speaker 2"]);
+    }
+
+    /// A notification or a ringtone on the Mac during a meeting held in a
+    /// room: the voices are still told apart on the microphone, and what the
+    /// Mac played is a voice of its own, not one of the room's.
+    #[test]
+    fn a_short_sound_on_the_mac_keeps_the_voices_of_a_room_apart() {
+        let h = harness();
+        let id = h.meeting(MeetingTracks::Both, 34);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 34, &[(0, 34)]);
+        zeros_but(&dir.join(paths::SYSTEM_TRACK), 34, &[(10, 12)]);
+        let analyzer = Arc::new(FakeAnalyzer::from_fixture_on(Track::Mic, FIXTURE, true));
+        let codex = codex_by_audio(|samples| {
+            let from_the_mac = samples[..RATE].iter().all(|sample| *sample == 0.0);
+            Ok(if from_the_mac {
+                "Ding.".to_string()
+            } else {
+                DIALOGUE.join(" ")
+            })
+        });
+        h.process_with(id, codex, Arc::clone(&analyzer));
+
+        assert_eq!(*analyzer.diarize.lock().unwrap(), Some(Track::Mic));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        let turns = turns(&meeting);
+        let room: std::collections::HashSet<&str> = turns
+            .iter()
+            .filter(|(_, text)| *text != "Ding.")
+            .map(|(key, _)| *key)
+            .collect();
+        assert_eq!(room, ["s1", "s2"].into());
+        let mac = turns.iter().find(|(_, text)| *text == "Ding.");
+        assert_eq!(mac.map(|(key, _)| *key), Some("s3"));
+        let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["Speaker 1", "Speaker 2", "Speaker 3"]);
     }
 
     #[test]
