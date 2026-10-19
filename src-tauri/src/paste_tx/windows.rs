@@ -429,6 +429,9 @@ unsafe extern "system" fn window_proc(
             }
             LRESULT(0)
         }
+        // Settlement already replaced the promise with real data, which
+        // must not be overwritten when the window goes.
+        WM_RENDERALLFORMATS if transaction.settled.load(Ordering::SeqCst) => LRESULT(0),
         WM_RENDERALLFORMATS => {
             // The window is being destroyed with the promise still up, which
             // is not a read. The system does not open the clipboard here.
