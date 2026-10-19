@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "常時オンのマイクを開始できませんでした。録音時に Murmur がマイクを開きます。",
     "errorHistoryStartup": "履歴を開けませんでした。音声入力は使えますが、履歴には保存されません。",
     "noticeHistoryReset": "履歴が破損していたためリセットしました。古いファイルは同じ場所に残してあります。",
+    "noticeSettingsRestored": "設定が破損していたため、前回起動時の状態に復元しました。破損したファイルは同じ場所に残してあります。",
+    "noticeSettingsReset": "設定が破損していたためリセットしました。上限を設定し直すまで、履歴は削除されません。破損したファイルは同じ場所に残してあります。",
     "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。",
     "pasteLastTranscript": "最後の文字起こしを貼り付け",
     "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。",

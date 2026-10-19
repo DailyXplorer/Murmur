@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
     "errorHistoryStartup": "No se pudo abrir el historial. El dictado funciona, pero no se guarda nada en el historial.",
     "noticeHistoryReset": "El historial estaba dañado y se ha restablecido. El archivo anterior se conservó al lado.",
+    "noticeSettingsRestored": "La configuración estaba dañada y se ha restaurado desde el último inicio. El archivo dañado se conservó al lado.",
+    "noticeSettingsReset": "La configuración estaba dañada y se ha restablecido. No se eliminará nada del historial hasta que vuelva a fijar un límite. El archivo dañado se conservó al lado.",
     "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos).",
     "pasteLastTranscript": "Pegar la última transcripción",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",

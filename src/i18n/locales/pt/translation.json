@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "O microfone sempre ativo não pôde iniciar. O Murmur vai abri-lo quando você gravar.",
     "errorHistoryStartup": "Não foi possível abrir o histórico. O ditado funciona, mas nada é salvo no histórico.",
     "noticeHistoryReset": "O histórico estava danificado e foi redefinido. O arquivo antigo foi mantido ao lado.",
+    "noticeSettingsRestored": "As configurações estavam danificadas e foram restauradas da última inicialização. O arquivo danificado foi mantido ao lado.",
+    "noticeSettingsReset": "As configurações estavam danificadas e foram redefinidas. Nada será excluído do histórico até você definir um limite novamente. O arquivo danificado foi mantido ao lado.",
     "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos).",
     "pasteLastTranscript": "Colar a última transcrição",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",

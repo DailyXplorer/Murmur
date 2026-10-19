@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
     "errorHistoryStartup": "Geçmiş açılamadı. Dikte çalışıyor ancak Geçmiş'e hiçbir şey kaydedilmiyor.",
     "noticeHistoryReset": "Geçmiş bozulmuştu ve sıfırlandı. Eski dosya yanında saklandı.",
+    "noticeSettingsRestored": "Ayarlar bozulmuştu ve son açılıştaki hâline geri yüklendi. Bozuk dosya yanında saklandı.",
+    "noticeSettingsReset": "Ayarlar bozulmuştu ve sıfırlandı. Yeniden bir sınır belirleyene kadar geçmişten hiçbir şey silinmeyecek. Bozuk dosya yanında saklandı.",
     "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
     "pasteLastTranscript": "Son dökümü yapıştır",
     "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok.",

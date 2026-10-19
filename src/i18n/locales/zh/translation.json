@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "常开麦克风无法启动。录音时 Murmur 会打开它。",
     "errorHistoryStartup": "无法打开历史记录。听写仍可使用，但不会保存到历史记录。",
     "noticeHistoryReset": "历史记录已损坏并已重置。旧文件保留在旁边。",
+    "noticeSettingsRestored": "设置已损坏，已恢复为上次启动时的状态。损坏的文件保留在旁边。",
+    "noticeSettingsReset": "设置已损坏并已重置。在你重新设置上限之前，历史记录中的内容不会被删除。损坏的文件保留在旁边。",
     "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。",
     "pasteLastTranscript": "粘贴上一条转录",
     "noticeNothingToPaste": "还没有可粘贴的转录。",

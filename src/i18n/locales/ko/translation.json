@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "항상 켜진 마이크를 시작하지 못했습니다. 녹음할 때 Murmur가 마이크를 엽니다.",
     "errorHistoryStartup": "기록을 열 수 없습니다. 음성 입력은 작동하지만 기록에는 저장되지 않습니다.",
     "noticeHistoryReset": "기록이 손상되어 초기화했습니다. 이전 파일은 같은 위치에 보관했습니다.",
+    "noticeSettingsRestored": "설정이 손상되어 마지막 실행 때의 상태로 복원했습니다. 손상된 파일은 같은 위치에 보관했습니다.",
+    "noticeSettingsReset": "설정이 손상되어 초기화했습니다. 다시 한도를 정할 때까지 히스토리에서 아무것도 삭제되지 않습니다. 손상된 파일은 같은 위치에 보관했습니다.",
     "warningRecordingLimit": "녹음이 1분 후에 중지됩니다(15분 제한).",
     "pasteLastTranscript": "마지막 받아쓰기 붙여넣기",
     "noticeNothingToPaste": "아직 붙여넣을 받아쓰기가 없습니다.",

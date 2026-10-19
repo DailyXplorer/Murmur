@@ -4,7 +4,7 @@
 //! window keeps its own toasts.
 
 use crate::meetings::coordinator::MeetingAlert;
-use crate::settings::get_settings;
+use crate::settings::{get_settings, SettingsRecovery};
 use crate::transcription_error::FailureKind;
 use crate::tray_i18n::{get_tray_translations, TrayStrings};
 use tauri::AppHandle;
@@ -23,6 +23,7 @@ pub enum Alert {
     MicrophoneUnavailableAtStartup,
     HistoryUnavailable,
     HistoryReset,
+    SettingsRecovered(SettingsRecovery),
     Meeting(MeetingAlert),
 }
 
@@ -63,6 +64,12 @@ impl Alert {
             Self::MicrophoneUnavailableAtStartup => strings.error_microphone_startup.clone(),
             Self::HistoryUnavailable => strings.error_history_startup.clone(),
             Self::HistoryReset => strings.notice_history_reset.clone(),
+            Self::SettingsRecovered(SettingsRecovery::Restored) => {
+                strings.notice_settings_restored.clone()
+            }
+            Self::SettingsRecovered(SettingsRecovery::Reset) => {
+                strings.notice_settings_reset.clone()
+            }
             Self::Meeting(alert) => match alert {
                 MeetingAlert::SystemAudioUnavailable => &strings.meeting_system_audio_unavailable,
                 MeetingAlert::MicrophoneUnavailable => &strings.meeting_microphone_unavailable,

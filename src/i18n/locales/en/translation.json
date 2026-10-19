@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
     "errorHistoryStartup": "History couldn't be opened. Dictation still works, but nothing is saved to History.",
     "noticeHistoryReset": "History was damaged and has been reset. The old file was kept next to it.",
+    "noticeSettingsRestored": "Settings were damaged and have been restored from the last launch. The damaged file was kept next to it.",
+    "noticeSettingsReset": "Settings were damaged and have been reset. Nothing in History will be deleted until you set a limit again. The damaged file was kept next to it.",
     "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit).",
     "pasteLastTranscript": "Paste Last Transcript",
     "noticeNothingToPaste": "There is no transcription to paste yet.",

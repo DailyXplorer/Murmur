@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
     "errorHistoryStartup": "Không mở được Lịch sử. Đọc chính tả vẫn hoạt động nhưng không có gì được lưu vào Lịch sử.",
     "noticeHistoryReset": "Lịch sử bị hỏng và đã được đặt lại. Tệp cũ được giữ ngay bên cạnh.",
+    "noticeSettingsRestored": "Cài đặt bị hỏng và đã được khôi phục từ lần khởi động trước. Tệp bị hỏng được giữ ngay bên cạnh.",
+    "noticeSettingsReset": "Cài đặt bị hỏng và đã được đặt lại. Không có gì trong lịch sử bị xóa cho đến khi bạn đặt lại giới hạn. Tệp bị hỏng được giữ ngay bên cạnh.",
     "warningRecordingLimit": "Ghi âm sẽ dừng sau 1 phút (giới hạn 15 phút).",
     "pasteLastTranscript": "Dán bản chép lời gần nhất",
     "noticeNothingToPaste": "Chưa có bản chép lời nào để dán.",

@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "Stale włączony mikrofon nie uruchomił się. Murmur otworzy go podczas nagrywania.",
     "errorHistoryStartup": "Nie udało się otworzyć historii. Dyktowanie działa, ale nic nie jest zapisywane w historii.",
     "noticeHistoryReset": "Historia była uszkodzona i została zresetowana. Stary plik zachowano obok.",
+    "noticeSettingsRestored": "Ustawienia były uszkodzone i zostały przywrócone z ostatniego uruchomienia. Uszkodzony plik zachowano obok.",
+    "noticeSettingsReset": "Ustawienia były uszkodzone i zostały zresetowane. Nic nie zostanie usunięte z historii, dopóki ponownie nie ustawisz limitu. Uszkodzony plik zachowano obok.",
     "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut).",
     "pasteLastTranscript": "Wklej ostatnią transkrypcję",
     "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia.",

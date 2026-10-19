@@ -21,6 +21,8 @@
     "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
     "errorHistoryStartup": "Der Verlauf konnte nicht geöffnet werden. Diktieren funktioniert, aber nichts wird im Verlauf gespeichert.",
     "noticeHistoryReset": "Der Verlauf war beschädigt und wurde zurückgesetzt. Die alte Datei liegt daneben.",
+    "noticeSettingsRestored": "Die Einstellungen waren beschädigt und wurden vom letzten Start wiederhergestellt. Die beschädigte Datei liegt daneben.",
+    "noticeSettingsReset": "Die Einstellungen waren beschädigt und wurden zurückgesetzt. Aus dem Verlauf wird nichts gelöscht, bis du wieder ein Limit festlegst. Die beschädigte Datei liegt daneben.",
     "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten).",
     "pasteLastTranscript": "Letzte Transkription einfügen",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
