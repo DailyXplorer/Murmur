@@ -234,7 +234,12 @@ fn update_mode_transaction(
             }
         }
         (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
-            start_stream()?;
+            // A recording already holds an open stream, and stop_recording
+            // keeps it open once it reads AlwaysOn. Starting it here could
+            // reopen it under the recording and drop what it captured.
+            if matches!(*state, RecordingState::Idle) {
+                start_stream()?;
+            }
         }
         _ => {}
     }
@@ -1225,6 +1230,39 @@ mod tests {
         assert_eq!(result.unwrap_err().to_string(), "input unavailable");
         assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::OnDemand));
         assert!(persisted_modes.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn always_on_during_a_recording_keeps_the_stream_it_records_on() {
+        for recording in [
+            RecordingState::Recording {
+                binding_id: "main".to_string(),
+            },
+            RecordingState::Stopping,
+        ] {
+            let state = Mutex::new(recording);
+            let mode = Mutex::new(MicrophoneMode::OnDemand);
+            let persisted_modes = Mutex::new(Vec::new());
+
+            update_mode_transaction(
+                &state,
+                &mode,
+                MicrophoneMode::AlwaysOn,
+                || panic!("OnDemand -> AlwaysOn must not stop the stream"),
+                || panic!("a recording's stream must not be reopened under it"),
+                |mode| {
+                    persisted_modes
+                        .lock()
+                        .unwrap()
+                        .push(matches!(mode, MicrophoneMode::AlwaysOn))
+                },
+                None,
+            )
+            .unwrap();
+
+            assert!(matches!(*mode.lock().unwrap(), MicrophoneMode::AlwaysOn));
+            assert_eq!(*persisted_modes.lock().unwrap(), [true]);
+        }
     }
 
     #[test]
