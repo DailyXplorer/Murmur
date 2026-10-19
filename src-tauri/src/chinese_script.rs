@@ -18,11 +18,13 @@ pub fn in_chosen_script(language: Option<&str>, text: &str) -> String {
 
 /// The converter to the script of `language`, built on first use: building
 /// one parses its dictionaries, too slow to repeat for every meeting piece.
+/// Simplified uses `T2s`, not `Tw2sp`: ferrous-opencc builds `Tw2sp` with the
+/// Taiwan variant table the wrong way round, which writes 着 as 著.
 fn converter(language: &str) -> Option<&'static OpenCC> {
     static SIMPLIFIED: OnceLock<Option<OpenCC>> = OnceLock::new();
     static TRADITIONAL: OnceLock<Option<OpenCC>> = OnceLock::new();
     let (cell, config) = match language {
-        "zh-Hans" => (&SIMPLIFIED, BuiltinConfig::Tw2sp),
+        "zh-Hans" => (&SIMPLIFIED, BuiltinConfig::T2s),
         "zh-Hant" => (&TRADITIONAL, BuiltinConfig::S2tw),
         _ => return None,
     };
@@ -50,6 +52,17 @@ mod tests {
             in_chosen_script(Some("zh-Hans"), "我們開會吧。"),
             "我们开会吧。"
         );
+        assert_eq!(
+            in_chosen_script(Some("zh-Hans"), "會議裡為什麼啟動？"),
+            "会议里为什么启动？"
+        );
+    }
+
+    #[test]
+    fn simplified_text_keeps_its_characters_when_simplified_is_chosen() {
+        for text in ["我们接着讨论预算。", "屋檐下，他的手脚麻痹了。"] {
+            assert_eq!(in_chosen_script(Some("zh-Hans"), text), text);
+        }
     }
 
     #[test]
