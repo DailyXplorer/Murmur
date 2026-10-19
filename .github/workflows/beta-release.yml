@@ -1,0 +1,119 @@
+name: "windows beta release"
+# Publishes the Windows installer of the beta branch as a GitHub pre-release
+# v<version>-beta.N. A pre-release never becomes the latest release, so the
+# macOS updater feed (latest.json of the latest release) and the macOS
+# release flow stay untouched.
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "What changed in this beta (Markdown), placed first in the release notes"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/beta'
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Name the beta
+        id: beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          last=$(git tag --list "v${version}-beta.*" | sed "s/^v${version}-beta\.//" | sort -n | tail -n 1)
+          number=$(( ${last:-0} + 1 ))
+          {
+            echo "version=${version}"
+            echo "number=${number}"
+            echo "tag=v${version}-beta.${number}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the installer
+        run: bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Write the release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.beta.outputs.version }}
+          NUMBER: ${{ steps.beta.outputs.number }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          asset="Murmur_${VERSION}-beta.${NUMBER}_x64-setup.exe"
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe "$asset"
+          checksum=$(sha256sum "$asset" | cut -d ' ' -f 1)
+          {
+            echo "## Murmur for Windows, beta ${NUMBER}"
+            echo
+            echo "Built from the \`beta\` branch on Murmur ${VERSION}. This pre-release holds the Windows installer only; the macOS app and its updates are unchanged."
+            echo
+            if [ -n "$NOTES" ]; then
+              printf '%s\n\n' "$NOTES"
+            fi
+            echo "### On Windows"
+            echo
+            echo "- Dictation: hold Ctrl+Win to talk, or double-tap it for hands-free; the shortcut can be changed in Settings."
+            echo "- Transcription and AI cleanup through your Codex (ChatGPT) session, read from \`%USERPROFILE%\\.codex\\auth.json\`."
+            echo "- Paste into the app in front, recording overlay, tray menu, History, Insights, custom words, start at login, sounds."
+            echo
+            echo "Not in this beta: meetings, Apple Intelligence cleanup, Gemini through Antigravity, learning words from your corrections, names read from the window, automatic updates."
+            echo
+            echo "### Install without administrator rights"
+            echo
+            echo "1. Sign in to Codex on this PC first, so that \`%USERPROFILE%\\.codex\\auth.json\` exists."
+            echo "2. Download \`${asset}\` below and run it."
+            echo "3. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
+            echo "4. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and starts. A new beta installs over it."
+            echo
+            echo "SHA-256 of \`${asset}\`: \`${checksum}\`"
+          } > notes.md
+          echo "ASSET=${asset}" >> "$GITHUB_ENV"
+
+      - name: Publish the pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.beta.outputs.tag }}
+          VERSION: ${{ steps.beta.outputs.version }}
+          NUMBER: ${{ steps.beta.outputs.number }}
+        run: |
+          gh release create "$TAG" "$ASSET" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --latest=false \
+            --title "Murmur for Windows ${VERSION} beta ${NUMBER}" \
+            --notes-file notes.md

@@ -20,7 +20,7 @@
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
     "check:translations": "bun scripts/check-translations.ts",
-    "check:macos-only": "bun scripts/check-macos-only.ts"
+    "check:platforms": "bun scripts/check-platforms.ts"
   },
   "dependencies": {
     "@fontsource-variable/instrument-sans": "^5.3.0",

@@ -4,9 +4,10 @@ import path from "node:path";
 const root = path.resolve(import.meta.dir, "..");
 const failures: string[] = [];
 
+// Murmur builds for macOS and, on the beta branch, for Windows: dictation
+// only. Every platform branch names one of the two.
 const obsoletePaths = [
   ".cargo/config.toml",
-  "src-tauri/tauri.windows.conf.json",
   "src-tauri/capabilities/desktop.json",
   "src-tauri/icons/android",
   "src-tauri/icons/ios",
@@ -47,11 +48,13 @@ const obsoletePaths = [
 
 const requiredPaths = [
   "src-tauri/icons/icon.png",
+  "src-tauri/icons/icon.ico",
   "src-tauri/icons/tray/tray.svg",
   "src-tauri/resources/tray.png",
   "src-tauri/capabilities/main.json",
   "src-tauri/capabilities/recording-overlay.json",
   "src-tauri/permissions/default.toml",
+  "src-tauri/tauri.windows.conf.json",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {
@@ -77,14 +80,15 @@ for (const relativePath of obsoletePaths) {
 
 for (const relativePath of requiredPaths) {
   if (!existsSync(path.join(root, relativePath))) {
-    failures.push(`required macOS asset is missing: ${relativePath}`);
+    failures.push(`required platform asset is missing: ${relativePath}`);
   }
 }
 
 const rustGuard = [
-  '#[cfg(not(target_os = "macos"))]',
-  'compile_error!("Murmur supports macOS only.");',
+  '#[cfg(not(any(target_os = "macos", target_os = "windows")))]',
+  'compile_error!("Murmur supports macOS and Windows only.");',
 ].join("\n");
+const supportedTargets = new Set(["macos", "windows"]);
 const rustFiles = collectFiles("src-tauri/src", ".rs");
 const forbiddenRustText = [
   "TypingTool",
@@ -109,8 +113,14 @@ const forbiddenRustText = [
 for (const relativePath of rustFiles) {
   const source = read(relativePath);
   const sourceWithoutGuard = source.replace(rustGuard, "");
-  if (sourceWithoutGuard.includes("target_os")) {
-    failures.push(`platform branch remains: ${relativePath}`);
+  for (const [, target] of sourceWithoutGuard.matchAll(
+    /target_os\s*=\s*"([^"]*)"/g,
+  )) {
+    if (!supportedTargets.has(target)) {
+      failures.push(
+        `branch for unsupported platform '${target}': ${relativePath}`,
+      );
+    }
   }
   for (const text of forbiddenRustText) {
     if (source.includes(text)) {
@@ -120,7 +130,7 @@ for (const relativePath of rustFiles) {
 }
 
 if (!read("src-tauri/src/lib.rs").includes(rustGuard)) {
-  failures.push("the Rust crate does not reject non-macOS targets");
+  failures.push("the Rust crate does not reject unsupported targets");
 }
 
 const frontendFiles = [
@@ -182,13 +192,24 @@ for (const text of [
   "tauri-plugin-dialog",
   "tauri-plugin-fs",
   "[patch.crates-io]",
-  "[target.'cfg(",
   "staticlib",
   "cdylib",
   "murmur_app_lib",
 ]) {
   if (cargoManifest.includes(text)) {
     failures.push(`obsolete Cargo configuration remains: ${text}`);
+  }
+}
+const allowedCargoTargets = new Set([
+  "unix",
+  'target_os = "macos"',
+  'target_os = "windows"',
+]);
+for (const [, target] of cargoManifest.matchAll(
+  /^\[target\.'cfg\((.*)\)'\.dependencies\]$/gm,
+)) {
+  if (!allowedCargoTargets.has(target)) {
+    failures.push(`Cargo dependencies for an unsupported target: ${target}`);
   }
 }
 
@@ -305,6 +326,37 @@ if (tauriConfig.bundle.icon.join("\n") !== expectedIcons.join("\n")) {
   failures.push("Tauri bundle icons are not restricted to the macOS set");
 }
 
+// The Windows beta installs per user without administrator rights, is
+// built without updater artifacts, and never reads the macOS updater feed.
+const windowsConfig = JSON.parse(read("src-tauri/tauri.windows.conf.json")) as {
+  bundle: {
+    targets: string[];
+    createUpdaterArtifacts: boolean;
+    externalBin: string[];
+    icon: string[];
+    windows: { nsis: { installMode: string } };
+  };
+  plugins: { updater: { endpoints: string[] } };
+};
+if (
+  windowsConfig.bundle.targets.join("\n") !== "nsis" ||
+  windowsConfig.bundle.windows.nsis.installMode !== "currentUser"
+) {
+  failures.push("the Windows bundle is not a per-user NSIS installer");
+}
+if (
+  windowsConfig.bundle.createUpdaterArtifacts !== false ||
+  windowsConfig.plugins.updater.endpoints.length !== 0
+) {
+  failures.push("the Windows build reaches the updater");
+}
+if (windowsConfig.bundle.externalBin.length !== 0) {
+  failures.push("the Windows bundle includes the macOS meetings helper");
+}
+if (!windowsConfig.bundle.icon.includes("icons/icon.ico")) {
+  failures.push("the Windows bundle has no .ico icon");
+}
+
 const expectedCsp =
   "default-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost";
 const expectedDevCsp =
@@ -322,5 +374,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `macOS-only check passed for ${rustFiles.length} Rust files and ${frontendFiles.length} frontend files`,
+  `platform check passed for ${rustFiles.length} Rust files and ${frontendFiles.length} frontend files`,
 );

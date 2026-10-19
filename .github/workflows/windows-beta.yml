@@ -1,0 +1,158 @@
+name: "windows beta"
+# The Windows beta lives on the beta branch only: dictation, per-user NSIS
+# installer, no updater. Every push is checked, built, installed and run.
+on:
+  workflow_dispatch:
+  push:
+    branches: [beta]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+          components: rustfmt
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check translation consistency
+        run: bun run check:translations
+
+      - name: Check platform invariants
+        run: bun run check:platforms
+
+      - name: Run ESLint
+        run: bun run lint
+
+      # On Ubuntu: a Windows checkout turns line endings into CRLF.
+      - name: Check formatting
+        run: bun run format:check
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: bun run test:playwright
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  rust:
+    runs-on: windows-latest
+    steps:
+      # bindings.ts and other checked-in files are compared byte for byte.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+          components: clippy
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Run Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  installer:
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the installer
+        run: bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: murmur-windows-installer
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  smoke:
+    needs: installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: murmur-windows-installer
+          path: installer
+
+      - name: Install, launch and screenshot Murmur
+        shell: pwsh
+        run: >
+          ./.github/scripts/windows-smoke.ps1
+          -Installer (Get-ChildItem installer -Filter *.exe | Select-Object -First 1).FullName
+          -OutputDir "$env:RUNNER_TEMP/smoke"
+
+      - name: Upload screenshots and log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: murmur-windows-smoke
+          path: ${{ runner.temp }}/smoke/
+          if-no-files-found: error

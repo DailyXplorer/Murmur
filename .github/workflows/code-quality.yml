@@ -61,8 +61,8 @@ jobs:
       - name: Check translation consistency
         run: bun run check:translations
 
-      - name: Check macOS-only invariants
-        run: bun run check:macos-only
+      - name: Check platform invariants
+        run: bun run check:platforms
 
       - name: Test updater manifest
         run: bun run test:updater-manifest
