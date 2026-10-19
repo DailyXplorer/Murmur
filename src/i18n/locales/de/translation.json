@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "Ton",
+      "defaultDevice": "Standard",
       "microphone": {
         "title": "Mikrofon",
         "description": "Bevorzugtes Mikrofon auswählen",

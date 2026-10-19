@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "Zvuk",
+      "defaultDevice": "Výchozí",
       "microphone": {
         "title": "Mikrofon",
         "description": "Vyberte preferované zařízení mikrofonu",

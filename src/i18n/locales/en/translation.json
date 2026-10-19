@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "Sound",
+      "defaultDevice": "Default",
       "microphone": {
         "title": "Microphone",
         "description": "Select your preferred microphone device",

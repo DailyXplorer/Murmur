@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "שמע",
+      "defaultDevice": "ברירת מחדל",
       "microphone": {
         "title": "מיקרופון",
         "description": "בחר את המיקרופון המועדף עליך",

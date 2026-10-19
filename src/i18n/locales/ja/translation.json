@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "サウンド",
+      "defaultDevice": "デフォルト",
       "microphone": {
         "title": "マイク",
         "description": "使用するマイクデバイスを選択",

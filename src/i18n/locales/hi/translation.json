@@ -184,6 +184,7 @@
     },
     "sound": {
       "title": "आवाज़",
+      "defaultDevice": "डिफ़ॉल्ट",
       "microphone": {
         "title": "माइक्रोफ़ोन",
         "description": "अपना पसंदीदा माइक्रोफ़ोन डिवाइस चुनें",
