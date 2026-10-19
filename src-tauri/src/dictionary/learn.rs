@@ -87,11 +87,11 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
             .collect::<Vec<_>>()
             .join(" ");
         let replacement_core = core(replacement[0]);
-        let (heard_as, word) = without_clitics(&replaced_core, replacement_core);
+        let opens_sentence = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
+        let (heard_as, word) = without_clitics(&replaced_core, replacement_core, opens_sentence);
         // A name after a stripped elision does not open the sentence: the
         // capital of "D'Anthropic" is the user's, not the sentence's.
-        let sentence_start = replacement_core.starts_with(word)
-            && (hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]));
+        let sentence_start = replacement_core.starts_with(word) && opens_sentence;
         let heard_at_sentence_start = replaced_core.starts_with(heard_as)
             && (hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]));
         let heard_a_term = heard_as
@@ -212,14 +212,23 @@ const ELISIONS: [&str; 12] = [
 /// A clitic on both sides is grammar around the name, not part of it:
 /// "clawd's" -> "Claude's" fixes "Claude", and "d'antropic" ->
 /// "d'Anthropic" fixes "Anthropic", also capitalised at sentence start
-/// ("D'Anthropic"). "O'Brien" stays whole: "o" is not an elision.
-fn without_clitics<'a>(heard: &'a str, word: &'a str) -> (&'a str, &'a str) {
+/// ("D'Anthropic"). Inside a sentence a capital the heard side lacks belongs
+/// to the name: "D'Angelo", "L'Oréal". "O'Brien" stays whole: "o" is not an
+/// elision.
+fn without_clitics<'a>(heard: &'a str, word: &'a str, opens_sentence: bool) -> (&'a str, &'a str) {
     let elided = |text: &'a str| {
         text.split_once(['\'', '’'])
             .filter(|(elision, _)| ELISIONS.contains(&elision.to_lowercase().as_str()))
     };
+    let same_elision = |a: &str, b: &str| {
+        if opens_sentence {
+            a.eq_ignore_ascii_case(b)
+        } else {
+            a == b
+        }
+    };
     let (heard, word) = match (elided(heard), elided(word)) {
-        (Some((a, heard)), Some((b, word))) if a.eq_ignore_ascii_case(b) => (heard, word),
+        (Some((a, heard)), Some((b, word))) if same_elision(a, b) => (heard, word),
         _ => (heard, word),
     };
     let possessive = |text: &'a str| text.strip_suffix("'s").or_else(|| text.strip_suffix("’s"));
@@ -548,6 +557,22 @@ mod tests {
         assert_eq!(
             learned("ask o'brian today", "ask O'Brien today"),
             vec![pair("O'Brien", "o'brian")]
+        );
+    }
+
+    #[test]
+    fn a_capital_elision_inside_a_sentence_is_part_of_the_name() {
+        assert_eq!(
+            learned("ask d'anjelo today", "ask D'Angelo today"),
+            vec![pair("D'Angelo", "d'anjelo")]
+        );
+        assert_eq!(
+            learned("chez l'oreal", "chez L'Oréal"),
+            vec![pair("L'Oréal", "l'oreal")]
+        );
+        assert_eq!(
+            learned("d'antropic, je pense", "D'Anthropic, je pense"),
+            vec![pair("Anthropic", "antropic")]
         );
     }
 

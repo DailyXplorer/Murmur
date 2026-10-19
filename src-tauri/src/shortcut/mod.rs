@@ -14,7 +14,7 @@ use log::{debug, warn};
 use serde::Serialize;
 use specta::Type;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use tauri::{AppHandle, Emitter, Manager};
 
 const REGISTRATION_ERRORS_CHANGED: &str = "shortcut-registration-errors-changed";
@@ -153,6 +153,15 @@ pub struct BindingResponse {
     error: Option<String>,
 }
 
+/// Held across every command that registers hotkeys from the settings, so a
+/// resume cannot read the bindings a rebind is about to replace and register
+/// the old keys again. Only async commands take it, never the main thread.
+static REGISTRATIONS: Mutex<()> = Mutex::new(());
+
+fn hold_registrations() -> MutexGuard<'static, ()> {
+    REGISTRATIONS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 // Async, so off the main thread: a Cancel lifecycle task holds the Cancel
 // lock while the shortcut plugin waits on the main thread, and a rebind on
 // the main thread waiting for that lock would freeze the app.
@@ -163,6 +172,7 @@ pub fn change_binding(
     id: String,
     binding: String,
 ) -> Result<BindingResponse, String> {
+    let _registrations = hold_registrations();
     tauri_impl::parse_shortcut(&binding)?;
 
     if let Some(other) =
@@ -302,16 +312,18 @@ pub fn resume_all_shortcuts(app: &AppHandle) {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn suspend_all_bindings(app: AppHandle) -> Result<(), String> {
+    let _registrations = hold_registrations();
     suspend_all_shortcuts(&app);
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn resume_all_bindings(app: AppHandle) -> Result<(), String> {
+    let _registrations = hold_registrations();
     resume_all_shortcuts(&app);
     Ok(())
 }

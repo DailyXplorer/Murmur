@@ -18,6 +18,7 @@ import { useMeetingMarkdown } from "./useMeetingMarkdown";
 interface SummaryTabProps {
   meeting: MeetingDetail;
   onRetry: () => void;
+  retrying: boolean;
 }
 
 type Group =
@@ -40,7 +41,8 @@ const group = (blocks: SummaryBlock[]): Group[] =>
 const SummaryState: React.FC<{
   meeting: MeetingDetail;
   onRetry: () => void;
-}> = ({ meeting, onRetry }) => {
+  retrying: boolean;
+}> = ({ meeting, onRetry, retrying }) => {
   const { t } = useTranslation();
   if (meeting.summary_status === "failed") {
     const error = meeting.summary_error ?? "other";
@@ -55,7 +57,9 @@ const SummaryState: React.FC<{
         {/* Only a Ready meeting gets its summary written; a failed one
             comes back with the meeting's own retry. */}
         {meeting.status === "ready" && error !== "nothing_to_summarize" && (
-          <Button onClick={onRetry}>{t("meetings.processing.retry")}</Button>
+          <Button onClick={onRetry} disabled={retrying}>
+            {t("meetings.processing.retry")}
+          </Button>
         )}
       </div>
     );
@@ -83,7 +87,11 @@ const SummaryState: React.FC<{
   );
 };
 
-export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
+export const SummaryTab: React.FC<SummaryTabProps> = ({
+  meeting,
+  onRetry,
+  retrying,
+}) => {
   const { t } = useTranslation();
   const { copy, exportMarkdown } = useMeetingMarkdown(meeting.id, "summary");
 
@@ -196,7 +204,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ meeting, onRetry }) => {
           {groups}
         </section>
       ) : (
-        <SummaryState meeting={meeting} onRetry={onRetry} />
+        <SummaryState meeting={meeting} onRetry={onRetry} retrying={retrying} />
       )}
     </div>
   );

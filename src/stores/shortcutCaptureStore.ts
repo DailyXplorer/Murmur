@@ -27,6 +27,13 @@ export const useShortcutCaptureStore = create<ShortcutCaptureStore>()((
   const abandonWhenHidden = () => {
     if (document.visibilityState === "hidden") abandon();
   };
+  // Suspend and resume run off the main thread, so a quick begin then end
+  // could reach the backend reversed and leave every shortcut off: each
+  // call waits for the previous one.
+  let queue: Promise<unknown> = Promise.resolve();
+  const send = (call: () => Promise<unknown>) => {
+    queue = queue.then(call).catch(console.error);
+  };
 
   return {
     capturingId: null,
@@ -34,7 +41,7 @@ export const useShortcutCaptureStore = create<ShortcutCaptureStore>()((
       if (get().capturingId === null) {
         window.addEventListener("blur", abandon);
         document.addEventListener("visibilitychange", abandonWhenHidden);
-        void commands.suspendAllBindings().catch(console.error);
+        send(commands.suspendAllBindings);
       }
       set({ capturingId: id });
     },
@@ -43,7 +50,7 @@ export const useShortcutCaptureStore = create<ShortcutCaptureStore>()((
       window.removeEventListener("blur", abandon);
       document.removeEventListener("visibilitychange", abandonWhenHidden);
       set({ capturingId: null });
-      void commands.resumeAllBindings().catch(console.error);
+      send(commands.resumeAllBindings);
     },
   };
 });

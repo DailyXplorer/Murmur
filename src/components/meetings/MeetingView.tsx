@@ -196,7 +196,8 @@ const SpeakerNotice: React.FC<{
   meeting: MeetingDetail;
   models: MeetingModelsStatus | null;
   onSeparate: () => void;
-}> = ({ meeting, models, onSeparate }) => {
+  starting: boolean;
+}> = ({ meeting, models, onSeparate, starting }) => {
   const { t } = useTranslation();
   const analysis = meeting.speaker_analysis;
   if (
@@ -214,7 +215,7 @@ const SpeakerNotice: React.FC<{
     switch (state?.state) {
       case "ready":
         return (
-          <Button onClick={onSeparate}>
+          <Button onClick={onSeparate} disabled={starting}>
             {t("meetings.speakers.separate")}
           </Button>
         );
@@ -351,6 +352,20 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     void load();
   };
 
+  // Separate speakers and the summary's Retry stay disabled until the
+  // meeting reloads in its new state: a second click would find the action
+  // already started and report it as failed.
+  const [starting, setStarting] = useState(false);
+  const startOnce = async (action: () => Promise<void>) => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      await action();
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const separate = async () => {
     const result = await commands.reanalyzeMeeting(id);
     if (result.status === "error") {
@@ -358,7 +373,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
       return;
     }
     setProgress(null);
-    void load();
+    await load();
   };
 
   const rename = async (title: string) => {
@@ -397,7 +412,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     const result = await commands.retryMeetingSummary(id);
     if (result.status === "error")
       toast.error(t("meetings.summary.retryError"));
-    void load();
+    await load();
   };
 
   return (
@@ -426,7 +441,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         <SpeakerNotice
           meeting={meeting}
           models={models}
-          onSeparate={() => void separate()}
+          onSeparate={() => void startOnce(separate)}
+          starting={starting}
         />
       )}
       {meeting.system_audio_silent && <SystemAudioNotice />}
@@ -446,7 +462,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         aria-labelledby={tabId(TABS_ID, tab)}
       >
         {tab === "summary" ? (
-          <SummaryTab meeting={meeting} onRetry={() => void retrySummary()} />
+          <SummaryTab
+            meeting={meeting}
+            onRetry={() => void startOnce(retrySummary)}
+            retrying={starting}
+          />
         ) : (
           <TranscriptTab
             meeting={meeting}
