@@ -153,7 +153,10 @@ pub struct BindingResponse {
     error: Option<String>,
 }
 
-#[tauri::command]
+// Async, so off the main thread: a Cancel lifecycle task holds the Cancel
+// lock while the shortcut plugin waits on the main thread, and a rebind on
+// the main thread waiting for that lock would freeze the app.
+#[tauri::command(async)]
 #[specta::specta]
 pub fn change_binding(
     app: AppHandle,
@@ -270,7 +273,7 @@ fn give_back_meeting_keys(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
     let default = settings::get_default_settings()
