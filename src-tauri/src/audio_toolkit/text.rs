@@ -242,17 +242,22 @@ fn match_span<'k>(
         written_as_name,
     )?;
     // An everyday word is what the user said, unless it is the custom word
-    // itself: "an" never becomes "Anne", "mari" never becomes "Marie". A
-    // first name is not one: "Lucas" becomes the user's "Lukas".
-    if span.len() == 1 && candidate != key.key && is_everyday_word(&word_key(span[0])) {
+    // itself, accents included: "an" never becomes "Anne", "mari" never
+    // becomes "Marie", "aime" never becomes "Aimé". A first name is not one:
+    // "Lucas" becomes the user's "Lukas".
+    let spelling: String = span.iter().map(|word| word_key(word)).collect();
+    if span.len() == 1 && spelling != key.spelling && is_everyday_word(&spelling) {
         return None;
     }
     // In French an accent makes a different word: "marié" is not "Marie",
     // "câline" is not "Céline". An accented span spelled otherwise than the
-    // custom word is taken for it only when capitalised as a name, as in
-    // "merci Clément" for the user's "Clement".
-    let spelling: String = span.iter().map(|word| word_key(word)).collect();
-    if spelling != candidate && spelling != key.spelling && !written_as_name {
+    // custom word is taken for it only when capitalised as a name and the
+    // accents are the only difference, as in "merci Clément" for the user's
+    // "Clement": "Léa" never becomes "Léo".
+    if spelling != candidate
+        && spelling != key.spelling
+        && !(written_as_name && candidate == key.key)
+    {
         return None;
     }
     // An edge word that matches no part of the custom word, or does not
@@ -812,6 +817,16 @@ mod tests {
         // An accented everyday word is still what the user said.
         (&["Zoé"], "c'était déjà fait", "c'était déjà fait"),
         (&["Annie"], "une bonne année", "une bonne année"),
+        // An everyday word is not an accented name it folds to.
+        (&["Aimé"], "je t'aime", "je t'aime"),
+        (&["Aimé"], "il aime le chocolat", "il aime le chocolat"),
+        (&["Côme"], "come here", "come here"),
+        (&["Côme"], "Come on!", "Come on!"),
+        (&["Côme"], "dis à côme de venir", "dis à Côme de venir"),
+        // An accented name is not another name that differs by a letter.
+        (&["Léo"], "j'ai vu Léa hier", "j'ai vu Léa hier"),
+        (&["Léa"], "j'ai vu Léo hier", "j'ai vu Léo hier"),
+        (&["Théo"], "merci Théa", "merci Théa"),
         // An accent the custom word lacks makes a different word, unless
         // the transcriber capitalised it as a name.
         (
