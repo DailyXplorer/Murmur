@@ -10,7 +10,6 @@ const APP_COMMANDS: &[&str] = &[
     "change_start_hidden_setting",
     "change_autostart_setting",
     "change_selected_language_setting",
-    "change_transcription_provider_setting",
     "change_overlay_position_setting",
     "change_overlay_style_setting",
     "change_debug_mode_setting",
@@ -31,8 +30,6 @@ const APP_COMMANDS: &[&str] = &[
     "change_append_trailing_space_setting",
     "change_lazy_stream_close_setting",
     "change_ai_cleanup_setting",
-    "change_cleanup_engine_setting",
-    "get_apple_intelligence_status",
     "change_window_names_setting",
     "change_whisper_mode_setting",
     "change_app_language_setting",
@@ -67,8 +64,6 @@ const APP_COMMANDS: &[&str] = &[
     "get_microphone_channels",
     "set_selected_channel",
     "get_codex_auth_status",
-    "get_gemini_status",
-    "open_antigravity",
     "complete_onboarding",
     "get_history_entries",
     "get_insights",
@@ -182,20 +177,14 @@ fn generate_tray_translations() {
         .expect("generated tray translations are writable");
 }
 
-/// Compiles each Swift bridge in `swift/` into a static library: Apple
-/// Intelligence cleanup, the meeting system-audio tap and the meeting audio
-/// compression. They need Apple silicon, so Intel builds get Rust's stubs
-/// instead.
+/// Compiles each Swift bridge in `swift/` into a static library: the meeting
+/// system-audio tap and the meeting audio compression. They need Apple
+/// silicon, so Intel builds get Rust's stubs instead.
 fn build_swift_bridges() {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    const BRIDGES: [(&str, &str, &str); 3] = [
-        (
-            "swift/apple_cleanup.swift",
-            "MurmurAppleCleanup",
-            "murmur_apple_cleanup",
-        ),
+    const BRIDGES: [(&str, &str, &str); 2] = [
         (
             "swift/meeting_audio.swift",
             "MurmurMeetingAudio",
@@ -275,14 +264,8 @@ fn build_swift_bridges() {
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=framework=CoreAudio");
     println!("cargo:rustc-link-lib=framework=AudioToolbox");
-    // macOS before 26 has no FoundationModels, and macOS 11 has no Swift
-    // concurrency runtime: both are weak so the app still launches there.
-    if Path::new(&sdk)
-        .join("System/Library/Frameworks/FoundationModels.framework")
-        .exists()
-    {
-        println!("cargo:rustc-link-arg=-Wl,-weak_framework,FoundationModels");
-    }
+    // macOS 11 has no Swift concurrency runtime: it is weak so the app still
+    // launches there.
     println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }

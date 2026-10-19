@@ -16,25 +16,19 @@
 Murmur is a macOS desktop speech-to-text app. Press a shortcut, speak, and
 Murmur pastes the transcription into the active application.
 
-Murmur sends audio to a cloud transcription service using a session already on
-the computer. Codex with ChatGPT is the default. On macOS, Gemini through the
-local Antigravity session is available as an experimental alternative. Neither
-option requires an API key or local speech-recognition model.
+Murmur sends audio to Codex cloud transcription using the ChatGPT session
+already on the computer. It requires no API key or local speech-recognition
+model.
 
 ## Requirements
 
 - macOS 10.15 or later
 - A working microphone
-- Codex signed in with a ChatGPT account, or Antigravity signed in on macOS
+- Codex signed in with a ChatGPT account
 - Accessibility permission for global shortcuts and text insertion
 - For meetings with system audio: macOS 14.4 or later on Apple silicon, and
   the System Audio Recording permission
 - Network access while transcribing
-- Optional: Apple Intelligence for on-device AI cleanup. It needs macOS 26 or
-  later, a Mac that supports Apple Intelligence, Apple Intelligence turned on
-  in System Settings, and a dictation language it supports. Without it, AI
-  cleanup uses Codex when a Codex session is signed in, and otherwise pastes
-  the raw transcript.
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
 `~/.codex/auth.json`. When the access token is about to expire, or when the
@@ -45,17 +39,12 @@ in one step. If Codex updated the file while Murmur was refreshing, Murmur
 keeps the Codex version. When the refresh token itself has expired, sign in to
 Codex again.
 
-For Gemini, Murmur starts a Murmur-owned language server from the verified
-system Antigravity installation and lets that server access its own session.
-Murmur does not read or copy the Antigravity token.
-
 ### Private interfaces
 
-Both integrations use internal services rather than public, documented APIs:
-the ChatGPT transcription endpoint that the Codex apps use, and the
-Antigravity language server. Neither service promises stability, so a Codex,
-ChatGPT, or Antigravity update can break transcription without notice until
-Murmur is updated. Murmur identifies itself to the transcription endpoint the
+Murmur uses an internal service rather than a public, documented API: the
+ChatGPT transcription endpoint that the Codex apps use. It promises no
+stability, so a Codex or ChatGPT update can break transcription without notice
+until Murmur is updated. Murmur identifies itself to the transcription endpoint the
 way the Codex desktop app does. Use of these services stays subject to the
 provider's terms for your account.
 
@@ -80,14 +69,11 @@ does not store anything in the keychain.
 - One recording shortcut (Option+Space by default): hold it to talk, or double-tap it to record hands-free and press it once to stop
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
-- Automatic language detection for both services, with explicit language selection for Codex
-- Codex or experimental Gemini transcription selection on macOS
+- Automatic language detection, or an explicit dictation language
 - Microphone and output-device selection
-- AI cleanup, on by default: removes fillers, applies self-corrections, fixes
-  punctuation, and formats lists and spoken line breaks. The cleanup engine is
-  selectable in Settings. Apple Intelligence on this Mac is the default. When
-  it cannot run, Codex cleans the text if a Codex session is signed in. Any
-  failure or timeout pastes the raw transcript.
+- AI cleanup through the Codex session, on by default: removes fillers,
+  applies self-corrections, fixes punctuation, and formats lists and spoken
+  line breaks. Any failure or timeout pastes the raw transcript.
 - A dictionary that also learns names you correct right after pasting
 - Names from the frontmost window as spelling hints for AI cleanup, read
   through Accessibility and never stored
@@ -105,11 +91,10 @@ does not store anything in the keychain.
 
 ## Getting started
 
-Grant microphone and Accessibility permissions, then choose a transcription
-service. If it is unavailable, open Codex or Antigravity, sign in there, and
-return to Murmur to refresh its status. The setup screen links to the
-applications' download pages. The selected service must be configured before
-setup can finish.
+Grant microphone and Accessibility permissions, then connect Codex. If no
+session is found, open Codex, sign in there, and return to Murmur to refresh
+its status. The setup screen links to the Codex download page. Codex must be
+configured before setup can finish.
 
 "Configured" means Murmur found a local session that is valid or that it can
 refresh. A Codex session that expired and has no usable refresh token shows as
@@ -119,7 +104,7 @@ transcription.
 
 When a dictation fails, the recording overlay shows the reason for a few
 seconds. If the overlay is turned off, Murmur posts a macOS notification
-instead. With Codex, Murmur retries a dictation twice after a timeout, a dropped
+instead. Murmur retries a dictation twice after a timeout, a dropped
 connection, or a server error. It does not retry an expired session, a rate
 limit, or another rejected request. A finished transcription is always kept
 in History, even when pasting or saving the recording fails.
@@ -170,10 +155,6 @@ Accessibility switch already looks enabled but Murmur keeps waiting, use the
 repair button on the permissions screen, or follow the reset steps in
 [BUILD.md](BUILD.md#macos-accessibility-remains-enabled-after-a-local-rebuild).
 
-Gemini through Antigravity is experimental and detects the spoken language
-automatically. A language selected for Codex is preserved when switching to
-Gemini and applies again when switching back.
-
 Cancel stops a transcription before its result is inserted. If the text has
 already been pasted, cancellation still prevents a pending automatic Enter.
 The pasted text and its history entry remain available.
@@ -217,25 +198,19 @@ Murmur uses Tauri 2 with a Rust backend and a React/TypeScript frontend. The
 runtime pipeline is:
 
 ```text
-microphone -> quiet-speech gain -> selected cloud transcription -> dictionary -> AI cleanup (Apple Intelligence or Codex) -> clipboard/paste
+microphone -> quiet-speech gain -> Codex transcription -> dictionary -> AI cleanup (Codex) -> clipboard/paste
 ```
 
 The backend owns audio capture, the Codex session and its refresh, transcription,
-AI cleanup, history, Insights, shortcuts, and macOS integration. The on-device
-cleanup calls Apple's Foundation Models framework through a small Swift bridge.
-The frontend owns onboarding, settings, history, Insights, and the recording
+AI cleanup, history, Insights, shortcuts, and macOS integration. The frontend owns onboarding, settings, history, Insights, and the recording
 overlay.
 
 ## Privacy and security
 
-Audio sent for transcription leaves the computer and is handled by ChatGPT or
-Google, depending on the selected service. Do not describe Murmur as offline
-or local-only.
+Audio sent for transcription leaves the computer and is handled by ChatGPT.
+Do not describe Murmur as offline or local-only.
 
-AI cleanup with Apple Intelligence runs on the Mac, and the transcript does
-not leave it for cleanup. The transcript is sent to ChatGPT for cleanup only
-when Codex is the selected cleanup engine, or as a fallback when Apple
-Intelligence cannot clean a dictation and a Codex session is signed in. A
+While AI cleanup is on, the transcript is sent to ChatGPT for cleanup. A
 cleanup request contains the transcript, your custom dictionary words, and the
 names found in the frontmost window.
 
@@ -259,11 +234,6 @@ for a request or a refresh, never logs them, and keeps no copy of its own.
 The only write is the token refresh described in
 [Requirements](#requirements).
 
-For Gemini, Murmur sends audio to a loopback-only Antigravity service with an
-ephemeral CSRF token. It never logs that token. A language server started by
-Murmur stops after five minutes without a Gemini dictation. Murmur never stops
-an Antigravity process it did not start.
-
 Guarded paste saves the clipboard before it places the transcription there.
 By default, Murmur puts the saved items back, with every format they had, once
 the 8-second paste window ends. If you copy something else during that window,
@@ -276,8 +246,7 @@ leaves the transcription on the clipboard after insertion.
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur now
-transcribes through cloud services using sessions already present on the
-computer.
+transcribes through Codex using the session already present on the computer.
 
 ## License
 

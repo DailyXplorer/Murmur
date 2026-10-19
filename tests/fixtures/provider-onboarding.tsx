@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import type { AppSettings, TranscriptionProvider } from "../../src/bindings";
+import type { AppSettings } from "../../src/bindings";
 import "../../src/App.css";
 
 type Deferred<T> = {
@@ -23,61 +23,40 @@ const createDeferred = <T,>(): Deferred<T> => {
 
 const query = new URLSearchParams(window.location.search);
 const appLanguage = query.get("lang") === "fr" ? "fr" : "en";
-const configuredProvider: TranscriptionProvider =
-  query.get("provider") === "gemini" ? "gemini" : "codex";
 let codexConfigured = query.get("codex") === "configured";
-let geminiInstalled = ["configured", "installed"].includes(
-  query.get("gemini") ?? "",
-);
-let geminiConfigured = query.get("gemini") === "configured";
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
 let nextSetupActionFailure: CompletionFailureMode | null = null;
 let failNextInitialization = false;
-let failNextProviderChange = false;
 const writes: string[] = [];
 const calls: string[] = [];
 
 type DeferredStatusRefresh = {
   codex: Deferred<{ signed_in: boolean; expired: boolean }>;
   codexConfigured: boolean;
-  gemini: Deferred<{ installed: boolean; signed_in: boolean }>;
-  geminiConfigured: boolean;
-  geminiInstalled: boolean;
-  requested: Set<"codex" | "gemini">;
+  requested: boolean;
 };
 
 const deferredStatusRefreshes: DeferredStatusRefresh[] = [];
 let activeDeferredStatusRefresh = 0;
 
 const deferStatusRefresh = (): number => {
-  const deferred: DeferredStatusRefresh = {
+  deferredStatusRefreshes.push({
     codex: createDeferred(),
     codexConfigured,
-    gemini: createDeferred(),
-    geminiConfigured,
-    geminiInstalled,
-    requested: new Set(),
-  };
-  deferredStatusRefreshes.push(deferred);
+    requested: false,
+  });
   return deferredStatusRefreshes.length - 1;
 };
 
-const deferredStatusResponse = (
-  provider: "codex" | "gemini",
-): Promise<
-  | { signed_in: boolean; expired: boolean }
-  | { installed: boolean; signed_in: boolean }
-> | null => {
+const deferredStatusResponse = () => {
   const deferred = deferredStatusRefreshes[activeDeferredStatusRefresh];
-  if (!deferred || deferred.requested.has(provider)) return null;
+  if (!deferred || deferred.requested) return null;
 
-  deferred.requested.add(provider);
-  if (deferred.requested.size === 2) activeDeferredStatusRefresh += 1;
-  return provider === "codex"
-    ? deferred.codex.promise
-    : deferred.gemini.promise;
+  deferred.requested = true;
+  activeDeferredStatusRefresh += 1;
+  return deferred.codex.promise;
 };
 
 const resolveStatusRefresh = (index: number) => {
@@ -87,44 +66,24 @@ const resolveStatusRefresh = (index: number) => {
     signed_in: deferred.codexConfigured,
     expired: false,
   });
-  deferred.gemini.resolve({
-    installed: deferred.geminiInstalled,
-    signed_in: deferred.geminiConfigured,
-  });
 };
 
 const rejectStatusRefresh = (index: number) => {
   const deferred = deferredStatusRefreshes[index];
   if (!deferred) throw new Error(`Unknown deferred status refresh: ${index}`);
-  const error = new Error("Simulated provider status failure");
-  deferred.codex.reject(error);
-  deferred.gemini.reject(error);
+  deferred.codex.reject(new Error("Simulated provider status failure"));
 };
 
 let backendSettings: AppSettings = {
   app_language: appLanguage,
   onboarding_completed: false,
   selected_language: "fr",
-  transcription_provider: configuredProvider,
-};
-
-const updateProvider = (provider: unknown) => {
-  if (failNextProviderChange) {
-    failNextProviderChange = false;
-    throw new Error("The provider setting could not be saved");
-  }
-  if (provider !== "codex" && provider !== "gemini") {
-    throw new Error("Unexpected transcription provider");
-  }
-  backendSettings = { ...backendSettings, transcription_provider: provider };
-  writes.push(`provider:${provider}`);
 };
 
 mockIPC(
-  (command, args) => {
+  (command) => {
     calls.push(command);
     switch (command) {
-      case "open_antigravity":
       case "plugin:opener|open_url": {
         const failure = nextSetupActionFailure;
         nextSetupActionFailure = null;
@@ -144,18 +103,10 @@ mockIPC(
       case "check_custom_sounds":
         return { start: false, stop: false };
       case "get_codex_auth_status": {
-        const response = deferredStatusResponse("codex");
+        const response = deferredStatusResponse();
         if (response) return response;
         return { signed_in: codexConfigured, expired: false };
       }
-      case "get_gemini_status": {
-        const response = deferredStatusResponse("gemini");
-        if (response) return response;
-        return { installed: geminiInstalled, signed_in: geminiConfigured };
-      }
-      case "change_transcription_provider_setting":
-        updateProvider(args?.provider);
-        return null;
       case "complete_onboarding": {
         const completionFailure = nextCompletionFailure;
         nextCompletionFailure = null;
@@ -167,11 +118,8 @@ mockIPC(
         if (completionFailure === "exception") {
           throw new Error("Configuration changed before setup completed");
         }
-        const provider = backendSettings.transcription_provider;
-        const providerIsConfigured =
-          provider === "codex" ? codexConfigured : geminiConfigured;
-        if (!providerIsConfigured) {
-          throw new Error("The selected provider is not configured");
+        if (!codexConfigured) {
+          throw new Error("No ChatGPT/Codex session was found");
         }
         backendSettings = { ...backendSettings, onboarding_completed: true };
         writes.push("complete");
@@ -209,15 +157,12 @@ declare global {
       failNextCompletion: (mode?: CompletionFailureMode) => void;
       failNextSetupAction: (mode: CompletionFailureMode) => void;
       failNextInitialization: () => void;
-      failNextProviderChange: () => void;
       calls: () => string[];
       initializationError: () => string | null;
-      provider: () => TranscriptionProvider | undefined;
       rejectStatusRefresh: (index: number) => void;
       resolveStatusRefresh: (index: number) => void;
       selectedLanguage: () => string | undefined;
       setCodexConfigured: (configured: boolean) => void;
-      setGeminiConfigured: (configured: boolean) => void;
       writes: () => string[];
     };
   }
@@ -241,21 +186,13 @@ window.providerOnboardingFixture = {
   failNextInitialization: () => {
     failNextInitialization = true;
   },
-  failNextProviderChange: () => {
-    failNextProviderChange = true;
-  },
   calls: () => [...calls],
   initializationError: () => initializationError,
-  provider: () => backendSettings.transcription_provider,
   rejectStatusRefresh,
   resolveStatusRefresh,
   selectedLanguage: () => backendSettings.selected_language,
   setCodexConfigured: (configured) => {
     codexConfigured = configured;
-  },
-  setGeminiConfigured: (configured) => {
-    geminiInstalled = configured;
-    geminiConfigured = configured;
   },
   writes: () => [...writes],
 };

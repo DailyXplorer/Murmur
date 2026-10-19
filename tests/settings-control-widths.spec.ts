@@ -23,7 +23,7 @@ test.describe("settings control widths", () => {
       page.getByTestId("shortcut-control"),
       page.getByTestId("history-limit"),
       page.getByTestId("custom-words"),
-      page.getByTestId("gemini-status"),
+      page.getByTestId("status-action"),
     ];
     const slots = horizontalControlMarkers.map((marker) =>
       marker.locator(".."),

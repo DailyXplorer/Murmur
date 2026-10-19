@@ -12,7 +12,6 @@ use tauri::{AppHandle, Manager};
 const DEBOUNCE: Duration = Duration::from_millis(30);
 const START_RETRY_DELAY: Duration = Duration::from_millis(25);
 pub(crate) const QUIT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
-const PROVIDER_QUIT_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_RECORDING_DURATION: Duration =
     Duration::from_secs(crate::audio_toolkit::constants::MAX_RECORDING_SECONDS);
 /// How long before the recording cap the user is told it will stop.
@@ -582,21 +581,17 @@ impl TranscriptionCoordinator {
         }
 
         // Signal real transports before waiting for the last keyboard receipt.
-        // This call only flips atomics, snapshots a short registry, and queues
-        // Gemini cleanup off-main; it never acquires Gemini's runtime mutex.
-        let provider_shutdown = app
-            .try_state::<Arc<crate::managers::transcription::TranscriptionManager>>()
-            .map(|manager| manager.begin_shutdown());
+        // This call only flips an atomic and snapshots a short registry.
+        if let Some(manager) =
+            app.try_state::<Arc<crate::managers::transcription::TranscriptionManager>>()
+        {
+            manager.shutdown();
+        }
 
         let shutdown_drain = Arc::clone(&self.shutdown_drain);
         thread::spawn(move || {
             if !shutdown_drain.wait_bounded(QUIT_DRAIN_TIMEOUT) {
                 warn!("Timed out waiting for the foreground paste release during shutdown");
-            }
-            if let Some(provider_shutdown) = provider_shutdown {
-                if !provider_shutdown.wait_bounded(PROVIDER_QUIT_TIMEOUT) {
-                    warn!("Timed out waiting for owned Gemini provider cleanup during shutdown");
-                }
             }
             // A refresh request times out on its own within this.
             if !crate::codex_auth::wait_for_refreshes(crate::codex_auth::REFRESH_TIMEOUT) {

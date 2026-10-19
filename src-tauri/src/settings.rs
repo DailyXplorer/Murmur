@@ -198,24 +198,6 @@ pub enum AccentColor {
     Red,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TranscriptionProvider {
-    #[default]
-    Codex,
-    Gemini,
-}
-
-/// Which model runs AI cleanup. Apple's on-device model is free, offline
-/// and does not spend the user's Codex allowance, so it is the default.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum CleanupEngine {
-    #[default]
-    Apple,
-    Codex,
-}
-
 /// Which sources a meeting records. Without system audio support (before
 /// macOS 14.4, or on Intel) every mode records the microphone only; the
 /// stored choice is kept for when it becomes available.
@@ -274,8 +256,6 @@ pub struct AppSettings {
     pub selected_output_device: Option<String>,
     #[serde(default = "default_selected_language")]
     pub selected_language: String,
-    #[serde(default)]
-    pub transcription_provider: TranscriptionProvider,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -322,11 +302,9 @@ pub struct AppSettings {
     /// reading promised data, so settlement waits a bounded window. macOS only.
     #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
-    /// AI cleanup and formatting of each transcript, by `cleanup_engine`.
+    /// AI cleanup and formatting of each transcript by the Codex session.
     #[serde(default = "default_ai_cleanup_enabled")]
     pub ai_cleanup_enabled: bool,
-    #[serde(default)]
-    pub cleanup_engine: CleanupEngine,
     /// Dictionary words learned from corrections; each is also in `custom_words`.
     #[serde(default)]
     pub learned_words: Vec<crate::dictionary::LearnedWord>,
@@ -457,13 +435,16 @@ fn default_show_tray_icon() -> bool {
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 /// `push_to_talk` chose between hold and toggle; one shortcut now does both.
 /// The filler-removal keys are superseded by AI cleanup (see
-/// `parse_stored_settings`).
-const OBSOLETE_SETTINGS_KEYS: [&str; 5] = [
+/// `parse_stored_settings`). Gemini transcription and Apple Intelligence
+/// cleanup were removed: Codex does both, so their choice is dropped.
+const OBSOLETE_SETTINGS_KEYS: [&str; 7] = [
     "typing_tool",
     "external_script_path",
     "push_to_talk",
     "filler_word_removal_enabled",
     "custom_filler_words",
+    "transcription_provider",
+    "cleanup_engine",
 ];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
@@ -533,7 +514,6 @@ pub fn get_default_settings() -> AppSettings {
         clamshell_microphone: None,
         selected_output_device: None,
         selected_language: "auto".to_string(),
-        transcription_provider: TranscriptionProvider::default(),
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),
@@ -557,7 +537,6 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: default_reliable_paste(),
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
-        cleanup_engine: CleanupEngine::default(),
         learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
         whisper_mode: false,
@@ -1062,10 +1041,6 @@ mod tests {
         assert!(settings.window_names_enabled);
         assert!(!settings.whisper_mode);
         assert_eq!(settings.accent_color, AccentColor::Pink);
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
         // Bindings default to empty; the load path merges the real defaults in.
         assert!(settings.bindings.is_empty());
     }
@@ -1121,41 +1096,36 @@ mod tests {
         assert_eq!(salvaged.sound_theme, default_sound_theme());
     }
 
+    /// Gemini and Apple Intelligence were removed, so Codex is the only
+    /// service. A store that chose either, or a value no build knows, keeps
+    /// every other setting and is rewritten without the old choice.
     #[test]
-    fn transcription_provider_round_trips_and_defaults_to_codex() {
-        assert_eq!(
-            serde_json::to_value(TranscriptionProvider::Gemini).unwrap(),
-            "gemini"
-        );
-        let settings: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
-    }
+    fn a_removed_provider_or_cleanup_engine_lands_on_codex() {
+        for (key, value) in [
+            ("transcription_provider", "gemini"),
+            ("transcription_provider", "codex"),
+            ("transcription_provider", "whisper"),
+            ("cleanup_engine", "apple"),
+            ("cleanup_engine", "codex"),
+            ("cleanup_engine", "cloud"),
+        ] {
+            let mut stored = default_settings_json();
+            stored[key] = serde_json::json!(value);
+            stored["selected_language"] = serde_json::json!("fr");
+            stored["onboarding_completed"] = serde_json::json!(true);
+            stored["ai_cleanup_enabled"] = serde_json::json!(false);
+            stored["custom_words"] = serde_json::json!(["Murmur"]);
 
-    #[test]
-    fn cleanup_engine_defaults_to_apple_for_new_and_existing_users() {
-        assert_eq!(get_default_settings().cleanup_engine, CleanupEngine::Apple);
-        let mut existing = default_settings_json();
-        existing.as_object_mut().unwrap().remove("cleanup_engine");
-        existing["ai_cleanup_enabled"] = serde_json::json!(true);
-        let (settings, _) = parse_stored_settings(&existing);
-        assert_eq!(settings.cleanup_engine, CleanupEngine::Apple);
-        assert!(settings.ai_cleanup_enabled);
+            let (settings, updated) = parse_stored_settings(&stored);
 
-        existing["cleanup_engine"] = serde_json::json!("codex");
-        assert_eq!(
-            parse_stored_settings(&existing).0.cleanup_engine,
-            CleanupEngine::Codex
-        );
-        assert_eq!(serde_json::to_value(CleanupEngine::Apple).unwrap(), "apple");
-
-        existing["cleanup_engine"] = serde_json::json!("cloud");
-        existing["selected_language"] = serde_json::json!("fr");
-        let (salvaged, _) = parse_stored_settings(&existing);
-        assert_eq!(salvaged.cleanup_engine, CleanupEngine::Apple);
-        assert_eq!(salvaged.selected_language, "fr");
+            assert!(updated, "{key}={value} must be rewritten");
+            assert_eq!(settings.selected_language, "fr", "{key}={value}");
+            assert!(settings.onboarding_completed, "{key}={value}");
+            assert!(!settings.ai_cleanup_enabled, "{key}={value}");
+            assert_eq!(settings.custom_words, ["Murmur"], "{key}={value}");
+            let rewritten = serde_json::to_value(&settings).unwrap();
+            assert!(rewritten.get(key).is_none(), "{key}={value}");
+        }
     }
 
     #[test]

@@ -11,7 +11,6 @@
     "errorServer": "음성 인식 서비스에 문제가 있습니다. 기록에서 다시 시도하세요.",
     "errorSessionExpired": "Codex 세션이 만료되었습니다. Codex를 열고 다시 로그인하세요.",
     "errorSignedOut": "Codex에 로그인되어 있지 않습니다. Codex를 열고 로그인하세요.",
-    "errorGeminiSessionExpired": "Antigravity의 Gemini 세션이 종료되었습니다. Antigravity를 열고 다시 로그인하세요.",
     "errorTooLarge": "이 녹음은 서비스에 비해 너무 깁니다. 더 짧게 녹음해 보세요.",
     "errorTranscription": "음성 인식에 실패했습니다. 기록에서 다시 시도하세요.",
     "errorPaste": "붙여넣지 못했습니다. 텍스트는 클립보드와 기록에 있습니다.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "전사 서비스 선택",
-      "description": "설정을 완료하려면 구성된 서비스를 선택하세요. Murmur는 로컬 구성을 감지하지만 활성 연결은 확인하지 않습니다.",
-      "antigravityDescription": "이 Mac에서 감지된 Antigravity 구성을 사용합니다.",
-      "experimental": "실험적",
+      "title": "Codex 연결",
+      "description": "설정을 완료하려면 이 Mac에서 Codex에 로그인하세요. Murmur는 로컬 구성을 감지하지만 활성 연결은 확인하지 않습니다.",
       "configured": "구성이 감지됨",
-      "selectionRequired": "계속하려면 구성된 전사 서비스를 선택하세요.",
       "retry": "다시 시도",
       "continue": "계속",
-      "providerChangeFailed": "선택한 전사 서비스를 저장할 수 없습니다. 다시 시도하세요.",
       "completionFailed": "설정을 완료할 수 없습니다. 상태를 새로 고치고 다시 시도하세요.",
-      "openFailed": "Antigravity를 열 수 없습니다.",
-      "installFailed": "Antigravity 다운로드 페이지를 열 수 없습니다.",
       "setupCodex": "Codex 설정 열기",
       "codexSetupFailed": "Codex 설정을 열 수 없습니다."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "구성을 찾을 수 없음"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "모양"
       }
     },
-    "languageAutoOnly": "Antigravity는 언어를 자동으로 감지합니다. Codex로 전환하면 이전 Codex 언어 선택이 유지됩니다.",
     "sound": {
       "title": "사운드",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "구성을 확인하는 중…",
       "statusUnavailable": "상태를 확인할 수 없음",
       "missing": "로그인하지 않음",
-      "providerTitle": "받아쓰기 서비스",
-      "providerDescription": "새 받아쓰기에 사용할 전사 서비스를 선택하세요.",
-      "notInstalled": "Antigravity가 설치되지 않음",
-      "installAntigravity": "설치",
-      "openAntigravity": "Antigravity 열기",
       "groups": {
         "service": "서비스",
         "processing": "텍스트 처리",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "AI 정리 및 서식",
         "description": "군더더기 말을 제거하고, 말을 고쳐 말하면 마지막 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. 실패하거나 너무 오래 걸리면 원본 전사본이 붙여넣어집니다."
-      },
-      "cleanupEngine": {
-        "title": "정리 엔진",
-        "description": "Apple Intelligence는 이 Mac에서 실행됩니다. 무료이고 무제한이며 오프라인으로 비공개로 작동합니다. Codex는 ChatGPT 세션을 사용하며 사용 한도가 차감됩니다.",
-        "options": {
-          "apple": "Apple Intelligence (이 Mac에서)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Apple Intelligence를 실행할 수 없으면 로그인되어 있을 때 Codex가 텍스트를 정리하고, 그렇지 않으면 원본 전사본이 붙여넣어집니다.",
-          "available": "이 Mac에서 사용 가능",
-          "deviceNotEligible": "이 Mac에서는 지원되지 않음",
-          "appleIntelligenceNotEnabled": "시스템 설정에서 Apple Intelligence를 켜세요",
-          "modelNotReady": "아직 다운로드 중입니다. 나중에 다시 시도하세요",
-          "unsupportedOs": "macOS 26 이상 필요",
-          "unavailable": "현재 사용할 수 없음",
-          "unsupportedLanguage": "{{language}}에서는 사용할 수 없음"
-        }
       },
       "windowNames": {
         "title": "활성 윈도우의 이름",

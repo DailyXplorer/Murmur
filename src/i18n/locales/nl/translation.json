@@ -11,7 +11,6 @@
     "errorServer": "De transcriptiedienst heeft problemen. Probeer het opnieuw via Geschiedenis.",
     "errorSessionExpired": "Je Codex-sessie is verlopen. Open Codex en log opnieuw in.",
     "errorSignedOut": "Niet ingelogd bij Codex. Open Codex en log in.",
-    "errorGeminiSessionExpired": "Je Gemini-sessie in Antigravity is beëindigd. Open Antigravity en log opnieuw in.",
     "errorTooLarge": "Deze opname is te lang voor de dienst. Probeer een kortere.",
     "errorTranscription": "Transcriptie mislukt. Probeer het opnieuw via Geschiedenis.",
     "errorPaste": "Plakken mislukt. De tekst staat op het klembord en in Geschiedenis.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "Kies een transcriptieservice",
-      "description": "Kies een geconfigureerde service om de installatie te voltooien. Murmur detecteert lokale configuratie, maar verifieert geen actieve verbinding.",
-      "antigravityDescription": "Gebruikt de Antigravity-configuratie die op deze Mac is gevonden.",
-      "experimental": "Experimenteel",
+      "title": "Verbind Codex",
+      "description": "Log op deze Mac in bij Codex om de installatie te voltooien. Murmur detecteert lokale configuratie, maar verifieert geen actieve verbinding.",
       "configured": "Configuratie gedetecteerd",
-      "selectionRequired": "Kies een geconfigureerde transcriptieservice om door te gaan.",
       "retry": "Opnieuw proberen",
       "continue": "Doorgaan",
-      "providerChangeFailed": "De gekozen transcriptieservice kon niet worden opgeslagen. Probeer het opnieuw.",
       "completionFailed": "De installatie kon niet worden voltooid. Vernieuw de status en probeer het opnieuw.",
-      "openFailed": "Antigravity kon niet worden geopend.",
-      "installFailed": "De downloadpagina van Antigravity kon niet worden geopend.",
       "setupCodex": "Codex-configuratie openen",
       "codexSetupFailed": "De Codex-configuratie kon niet worden geopend."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Geen configuratie gedetecteerd"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "Weergave"
       }
     },
-    "languageAutoOnly": "Antigravity detecteert de taal automatisch. Je Codex-taalkeuze blijft behouden wanneer je terugschakelt.",
     "sound": {
       "title": "Geluid",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "Configuratie controleren…",
       "statusUnavailable": "Status niet beschikbaar",
       "missing": "Niet aangemeld",
-      "providerTitle": "Transcriptiedienst",
-      "providerDescription": "Kies de transcriptieservice voor nieuwe dicteeropnamen.",
-      "notInstalled": "Antigravity is niet geïnstalleerd",
-      "installAntigravity": "Installeren",
-      "openAntigravity": "Antigravity openen",
       "groups": {
         "service": "Service",
         "processing": "Tekstverwerking",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "AI-opschoning en opmaak",
         "description": "Verwijdert stopwoorden, houdt alleen je definitieve formulering over als je jezelf verbetert, herstelt interpunctie en zet lijsten en gedicteerde regeleinden om. Vertaalt of herschrijft nooit. Als het mislukt of te lang duurt, wordt het ruwe transcript geplakt."
-      },
-      "cleanupEngine": {
-        "title": "Opschoonengine",
-        "description": "Apple Intelligence draait op deze Mac: gratis, onbeperkt, offline en privé. Codex gebruikt je ChatGPT-sessie en telt mee voor de gebruikslimieten daarvan.",
-        "options": {
-          "apple": "Apple Intelligence (op deze Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Als Apple Intelligence niet kan draaien, schoont Codex je tekst op als je bent ingelogd; anders wordt het ruwe transcript geplakt.",
-          "available": "Klaar op deze Mac",
-          "deviceNotEligible": "Niet ondersteund op deze Mac",
-          "appleIntelligenceNotEnabled": "Zet Apple Intelligence aan in Systeeminstellingen",
-          "modelNotReady": "Wordt nog gedownload, probeer het later opnieuw",
-          "unsupportedOs": "Vereist macOS 26 of nieuwer",
-          "unavailable": "Momenteel niet beschikbaar",
-          "unsupportedLanguage": "Niet beschikbaar in het {{language}}"
-        }
       },
       "windowNames": {
         "title": "Namen uit het actieve venster",

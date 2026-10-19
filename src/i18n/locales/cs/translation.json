@@ -11,7 +11,6 @@
     "errorServer": "Služba přepisu má potíže. Zkuste to znovu z historie.",
     "errorSessionExpired": "Relace Codex vypršela. Otevřete Codex a znovu se přihlaste.",
     "errorSignedOut": "Nejste přihlášeni do Codex. Otevřete Codex a přihlaste se.",
-    "errorGeminiSessionExpired": "Relace Gemini v Antigravity skončila. Otevřete Antigravity a znovu se přihlaste.",
     "errorTooLarge": "Tato nahrávka je pro službu příliš dlouhá. Zkuste kratší.",
     "errorTranscription": "Přepis se nezdařil. Zkuste to znovu z historie.",
     "errorPaste": "Vložení se nezdařilo. Text je ve schránce a v historii.",
@@ -122,24 +121,17 @@
       }
     },
     "provider": {
-      "title": "Vyberte službu přepisu",
-      "description": "Vyberte nakonfigurovanou službu k dokončení nastavení. Murmur rozpozná místní konfiguraci, ale neověřuje živé připojení.",
-      "antigravityDescription": "Používá konfiguraci Antigravity zjištěnou na tomto Macu.",
-      "experimental": "Experimentální",
+      "title": "Připojte Codex",
+      "description": "Pro dokončení nastavení se na tomto Macu přihlaste do Codexu. Murmur rozpozná místní konfiguraci, ale neověřuje živé připojení.",
       "configured": "Konfigurace rozpoznána",
-      "selectionRequired": "Pokračujte výběrem nakonfigurované služby přepisu.",
       "retry": "Zkusit znovu",
       "continue": "Pokračovat",
-      "providerChangeFailed": "Vybranou službu přepisu se nepodařilo uložit. Zkuste to znovu.",
       "completionFailed": "Nastavení se nepodařilo dokončit. Obnovte stav a zkuste to znovu.",
-      "openFailed": "Antigravity se nepodařilo otevřít.",
-      "installFailed": "Stránku ke stažení Antigravity se nepodařilo otevřít.",
       "setupCodex": "Otevřít nastavení Codexu",
       "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít."
     },
     "providerLabels": {
       "codex": "Codex",
-      "antigravity": "Antigravity",
       "unavailable": "Konfigurace nebyla rozpoznána"
     }
   },
@@ -190,7 +182,6 @@
         "appearance": "Vzhled"
       }
     },
-    "languageAutoOnly": "Antigravity zjišťuje jazyk automaticky. Výběr jazyka pro Codex zůstane zachován, až se k němu vrátíte.",
     "sound": {
       "title": "Zvuk",
       "microphone": {
@@ -449,11 +440,6 @@
       "checking": "Kontrola konfigurace…",
       "statusUnavailable": "Stav není k dispozici",
       "missing": "Nejste přihlášeni",
-      "providerTitle": "Služba přepisu",
-      "providerDescription": "Vyberte službu přepisu pro nové diktáty.",
-      "notInstalled": "Antigravity není nainstalován",
-      "installAntigravity": "Nainstalovat",
-      "openAntigravity": "Otevřít Antigravity",
       "groups": {
         "service": "Služba",
         "processing": "Zpracování textu",
@@ -463,25 +449,6 @@
       "aiCleanup": {
         "title": "Úprava a formátování pomocí AI",
         "description": "Odstraňuje vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opravuje interpunkci a formátuje seznamy a nadiktovaná zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Pokud selže nebo trvá příliš dlouho, vloží se surový přepis."
-      },
-      "cleanupEngine": {
-        "title": "Nástroj pro úpravu",
-        "description": "Apple Intelligence běží na tomto Macu: zdarma, bez omezení, offline a soukromě. Codex používá vaši relaci ChatGPT a čerpá její limity.",
-        "options": {
-          "apple": "Apple Intelligence (na tomto Macu)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Když Apple Intelligence nemůže běžet, upraví text Codex, pokud jste přihlášeni; jinak se vloží surový přepis.",
-          "available": "Připraveno na tomto Macu",
-          "deviceNotEligible": "Na tomto Macu není podporováno",
-          "appleIntelligenceNotEnabled": "Zapněte Apple Intelligence v Nastavení systému",
-          "modelNotReady": "Stále se stahuje, zkuste to později",
-          "unsupportedOs": "Vyžaduje macOS 26 nebo novější",
-          "unavailable": "Momentálně nedostupné",
-          "unsupportedLanguage": "Není dostupné v jazyce {{language}}"
-        }
       },
       "windowNames": {
         "title": "Jména z aktivního okna",

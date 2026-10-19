@@ -6,7 +6,7 @@ pub mod tauri_impl;
 use crate::accent;
 use crate::settings::{
     self, AccentColor, AutoSubmitKey, ClipboardHandling, OverlayPosition, OverlayStyle,
-    PasteMethod, ShortcutBinding, SoundTheme, Theme, TranscriptionProvider,
+    PasteMethod, ShortcutBinding, SoundTheme, Theme,
 };
 use crate::tray;
 use crate::user_alert::{self, Alert};
@@ -411,64 +411,6 @@ pub fn change_selected_language_setting(app: AppHandle, language: String) -> Res
 
 #[tauri::command]
 #[specta::specta]
-pub async fn change_transcription_provider_setting(
-    app: AppHandle,
-    provider: TranscriptionProvider,
-) -> Result<(), String> {
-    // Credential reads and signature verification must stay off AppKit.
-    let availability = tauri::async_runtime::spawn_blocking(move || ProviderAvailability {
-        codex_signed_in: provider == TranscriptionProvider::Codex
-            && crate::codex_transcribe::auth_status().signed_in,
-        gemini: if provider == TranscriptionProvider::Gemini {
-            crate::gemini_transcribe::status()
-        } else {
-            crate::commands::transcription::GeminiStatus {
-                installed: false,
-                signed_in: false,
-            }
-        },
-    })
-    .await
-    .map_err(|error| format!("Failed to inspect transcription configuration: {error}"))?;
-    validate_provider_selection(provider, &availability)?;
-
-    let mut value = settings::get_settings(&app);
-    value.transcription_provider = provider;
-    settings::write_settings_checked(&app, value)?;
-    let _ = app.emit(
-        "settings-changed",
-        serde_json::json!({"setting": "transcription_provider"}),
-    );
-    Ok(())
-}
-
-struct ProviderAvailability {
-    codex_signed_in: bool,
-    gemini: crate::commands::transcription::GeminiStatus,
-}
-
-fn validate_provider_selection(
-    provider: TranscriptionProvider,
-    availability: &ProviderAvailability,
-) -> Result<(), String> {
-    match provider {
-        TranscriptionProvider::Codex if availability.codex_signed_in => Ok(()),
-        TranscriptionProvider::Codex => {
-            Err("No ChatGPT/Codex session was found. Sign in to Codex and retry.".to_string())
-        }
-        TranscriptionProvider::Gemini if !availability.gemini.installed => Err(
-            "Antigravity is not installed. Install it before selecting Gemini transcription."
-                .to_string(),
-        ),
-        TranscriptionProvider::Gemini if !availability.gemini.signed_in => Err(
-            "No Antigravity session was found. Open Antigravity, sign in, and retry.".to_string(),
-        ),
-        TranscriptionProvider::Gemini => Ok(()),
-    }
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Result<(), String> {
     let mut value = settings::get_settings(&app);
     value.overlay_position = match position.as_str() {
@@ -752,12 +694,9 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
 mod tests {
     use super::{
         binding_registers, frees_meeting_keys, meeting_shortcut_yields,
-        tauri_impl::conflicting_binding, validate_provider_selection, ProviderAvailability,
-        ShortcutRegistrationError,
+        tauri_impl::conflicting_binding, ShortcutRegistrationError,
     };
-    use crate::commands::transcription::GeminiStatus;
     use crate::meetings::{BINDING_ID, DEFAULT_BINDING};
-    use crate::settings::TranscriptionProvider;
 
     fn bound(settings: &mut crate::settings::AppSettings, id: &str, keys: &str) {
         settings.bindings.get_mut(id).unwrap().current_binding = keys.to_string();
@@ -840,34 +779,5 @@ mod tests {
         settings.meetings_enabled = true;
         assert!(binding_registers(&settings, crate::meetings::BINDING_ID));
         assert!(!binding_registers(&settings, "cancel"));
-    }
-
-    #[test]
-    fn codex_selection_rejects_an_absent_session_without_falling_back_to_gemini() {
-        let availability = ProviderAvailability {
-            codex_signed_in: false,
-            gemini: GeminiStatus {
-                installed: true,
-                signed_in: true,
-            },
-        };
-
-        let error = validate_provider_selection(TranscriptionProvider::Codex, &availability)
-            .expect_err("Codex must require its own local session");
-
-        assert!(error.contains("ChatGPT/Codex session"));
-    }
-
-    #[test]
-    fn each_provider_accepts_only_its_own_available_configuration() {
-        let codex = ProviderAvailability {
-            codex_signed_in: true,
-            gemini: GeminiStatus {
-                installed: false,
-                signed_in: false,
-            },
-        };
-        assert!(validate_provider_selection(TranscriptionProvider::Codex, &codex).is_ok());
-        assert!(validate_provider_selection(TranscriptionProvider::Gemini, &codex).is_err());
     }
 }
