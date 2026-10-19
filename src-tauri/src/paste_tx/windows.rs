@@ -812,10 +812,17 @@ mod tests {
         assert_eq!(read_clipboard_text().as_deref(), Some("copied by the user"));
 
         let transaction = publish("dictated transcript", false).expect("publish the transcript");
+        assert!(lock(&transaction.previous)
+            .as_ref()
+            .is_ok_and(|saved| !saved.is_empty()));
         assert_eq!(
             read_clipboard_text().as_deref(),
             Some("dictated transcript")
         );
+        // Reading leaves the clipboard Murmur's.
+        let window = HWND(transaction.window.load(Ordering::SeqCst) as *mut c_void);
+        assert!(!lock(&transaction.state).ownership_lost);
+        assert!(owns_clipboard(window));
         settle_now(&transaction);
         assert!(*lock(&transaction.finished.0));
         assert_eq!(read_clipboard_text().as_deref(), Some("copied by the user"));
