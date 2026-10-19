@@ -1198,6 +1198,15 @@ export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none"
+export type ProbeResult = { name: string; 
+/**
+ * `<status> <content-type> cf-mitigated=<value>`, or the transport error.
+ */
+outcome: string; 
+/**
+ * Cloudflare forwarded the request: the answer is not its HTML challenge.
+ */
+passed: boolean }
 /**
  * Why the last processing run did not finish everything.
  */
@@ -1222,15 +1231,6 @@ export type ProcessingError =
  * Processing stopped on an unexpected error.
  */
 "other"
-export type ProbeResult = { name: string;
-/**
- * `<status> <content-type> cf-mitigated=<value>`, or the transport error.
- */
-outcome: string;
-/**
- * Cloudflare forwarded the request: the answer is not its HTML challenge.
- */
-passed: boolean }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
