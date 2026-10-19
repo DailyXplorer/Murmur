@@ -296,12 +296,23 @@ fn sounds_alike(heard: &str, word: &str) -> bool {
         || (ascii_letters(&heard) && ascii_letters(&word) && soundex(&heard, &word))
 }
 
-/// Everyday English and French words and common first names, lowercase.
-pub(crate) fn is_common_word(word: &str) -> bool {
+/// Everyday English and French words, lowercase.
+pub(crate) fn is_everyday_word(word: &str) -> bool {
     static WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
     WORDS
         .get_or_init(|| include_str!("common_words.txt").lines().collect())
         .contains(word.to_lowercase().as_str())
+}
+
+/// Everyday words and common first names. A first name is kept apart from
+/// everyday words: it is what a custom spelling overrides ("Lucas" ->
+/// "Lukas").
+fn is_common_word(word: &str) -> bool {
+    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    is_everyday_word(word)
+        || NAMES
+            .get_or_init(|| include_str!("first_names.txt").lines().collect())
+            .contains(word.to_lowercase().as_str())
 }
 
 /// A misheard form made only of everyday words or first names is also

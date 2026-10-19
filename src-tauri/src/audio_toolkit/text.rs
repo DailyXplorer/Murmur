@@ -1,4 +1,4 @@
-use crate::dictionary::{is_common_word, ELISIONS};
+use crate::dictionary::{is_everyday_word, ELISIONS};
 use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -63,9 +63,6 @@ fn supports_soundex(key: &str) -> bool {
     !key.is_empty() && key.chars().all(|c| c.is_ascii_alphabetic())
 }
 
-/// The longest word too short for a reliable Soundex code.
-const MAX_SHORT_WORD_LEN: usize = 4;
-
 /// Scores a candidate against one custom-word key: normalized Levenshtein
 /// distance, boosted when both sound alike. Lower is closer; 0.0 is exact.
 fn match_score(candidate: &str, key: &str) -> f64 {
@@ -77,13 +74,11 @@ fn match_score(candidate: &str, key: &str) -> f64 {
     };
 
     // Soundex is an English/ASCII phonetic algorithm. Numeric terms can
-    // still use edit distance, but must not receive a phonetic boost. Nor
-    // can short words: Soundex keeps their first letter and consonants
-    // only, so "an" sounds like "Anne" and "marche" like "Marc".
-    let phonetic_match = supports_soundex(candidate)
-        && supports_soundex(key)
-        && candidate.len().min(key.len()) > MAX_SHORT_WORD_LEN
-        && soundex(candidate, key);
+    // still use edit distance, but must not receive a phonetic boost.
+    // Everyday words that sound like a short name ("an" like "Anne") are
+    // kept out by `match_span`, not here: "Zack" must still become "Zach".
+    let phonetic_match =
+        supports_soundex(candidate) && supports_soundex(key) && soundex(candidate, key);
 
     if phonetic_match {
         levenshtein_score * 0.3
@@ -173,8 +168,9 @@ fn match_span<'k>(
     let candidate = build_ngram(span);
     let (key, score) = find_best_match(&candidate, custom_word_match_keys, threshold)?;
     // An everyday word is what the user said, unless it is the custom word
-    // itself: "an" never becomes "Anne", "mari" never becomes "Marie".
-    if span.len() == 1 && candidate != key.key && is_common_word(&candidate) {
+    // itself: "an" never becomes "Anne", "mari" never becomes "Marie". A
+    // first name is not one: "Lucas" becomes the user's "Lukas".
+    if span.len() == 1 && candidate != key.key && is_everyday_word(&candidate) {
         return None;
     }
     // An edge word that matches no part of the custom word, or does not
@@ -253,7 +249,13 @@ fn candidate_spans<'a>(
                 span[0] = rest;
                 (elision, span)
             });
-            for (elision, span) in std::iter::once(("", span.to_vec())).chain(elided) {
+            // An elision before an everyday word is never part of a name:
+            // "l'aura" is not "Laura", "d'une" is not "Dune".
+            let unsplit = elided
+                .as_ref()
+                .is_none_or(|(_, rest)| !is_everyday_word(&build_match_key(rest[0])))
+                .then(|| ("", span.to_vec()));
+            for (elision, span) in unsplit.into_iter().chain(elided) {
                 let whole = match_span(&span, custom_word_match_keys, threshold);
                 if let Some((key, score)) = whole {
                     if best.is_none_or(|(_, best_score, _, _)| score < best_score) {
@@ -641,11 +643,54 @@ mod tests {
     }
 
     #[test]
+    fn a_short_name_is_corrected_when_one_letter_is_wrong() {
+        let cases = [
+            ("Zach", "ask Zack first", "ask Zach first"),
+            ("Luka", "Luca est là", "Luka est là"),
+            ("Sarah", "call Sara today", "call Sarah today"),
+        ];
+        for (word, input, expected) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &[word.to_string()], 0.18),
+                (expected.to_string(), 1),
+                "{word}: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_custom_spelling_overrides_a_common_first_name() {
+        let cases = [
+            ("Lukas", "Lucas a appelé", "Lukas a appelé"),
+            ("Nicholas", "merci Nicolas", "merci Nicholas"),
+            ("Sofie", "Sophie arrive", "Sofie arrive"),
+            ("Tomas", "Thomas arrive", "Tomas arrive"),
+            ("Philipe", "Philippe arrive", "Philipe arrive"),
+        ];
+        for (word, input, expected) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &[word.to_string()], 0.18),
+                (expected.to_string(), 1),
+                "{word}: {input}"
+            );
+        }
+    }
+
+    #[test]
     fn a_custom_word_keeps_the_french_elision_in_front_of_it() {
-        let words: Vec<String> = ["iPhone", "Anthropic", "Excel", "D'Angelo"]
-            .iter()
-            .map(|w| w.to_string())
-            .collect();
+        let words: Vec<String> = [
+            "iPhone",
+            "Anthropic",
+            "Excel",
+            "D'Angelo",
+            "Apple",
+            "Emile",
+            "Laura",
+            "Dune",
+        ]
+        .iter()
+        .map(|w| w.to_string())
+        .collect();
         let cases = [
             ("j'adore l'iPhone", "j'adore l'iPhone", 0),
             ("le modèle d'Anthropic", "le modèle d'Anthropic", 0),
@@ -653,6 +698,17 @@ mod tests {
             ("un fichier d'excel", "un fichier d'Excel", 1),
             ("L'I phone est mort", "L'iPhone est mort", 1),
             ("la musique de D'Angelo", "la musique de D'Angelo", 0),
+            // An everyday word after the elision is what the user said.
+            (
+                "Bonjour, je m'appelle Louis",
+                "Bonjour, je m'appelle Louis",
+                0,
+            ),
+            ("il s'appelle Paul", "il s'appelle Paul", 0),
+            ("envoie-moi l'email", "envoie-moi l'email", 0),
+            ("il l'aura demain", "il l'aura demain", 0),
+            ("la fin d'une époque", "la fin d'une époque", 0),
+            ("demande à laura", "demande à Laura", 1),
         ];
         for (input, expected, fixes) in cases {
             assert_eq!(
