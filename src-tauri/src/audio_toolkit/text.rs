@@ -40,6 +40,8 @@ fn build_match_key(word: &str) -> String {
 struct CustomWordMatchKey {
     word_index: usize,
     key: String,
+    /// The [`word_key`] the key was folded from, accents kept.
+    spelling: String,
 }
 
 fn build_custom_word_match_keys(word: &str, word_index: usize) -> Vec<CustomWordMatchKey> {
@@ -53,15 +55,18 @@ fn build_custom_word_match_keys(word: &str, word_index: usize) -> Vec<CustomWord
         keys.push(CustomWordMatchKey {
             word_index,
             key: primary_key.clone(),
+            spelling: word_key(word),
         });
     }
 
     if word.contains('&') {
-        let expanded_key = build_match_key(&word.replace('&', " and "));
+        let expanded = word.replace('&', " and ");
+        let expanded_key = build_match_key(&expanded);
         if is_supported_fuzzy_key(&expanded_key) && expanded_key != primary_key {
             keys.push(CustomWordMatchKey {
                 word_index,
                 key: expanded_key,
+                spelling: word_key(&expanded),
             });
         }
     }
@@ -240,6 +245,14 @@ fn match_span<'k>(
     // itself: "an" never becomes "Anne", "mari" never becomes "Marie". A
     // first name is not one: "Lucas" becomes the user's "Lukas".
     if span.len() == 1 && candidate != key.key && is_everyday_word(&word_key(span[0])) {
+        return None;
+    }
+    // In French an accent makes a different word: "marié" is not "Marie",
+    // "câline" is not "Céline". An accented span spelled otherwise than the
+    // custom word is taken for it only when capitalised as a name, as in
+    // "merci Clément" for the user's "Clement".
+    let spelling: String = span.iter().map(|word| word_key(word)).collect();
+    if spelling != candidate && spelling != key.spelling && !written_as_name {
         return None;
     }
     // An edge word that matches no part of the custom word, or does not
@@ -799,6 +812,17 @@ mod tests {
         // An accented everyday word is still what the user said.
         (&["Zoé"], "c'était déjà fait", "c'était déjà fait"),
         (&["Annie"], "une bonne année", "une bonne année"),
+        // An accent the custom word lacks makes a different word, unless
+        // the transcriber capitalised it as a name.
+        (
+            &["Marie"],
+            "je suis marié depuis deux ans",
+            "je suis marié depuis deux ans",
+        ),
+        (&["Marie"], "elle est mariée", "elle est mariée"),
+        (&["Marie"], "ils sont mariés", "ils sont mariés"),
+        (&["Céline"], "elle est câline", "elle est câline"),
+        (&["Clement"], "un hiver clément", "un hiver clément"),
         // A French elision stays in front of the custom word.
         (ELISION_WORDS, "j'adore l'iPhone", "j'adore l'iPhone"),
         (
