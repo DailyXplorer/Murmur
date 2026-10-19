@@ -81,14 +81,19 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         if !(1..=2).contains(&replaced.len()) || replacement.len() != 1 {
             continue;
         }
-        let heard_as = replaced
+        let replaced_core = replaced
             .iter()
             .map(|w| core(w))
             .collect::<Vec<_>>()
             .join(" ");
-        let (heard_as, word) = without_clitics(&heard_as, core(replacement[0]));
-        let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
-        let heard_at_sentence_start = hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]);
+        let replacement_core = core(replacement[0]);
+        let (heard_as, word) = without_clitics(&replaced_core, replacement_core);
+        // A name after a stripped elision does not open the sentence: the
+        // capital of "D'Anthropic" is the user's, not the sentence's.
+        let sentence_start = replacement_core.starts_with(word)
+            && (hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]));
+        let heard_at_sentence_start = replaced_core.starts_with(heard_as)
+            && (hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]));
         let heard_a_term = heard_as
             .split_whitespace()
             .enumerate()
@@ -206,15 +211,15 @@ const ELISIONS: [&str; 12] = [
 
 /// A clitic on both sides is grammar around the name, not part of it:
 /// "clawd's" -> "Claude's" fixes "Claude", and "d'antropic" ->
-/// "d'Anthropic" fixes "Anthropic". Only a lowercase elision is one, so
-/// "O'Brien" stays whole.
+/// "d'Anthropic" fixes "Anthropic", also capitalised at sentence start
+/// ("D'Anthropic"). "O'Brien" stays whole: "o" is not an elision.
 fn without_clitics<'a>(heard: &'a str, word: &'a str) -> (&'a str, &'a str) {
     let elided = |text: &'a str| {
         text.split_once(['\'', '’'])
-            .filter(|(elision, _)| ELISIONS.contains(elision))
+            .filter(|(elision, _)| ELISIONS.contains(&elision.to_lowercase().as_str()))
     };
     let (heard, word) = match (elided(heard), elided(word)) {
-        (Some((a, heard)), Some((b, word))) if a == b => (heard, word),
+        (Some((a, heard)), Some((b, word))) if a.eq_ignore_ascii_case(b) => (heard, word),
         _ => (heard, word),
     };
     let possessive = |text: &'a str| text.strip_suffix("'s").or_else(|| text.strip_suffix("’s"));
@@ -527,6 +532,17 @@ mod tests {
         );
         assert_eq!(
             learned("c'est l’antropic", "c'est l’Anthropic"),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned(
+                "D'antropic, je pense que oui",
+                "D'Anthropic, je pense que oui"
+            ),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("L'antropic a publié", "L'Anthropic a publié"),
             vec![pair("Anthropic", "antropic")]
         );
         assert_eq!(
