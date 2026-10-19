@@ -81,7 +81,7 @@ fn match_score(candidate: &str, key: &str, written_as_name: bool) -> f64 {
     // still use edit distance, but must not receive a phonetic boost. Nor
     // can short words: Soundex keeps their first letter and consonants
     // only, so "lu" sounds like "Lou" and "mille" like "Mila". A short word
-    // written with a capital is a name the transcriber heard, so "Zack"
+    // capitalised mid-sentence is a name the transcriber heard, so "Zack"
     // still becomes "Zach".
     let phonetic_match = supports_soundex(candidate)
         && supports_soundex(key)
@@ -167,19 +167,34 @@ struct SpanMatch<'a> {
     score: f64,
 }
 
+/// A single word whose capital can only mark a name the transcriber heard.
+/// The capital of a sentence opener, an acronym ("PM") or a contraction
+/// ("I've", "J'avoue") says nothing about a name.
+fn written_as_name(span: &[&str], opens_sentence: bool) -> bool {
+    let [word] = span else {
+        return false;
+    };
+    // Trimming, not slicing between the punctuation edges: a word of
+    // punctuation alone ("?", "«") reports itself as both edges.
+    let body = word.trim_matches(|c: char| !c.is_alphanumeric());
+    let letters: Vec<char> = body.chars().filter(|c| c.is_alphabetic()).collect();
+    let acronym = letters.len() >= 2 && letters.iter().all(|c| c.is_uppercase());
+    !opens_sentence
+        && !acronym
+        && body.chars().all(char::is_alphanumeric)
+        && body.starts_with(char::is_uppercase)
+}
+
 /// The closest custom-word key for a span whose edge words both belong to
 /// the match.
 fn match_span<'k>(
     span: &[&str],
+    opens_sentence: bool,
     custom_word_match_keys: &'k [CustomWordMatchKey],
     threshold: f64,
 ) -> Option<(&'k CustomWordMatchKey, f64)> {
     let candidate = build_ngram(span);
-    let written_as_name = span.len() == 1
-        && span[0]
-            .chars()
-            .find(|c| c.is_alphanumeric())
-            .is_some_and(char::is_uppercase);
+    let written_as_name = written_as_name(span, opens_sentence);
     let (key, score) = find_best_match(
         &candidate,
         custom_word_match_keys,
@@ -262,6 +277,10 @@ fn candidate_spans<'a>(
             {
                 continue;
             }
+            let opens_sentence = start == 0
+                || extract_punctuation(words[start - 1])
+                    .1
+                    .contains(['.', '!', '?', ':', '…']);
             let mut best = None;
             let elided = split_elision(span[0]).map(|(elision, rest)| {
                 let mut span = span.to_vec();
@@ -275,7 +294,7 @@ fn candidate_spans<'a>(
                 .is_none_or(|(_, rest)| !is_everyday_word(&build_match_key(rest[0])))
                 .then(|| ("", span.to_vec()));
             for (elision, span) in unsplit.into_iter().chain(elided) {
-                let whole = match_span(&span, custom_word_match_keys, threshold);
+                let whole = match_span(&span, opens_sentence, custom_word_match_keys, threshold);
                 if let Some((key, score)) = whole {
                     if best.is_none_or(|(_, best_score, _, _)| score < best_score) {
                         best = Some((key, score, elision, ""));
@@ -288,7 +307,7 @@ fn candidate_spans<'a>(
                     let mut stemmed = span.clone();
                     stemmed[len - 1] = &stem;
                     if let Some((key, score)) =
-                        match_span(&stemmed, custom_word_match_keys, threshold)
+                        match_span(&stemmed, opens_sentence, custom_word_match_keys, threshold)
                     {
                         if best.is_none_or(|(_, best_score, _, _)| score < best_score) {
                             best = Some((key, score, elision, ending));
@@ -665,7 +684,7 @@ mod tests {
     fn a_short_name_is_corrected_when_one_letter_is_wrong() {
         let cases = [
             ("Zach", "ask Zack first", "ask Zach first"),
-            ("Luka", "Luca est là", "Luka est là"),
+            ("Luka", "je vois Luca demain", "je vois Luka demain"),
             ("Sarah", "call Sara today", "call Sarah today"),
         ];
         for (word, input, expected) in cases {
@@ -687,6 +706,22 @@ mod tests {
             ("May", "le 3 mai"),
             // Not an everyday word on the list: only the length keeps it.
             ("Liz", "je lis un livre"),
+            // A capital that does not mark a name: a proper noun, a
+            // contraction, an acronym, or the first word of a sentence.
+            ("Max", "my Mac is slow"),
+            ("Max", "Mon Mac plante"),
+            ("Ivy", "I've sent it"),
+            ("Ilya", "I'll call you"),
+            ("Leon", "Je vais à Lyon"),
+            ("Mona", "I told Mom"),
+            ("Nina", "Nine people came."),
+            ("Nina", "Done. Nine people came."),
+            ("Pam", "the PM said"),
+            ("Jess", "le code JS"),
+            ("Avi", "the API returns"),
+            ("Java", "J'avoue, c'est pratique"),
+            ("Benny", "Ben, je sais pas"),
+            ("Benny", "ouais Ben je sais pas"),
         ];
         for (word, input) in cases {
             assert_eq!(
@@ -705,6 +740,8 @@ mod tests {
             ("Rosa", "la robe rose"),
             ("Jeanne", "un jean bleu"),
             ("Pierce", "une pierre"),
+            ("Simon", "Sinon, on verra demain"),
+            ("Simon", "appelle-moi, sinon je t'écris"),
         ];
         for (word, input) in cases {
             assert_eq!(
@@ -771,6 +808,28 @@ mod tests {
             assert_eq!(
                 apply_custom_words_counted(input, &words, 0.18),
                 (expected.to_string(), fixes),
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_word_made_only_of_punctuation_stays_as_written() {
+        let words = vec!["Max".to_string()];
+        for (input, expected) in [
+            ("Tu viens ?", "Tu viens ?"),
+            ("C'est ça !", "C'est ça !"),
+            ("Note : demain", "Note : demain"),
+            ("« Bonjour »", "« Bonjour »"),
+            // Words are joined back with plain spaces.
+            ("Tu viens\u{202f}?", "Tu viens ?"),
+            ("R & D", "R & D"),
+            ("this – that", "this – that"),
+            ("wait …", "wait …"),
+        ] {
+            assert_eq!(
+                apply_custom_words_counted(input, &words, 0.18),
+                (expected.to_string(), 0),
                 "input: {input}"
             );
         }
