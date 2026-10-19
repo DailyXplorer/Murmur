@@ -4,6 +4,8 @@ use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use strsim::levenshtein;
+use unicode_normalization::char::is_combining_mark;
+use unicode_normalization::UnicodeNormalization;
 
 /// Builds an n-gram string by cleaning and concatenating words
 ///
@@ -17,38 +19,54 @@ fn build_ngram(words: &[&str]) -> String {
         .concat()
 }
 
-fn build_match_key(word: &str) -> String {
+/// The lowercase letters and digits of a word, accents kept, as the
+/// everyday-word list is written: "Déjà," gives "déjà".
+fn word_key(word: &str) -> String {
     word.chars()
         .filter(|c| c.is_alphanumeric())
         .flat_map(|c| c.to_lowercase())
         .collect()
 }
 
+/// [`word_key`] without accents, so a name compares equal however the
+/// transcriber accented it: "Zoé" and "Zoe" both give "zoe".
+fn build_match_key(word: &str) -> String {
+    word_key(word)
+        .nfd()
+        .filter(|c| !is_combining_mark(*c))
+        .collect()
+}
+
 struct CustomWordMatchKey {
     word_index: usize,
     key: String,
+    /// The [`word_key`] the key was folded from, accents kept.
+    spelling: String,
 }
 
 fn build_custom_word_match_keys(word: &str, word_index: usize) -> Vec<CustomWordMatchKey> {
     let primary_key = build_match_key(word);
     let mut keys = Vec::with_capacity(2);
 
-    // The fallback matcher is intentionally limited to ASCII terms. Its
-    // whitespace tokenization and Soundex scoring are not suitable for CJK
-    // scripts. Unicode custom words are simply skipped by this fallback.
+    // The fallback matcher is intentionally limited to Latin terms. Its
+    // whitespace tokenization is not suitable for CJK scripts, whose custom
+    // words are simply skipped by this fallback.
     if is_supported_fuzzy_key(&primary_key) {
         keys.push(CustomWordMatchKey {
             word_index,
             key: primary_key.clone(),
+            spelling: word_key(word),
         });
     }
 
     if word.contains('&') {
-        let expanded_key = build_match_key(&word.replace('&', " and "));
+        let expanded = word.replace('&', " and ");
+        let expanded_key = build_match_key(&expanded);
         if is_supported_fuzzy_key(&expanded_key) && expanded_key != primary_key {
             keys.push(CustomWordMatchKey {
                 word_index,
                 key: expanded_key,
+                spelling: word_key(&expanded),
             });
         }
     }
@@ -56,8 +74,11 @@ fn build_custom_word_match_keys(word: &str, word_index: usize) -> Vec<CustomWord
     keys
 }
 
+/// A key of Latin letters and digits. Its accents are already gone, but
+/// letters such as "œ" or "ß" remain.
 fn is_supported_fuzzy_key(key: &str) -> bool {
-    !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric())
+    let latin = |c: char| ('\u{c0}'..='\u{24f}').contains(&c) && c.is_alphabetic();
+    !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || latin(c))
 }
 
 fn supports_soundex(key: &str) -> bool {
@@ -223,7 +244,15 @@ fn match_span<'k>(
     // An everyday word is what the user said, unless it is the custom word
     // itself: "an" never becomes "Anne", "mari" never becomes "Marie". A
     // first name is not one: "Lucas" becomes the user's "Lukas".
-    if span.len() == 1 && candidate != key.key && is_everyday_word(&candidate) {
+    if span.len() == 1 && candidate != key.key && is_everyday_word(&word_key(span[0])) {
+        return None;
+    }
+    // In French an accent makes a different word: "marié" is not "Marie",
+    // "câline" is not "Céline". An accented span spelled otherwise than the
+    // custom word is taken for it only when capitalised as a name, as in
+    // "merci Clément" for the user's "Clement".
+    let spelling: String = span.iter().map(|word| word_key(word)).collect();
+    if spelling != candidate && spelling != key.spelling && !written_as_name {
         return None;
     }
     // An edge word that matches no part of the custom word, or does not
@@ -307,7 +336,7 @@ fn candidate_spans<'a>(
             // "l'aura" is not "Laura", "d'une" is not "Dune".
             let unsplit = elided
                 .as_ref()
-                .is_none_or(|(_, rest)| !is_everyday_word(&build_match_key(rest[0])))
+                .is_none_or(|(_, rest)| !is_everyday_word(&word_key(rest[0])))
                 .then(|| ("", span.to_vec()));
             for (elision, span) in unsplit.into_iter().chain(elided) {
                 let whole = match_span(&span, opens_sentence, custom_word_match_keys, threshold);
@@ -771,6 +800,29 @@ mod tests {
         (&["Tomas"], "Thomas arrive", "Tomas arrive"),
         (&["Philipe"], "Philippe arrive", "Philipe arrive"),
         (&["O'Brien"], "call o'brien today", "call O'Brien today"),
+        // An accent the transcriber dropped or added is put back as the
+        // user wrote it.
+        (&["Zoé"], "appelle Zoe demain", "appelle Zoé demain"),
+        (&["Léa"], "j'ai vu Lea hier", "j'ai vu Léa hier"),
+        (&["Anaïs"], "merci Anais", "merci Anaïs"),
+        (&["Loïc"], "dis à Loic de venir", "dis à Loïc de venir"),
+        (&["Noémie"], "Noemie arrive", "Noémie arrive"),
+        (&["Clement"], "merci Clément", "merci Clement"),
+        (&["Zoé"], "c'est Zoé.", "c'est Zoé."),
+        // An accented everyday word is still what the user said.
+        (&["Zoé"], "c'était déjà fait", "c'était déjà fait"),
+        (&["Annie"], "une bonne année", "une bonne année"),
+        // An accent the custom word lacks makes a different word, unless
+        // the transcriber capitalised it as a name.
+        (
+            &["Marie"],
+            "je suis marié depuis deux ans",
+            "je suis marié depuis deux ans",
+        ),
+        (&["Marie"], "elle est mariée", "elle est mariée"),
+        (&["Marie"], "ils sont mariés", "ils sont mariés"),
+        (&["Céline"], "elle est câline", "elle est câline"),
+        (&["Clement"], "un hiver clément", "un hiver clément"),
         // A French elision stays in front of the custom word.
         (ELISION_WORDS, "j'adore l'iPhone", "j'adore l'iPhone"),
         (
