@@ -97,7 +97,7 @@ const APP_COMMANDS: &[&str] = &[
     "download_meeting_models",
     "cancel_meeting_models_download",
     "delete_meeting_models",
-    "get_meeting_markdown",
+    "copy_meeting_markdown",
     "export_meeting_markdown",
     "get_meeting_capabilities",
     "get_system_audio_permission",

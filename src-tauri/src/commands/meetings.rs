@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::meetings::coordinator::MeetingRuntime;
 use crate::meetings::models::MeetingModelsStatus;
@@ -107,18 +108,28 @@ pub async fn retry_meeting(app: AppHandle, id: i64) -> Result<(), String> {
     .await
 }
 
-/// The summary or the transcript as Markdown, exactly as Export saves it.
+/// Puts the summary or the transcript on the clipboard as Markdown, exactly
+/// as Export saves it. The app writes it, not the webview: WebKit before
+/// Safari 26.4 refuses a webview clipboard write that waited on a command.
 #[tauri::command]
 #[specta::specta]
-pub async fn get_meeting_markdown(
+pub async fn copy_meeting_markdown(
     app: AppHandle,
     id: i64,
     kind: MeetingMarkdownKind,
-) -> Result<String, String> {
-    with_manager(app, move |manager| {
-        manager.markdown(id, kind).map(|(text, _)| text)
+) -> Result<(), String> {
+    let (markdown, _) =
+        with_manager(app.clone(), move |manager| manager.markdown(id, kind)).await?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let clipboard_app = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(clipboard_app.clipboard().write_text(markdown));
     })
-    .await
+    .map_err(|error| format!("Cannot reach the clipboard: {error}"))?;
+    receiver
+        .await
+        .map_err(|_| "The clipboard write did not run".to_string())?
+        .map_err(|error| format!("Cannot copy the meeting notes: {error}"))
 }
 
 /// Asks where to save the summary or the transcript and writes it there.

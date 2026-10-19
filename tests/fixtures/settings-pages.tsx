@@ -386,8 +386,6 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
       : [],
 });
 const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
-const MARKDOWN = "# Point hebdo produit\n\n## Transcript\n";
-const SUMMARY_MARKDOWN = "# Point hebdo produit\n\n## Summary\n";
 
 /** Commands whose answer depends on their arguments or changes the data. */
 let meetingLoadsHeld: Promise<void> | null = null;
@@ -434,11 +432,6 @@ const handleMeetingCommand = (
         if (speaker.key === args.key) speaker.name = String(args.name);
       });
       return { handled: true, value: null };
-    case "get_meeting_markdown":
-      return {
-        handled: true,
-        value: args.kind === "summary" ? SUMMARY_MARKDOWN : MARKDOWN,
-      };
     case "retry_meeting_summary":
       // Codex answers at once.
       if (meeting) {
@@ -460,6 +453,7 @@ const handleMeetingCommand = (
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   change_meetings_enabled_setting: null,
+  copy_meeting_markdown: null,
   discard_meeting: null,
   export_meeting_markdown: "/Users/user/Documents/2025-10-08 Point hebdo.md",
   retry_meeting: null,

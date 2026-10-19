@@ -822,11 +822,13 @@ async deleteMeetingModels() : Promise<Result<null, string>> {
 }
 },
 /**
- * The summary or the transcript as Markdown, exactly as Export saves it.
+ * Puts the summary or the transcript on the clipboard as Markdown, exactly
+ * as Export saves it. The app writes it, not the webview: WebKit before
+ * Safari 26.4 refuses a webview clipboard write that waited on a command.
  */
-async getMeetingMarkdown(id: number, kind: MeetingMarkdownKind) : Promise<Result<string, string>> {
+async copyMeetingMarkdown(id: number, kind: MeetingMarkdownKind) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_meeting_markdown", { id, kind }) };
+    return { status: "ok", data: await TAURI_INVOKE("copy_meeting_markdown", { id, kind }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
