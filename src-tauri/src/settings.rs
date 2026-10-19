@@ -1,9 +1,13 @@
-use log::{debug, warn};
+use chrono::{DateTime, Utc};
+use log::{debug, error, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::fs;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
@@ -761,6 +765,117 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
     }
 }
 
+/// What replaced a damaged settings file at launch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsRecovery {
+    /// The copy kept at the last launch that could read the file.
+    Restored,
+    /// The defaults, except that no history is deleted until the user
+    /// chooses how long to keep it.
+    Reset,
+}
+
+/// Checks the settings file before anything reads it. The store takes a
+/// file it cannot read for a first launch and saves the defaults over it,
+/// and its saves are not atomic: one cut short by a full disk or a power
+/// cut would reset every setting, and the default history limit would then
+/// delete all but 5 dictations. A damaged file is kept as
+/// `<name>.corrupt-<time>`, like a damaged database, and replaced.
+pub fn recover_damaged_store(app: &AppHandle) -> Option<SettingsRecovery> {
+    let path = match tauri_plugin_store::resolve_store_path(app, SETTINGS_STORE_PATH) {
+        Ok(path) => path,
+        Err(error) => {
+            warn!("Cannot locate the settings file: {error}");
+            return None;
+        }
+    };
+    let (recovery, settings) = check_store_file(&path, Utc::now())?;
+    // This launch reads the replacement even when the disk refused it.
+    if let Err(error) = app
+        .store_builder(SETTINGS_STORE_PATH)
+        .default("settings", settings)
+        .build()
+    {
+        error!("Cannot open the settings store: {error}");
+    }
+    Some(recovery)
+}
+
+/// `None` when the file holds settings, which are then copied to
+/// `<name>.bak`, or does not exist yet. A damaged file gives what replaced
+/// it: that copy, or the defaults.
+fn check_store_file(
+    path: &Path,
+    now: DateTime<Utc>,
+) -> Option<(SettingsRecovery, serde_json::Value)> {
+    let backup = with_suffix(path, "bak");
+    match fs::read(path) {
+        Ok(bytes) if stored_settings(&bytes).is_some() => {
+            if let Err(error) = write_atomically(&backup, &bytes) {
+                warn!("Cannot keep a copy of the settings: {error}");
+            }
+            return None;
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+        _ => {}
+    }
+
+    let (recovery, settings) = match fs::read(&backup).ok().and_then(|b| stored_settings(&b)) {
+        Some(settings) => (SettingsRecovery::Restored, settings),
+        None => {
+            let mut settings = get_default_settings();
+            settings.recording_retention_period = RecordingRetentionPeriod::Never;
+            let settings = serde_json::to_value(settings).expect("settings serialize to JSON");
+            (SettingsRecovery::Reset, settings)
+        }
+    };
+    let kept_as = with_suffix(path, &format!("corrupt-{}", now.format("%Y%m%d-%H%M%S")));
+    error!(
+        "The settings file is damaged; keeping it as {} ({recovery:?})",
+        kept_as.display()
+    );
+    if let Err(error) = fs::hard_link(path, &kept_as) {
+        error!("Cannot keep the damaged settings file: {error}");
+    }
+    let bytes = serde_json::to_vec_pretty(&serde_json::json!({ "settings": settings }))
+        .expect("settings serialize to JSON");
+    if let Err(error) = write_atomically(path, &bytes) {
+        error!("Cannot replace the damaged settings file: {error}");
+    }
+    Some((recovery, settings))
+}
+
+/// The settings object of a store file, `None` when it cannot be read.
+fn stored_settings(bytes: &[u8]) -> Option<serde_json::Value> {
+    let mut store: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(bytes).ok()?;
+    store
+        .remove("settings")
+        .filter(serde_json::Value::is_object)
+}
+
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".{suffix}"));
+    PathBuf::from(name)
+}
+
+/// Writes a temporary file, then renames it over `path`, so a crash leaves
+/// the old file or the new one, never part of one.
+fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let temporary = with_suffix(path, "tmp");
+    let result = (|| {
+        let mut file = fs::File::create(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
 /// Rebuilds settings from a store value that failed to deserialize as a whole.
 /// Every stored field that is individually valid is kept; only broken values
 /// (e.g. an enum variant written by a newer or older version) fall back to
@@ -856,6 +971,84 @@ mod tests {
 
     fn default_settings_json() -> serde_json::Value {
         serde_json::to_value(get_default_settings()).unwrap()
+    }
+
+    fn launched_at() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-10-19T09:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn store_bytes(settings: &AppSettings) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({ "settings": settings })).unwrap()
+    }
+
+    fn recovered(path: &Path) -> Option<SettingsRecovery> {
+        check_store_file(path, launched_at()).map(|(recovery, _)| recovery)
+    }
+
+    fn settings_in(path: &Path) -> AppSettings {
+        let store: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        parse_stored_settings(&store["settings"]).0
+    }
+
+    /// A settings write cut short (a full disk, a power cut) used to read as
+    /// a first launch: every setting back to its default, and the default
+    /// history limit of 5 deleting the rest of the history.
+    #[test]
+    fn a_damaged_settings_file_is_set_aside_and_the_last_good_copy_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
+        let mut chosen = get_default_settings();
+        chosen.onboarding_completed = true;
+        chosen.history_limit = MAX_HISTORY_LIMIT;
+        std::fs::write(&path, store_bytes(&chosen)).unwrap();
+        assert_eq!(recovered(&path), None);
+
+        std::fs::write(&path, b"").unwrap();
+        assert_eq!(recovered(&path), Some(SettingsRecovery::Restored));
+        let restored = settings_in(&path);
+        assert!(restored.onboarding_completed);
+        assert_eq!(restored.history_limit, MAX_HISTORY_LIMIT);
+        let set_aside = dir
+            .path()
+            .join("settings_store.json.corrupt-20261019-090000");
+        assert_eq!(std::fs::read(set_aside).unwrap(), b"");
+    }
+
+    #[test]
+    fn a_damaged_settings_file_without_a_good_copy_keeps_the_whole_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
+        let cut_short = store_bytes(&get_default_settings())[..40].to_vec();
+        std::fs::write(&path, &cut_short).unwrap();
+
+        let (recovery, seeded) = check_store_file(&path, launched_at()).unwrap();
+        assert_eq!(recovery, SettingsRecovery::Reset);
+        let reset = settings_in(&path);
+        // This launch reads the same settings, whatever reached the disk.
+        assert_eq!(
+            serde_json::to_value(parse_stored_settings(&seeded).0).unwrap(),
+            serde_json::to_value(&reset).unwrap()
+        );
+        assert_eq!(
+            reset.recording_retention_period,
+            RecordingRetentionPeriod::Never
+        );
+        assert!(!reset.onboarding_completed);
+        let set_aside = dir
+            .path()
+            .join("settings_store.json.corrupt-20261019-090000");
+        assert_eq!(std::fs::read(set_aside).unwrap(), cut_short);
+    }
+
+    #[test]
+    fn a_first_launch_has_no_settings_file_to_repair() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
+        assert_eq!(recovered(&path), None);
+        assert!(!path.exists());
     }
 
     /// Every field must survive a partial store: a missing key must never fail

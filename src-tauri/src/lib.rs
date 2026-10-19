@@ -779,6 +779,9 @@ pub fn run(cli_args: CliArgs) {
         .manage(cli_args.clone())
         .setup(move |app| {
             specta_builder.mount_events(app);
+            // Before anything reads the settings, which would take a damaged
+            // file for a first launch and save the defaults over it.
+            let settings_recovery = settings::recover_damaged_store(app.handle());
 
             // Headless one-shot path (`--transcribe-file`): only the transcription
             // manager is created, then a worker thread transcribes and exits. It
@@ -846,6 +849,9 @@ pub fn run(cli_args: CliArgs) {
             app.manage(TranscriptionCoordinator::new(app_handle.clone()));
 
             initialize_core_logic(&app_handle);
+            if let Some(recovery) = settings_recovery {
+                user_alert::show(&app_handle, user_alert::Alert::SettingsRecovered(recovery));
+            }
 
             // Populate the overlay-enabled cache from initial settings so the
             // audio path (overlay::emit_levels, called ~24 Hz during recording)

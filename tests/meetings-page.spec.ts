@@ -205,6 +205,36 @@ test("discarding names the meeting, and the dialog closes once that meeting stop
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("a Discard dialog its meeting outlived never opens for the next meeting", async ({
+  page,
+}) => {
+  await openMeetings(page, "&meeting=recording");
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  // The meeting stops from the shortcut instead, the user deletes it, and
+  // the next meeting gets its id back.
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({ state: "idle" }),
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({
+      id: 4,
+      started_at_ms: Date.now(),
+      state: "recording",
+      stops_at_ms: Date.now() + 3 * 3_600_000,
+      tracks: "both",
+    }),
+  );
+  await expect(
+    page.getByRole("button", { name: "Stop", exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(100);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await calls(page)).not.toContain("discard_meeting");
+});
+
 test("without system audio support the sources are fixed to the microphone", async ({
   page,
 }) => {

@@ -201,8 +201,7 @@ pub fn parse(output: &str, speakers: &[MeetingSpeaker]) -> Result<Summary, Summa
                     .iter()
                     .map(|speaker| (speaker.key.as_str(), speaker.name.clone()))
                     .collect();
-                let heading = resolve_markers(heading, &names);
-                title = Some(heading.chars().take(MAX_TITLE_CHARS).collect::<String>());
+                title = Some(named_title(heading, &names));
             }
             lines.remove(first);
         }
@@ -231,6 +230,14 @@ fn flatten_list(line: &str) -> String {
         }
         _ => line.trim_end().to_string(),
     }
+}
+
+/// A title with its markers replaced by names, cut to the title limit.
+pub fn named_title(title: &str, names: &HashMap<&str, String>) -> String {
+    resolve_markers(title, names)
+        .chars()
+        .take(MAX_TITLE_CHARS)
+        .collect()
 }
 
 /// Replaces each `[[key]]` with the speaker's name, or with the bare key

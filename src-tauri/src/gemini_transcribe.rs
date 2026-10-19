@@ -988,14 +988,18 @@ fn friendly_transcription_error(error: anyhow::Error) -> anyhow::Error {
         ) || message.contains("authentication")
             || message.contains("sign in")
         {
-            return anyhow!(
-                "Gemini transcription session expired. Open Antigravity, sign in again, and retry."
-            );
+            return TranscriptionError::new(
+                FailureKind::SessionExpired,
+                "Gemini transcription session expired. Open Antigravity, sign in again, and retry.",
+            )
+            .into();
         }
         if message.contains("no available audio transcription models") {
-            return anyhow!(
-                "Gemini transcription is unavailable in this Antigravity session. Open Antigravity, check the session, and retry."
-            );
+            return TranscriptionError::new(
+                FailureKind::Rejected,
+                "Gemini transcription is unavailable in this Antigravity session. Open Antigravity, check the session, and retry.",
+            )
+            .into();
         }
     }
     error
@@ -1339,6 +1343,33 @@ mod tests {
     #[test]
     fn missing_antigravity_bundle_version_has_no_murmur_fallback() {
         assert_eq!(antigravity_version(Path::new("language_server")), None);
+    }
+
+    #[test]
+    fn an_ended_antigravity_session_is_a_session_failure_not_a_retry() {
+        let kind = |status: Status| {
+            let error = anyhow::Error::new(status).context("Gemini transcription failed");
+            TranscriptionError::kind_of(&friendly_transcription_error(error))
+        };
+        assert_eq!(
+            kind(Status::unauthenticated("token expired")),
+            FailureKind::SessionExpired
+        );
+        assert_eq!(
+            kind(Status::permission_denied("denied")),
+            FailureKind::SessionExpired
+        );
+        assert_eq!(
+            kind(Status::internal("Please sign in again")),
+            FailureKind::SessionExpired
+        );
+        assert_eq!(
+            kind(Status::failed_precondition(
+                "No available audio transcription models"
+            )),
+            FailureKind::Rejected
+        );
+        assert_eq!(kind(Status::unavailable("busy")), FailureKind::Other);
     }
 
     #[test]

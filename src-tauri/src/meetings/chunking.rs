@@ -72,7 +72,8 @@ fn frame_of(ms: u64) -> usize {
     (ms / FRAME_MS) as usize
 }
 
-fn voiced_ms(levels: &[f32], threshold: Option<f32>, start_ms: u64, end_ms: u64) -> u64 {
+/// Milliseconds of `[start_ms, end_ms)` at or above `threshold`.
+pub fn voiced_ms(levels: &[f32], threshold: Option<f32>, start_ms: u64, end_ms: u64) -> u64 {
     let Some(threshold) = threshold else {
         return 0;
     };

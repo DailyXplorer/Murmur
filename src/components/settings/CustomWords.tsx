@@ -133,7 +133,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                   >
                     <span className="min-w-0 truncate">{word}</span>
                     {heardAs !== undefined && (
-                      <span className="shrink-0 rounded bg-logo-primary/20 px-1 text-[10px] font-medium text-logo-primary">
+                      <span className="shrink-0 rounded bg-on-accent/15 px-1 text-[10px] font-medium text-on-accent">
                         {t("settings.advanced.customWords.learned")}
                       </span>
                     )}
