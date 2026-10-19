@@ -200,6 +200,7 @@ mod tests {
         assert_eq!(key("c’est"), key("c'est"));
         assert_eq!(key("C'est-à-dire"), "cestadire");
         assert_eq!(key("2030,"), "2030");
+        assert_eq!(key("你好。"), "你好");
     }
 
     #[test]
@@ -224,58 +225,89 @@ mod tests {
         );
     }
 
-    #[test]
-    fn spaced_closing_marks_and_titles_stay_in_their_sentence() {
-        assert_eq!(
-            texts(&sentences(
-                "« On verra. » D'accord. Il a dit (oui. ) puis « Et » non. \
-                 J'ai vu M. Dupont et Mme. Martin. Dr. Who. Il est là."
-            )),
-            [
+    /// Every transcript the sentence splitter has been checked on, with the
+    /// sentences it must give. Text after the last stop is a sentence too.
+    /// Add a row for each new case; never edit an old one to make a change
+    /// pass.
+    const CORPUS: &[(&str, &[&str])] = &[
+        ("   ", &[]),
+        (
+            "  Bonjour à tous.  On commence ?\nOui, allons-y et puis",
+            &["Bonjour à tous.", "On commence ?", "Oui, allons-y et puis"],
+        ),
+        (
+            "Oui. Vraiment ? Non ! Bon… (voilà.) « Et » puis",
+            &[
+                "Oui.",
+                "Vraiment ?",
+                "Non !",
+                "Bon…",
+                "(voilà.)",
+                "« Et » puis",
+            ],
+        ),
+        // A closing mark written apart stays with its sentence.
+        (
+            "« On verra. » D'accord. Il a dit (oui. ) puis « Et » non. \
+             J'ai vu M. Dupont et Mme. Martin. Dr. Who. Il est là.",
+            &[
                 "« On verra. »",
                 "D'accord.",
                 "Il a dit (oui. )",
                 "puis « Et » non.",
                 "J'ai vu M. Dupont et Mme. Martin.",
                 "Dr. Who.",
-                "Il est là."
-            ]
-        );
+                "Il est là.",
+            ],
+        ),
+        (
+            "Il a dit « oui. » ) puis non.",
+            &["Il a dit « oui. » )", "puis non."],
+        ),
         // A straight quote may open the next sentence as well as close one.
-        assert_eq!(
-            texts(&sentences("C'est fini. \" Bonjour \" dit-il.")),
-            ["C'est fini.", "\" Bonjour \" dit-il."]
-        );
+        (
+            "C'est fini. \" Bonjour \" dit-il.",
+            &["C'est fini.", "\" Bonjour \" dit-il."],
+        ),
         // A title never ends a sentence, whatever follows it.
-        assert_eq!(
-            texts(&sentences(
-                "J'ai parlé à M. le directeur hier. (M. Dupont) et «Mme. la présidente» aussi."
-            )),
-            [
+        (
+            "J'ai parlé à M. le directeur hier. (M. Dupont) et «Mme. la présidente» aussi.",
+            &[
                 "J'ai parlé à M. le directeur hier.",
-                "(M. Dupont) et «Mme. la présidente» aussi."
-            ]
-        );
-        assert_eq!(texts(&sentences("Bonjour M. merci")), ["Bonjour M. merci"]);
-    }
+                "(M. Dupont) et «Mme. la présidente» aussi.",
+            ],
+        ),
+        ("Bonjour M. merci", &["Bonjour M. merci"]),
+        (
+            "M. de Gaulle a parlé. Bon.",
+            &["M. de Gaulle a parlé.", "Bon."],
+        ),
+        (
+            "Il a dit «M. le maire arrive». Bon.",
+            &["Il a dit «M. le maire arrive».", "Bon."],
+        ),
+        // CJK text splits after each full stop, closing mark included.
+        (
+            "你好。我们开始吧！好的",
+            &["你好。", "我们开始吧！", "好的"],
+        ),
+        (
+            "我们开会吧。今天讨论预算。",
+            &["我们开会吧。", "今天讨论预算。"],
+        ),
+        ("「好的。」我们走吧。", &["「好的。」", "我们走吧。"]),
+    ];
 
     #[test]
-    fn text_splits_into_sentences_without_losing_words() {
-        let text = "  Bonjour à tous.  On commence ?\nOui, allons-y et puis";
-        assert_eq!(
-            texts(&sentences(text)),
-            ["Bonjour à tous.", "On commence ?", "Oui, allons-y et puis"]
-        );
-        assert!(sentences("   ").is_empty());
-    }
-
-    #[test]
-    fn cjk_text_splits_after_each_full_stop() {
-        assert_eq!(
-            texts(&sentences("你好。我们开始吧！好的")),
-            ["你好。", "我们开始吧！", "好的"]
-        );
-        assert_eq!(key("你好。"), "你好");
+    fn sentence_corpus() {
+        let failures: Vec<String> = CORPUS
+            .iter()
+            .filter_map(|(text, expected)| {
+                let got = texts(&sentences(text));
+                (got != *expected).then(|| format!("{text:?}: got {got:?}, want {expected:?}"))
+            })
+            .collect();
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 
     #[test]

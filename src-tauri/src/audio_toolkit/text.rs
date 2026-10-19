@@ -544,12 +544,276 @@ pub fn normalize_transcription_output(text: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The default custom-word threshold (`settings.rs`).
+    const THRESHOLD: f64 = 0.18;
+
+    const PRODUCTS: &[&str] = &["iPhone", "ChatGPT", "OpenAI", "ChargeBee"];
+    const ENDING_WORDS: &[&str] = &["ChatGPT", "iPhone", "Figma", "Dan"];
+    const ELISION_WORDS: &[&str] = &[
+        "iPhone",
+        "Anthropic",
+        "Excel",
+        "D'Angelo",
+        "Apple",
+        "Emile",
+        "Laura",
+        "Dune",
+    ];
+
+    /// Every dictated sentence the custom-word pass has been checked on:
+    /// custom words, what Codex wrote, what is pasted. Add a row for each
+    /// new case; never edit an old one to make a change pass.
+    const CORPUS: &[(&[&str], &str, &str)] = &[
+        (&[], "hello world", "hello world"),
+        (&["Hello", "World"], "hello world", "Hello World"),
+        (&["hello", "Murmur"], "helo from Murmur", "helo from Murmur"),
+        // A lone capital letter is not shouting.
+        (&["iPhone", "Xcode"], "I phone died", "iPhone died"),
+        (&["iPhone", "Xcode"], "open X code now", "open Xcode now"),
+        (
+            &["iPhone", "Xcode"],
+            "Hi. X code crashed.",
+            "Hi. Xcode crashed.",
+        ),
+        // A fuzzy span starting one word early must not beat the exact span
+        // after it.
+        (PRODUCTS, "my I phone died", "my iPhone died"),
+        (PRODUCTS, "the chat GPT app", "the ChatGPT app"),
+        (PRODUCTS, "open AI is", "OpenAI is"),
+        (PRODUCTS, "charge B is great", "ChargeBee is great"),
+        // A trailing ordinary word adds nothing to the match.
+        (
+            &["ChargeBee"],
+            "we use charge it daily",
+            "we use charge it daily",
+        ),
+        (&["ChatGPT"], "the chat app works", "the chat app works"),
+        // Adjacent custom words each keep their own span.
+        (PRODUCTS, "open AI chat GPT", "OpenAI ChatGPT"),
+        (
+            PRODUCTS,
+            "my I phone, chat GPT and charge B.",
+            "my iPhone, ChatGPT and ChargeBee.",
+        ),
+        (PRODUCTS, "mon I phone est mort", "mon iPhone est mort"),
+        (
+            PRODUCTS,
+            "j'utilise chat GPT tous les jours",
+            "j'utilise ChatGPT tous les jours",
+        ),
+        (
+            PRODUCTS,
+            "on a signé avec charge B hier",
+            "on a signé avec ChargeBee hier",
+        ),
+        (
+            PRODUCTS,
+            "le modèle open AI est rapide",
+            "le modèle OpenAI est rapide",
+        ),
+        (PRODUCTS, "we met at noon", "we met at noon"),
+        (PRODUCTS, "je mange une pomme", "je mange une pomme"),
+        (PRODUCTS, "my iPhone died", "my iPhone died"),
+        // Multi-word spans.
+        (
+            &["ChargeBee"],
+            "il cui nome è Charge B, che permette",
+            "il cui nome è ChargeBee, che permette",
+        ),
+        (
+            &["ChatGPT"],
+            "use Chat G P T for this",
+            "use ChatGPT for this",
+        ),
+        (&["OpenAI", "GPT"], "Open AI GPT model", "OpenAI GPT model"),
+        (&["ChargeBee"], "CHARGE B is great", "CHARGEBEE is great"),
+        (&["MacBook Pro"], "using Mac Book Pro", "using MacBook Pro"),
+        (&["GPT-4"], "use GPT4 for this", "use GPT-4 for this"),
+        (
+            &["R&D"],
+            "send it to RD for review",
+            "send it to R&D for review",
+        ),
+        (
+            &["R&D"],
+            "send it to R and D for review",
+            "send it to R&D for review",
+        ),
+        (
+            &["R&D"],
+            "send it to R&D for review",
+            "send it to R&D for review",
+        ),
+        (&["Murmur"], "「Murmurr。」", "「Murmur。」"),
+        // Possessive and plural endings stay on the custom word.
+        (ENDING_WORDS, "ChatGPT's answer", "ChatGPT's answer"),
+        (ENDING_WORDS, "ChatGPT’s answer", "ChatGPT’s answer"),
+        (ENDING_WORDS, "both iPhones died", "both iPhones died"),
+        (ENDING_WORDS, "two Figmas.", "two Figmas."),
+        (ENDING_WORDS, "ask chat gpt's view", "ask ChatGPT's view"),
+        (ENDING_WORDS, "my I phones", "my iPhones"),
+        (
+            ENDING_WORDS,
+            "je vais dans le bureau",
+            "je vais dans le bureau",
+        ),
+        // A short name never rewrites an everyday word.
+        (&["Anne"], "I ate an apple", "I ate an apple"),
+        (&["Anne"], "il y a un an", "il y a un an"),
+        (&["Marc"], "ça marche bien", "ça marche bien"),
+        (&["Marie"], "mon mari arrive", "mon mari arrive"),
+        (&["Jean"], "j'en ai marre", "j'en ai marre"),
+        (&["Paul"], "un pull rouge", "un pull rouge"),
+        // The name itself, in any case, still takes the user's spelling.
+        (&["Anne"], "ask anne first", "ask Anne first"),
+        (&["Marc"], "MARC est là", "MARC est là"),
+        // A short name with one letter wrong is corrected mid-sentence.
+        (&["Zach"], "ask Zack first", "ask Zach first"),
+        (&["Luka"], "je vois Luca demain", "je vois Luka demain"),
+        (&["Sarah"], "call Sara today", "call Sarah today"),
+        (&["Zach"], "ask Zack's mother", "ask Zach's mother"),
+        (
+            &["Zach"],
+            "j'ai dit «Zack» deux fois",
+            "j'ai dit «Zach» deux fois",
+        ),
+        // A title's full stop ends no sentence.
+        (&["Zach"], "ask Dr. Zack first", "ask Dr. Zach first"),
+        (&["Luka"], "j'ai vu M. Luca hier", "j'ai vu M. Luka hier"),
+        // A short everyday word that sounds like a name is kept.
+        (&["Lou"], "je l'ai lu hier", "je l'ai lu hier"),
+        (&["Mona"], "c'est mon idée", "c'est mon idée"),
+        (&["Mona"], "Mon idée est simple", "Mon idée est simple"),
+        (&["Moon"], "mon téléphone", "mon téléphone"),
+        (&["May"], "le 3 mai", "le 3 mai"),
+        // Not an everyday word on the list: only the length keeps it.
+        (&["Liz"], "je lis un livre", "je lis un livre"),
+        // A capital that does not mark a name: a proper noun, a contraction,
+        // an acronym, or the first word of a sentence.
+        (&["Max"], "my Mac is slow", "my Mac is slow"),
+        (&["Max"], "Mon Mac plante", "Mon Mac plante"),
+        (&["Ivy"], "I've sent it", "I've sent it"),
+        (&["Ilya"], "I'll call you", "I'll call you"),
+        (&["Leon"], "Je vais à Lyon", "Je vais à Lyon"),
+        (&["Mona"], "I told Mom", "I told Mom"),
+        (&["Nina"], "Nine people came.", "Nine people came."),
+        (
+            &["Nina"],
+            "Done. Nine people came.",
+            "Done. Nine people came.",
+        ),
+        (&["Sarah"], "Sara, can you call me", "Sara, can you call me"),
+        (&["Sarah"], "Présents : Sara", "Présents : Sara"),
+        // A closing mark written apart, after the sentence end.
+        (
+            &["Alex"],
+            "Il a crié « on a gagné ! » Allez, on rentre.",
+            "Il a crié « on a gagné ! » Allez, on rentre.",
+        ),
+        (
+            &["Alex"],
+            "Il a crié \" on a gagné ! \" Allez, on rentre.",
+            "Il a crié \" on a gagné ! \" Allez, on rentre.",
+        ),
+        (
+            &["Alex"],
+            "Il a crié (on a gagné ! ) Allez, on rentre.",
+            "Il a crié (on a gagné ! ) Allez, on rentre.",
+        ),
+        (&["Pam"], "the PM said", "the PM said"),
+        (&["Jess"], "le code JS", "le code JS"),
+        (&["Avi"], "the API returns", "the API returns"),
+        (
+            &["Java"],
+            "J'avoue, c'est pratique",
+            "J'avoue, c'est pratique",
+        ),
+        (&["Benny"], "Ben, je sais pas", "Ben, je sais pas"),
+        (&["Benny"], "ouais Ben je sais pas", "ouais Ben je sais pas"),
+        // A first name that is also an everyday word is kept.
+        (&["Clara"], "une réponse claire", "une réponse claire"),
+        (&["Ross"], "un pull rose", "un pull rose"),
+        (&["Rosa"], "la robe rose", "la robe rose"),
+        (&["Jeanne"], "un jean bleu", "un jean bleu"),
+        (&["Pierce"], "une pierre", "une pierre"),
+        (
+            &["Simon"],
+            "Sinon, on verra demain",
+            "Sinon, on verra demain",
+        ),
+        (
+            &["Simon"],
+            "appelle-moi, sinon je t'écris",
+            "appelle-moi, sinon je t'écris",
+        ),
+        // A custom spelling overrides a common first name.
+        (&["Lukas"], "Lucas a appelé", "Lukas a appelé"),
+        (&["Nicholas"], "merci Nicolas", "merci Nicholas"),
+        (&["Sofie"], "Sophie arrive", "Sofie arrive"),
+        (&["Tomas"], "Thomas arrive", "Tomas arrive"),
+        (&["Philipe"], "Philippe arrive", "Philipe arrive"),
+        (&["O'Brien"], "call o'brien today", "call O'Brien today"),
+        // A French elision stays in front of the custom word.
+        (ELISION_WORDS, "j'adore l'iPhone", "j'adore l'iPhone"),
+        (
+            ELISION_WORDS,
+            "le modèle d'Anthropic",
+            "le modèle d'Anthropic",
+        ),
+        (
+            ELISION_WORDS,
+            "le modèle d’Anthropic.",
+            "le modèle d’Anthropic.",
+        ),
+        (ELISION_WORDS, "un fichier d'excel", "un fichier d'Excel"),
+        (ELISION_WORDS, "L'I phone est mort", "L'iPhone est mort"),
+        (
+            ELISION_WORDS,
+            "la musique de D'Angelo",
+            "la musique de D'Angelo",
+        ),
+        // An everyday word after the elision is what the user said.
+        (
+            ELISION_WORDS,
+            "Bonjour, je m'appelle Marc",
+            "Bonjour, je m'appelle Marc",
+        ),
+        (ELISION_WORDS, "il s'appelle Paul", "il s'appelle Paul"),
+        (ELISION_WORDS, "on s'appelle demain", "on s'appelle demain"),
+        (ELISION_WORDS, "je t'appelle", "je t'appelle"),
+        (ELISION_WORDS, "il appelle demain", "il appelle demain"),
+        (ELISION_WORDS, "envoie-moi l'email", "envoie-moi l'email"),
+        (ELISION_WORDS, "un email", "un email"),
+        (ELISION_WORDS, "il l'aura demain", "il l'aura demain"),
+        (ELISION_WORDS, "elle l'aura vu", "elle l'aura vu"),
+        (ELISION_WORDS, "la fin d'une époque", "la fin d'une époque"),
+        (ELISION_WORDS, "demande à laura", "demande à Laura"),
+        // A word made only of punctuation stays as written; words are
+        // joined back with plain spaces.
+        (&["Max"], "Tu viens ?", "Tu viens ?"),
+        (&["Max"], "C'est ça !", "C'est ça !"),
+        (&["Max"], "Note : demain", "Note : demain"),
+        (&["Max"], "« Bonjour »", "« Bonjour »"),
+        (&["Max"], "Tu viens\u{202f}?", "Tu viens ?"),
+        (&["Max"], "R & D", "R & D"),
+        (&["Max"], "this – that", "this – that"),
+        (&["Max"], "wait …", "wait …"),
+    ];
+
     #[test]
-    fn test_apply_custom_words_exact_match() {
-        let text = "hello world";
-        let custom_words = vec!["Hello".to_string(), "World".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "Hello World");
+    fn custom_word_corpus() {
+        let failures: Vec<String> = CORPUS
+            .iter()
+            .filter_map(|(words, input, expected)| {
+                let words: Vec<String> = words.iter().map(|word| word.to_string()).collect();
+                let (text, fixes) = apply_custom_words_counted(input, &words, THRESHOLD);
+                let respaced = input.split_whitespace().collect::<Vec<_>>().join(" ");
+                (text != *expected || (fixes > 0) != (text != respaced)).then(|| {
+                    format!("{words:?} {input:?}: got {text:?} ({fixes} fixes), want {expected:?}")
+                })
+            })
+            .collect();
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 
     #[test]
@@ -580,284 +844,6 @@ mod tests {
     }
 
     #[test]
-    fn a_capital_letter_word_does_not_shout_the_custom_word() {
-        let custom_words = vec!["iPhone".to_string(), "Xcode".to_string()];
-        assert_eq!(
-            apply_custom_words("I phone died", &custom_words, 0.5),
-            "iPhone died"
-        );
-        assert_eq!(
-            apply_custom_words("open X code now", &custom_words, 0.5),
-            "open Xcode now"
-        );
-        assert_eq!(
-            apply_custom_words("Hi. X code crashed.", &custom_words, 0.5),
-            "Hi. Xcode crashed."
-        );
-    }
-
-    #[test]
-    fn a_custom_word_match_never_swallows_a_neighbouring_word() {
-        let all = &["iPhone", "ChatGPT", "OpenAI", "ChargeBee"][..];
-        let cases: &[(&[&str], &str, &str)] = &[
-            // A fuzzy span starting one word early must not beat the exact
-            // span after it.
-            (all, "my I phone died", "my iPhone died"),
-            (all, "the chat GPT app", "the ChatGPT app"),
-            (all, "open AI is", "OpenAI is"),
-            (all, "charge B is great", "ChargeBee is great"),
-            // A trailing ordinary word adds nothing to the match.
-            (
-                &["ChargeBee"],
-                "we use charge it daily",
-                "we use charge it daily",
-            ),
-            (&["ChatGPT"], "the chat app works", "the chat app works"),
-            // Adjacent custom words each keep their own span.
-            (all, "open AI chat GPT", "OpenAI ChatGPT"),
-            (
-                all,
-                "my I phone, chat GPT and charge B.",
-                "my iPhone, ChatGPT and ChargeBee.",
-            ),
-            (all, "mon I phone est mort", "mon iPhone est mort"),
-            (
-                all,
-                "j'utilise chat GPT tous les jours",
-                "j'utilise ChatGPT tous les jours",
-            ),
-            (
-                all,
-                "on a signé avec charge B hier",
-                "on a signé avec ChargeBee hier",
-            ),
-            (
-                all,
-                "le modèle open AI est rapide",
-                "le modèle OpenAI est rapide",
-            ),
-            (all, "we met at noon", "we met at noon"),
-            (all, "je mange une pomme", "je mange une pomme"),
-            (all, "my iPhone died", "my iPhone died"),
-        ];
-        for (words, input, expected) in cases {
-            let custom_words: Vec<String> = words.iter().map(|w| w.to_string()).collect();
-            assert_eq!(
-                apply_custom_words(input, &custom_words, 0.5),
-                *expected,
-                "input: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn possessives_and_plurals_of_a_custom_word_keep_their_ending() {
-        let words: Vec<String> = ["ChatGPT", "iPhone", "Figma", "Dan"]
-            .iter()
-            .map(|w| w.to_string())
-            .collect();
-        let cases = [
-            ("ChatGPT's answer", "ChatGPT's answer", 0),
-            ("ChatGPT’s answer", "ChatGPT’s answer", 0),
-            ("both iPhones died", "both iPhones died", 0),
-            ("two Figmas.", "two Figmas.", 0),
-            ("ask chat gpt's view", "ask ChatGPT's view", 1),
-            ("my I phones", "my iPhones", 1),
-            ("je vais dans le bureau", "je vais dans le bureau", 0),
-        ];
-        for (input, expected, fixes) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &words, 0.18),
-                (expected.to_string(), fixes),
-                "input: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_short_name_never_rewrites_an_everyday_word() {
-        let cases = [
-            ("Anne", "I ate an apple", "I ate an apple"),
-            ("Anne", "il y a un an", "il y a un an"),
-            ("Marc", "ça marche bien", "ça marche bien"),
-            ("Marie", "mon mari arrive", "mon mari arrive"),
-            ("Jean", "j'en ai marre", "j'en ai marre"),
-            ("Paul", "un pull rouge", "un pull rouge"),
-            // The name itself, in any case, still takes the user's spelling.
-            ("Anne", "ask anne first", "ask Anne first"),
-            ("Marc", "MARC est là", "MARC est là"),
-        ];
-        for (word, input, expected) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &[word.to_string()], 0.18).0,
-                expected,
-                "{word}: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_short_name_is_corrected_when_one_letter_is_wrong() {
-        let cases = [
-            ("Zach", "ask Zack first", "ask Zach first"),
-            ("Luka", "je vois Luca demain", "je vois Luka demain"),
-            ("Sarah", "call Sara today", "call Sarah today"),
-            // A title's full stop ends no sentence.
-            ("Zach", "ask Dr. Zack first", "ask Dr. Zach first"),
-            ("Luka", "j'ai vu M. Luca hier", "j'ai vu M. Luka hier"),
-        ];
-        for (word, input, expected) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &[word.to_string()], 0.18),
-                (expected.to_string(), 1),
-                "{word}: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_short_everyday_word_that_sounds_like_a_name_is_kept() {
-        let cases = [
-            ("Lou", "je l'ai lu hier"),
-            ("Mona", "c'est mon idée"),
-            ("Mona", "Mon idée est simple"),
-            ("Moon", "mon téléphone"),
-            ("May", "le 3 mai"),
-            // Not an everyday word on the list: only the length keeps it.
-            ("Liz", "je lis un livre"),
-            // A capital that does not mark a name: a proper noun, a
-            // contraction, an acronym, or the first word of a sentence.
-            ("Max", "my Mac is slow"),
-            ("Max", "Mon Mac plante"),
-            ("Ivy", "I've sent it"),
-            ("Ilya", "I'll call you"),
-            ("Leon", "Je vais à Lyon"),
-            ("Mona", "I told Mom"),
-            ("Nina", "Nine people came."),
-            ("Nina", "Done. Nine people came."),
-            // A closing mark written apart, after the sentence end.
-            ("Alex", "Il a crié « on a gagné ! » Allez, on rentre."),
-            ("Alex", "Il a crié \" on a gagné ! \" Allez, on rentre."),
-            ("Pam", "the PM said"),
-            ("Jess", "le code JS"),
-            ("Avi", "the API returns"),
-            ("Java", "J'avoue, c'est pratique"),
-            ("Benny", "Ben, je sais pas"),
-            ("Benny", "ouais Ben je sais pas"),
-        ];
-        for (word, input) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &[word.to_string()], 0.18),
-                (input.to_string(), 0),
-                "{word}: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_first_name_that_is_also_an_everyday_word_is_kept() {
-        let cases = [
-            ("Clara", "une réponse claire"),
-            ("Ross", "un pull rose"),
-            ("Rosa", "la robe rose"),
-            ("Jeanne", "un jean bleu"),
-            ("Pierce", "une pierre"),
-            ("Simon", "Sinon, on verra demain"),
-            ("Simon", "appelle-moi, sinon je t'écris"),
-        ];
-        for (word, input) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &[word.to_string()], 0.18),
-                (input.to_string(), 0),
-                "{word}: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_custom_spelling_overrides_a_common_first_name() {
-        let cases = [
-            ("Lukas", "Lucas a appelé", "Lukas a appelé"),
-            ("Nicholas", "merci Nicolas", "merci Nicholas"),
-            ("Sofie", "Sophie arrive", "Sofie arrive"),
-            ("Tomas", "Thomas arrive", "Tomas arrive"),
-            ("Philipe", "Philippe arrive", "Philipe arrive"),
-        ];
-        for (word, input, expected) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &[word.to_string()], 0.18),
-                (expected.to_string(), 1),
-                "{word}: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_custom_word_keeps_the_french_elision_in_front_of_it() {
-        let words: Vec<String> = [
-            "iPhone",
-            "Anthropic",
-            "Excel",
-            "D'Angelo",
-            "Apple",
-            "Emile",
-            "Laura",
-            "Dune",
-        ]
-        .iter()
-        .map(|w| w.to_string())
-        .collect();
-        let cases = [
-            ("j'adore l'iPhone", "j'adore l'iPhone", 0),
-            ("le modèle d'Anthropic", "le modèle d'Anthropic", 0),
-            ("le modèle d’Anthropic.", "le modèle d’Anthropic.", 0),
-            ("un fichier d'excel", "un fichier d'Excel", 1),
-            ("L'I phone est mort", "L'iPhone est mort", 1),
-            ("la musique de D'Angelo", "la musique de D'Angelo", 0),
-            // An everyday word after the elision is what the user said.
-            (
-                "Bonjour, je m'appelle Marc",
-                "Bonjour, je m'appelle Marc",
-                0,
-            ),
-            ("il s'appelle Paul", "il s'appelle Paul", 0),
-            ("envoie-moi l'email", "envoie-moi l'email", 0),
-            ("il l'aura demain", "il l'aura demain", 0),
-            ("la fin d'une époque", "la fin d'une époque", 0),
-            ("demande à laura", "demande à Laura", 1),
-        ];
-        for (input, expected, fixes) in cases {
-            assert_eq!(
-                apply_custom_words_counted(input, &words, 0.18),
-                (expected.to_string(), fixes),
-                "input: {input}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_word_made_only_of_punctuation_stays_as_written() {
-        let words = vec!["Max".to_string()];
-        for (input, expected) in [
-            ("Tu viens ?", "Tu viens ?"),
-            ("C'est ça !", "C'est ça !"),
-            ("Note : demain", "Note : demain"),
-            ("« Bonjour »", "« Bonjour »"),
-            // Words are joined back with plain spaces.
-            ("Tu viens\u{202f}?", "Tu viens ?"),
-            ("R & D", "R & D"),
-            ("this – that", "this – that"),
-            ("wait …", "wait …"),
-        ] {
-            assert_eq!(
-                apply_custom_words_counted(input, &words, 0.18),
-                (expected.to_string(), 0),
-                "input: {input}"
-            );
-        }
-    }
-
-    #[test]
     fn test_extract_punctuation() {
         assert_eq!(extract_punctuation("hello"), ("", ""));
         assert_eq!(extract_punctuation("!hello?"), ("!", "?"));
@@ -869,14 +855,6 @@ mod tests {
         assert_eq!(extract_punctuation("你好。"), ("", "。"));
         assert_eq!(extract_punctuation("「你好」"), ("「", "」"));
         assert_eq!(extract_punctuation("你好！"), ("", "！"));
-    }
-
-    #[test]
-    fn test_empty_custom_words() {
-        let text = "hello world";
-        let custom_words = vec![];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "hello world");
     }
 
     #[test]
@@ -933,92 +911,6 @@ mod tests {
         let text = "no no is fine";
         let result = normalize_transcription_output(text);
         assert_eq!(result, "no no is fine");
-    }
-
-    #[test]
-    fn test_apply_custom_words_ngram_two_words() {
-        let text = "il cui nome è Charge B, che permette";
-        let custom_words = vec!["ChargeBee".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "il cui nome è ChargeBee, che permette");
-    }
-
-    #[test]
-    fn test_apply_custom_words_ngram_three_words() {
-        let text = "use Chat G P T for this";
-        let custom_words = vec!["ChatGPT".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "use ChatGPT for this");
-    }
-
-    #[test]
-    fn test_apply_custom_words_prefers_longer_ngram() {
-        let text = "Open AI GPT model";
-        let custom_words = vec!["OpenAI".to_string(), "GPT".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "OpenAI GPT model");
-    }
-
-    #[test]
-    fn test_apply_custom_words_ngram_preserves_case() {
-        let text = "CHARGE B is great";
-        let custom_words = vec!["ChargeBee".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "CHARGEBEE is great");
-    }
-
-    #[test]
-    fn test_apply_custom_words_ngram_with_spaces_in_custom() {
-        let text = "using Mac Book Pro";
-        let custom_words = vec!["MacBook Pro".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "using MacBook Pro");
-    }
-
-    #[test]
-    fn test_apply_custom_words_trailing_number_not_doubled() {
-        // Verify that trailing non-alpha chars (like numbers) aren't double-counted
-        // between build_ngram stripping them and extract_punctuation capturing them
-        let text = "use GPT4 for this";
-        let custom_words = vec!["GPT-4".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert!(
-            !result.contains("GPT-44"),
-            "got double-counted result: {}",
-            result
-        );
-    }
-
-    #[test]
-    fn test_apply_custom_words_matches_ampersand_word() {
-        let text = "send it to RD for review";
-        let custom_words = vec!["R&D".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.18);
-        assert_eq!(result, "send it to R&D for review");
-    }
-
-    #[test]
-    fn test_apply_custom_words_matches_spoken_ampersand_word() {
-        let text = "send it to R and D for review";
-        let custom_words = vec!["R&D".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.18);
-        assert_eq!(result, "send it to R&D for review");
-    }
-
-    #[test]
-    fn test_apply_custom_words_preserves_ampersand_word() {
-        let text = "send it to R&D for review";
-        let custom_words = vec!["R&D".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.18);
-        assert_eq!(result, "send it to R&D for review");
-    }
-
-    #[test]
-    fn test_apply_custom_words_handles_unicode_punctuation() {
-        let text = "「Murmurr。」";
-        let custom_words = vec!["Murmur".to_string()];
-        let result = apply_custom_words(text, &custom_words, 0.5);
-        assert_eq!(result, "「Murmur。」");
     }
 
     #[test]
