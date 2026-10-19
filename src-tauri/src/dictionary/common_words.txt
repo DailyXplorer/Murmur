@@ -31,6 +31,7 @@ any
 anyone
 anything
 apple
+april
 are
 area
 arm
@@ -39,6 +40,7 @@ art
 as
 ask
 at
+august
 away
 back
 bad
@@ -62,6 +64,7 @@ behind
 being
 believe
 bell
+ben
 best
 better
 between
@@ -132,12 +135,14 @@ cross
 cry
 cup
 cut
+dad
 dark
 data
 day
 dead
 deal
 dear
+december
 decide
 deep
 did
@@ -185,6 +190,7 @@ farm
 fast
 father
 fear
+february
 feel
 feet
 few
@@ -209,6 +215,7 @@ form
 four
 frank
 free
+friday
 friend
 from
 front
@@ -284,8 +291,11 @@ issue
 it
 its
 jack
+january
 job
 join
+july
+june
 just
 keep
 key
@@ -317,6 +327,7 @@ lie
 life
 light
 like
+lille
 line
 list
 listen
@@ -329,12 +340,15 @@ lost
 lot
 love
 low
+lyon
+mac
 made
 main
 make
 man
 many
 map
+march
 mark
 market
 matter
@@ -351,7 +365,9 @@ might
 mind
 minute
 miss
+mom
 moment
+monday
 money
 month
 moon
@@ -380,8 +396,10 @@ north
 not
 note
 nothing
+november
 now
 number
+october
 of
 off
 office
@@ -405,6 +423,7 @@ over
 own
 page
 paper
+paris
 part
 party
 pass
@@ -459,6 +478,7 @@ run
 said
 same
 sat
+saturday
 saw
 say
 school
@@ -470,6 +490,7 @@ seen
 sell
 send
 sense
+september
 set
 seven
 several
@@ -519,6 +540,7 @@ strong
 study
 such
 sun
+sunday
 sure
 table
 take
@@ -548,6 +570,7 @@ though
 thought
 three
 through
+thursday
 time
 to
 today
@@ -563,6 +586,7 @@ tree
 tried
 true
 try
+tuesday
 turn
 two
 under
@@ -584,6 +608,7 @@ watch
 water
 way
 we
+wednesday
 week
 well
 went
@@ -636,6 +661,7 @@ amie
 amis
 année
 ans
+août
 appel
 appelé
 appeler
@@ -663,6 +689,7 @@ avec
 avez
 avoir
 avons
+avril
 bas
 beau
 beaucoup
@@ -705,6 +732,7 @@ cours
 crois
 dans
 de
+décembre
 déjà
 demain
 depuis
@@ -712,6 +740,7 @@ des
 deux
 devant
 devoir
+dimanche
 dire
 dis
 dit
@@ -732,6 +761,7 @@ emails
 en
 encore
 enfant
+enfin
 ensemble
 ensuite
 entre
@@ -756,6 +786,7 @@ faire
 faut
 femme
 feu
+février
 fille
 fils
 fin
@@ -781,11 +812,15 @@ il
 image
 ils
 jamais
+janvier
 je
 jean
 jeu
+jeudi
 jour
 journée
+juillet
+juin
 jusqu'à
 juste
 la
@@ -802,6 +837,7 @@ loin
 long
 lu
 lui
+lundi
 ma
 madame
 mai
@@ -813,14 +849,17 @@ maintenant
 maison
 mal
 marche
+mardi
 mari
 marie
 marre
+mars
 matin
 me
 même
 mer
 merci
+mercredi
 mère
 mes
 mettre
@@ -847,9 +886,11 @@ nos
 notre
 nous
 nouveau
+novembre
 nuit
 nul
 occasion
+octobre
 offre
 olivier
 ont
@@ -883,12 +924,14 @@ porte
 poule
 pour
 pourquoi
+pourtant
 pouvoir
 premier
 prendre
 près
 projet
 pu
+puis
 pur
 quand
 quatre
@@ -907,15 +950,18 @@ rue
 sa
 sac
 sais
+samedi
 sans
 savoir
 se
 semaine
 sept
+septembre
 ses
 seul
 si
 sien
+sinon
 six
 soir
 son
@@ -954,6 +1000,7 @@ une
 va
 vais
 vas
+vendredi
 venir
 vers
 veut
@@ -962,6 +1009,7 @@ vie
 ville
 vin
 vingt
+voilà
 voir
 vois
 voiture
