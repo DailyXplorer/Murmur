@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use hound::WavSpec;
 use log::warn;
+use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::io::Cursor;
 use std::path::Path;
@@ -187,6 +189,7 @@ async fn transcribe_with_session_at(
         ))?,
     };
     let status = response.status();
+    let headers = response.headers().clone();
     let body = tokio::select! {
         _ = operation.cancelled() => return Err(RequestError::Cancelled),
         body = response.text() => body.map_err(|error| failed(
@@ -197,14 +200,34 @@ async fn transcribe_with_session_at(
 
     if !status.is_success() {
         let kind = FailureKind::from_status(status.as_u16());
-        let excerpt: String = body.chars().take(200).collect();
-        return Err(failed(
-            kind,
-            format!("Codex transcription failed with HTTP {status}: {excerpt}"),
-        ));
+        return Err(failed(kind, failure_detail(status, &headers, &body)));
     }
 
     parse_transcript(&body).map_err(|error| failed(FailureKind::Other, error.to_string()))
+}
+
+/// An HTML answer is a block page from something between Murmur and Codex
+/// (Cloudflare's bot check, a proxy); its markup says nothing, so name who
+/// answered instead.
+fn failure_detail(status: StatusCode, headers: &HeaderMap, body: &str) -> String {
+    if !body.trim_start().starts_with('<') {
+        let excerpt: String = body.chars().take(200).collect();
+        return format!("Codex transcription failed with HTTP {status}: {excerpt}");
+    }
+    let header = |name| {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("none")
+    };
+    format!(
+        "Codex transcription was refused before reaching Codex with HTTP {status} \
+         (HTML page from server: {}, cf-mitigated: {}, cf-ray: {}); a VPN, proxy or \
+         Cloudflare's bot check between this computer and chatgpt.com blocked it",
+        header("server"),
+        header("cf-mitigated"),
+        header("cf-ray"),
+    )
 }
 
 fn parse_transcript(body: &str) -> Result<String> {
@@ -300,6 +323,37 @@ mod tests {
     #[test]
     fn reject_json_without_transcript() {
         assert!(parse_transcript(r#"{"status":"ok"}"#).is_err());
+    }
+
+    #[test]
+    fn a_cloudflare_block_page_names_the_blocker_not_its_markup() {
+        let mut headers = HeaderMap::new();
+        headers.insert("server", "cloudflare".parse().unwrap());
+        headers.insert("cf-mitigated", "challenge".parse().unwrap());
+        headers.insert("cf-ray", "8f00000000000000-CDG".parse().unwrap());
+        let detail = failure_detail(
+            StatusCode::FORBIDDEN,
+            &headers,
+            "<html>\n  <head>\n    <meta name=\"viewport\" />",
+        );
+        assert!(detail.contains("403 Forbidden"), "{detail}");
+        assert!(detail.contains("server: cloudflare"), "{detail}");
+        assert!(detail.contains("cf-mitigated: challenge"), "{detail}");
+        assert!(detail.contains("cf-ray: 8f00000000000000-CDG"), "{detail}");
+        assert!(!detail.contains("<html>"), "{detail}");
+    }
+
+    #[test]
+    fn an_api_error_keeps_its_body() {
+        let detail = failure_detail(
+            StatusCode::UNAUTHORIZED,
+            &HeaderMap::new(),
+            r#"{"detail":"Could not parse your authentication token."}"#,
+        );
+        assert_eq!(
+            detail,
+            r#"Codex transcription failed with HTTP 401 Unauthorized: {"detail":"Could not parse your authentication token."}"#
+        );
     }
 
     #[test]
