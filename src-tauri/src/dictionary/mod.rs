@@ -6,7 +6,7 @@
 mod learn;
 mod observer;
 
-pub(crate) use learn::{is_common_word, ELISIONS};
+pub(crate) use learn::{is_everyday_word, ELISIONS};
 pub use observer::{stop_observing, watch_pasted_text};
 
 use crate::audio_toolkit::apply_custom_words_counted;
