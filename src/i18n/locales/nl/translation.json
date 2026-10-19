@@ -17,6 +17,7 @@
     "errorPaste": "Plakken mislukt. De tekst staat op het klembord en in Geschiedenis.",
     "errorRecording": "Opnemen kon niet starten. Controleer je microfoon.",
     "errorMicrophoneDenied": "Microfoontoegang staat uit. Sta Murmur toe in Systeeminstellingen.",
+    "errorMicrophoneDeniedWindows": "Microfoontoegang staat uit. Sta desktop-apps toe in Windows-instellingen → Privacy en beveiliging → Microfoon.",
     "warningLongRecording": "Lange opname: uploaden kan traag zijn of geweigerd worden.",
     "errorShortcutUnavailable": "{{shortcut}} wordt door een andere app gebruikt. Kies een andere sneltoets in de instellingen van Murmur.",
     "errorMicrophoneStartup": "De altijd-aan-microfoon kon niet starten. Murmur opent hem wanneer je opneemt.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Correcties",
       "description": "Verkeerd verstane namen die je hebt gecorrigeerd nadat Murmur had geplakt, één keer geteld per woord dat Murmur heeft geleerd, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
+      "descriptionWindows": "Woorden die je eigen woordenboek automatisch heeft vervangen.",
       "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
       "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Machtigingen vereist",
       "description": "Murmur heeft een aantal machtigingen nodig om goed te kunnen werken.",
+      "descriptionWindows": "Murmur heeft toegang tot je microfoon nodig om goed te kunnen werken.",
       "microphone": {
         "title": "Microfoontoegang",
         "description": "Vereist om je stem op te nemen voor transcriptie."
@@ -518,14 +521,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur heeft toegankelijkheidsmachtigingen nodig om getranscribeerde tekst te kunnen typen.",
-    "openSettings": "Systeeminstellingen openen"
+    "openSettings": "Systeeminstellingen openen",
+    "openSettingsWindows": "Windows-instellingen openen"
   },
   "errors": {
     "loadDirectory": "Fout bij laden van map: {{error}}",
     "micPermissionDeniedTitle": "Microfoontoegang geweigerd",
     "micPermissionDenied": {
       "generic": "Microfoontoegang is geweigerd door het besturingssysteem. Verleen microfoonmachtiging in je systeeminstellingen.",
-      "macos": "Verleen microfoontoegang via Systeeminstellingen → Privacy & Beveiliging → Microfoon."
+      "macos": "Verleen microfoontoegang via Systeeminstellingen → Privacy & Beveiliging → Microfoon.",
+      "windows": "Geef desktop-apps toegang tot de microfoon via Windows-instellingen → Privacy en beveiliging → Microfoon."
     },
     "noInputDeviceTitle": "Geen microfoon gevonden",
     "noInputDevice": "Er is geen audio-invoerapparaat gedetecteerd. Sluit een microfoon of headset aan en probeer het opnieuw.",

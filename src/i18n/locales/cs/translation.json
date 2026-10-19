@@ -17,6 +17,7 @@
     "errorPaste": "Vložení se nezdařilo. Text je ve schránce a v historii.",
     "errorRecording": "Nahrávání se nepodařilo spustit. Zkontrolujte mikrofon.",
     "errorMicrophoneDenied": "Přístup k mikrofonu je vypnutý. Povolte Murmur v Nastavení systému.",
+    "errorMicrophoneDeniedWindows": "Přístup k mikrofonu je vypnutý. Povolte desktopové aplikace v Nastavení Windows → Ochrana osobních údajů a zabezpečení → Mikrofon.",
     "warningLongRecording": "Dlouhá nahrávka: odeslání může být pomalé nebo odmítnuté.",
     "errorShortcutUnavailable": "{{shortcut}} používá jiná aplikace. Zvolte jinou zkratku v nastavení Murmur.",
     "errorMicrophoneStartup": "Stále zapnutý mikrofon se nespustil. Murmur ho otevře při nahrávání.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Opravy",
       "description": "Špatně rozpoznaná jména, která jste opravili po vložení textu Murmurem, počítaná jednou za každé slovo, které se Murmur naučil, plus slova, která váš vlastní slovník automaticky nahradil.",
+      "descriptionWindows": "Slova, která váš vlastní slovník automaticky nahradil.",
       "wordsCorrected": "Opravená slova: {{value}}",
       "dictionaryFixes": "Opravy slovníkem: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Vyžadována oprávnění",
       "description": "Murmur potřebuje několik oprávnění pro správné fungování.",
+      "descriptionWindows": "Murmur potřebuje pro správné fungování přístup k mikrofonu.",
       "microphone": {
         "title": "Přístup k mikrofonu",
         "description": "Potřebný pro zachycení vašeho hlasu k přepisu."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur potřebuje oprávnění usnadnění přístupu, aby mohlo psát přepsaný text.",
-    "openSettings": "Otevřít Nastavení systému"
+    "openSettings": "Otevřít Nastavení systému",
+    "openSettingsWindows": "Otevřít Nastavení Windows"
   },
   "errors": {
     "loadDirectory": "Chyba při načítání adresáře: {{error}}",
     "micPermissionDeniedTitle": "Přístup k mikrofonu byl odepřen",
     "micPermissionDenied": {
       "generic": "Přístup k mikrofonu byl odepřen operačním systémem. Povolte prosím přístup k mikrofonu v nastavení systému.",
-      "macos": "Povolte přístup k mikrofonu v Nastavení systému → Soukromí a zabezpečení → Mikrofon."
+      "macos": "Povolte přístup k mikrofonu v Nastavení systému → Soukromí a zabezpečení → Mikrofon.",
+      "windows": "Povolte desktopovým aplikacím používat mikrofon v Nastavení Windows → Ochrana osobních údajů a zabezpečení → Mikrofon."
     },
     "noInputDeviceTitle": "Mikrofon nebyl nalezen",
     "noInputDevice": "Nebylo detekováno žádné zvukové vstupní zařízení. Připojte mikrofon nebo sluchátka a zkuste to znovu.",

@@ -17,6 +17,7 @@
     "errorPaste": "无法粘贴。文本已在剪贴板和历史记录中。",
     "errorRecording": "无法开始录音。请检查麦克风。",
     "errorMicrophoneDenied": "麦克风访问已关闭。请在系统设置中允许 Murmur。",
+    "errorMicrophoneDeniedWindows": "麦克风访问已关闭。请在 Windows 设置 → 隐私和安全性 → 麦克风中允许桌面应用。",
     "warningLongRecording": "录音较长：上传可能较慢或被拒绝。",
     "errorShortcutUnavailable": "{{shortcut}} 已被其他应用占用。请在 Murmur 设置中选择其他快捷键。",
     "errorMicrophoneStartup": "常开麦克风无法启动。录音时 Murmur 会打开它。",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "修正",
       "description": "Murmur 粘贴后你更正的听错的名称（Murmur 每学会一个词计一次），加上自定义词典自动替换的字词。",
+      "descriptionWindows": "自定义词典自动替换的字词。",
       "wordsCorrected": "修正的字词：{{value}}",
       "dictionaryFixes": "词典修正：{{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "需要权限",
       "description": "Murmur 需要一些权限才能正常工作。",
+      "descriptionWindows": "Murmur 需要麦克风访问权限才能正常工作。",
       "microphone": {
         "title": "麦克风访问",
         "description": "需要听取您的语音进行转录。"
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur 需要辅助功能权限才能输入转录的文字。",
-    "openSettings": "打开系统设置"
+    "openSettings": "打开系统设置",
+    "openSettingsWindows": "打开 Windows 设置"
   },
   "errors": {
     "loadDirectory": "加载目录时出错: {{error}}",
     "micPermissionDeniedTitle": "麦克风访问被拒绝",
     "micPermissionDenied": {
       "generic": "操作系统拒绝了麦克风访问。请在系统设置中授予麦克风权限。",
-      "macos": "在系统设置 → 隐私与安全性 → 麦克风中授予麦克风访问权限。"
+      "macos": "在系统设置 → 隐私与安全性 → 麦克风中授予麦克风访问权限。",
+      "windows": "在 Windows 设置 → 隐私和安全性 → 麦克风中允许桌面应用访问麦克风。"
     },
     "noInputDeviceTitle": "未找到麦克风",
     "noInputDevice": "未检测到音频输入设备。请连接麦克风或耳机后重试。",

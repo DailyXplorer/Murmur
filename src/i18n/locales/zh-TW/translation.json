@@ -17,6 +17,7 @@
     "errorPaste": "無法貼上。文字已在剪貼簿和歷史記錄中。",
     "errorRecording": "無法開始錄音。請檢查麥克風。",
     "errorMicrophoneDenied": "麥克風存取已關閉。請在系統設定中允許 Murmur。",
+    "errorMicrophoneDeniedWindows": "麥克風存取已關閉。請在 Windows 設定 → 隱私權與安全性 → 麥克風中允許傳統型應用程式。",
     "warningLongRecording": "錄音較長：上傳可能較慢或遭拒。",
     "errorShortcutUnavailable": "{{shortcut}} 已被其他 App 使用。請在 Murmur 設定中選擇其他快速鍵。",
     "errorMicrophoneStartup": "常開麥克風無法啟動。錄音時 Murmur 會開啟它。",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "修正",
       "description": "Murmur 貼上後你更正的聽錯名稱（Murmur 每學會一個詞計一次），加上自訂詞典自動替換的字詞。",
+      "descriptionWindows": "自訂詞典自動替換的字詞。",
       "wordsCorrected": "修正的字詞：{{value}}",
       "dictionaryFixes": "詞典修正：{{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "需要權限",
       "description": "Murmur 需要一些權限才能正常運作",
+      "descriptionWindows": "Murmur 需要麥克風存取權限才能正常運作",
       "microphone": {
         "title": "麥克風存取",
         "description": "需要聽取您的語音進行轉錄"
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur 需要輔助使用權限才能輸入轉錄的文字",
-    "openSettings": "開啟系統設定"
+    "openSettings": "開啟系統設定",
+    "openSettingsWindows": "開啟 Windows 設定"
   },
   "errors": {
     "loadDirectory": "載入目錄時發生錯誤: {{error}}",
     "micPermissionDeniedTitle": "麥克風存取被拒絕",
     "micPermissionDenied": {
       "generic": "作業系統拒絕了麥克風存取。請在系統設定中授予麥克風權限。",
-      "macos": "在系統設定 → 隱私與安全性 → 麥克風中授予麥克風存取權限。"
+      "macos": "在系統設定 → 隱私與安全性 → 麥克風中授予麥克風存取權限。",
+      "windows": "在 Windows 設定 → 隱私權與安全性 → 麥克風中允許傳統型應用程式存取麥克風。"
     },
     "noInputDeviceTitle": "找不到麥克風",
     "noInputDevice": "未偵測到音訊輸入裝置。請連接麥克風或耳機後重試。",

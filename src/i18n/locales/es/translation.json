@@ -17,6 +17,7 @@
     "errorPaste": "No se pudo pegar. El texto está en el portapapeles y en el historial.",
     "errorRecording": "No se pudo iniciar la grabación. Compruebe su micrófono.",
     "errorMicrophoneDenied": "El acceso al micrófono está desactivado. Permita Murmur en Ajustes del Sistema.",
+    "errorMicrophoneDeniedWindows": "El acceso al micrófono está desactivado. Permita las aplicaciones de escritorio en Configuración de Windows → Privacidad y seguridad → Micrófono.",
     "warningLongRecording": "Grabación larga: la subida puede ser lenta o rechazada.",
     "errorShortcutUnavailable": "{{shortcut}} lo usa otra aplicación. Elija otro atajo en los ajustes de Murmur.",
     "errorMicrophoneStartup": "El micrófono siempre activo no pudo iniciarse. Murmur lo abrirá al grabar.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Correcciones",
       "description": "Nombres mal transcritos que corregiste después de que Murmur pegara el texto, contados una vez por cada palabra que Murmur aprendió, más las palabras que tu diccionario personalizado reemplazó automáticamente.",
+      "descriptionWindows": "Palabras que tu diccionario personalizado reemplazó automáticamente.",
       "wordsCorrected": "Palabras corregidas: {{value}}",
       "dictionaryFixes": "Correcciones del diccionario: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Permisos requeridos",
       "description": "Murmur necesita algunos permisos para funcionar correctamente.",
+      "descriptionWindows": "Murmur necesita acceso al micrófono para funcionar correctamente.",
       "microphone": {
         "title": "Acceso al micrófono",
         "description": "Necesario para escuchar tu voz para la transcripción."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur necesita permisos de accesibilidad para escribir texto transcrito.",
-    "openSettings": "Abrir Ajustes del Sistema"
+    "openSettings": "Abrir Ajustes del Sistema",
+    "openSettingsWindows": "Abrir Configuración de Windows"
   },
   "errors": {
     "loadDirectory": "Error al cargar el directorio: {{error}}",
     "micPermissionDeniedTitle": "Acceso al micrófono denegado",
     "micPermissionDenied": {
       "generic": "El sistema operativo denegó el acceso al micrófono. Por favor, conceda el permiso del micrófono en la configuración del sistema.",
-      "macos": "Conceda el acceso al micrófono en Ajustes del Sistema → Privacidad y seguridad → Micrófono."
+      "macos": "Conceda el acceso al micrófono en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
+      "windows": "Permita que las aplicaciones de escritorio usen el micrófono en Configuración de Windows → Privacidad y seguridad → Micrófono."
     },
     "noInputDeviceTitle": "No se encontró micrófono",
     "noInputDevice": "No se detectó ningún dispositivo de entrada de audio. Conecta un micrófono o auriculares e inténtalo de nuevo.",

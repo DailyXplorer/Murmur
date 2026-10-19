@@ -17,6 +17,7 @@
     "errorPaste": "Collage impossible. Le texte est dans le presse-papiers et dans l'historique.",
     "errorRecording": "Impossible de démarrer l'enregistrement. Vérifiez votre microphone.",
     "errorMicrophoneDenied": "L'accès au microphone est désactivé. Autorisez Murmur dans Réglages du système.",
+    "errorMicrophoneDeniedWindows": "L'accès au microphone est désactivé. Autorisez les applications de bureau dans Paramètres Windows → Confidentialité et sécurité → Microphone.",
     "warningLongRecording": "Enregistrement long : l'envoi peut être lent ou refusé.",
     "errorShortcutUnavailable": "{{shortcut}} est utilisé par une autre application. Choisissez un autre raccourci dans les réglages de Murmur.",
     "errorMicrophoneStartup": "Le microphone toujours actif n'a pas pu démarrer. Murmur l'ouvrira au moment d'enregistrer.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Corrections",
       "description": "Noms mal transcrits que vous avez corrigés après le collage par Murmur, comptés une fois par mot appris par Murmur, plus les mots remplacés automatiquement par votre dictionnaire personnalisé.",
+      "descriptionWindows": "Mots remplacés automatiquement par votre dictionnaire personnalisé.",
       "wordsCorrected": "Mots corrigés : {{value}}",
       "dictionaryFixes": "Corrections du dictionnaire : {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Autorisations requises",
       "description": "Murmur a besoin de quelques autorisations pour fonctionner correctement.",
+      "descriptionWindows": "Murmur a besoin d'accéder au microphone pour fonctionner correctement.",
       "microphone": {
         "title": "Accès au microphone",
         "description": "Nécessaire pour entendre votre voix pour la transcription."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur a besoin des autorisations d'accessibilité pour taper le texte transcrit.",
-    "openSettings": "Ouvrir Réglages Système"
+    "openSettings": "Ouvrir Réglages Système",
+    "openSettingsWindows": "Ouvrir Paramètres Windows"
   },
   "errors": {
     "loadDirectory": "Erreur lors du chargement du répertoire : {{error}}",
     "micPermissionDeniedTitle": "Accès au microphone refusé",
     "micPermissionDenied": {
       "generic": "L'accès au microphone a été refusé par le système d'exploitation. Veuillez accorder l'autorisation du microphone dans les paramètres système.",
-      "macos": "Accordez l'accès au microphone dans Réglages du système → Confidentialité et sécurité → Microphone."
+      "macos": "Accordez l'accès au microphone dans Réglages du système → Confidentialité et sécurité → Microphone.",
+      "windows": "Autorisez les applications de bureau à utiliser le microphone dans Paramètres Windows → Confidentialité et sécurité → Microphone."
     },
     "noInputDeviceTitle": "Aucun microphone trouvé",
     "noInputDevice": "Aucun périphérique d'entrée audio n'a été détecté. Veuillez connecter un microphone ou un casque et réessayer.",

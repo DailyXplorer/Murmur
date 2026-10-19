@@ -17,6 +17,7 @@
     "errorPaste": "Nie udało się wkleić. Tekst jest w schowku i w historii.",
     "errorRecording": "Nie udało się rozpocząć nagrywania. Sprawdź mikrofon.",
     "errorMicrophoneDenied": "Dostęp do mikrofonu jest wyłączony. Zezwól Murmur w Ustawieniach systemowych.",
+    "errorMicrophoneDeniedWindows": "Dostęp do mikrofonu jest wyłączony. Zezwól aplikacjom klasycznym w Ustawienia systemu Windows → Prywatność i zabezpieczenia → Mikrofon.",
     "warningLongRecording": "Długie nagranie: wysyłanie może być wolne lub odrzucone.",
     "errorShortcutUnavailable": "{{shortcut}} jest używany przez inną aplikację. Wybierz inny skrót w ustawieniach Murmur.",
     "errorMicrophoneStartup": "Stale włączony mikrofon nie uruchomił się. Murmur otworzy go podczas nagrywania.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Poprawki",
       "description": "Źle usłyszane nazwy poprawione przez Ciebie po wklejeniu przez Murmur, liczone raz za każde słowo, którego Murmur się nauczył, oraz słowa automatycznie zastąpione przez Twój słownik.",
+      "descriptionWindows": "Słowa automatycznie zastąpione przez Twój słownik.",
       "wordsCorrected": "Poprawione słowa: {{value}}",
       "dictionaryFixes": "Poprawki słownika: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Wymagane uprawnienia",
       "description": "Murmur potrzebuje kilku uprawnień, aby działać poprawnie.",
+      "descriptionWindows": "Murmur potrzebuje dostępu do mikrofonu, aby działać poprawnie.",
       "microphone": {
         "title": "Dostęp do mikrofonu",
         "description": "Wymagany do słyszenia Twojego głosu w celu transkrypcji."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur potrzebuje uprawnień dostępności, aby wpisywać transkrybowany tekst.",
-    "openSettings": "Otwórz ustawienia systemowe"
+    "openSettings": "Otwórz ustawienia systemowe",
+    "openSettingsWindows": "Otwórz ustawienia systemu Windows"
   },
   "errors": {
     "loadDirectory": "Błąd wczytywania katalogu: {{error}}",
     "micPermissionDeniedTitle": "Odmowa dostępu do mikrofonu",
     "micPermissionDenied": {
       "generic": "System operacyjny odmówił dostępu do mikrofonu. Przyznaj uprawnienia do mikrofonu w ustawieniach systemowych.",
-      "macos": "Przyznaj dostęp do mikrofonu w Ustawienia systemowe → Prywatność i ochrona → Mikrofon."
+      "macos": "Przyznaj dostęp do mikrofonu w Ustawienia systemowe → Prywatność i ochrona → Mikrofon.",
+      "windows": "Zezwól aplikacjom klasycznym na dostęp do mikrofonu w Ustawienia systemu Windows → Prywatność i zabezpieczenia → Mikrofon."
     },
     "noInputDeviceTitle": "Nie znaleziono mikrofonu",
     "noInputDevice": "Nie wykryto żadnego urządzenia wejściowego audio. Podłącz mikrofon lub słuchawki i spróbuj ponownie.",

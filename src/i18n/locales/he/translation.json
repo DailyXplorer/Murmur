@@ -17,6 +17,7 @@
     "errorPaste": "ההדבקה נכשלה. הטקסט נמצא בלוח ובהיסטוריה.",
     "errorRecording": "לא ניתן להתחיל הקלטה. בדוק את המיקרופון.",
     "errorMicrophoneDenied": "הגישה למיקרופון כבויה. אפשר את Murmur ב-System Settings.",
+    "errorMicrophoneDeniedWindows": "הגישה למיקרופון כבויה. אפשר אפליקציות שולחן עבודה ב-Windows Settings > Privacy & security > Microphone.",
     "warningLongRecording": "הקלטה ארוכה: ההעלאה עשויה להיות איטית או להידחות.",
     "errorShortcutUnavailable": "{{shortcut}} נמצא בשימוש של יישום אחר. בחר קיצור אחר בהגדרות של Murmur.",
     "errorMicrophoneStartup": "המיקרופון הפעיל תמיד לא הופעל. Murmur יפתח אותו בזמן ההקלטה.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "תיקונים",
       "description": "שמות שנשמעו לא נכון ותיקנתם אחרי ש־Murmur הדביק את הטקסט, נספרים פעם אחת לכל מילה ש־Murmur למד, ועוד מילים שהמילון האישי שלכם החליף אוטומטית.",
+      "descriptionWindows": "מילים שהמילון האישי שלכם החליף אוטומטית.",
       "wordsCorrected": "מילים שתוקנו: {{value}}",
       "dictionaryFixes": "תיקוני מילון: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "נדרשות הרשאות",
       "description": "Murmur צריך כמה הרשאות כדי לעבוד כמו שצריך.",
+      "descriptionWindows": "Murmur צריך גישה למיקרופון כדי לעבוד כמו שצריך.",
       "microphone": {
         "title": "גישה למיקרופון",
         "description": "נדרש כדי לשמוע את הקול שלך לצורך תמלול."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur צריך הרשאות נגישות כדי להקליד את הטקסט המתומלל.",
-    "openSettings": "פתח את הגדרות המערכת"
+    "openSettings": "פתח את הגדרות המערכת",
+    "openSettingsWindows": "פתח את הגדרות Windows"
   },
   "errors": {
     "loadDirectory": "שגיאה בטעינת תיקייה: {{error}}",
     "micPermissionDeniedTitle": "הגישה למיקרופון נדחתה",
     "micPermissionDenied": {
       "generic": "מערכת ההפעלה חסמה את הגישה למיקרופון. תן הרשאת מיקרופון בהגדרות המערכת.",
-      "macos": "תן גישה למיקרופון ב-System Settings > Privacy & Security > Microphone."
+      "macos": "תן גישה למיקרופון ב-System Settings > Privacy & Security > Microphone.",
+      "windows": "אפשר לאפליקציות שולחן עבודה להשתמש במיקרופון ב-Windows Settings > Privacy & security > Microphone."
     },
     "noInputDeviceTitle": "לא נמצא מיקרופון",
     "noInputDevice": "לא זוהה התקן קלט שמע. חבר מיקרופון או אוזנייה ונסה שוב.",

@@ -17,6 +17,7 @@
     "errorPaste": "Det gick inte att klistra in. Texten finns i urklipp och i historiken.",
     "errorRecording": "Inspelningen kunde inte starta. Kontrollera mikrofonen.",
     "errorMicrophoneDenied": "Mikrofonåtkomst är avstängd. Tillåt Murmur i Systeminställningar.",
+    "errorMicrophoneDeniedWindows": "Mikrofonåtkomst är avstängd. Tillåt skrivbordsappar i Windows-inställningar → Sekretess och säkerhet → Mikrofon.",
     "warningLongRecording": "Lång inspelning: uppladdningen kan bli långsam eller nekas.",
     "errorShortcutUnavailable": "{{shortcut}} används av en annan app. Välj ett annat kortkommando i Murmurs inställningar.",
     "errorMicrophoneStartup": "Den alltid påslagna mikrofonen kunde inte starta. Murmur öppnar den när du spelar in.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Rättelser",
       "description": "Felhörda namn som du rättade efter att Murmur klistrat in, räknade en gång per ord som Murmur lärde sig, plus ord som din egen ordlista ersatte automatiskt.",
+      "descriptionWindows": "Ord som din egen ordlista ersatte automatiskt.",
       "wordsCorrected": "Rättade ord: {{value}}",
       "dictionaryFixes": "Ordlisterättelser: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Behörigheter krävs",
       "description": "Murmur behöver ett par behörigheter för att fungera korrekt.",
+      "descriptionWindows": "Murmur behöver mikrofonåtkomst för att fungera korrekt.",
       "microphone": {
         "title": "Mikrofonåtkomst",
         "description": "Krävs för att höra din röst för transkription."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur behöver behörighet för hjälpmedel för att kunna skriva transkriberad text.",
-    "openSettings": "Öppna systeminställningar"
+    "openSettings": "Öppna systeminställningar",
+    "openSettingsWindows": "Öppna Windows-inställningar"
   },
   "errors": {
     "loadDirectory": "Fel vid laddning av mapp: {{error}}",
     "micPermissionDeniedTitle": "Mikrofonåtkomst nekad",
     "micPermissionDenied": {
       "generic": "Mikrofonåtkomst nekades av operativsystemet. Bevilja mikrofonbehörighet i dina systeminställningar.",
-      "macos": "Bevilja mikrofonåtkomst i Systeminställningar → Integritet och säkerhet → Mikrofon."
+      "macos": "Bevilja mikrofonåtkomst i Systeminställningar → Integritet och säkerhet → Mikrofon.",
+      "windows": "Ge skrivbordsappar åtkomst till mikrofonen i Windows-inställningar → Sekretess och säkerhet → Mikrofon."
     },
     "recordingFailed": "Misslyckades med att starta inspelning: {{error}}",
     "noInputDeviceTitle": "Ingen mikrofon hittades",

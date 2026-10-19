@@ -17,6 +17,7 @@
     "errorPaste": "Yapıştırılamadı. Metin panoda ve Geçmiş'te.",
     "errorRecording": "Kayıt başlatılamadı. Mikrofonunuzu kontrol edin.",
     "errorMicrophoneDenied": "Mikrofon erişimi kapalı. Sistem Ayarları'nda Murmur'a izin verin.",
+    "errorMicrophoneDeniedWindows": "Mikrofon erişimi kapalı. Windows Ayarları → Gizlilik ve güvenlik → Mikrofon bölümünden masaüstü uygulamalarına izin verin.",
     "warningLongRecording": "Uzun kayıt: yükleme yavaş olabilir veya reddedilebilir.",
     "errorShortcutUnavailable": "{{shortcut}} başka bir uygulama tarafından kullanılıyor. Murmur ayarlarında başka bir kısayol seçin.",
     "errorMicrophoneStartup": "Sürekli açık mikrofon başlatılamadı. Murmur kayıt yaparken onu açacak.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Düzeltmeler",
       "description": "Murmur yapıştırdıktan sonra düzelttiğiniz yanlış duyulmuş adlar (Murmur'un öğrendiği her kelime için bir kez sayılır) ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
+      "descriptionWindows": "Özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
       "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
       "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "İzinler Gerekli",
       "description": "Murmur'nin düzgün çalışabilmesi için birkaç izne ihtiyacı var.",
+      "descriptionWindows": "Murmur'un düzgün çalışabilmesi için mikrofon erişimine ihtiyacı var.",
       "microphone": {
         "title": "Mikrofon Erişimi",
         "description": "Sesinizi transkripsiyon için alabilmek için gereklidir."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur, transkribe edilen metni yazabilmek için erişilebilirlik izinlerine ihtiyaç duyar.",
-    "openSettings": "Sistem Ayarlarını Aç"
+    "openSettings": "Sistem Ayarlarını Aç",
+    "openSettingsWindows": "Windows Ayarlarını Aç"
   },
   "errors": {
     "loadDirectory": "Dizin yüklenirken hata oluştu: {{error}}",
     "micPermissionDeniedTitle": "Mikrofon erişimi reddedildi",
     "micPermissionDenied": {
       "generic": "Mikrofon erişimi işletim sistemi tarafından reddedildi. Lütfen sistem ayarlarından mikrofon iznini verin.",
-      "macos": "Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden mikrofon erişimini verin."
+      "macos": "Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden mikrofon erişimini verin.",
+      "windows": "Windows Ayarları → Gizlilik ve güvenlik → Mikrofon bölümünden masaüstü uygulamalarının mikrofonu kullanmasına izin verin."
     },
     "noInputDeviceTitle": "Mikrofon bulunamadı",
     "noInputDevice": "Ses giriş aygıtı algılanamadı. Lütfen bir mikrofon veya kulaklık bağlayın ve tekrar deneyin.",

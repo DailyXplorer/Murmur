@@ -17,6 +17,7 @@
     "errorPaste": "Không dán được. Văn bản có trong bảng nhớ tạm và trong Lịch sử.",
     "errorRecording": "Không thể bắt đầu ghi âm. Hãy kiểm tra micrô.",
     "errorMicrophoneDenied": "Quyền truy cập micrô đang tắt. Hãy cho phép Murmur trong Cài đặt hệ thống.",
+    "errorMicrophoneDeniedWindows": "Quyền truy cập micrô đang tắt. Hãy cho phép ứng dụng máy tính trong Cài đặt Windows → Quyền riêng tư & bảo mật → Micrô.",
     "warningLongRecording": "Bản ghi dài: việc tải lên có thể chậm hoặc bị từ chối.",
     "errorShortcutUnavailable": "{{shortcut}} đang được ứng dụng khác dùng. Hãy chọn phím tắt khác trong cài đặt Murmur.",
     "errorMicrophoneStartup": "Micrô luôn bật không khởi động được. Murmur sẽ mở micrô khi bạn ghi âm.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Lần sửa",
       "description": "Những tên bị nghe nhầm mà bạn đã sửa sau khi Murmur dán, mỗi từ Murmur học được tính một lần, cộng với những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
+      "descriptionWindows": "Những từ mà từ điển tùy chỉnh của bạn tự động thay thế.",
       "wordsCorrected": "Từ đã sửa: {{value}}",
       "dictionaryFixes": "Sửa bằng từ điển: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Cần cấp quyền",
       "description": "Murmur cần một số quyền để hoạt động bình thường.",
+      "descriptionWindows": "Murmur cần quyền truy cập micrô để hoạt động bình thường.",
       "microphone": {
         "title": "Quyền truy cập Micrô",
         "description": "Cần thiết để nghe giọng nói của bạn để chuyển đổi."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur cần quyền truy cập để gõ văn bản đã chuyển đổi.",
-    "openSettings": "Mở Cài đặt Hệ thống"
+    "openSettings": "Mở Cài đặt Hệ thống",
+    "openSettingsWindows": "Mở Cài đặt Windows"
   },
   "errors": {
     "loadDirectory": "Lỗi khi tải thư mục: {{error}}",
     "micPermissionDeniedTitle": "Quyền truy cập micrô bị từ chối",
     "micPermissionDenied": {
       "generic": "Quyền truy cập micrô đã bị hệ điều hành từ chối. Vui lòng cấp quyền micrô trong cài đặt hệ thống.",
-      "macos": "Cấp quyền truy cập micrô trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Micrô."
+      "macos": "Cấp quyền truy cập micrô trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Micrô.",
+      "windows": "Cho phép ứng dụng máy tính dùng micrô trong Cài đặt Windows → Quyền riêng tư & bảo mật → Micrô."
     },
     "noInputDeviceTitle": "Không tìm thấy micrô",
     "noInputDevice": "Không phát hiện thiết bị đầu vào âm thanh nào. Vui lòng kết nối micrô hoặc tai nghe và thử lại.",

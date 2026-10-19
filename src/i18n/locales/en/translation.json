@@ -17,6 +17,7 @@
     "errorPaste": "Couldn't paste. The text is on your clipboard and in History.",
     "errorRecording": "Couldn't start recording. Check your microphone.",
     "errorMicrophoneDenied": "Microphone access is off. Allow Murmur in System Settings.",
+    "errorMicrophoneDeniedWindows": "Microphone access is off. Allow desktop apps in Windows Settings → Privacy & security → Microphone.",
     "warningLongRecording": "Long recording: the upload may be slow or rejected.",
     "errorShortcutUnavailable": "{{shortcut}} is used by another app. Choose another shortcut in Murmur settings.",
     "errorMicrophoneStartup": "The always-on microphone couldn't start. Murmur will open it when you record.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Fixes made",
       "description": "Misheard names you fixed after Murmur pasted, counted once for each word Murmur learned, plus words your custom dictionary replaced automatically.",
+      "descriptionWindows": "Words your custom dictionary replaced automatically.",
       "wordsCorrected": "Words corrected: {{value}}",
       "dictionaryFixes": "Dictionary fixes: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Permissions Required",
       "description": "Murmur needs a couple of permissions to work properly.",
+      "descriptionWindows": "Murmur needs microphone access to work properly.",
       "microphone": {
         "title": "Microphone Access",
         "description": "Required to hear your voice for transcription."
@@ -518,14 +521,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur needs accessibility permissions to type transcribed text.",
-    "openSettings": "Open System Settings"
+    "openSettings": "Open System Settings",
+    "openSettingsWindows": "Open Windows Settings"
   },
   "errors": {
     "loadDirectory": "Error loading directory: {{error}}",
     "micPermissionDeniedTitle": "Microphone Access Denied",
     "micPermissionDenied": {
       "generic": "Microphone access was denied by the operating system. Please grant microphone permission in your system settings.",
-      "macos": "Grant microphone access in System Settings → Privacy & Security → Microphone."
+      "macos": "Grant microphone access in System Settings → Privacy & Security → Microphone.",
+      "windows": "Allow desktop apps to use the microphone in Windows Settings → Privacy & security → Microphone."
     },
     "noInputDeviceTitle": "No Microphone Found",
     "noInputDevice": "No audio input device was detected. Please connect a microphone or headset and try again.",

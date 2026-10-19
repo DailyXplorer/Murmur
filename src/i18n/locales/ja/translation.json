@@ -17,6 +17,7 @@
     "errorPaste": "貼り付けできませんでした。テキストはクリップボードと履歴にあります。",
     "errorRecording": "録音を開始できませんでした。マイクを確認してください。",
     "errorMicrophoneDenied": "マイクへのアクセスがオフです。システム設定で Murmur を許可してください。",
+    "errorMicrophoneDeniedWindows": "マイクへのアクセスがオフです。Windows の設定 → プライバシーとセキュリティ → マイクでデスクトップアプリを許可してください。",
     "warningLongRecording": "長い録音です。アップロードが遅くなるか、拒否される可能性があります。",
     "errorShortcutUnavailable": "{{shortcut}} は別のアプリが使用しています。Murmur の設定で別のショートカットを選んでください。",
     "errorMicrophoneStartup": "常時オンのマイクを開始できませんでした。録音時に Murmur がマイクを開きます。",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "修正",
       "description": "Murmur が貼り付けた後にあなたが修正した聞き間違いの名前（Murmur が覚えた単語ごとに 1 回）と、カスタム辞書が自動的に置き換えた単語の合計です。",
+      "descriptionWindows": "カスタム辞書が自動的に置き換えた単語です。",
       "wordsCorrected": "修正した単語: {{value}}",
       "dictionaryFixes": "辞書による修正: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "権限が必要です",
       "description": "Murmur が正常に動作するにはいくつかの権限が必要です。",
+      "descriptionWindows": "Murmur が正常に動作するにはマイクへのアクセスが必要です。",
       "microphone": {
         "title": "マイクへのアクセス",
         "description": "文字起こしのためにあなたの声を聞くために必要です。"
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur が文字起こしテキストを入力するには、アクセシビリティ権限が必要です。",
-    "openSettings": "システム設定を開く"
+    "openSettings": "システム設定を開く",
+    "openSettingsWindows": "Windows の設定を開く"
   },
   "errors": {
     "loadDirectory": "ディレクトリの読み込みエラー: {{error}}",
     "micPermissionDeniedTitle": "マイクへのアクセスが拒否されました",
     "micPermissionDenied": {
       "generic": "オペレーティングシステムによりマイクへのアクセスが拒否されました。システム設定でマイクの許可を付与してください。",
-      "macos": "システム設定 → プライバシーとセキュリティ → マイクでマイクへのアクセスを許可してください。"
+      "macos": "システム設定 → プライバシーとセキュリティ → マイクでマイクへのアクセスを許可してください。",
+      "windows": "Windows の設定 → プライバシーとセキュリティ → マイクで、デスクトップアプリにマイクへのアクセスを許可してください。"
     },
     "noInputDeviceTitle": "マイクが見つかりません",
     "noInputDevice": "オーディオ入力デバイスが検出されませんでした。マイクまたはヘッドセットを接続してから再試行してください。",

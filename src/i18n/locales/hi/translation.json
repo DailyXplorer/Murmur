@@ -17,6 +17,7 @@
     "errorPaste": "पेस्ट नहीं हो सका. टेक्स्ट क्लिपबोर्ड और इतिहास में है.",
     "errorRecording": "रिकॉर्डिंग शुरू नहीं हो सकी. अपना माइक्रोफ़ोन जांचें.",
     "errorMicrophoneDenied": "माइक्रोफ़ोन ऐक्सेस बंद है. System Settings में Murmur को अनुमति दें.",
+    "errorMicrophoneDeniedWindows": "माइक्रोफ़ोन ऐक्सेस बंद है. Windows Settings → Privacy & security → Microphone में डेस्कटॉप ऐप्स को अनुमति दें.",
     "warningLongRecording": "लंबी रिकॉर्डिंग: अपलोड धीमा हो सकता है या अस्वीकार हो सकता है.",
     "errorShortcutUnavailable": "{{shortcut}} किसी दूसरे ऐप द्वारा इस्तेमाल हो रहा है. Murmur सेटिंग में दूसरा शॉर्टकट चुनें.",
     "errorMicrophoneStartup": "हमेशा चालू माइक्रोफ़ोन शुरू नहीं हो सका. रिकॉर्ड करते समय Murmur इसे खोलेगा.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "सुधार",
       "description": "ग़लत सुने गए नाम जिन्हें आपने Murmur के पेस्ट करने के बाद सुधारा, Murmur के सीखे हर शब्द के लिए एक बार गिने गए, साथ ही आपके कस्टम शब्दकोश द्वारा अपने-आप बदले गए शब्द।",
+      "descriptionWindows": "आपके कस्टम शब्दकोश द्वारा अपने-आप बदले गए शब्द।",
       "wordsCorrected": "सुधारे गए शब्द: {{value}}",
       "dictionaryFixes": "शब्दकोश सुधार: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "अनुमतियों की ज़रूरत है",
       "description": "Murmur को ठीक से काम करने के लिए कुछ अनुमतियों की ज़रूरत है.",
+      "descriptionWindows": "Murmur को ठीक से काम करने के लिए माइक्रोफ़ोन ऐक्सेस की ज़रूरत है.",
       "microphone": {
         "title": "माइक्रोफ़ोन ऐक्सेस",
         "description": "आपकी आवाज़ सुनकर ट्रांसक्रिप्शन करने के लिए ज़रूरी."
@@ -518,14 +521,16 @@
   },
   "accessibility": {
     "permissionsDescription": "ट्रांसक्राइब किया गया टेक्स्ट टाइप करने के लिए, Murmur को ऐक्सेसिबिलिटी अनुमतियों की ज़रूरत है.",
-    "openSettings": "सिस्टम सेटिंग खोलें"
+    "openSettings": "सिस्टम सेटिंग खोलें",
+    "openSettingsWindows": "Windows सेटिंग खोलें"
   },
   "errors": {
     "loadDirectory": "फ़ोल्डर लोड करने में गड़बड़ी: {{error}}",
     "micPermissionDeniedTitle": "माइक्रोफ़ोन का ऐक्सेस नहीं दिया गया",
     "micPermissionDenied": {
       "generic": "ऑपरेटिंग सिस्टम ने माइक्रोफ़ोन का ऐक्सेस नहीं दिया. कृपया अपनी सिस्टम सेटिंग में जाकर माइक्रोफ़ोन की अनुमति दें.",
-      "macos": "System Settings → Privacy & Security → Microphone में माइक्रोफ़ोन का ऐक्सेस दें."
+      "macos": "System Settings → Privacy & Security → Microphone में माइक्रोफ़ोन का ऐक्सेस दें.",
+      "windows": "Windows Settings → Privacy & security → Microphone में डेस्कटॉप ऐप्स को माइक्रोफ़ोन इस्तेमाल करने की अनुमति दें."
     },
     "noInputDeviceTitle": "कोई माइक्रोफ़ोन नहीं मिला",
     "noInputDevice": "कोई ऑडियो इनपुट डिवाइस नहीं मिला. कृपया माइक्रोफ़ोन या हेडसेट कनेक्ट करके फिर से कोशिश करें.",

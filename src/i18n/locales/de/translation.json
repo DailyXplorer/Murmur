@@ -17,6 +17,7 @@
     "errorPaste": "Einfügen nicht möglich. Der Text ist in der Zwischenablage und im Verlauf.",
     "errorRecording": "Aufnahme konnte nicht starten. Prüfe dein Mikrofon.",
     "errorMicrophoneDenied": "Der Mikrofonzugriff ist aus. Erlaube Murmur in den Systemeinstellungen.",
+    "errorMicrophoneDeniedWindows": "Der Mikrofonzugriff ist aus. Erlaube Desktop-Apps in Windows-Einstellungen → Datenschutz und Sicherheit → Mikrofon.",
     "warningLongRecording": "Lange Aufnahme: Das Hochladen kann langsam sein oder abgelehnt werden.",
     "errorShortcutUnavailable": "{{shortcut}} wird von einer anderen App verwendet. Wähle in den Murmur-Einstellungen ein anderes Kürzel.",
     "errorMicrophoneStartup": "Das dauerhaft aktive Mikrofon konnte nicht starten. Murmur öffnet es beim Aufnehmen.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Korrekturen",
       "description": "Falsch erkannte Namen, die du nach dem Einfügen durch Murmur korrigiert hast, einmal pro Wort gezählt, das Murmur gelernt hat, plus Wörter, die dein eigenes Wörterbuch automatisch ersetzt hat.",
+      "descriptionWindows": "Wörter, die dein eigenes Wörterbuch automatisch ersetzt hat.",
       "wordsCorrected": "Korrigierte Wörter: {{value}}",
       "dictionaryFixes": "Wörterbuch-Korrekturen: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Berechtigungen erforderlich",
       "description": "Murmur benötigt einige Berechtigungen, um richtig zu funktionieren.",
+      "descriptionWindows": "Murmur benötigt Zugriff auf dein Mikrofon, um richtig zu funktionieren.",
       "microphone": {
         "title": "Mikrofonzugriff",
         "description": "Erforderlich, um deine Stimme für die Transkription zu hören."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur benötigt Bedienungshilfen-Berechtigungen, um transkribierten Text einzugeben.",
-    "openSettings": "Systemeinstellungen öffnen"
+    "openSettings": "Systemeinstellungen öffnen",
+    "openSettingsWindows": "Windows-Einstellungen öffnen"
   },
   "errors": {
     "loadDirectory": "Fehler beim Laden des Verzeichnisses: {{error}}",
     "micPermissionDeniedTitle": "Mikrofonzugriff verweigert",
     "micPermissionDenied": {
       "generic": "Der Mikrofonzugriff wurde vom Betriebssystem verweigert. Bitte erteile die Mikrofonberechtigung in deinen Systemeinstellungen.",
-      "macos": "Erteile den Mikrofonzugriff in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon."
+      "macos": "Erteile den Mikrofonzugriff in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
+      "windows": "Erlaube Desktop-Apps den Mikrofonzugriff in Windows-Einstellungen → Datenschutz und Sicherheit → Mikrofon."
     },
     "noInputDeviceTitle": "Kein Mikrofon gefunden",
     "noInputDevice": "Es wurde kein Audio-Eingabegerät erkannt. Bitte schließe ein Mikrofon oder Headset an und versuche es erneut.",

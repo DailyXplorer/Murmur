@@ -17,6 +17,7 @@
     "errorPaste": "Kunne ikke indsætte. Teksten ligger i udklipsholderen og i historikken.",
     "errorRecording": "Optagelsen kunne ikke starte. Tjek din mikrofon.",
     "errorMicrophoneDenied": "Mikrofonadgang er slået fra. Tillad Murmur i Systemindstillinger.",
+    "errorMicrophoneDeniedWindows": "Mikrofonadgang er slået fra. Tillad skrivebordsapps under Windows-indstillinger → Beskyttelse af personlige oplysninger og sikkerhed → Mikrofon.",
     "warningLongRecording": "Lang optagelse: upload kan være langsom eller blive afvist.",
     "errorShortcutUnavailable": "{{shortcut}} bruges af en anden app. Vælg en anden genvej i Murmurs indstillinger.",
     "errorMicrophoneStartup": "Den altid tændte mikrofon kunne ikke starte. Murmur åbner den, når du optager.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Rettelser",
       "description": "Forkert hørte navne, du rettede, efter Murmur indsatte teksten, talt én gang for hvert ord, Murmur lærte, plus ord, din egen ordbog erstattede automatisk.",
+      "descriptionWindows": "Ord, din egen ordbog erstattede automatisk.",
       "wordsCorrected": "Rettede ord: {{value}}",
       "dictionaryFixes": "Ordbogsrettelser: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Tilladelser påkrævet",
       "description": "Murmur har brug for et par tilladelser for at fungere korrekt.",
+      "descriptionWindows": "Murmur har brug for mikrofonadgang for at fungere korrekt.",
       "microphone": {
         "title": "Mikrofonadgang",
         "description": "Påkrævet for at høre din stemme til transskription."
@@ -518,14 +521,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur har brug for tilgængelighedstilladelser for at skrive den transskriberede tekst.",
-    "openSettings": "Åbn systemindstillinger"
+    "openSettings": "Åbn systemindstillinger",
+    "openSettingsWindows": "Åbn Windows-indstillinger"
   },
   "errors": {
     "loadDirectory": "Fejl ved indlæsning af mappe: {{error}}",
     "micPermissionDeniedTitle": "Mikrofonadgang nægtet",
     "micPermissionDenied": {
       "generic": "Mikrofonadgang blev nægtet af operativsystemet. Giv venligst mikrofontilladelse i dine systemindstillinger.",
-      "macos": "Giv mikrofonadgang under Systemindstillinger → Privatliv og sikkerhed → Mikrofon."
+      "macos": "Giv mikrofonadgang under Systemindstillinger → Privatliv og sikkerhed → Mikrofon.",
+      "windows": "Giv skrivebordsapps adgang til mikrofonen under Windows-indstillinger → Beskyttelse af personlige oplysninger og sikkerhed → Mikrofon."
     },
     "noInputDeviceTitle": "Ingen mikrofon fundet",
     "noInputDevice": "Ingen lydinputenhed blev registreret. Tilslut en mikrofon eller et headset, og prøv igen.",

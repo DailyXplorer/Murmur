@@ -17,6 +17,7 @@
     "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",
     "errorRecording": "Impossibile avviare la registrazione. Controlla il microfono.",
     "errorMicrophoneDenied": "L'accesso al microfono è disattivato. Consenti Murmur in Impostazioni di Sistema.",
+    "errorMicrophoneDeniedWindows": "L'accesso al microfono è disattivato. Consenti le app desktop in Impostazioni di Windows → Privacy e sicurezza → Microfono.",
     "warningLongRecording": "Registrazione lunga: il caricamento può essere lento o rifiutato.",
     "errorShortcutUnavailable": "{{shortcut}} è usata da un'altra app. Scegli un'altra scorciatoia nelle impostazioni di Murmur.",
     "errorMicrophoneStartup": "Il microfono sempre attivo non si è avviato. Murmur lo aprirà quando registri.",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "Correzioni",
       "description": "Nomi trascritti male che hai corretto dopo che Murmur ha incollato il testo, contati una volta per ogni parola imparata da Murmur, più le parole sostituite automaticamente dal tuo dizionario personalizzato.",
+      "descriptionWindows": "Parole sostituite automaticamente dal tuo dizionario personalizzato.",
       "wordsCorrected": "Parole corrette: {{value}}",
       "dictionaryFixes": "Correzioni del dizionario: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "Permessi Richiesti",
       "description": "Murmur ha bisogno di alcuni permessi per funzionare correttamente.",
+      "descriptionWindows": "Murmur ha bisogno dell'accesso al microfono per funzionare correttamente.",
       "microphone": {
         "title": "Accesso al Microfono",
         "description": "Necessario per sentire la tua voce per la trascrizione."
@@ -515,14 +518,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur ha bisogno dei permessi di accessibilità per digitare il testo trascritto.",
-    "openSettings": "Apri Impostazioni di Sistema"
+    "openSettings": "Apri Impostazioni di Sistema",
+    "openSettingsWindows": "Apri Impostazioni di Windows"
   },
   "errors": {
     "loadDirectory": "Errore di caricamento cartella: {{error}}",
     "micPermissionDeniedTitle": "Accesso al microfono negato",
     "micPermissionDenied": {
       "generic": "L'accesso al microfono è stato negato dal sistema operativo. Concedi l'autorizzazione al microfono nelle impostazioni di sistema.",
-      "macos": "Concedi l'accesso al microfono in Impostazioni di Sistema → Privacy e sicurezza → Microfono."
+      "macos": "Concedi l'accesso al microfono in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
+      "windows": "Consenti alle app desktop di usare il microfono in Impostazioni di Windows → Privacy e sicurezza → Microfono."
     },
     "noInputDeviceTitle": "Nessun microfono trovato",
     "noInputDevice": "Non è stato rilevato alcun dispositivo di ingresso audio. Collega un microfono o delle cuffie e riprova.",

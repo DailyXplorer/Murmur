@@ -17,6 +17,7 @@
     "errorPaste": "पेस्ट गर्न सकिएन। टेक्स्ट क्लिपबोर्ड र इतिहासमा छ।",
     "errorRecording": "रेकर्डिङ सुरु गर्न सकिएन। आफ्नो माइक्रोफोन जाँच गर्नुहोस्।",
     "errorMicrophoneDenied": "माइक्रोफोन पहुँच बन्द छ। System Settings मा Murmur लाई अनुमति दिनुहोस्।",
+    "errorMicrophoneDeniedWindows": "माइक्रोफोन पहुँच बन्द छ। Windows Settings → Privacy & security → Microphone मा डेस्कटप एपहरूलाई अनुमति दिनुहोस्।",
     "warningLongRecording": "लामो रेकर्डिङ: अपलोड ढिलो हुन वा अस्वीकार हुन सक्छ।",
     "errorShortcutUnavailable": "{{shortcut}} अर्को एपले प्रयोग गरिरहेको छ। Murmur सेटिङमा अर्को सर्टकट छान्नुहोस्।",
     "errorMicrophoneStartup": "सधैं चालु माइक्रोफोन सुरु हुन सकेन। रेकर्ड गर्दा Murmur ले यसलाई खोल्नेछ।",
@@ -71,6 +72,7 @@
     "fixes": {
       "title": "सुधारहरू",
       "description": "Murmur ले टाँसेपछि तपाईंले सच्याएका गलत सुनिएका नामहरू, Murmur ले सिकेको प्रत्येक शब्दका लागि एक पटक गनिएका, साथै तपाईंको आफ्नै शब्दकोशले स्वतः बदलेका शब्दहरू।",
+      "descriptionWindows": "तपाईंको आफ्नै शब्दकोशले स्वतः बदलेका शब्दहरू।",
       "wordsCorrected": "सच्याइएका शब्द: {{value}}",
       "dictionaryFixes": "शब्दकोश सुधार: {{value}}"
     },
@@ -102,6 +104,7 @@
     "permissions": {
       "title": "अनुमतिहरू आवश्यक छन्",
       "description": "Murmur लाई राम्रोसँग काम गर्न केही अनुमतिहरू चाहिन्छ।",
+      "descriptionWindows": "Murmur लाई राम्रोसँग काम गर्न माइक्रोफोन पहुँच चाहिन्छ।",
       "microphone": {
         "title": "माइक्रोफोन पहुँच",
         "description": "ट्रान्सक्रिप्सनका लागि तपाईंको आवाज सुन्न आवश्यक छ।"
@@ -518,14 +521,16 @@
   },
   "accessibility": {
     "permissionsDescription": "ट्रान्सक्राइब गरिएको टेक्स्ट टाइप गर्न Murmur लाई एक्सेसिबिलिटी अनुमति चाहिन्छ।",
-    "openSettings": "सिस्टम सेटिङहरू खोल्नुहोस्"
+    "openSettings": "सिस्टम सेटिङहरू खोल्नुहोस्",
+    "openSettingsWindows": "Windows सेटिङहरू खोल्नुहोस्"
   },
   "errors": {
     "loadDirectory": "डाइरेक्टरी लोड गर्दा त्रुटि: {{error}}",
     "micPermissionDeniedTitle": "माइक्रोफोन पहुँच अस्वीकृत गरियो",
     "micPermissionDenied": {
       "generic": "अपरेटिङ सिस्टमले माइक्रोफोन पहुँच अस्वीकार गर्‍यो। कृपया सिस्टम सेटिङहरूमा माइक्रोफोन अनुमति दिनुहोस्।",
-      "macos": "System Settings → Privacy & Security → Microphone मा माइक्रोफोन पहुँच दिनुहोस्।"
+      "macos": "System Settings → Privacy & Security → Microphone मा माइक्रोफोन पहुँच दिनुहोस्।",
+      "windows": "Windows Settings → Privacy & security → Microphone मा डेस्कटप एपहरूलाई माइक्रोफोन प्रयोग गर्न अनुमति दिनुहोस्।"
     },
     "noInputDeviceTitle": "कुनै माइक्रोफोन भेटिएन",
     "noInputDevice": "कुनै अडियो इनपुट डिभाइस भेटिएन। कृपया माइक्रोफोन वा हेडसेट जोडेर फेरि प्रयास गर्नुहोस्।",
