@@ -10,7 +10,7 @@ use specta::Type;
 use std::time::Duration;
 
 use crate::codex_auth::{self, Session};
-use crate::codex_transcribe::{codex_cli_user_agent, pcm_f32_to_wav_bytes, TRANSCRIBE_URL};
+use crate::codex_transcribe::{pcm_f32_to_wav_bytes, TRANSCRIBE_URL};
 
 const RESPONSES_URL: &str = "https://chatgpt.com/backend-api/codex/responses";
 const CHROMIUM_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
@@ -49,7 +49,7 @@ fn variants() -> Vec<Variant> {
     #[cfg(windows)]
     let cli = crate::codex_transcribe::user_agent();
     #[cfg(not(windows))]
-    let cli = codex_cli_user_agent("10.0.26100", std::env::consts::ARCH);
+    let cli = crate::codex_transcribe::codex_cli_user_agent("10.0.26100", std::env::consts::ARCH);
     let chromium = CHROMIUM_USER_AGENT.to_string();
     let (desktop, cli_originator) = ("Codex Desktop", "codex_cli_rs");
     let variant = |name, url, transport, user_agent: &String, originator, authenticated| Variant {
