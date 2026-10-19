@@ -67,7 +67,7 @@ fn is_lone_closer(word: &str) -> bool {
 const OPENERS: [char; 5] = ['(', '[', '«', '"', '“'];
 
 /// A title ends no sentence: a name or "le directeur" follows it.
-fn is_title(word: &str) -> bool {
+pub(crate) fn is_title(word: &str) -> bool {
     word.trim_start_matches(OPENERS)
         .strip_suffix('.')
         .is_some_and(|title| TITLES.contains(&title.to_lowercase().as_str()))

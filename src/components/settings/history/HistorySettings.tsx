@@ -469,7 +469,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     setTimeout(() => setShowCopied(false), 2000);
   };
 
-  const handleDeleteEntry = async () => {
+  // The next entry's trash takes this one's place as soon as it is gone, so
+  // the rest of a double click would delete that entry too.
+  const handleDeleteEntry = async (event: React.MouseEvent) => {
+    if (event.detail > 1) return;
     try {
       await deleteAudio(entry.id);
     } catch (error) {
