@@ -657,8 +657,10 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
         updated = true;
     }
     if settings.history_limit > MAX_HISTORY_LIMIT {
-        warn!("Resetting out-of-range setting 'history_limit'");
-        settings.history_limit = default_history_limit();
+        // Clamp rather than reset: falling to the default would let the
+        // retention sweep delete all but the newest few dictations.
+        warn!("Clamping out-of-range setting 'history_limit'");
+        settings.history_limit = MAX_HISTORY_LIMIT;
         updated = true;
     }
     if !settings.reliable_paste {
@@ -1400,7 +1402,7 @@ mod tests {
         stored["paste_delay_ms"] = serde_json::json!(u64::MAX);
         stored["paste_delay_after_ms"] = serde_json::json!(MAX_PASTE_DELAY_MS + 1);
         stored["extra_recording_buffer_ms"] = serde_json::json!(MAX_EXTRA_RECORDING_BUFFER_MS + 1);
-        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT + 1);
+        stored["history_limit"] = serde_json::json!(5000);
         stored["custom_words"] = serde_json::json!([
             "  Murmur   App  ",
             "Murmur App",
@@ -1420,7 +1422,8 @@ mod tests {
             default_paste_delay_after_ms()
         );
         assert_eq!(settings.extra_recording_buffer_ms, 0);
-        assert_eq!(settings.history_limit, default_history_limit());
+        // A limit saved before it was bounded keeps as many dictations as allowed.
+        assert_eq!(settings.history_limit, MAX_HISTORY_LIMIT);
         assert_eq!(
             settings.custom_words,
             vec!["Murmur App".to_string(), "valid <markup>".to_string()]
