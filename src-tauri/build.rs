@@ -112,7 +112,24 @@ fn main() {
     build_meetings_helper();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
+    let attributes = embed_windows_manifest(attributes);
     tauri_build::try_build(attributes).expect("failed to build Tauri application ACL");
+}
+
+/// Tauri puts its Windows manifest (Common Controls 6, which WebView2 and
+/// tauri need) in a resource linked into the app binary only, so the test
+/// binaries fail to start with STATUS_ENTRYPOINT_NOT_FOUND. The linker
+/// embeds the same manifest into every binary instead.
+fn embed_windows_manifest(attributes: tauri_build::Attributes) -> tauri_build::Attributes {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        return attributes;
+    }
+    let manifest = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("windows-app-manifest.xml");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+    attributes.windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest())
 }
 
 fn generate_tray_translations() {

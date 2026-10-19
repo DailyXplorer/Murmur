@@ -47,9 +47,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::{
-    claim_before_pasteboard_mutation, decide_settlement, evaluate, CaptureBudget, CaptureLimit,
-    ClipboardSettlement, PasteboardAdmission, ReliablePasteOutcome, TxState, WaitDecision,
-    CAPTURE_BUDGET,
+    claim_before_pasteboard_mutation, decide_settlement, evaluate, same_pending, CaptureBudget,
+    CaptureLimit, ClipboardSettlement, PasteboardAdmission, ReliablePasteOutcome, TxState,
+    WaitDecision, CAPTURE_BUDGET,
 };
 use crate::clipboard::{
     frontmost_target, send_paste_if_target_unchanged, send_return_if_target_unchanged,
@@ -206,10 +206,7 @@ static PENDING: Mutex<Option<Arc<Transaction>>> = Mutex::new(None);
 fn is_current_pending(candidate: &Arc<Transaction>) -> bool {
     PENDING
         .lock()
-        .map(|slot| {
-            slot.as_ref()
-                .is_some_and(|pending| Arc::ptr_eq(pending, candidate))
-        })
+        .map(|slot| same_pending(slot.as_ref(), candidate))
         .unwrap_or(false)
 }
 

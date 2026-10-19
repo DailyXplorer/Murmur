@@ -28,7 +28,7 @@
 //! user's previous clipboard (every item and type, saved before publishing)
 //! is put back.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::operation::ProcessingOperation;
@@ -196,7 +196,7 @@ where
     PasteboardAdmission::Claimed
 }
 
-pub(crate) fn same_pending<T>(current: Option<&Arc<Mutex<T>>>, candidate: &Arc<Mutex<T>>) -> bool {
+pub(crate) fn same_pending<T>(current: Option<&Arc<T>>, candidate: &Arc<T>) -> bool {
     current
         .map(|pending| Arc::ptr_eq(pending, candidate))
         .unwrap_or(false)
@@ -235,6 +235,7 @@ pub(crate) fn try_reliable_paste(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
     fn state_after_publish(published_ago: Duration) -> TxState {
         let mut s = TxState::new();

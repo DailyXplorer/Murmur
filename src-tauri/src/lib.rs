@@ -853,6 +853,7 @@ pub fn run(cli_args: CliArgs) {
                 return Ok(());
             }
 
+            #[cfg_attr(target_os = "windows", allow(unused_variables))]
             let main_window =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Murmur")

@@ -17,6 +17,7 @@ use crate::meetings::coordinator::Track;
 pub enum SystemAudioSupport {
     Available,
     /// Process taps need macOS 14.4 or later.
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     OsTooOld,
     /// This build has no system audio bridge (Intel).
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]

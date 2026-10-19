@@ -341,8 +341,17 @@ pub fn get_microphone_authorization_status() -> Result<i32, String> {
     ))
 }
 
+/// Windows sends keys through SendInput and needs no input permission.
+#[cfg(target_os = "windows")]
+#[specta::specta]
+#[tauri::command]
+pub fn initialize_enigo(_app: AppHandle) -> Result<(), String> {
+    Ok(())
+}
+
 /// Try to initialize Enigo (keyboard/mouse simulation).
 /// On macOS, this will return an error if accessibility permissions are not granted.
+#[cfg(target_os = "macos")]
 #[specta::specta]
 #[tauri::command]
 pub fn initialize_enigo(app: AppHandle) -> Result<(), String> {

@@ -51,7 +51,6 @@ hound = "3.5.1"
 log = "0.4.25"
 env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macros", "io-util"] }
-enigo = "0.6.1"
 rodio = "0.21.1"
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
@@ -76,6 +75,8 @@ signal-hook = "0.3"
 libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# The pointer location, for the overlay's screen.
+enigo = "0.6.1"
 core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "da9c9a8d4eb7f0524a2508988df1a7d9585b4904" }
 # Used by the guarded paste path for lazy NSPasteboard promises. Versions

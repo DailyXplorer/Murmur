@@ -18,8 +18,11 @@ const FRAMING_TOKENS: usize = 64;
 pub enum AppleIntelligenceStatus {
     Available,
     DeviceNotEligible,
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     AppleIntelligenceNotEnabled,
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     ModelNotReady,
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     UnsupportedOs,
     Unavailable,
     /// The model runs, but not in the selected dictation language.
@@ -27,6 +30,8 @@ pub enum AppleIntelligenceStatus {
 }
 
 impl AppleIntelligenceStatus {
+    /// Reads the Swift bridge's status code, which only Apple silicon has.
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     fn from_code(code: i32) -> Self {
         match code {
             0 => Self::Available,

@@ -28,6 +28,11 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     }
 
     let manager = app.autolaunch();
+    // Removing a Run entry that was never written fails on every launch.
+    #[cfg(target_os = "windows")]
+    if manager.is_enabled().is_ok_and(|current| current == enabled) {
+        return;
+    }
     let result = if enabled {
         manager.enable()
     } else {

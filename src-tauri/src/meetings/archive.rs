@@ -4,7 +4,9 @@
 //! second. Transcribing the meeting again decodes the tracks back. The work
 //! happens in `swift/meeting_archive.swift`.
 
-use anyhow::{anyhow, bail, Result};
+#[cfg(unix)]
+use anyhow::anyhow;
+use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 
 use super::paths::{self, AUDIO_FILE, MIC_TRACK, SYSTEM_TRACK};

@@ -2,7 +2,9 @@
 use core_graphics::event::{CGEvent, CGEventFlags, KeyCode};
 #[cfg(target_os = "macos")]
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use enigo::{Enigo, Settings};
+#[cfg(target_os = "macos")]
+use enigo::{Enigo, Mouse, Settings};
+#[cfg(target_os = "macos")]
 use std::sync::Mutex;
 #[cfg(target_os = "macos")]
 use tauri::{AppHandle, Manager};
@@ -313,8 +315,10 @@ pub fn send_text_to_pid(pid: i32, text: &str) -> Result<(), String> {
 }
 
 /// Wrapper for Enigo to store in Tauri's managed state.
+#[cfg(target_os = "macos")]
 pub struct EnigoState(pub Mutex<Enigo>);
 
+#[cfg(target_os = "macos")]
 impl EnigoState {
     pub fn new() -> Result<Self, String> {
         let enigo = Enigo::new(&Settings::default())
@@ -327,8 +331,6 @@ impl EnigoState {
 /// Returns None if the state is not available or if getting the location fails.
 #[cfg(target_os = "macos")]
 pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
-    use enigo::Mouse;
-
     let enigo_state = app_handle.try_state::<EnigoState>()?;
     let enigo = enigo_state.0.lock().ok()?;
     enigo.location().ok()

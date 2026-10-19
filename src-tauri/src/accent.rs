@@ -176,6 +176,7 @@ mod tests {
         (first - second + 180.0).rem_euclid(360.0) - 180.0
     }
 
+    #[cfg(target_os = "macos")]
     fn visible_bounds(image: &Image<'_>) -> (u32, u32, u32, u32) {
         let mut min_x = image.width();
         let mut min_y = image.height();
