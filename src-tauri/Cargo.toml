@@ -52,7 +52,6 @@ log = "0.4.25"
 env_filter = "0.1.0"
 tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macros", "io-util"] }
 enigo = "0.6.1"
-core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 rodio = "0.21.1"
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
@@ -65,14 +64,20 @@ chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
 ferrous-opencc = "0.2.3"
 clap = { version = "4", features = ["derive"] }
-signal-hook = "0.3"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
-tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "da9c9a8d4eb7f0524a2508988df1a7d9585b4904" }
-image = { version = "0.25.9", default-features = false, features = ["png"] }
 prost = "0.13"
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3"
+# Free disk space before a meeting records (statvfs).
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = { version = "0.25.0", features = ["elcapitan"] }
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "da9c9a8d4eb7f0524a2508988df1a7d9585b4904" }
 # Used by the guarded paste path for lazy NSPasteboard promises. Versions
 # track what Tauri already pulls in.
 objc2 = "0.6"
@@ -82,9 +87,31 @@ objc2-service-management = "0.3.2"
 # Accessibility attribute values: window names, the correction watcher and
 # the Insights browser-domain lookup.
 core-foundation = "0.10"
-# Free disk space before a meeting records (statvfs).
-libc = "0.2"
 security-framework = "3.7.0"
+# PNG encoding for the recolored Dock icon.
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# The version Tauri already pulls in.
+windows = { version = "0.61.3", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# Microphone privacy consent, kept by Windows in the registry.
+winreg = "0.55"
 
 [dev-dependencies]
 tempfile = "3"
