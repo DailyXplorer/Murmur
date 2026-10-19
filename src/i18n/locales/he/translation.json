@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity מזהה את השפה אוטומטית. בחירת השפה של Codex נשמרת כשתחזור אליו.",
     "sound": {
+      "defaultDevice": "ברירת מחדל",
       "title": "שמע",
       "microphone": {
         "title": "מיקרופון",

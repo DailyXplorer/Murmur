@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity registrerer sproget automatisk. Dit Codex-sprogvalg bevares, når du skifter tilbage.",
     "sound": {
+      "defaultDevice": "Standard",
       "title": "Lyd",
       "microphone": {
         "title": "Mikrofon",

@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity dili otomatik olarak algılar. Codex'e geri döndüğünüzde Codex dil seçiminiz korunur.",
     "sound": {
+      "defaultDevice": "Varsayılan",
       "title": "Ses",
       "microphone": {
         "title": "Mikrofon",

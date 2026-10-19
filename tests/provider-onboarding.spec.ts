@@ -77,7 +77,7 @@ test("persists either visible provider choice before onboarding completes", asyn
     .toBe("gemini");
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Auto Detect" }),
+    page.getByRole("button", { name: "Auto", exact: true }),
   ).toBeDisabled();
   const automaticLanguageDescription =
     "Antigravity detects the language automatically. Your Codex language selection is kept for when you switch back.";

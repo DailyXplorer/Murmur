@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity 会自动检测语言。切换回 Codex 时，将保留你的 Codex 语言选择。",
     "sound": {
+      "defaultDevice": "默认",
       "title": "声音",
       "microphone": {
         "title": "麦克风",

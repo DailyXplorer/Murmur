@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity tự động phát hiện ngôn ngữ. Lựa chọn ngôn ngữ Codex của bạn sẽ được giữ lại khi chuyển về Codex.",
     "sound": {
+      "defaultDevice": "Mặc định",
       "title": "Âm thanh",
       "microphone": {
         "title": "Micrô",

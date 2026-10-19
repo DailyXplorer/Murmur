@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity identifierar språket automatiskt. Ditt språkval för Codex behålls när du byter tillbaka.",
     "sound": {
+      "defaultDevice": "Standard",
       "title": "Ljud",
       "microphone": {
         "title": "Mikrofon",

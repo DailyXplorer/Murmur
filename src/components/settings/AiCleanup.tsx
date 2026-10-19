@@ -5,7 +5,7 @@ import {
   type AppleIntelligenceStatus,
   type CleanupEngine,
 } from "@/bindings";
-import { getLanguageLabel } from "@/lib/constants/languages";
+import { localizedLanguageName } from "@/lib/constants/languages";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
@@ -15,19 +15,6 @@ interface AiCleanupProps {
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
-
-/** The dictation language's name in the interface language. */
-const languageName = (code: string, uiLanguage: string): string => {
-  try {
-    return (
-      new Intl.DisplayNames([uiLanguage], { type: "language" }).of(code) ??
-      getLanguageLabel(code) ??
-      code
-    );
-  } catch {
-    return getLanguageLabel(code) ?? code;
-  }
-};
 
 /**
  * Re-read on focus, since the user may have just turned it on in System
@@ -118,7 +105,7 @@ export const AiCleanup: React.FC<AiCleanupProps> = React.memo(
               data-testid="apple-intelligence-status"
             >
               {t(`settings.transcription.cleanupEngine.status.${appleStatus}`, {
-                language: languageName(language, i18n.language),
+                language: localizedLanguageName(language, i18n.language),
               })}
             </span>
           </SettingContainer>

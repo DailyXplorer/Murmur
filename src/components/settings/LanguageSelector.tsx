@@ -18,7 +18,7 @@ import {
 } from "../ui/controlClasses";
 import { useSettings } from "../../hooks/useSettings";
 import {
-  getLanguageLabel,
+  localizedLanguageName,
   recognitionLanguage,
   SELECTABLE_LANGUAGES,
   supportsLanguageCode,
@@ -54,7 +54,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   supportedLanguages,
   supportsLanguageDetection = true,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, resetSetting, isUpdating } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +84,15 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     }
   }, [isLanguageMenuOpen]);
 
+  const languageName = useCallback(
+    (code: string) => {
+      if (code === "auto") return t("settings.general.language.auto");
+      const name = localizedLanguageName(code, i18n.language);
+      return name.charAt(0).toLocaleUpperCase(i18n.language) + name.slice(1);
+    },
+    [t, i18n.language],
+  );
+
   const availableLanguages = useMemo(() => {
     if (isAntigravity) {
       return SELECTABLE_LANGUAGES.filter(
@@ -99,19 +108,22 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     );
   }, [isAntigravity, supportedLanguages, supportsLanguageDetection]);
 
-  const filteredLanguages = useMemo(
-    () =>
-      availableLanguages.filter((language) =>
-        language.label.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [searchQuery, availableLanguages],
-  );
+  // The English name still finds a language, as it did before.
+  const filteredLanguages = useMemo(() => {
+    const query = searchQuery.toLocaleLowerCase(i18n.language);
+    return availableLanguages
+      .map((language) => ({ ...language, name: languageName(language.value) }))
+      .filter((language) =>
+        [language.name, language.label].some((name) =>
+          name.toLocaleLowerCase(i18n.language).includes(query),
+        ),
+      );
+  }, [searchQuery, availableLanguages, languageName, i18n.language]);
   const initialTabStopValue =
     filteredLanguages.find((language) => language.value === selectedLanguage)
       ?.value ?? filteredLanguages[0]?.value;
 
-  const selectedLanguageName =
-    getLanguageLabel(selectedLanguage) || t("settings.general.language.auto");
+  const selectedLanguageName = languageName(selectedLanguage);
 
   const handleLanguageSelect = async (languageCode: string) => {
     await updateSetting("selected_language", languageCode);
@@ -238,7 +250,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     onClick={() => handleLanguageSelect(language.value)}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="truncate">{language.label}</span>
+                      <span className="truncate">{language.name}</span>
                     </div>
                   </button>
                 ))

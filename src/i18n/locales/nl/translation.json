@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity detecteert de taal automatisch. Je Codex-taalkeuze blijft behouden wanneer je terugschakelt.",
     "sound": {
+      "defaultDevice": "Standaard",
       "title": "Geluid",
       "microphone": {
         "title": "Microfoon",

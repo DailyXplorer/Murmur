@@ -144,3 +144,20 @@ export const supportsLanguageCode = (
 
 export const getLanguageLabel = (languageCode: string): string | undefined =>
   LANGUAGE_LABELS.get(languageCode);
+
+/** A language's name in the interface language, else its English name. */
+export const localizedLanguageName = (
+  languageCode: string,
+  uiLanguage: string,
+): string => {
+  const englishName = getLanguageLabel(languageCode) ?? languageCode;
+  try {
+    const name = new Intl.DisplayNames([uiLanguage], { type: "language" }).of(
+      languageCode,
+    );
+    // Without a name of its own ("jw"), the code comes back.
+    return name && name !== languageCode ? name : englishName;
+  } catch {
+    return englishName;
+  }
+};

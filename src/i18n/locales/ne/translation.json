@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "Antigravity ले भाषा स्वचालित रूपमा पत्ता लगाउँछ। Codex मा फर्किँदा तपाईंको Codex भाषा चयन सुरक्षित रहन्छ।",
     "sound": {
+      "defaultDevice": "पूर्वनिर्धारित",
       "title": "साउन्ड",
       "microphone": {
         "title": "माइक्रोफोन",

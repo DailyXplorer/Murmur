@@ -192,6 +192,7 @@
     },
     "languageAutoOnly": "يكتشف Antigravity اللغة تلقائيًا. يتم الاحتفاظ باختيار لغة Codex عند العودة إليه.",
     "sound": {
+      "defaultDevice": "افتراضي",
       "title": "الصوت",
       "microphone": {
         "title": "الميكروفون",

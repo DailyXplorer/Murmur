@@ -22,7 +22,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByRole("button", { name: "Default" });
   const language = page
     .getByTestId("production-language")
-    .getByRole("button", { name: "Auto Detect" });
+    .getByRole("button", { name: "Auto", exact: true });
   const shortcut = page
     .getByTestId("production-shortcut")
     .getByText("Alt + Space", { exact: true });
