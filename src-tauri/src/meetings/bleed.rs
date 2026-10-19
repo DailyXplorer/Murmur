@@ -79,16 +79,29 @@ pub fn is_echo(
 }
 
 /// Removes the microphone sentences that echo the system track. Returns how
-/// many were removed.
+/// many were removed. An echo is removed only where the system track has
+/// its own transcript: a reply too short to send to Codex, or a piece that
+/// failed, would otherwise be lost.
 pub fn remove_echoes(
     units: &mut Vec<Unit>,
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> usize {
+    let transcribed: Vec<(u64, u64)> = units
+        .iter()
+        .filter(|unit| unit.track == Track::System && !unit.is_placeholder())
+        .map(|unit| (unit.start_ms, unit.end_ms))
+        .collect();
     let before = units.len();
     units.retain(|unit| {
-        unit.track != Track::Mic || !is_echo(unit, system_words, mic_levels, system_levels)
+        let from = unit.start_ms.saturating_sub(AROUND_MS);
+        let to = unit.end_ms + AROUND_MS;
+        unit.track != Track::Mic
+            || !transcribed
+                .iter()
+                .any(|&(start, end)| start < to && end > from)
+            || !is_echo(unit, system_words, mic_levels, system_levels)
     });
     before - units.len()
 }
@@ -131,12 +144,29 @@ mod tests {
         let unit = mic("On valide le budget jeudi prochain.", 2_100, 4_500);
         // The microphone hears the speakers 10 dB below the system track.
         assert!(is_echo(&unit, &system, &flat(-40.0), &flat(-30.0)));
-        let mut units = vec![unit, mic("Moi je préfère lundi.", 6_000, 7_000)];
+        let mut said = mic("On valide le budget jeudi prochain.", 2_000, 4_400);
+        said.track = Track::System;
+        let mut units = vec![said, unit, mic("Moi je préfère lundi.", 6_000, 7_000)];
         assert_eq!(
             remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0)),
             1
         );
-        assert_eq!(units.len(), 1);
+        assert_eq!(units.len(), 2);
+    }
+
+    #[test]
+    fn an_echo_the_system_transcript_lacks_is_kept() {
+        // A reply too short to send to Codex: its system chunk is silent,
+        // so the microphone's copy is the only one in the transcript.
+        let system = heard("oui ça me va", 2_000, 250);
+        let unit = mic("Oui, ça me va.", 2_000, 3_000);
+        assert!(is_echo(&unit, &system, &flat(-40.0), &flat(-30.0)));
+        let mut units = vec![unit, Unit::placeholder(Track::System, 0, 600_000)];
+        assert_eq!(
+            remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0)),
+            0
+        );
+        assert_eq!(units.len(), 2);
     }
 
     #[test]
