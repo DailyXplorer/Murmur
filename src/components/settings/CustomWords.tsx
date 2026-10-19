@@ -3,6 +3,7 @@ import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSettings } from "../../hooks/useSettings";
+import { isWindows } from "@/lib/platform";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
@@ -104,7 +105,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           <div
             className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
-            {learnedWords.size > 0 && (
+            {!isWindows && learnedWords.size > 0 && (
               <p className="pb-2 text-xs text-text/60">
                 {t("settings.advanced.customWords.learnedHint")}
               </p>

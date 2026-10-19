@@ -14,6 +14,7 @@ import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import { useShortcutCaptureStore } from "../../stores/shortcutCaptureStore";
 import { commands, type ShortcutRegistrationError } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
@@ -82,6 +83,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     if (editingShortcutId === null) return;
 
     let cleanup = false;
+    // The most modifiers held together, for a modifier-only chord.
+    let chord: string[] = [];
 
     const cancelRecording = () => {
       endCapture(editingShortcutId);
@@ -130,6 +133,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       const modifiers = modifiersHeld(e);
       if (MODIFIER_KEYS.has(key)) {
         setHeldModifiers(modifiers);
+        if (modifiers.length >= chord.length) chord = modifiers;
         return;
       }
 
@@ -143,10 +147,18 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       void commit([...modifiers, key].join("+"));
     };
 
+    // Windows also binds a chord of two or more modifiers alone, such as the
+    // default Ctrl+Win: it is committed once every key is released, since no
+    // main key arrives.
     const handleKeyUp = (e: KeyboardEvent) => {
       if (cleanup) return;
       e.preventDefault();
-      setHeldModifiers(modifiersHeld(e));
+      const modifiers = modifiersHeld(e);
+      setHeldModifiers(modifiers);
+      if (isWindows && modifiers.length === 0 && chord.length >= 2) {
+        cleanup = true;
+        void commit(chord.join("+"));
+      }
     };
 
     const handleClickOutside = async (e: MouseEvent) => {

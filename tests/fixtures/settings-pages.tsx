@@ -80,6 +80,9 @@ const modelsStatus: MeetingModelsStatus =
         },
       };
 const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
+/** `platform=windows` runs the Windows build, with its Ctrl+Win default. */
+const windows = params.get("platform") === "windows";
+const transcribeBinding = windows ? "ctrl+super" : "option+space";
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -128,8 +131,8 @@ const SETTINGS: AppSettings = {
       name: "Paste Last Transcript",
     },
     transcribe: {
-      current_binding: "option+space",
-      default_binding: "option+space",
+      current_binding: transcribeBinding,
+      default_binding: transcribeBinding,
       description: "Record and transcribe",
       id: "transcribe",
       name: "Transcribe",
@@ -534,15 +537,25 @@ mockIPC(
 );
 
 Object.assign(window, {
-  __TAURI_OS_PLUGIN_INTERNALS__: {
-    arch: "aarch64",
-    eol: "\n",
-    exe_extension: "",
-    family: "unix",
-    os_type: "macos",
-    platform: "macos",
-    version: "15.0.0",
-  },
+  __TAURI_OS_PLUGIN_INTERNALS__: windows
+    ? {
+        arch: "x86_64",
+        eol: "\r\n",
+        exe_extension: "exe",
+        family: "windows",
+        os_type: "windows",
+        platform: "windows",
+        version: "10.0.26100",
+      }
+    : {
+        arch: "aarch64",
+        eol: "\n",
+        exe_extension: "",
+        family: "unix",
+        os_type: "macos",
+        platform: "macos",
+        version: "15.0.0",
+      },
 });
 
 const renderFixture = async () => {

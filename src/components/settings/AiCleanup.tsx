@@ -6,6 +6,7 @@ import {
   type CleanupEngine,
 } from "@/bindings";
 import { getLanguageLabel } from "@/lib/constants/languages";
+import { isWindows } from "@/lib/platform";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
@@ -31,12 +32,13 @@ const languageName = (code: string, uiLanguage: string): string => {
 
 /**
  * Re-read on focus, since the user may have just turned it on in System
- * Settings, and when the dictation language changes.
+ * Settings, and when the dictation language changes. Windows has none.
  */
 const useAppleIntelligenceStatus = (languageKey: string) => {
   const [status, setStatus] = useState<AppleIntelligenceStatus | null>(null);
 
   useEffect(() => {
+    if (isWindows) return;
     let active = true;
     const refresh = () =>
       commands
@@ -79,31 +81,37 @@ export const AiCleanup: React.FC<AiCleanupProps> = React.memo(
           descriptionMode={descriptionMode}
           grouped={grouped}
         />
-        <SettingContainer
-          title={t("settings.transcription.cleanupEngine.title")}
-          description={t("settings.transcription.cleanupEngine.description")}
-          descriptionMode={descriptionMode}
-          grouped={grouped}
-          disabled={!enabled}
-        >
-          <Dropdown
-            options={[
-              {
-                value: "apple",
-                label: t("settings.transcription.cleanupEngine.options.apple"),
-              },
-              {
-                value: "codex",
-                label: t("settings.transcription.cleanupEngine.options.codex"),
-              },
-            ]}
-            selectedValue={engine}
-            onSelect={(value) =>
-              updateSetting("cleanup_engine", value as CleanupEngine)
-            }
-            disabled={!enabled || isUpdating("cleanup_engine")}
-          />
-        </SettingContainer>
+        {!isWindows && (
+          <SettingContainer
+            title={t("settings.transcription.cleanupEngine.title")}
+            description={t("settings.transcription.cleanupEngine.description")}
+            descriptionMode={descriptionMode}
+            grouped={grouped}
+            disabled={!enabled}
+          >
+            <Dropdown
+              options={[
+                {
+                  value: "apple",
+                  label: t(
+                    "settings.transcription.cleanupEngine.options.apple",
+                  ),
+                },
+                {
+                  value: "codex",
+                  label: t(
+                    "settings.transcription.cleanupEngine.options.codex",
+                  ),
+                },
+              ]}
+              selectedValue={engine}
+              onSelect={(value) =>
+                updateSetting("cleanup_engine", value as CleanupEngine)
+              }
+              disabled={!enabled || isUpdating("cleanup_engine")}
+            />
+          </SettingContainer>
+        )}
         {enabled && engine === "apple" && appleStatus !== null && (
           <SettingContainer
             title={t("settings.transcription.cleanupEngine.status.title")}

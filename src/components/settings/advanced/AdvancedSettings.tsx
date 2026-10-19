@@ -14,6 +14,7 @@ import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
 import { UpdateChecksToggle } from "../UpdateChecksToggle";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { LogDirectory } from "../debug";
+import { isWindows } from "@/lib/platform";
 
 export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -27,13 +28,18 @@ export const AdvancedSettings: React.FC = () => {
         <AutostartToggle descriptionMode="tooltip" grouped={true} />
         <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
-        <MeetingsToggle descriptionMode="tooltip" grouped={true} />
+        {!isWindows && (
+          <MeetingsToggle descriptionMode="tooltip" grouped={true} />
+        )}
       </SettingsGroup>
 
-      <SettingsGroup title={t("settings.advanced.groups.updates")}>
-        <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />
-        <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
-      </SettingsGroup>
+      {/* The Windows beta has no updater and no release notes in the app. */}
+      {!isWindows && (
+        <SettingsGroup title={t("settings.advanced.groups.updates")}>
+          <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />
+          <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
+        </SettingsGroup>
+      )}
 
       <SettingsGroup title={t("settings.advanced.groups.storage")}>
         <AppDataDirectory descriptionMode="tooltip" grouped={true} />

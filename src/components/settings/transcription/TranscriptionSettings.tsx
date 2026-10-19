@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { commands, type TranscriptionProvider } from "@/bindings";
 import { useSettings } from "@/hooks/useSettings";
+import { isWindows } from "@/lib/platform";
 import {
   isConfiguredProvider,
   statusTranslationKey,
@@ -104,18 +105,20 @@ export const TranscriptionSettings: React.FC = () => {
   return (
     <SettingsPage label={t("sidebar.transcription")}>
       <SettingsGroup title={t("settings.transcription.groups.service")}>
-        <SettingContainer
-          title={t("settings.transcription.providerTitle")}
-          description={t("settings.transcription.providerDescription")}
-          grouped={true}
-        >
-          <Dropdown
-            options={providerOptions}
-            selectedValue={provider}
-            onSelect={(value) => void changeProvider(value)}
-            disabled={isUpdating("transcription_provider")}
-          />
-        </SettingContainer>
+        {!isWindows && (
+          <SettingContainer
+            title={t("settings.transcription.providerTitle")}
+            description={t("settings.transcription.providerDescription")}
+            grouped={true}
+          >
+            <Dropdown
+              options={providerOptions}
+              selectedValue={provider}
+              onSelect={(value) => void changeProvider(value)}
+              disabled={isUpdating("transcription_provider")}
+            />
+          </SettingContainer>
+        )}
 
         <SettingContainer
           title={t("onboarding.providerLabels.codex")}
@@ -128,43 +131,47 @@ export const TranscriptionSettings: React.FC = () => {
           />
         </SettingContainer>
 
-        <SettingContainer
-          title={t("onboarding.providerLabels.antigravity")}
-          description={t("onboarding.provider.antigravityDescription")}
-          grouped={true}
-          layout="stacked"
-          badge={
-            <span className="ms-1.5 shrink-0 rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
-              {t("onboarding.provider.experimental")}
-            </span>
-          }
-        >
-          <ProviderStatusLine status={t(statusTranslationKey(statuses.gemini))}>
-            {statuses.gemini.kind === "unavailable" &&
-              statuses.gemini.reason === "notInstalled" && (
-                <Button
-                  className="shrink-0"
-                  onClick={() => void installAntigravity()}
-                >
-                  {t("settings.transcription.installAntigravity")}
-                </Button>
-              )}
-            {statuses.gemini.kind === "unavailable" &&
-              statuses.gemini.reason === "notSignedIn" && (
-                <Button
-                  className="shrink-0"
-                  onClick={() => void openAntigravity()}
-                >
-                  {t("settings.transcription.openAntigravity")}
-                </Button>
-              )}
-          </ProviderStatusLine>
-        </SettingContainer>
+        {!isWindows && (
+          <SettingContainer
+            title={t("onboarding.providerLabels.antigravity")}
+            description={t("onboarding.provider.antigravityDescription")}
+            grouped={true}
+            layout="stacked"
+            badge={
+              <span className="ms-1.5 shrink-0 rounded bg-logo-primary/20 px-1.5 py-0.5 text-xs font-medium text-logo-primary">
+                {t("onboarding.provider.experimental")}
+              </span>
+            }
+          >
+            <ProviderStatusLine
+              status={t(statusTranslationKey(statuses.gemini))}
+            >
+              {statuses.gemini.kind === "unavailable" &&
+                statuses.gemini.reason === "notInstalled" && (
+                  <Button
+                    className="shrink-0"
+                    onClick={() => void installAntigravity()}
+                  >
+                    {t("settings.transcription.installAntigravity")}
+                  </Button>
+                )}
+              {statuses.gemini.kind === "unavailable" &&
+                statuses.gemini.reason === "notSignedIn" && (
+                  <Button
+                    className="shrink-0"
+                    onClick={() => void openAntigravity()}
+                  >
+                    {t("settings.transcription.openAntigravity")}
+                  </Button>
+                )}
+            </ProviderStatusLine>
+          </SettingContainer>
+        )}
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>
         <AiCleanup descriptionMode="tooltip" grouped={true} />
-        <WindowNames descriptionMode="tooltip" grouped={true} />
+        {!isWindows && <WindowNames descriptionMode="tooltip" grouped={true} />}
         <WhisperMode descriptionMode="tooltip" grouped={true} />
         <CustomWords descriptionMode="tooltip" grouped={true} />
         <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />

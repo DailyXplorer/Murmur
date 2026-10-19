@@ -8,6 +8,7 @@ import {
   statusTranslationKey,
   useProviderStatuses,
 } from "@/components/transcription/providerStatus";
+import { isWindows } from "@/lib/platform";
 import { Button } from "../ui/Button";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 
@@ -182,11 +183,12 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
               t("onboarding.providerLabels.codex"),
               t("settings.transcription.sessionDescription"),
             )}
-            {renderProvider(
-              "gemini",
-              t("onboarding.providerLabels.antigravity"),
-              t("onboarding.provider.antigravityDescription"),
-            )}
+            {!isWindows &&
+              renderProvider(
+                "gemini",
+                t("onboarding.providerLabels.antigravity"),
+                t("onboarding.provider.antigravityDescription"),
+              )}
           </div>
           {!canComplete && selectedStatus.kind !== "checking" && (
             <p className="mt-2 text-sm text-text/70" aria-live="polite">

@@ -4,6 +4,7 @@ import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import type { AutoSubmitKey } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 
 interface AutoSubmitProps {
   descriptionMode?: "inline" | "tooltip";
@@ -35,10 +36,15 @@ export const AutoSubmit: React.FC<AutoSubmitProps> = React.memo(
         value: "ctrl_enter",
         label: t("settings.advanced.autoSubmit.options.ctrlEnter"),
       },
-      {
-        value: "cmd_enter",
-        label: t("settings.advanced.autoSubmit.options.cmdEnter"),
-      },
+      // Windows sends Command as Ctrl, so Cmd+Enter would repeat Ctrl+Enter.
+      ...(isWindows
+        ? []
+        : [
+            {
+              value: "cmd_enter",
+              label: t("settings.advanced.autoSubmit.options.cmdEnter"),
+            },
+          ]),
     ];
 
     const handleAutoSubmitSelect = async (value: string) => {

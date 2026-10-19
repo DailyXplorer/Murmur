@@ -10,6 +10,7 @@ import { AlwaysOnMicrophone } from "../AlwaysOnMicrophone";
 import { SoundPicker } from "../SoundPicker";
 import { ClamshellMicrophoneSelector } from "../ClamshellMicrophoneSelector";
 import { WhatsNewPreview } from "./WhatsNewPreview";
+import { isWindows } from "@/lib/platform";
 
 export const DebugSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -26,7 +27,12 @@ export const DebugSettings: React.FC = () => {
         <WordCorrectionThreshold descriptionMode="tooltip" grouped={true} />
         <RecordingBuffer descriptionMode="tooltip" grouped={true} />
         <AlwaysOnMicrophone descriptionMode="tooltip" grouped={true} />
-        <ClamshellMicrophoneSelector descriptionMode="tooltip" grouped={true} />
+        {!isWindows && (
+          <ClamshellMicrophoneSelector
+            descriptionMode="tooltip"
+            grouped={true}
+          />
+        )}
         <LiveLogViewer descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
     </SettingsPage>

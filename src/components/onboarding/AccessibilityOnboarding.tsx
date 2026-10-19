@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 import { commands } from "@/bindings";
 import { repairAccessibilityPermission } from "@/lib/macosPermissions";
+import { isWindows } from "@/lib/platform";
 import { useSettingsStore } from "@/stores/settingsStore";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 import { Button } from "../ui/Button";
@@ -53,6 +54,10 @@ const microphoneState = (
       ? "denied"
       : undecided;
 
+// Windows needs no Accessibility permission to type or listen for shortcuts.
+const checkAccessibility = (): Promise<boolean> =>
+  isWindows ? Promise.resolve(true) : checkAccessibilityPermission();
+
 const getMicrophoneStatus = async () => {
   const result = await commands.getMicrophoneAuthorizationStatus();
   if (result.status === "error") {
@@ -95,7 +100,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     const checkInitial = async () => {
       try {
         const [accessibilityGranted, microphoneStatus] = await Promise.all([
-          checkAccessibilityPermission(),
+          checkAccessibility(),
           getMicrophoneStatus(),
         ]);
 
@@ -132,7 +137,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
     pollingRef.current = setInterval(async () => {
       try {
         const [accessibilityGranted, microphoneStatus] = await Promise.all([
-          checkAccessibilityPermission(),
+          checkAccessibility(),
           getMicrophoneStatus(),
         ]);
         const microphoneGranted =
@@ -290,7 +295,11 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
             {t("onboarding.permissions.title")}
           </h2>
           <p className="text-text/70 text-pretty">
-            {t("onboarding.permissions.description")}
+            {t(
+              isWindows
+                ? "onboarding.permissions.descriptionWindows"
+                : "onboarding.permissions.description",
+            )}
           </p>
         </div>
 
@@ -324,18 +333,31 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   {permissions.microphone === "denied" && (
                     <>
                       <p className="text-pretty">
-                        {t("errors.micPermissionDenied.macos")}
+                        {t(
+                          isWindows
+                            ? "errors.micPermissionDenied.windows"
+                            : "errors.micPermissionDenied.macos",
+                        )}
                       </p>
                       <button
                         type="button"
                         onClick={openMicrophoneSettings}
                         className="min-h-control self-start rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary transition-colors"
                       >
-                        {t("accessibility.openSettings")}
+                        {t(
+                          isWindows
+                            ? "accessibility.openSettingsWindows"
+                            : "accessibility.openSettings",
+                        )}
                       </button>
                     </>
                   )}
                 </div>
+              ) : isWindows ? (
+                // Windows has no prompt to show: access is a privacy switch.
+                <Button onClick={openMicrophoneSettings}>
+                  {t("accessibility.openSettingsWindows")}
+                </Button>
               ) : (
                 <Button onClick={handleGrantMicrophone}>
                   {t("onboarding.permissions.grant")}
@@ -345,49 +367,51 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
           </div>
         </div>
 
-        <div className="w-full p-4 rounded-lg bg-white/5 border border-mid-gray/20">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
-              <KeyboardIcon size={22} className="text-logo-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-text">
-                {t("onboarding.permissions.accessibility.title")}
-              </h3>
-              <p className="text-sm text-text/60 mb-3 text-pretty">
-                {t("onboarding.permissions.accessibility.description")}
-              </p>
-              {permissions.accessibility === "granted" ? (
-                <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                  <CheckIcon size={15} />
-                  {t("onboarding.permissions.granted")}
-                </div>
-              ) : permissions.accessibility === "waiting" ? (
-                <div
-                  aria-live="polite"
-                  className="flex flex-wrap items-center gap-2 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
-                >
-                  <span className="flex min-h-control items-center gap-2">
-                    <CircleNotchIcon size={15} className="animate-spin" />
-                    {t("onboarding.permissions.accessibility.waiting")}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={isRepairingAccessibility}
-                    onClick={handleGrantAccessibility}
-                    className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+        {!isWindows && (
+          <div className="w-full p-4 rounded-lg bg-white/5 border border-mid-gray/20">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-logo-primary/20 shrink-0">
+                <KeyboardIcon size={22} className="text-logo-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-text">
+                  {t("onboarding.permissions.accessibility.title")}
+                </h3>
+                <p className="text-sm text-text/60 mb-3 text-pretty">
+                  {t("onboarding.permissions.accessibility.description")}
+                </p>
+                {permissions.accessibility === "granted" ? (
+                  <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                    <CheckIcon size={15} />
+                    {t("onboarding.permissions.granted")}
+                  </div>
+                ) : permissions.accessibility === "waiting" ? (
+                  <div
+                    aria-live="polite"
+                    className="flex flex-wrap items-center gap-2 rounded-lg bg-logo-primary/10 px-3 py-2 text-sm text-text"
                   >
-                    {t("accessibility.openSettings")}
-                  </button>
-                </div>
-              ) : (
-                <Button onClick={handleGrantAccessibility}>
-                  {t("onboarding.permissions.accessibility.action")}
-                </Button>
-              )}
+                    <span className="flex min-h-control items-center gap-2">
+                      <CircleNotchIcon size={15} className="animate-spin" />
+                      {t("onboarding.permissions.accessibility.waiting")}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isRepairingAccessibility}
+                      onClick={handleGrantAccessibility}
+                      className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+                    >
+                      {t("accessibility.openSettings")}
+                    </button>
+                  </div>
+                ) : (
+                  <Button onClick={handleGrantAccessibility}>
+                    {t("onboarding.permissions.accessibility.action")}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

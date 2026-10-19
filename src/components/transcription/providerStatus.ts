@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { CodexAuthStatus, GeminiStatus } from "@/bindings";
 import { commands } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 
 export type ProviderStatus =
   | { kind: "checking" }
@@ -19,6 +20,12 @@ export interface ProviderStatuses {
 export const CHECKING_PROVIDER_STATUSES: ProviderStatuses = {
   codex: { kind: "checking" },
   gemini: { kind: "checking" },
+};
+
+/** Antigravity transcription is macOS only. */
+const WINDOWS_GEMINI_STATUS: GeminiStatus = {
+  installed: false,
+  signed_in: false,
 };
 
 const codexStatusFrom = (
@@ -59,7 +66,7 @@ export const useProviderStatuses = () => {
     setStatuses(CHECKING_PROVIDER_STATUSES);
     const [codex, gemini] = await Promise.allSettled([
       commands.getCodexAuthStatus(),
-      commands.getGeminiStatus(),
+      isWindows ? WINDOWS_GEMINI_STATUS : commands.getGeminiStatus(),
     ]);
 
     if (sequence !== requestSequence.current) return;

@@ -26,6 +26,7 @@ import {
   type HeatmapDay,
   type InsightsSummary,
 } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 import { DescriptionTooltip } from "../../ui/SettingContainer";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
@@ -305,13 +306,20 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
           icon={MagicWandIcon}
           label={t("insights.fixes.title")}
           value={format.number.format(fixes)}
-          tooltip={t("insights.fixes.description")}
+          tooltip={t(
+            isWindows
+              ? "insights.fixes.descriptionWindows"
+              : "insights.fixes.description",
+          )}
         >
-          <span className="block">
-            {t("insights.fixes.wordsCorrected", {
-              value: format.number.format(summary.words_corrected),
-            })}
-          </span>
+          {/* Only correction learning, which is macOS only, corrects words. */}
+          {!isWindows && (
+            <span className="block">
+              {t("insights.fixes.wordsCorrected", {
+                value: format.number.format(summary.words_corrected),
+              })}
+            </span>
+          )}
           <span className="block">
             {t("insights.fixes.dictionaryFixes", {
               value: format.number.format(summary.dictionary_fixes),

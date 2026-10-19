@@ -1,3 +1,4 @@
+import "./macos-os";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";

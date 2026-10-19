@@ -7,6 +7,7 @@ import { SettingContainer } from "../../ui/SettingContainer";
 import { Button } from "../../ui/Button";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { ModelLicencesDialog } from "../../meetings/ModelLicencesDialog";
+import { isWindows } from "@/lib/platform";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -75,17 +76,21 @@ export const AboutSettings: React.FC = () => {
           </Button>
         </SettingContainer>
 
-        <SettingContainer
-          title={t("meetings.models.licences")}
-          description={t("settings.about.modelLicences.description")}
-          grouped={true}
-        >
-          <Button onClick={() => setLicences(true)}>
-            {t("settings.about.modelLicences.button")}
-          </Button>
-        </SettingContainer>
+        {!isWindows && (
+          <SettingContainer
+            title={t("meetings.models.licences")}
+            description={t("settings.about.modelLicences.description")}
+            grouped={true}
+          >
+            <Button onClick={() => setLicences(true)}>
+              {t("settings.about.modelLicences.button")}
+            </Button>
+          </SettingContainer>
+        )}
       </SettingsGroup>
-      <ModelLicencesDialog open={licences} onOpenChange={setLicences} />
+      {!isWindows && (
+        <ModelLicencesDialog open={licences} onOpenChange={setLicences} />
+      )}
     </SettingsPage>
   );
 };
