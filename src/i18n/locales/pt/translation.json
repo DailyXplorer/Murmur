@@ -53,25 +53,19 @@
     "error": "Não foi possível carregar as estatísticas.",
     "wpm": {
       "title": "Palavras por minuto",
-      "window": "Últimos 30 dias",
-      "empty": "Ainda não há ditados cronometrados suficientes",
       "formula": "Total de palavras ditadas nos últimos 30 dias dividido pelo tempo total de gravação desses ditados, em minutos. Gravações com menos de um segundo são ignoradas."
     },
     "words": {
-      "title": "Total de palavras",
-      "empty": "Comece a ditar para preencher este valor",
-      "equivalence": {
-        "emails": "≈ {{amount}} × um e-mail típico",
-        "pages": "≈ {{amount}} × uma página de livro",
-        "stories": "≈ {{amount}} × um conto",
-        "novels": "≈ {{amount}} × um romance"
-      }
+      "title": "Total de palavras"
     },
-    "fixes": {
-      "title": "Correções",
-      "description": "Nomes mal transcritos que você corrigiu depois que o Murmur colou o texto, contados uma vez para cada palavra que o Murmur aprendeu, mais as palavras que seu dicionário personalizado substituiu automaticamente.",
-      "wordsCorrected": "Palavras corrigidas: {{value}}",
-      "dictionaryFixes": "Correções do dicionário: {{value}}"
+    "timeSaved": {
+      "title": "Tempo economizado",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "formula": "Para cada ditado, o tempo que levaria para digitar as palavras a {{wpm}} palavras por minuto, menos o tempo que você passou falando, nunca abaixo de zero."
     },
     "apps": {
       "title": "Uso por aplicativo",

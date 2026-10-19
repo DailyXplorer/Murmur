@@ -53,25 +53,19 @@
     "error": "Insights could not be loaded.",
     "wpm": {
       "title": "Words per minute",
-      "window": "Last 30 days",
-      "empty": "Not enough timed dictations yet",
       "formula": "Total words dictated in the last 30 days divided by the total recording time of those dictations, in minutes. Recordings shorter than one second are skipped."
     },
     "words": {
-      "title": "Total words",
-      "empty": "Start dictating to fill this in",
-      "equivalence": {
-        "emails": "≈ {{amount}} × a typical email",
-        "pages": "≈ {{amount}} × a book page",
-        "stories": "≈ {{amount}} × a short story",
-        "novels": "≈ {{amount}} × a novel"
-      }
+      "title": "Total words"
     },
-    "fixes": {
-      "title": "Fixes made",
-      "description": "Misheard names you fixed after Murmur pasted, counted once for each word Murmur learned, plus words your custom dictionary replaced automatically.",
-      "wordsCorrected": "Words corrected: {{value}}",
-      "dictionaryFixes": "Dictionary fixes: {{value}}"
+    "timeSaved": {
+      "title": "Time saved",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "formula": "For each dictation, the time its words would take to type at {{wpm}} words per minute, minus the time you spent speaking, never below zero."
     },
     "apps": {
       "title": "Usage by app",

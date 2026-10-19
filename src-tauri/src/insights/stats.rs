@@ -7,6 +7,9 @@ pub const WPM_WINDOW_DAYS: i64 = 30;
 pub const HEATMAP_WEEKS: i64 = 20;
 /// Very short clips (an accidental tap) carry no useful speaking rate.
 const MIN_SPEAKING_MS: u32 = 1_000;
+/// The typing speed time saved is measured against. 40 words per minute is
+/// the commonly cited average for adults typing on a keyboard.
+pub const TYPING_WPM: u64 = 40;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DictationStat {
@@ -70,6 +73,22 @@ pub fn words_per_minute(dictations: &[DictationStat], since: i64) -> Option<u32>
         })
         .fold((0u64, 0u64), |(w, t), (dw, dt)| (w + dw, t + dt));
     (ms > 0).then(|| ((words as f64) * 60_000.0 / ms as f64).round() as u32)
+}
+
+/// Minutes saved by dictating instead of typing at [`TYPING_WPM`], rounded.
+/// Each dictation saves the time its words take to type minus the time spent
+/// saying them, never less than zero. A dictation whose duration is unknown is
+/// left out instead of counting as instant.
+pub fn minutes_saved(dictations: &[DictationStat]) -> u32 {
+    let saved_ms: u64 = dictations
+        .iter()
+        .filter_map(|d| {
+            let typing_ms = u64::from(d.words) * 60_000 / TYPING_WPM;
+            d.speaking_ms
+                .map(|ms| typing_ms.saturating_sub(u64::from(ms)))
+        })
+        .sum();
+    u32::try_from((saved_ms + 30_000) / 60_000).unwrap_or(u32::MAX)
 }
 
 /// Buckets each timestamp into the calendar day it fell on in `tz`. The
@@ -219,6 +238,44 @@ mod tests {
         assert_eq!(words_per_minute(&dictations, 50), Some(150));
         assert_eq!(words_per_minute(&dictations[1..3], 50), None);
         assert_eq!(words_per_minute(&[], 0), None);
+    }
+
+    #[test]
+    fn minutes_saved_never_lets_a_slow_dictation_subtract() {
+        let dictations = [
+            // 100 words take 150 s to type: 120 s saved.
+            DictationStat {
+                at: 100,
+                words: 100,
+                speaking_ms: Some(30_000),
+            },
+            // 10 words take 15 s to type, 45 s less than speaking them.
+            DictationStat {
+                at: 200,
+                words: 10,
+                speaking_ms: Some(60_000),
+            },
+        ];
+        assert_eq!(minutes_saved(&dictations), 2);
+        assert_eq!(minutes_saved(&dictations[1..]), 0);
+        assert_eq!(minutes_saved(&[]), 0);
+    }
+
+    #[test]
+    fn minutes_saved_leaves_out_dictations_of_unknown_duration() {
+        let dictations = [
+            DictationStat {
+                at: 100,
+                words: 400,
+                speaking_ms: None,
+            },
+            DictationStat {
+                at: 200,
+                words: 200,
+                speaking_ms: Some(60_000),
+            },
+        ];
+        assert_eq!(minutes_saved(&dictations), 4);
     }
 
     #[test]

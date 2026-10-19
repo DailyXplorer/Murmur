@@ -14,9 +14,9 @@ import { EnvelopeSimpleIcon } from "@phosphor-icons/react/dist/csr/EnvelopeSimpl
 import { FileTextIcon } from "@phosphor-icons/react/dist/csr/FileText";
 import { FireIcon } from "@phosphor-icons/react/dist/csr/Fire";
 import { GaugeIcon } from "@phosphor-icons/react/dist/csr/Gauge";
-import { MagicWandIcon } from "@phosphor-icons/react/dist/csr/MagicWand";
 import { RobotIcon } from "@phosphor-icons/react/dist/csr/Robot";
 import { TextAaIcon } from "@phosphor-icons/react/dist/csr/TextAa";
+import { TimerIcon } from "@phosphor-icons/react/dist/csr/Timer";
 import { TrophyIcon } from "@phosphor-icons/react/dist/csr/Trophy";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import {
@@ -33,8 +33,9 @@ import {
   CATEGORY_LABEL_KEYS,
   monthLabelColumns,
   parseLocalDate,
+  timeSaved,
   toWeeks,
-  wordEquivalence,
+  TYPING_WPM,
 } from "./insightsModel";
 
 const CATEGORY_ICONS: Record<AppCategory, Icon> = {
@@ -78,8 +79,7 @@ const StatTile: React.FC<{
   label: string;
   value: string;
   tooltip?: string;
-  children?: React.ReactNode;
-}> = ({ icon: TileIcon, label, value, tooltip, children }) => (
+}> = ({ icon: TileIcon, label, value, tooltip }) => (
   <section className="flex min-w-0 flex-col gap-1 rounded-lg border border-mid-gray/20 bg-background p-4">
     {/* Two lines high in every tile, so a label that wraps keeps the values
         level. The info icon flows with the label and wraps with its last
@@ -96,7 +96,6 @@ const StatTile: React.FC<{
       </div>
     </div>
     <p className="text-3xl font-semibold tabular-nums">{value}</p>
-    <div className="text-pretty text-xs text-mid-gray">{children}</div>
   </section>
 );
 
@@ -270,8 +269,7 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
 }) => {
   const { t } = useTranslation();
   const format = useFormatters();
-  const equivalence = wordEquivalence(summary.total_words);
-  const fixes = summary.words_corrected + summary.dictionary_fixes;
+  const saved = timeSaved(summary.minutes_saved);
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
@@ -285,39 +283,23 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
               : format.number.format(summary.words_per_minute)
           }
           tooltip={t("insights.wpm.formula")}
-        >
-          {summary.words_per_minute === null
-            ? t("insights.wpm.empty")
-            : t("insights.wpm.window")}
-        </StatTile>
+        />
         <StatTile
           icon={TextAaIcon}
           label={t("insights.words.title")}
           value={format.number.format(summary.total_words)}
-        >
-          {equivalence
-            ? t(`insights.words.equivalence.${equivalence.unit}`, {
-                amount: format.number.format(equivalence.amount),
-              })
-            : t("insights.words.empty")}
-        </StatTile>
+        />
         <StatTile
-          icon={MagicWandIcon}
-          label={t("insights.fixes.title")}
-          value={format.number.format(fixes)}
-          tooltip={t("insights.fixes.description")}
-        >
-          <span className="block">
-            {t("insights.fixes.wordsCorrected", {
-              value: format.number.format(summary.words_corrected),
-            })}
-          </span>
-          <span className="block">
-            {t("insights.fixes.dictionaryFixes", {
-              value: format.number.format(summary.dictionary_fixes),
-            })}
-          </span>
-        </StatTile>
+          icon={TimerIcon}
+          label={t("insights.timeSaved.title")}
+          value={t(`insights.timeSaved.value.${saved.unit}`, {
+            hours: format.number.format(saved.hours),
+            minutes: format.number.format(saved.minutes),
+          })}
+          tooltip={t("insights.timeSaved.formula", {
+            wpm: format.number.format(TYPING_WPM),
+          })}
+        />
       </div>
 
       <SettingsGroup title={t("insights.apps.title")}>

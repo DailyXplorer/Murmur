@@ -53,25 +53,19 @@
     "error": "Statistiky se nepodařilo načíst.",
     "wpm": {
       "title": "Slova za minutu",
-      "window": "Posledních 30 dní",
-      "empty": "Zatím není dost diktátů se změřenou délkou",
       "formula": "Celkový počet slov nadiktovaných za posledních 30 dní vydělený celkovou délkou nahrávek těchto diktátů v minutách. Nahrávky kratší než jedna sekunda se přeskakují."
     },
     "words": {
-      "title": "Celkem slov",
-      "empty": "Začněte diktovat a tato hodnota se vyplní",
-      "equivalence": {
-        "emails": "≈ {{amount}} × běžný e-mail",
-        "pages": "≈ {{amount}} × stránka knihy",
-        "stories": "≈ {{amount}} × povídka",
-        "novels": "≈ {{amount}} × román"
-      }
+      "title": "Celkem slov"
     },
-    "fixes": {
-      "title": "Opravy",
-      "description": "Špatně rozpoznaná jména, která jste opravili po vložení textu Murmurem, počítaná jednou za každé slovo, které se Murmur naučil, plus slova, která váš vlastní slovník automaticky nahradil.",
-      "wordsCorrected": "Opravená slova: {{value}}",
-      "dictionaryFixes": "Opravy slovníkem: {{value}}"
+    "timeSaved": {
+      "title": "Ušetřený čas",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "formula": "U každého diktátu doba, kterou by trvalo napsat jeho slova rychlostí {{wpm}} slov za minutu, minus doba mluvení, nikdy méně než nula."
     },
     "apps": {
       "title": "Využití podle aplikace",

@@ -53,25 +53,19 @@
     "error": "Inzichten konden niet worden geladen.",
     "wpm": {
       "title": "Woorden per minuut",
-      "window": "Laatste 30 dagen",
-      "empty": "Nog niet genoeg getimede dicteringen",
       "formula": "Totaal aantal gedicteerde woorden in de laatste 30 dagen gedeeld door de totale opnametijd van die dicteringen, in minuten. Opnames korter dan één seconde worden overgeslagen."
     },
     "words": {
-      "title": "Woorden in totaal",
-      "empty": "Begin met dicteren om dit te vullen",
-      "equivalence": {
-        "emails": "≈ {{amount}} × een gemiddelde e-mail",
-        "pages": "≈ {{amount}} × een boekpagina",
-        "stories": "≈ {{amount}} × een kort verhaal",
-        "novels": "≈ {{amount}} × een roman"
-      }
+      "title": "Woorden in totaal"
     },
-    "fixes": {
-      "title": "Correcties",
-      "description": "Verkeerd verstane namen die je hebt gecorrigeerd nadat Murmur had geplakt, één keer geteld per woord dat Murmur heeft geleerd, plus woorden die je eigen woordenboek automatisch heeft vervangen.",
-      "wordsCorrected": "Gecorrigeerde woorden: {{value}}",
-      "dictionaryFixes": "Woordenboekcorrecties: {{value}}"
+    "timeSaved": {
+      "title": "Tijd bespaard",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} u",
+        "hoursMinutes": "{{hours}} u {{minutes}} min"
+      },
+      "formula": "Per dictaat de tijd die het typen van de woorden op {{wpm}} woorden per minuut zou kosten, min de tijd die je sprak, nooit onder nul."
     },
     "apps": {
       "title": "Gebruik per app",

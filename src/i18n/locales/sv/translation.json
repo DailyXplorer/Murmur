@@ -53,25 +53,19 @@
     "error": "Statistiken kunde inte läsas in.",
     "wpm": {
       "title": "Ord per minut",
-      "window": "Senaste 30 dagarna",
-      "empty": "Inte tillräckligt många tidsatta dikteringar än",
       "formula": "Totalt antal dikterade ord de senaste 30 dagarna delat med den totala inspelningstiden för dessa dikteringar, i minuter. Inspelningar kortare än en sekund hoppas över."
     },
     "words": {
-      "title": "Totalt antal ord",
-      "empty": "Börja diktera för att fylla i det här",
-      "equivalence": {
-        "emails": "≈ {{amount}} × ett vanligt mejl",
-        "pages": "≈ {{amount}} × en boksida",
-        "stories": "≈ {{amount}} × en novell",
-        "novels": "≈ {{amount}} × en roman"
-      }
+      "title": "Totalt antal ord"
     },
-    "fixes": {
-      "title": "Rättelser",
-      "description": "Felhörda namn som du rättade efter att Murmur klistrat in, räknade en gång per ord som Murmur lärde sig, plus ord som din egen ordlista ersatte automatiskt.",
-      "wordsCorrected": "Rättade ord: {{value}}",
-      "dictionaryFixes": "Ordlisterättelser: {{value}}"
+    "timeSaved": {
+      "title": "Sparad tid",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "formula": "För varje diktering tiden det skulle ta att skriva orden i {{wpm}} ord per minut, minus tiden du talade, aldrig under noll."
     },
     "apps": {
       "title": "Användning per app",

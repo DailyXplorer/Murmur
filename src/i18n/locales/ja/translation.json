@@ -53,25 +53,19 @@
     "error": "インサイトを読み込めませんでした。",
     "wpm": {
       "title": "1分あたりの単語数",
-      "window": "過去30日間",
-      "empty": "時間を計測した音声入力がまだ足りません",
       "formula": "過去30日間に音声入力した単語の合計を、それらの録音時間の合計（分）で割った値です。1秒未満の録音は除外されます。"
     },
     "words": {
-      "title": "合計単語数",
-      "empty": "音声入力を始めるとここに表示されます",
-      "equivalence": {
-        "emails": "≈ 一般的なメール {{amount}} 通分",
-        "pages": "≈ 本 {{amount}} ページ分",
-        "stories": "≈ 短編小説 {{amount}} 本分",
-        "novels": "≈ 長編小説 {{amount}} 冊分"
-      }
+      "title": "合計単語数"
     },
-    "fixes": {
-      "title": "修正",
-      "description": "Murmur が貼り付けた後にあなたが修正した聞き間違いの名前（Murmur が覚えた単語ごとに 1 回）と、カスタム辞書が自動的に置き換えた単語の合計です。",
-      "wordsCorrected": "修正した単語: {{value}}",
-      "dictionaryFixes": "辞書による修正: {{value}}"
+    "timeSaved": {
+      "title": "節約できた時間",
+      "value": {
+        "minutes": "{{minutes}} 分",
+        "hours": "{{hours}} 時間",
+        "hoursMinutes": "{{hours}} 時間 {{minutes}} 分"
+      },
+      "formula": "各ディクテーションの単語を毎分 {{wpm}} 語で入力した場合にかかる時間から、話した時間を引いた値です（0 未満にはなりません）。"
     },
     "apps": {
       "title": "アプリ別の利用状況",

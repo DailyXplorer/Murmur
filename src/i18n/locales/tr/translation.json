@@ -53,25 +53,19 @@
     "error": "İstatistikler yüklenemedi.",
     "wpm": {
       "title": "Dakikada kelime",
-      "window": "Son 30 gün",
-      "empty": "Henüz yeterli süreli dikte yok",
       "formula": "Son 30 günde dikte edilen toplam kelime sayısının bu diktelerin dakika cinsinden toplam kayıt süresine bölümü. Bir saniyeden kısa kayıtlar atlanır."
     },
     "words": {
-      "title": "Toplam kelime",
-      "empty": "Bu alanı doldurmak için dikte etmeye başlayın",
-      "equivalence": {
-        "emails": "≈ {{amount}} × tipik bir e-posta",
-        "pages": "≈ {{amount}} × bir kitap sayfası",
-        "stories": "≈ {{amount}} × bir öykü",
-        "novels": "≈ {{amount}} × bir roman"
-      }
+      "title": "Toplam kelime"
     },
-    "fixes": {
-      "title": "Düzeltmeler",
-      "description": "Murmur yapıştırdıktan sonra düzelttiğiniz yanlış duyulmuş adlar (Murmur'un öğrendiği her kelime için bir kez sayılır) ile özel sözlüğünüzün otomatik olarak değiştirdiği kelimeler.",
-      "wordsCorrected": "Düzeltilen kelimeler: {{value}}",
-      "dictionaryFixes": "Sözlük düzeltmeleri: {{value}}"
+    "timeSaved": {
+      "title": "Kazanılan zaman",
+      "value": {
+        "minutes": "{{minutes}} dk",
+        "hours": "{{hours}} sa",
+        "hoursMinutes": "{{hours}} sa {{minutes}} dk"
+      },
+      "formula": "Her dikte için, kelimelerini dakikada {{wpm}} kelimeyle yazmanın alacağı süreden konuşarak geçirdiğiniz süre çıkarılır; sonuç hiçbir zaman sıfırın altına düşmez."
     },
     "apps": {
       "title": "Uygulamaya göre kullanım",
