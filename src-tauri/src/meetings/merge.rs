@@ -4,6 +4,7 @@
 //! sentences instead of cutting one in half.
 
 use super::tokens::{join, Token};
+use crate::insights::stats::count_words;
 
 /// The speaker key of a notice for audio that could not be transcribed.
 pub const PLACEHOLDER: &str = "_system";
@@ -11,7 +12,8 @@ pub const PLACEHOLDER: &str = "_system";
 const LONG_UNIT_MS: u64 = 20_000;
 /// A pause this long starts a new bubble for the same speaker.
 const BUBBLE_GAP_MS: u64 = 2_500;
-/// A bubble this long takes no more sentences.
+/// A bubble this long takes no more sentences. Each Chinese or Japanese
+/// character counts as a word, as in Insights.
 const BUBBLE_WORDS: usize = 90;
 
 /// Ties go to system audio: a remote question comes before the answer
@@ -125,6 +127,7 @@ fn split_at_commas(unit: Unit, cuts: &[u64]) -> Vec<Unit> {
 
 struct Building {
     bubble: Bubble,
+    tokens: Vec<Token>,
     words: usize,
     low: usize,
 }
@@ -132,6 +135,7 @@ struct Building {
 impl Building {
     fn finish(self) -> Bubble {
         Bubble {
+            text: join(&self.tokens),
             low_confidence: self.low * 2 > self.words,
             ..self.bubble
         }
@@ -170,7 +174,11 @@ pub fn merge(units: Vec<Unit>) -> Vec<Bubble> {
         if unit.tokens.is_empty() && !unit.is_placeholder() {
             continue;
         }
-        let words = unit.tokens.len();
+        let words: usize = unit
+            .tokens
+            .iter()
+            .map(|token| count_words(&token.text) as usize)
+            .sum();
         let low = if unit.low_confidence { words } else { 0 };
         if let Some(building) = current.as_mut() {
             let joins = !unit.is_placeholder()
@@ -178,8 +186,7 @@ pub fn merge(units: Vec<Unit>) -> Vec<Bubble> {
                 && unit.start_ms.saturating_sub(building.bubble.end_ms) < BUBBLE_GAP_MS
                 && building.words < BUBBLE_WORDS;
             if joins {
-                building.bubble.text.push(' ');
-                building.bubble.text.push_str(&join(&unit.tokens));
+                building.tokens.extend(unit.tokens);
                 building.bubble.end_ms = building.bubble.end_ms.max(unit.end_ms);
                 building.words += words;
                 building.low += low;
@@ -191,12 +198,13 @@ pub fn merge(units: Vec<Unit>) -> Vec<Bubble> {
         }
         current = Some(Building {
             bubble: Bubble {
-                text: join(&unit.tokens),
+                text: String::new(),
                 speaker: unit.speaker,
                 start_ms: unit.start_ms,
                 end_ms: unit.end_ms,
                 low_confidence: false,
             },
+            tokens: unit.tokens,
             words,
             low,
         });
@@ -325,6 +333,40 @@ mod tests {
         ]);
         assert_eq!(bubbles.len(), 2);
         assert_eq!(bubbles[1].text, "Fin.");
+    }
+
+    #[test]
+    fn chinese_sentences_of_one_bubble_are_not_spaced_apart() {
+        // Two sentences of one piece, then a sentence of the next piece.
+        let mut said = tokenize("我们开会吧。今天讨论预算。");
+        let second = said.split_off(1);
+        let bubbles = merge(vec![
+            Unit {
+                tokens: said,
+                ..unit(Track::Mic, 0, 1_000, "")
+            },
+            Unit {
+                tokens: second,
+                ..unit(Track::Mic, 1_000, 3_000, "")
+            },
+            unit(Track::Mic, 3_000, 4_000, "好的。"),
+        ]);
+        assert_eq!(
+            summary(&bubbles),
+            [("me", "我们开会吧。今天讨论预算。好的。")]
+        );
+    }
+
+    #[test]
+    fn chinese_characters_count_as_words_toward_a_full_bubble() {
+        let long = "字".repeat(89) + "。";
+        let bubbles = merge(vec![
+            unit(Track::Mic, 0, 20_000, &long),
+            unit(Track::Mic, 20_000, 21_000, "再来。"),
+            unit(Track::Mic, 21_000, 22_000, "完。"),
+        ]);
+        assert_eq!(bubbles.len(), 2);
+        assert_eq!(bubbles[1].text, "完。");
     }
 
     #[test]

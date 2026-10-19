@@ -10,7 +10,10 @@
 //! user kept elsewhere in the same text. Nor is swapping one term for
 //! another ("Q3" -> "Q4", "iOS" -> "macOS", "John" -> "Joan"): the
 //! transcript already held a name, so the user changed what they meant.
+//! Chinese and Japanese, written without spaces, are never learned: only a
+//! Latin term fixed inside them, which is cut out of the text around it.
 
+use crate::insights::stats::is_cjk;
 use natural::phonetics::soundex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -55,8 +58,8 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
 /// nothing: chat apps clear the field when the message is sent, the next
 /// message then takes its place, and a rewrite fixes no word.
 pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
-    let old: Vec<&str> = inserted.split_whitespace().collect();
-    let new: Vec<&str> = edited.split_whitespace().collect();
+    let old = words(inserted);
+    let new = words(edited);
     if old.is_empty() || new.is_empty() || old.len() > MAX_WORDS || new.len() > MAX_WORDS {
         return Vec::new();
     }
@@ -108,6 +111,28 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         }
     }
     learned
+}
+
+/// The words of `text`, split at spaces and where Chinese or Japanese meets
+/// other letters or digits: `我们用cloud` → `我们用`, `cloud`.
+fn words(text: &str) -> Vec<&str> {
+    text.split_whitespace().flat_map(split_scripts).collect()
+}
+
+fn split_scripts(word: &str) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let mut start = 0;
+    let mut script = None;
+    for (index, c) in word.char_indices().filter(|(_, c)| c.is_alphanumeric()) {
+        let cjk = is_cjk(c);
+        if script.is_some_and(|before| before != cjk) {
+            pieces.push(&word[start..index]);
+            start = index;
+        }
+        script = Some(cjk);
+    }
+    pieces.push(&word[start..]);
+    pieces
 }
 
 #[derive(Debug, PartialEq)]
@@ -198,10 +223,14 @@ fn ends_sentence(word: &str) -> bool {
 }
 
 /// Names, brands and jargon: a capital that is not just sentence case, a
-/// digit, or an inner symbol.
+/// digit, or an inner symbol. A run of Chinese or Japanese is not one: its
+/// words cannot be told apart.
 fn looks_like_a_term(word: &str, sentence_start: bool) -> bool {
     let chars = word.chars().count();
-    if !(2..=MAX_WORD_CHARS).contains(&chars) || !word.chars().any(char::is_alphabetic) {
+    if !(2..=MAX_WORD_CHARS).contains(&chars)
+        || !word.chars().any(char::is_alphabetic)
+        || word.chars().any(is_cjk)
+    {
         return false;
     }
     let inner_capital = word.chars().skip(1).any(char::is_uppercase);
@@ -431,6 +460,25 @@ mod tests {
     fn added_or_deleted_words_are_not_vocabulary() {
         assert!(learned("ship it", "ship it Monday").is_empty());
         assert!(learned("ship it now please", "ship it please").is_empty());
+    }
+
+    #[test]
+    fn chinese_and_japanese_runs_are_never_learned_as_words() {
+        assert!(learned("会议三点开始。", "会议3点开始。").is_empty());
+        assert!(learned("我们用cloud code", "我们用Claude Code").is_empty());
+        assert!(learned("ぼくはクロードを使う", "ぼくはClaudeを使う").is_empty());
+    }
+
+    #[test]
+    fn a_name_fixed_inside_chinese_or_japanese_is_learned_alone() {
+        assert_eq!(
+            learned("我们用clawd code", "我们用Claude code"),
+            vec![pair("Claude", "clawd")]
+        );
+        assert_eq!(
+            learned("時々clawdを使う", "時々Claudeを使う"),
+            vec![pair("Claude", "clawd")]
+        );
     }
 
     #[test]

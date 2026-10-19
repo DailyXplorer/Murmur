@@ -1,6 +1,7 @@
 //! Words of a Codex transcript, with the key used to compare them across
 //! recognisers and the sentence ends that decide where a turn may break.
 
+use crate::insights::stats::is_cjk;
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
@@ -11,6 +12,17 @@ pub struct Token {
     /// Lowercase letters and digits without accents; empty for punctuation.
     pub key: String,
     pub sentence_end: bool,
+    pub gap: Gap,
+}
+
+/// What came between a word and the one before it in the text Codex wrote.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gap {
+    /// The word starts a piece; the word before was transcribed apart.
+    Start,
+    Space,
+    /// Nothing: CJK text, cut after a full stop.
+    Glued,
 }
 
 impl Token {
@@ -21,8 +33,12 @@ impl Token {
 }
 
 const SENTENCE_ENDS: [char; 7] = ['.', '?', '!', '…', '。', '？', '！'];
-/// Closing marks that may follow a sentence end: `"Oui."` or `(voilà.)`.
-const CLOSERS: [char; 8] = ['"', '\'', '’', '”', '»', ')', ']', '」'];
+const CJK_SENTENCE_ENDS: [char; 3] = ['。', '？', '！'];
+/// Closing marks that may follow a sentence end: `"Oui."`, `(voilà.)` or
+/// `「好的。」`.
+const CLOSERS: [char; 12] = [
+    '"', '\'', '’', '”', '»', ')', ']', '」', '』', '）', '】', '》',
+];
 
 /// `qu'on` → `quon`, `C'est-à-dire` → `cestadire`, `2030,` → `2030`.
 pub fn key(word: &str) -> String {
@@ -40,14 +56,23 @@ fn ends_sentence(word: &str) -> bool {
 /// The words of `text`. CJK text, written without spaces, is also split
 /// after each full stop so its sentences can be told apart.
 pub fn tokenize(text: &str) -> Vec<Token> {
-    text.split_whitespace()
-        .flat_map(split_cjk_stops)
-        .map(|word| Token {
-            key: key(word),
-            sentence_end: ends_sentence(word),
-            text: word.to_string(),
-        })
-        .collect()
+    let mut tokens = Vec::new();
+    for (index, spaced) in text.split_whitespace().enumerate() {
+        for (piece, word) in split_cjk_stops(spaced).into_iter().enumerate() {
+            let gap = match (index, piece) {
+                (0, 0) => Gap::Start,
+                (_, 0) => Gap::Space,
+                _ => Gap::Glued,
+            };
+            tokens.push(Token {
+                key: key(word),
+                sentence_end: ends_sentence(word),
+                text: word.to_string(),
+                gap,
+            });
+        }
+    }
+    tokens
 }
 
 /// The tokens of `text` grouped by sentence. Text after the last stop is a
@@ -68,25 +93,55 @@ pub fn sentences(text: &str) -> Vec<Vec<Token>> {
     sentences
 }
 
-/// The words of `tokens` with single spaces between them.
+/// The words of `tokens`, spaced as Codex wrote them.
 pub fn join(tokens: &[Token]) -> String {
-    tokens
-        .iter()
-        .map(|token| token.text.as_str())
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut text = tokens
+        .first()
+        .map(|token| token.text.clone())
+        .unwrap_or_default();
+    for pair in tokens.windows(2) {
+        text.push_str(match pair[1].gap {
+            Gap::Space => " ",
+            Gap::Glued => "",
+            Gap::Start => between_pieces(&pair[0].text, &pair[1].text),
+        });
+        text.push_str(&pair[1].text);
+    }
+    text
 }
 
-/// `你好。我们开始吧。` → `你好。`, `我们开始吧。`; other words stay whole.
+/// Where two pieces transcribed apart meet: no space after a CJK full stop
+/// or between two wide characters, as CSS Text drops a line break there.
+fn between_pieces(left: &str, right: &str) -> &'static str {
+    let after_stop = left.trim_end_matches(CLOSERS).ends_with(CJK_SENTENCE_ENDS);
+    let both_wide =
+        left.chars().next_back().is_some_and(wide) && right.chars().next().is_some_and(wide);
+    if after_stop || both_wide {
+        ""
+    } else {
+        " "
+    }
+}
+
+/// Chinese and Japanese characters, their punctuation and full-width forms.
+/// Hangul is not one: Korean puts spaces between words.
+fn wide(c: char) -> bool {
+    is_cjk(c) || matches!(c, '\u{3000}'..='\u{303F}' | '\u{FF00}'..='\u{FF9F}')
+}
+
+/// `「好的。」我们走吧！好的` → `「好的。」`, `我们走吧！`, `好的`. A closing
+/// mark stays with the stop before it; other words stay whole.
 fn split_cjk_stops(word: &str) -> Vec<&str> {
     let mut pieces = Vec::new();
     let mut start = 0;
+    let mut after_stop = false;
     for (index, c) in word.char_indices() {
-        let end = index + c.len_utf8();
-        if matches!(c, '。' | '？' | '！') && end < word.len() {
-            pieces.push(&word[start..end]);
-            start = end;
+        let stop = CJK_SENTENCE_ENDS.contains(&c);
+        if after_stop && !stop && !CLOSERS.contains(&c) {
+            pieces.push(&word[start..index]);
+            start = index;
         }
+        after_stop = stop || (after_stop && CLOSERS.contains(&c));
     }
     pieces.push(&word[start..]);
     pieces
@@ -159,5 +214,49 @@ mod tests {
             ["你好。", "我们开始吧！", "好的"]
         );
         assert_eq!(key("你好。"), "你好");
+    }
+
+    #[test]
+    fn a_cjk_closing_mark_stays_with_its_sentence() {
+        let tokens = tokenize("「好的。」我们走吧！（好。）");
+        let texts: Vec<&str> = tokens.iter().map(|token| token.text.as_str()).collect();
+        assert_eq!(texts, ["「好的。」", "我们走吧！", "（好。）"]);
+        assert!(tokens.iter().all(|token| token.sentence_end));
+    }
+
+    #[test]
+    fn words_are_joined_back_as_codex_wrote_them() {
+        for text in [
+            "我们开会吧。今天讨论预算。",
+            "「好的。」我们走吧，好吗？",
+            "“好的。”我们走吧。",
+            "我们用 Claude (AI 助手) 来写。我们用Claude。OK，开始吧。",
+            "大家好 今天开会",
+            "Claudeを使います。GitHubも、使います。",
+            "영화 《기생충》 정말 좋았어요. 반갑습니다.",
+            "Bonjour à tous. On commence ?",
+        ] {
+            assert_eq!(join(&tokenize(text)), text);
+        }
+    }
+
+    #[test]
+    fn pieces_transcribed_apart_are_spaced_as_their_language_writes() {
+        let joined = |left: &str, right: &str| join(&[tokenize(left), tokenize(right)].concat());
+        assert_eq!(
+            joined("我们开会吧。", "今天讨论预算。"),
+            "我们开会吧。今天讨论预算。"
+        );
+        assert_eq!(joined("“好的。”", "OK，开始吧。"), "“好的。”OK，开始吧。");
+        assert_eq!(joined("我们开会吧", "今天讨论"), "我们开会吧今天讨论");
+        assert_eq!(joined("We use Claude", "来写。"), "We use Claude 来写。");
+        assert_eq!(
+            joined("안녕하세요.", "반갑습니다."),
+            "안녕하세요. 반갑습니다."
+        );
+        assert_eq!(
+            joined("Bonjour.", "On commence ?"),
+            "Bonjour. On commence ?"
+        );
     }
 }

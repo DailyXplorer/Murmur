@@ -32,9 +32,12 @@ pub struct HeatmapDay {
     pub level: u8,
 }
 
-fn is_cjk(c: char) -> bool {
+/// A Chinese or Japanese character: Han with its marks 々 〆 〇, Hiragana
+/// or Katakana.
+pub fn is_cjk(c: char) -> bool {
     matches!(c as u32,
-        0x3040..=0x30FF   // Hiragana, Katakana
+        0x3005..=0x3007   // 々, 〆, 〇
+        | 0x3040..=0x30FF // Hiragana, Katakana
         | 0x3400..=0x4DBF // CJK Extension A
         | 0x4E00..=0x9FFF // CJK Unified Ideographs
         | 0xF900..=0xFAFF // CJK Compatibility Ideographs
