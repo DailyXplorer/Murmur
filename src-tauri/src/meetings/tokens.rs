@@ -50,7 +50,9 @@ pub fn key(word: &str) -> String {
 }
 
 /// Titles written before a name, as in "M. Dupont".
-const TITLES: [&str; 7] = ["m", "mme", "mlle", "dr", "mr", "mrs", "st"];
+const TITLES: [&str; 10] = [
+    "m", "mme", "mlle", "dr", "mr", "mrs", "ms", "prof", "pr", "st",
+];
 
 fn ends_sentence(word: &str) -> bool {
     word.trim_end_matches(CLOSERS).ends_with(SENTENCE_ENDS)
@@ -66,11 +68,17 @@ fn is_lone_closer(word: &str) -> bool {
 /// Opening marks that may precede a title: `(M. Dupont)` or `«M. le maire`.
 const OPENERS: [char; 5] = ['(', '[', '«', '"', '“'];
 
-/// A title ends no sentence: a name or "le directeur" follows it.
+/// A title ends no sentence: a name or "le directeur" follows it. It is
+/// written with one capital, so "a PR." and "3 m." still end one.
 pub(crate) fn is_title(word: &str) -> bool {
     word.trim_start_matches(OPENERS)
         .strip_suffix('.')
-        .is_some_and(|title| TITLES.contains(&title.to_lowercase().as_str()))
+        .is_some_and(|title| {
+            let mut letters = title.chars();
+            letters.next().is_some_and(char::is_uppercase)
+                && letters.all(char::is_lowercase)
+                && TITLES.contains(&title.to_lowercase().as_str())
+        })
 }
 
 /// The words of `text`. CJK text, written without spaces, is also split
@@ -285,6 +293,23 @@ mod tests {
         (
             "Il a dit «M. le maire arrive». Bon.",
             &["Il a dit «M. le maire arrive».", "Bon."],
+        ),
+        (
+            "I met Ms. Smith and Prof. Jones today. Then we left.",
+            &["I met Ms. Smith and Prof. Jones today.", "Then we left."],
+        ),
+        (
+            "J'ai vu le Pr. Martin. Il va bien.",
+            &["J'ai vu le Pr. Martin.", "Il va bien."],
+        ),
+        // An acronym or a unit before a full stop is no title.
+        (
+            "I opened a PR. Then we left.",
+            &["I opened a PR.", "Then we left."],
+        ),
+        (
+            "We ran 3 m. Then we left.",
+            &["We ran 3 m.", "Then we left."],
         ),
         // CJK text splits after each full stop, closing mark included.
         (

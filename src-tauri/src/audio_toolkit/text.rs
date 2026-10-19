@@ -680,6 +680,24 @@ mod tests {
         // A title's full stop ends no sentence.
         (&["Zach"], "ask Dr. Zack first", "ask Dr. Zach first"),
         (&["Luka"], "j'ai vu M. Luca hier", "j'ai vu M. Luka hier"),
+        (&["Zach"], "ask Ms. Zack first", "ask Ms. Zach first"),
+        (&["Zach"], "ask Prof. Zack first", "ask Prof. Zach first"),
+        (
+            &["Luka"],
+            "j'ai vu le Pr. Luca hier",
+            "j'ai vu le Pr. Luka hier",
+        ),
+        // An acronym or a unit before a full stop is no title.
+        (
+            &["Nina"],
+            "I opened a PR. Nine people came.",
+            "I opened a PR. Nine people came.",
+        ),
+        (
+            &["Nina"],
+            "We ran 3 m. Nine people came.",
+            "We ran 3 m. Nine people came.",
+        ),
         // A short everyday word that sounds like a name is kept.
         (&["Lou"], "je l'ai lu hier", "je l'ai lu hier"),
         (&["Mona"], "c'est mon idée", "c'est mon idée"),
