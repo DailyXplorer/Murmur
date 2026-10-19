@@ -17,6 +17,7 @@ use super::merge::PLACEHOLDER;
 use super::rename::MAX_TITLE_CHARS;
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
 use super::transcribe::{CodexVerdict, RetryPolicy};
+use crate::chinese_script::in_chosen_script;
 use crate::cleanup::responses::{self, CompletionError, Request};
 use crate::codex_auth;
 use crate::transcription_error::FailureKind;
@@ -399,13 +400,15 @@ async fn ask(
 }
 
 /// Summarises the transcript in one request, or section by section and then
-/// merged when it is longer than `max_chars`.
+/// merged when it is longer than `max_chars`. Chinese is written in the
+/// script `language` chose, whichever one Codex replied in.
 pub async fn summarize(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
     turns: &[MeetingTurn],
     speakers: &[MeetingSpeaker],
     max_chars: usize,
+    language: Option<&str>,
     operation: &ProcessingOperation,
 ) -> SummaryEnd {
     let lines = transcript_lines(turns, speakers);
@@ -438,7 +441,7 @@ pub async fn summarize(
         )
         .await
     };
-    match result.map(|output| parse(&output, speakers)) {
+    match result.map(|output| parse(&in_chosen_script(language, &output), speakers)) {
         Ok(Ok(summary)) => SummaryEnd::Written(summary),
         Ok(Err(error)) => SummaryEnd::Failed(error),
         Err(end) => end,
@@ -483,6 +486,7 @@ pub async fn write(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
     id: i64,
+    language: Option<&str>,
     operation: &ProcessingOperation,
 ) -> anyhow::Result<Summarized> {
     let Some(meeting) = store.get(id)? else {
@@ -498,6 +502,7 @@ pub async fn write(
         &meeting.turns,
         &meeting.speakers,
         MAX_SUMMARY_CHARS,
+        language,
         operation,
     )
     .await
@@ -711,6 +716,7 @@ mod tests {
             &turns,
             &speakers,
             max_chars,
+            None,
             &ProcessingOperation::new(OperationId(1)),
         ))
     }
@@ -793,6 +799,7 @@ mod tests {
                 &turns,
                 &speakers,
                 MAX_SUMMARY_CHARS,
+                None,
                 &operation,
             );
             let cancel = async {
@@ -905,6 +912,7 @@ mod tests {
             &[turn(PLACEHOLDER, 0, "")],
             &[],
             MAX_SUMMARY_CHARS,
+            None,
             &ProcessingOperation::new(OperationId(1)),
         ));
         assert_eq!(end, SummaryEnd::Failed(SummaryError::NothingToSummarize));

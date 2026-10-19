@@ -48,6 +48,7 @@ use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
     ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
 };
+use crate::chinese_script::in_chosen_script;
 use crate::transcription_error::FailureKind;
 use crate::ProcessingOperation;
 
@@ -312,6 +313,7 @@ impl Processor {
             self.summarizer.as_ref(),
             &self.policy,
             id,
+            self.language.as_deref(),
             operation,
         )
         .await?;
@@ -448,7 +450,13 @@ impl Processor {
             .as_ref()
             .and_then(|analysis| analysis.diarized)
             .unwrap_or(by_levels);
-        let built = build_transcript(&chunks, &source.0, analysis.as_ref(), diarize);
+        let built = build_transcript(
+            &chunks,
+            &source.0,
+            analysis.as_ref(),
+            diarize,
+            self.language.as_deref(),
+        );
         // A recorded track that could not be read leaves one side of the
         // conversation out: never a Ready meeting, nor a summary of half of
         // it, nor half a transcript in place of the whole one. Nor does a
@@ -633,11 +641,14 @@ fn spread_chunk(text: &str, chunk: &ChunkRow, audio: &Audio) -> Vec<TimedToken> 
     sentence_times(spread(sentences(text), &intervals))
 }
 
+/// The transcript, with Chinese in the script `language` chose. Pieces keep
+/// the script Codex wrote, so a transcript built again follows the choice.
 fn build_transcript(
     chunks: &[ChunkRow],
     audio: &HashMap<Track, Audio>,
     analysis: Option<&Analysis>,
     diarize: Track,
+    language: Option<&str>,
 ) -> Built {
     let words: HashMap<Track, Vec<TimedWord>> = analysis
         .map(|analysis| {
@@ -668,7 +679,7 @@ fn build_transcript(
         for chunk in chunks.iter().filter(|chunk| chunk.track == track) {
             match (chunk.status, chunk.text.as_deref()) {
                 (ChunkStatus::Done, Some(text)) => stream.extend(place_chunk(
-                    text,
+                    &in_chosen_script(language, text),
                     chunk,
                     track_audio,
                     words.get(&track),
@@ -990,6 +1001,8 @@ mod tests {
         store: Arc<MeetingsStore>,
         root: PathBuf,
         events: Arc<Events>,
+        /// The language chosen in Settings.
+        language: Option<&'static str>,
         _dir: tempfile::TempDir,
     }
 
@@ -1000,6 +1013,7 @@ mod tests {
             store: Arc::new(store),
             root: dir.path().join("meetings"),
             events: Arc::default(),
+            language: None,
             _dir: dir,
         }
     }
@@ -1057,7 +1071,7 @@ mod tests {
                     rate_limit_budget: Duration::from_millis(3),
                     transient: vec![],
                 },
-                language: None,
+                language: self.language.map(str::to_string),
                 events: Arc::clone(&self.events) as Arc<dyn ProcessEvents>,
             };
             tauri::async_runtime::block_on(processor.process(id, operation)).unwrap()
@@ -1588,6 +1602,50 @@ mod tests {
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
         }
         assert!(h.store.waiting_for_processing().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_meeting_is_written_in_the_chinese_script_the_user_chose() {
+        let h = Harness {
+            language: Some("zh-Hant"),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        // Codex is told only "zh" and answers in Simplified characters.
+        h.process_all(
+            id,
+            codex(|_| Ok("我们开会吧。".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            FakeSummarizer::answering(vec![Ok("# 会议记录\n\n[[me]] 说明了预算。".into())]),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(
+            turns(&meeting),
+            [("s1", "我們開會吧。"), ("me", "我們開會吧。")]
+        );
+        assert_eq!(meeting.title.as_deref(), Some("會議記錄"));
+        assert_eq!(meeting.summary.as_deref(), Some("[[me]] 說明了預算。"));
+    }
+
+    #[test]
+    fn a_transcript_built_again_follows_the_chinese_script_chosen_since() {
+        let mut h = harness();
+        let id = spoken_meeting(&h);
+        h.process(id, codex(|_| Ok("我们开会吧。".into())));
+
+        // Separate Speakers builds the transcript again from the saved pieces.
+        h.language = Some("zh-Hant");
+        assert!(h.store.reopen(id).unwrap());
+        let codex_again = codex(|_| Ok("never".into()));
+        h.process(id, Arc::clone(&codex_again));
+
+        assert!(codex_again.calls.lock().unwrap().is_empty());
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(
+            turns(&meeting),
+            [("s1", "我們開會吧。"), ("me", "我們開會吧。")]
+        );
     }
 
     #[test]

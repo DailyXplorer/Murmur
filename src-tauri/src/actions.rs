@@ -11,7 +11,6 @@ use crate::tray::{change_tray_icon, TrayIconState};
 use crate::user_alert::{self, Alert};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
 use crate::{ProcessingOperation, TranscriptionCoordinator};
-use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -185,50 +184,6 @@ fn save_history(
     }
 }
 
-async fn maybe_convert_chinese_variant(
-    effective_language: &str,
-    transcription: &str,
-) -> Option<String> {
-    // Gate conversion on the explicitly selected Chinese variant so automatic
-    // detection never rewrites characters in Japanese or other CJK output.
-    let is_simplified = effective_language == "zh-Hans";
-    let is_traditional = effective_language == "zh-Hant";
-
-    if !is_simplified && !is_traditional {
-        debug!("effective language is not Simplified or Traditional Chinese; skipping conversion");
-        return None;
-    }
-
-    debug!(
-        "Starting Chinese variant conversion using OpenCC for language: {}",
-        effective_language
-    );
-
-    let config = if is_simplified {
-        // Convert Traditional Chinese to Simplified Chinese
-        BuiltinConfig::Tw2sp
-    } else {
-        // Convert Simplified Chinese to Traditional Chinese
-        BuiltinConfig::S2tw
-    };
-
-    match OpenCC::from_config(config) {
-        Ok(converter) => {
-            let converted = converter.convert(transcription);
-            debug!(
-                "OpenCC translation completed. Input length: {}, Output length: {}",
-                transcription.len(),
-                converted.len()
-            );
-            Some(converted)
-        }
-        Err(e) => {
-            error!("Failed to initialize OpenCC converter: {}. Falling back to original transcription.", e);
-            None
-        }
-    }
-}
-
 fn output_language_for_provider(
     provider: TranscriptionProvider,
     selected_language: &str,
@@ -252,20 +207,13 @@ pub(crate) async fn process_transcription_output(
     operation: &ProcessingOperation,
 ) -> ProcessedText {
     let settings = get_settings(app);
-    let mut final_text = transcription.to_string();
-
     // Gemini does not accept Murmur's language preference. Preserve the
     // stored selection for a later Codex dictation, but do not let an old
     // Chinese-variant preference rewrite Gemini output.
-    if let Some(effective_language) =
-        output_language_for_provider(provider, &settings.selected_language)
-    {
-        if let Some(converted_text) =
-            maybe_convert_chinese_variant(effective_language, transcription).await
-        {
-            final_text = converted_text;
-        }
-    }
+    let final_text = crate::chinese_script::in_chosen_script(
+        output_language_for_provider(provider, &settings.selected_language),
+        transcription,
+    );
 
     if !settings.ai_cleanup_enabled {
         return ProcessedText::unprocessed(final_text);
