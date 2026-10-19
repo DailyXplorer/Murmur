@@ -101,7 +101,7 @@ permissions = [
   "allow-download-meeting-models",
   "allow-cancel-meeting-models-download",
   "allow-delete-meeting-models",
-  "allow-get-meeting-markdown",
+  "allow-copy-meeting-markdown",
   "allow-export-meeting-markdown",
   "allow-get-meeting-capabilities",
   "allow-get-system-audio-permission",

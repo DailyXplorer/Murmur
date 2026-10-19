@@ -656,7 +656,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::download_meeting_models,
             commands::meetings::cancel_meeting_models_download,
             commands::meetings::delete_meeting_models,
-            commands::meetings::get_meeting_markdown,
+            commands::meetings::copy_meeting_markdown,
             commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
             commands::meetings::get_system_audio_permission,

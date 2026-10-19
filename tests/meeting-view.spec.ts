@@ -28,6 +28,16 @@ const callsTo = (page: Page, command: string) =>
     command,
   );
 
+/**
+ * WebKit before Safari 26.4 refuses a webview clipboard write made after an
+ * awaited command, so a copy must not rely on the webview's clipboard.
+ */
+const refuseWebviewClipboard = (page: Page) =>
+  page.addInitScript(() => {
+    navigator.clipboard.writeText = () =>
+      Promise.reject(new DOMException("Not allowed", "NotAllowedError"));
+  });
+
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
 const cssOf = (locator: Locator, property: string) =>
@@ -338,18 +348,15 @@ test("the rename dialog opens from the header and saves nothing unchanged", asyn
   expect(await callsTo(page, "rename_speaker")).toEqual([]);
 });
 
-test("copy puts the same Markdown as export on the clipboard", async ({
-  page,
-  context,
-}) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("the transcript copies and exports as Markdown", async ({ page }) => {
+  await refuseWebviewClipboard(page);
   await openTranscript(page);
 
   await page.getByRole("button", { name: "Copy Transcript" }).click();
   await expect(page.getByText("Transcript copied.")).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "# Point hebdo produit\n\n## Transcript\n",
-  );
+  expect(await callsTo(page, "copy_meeting_markdown")).toEqual([
+    { id: 3, kind: "transcript" },
+  ]);
 
   await page.getByRole("button", { name: "Export as Markdown" }).click();
   await expect(page.getByText("Transcript saved.")).toBeVisible();
@@ -439,18 +446,15 @@ test("the search counter stays within the matches when the text changes", async 
   await expect(page.locator("mark[data-current]")).toHaveText("er");
 });
 
-test("the summary copies and exports as Markdown", async ({
-  page,
-  context,
-}) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("the summary copies and exports as Markdown", async ({ page }) => {
+  await refuseWebviewClipboard(page);
   await openMeeting(page, /Point hebdo produit/);
 
   await page.getByRole("button", { name: "Copy Summary" }).click();
   await expect(page.getByText("Summary copied.")).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "# Point hebdo produit\n\n## Summary\n",
-  );
+  expect(await callsTo(page, "copy_meeting_markdown")).toEqual([
+    { id: 3, kind: "summary" },
+  ]);
   await page.getByRole("button", { name: "Export as Markdown" }).click();
   await expect(page.getByText("Summary saved.")).toBeVisible();
   expect(await callsTo(page, "export_meeting_markdown")).toEqual([
