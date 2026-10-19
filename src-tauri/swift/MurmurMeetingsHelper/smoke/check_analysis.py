@@ -1,5 +1,5 @@
-"""Checks what `murmur-meetings-helper analyze` printed for the smoke
-dialogue: words in time order, at least two speakers, and `done`.
+"""Checks what `murmur-meetings-helper analyze`, then `diarize`, printed for
+the smoke dialogue: words in time order, at least two speakers, and `done`.
 
 usage: check_analysis.py <helper output>
 """

@@ -50,7 +50,8 @@ jobs:
           voices=$(say -v '?' | awk '/en_(US|GB)/ {print $1}' | grep -xE 'Samantha|Daniel|Karen|Moira|Fred|Albert|Ralph' | head -n 2)
           test "$(wc -l <<<"$voices")" -eq 2
           python3 make_dialogue.py "$RUNNER_TEMP/dialogue.wav" $voices
-          "$HELPER" analyze --models-dir "$RUNNER_TEMP/models" \
-            --system "$RUNNER_TEMP/dialogue.wav" --diarize system < <(sleep 7200) \
-            | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
+          for command in analyze diarize; do
+            "$HELPER" "$command" --models-dir "$RUNNER_TEMP/models" \
+              --system "$RUNNER_TEMP/dialogue.wav" < <(sleep 7200)
+          done | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
           python3 check_analysis.py "$RUNNER_TEMP/analysis.jsonl"
