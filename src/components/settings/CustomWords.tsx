@@ -115,7 +115,11 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
                 return (
                   <Button
                     key={word}
-                    onClick={() => handleRemoveWord(word)}
+                    // The next chip slides in under the rest of a double
+                    // click, which would remove that word too.
+                    onClick={(event) => {
+                      if (event.detail <= 1) handleRemoveWord(word);
+                    }}
                     disabled={isUpdating("custom_words")}
                     size="chip"
                     className="max-w-full min-w-0 gap-1"
