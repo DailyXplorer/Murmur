@@ -88,6 +88,15 @@ fn migrations() -> Migrations<'static> {
         M::up("ALTER TABLE meetings ADD COLUMN system_played INTEGER NOT NULL DEFAULT 0;"),
         // Codex titles from 1.7.0 to 1.7.6 could hold speaker markers.
         M::up_with_hook("", name_speakers_in_titles),
+        // The highest id ever deleted: SQLite gives max(id) + 1 to a new
+        // row, where a late write for a deleted newest meeting would land.
+        M::up(
+            "CREATE TABLE meeting_ids_used (last INTEGER NOT NULL);
+    INSERT INTO meeting_ids_used SELECT COALESCE(MAX(id), 0) FROM meetings;
+    CREATE TRIGGER meeting_id_stays_used AFTER DELETE ON meetings BEGIN
+        UPDATE meeting_ids_used SET last = MAX(last, OLD.id);
+    END;",
+        ),
     ])
 }
 
@@ -480,8 +489,10 @@ impl MeetingsStore {
     pub fn insert_recording(&self, started_at_ms: i64, tracks: MeetingTracks) -> Result<i64> {
         let conn = self.connection()?;
         conn.execute(
-            "INSERT INTO meetings (started_at_ms, capture_mode, status)
-             VALUES (?1, ?2, 'recording')",
+            "INSERT INTO meetings (id, started_at_ms, capture_mode, status)
+             SELECT MAX(last, (SELECT COALESCE(MAX(id), 0) FROM meetings)) + 1,
+                    ?1, ?2, 'recording'
+             FROM meeting_ids_used",
             params![started_at_ms, tracks.as_db()],
         )?;
         Ok(conn.last_insert_rowid())
@@ -1342,6 +1353,35 @@ mod tests {
         assert!(!store.get(live).unwrap().unwrap().system_audio_silent);
     }
 
+    /// A run still saving the transcript of a deleted meeting must not
+    /// find a new meeting under its id, even after a relaunch.
+    #[test]
+    fn a_deleted_meeting_id_is_never_given_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("meetings.db");
+        let (store, _) = MeetingsStore::open(path.clone(), now());
+        recorded(&store);
+        let deleted = recorded(&store);
+        assert!(store.begin_processing(deleted).unwrap());
+        store.delete(deleted).unwrap();
+
+        let next = store.insert_recording(2_000, MeetingTracks::Both).unwrap();
+        assert!(next > deleted);
+        let turn = MeetingTurn {
+            speaker_key: "me".into(),
+            start_ms: 0,
+            end_ms: 1_000,
+            text: "Deleted words.".into(),
+            low_confidence: false,
+        };
+        let _ = store.save_transcript(deleted, &[], &[turn], SpeakerAnalysis::NoModels, None, None);
+        assert!(store.get(next).unwrap().unwrap().turns.is_empty());
+
+        store.delete(next).unwrap();
+        let (store, _) = MeetingsStore::open(path, now());
+        assert!(store.insert_recording(3_000, MeetingTracks::Mic).unwrap() > next);
+    }
+
     #[test]
     fn processing_runs_only_on_recorded_meetings_and_records_its_outcome() {
         let (_dir, store) = store();
@@ -1787,10 +1827,11 @@ mod tests {
         let edited = titled("Brouillon");
         store.rename(edited, Some("Notes sur [[s1]]")).unwrap();
         // The library as 1.7.6 left it.
-        Connection::open(&path)
-            .unwrap()
-            .pragma_update(None, "user_version", 6)
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("DROP TRIGGER meeting_id_stays_used; DROP TABLE meeting_ids_used;")
             .unwrap();
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        drop(conn);
 
         let (store, startup) = MeetingsStore::open(path, now());
         assert_eq!(startup, DatabaseStartup::Ready);

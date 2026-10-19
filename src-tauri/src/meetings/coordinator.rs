@@ -937,13 +937,11 @@ mod tests {
         std::fs::write(outside.path().join("keep.txt"), "keep").unwrap();
         std::os::unix::fs::symlink(outside.path(), paths::meeting_dir(&h.root, 1)).unwrap();
 
-        for _ in 0..2 {
-            let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
-            assert_eq!(id, 1);
-            let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
-            assert!(dir.is_dir() && !dir.file_type().is_symlink());
-            h.coordinator.discard(id).unwrap();
-        }
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert_eq!(id, 1);
+        let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
+        assert!(dir.is_dir() && !dir.file_type().is_symlink());
+        h.coordinator.discard(id).unwrap();
         assert!(outside.path().join("keep.txt").exists());
     }
 
