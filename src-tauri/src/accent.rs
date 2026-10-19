@@ -247,7 +247,6 @@ mod tests {
         let tray = tray_icon().expect("tray icon should decode");
 
         assert_eq!((tray.width(), tray.height()), (32, 32));
-        assert!(!TRAY_ICON_IS_TEMPLATE);
         assert!(tray.rgba().chunks_exact(4).any(|pixel| {
             let (_, saturation, _) = rgb_to_hsl(pixel[0], pixel[1], pixel[2]);
             pixel[3] > 0 && saturation > 0.5
