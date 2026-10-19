@@ -18,7 +18,10 @@ export const SpeakerModels: React.FC<{
   if (!status) return null;
   const { state } = status;
 
-  const run = async (action: Action) => {
+  // The state, and with it the button's action, changes within milliseconds
+  // of a click, so the rest of a double click would undo the first one.
+  const run = async (event: React.MouseEvent, action: Action) => {
+    if (event.detail > 1) return;
     try {
       const result = await action();
       if (result.status === "error") toast.error(t("meetings.models.error"));
@@ -54,13 +57,17 @@ export const SpeakerModels: React.FC<{
     switch (state.state) {
       case "missing":
         return (
-          <Button onClick={() => void run(commands.downloadMeetingModels)}>
+          <Button
+            onClick={(event) => void run(event, commands.downloadMeetingModels)}
+          >
             {t("meetings.models.download")}
           </Button>
         );
       case "failed":
         return (
-          <Button onClick={() => void run(commands.downloadMeetingModels)}>
+          <Button
+            onClick={(event) => void run(event, commands.downloadMeetingModels)}
+          >
             {t("meetings.models.retry")}
           </Button>
         );
@@ -68,14 +75,18 @@ export const SpeakerModels: React.FC<{
       case "preparing":
         return (
           <Button
-            onClick={() => void run(commands.cancelMeetingModelsDownload)}
+            onClick={(event) =>
+              void run(event, commands.cancelMeetingModelsDownload)
+            }
           >
             {t("meetings.cancel")}
           </Button>
         );
       case "ready":
         return (
-          <Button onClick={() => void run(commands.deleteMeetingModels)}>
+          <Button
+            onClick={(event) => void run(event, commands.deleteMeetingModels)}
+          >
             {t("meetings.models.delete")}
           </Button>
         );

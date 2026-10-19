@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -302,6 +302,49 @@ test("the download progress sits in the models row, under its title", async ({
   expect(Math.abs(barBox.x - titleBox.x)).toBeLessThanOrEqual(1);
   expect(barBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
   expect(barBox.x + barBox.width).toBeLessThan(cancelBox.x);
+});
+
+/** A double click whose second click lands once the button has turned into
+ * the next action, as it does in the app within a few milliseconds. */
+const doubleClickAcrossStates = async (
+  page: Page,
+  first: Locator,
+  second: Locator,
+) => {
+  const box = await first.boundingBox();
+  if (!box) throw new Error("not laid out");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ clickCount: 1 });
+  await page.mouse.up({ clickCount: 1 });
+  await expect(second).toBeVisible();
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
+};
+
+test("a double click on a speaker models button runs only its first action", async ({
+  page,
+}) => {
+  const actions = async () =>
+    (await calls(page)).filter(
+      (command) =>
+        command.includes("meeting_models") &&
+        command !== "get_meeting_models_status",
+    );
+
+  const button = (name: string) =>
+    speakerGroup(page).getByRole("button", { name, exact: true });
+
+  await openMeetings(page, "&models=missing");
+  await doubleClickAcrossStates(page, button("Download"), button("Cancel"));
+  expect(await actions()).toEqual(["download_meeting_models"]);
+
+  await openMeetings(page, "&models=ready");
+  await doubleClickAcrossStates(
+    page,
+    button("Delete Models"),
+    button("Download"),
+  );
+  expect(await actions()).toEqual(["delete_meeting_models"]);
 });
 
 test("the system audio row's title fits at the default window size in every language", async ({
