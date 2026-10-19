@@ -63,8 +63,13 @@ fn is_lone_closer(word: &str) -> bool {
         .all(|c| CLOSERS.contains(&c) && c != '"' && c != '\'')
 }
 
+/// Opening marks that may precede a title: `(M. Dupont)` or `«M. le maire`.
+const OPENERS: [char; 5] = ['(', '[', '«', '"', '“'];
+
+/// A title ends no sentence: a name or "le directeur" follows it.
 fn is_title(word: &str) -> bool {
-    word.strip_suffix('.')
+    word.trim_start_matches(OPENERS)
+        .strip_suffix('.')
         .is_some_and(|title| TITLES.contains(&title.to_lowercase().as_str()))
 }
 
@@ -81,24 +86,17 @@ pub fn tokenize(text: &str) -> Vec<Token> {
             };
             tokens.push(Token {
                 key: key(word),
-                sentence_end: ends_sentence(word),
+                sentence_end: ends_sentence(word) && !is_title(word),
                 text: word.to_string(),
                 gap,
             });
         }
     }
-    for index in 0..tokens.len() {
+    for index in 1..tokens.len() {
         // The sentence ends after the closing mark, not before it.
-        if index > 0 && tokens[index - 1].sentence_end && is_lone_closer(&tokens[index].text) {
+        if tokens[index - 1].sentence_end && is_lone_closer(&tokens[index].text) {
             tokens[index - 1].sentence_end = false;
             tokens[index].sentence_end = true;
-        }
-        // The name goes with its title.
-        let before_a_name = tokens
-            .get(index + 1)
-            .is_some_and(|next| next.text.starts_with(char::is_uppercase));
-        if before_a_name && is_title(&tokens[index].text) {
-            tokens[index].sentence_end = false;
         }
     }
     tokens
@@ -248,11 +246,17 @@ mod tests {
             texts(&sentences("C'est fini. \" Bonjour \" dit-il.")),
             ["C'est fini.", "\" Bonjour \" dit-il."]
         );
-        // A title at the end of a sentence still ends it.
+        // A title never ends a sentence, whatever follows it.
         assert_eq!(
-            texts(&sentences("Bonjour M. merci")),
-            ["Bonjour M.", "merci"]
+            texts(&sentences(
+                "J'ai parlé à M. le directeur hier. (M. Dupont) et «Mme. la présidente» aussi."
+            )),
+            [
+                "J'ai parlé à M. le directeur hier.",
+                "(M. Dupont) et «Mme. la présidente» aussi."
+            ]
         );
+        assert_eq!(texts(&sentences("Bonjour M. merci")), ["Bonjour M. merci"]);
     }
 
     #[test]
