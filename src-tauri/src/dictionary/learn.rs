@@ -80,18 +80,16 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         if !(1..=2).contains(&replaced.len()) || replacement.len() != 1 {
             continue;
         }
-        let word = core(replacement[0]);
-        let heard_as = replaced
-            .iter()
-            .map(|w| core(w))
-            .collect::<Vec<_>>()
-            .join(" ");
+        let mut word = core(replacement[0]);
+        let mut heard: Vec<&str> = replaced.iter().map(|w| core(w)).collect();
+        strip_shared_clitics(&mut heard, &mut word);
+        let heard_as = heard.join(" ");
         let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
         let heard_at_sentence_start = hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]);
-        let heard_a_term = replaced
+        let heard_a_term = heard
             .iter()
             .enumerate()
-            .any(|(i, w)| looks_like_a_term(core(w), i == 0 && heard_at_sentence_start));
+            .any(|(i, w)| looks_like_a_term(w, i == 0 && heard_at_sentence_start));
         if looks_like_a_term(word, sentence_start)
             && !heard_a_term
             && !said_on_purpose(&heard_as, word)
@@ -113,26 +111,81 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
     learned
 }
 
-/// The words of `text`, split at spaces and where Chinese or Japanese meets
-/// other letters or digits: `我们用cloud` → `我们用`, `cloud`.
+/// The words of `text`, split at spaces and where Chinese, Japanese or
+/// Korean meets other letters or digits: `我们用cloud` → `我们用`, `cloud`,
+/// and `Claude를` → `Claude`, `를`.
 fn words(text: &str) -> Vec<&str> {
     text.split_whitespace().flat_map(split_scripts).collect()
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Script {
+    HanOrKana,
+    Hangul,
+    Other,
+}
+
+fn script(c: char) -> Script {
+    if is_cjk(c) {
+        Script::HanOrKana
+    } else if matches!(c, '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}' | '\u{AC00}'..='\u{D7AF}')
+    {
+        Script::Hangul
+    } else {
+        Script::Other
+    }
 }
 
 fn split_scripts(word: &str) -> Vec<&str> {
     let mut pieces = Vec::new();
     let mut start = 0;
-    let mut script = None;
+    let mut last = None;
     for (index, c) in word.char_indices().filter(|(_, c)| c.is_alphanumeric()) {
-        let cjk = is_cjk(c);
-        if script.is_some_and(|before| before != cjk) {
+        let script = script(c);
+        if last.is_some_and(|before| before != script) {
             pieces.push(&word[start..index]);
             start = index;
         }
-        script = Some(cjk);
+        last = Some(script);
     }
     pieces.push(&word[start..]);
     pieces
+}
+
+/// French elisions written against the next word, lowercase so that a
+/// name such as "O'Brien" keeps its own.
+const ELISIONS: [&str; 12] = [
+    "l", "d", "j", "m", "n", "s", "t", "c", "qu", "jusqu", "lorsqu", "puisqu",
+];
+
+/// Drops a possessive or an elision both sides of a fix share:
+/// `clawd's` -> `Claude's` and `d'antropic` -> `d'Anthropic` fix the name
+/// alone, which every filter then judges.
+fn strip_shared_clitics<'a>(heard: &mut [&'a str], word: &mut &'a str) {
+    let elided = |w: &'a str| {
+        let (prefix, rest) = w.split_once(['\'', '’'])?;
+        (ELISIONS.contains(&prefix) && !rest.is_empty()).then_some((prefix, rest))
+    };
+    let Some(last) = heard.len().checked_sub(1) else {
+        return;
+    };
+    if let (Some((heard_prefix, heard_rest)), Some((prefix, rest))) =
+        (elided(heard[0]), elided(word))
+    {
+        if heard_prefix == prefix {
+            heard[0] = heard_rest;
+            *word = rest;
+        }
+    }
+    let possessive = |w: &'a str| {
+        w.strip_suffix("'s")
+            .or_else(|| w.strip_suffix("’s"))
+            .filter(|rest| !rest.is_empty())
+    };
+    if let (Some(heard_rest), Some(rest)) = (possessive(heard[last]), possessive(word)) {
+        heard[last] = heard_rest;
+        *word = rest;
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -479,6 +532,29 @@ mod tests {
             learned("時々clawdを使う", "時々Claudeを使う"),
             vec![pair("Claude", "clawd")]
         );
+    }
+
+    #[test]
+    fn a_possessive_elision_or_particle_is_not_learned_with_the_name() {
+        assert_eq!(
+            learned("I read clawd's answer.", "I read Claude's answer."),
+            vec![pair("Claude", "clawd")]
+        );
+        assert!(learned("I read the cloud's answer", "I read the Claude's answer").is_empty());
+        assert_eq!(
+            learned(
+                "le modèle d'antropic est bon",
+                "le modèle d’Anthropic est bon"
+            ),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("저는 clawd를 써요", "저는 Claude를 써요"),
+            vec![pair("Claude", "clawd")]
+        );
+        assert!(learned("ask o'brian today", "ask O'Brien today")
+            .iter()
+            .all(|(word, _)| word == "O'Brien"));
     }
 
     #[test]
