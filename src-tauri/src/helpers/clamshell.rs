@@ -50,8 +50,13 @@ pub fn is_laptop() -> Result<bool, String> {
     Ok(stdout.contains("InternalBattery"))
 }
 
-/// Only decides whether the clamshell microphone setting is offered, which
-/// it never is on Windows (see `is_clamshell`).
+// Only decides whether the clamshell microphone setting is offered, which it
+// never is on Windows (see `is_clamshell`). The doc comment is the macOS
+// one, shared through the bindings.
+/// Checks if the Mac is a laptop by detecting battery presence
+///
+/// This uses pmset to check for battery information.
+/// Returns true if a battery is detected (laptop), false otherwise (desktop)
 #[cfg(target_os = "windows")]
 #[tauri::command]
 #[specta::specta]

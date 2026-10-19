@@ -213,7 +213,7 @@ pub enum TranscriptionProvider {
 pub enum CleanupEngine {
     #[cfg_attr(target_os = "macos", default)]
     Apple,
-    /// The only engine on Windows, which has no Apple Intelligence.
+    // The only engine on Windows, which has no Apple Intelligence.
     #[cfg_attr(target_os = "windows", default)]
     Codex,
 }

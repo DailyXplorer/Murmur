@@ -230,8 +230,18 @@ pub async fn repair_accessibility_permission(app: AppHandle) -> Result<(), Strin
     Ok(())
 }
 
-/// Windows has no Accessibility permission: any desktop app may send keys to
-/// apps running at its own privilege level.
+// Windows has no Accessibility permission: any desktop app may send keys to
+// apps running at its own privilege level. The doc comment below is the
+// macOS one: commands carry it into the bindings both platforms share.
+/// Replace Murmur's stale Accessibility entry after an ad-hoc signed update.
+///
+/// macOS ties Accessibility decisions to the app's code requirement. Ad hoc
+/// signed builds (local builds, and releases made before the stable signing
+/// certificate) change that requirement on every update even though the
+/// bundle ID and installation path stay the same.
+/// Reset only this running bundle's Accessibility decision, register the current
+/// process with the system prompt, and take the user straight to the correct
+/// privacy pane. Microphone and every other privacy decision are left untouched.
 #[cfg(target_os = "windows")]
 #[specta::specta]
 #[tauri::command]
@@ -252,8 +262,11 @@ pub async fn open_microphone_settings() -> Result<(), String> {
     .map_err(|error| format!("Microphone settings task failed: {error}"))?
 }
 
-/// Open the Microphone privacy page of Windows Settings, where desktop apps
-/// get their microphone access back. Windows never prompts for it.
+// Opens the Microphone privacy page of Windows Settings, where desktop apps
+// get their microphone access back: Windows never prompts for it. The doc
+// comment is the macOS one, shared through the bindings.
+/// Open the Microphone privacy pane, where the user can turn access back on.
+/// After a denial macOS no longer shows the access prompt.
 #[cfg(target_os = "windows")]
 #[specta::specta]
 #[tauri::command]
@@ -324,8 +337,10 @@ fn microphone_status_from_consent(device: Consent, user: Consent, desktop_apps: 
     }
 }
 
-/// The microphone permission in the same codes as macOS's
-/// `AVAuthorizationStatus`: 2 denied, 3 authorized.
+// The Windows consent in the same codes as macOS, only ever 2 or 3. The doc
+// comment is the macOS one, shared through the bindings.
+/// The raw `AVAuthorizationStatus` for audio capture: 0 not determined,
+/// 1 restricted, 2 denied, 3 authorized.
 #[cfg(target_os = "windows")]
 #[specta::specta]
 #[tauri::command]
@@ -341,7 +356,10 @@ pub fn get_microphone_authorization_status() -> Result<i32, String> {
     ))
 }
 
-/// Windows sends keys through SendInput and needs no input permission.
+// Windows sends keys through SendInput and needs no input permission. The
+// doc comment is the macOS one, shared through the bindings.
+/// Try to initialize Enigo (keyboard/mouse simulation).
+/// On macOS, this will return an error if accessibility permissions are not granted.
 #[cfg(target_os = "windows")]
 #[specta::specta]
 #[tauri::command]
