@@ -87,9 +87,14 @@ fn track_file(track: Track) -> &'static str {
     }
 }
 
-/// System audio with less speech than this share of the microphone's, in
-/// percent, is not a side of the conversation: a notification or a
-/// ringtone during a meeting held in person.
+/// System audio with this much speech, in milliseconds, is a side of the
+/// conversation however long the user spoke: a few minutes of questions
+/// after an hour of presenting. A ringtone or notifications stay far below.
+const REMOTE_SPEECH_MS: u64 = 60_000;
+
+/// System audio with less speech than that, and less than this share of
+/// the microphone's, in percent, is not a side of the conversation: a
+/// notification or a ringtone during a meeting held in person.
 const MIN_REMOTE_SPEECH_PERCENT: u64 = 10;
 
 /// The key of a track's only speaker when its speakers are not told apart:
@@ -103,8 +108,9 @@ fn single_speaker(track: Track, room_voices: usize) -> String {
 }
 
 /// The track whose voices are told apart: system audio, where the remote
-/// participants are, unless it holds too little speech for that. Then the
-/// meeting was held in person and every voice is on the microphone.
+/// participants are, unless it holds too little speech for that, both in
+/// time and next to the microphone's. Then the meeting was held in person
+/// and every voice is on the microphone.
 fn diarized_track(audio: &HashMap<Track, Audio>) -> Track {
     let speech = |track| {
         audio.get(&track).map(|audio| {
@@ -117,7 +123,9 @@ fn diarized_track(audio: &HashMap<Track, Audio>) -> Track {
         })
     };
     match (speech(Track::Mic), speech(Track::System)) {
-        (Some(mic), Some(system)) if system * 100 > mic * MIN_REMOTE_SPEECH_PERCENT => {
+        (Some(mic), Some(system))
+            if system >= REMOTE_SPEECH_MS || system * 100 > mic * MIN_REMOTE_SPEECH_PERCENT =>
+        {
             Track::System
         }
         (Some(_), _) => Track::Mic,
@@ -711,8 +719,10 @@ fn build_transcript(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio_toolkit::gain::DIGITAL_SILENCE_DBFS;
     use crate::cleanup::responses::CompletionError;
     use crate::meetings::analysis::ANALYSIS_FILE;
+    use crate::meetings::chunking;
     use crate::meetings::protocol::Turn;
     use crate::meetings::store::{AudioState, SummaryStatus};
     use crate::meetings::summary::SummaryError;
@@ -1860,6 +1870,47 @@ mod tests {
         assert_eq!(mac.map(|(key, _)| *key), Some("s3"));
         let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(names, ["Speaker 1", "Speaker 2", "Speaker 3"]);
+    }
+
+    /// The levels of a track of `seconds` that holds `spoken` seconds of
+    /// speech and `quiet` the rest of the time.
+    fn speech_for(seconds: u64, spoken: u64, quiet: f32) -> Audio {
+        let frames = |seconds: u64| (seconds * 1_000 / chunking::FRAME_MS) as usize;
+        let mut levels = vec![-22.0; frames(spoken)];
+        levels.resize(frames(seconds), quiet);
+        Audio {
+            path: PathBuf::new(),
+            threshold: speech_threshold(&levels),
+            levels: TrackLevels {
+                duration_ms: seconds * 1_000,
+                levels,
+            },
+        }
+    }
+
+    const ROOM: f32 = -58.0;
+
+    /// An hour-long call where the user presents and three remote
+    /// participants ask questions for a few minutes at the end: theirs are
+    /// the voices told apart, and the user stays "Me".
+    #[test]
+    fn a_call_where_the_user_presents_tells_the_remote_voices_apart() {
+        let audio = HashMap::from([
+            (Track::Mic, speech_for(3_600, 2_700, ROOM)),
+            (Track::System, speech_for(3_600, 150, DIGITAL_SILENCE_DBFS)),
+        ]);
+        assert_eq!(diarized_track(&audio), Track::System);
+    }
+
+    /// A call nobody answered rings on the Mac during an hour-long meeting
+    /// held in a room: the room's voices are still the ones told apart.
+    #[test]
+    fn a_call_ringing_on_the_mac_keeps_the_voices_of_a_room_apart() {
+        let audio = HashMap::from([
+            (Track::Mic, speech_for(3_600, 2_000, ROOM)),
+            (Track::System, speech_for(3_600, 30, DIGITAL_SILENCE_DBFS)),
+        ]);
+        assert_eq!(diarized_track(&audio), Track::Mic);
     }
 
     #[test]
