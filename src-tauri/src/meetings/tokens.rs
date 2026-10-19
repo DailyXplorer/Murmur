@@ -49,8 +49,23 @@ pub fn key(word: &str) -> String {
         .collect()
 }
 
+/// Titles written before a name, as in "M. Dupont".
+const TITLES: [&str; 7] = ["m", "mme", "mlle", "dr", "mr", "mrs", "st"];
+
 fn ends_sentence(word: &str) -> bool {
     word.trim_end_matches(CLOSERS).ends_with(SENTENCE_ENDS)
+}
+
+/// A closing mark written apart, as French spaces `« On verra. »`. A
+/// straight quote is left out: it may as well open the next sentence.
+fn is_lone_closer(word: &str) -> bool {
+    word.chars()
+        .all(|c| CLOSERS.contains(&c) && c != '"' && c != '\'')
+}
+
+fn is_title(word: &str) -> bool {
+    word.strip_suffix('.')
+        .is_some_and(|title| TITLES.contains(&title.to_lowercase().as_str()))
 }
 
 /// The words of `text`. CJK text, written without spaces, is also split
@@ -70,6 +85,20 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                 text: word.to_string(),
                 gap,
             });
+        }
+    }
+    for index in 0..tokens.len() {
+        // The sentence ends after the closing mark, not before it.
+        if index > 0 && tokens[index - 1].sentence_end && is_lone_closer(&tokens[index].text) {
+            tokens[index - 1].sentence_end = false;
+            tokens[index].sentence_end = true;
+        }
+        // The name goes with its title.
+        let before_a_name = tokens
+            .get(index + 1)
+            .is_some_and(|next| next.text.starts_with(char::is_uppercase));
+        if before_a_name && is_title(&tokens[index].text) {
+            tokens[index].sentence_end = false;
         }
     }
     tokens
@@ -194,6 +223,35 @@ mod tests {
         assert_eq!(
             ends,
             [true, false, true, false, true, true, true, false, false, false, false]
+        );
+    }
+
+    #[test]
+    fn spaced_closing_marks_and_titles_stay_in_their_sentence() {
+        assert_eq!(
+            texts(&sentences(
+                "« On verra. » D'accord. Il a dit (oui. ) puis « Et » non. \
+                 J'ai vu M. Dupont et Mme. Martin. Dr. Who. Il est là."
+            )),
+            [
+                "« On verra. »",
+                "D'accord.",
+                "Il a dit (oui. )",
+                "puis « Et » non.",
+                "J'ai vu M. Dupont et Mme. Martin.",
+                "Dr. Who.",
+                "Il est là."
+            ]
+        );
+        // A straight quote may open the next sentence as well as close one.
+        assert_eq!(
+            texts(&sentences("C'est fini. \" Bonjour \" dit-il.")),
+            ["C'est fini.", "\" Bonjour \" dit-il."]
+        );
+        // A title at the end of a sentence still ends it.
+        assert_eq!(
+            texts(&sentences("Bonjour M. merci")),
+            ["Bonjour M.", "merci"]
         );
     }
 
