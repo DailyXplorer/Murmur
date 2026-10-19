@@ -520,6 +520,19 @@ mockIPC(
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
     if (models) void events.meetingModelsStatus.emit(models);
+    // So does the meeting's.
+    if (command === "start_meeting") {
+      void events.meetingStateChanged.emit({
+        id: 5,
+        started_at_ms: Date.now(),
+        state: "recording",
+        stops_at_ms: Date.now() + 3 * HOUR * 1000,
+        tracks: "both",
+      });
+    }
+    if (command === "stop_meeting") {
+      void events.meetingStateChanged.emit({ state: "idle" });
+    }
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
       window.settingsPages.unhandledCommands.push(command);
