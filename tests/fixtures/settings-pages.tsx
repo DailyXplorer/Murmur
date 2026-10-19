@@ -66,6 +66,11 @@ const MODELS: Record<string, MeetingModelsStatus> = {
   missing: { bytes_on_disk: 0, state: { state: "missing" } },
   ready: { bytes_on_disk: 482_000_000, state: { state: "ready" } },
 };
+const MODEL_COMMANDS: Record<string, MeetingModelsStatus> = {
+  download_meeting_models: MODELS.downloading,
+  cancel_meeting_models_download: MODELS.missing,
+  delete_meeting_models: MODELS.missing,
+};
 const modelsStatus: MeetingModelsStatus =
   analysis === "available"
     ? MODELS[params.get("models") ?? "ready"]
@@ -512,6 +517,9 @@ mockIPC(
       (args ?? {}) as Record<string, unknown>,
     );
     if (meeting.handled) return meeting.value;
+    // The backend emits the models' new state before the command returns.
+    const models = MODEL_COMMANDS[command];
+    if (models) void events.meetingModelsStatus.emit(models);
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
       window.settingsPages.unhandledCommands.push(command);
