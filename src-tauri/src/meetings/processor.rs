@@ -2162,7 +2162,7 @@ mod tests {
     }
 
     /// Deleting a meeting cancels its run, maybe while the tracks are read;
-    /// the next meeting can get the same id, so nothing may be stored after.
+    /// nothing may be stored after.
     #[test]
     fn a_run_cancelled_while_reading_the_tracks_stores_nothing() {
         let h = harness();

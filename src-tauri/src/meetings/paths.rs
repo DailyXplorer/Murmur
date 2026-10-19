@@ -89,9 +89,10 @@ pub fn remove_meeting_dir(root: &Path, id: i64) -> io::Result<()> {
     }
 }
 
-/// Gives new meeting `id` an empty folder. SQLite hands out the id of a
-/// deleted newest meeting again, and files still under it (a folder that
-/// failed to delete) belong to no meeting. When they cannot be deleted they
+/// Gives new meeting `id` an empty folder. Files already under it belong to
+/// no meeting: before ids stopped being reused, a deleted newest meeting
+/// whose folder failed to delete left them under the id the next meeting
+/// gets. When they cannot be deleted they
 /// are moved aside to `<id>.stale-<now_ms>`, which no meeting reads, so the
 /// same failure never blocks every later meeting.
 pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBuf> {

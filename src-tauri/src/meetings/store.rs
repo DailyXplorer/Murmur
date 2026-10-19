@@ -1351,8 +1351,8 @@ mod tests {
         );
     }
 
-    /// A run of a deleted meeting must not write into the next meeting,
-    /// which can get the same id while it records.
+    /// A run of a deleted meeting must not write into a meeting that is
+    /// still recording.
     #[test]
     fn only_a_meeting_being_processed_gets_a_plan_or_a_silence_flag() {
         let (_dir, store) = store();
