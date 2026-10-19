@@ -1,7 +1,7 @@
 use std::{
     io::Error,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc, Arc, Mutex,
     },
     time::{Duration, Instant},
@@ -28,6 +28,42 @@ enum AudioChunk {
     EndOfStream,
 }
 
+/// Core Audio calls the input callback every few milliseconds, recording or
+/// not; this long without a call means the device is gone even if cpal
+/// reported nothing. The meeting microphone uses the same bound.
+const STALL: Duration = Duration::from_secs(3);
+
+/// What an open stream's callbacks report about it. Each open gets its own.
+struct StreamHealth {
+    /// Set by cpal when the stream can no longer capture.
+    failed: AtomicBool,
+    opened: Instant,
+    /// How long after `opened` the input callback last ran, in milliseconds.
+    last_callback_ms: AtomicU64,
+}
+
+impl StreamHealth {
+    fn new(opened: Instant) -> Self {
+        Self {
+            failed: AtomicBool::new(false),
+            opened,
+            last_callback_ms: AtomicU64::new(0),
+        }
+    }
+
+    fn mark(&self, now: Instant) {
+        let ms = now.saturating_duration_since(self.opened).as_millis() as u64;
+        self.last_callback_ms.store(ms, Ordering::Relaxed);
+    }
+
+    /// Counted from the last mark, or from `opened` before any.
+    fn stalled(&self, now: Instant) -> bool {
+        let last =
+            self.opened + Duration::from_millis(self.last_callback_ms.load(Ordering::Relaxed));
+        now.saturating_duration_since(last) > STALL
+    }
+}
+
 pub struct AudioRecorder {
     device: Option<Device>,
     cmd_tx: Option<mpsc::Sender<Cmd>>,
@@ -41,8 +77,12 @@ pub struct AudioRecorder {
     /// cleared whenever an open fails so a stale rate/format self-heals on the
     /// caller's retry.
     config_cache: Arc<Mutex<Option<(String, cpal::SupportedStreamConfig)>>>,
-    /// Set by cpal when the active input stream can no longer capture.
-    stream_error: Arc<AtomicBool>,
+    /// The open stream's health, `None` while closed.
+    health: Option<Arc<StreamHealth>>,
+    /// The name of the system default the open stream was opened on, `None`
+    /// for a named device. cpal binds such a stream to the device that was
+    /// the default then and reports no disconnect for it.
+    default_name: Option<String>,
 }
 
 impl AudioRecorder {
@@ -54,7 +94,8 @@ impl AudioRecorder {
             level_cb: None,
             selected_channel: None,
             config_cache: Arc::new(Mutex::new(None)),
-            stream_error: Arc::new(AtomicBool::new(false)),
+            health: None,
+            default_name: None,
         })
     }
 
@@ -84,32 +125,34 @@ impl AudioRecorder {
             let _ = self.close();
         }
 
-        self.stream_error.store(false, Ordering::Relaxed);
-
         let (sample_tx, sample_rx) = mpsc::channel::<AudioChunk>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let (init_tx, init_rx) = mpsc::sync_channel::<Result<(), String>>(1);
 
         let host = cpal::default_host();
+        let opened_on_default = device.is_none();
         let device = match device {
             Some(dev) => dev,
             None => host
                 .default_input_device()
                 .ok_or_else(|| Error::new(std::io::ErrorKind::NotFound, "No input device found"))?,
         };
+        let device_name = device.name().unwrap_or_default();
+        let default_name =
+            (opened_on_default && !device_name.is_empty()).then(|| device_name.clone());
+        let health = Arc::new(StreamHealth::new(Instant::now()));
 
         let thread_device = device.clone();
         let level_cb = self.level_cb.clone();
         let selected_channel = self.selected_channel;
         let config_cache = Arc::clone(&self.config_cache);
-        let stream_error = Arc::clone(&self.stream_error);
+        let stream_health = Arc::clone(&health);
 
         let worker = std::thread::spawn(move || {
             let stop_flag = Arc::new(AtomicBool::new(false));
             let stop_flag_for_stream = stop_flag.clone();
             let init_result = (|| -> Result<(cpal::Stream, u32), String> {
                 let config_started = Instant::now();
-                let device_name = thread_device.name().unwrap_or_default();
                 let cached_config = config_cache
                     .lock()
                     .unwrap()
@@ -158,7 +201,7 @@ impl AudioRecorder {
                         channels,
                         selected_channel,
                         stop_flag_for_stream,
-                        Arc::clone(&stream_error),
+                        Arc::clone(&stream_health),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I8 => AudioRecorder::build_stream::<i8>(
@@ -168,7 +211,7 @@ impl AudioRecorder {
                         channels,
                         selected_channel,
                         stop_flag_for_stream,
-                        Arc::clone(&stream_error),
+                        Arc::clone(&stream_health),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I16 => AudioRecorder::build_stream::<i16>(
@@ -178,7 +221,7 @@ impl AudioRecorder {
                         channels,
                         selected_channel,
                         stop_flag_for_stream,
-                        Arc::clone(&stream_error),
+                        Arc::clone(&stream_health),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I32 => AudioRecorder::build_stream::<i32>(
@@ -188,7 +231,7 @@ impl AudioRecorder {
                         channels,
                         selected_channel,
                         stop_flag_for_stream,
-                        Arc::clone(&stream_error),
+                        Arc::clone(&stream_health),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::F32 => AudioRecorder::build_stream::<f32>(
@@ -198,7 +241,7 @@ impl AudioRecorder {
                         channels,
                         selected_channel,
                         stop_flag_for_stream,
-                        Arc::clone(&stream_error),
+                        Arc::clone(&stream_health),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     sample_format => {
@@ -258,9 +301,13 @@ impl AudioRecorder {
 
         match init_rx.recv() {
             Ok(Ok(())) => {
+                // The setup is not a stall: wait for a first callback from here.
+                health.mark(Instant::now());
                 self.device = Some(device);
                 self.cmd_tx = Some(cmd_tx);
                 self.worker_handle = Some(worker);
+                self.health = Some(health);
+                self.default_name = default_name;
                 Ok(())
             }
             Ok(Err(error_message)) => {
@@ -306,13 +353,39 @@ impl AudioRecorder {
     /// True when the active capture stream must be rebuilt.
     ///
     /// cpal may report a device disconnect asynchronously without closing its
-    /// callback channel, so also honor the error callback's explicit flag.
+    /// callback channel, so also honor the error callback's explicit flag. A
+    /// stream on the system default gets no such report, so a stream is also
+    /// rebuilt once its callbacks stop or another microphone is the default.
     pub fn needs_reopen(&self) -> bool {
-        self.stream_error.load(Ordering::Relaxed)
+        let Some(health) = &self.health else {
+            return false;
+        };
+        if health.failed.load(Ordering::Relaxed)
             || self
                 .worker_handle
                 .as_ref()
                 .is_some_and(|handle| handle.is_finished())
+        {
+            return true;
+        }
+        if health.stalled(Instant::now()) {
+            log::warn!("The microphone stream made no callback for {STALL:?}");
+            return true;
+        }
+        if self.left_default(|| cpal::default_host().default_input_device()?.name().ok()) {
+            log::info!("Another microphone is now the system default");
+            return true;
+        }
+        false
+    }
+
+    /// A stream opened on the system default stays on the device that was
+    /// the default then. Reopened, it records from the current default, as a
+    /// stream opened for each dictation does.
+    fn left_default(&self, default_now: impl FnOnce() -> Option<String>) -> bool {
+        self.default_name
+            .as_deref()
+            .is_some_and(|opened_on| default_now().as_deref() != Some(opened_on))
     }
 
     pub fn close(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -323,6 +396,8 @@ impl AudioRecorder {
             let _ = h.join();
         }
         self.device = None;
+        self.health = None;
+        self.default_name = None;
         Ok(())
     }
 
@@ -333,7 +408,7 @@ impl AudioRecorder {
         channels: usize,
         selected_channel: Option<usize>,
         stop_flag: Arc<AtomicBool>,
-        stream_error: Arc<AtomicBool>,
+        health: Arc<StreamHealth>,
     ) -> Result<cpal::Stream, cpal::BuildStreamError>
     where
         T: Sample + SizedSample + Send + 'static,
@@ -349,7 +424,10 @@ impl AudioRecorder {
             None => None,
         };
 
+        let callback_health = Arc::clone(&health);
         let stream_cb = move |data: &[T], _: &cpal::InputCallbackInfo| {
+            // Every call shows the device is there, stopped or not.
+            callback_health.mark(Instant::now());
             if stop_flag.load(Ordering::Relaxed) {
                 if !eos_sent {
                     let _ = sample_tx.send(AudioChunk::EndOfStream);
@@ -397,7 +475,7 @@ impl AudioRecorder {
             stream_cb,
             move |err| {
                 log::error!("Stream error: {}", err);
-                stream_error.store(true, Ordering::Relaxed);
+                health.failed.store(true, Ordering::Relaxed);
             },
             None,
         )
@@ -502,7 +580,7 @@ fn append_recording_frame(samples: &[f32], recording: bool, out_buf: &mut Vec<f3
 mod tests {
     use super::{
         append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
-        run_consumer, AudioRecorder, Cmd,
+        run_consumer, AudioRecorder, Cmd, StreamHealth, STALL,
     };
     use std::{
         sync::{
@@ -524,9 +602,57 @@ mod tests {
 
     #[test]
     fn stream_error_requires_reopen() {
-        let recorder = AudioRecorder::new().expect("recorder");
-        recorder.stream_error.store(true, Ordering::Relaxed);
+        let mut recorder = AudioRecorder::new().expect("recorder");
+        let health = Arc::new(StreamHealth::new(Instant::now()));
+        health.failed.store(true, Ordering::Relaxed);
+        recorder.health = Some(health);
         assert!(recorder.needs_reopen());
+    }
+
+    #[test]
+    fn a_stream_whose_callbacks_stopped_counts_as_stalled() {
+        let opened = Instant::now();
+        let health = StreamHealth::new(opened);
+        assert!(!health.stalled(opened + STALL), "just opened");
+        assert!(
+            health.stalled(opened + STALL + Duration::from_millis(1)),
+            "never called back"
+        );
+
+        health.mark(opened + Duration::from_secs(10));
+        assert!(!health.stalled(opened + Duration::from_secs(10) + STALL));
+        assert!(health.stalled(opened + Duration::from_secs(11) + STALL));
+    }
+
+    #[test]
+    fn a_stalled_stream_requires_reopen() {
+        // A device opened as the system default can go away without cpal
+        // reporting anything: its callbacks just stop.
+        let mut recorder = AudioRecorder::new().expect("recorder");
+        let opened = Instant::now().checked_sub(STALL * 2).expect("uptime");
+        recorder.health = Some(Arc::new(StreamHealth::new(opened)));
+        assert!(recorder.needs_reopen());
+
+        recorder.health.as_ref().unwrap().mark(Instant::now());
+        assert!(!recorder.needs_reopen());
+    }
+
+    #[test]
+    fn a_stream_on_the_default_reopens_once_another_microphone_is_the_default() {
+        let mut recorder = AudioRecorder::new().expect("recorder");
+        recorder.default_name = Some("AirPods Pro".to_string());
+        assert!(!recorder.left_default(|| Some("AirPods Pro".to_string())));
+        // The AirPods went back in their case: macOS made the built-in
+        // microphone the default.
+        assert!(recorder.left_default(|| Some("MacBook Pro Microphone".to_string())));
+        // No input device is left.
+        assert!(recorder.left_default(|| None));
+    }
+
+    #[test]
+    fn a_stream_on_a_named_microphone_ignores_the_default() {
+        let recorder = AudioRecorder::new().expect("recorder");
+        assert!(!recorder.left_default(|| Some("MacBook Pro Microphone".to_string())));
     }
 
     #[test]
