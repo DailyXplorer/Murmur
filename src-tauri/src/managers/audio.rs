@@ -541,7 +541,8 @@ impl AudioRecordingManager {
         if *open_flag {
             // `is_open` only records that we opened a stream at some point, not
             // that one is still running. If capture has since failed (mic
-            // unplugged mid-session, USB dropout), rebuild it before the next
+            // unplugged mid-session, USB dropout) or the system default it was
+            // opened on is now another microphone, rebuild it before the next
             // recording instead of handing the caller a stalled recorder.
             let needs_reopen = self
                 .recorder
@@ -557,7 +558,7 @@ impl AudioRecordingManager {
                 return Ok(None);
             }
 
-            warn!("Microphone stream is no longer running (device disconnected?); reopening");
+            warn!("Microphone stream is no longer usable; reopening");
 
             // Torn down inline rather than via stop_microphone_stream(), which
             // takes the `is_open` lock we are already holding.
