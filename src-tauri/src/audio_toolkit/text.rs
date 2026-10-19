@@ -63,9 +63,13 @@ fn supports_soundex(key: &str) -> bool {
     !key.is_empty() && key.chars().all(|c| c.is_ascii_alphabetic())
 }
 
+/// The longest word too short for a reliable Soundex code.
+const MAX_SHORT_WORD_LEN: usize = 4;
+
 /// Scores a candidate against one custom-word key: normalized Levenshtein
 /// distance, boosted when both sound alike. Lower is closer; 0.0 is exact.
-fn match_score(candidate: &str, key: &str) -> f64 {
+/// `written_as_name` is a single dictated word with a capital letter.
+fn match_score(candidate: &str, key: &str, written_as_name: bool) -> f64 {
     let max_len = candidate.chars().count().max(key.chars().count()) as f64;
     let levenshtein_score = if max_len > 0.0 {
         levenshtein(candidate, key) as f64 / max_len
@@ -74,11 +78,15 @@ fn match_score(candidate: &str, key: &str) -> f64 {
     };
 
     // Soundex is an English/ASCII phonetic algorithm. Numeric terms can
-    // still use edit distance, but must not receive a phonetic boost.
-    // Everyday words that sound like a short name ("an" like "Anne") are
-    // kept out by `match_span`, not here: "Zack" must still become "Zach".
-    let phonetic_match =
-        supports_soundex(candidate) && supports_soundex(key) && soundex(candidate, key);
+    // still use edit distance, but must not receive a phonetic boost. Nor
+    // can short words: Soundex keeps their first letter and consonants
+    // only, so "lu" sounds like "Lou" and "mille" like "Mila". A short word
+    // written with a capital is a name the transcriber heard, so "Zack"
+    // still becomes "Zach".
+    let phonetic_match = supports_soundex(candidate)
+        && supports_soundex(key)
+        && (written_as_name || candidate.len().min(key.len()) > MAX_SHORT_WORD_LEN)
+        && soundex(candidate, key);
 
     if phonetic_match {
         levenshtein_score * 0.3
@@ -93,6 +101,7 @@ fn find_best_match<'a>(
     candidate: &str,
     custom_word_match_keys: &'a [CustomWordMatchKey],
     threshold: f64,
+    written_as_name: bool,
 ) -> Option<(&'a CustomWordMatchKey, f64)> {
     if !is_supported_fuzzy_key(candidate) || candidate.chars().count() > 50 {
         return None;
@@ -113,7 +122,7 @@ fn find_best_match<'a>(
             continue;
         }
 
-        let score = match_score(candidate, &custom_word_key.key);
+        let score = match_score(candidate, &custom_word_key.key, written_as_name);
         if score < threshold && best_match.is_none_or(|(_, best_score)| score < best_score) {
             best_match = Some((custom_word_key, score));
         }
@@ -134,7 +143,7 @@ fn best_part_score(word: &str, key: &str) -> f64 {
     let mut best = 1.0_f64;
     for part_len in word_len.saturating_sub(1).max(1)..=(word_len + 1).min(key.len()) {
         for part in key.windows(part_len) {
-            best = best.min(match_score(word, &part.iter().collect::<String>()));
+            best = best.min(match_score(word, &part.iter().collect::<String>(), false));
         }
     }
     best
@@ -166,7 +175,17 @@ fn match_span<'k>(
     threshold: f64,
 ) -> Option<(&'k CustomWordMatchKey, f64)> {
     let candidate = build_ngram(span);
-    let (key, score) = find_best_match(&candidate, custom_word_match_keys, threshold)?;
+    let written_as_name = span.len() == 1
+        && span[0]
+            .chars()
+            .find(|c| c.is_alphanumeric())
+            .is_some_and(char::is_uppercase);
+    let (key, score) = find_best_match(
+        &candidate,
+        custom_word_match_keys,
+        threshold,
+        written_as_name,
+    )?;
     // An everyday word is what the user said, unless it is the custom word
     // itself: "an" never becomes "Anne", "mari" never becomes "Marie". A
     // first name is not one: "Lucas" becomes the user's "Lukas".
@@ -180,8 +199,8 @@ fn match_span<'k>(
     let len = span.len();
     if len > 1 {
         let (first, last) = (build_match_key(span[0]), build_match_key(span[len - 1]));
-        let without_first = match_score(&build_ngram(&span[1..]), &key.key);
-        let without_last = match_score(&build_ngram(&span[..len - 1]), &key.key);
+        let without_first = match_score(&build_ngram(&span[1..]), &key.key, false);
+        let without_last = match_score(&build_ngram(&span[..len - 1]), &key.key, false);
         if best_part_score(&first, &key.key) >= threshold
             || best_part_score(&last, &key.key) >= threshold
             || without_first <= score
@@ -653,6 +672,44 @@ mod tests {
             assert_eq!(
                 apply_custom_words_counted(input, &[word.to_string()], 0.18),
                 (expected.to_string(), 1),
+                "{word}: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_short_everyday_word_that_sounds_like_a_name_is_kept() {
+        let cases = [
+            ("Lou", "je l'ai lu hier"),
+            ("Mona", "c'est mon idée"),
+            ("Mona", "Mon idée est simple"),
+            ("Moon", "mon téléphone"),
+            ("May", "le 3 mai"),
+            // Not an everyday word on the list: only the length keeps it.
+            ("Liz", "je lis un livre"),
+        ];
+        for (word, input) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &[word.to_string()], 0.18),
+                (input.to_string(), 0),
+                "{word}: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_first_name_that_is_also_an_everyday_word_is_kept() {
+        let cases = [
+            ("Clara", "une réponse claire"),
+            ("Ross", "un pull rose"),
+            ("Rosa", "la robe rose"),
+            ("Jeanne", "un jean bleu"),
+            ("Pierce", "une pierre"),
+        ];
+        for (word, input) in cases {
+            assert_eq!(
+                apply_custom_words_counted(input, &[word.to_string()], 0.18),
+                (input.to_string(), 0),
                 "{word}: {input}"
             );
         }
