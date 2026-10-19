@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://github.com/DailyXplorer/Murmur/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DailyXplorer/Murmur?style=for-the-badge&color=f49ac1"></a>
   <a href="https://github.com/DailyXplorer/Murmur/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/DailyXplorer/Murmur/total?style=for-the-badge&color=f49ac1"></a>
-  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-f49ac1?style=for-the-badge&logo=apple&logoColor=white">
+  <img alt="Platform: macOS | Windows" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-f49ac1?style=for-the-badge">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-f49ac1?style=for-the-badge"></a>
   <a href="https://github.com/DailyXplorer/Murmur/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/DailyXplorer/Murmur?style=for-the-badge&color=f49ac1"></a>
 </p>
@@ -13,7 +13,7 @@
   <img alt="Murmur Insights: words dictated, speed and daily streak" src="docs/images/insights.jpg" width="49%">
 </p>
 
-Murmur is a macOS desktop speech-to-text app. Press a shortcut, speak, and
+Murmur is a desktop speech-to-text app for macOS and Windows (beta). Press a shortcut, speak, and
 Murmur pastes the transcription into the active application.
 
 Murmur sends audio to Codex cloud transcription using the ChatGPT session
@@ -21,6 +21,8 @@ already on the computer. It requires no API key or local speech-recognition
 model.
 
 ## Requirements
+
+### macOS
 
 - macOS 10.15 or later
 - A working microphone
@@ -30,8 +32,16 @@ model.
   the System Audio Recording permission
 - Network access while transcribing
 
-For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json` or
-`~/.codex/auth.json`. When the access token is about to expire, or when the
+### Windows (beta)
+
+- Windows 10 or 11, x64
+- A working microphone
+- Codex signed in with a ChatGPT account
+- Network access while transcribing
+
+For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json`,
+or else `~/.codex/auth.json` on macOS and `%USERPROFILE%\.codex\auth.json` on
+Windows. When the access token is about to expire, or when the
 service rejects it, Murmur refreshes the session the same way the Codex CLI
 does and writes the new tokens back to that file. It changes only the token
 fields and `last_refresh`, keeps the file private (mode 600), and replaces it
@@ -50,6 +60,8 @@ provider's terms for your account.
 
 ## Install
 
+### macOS
+
 1. Download the DMG from the latest
    [GitHub release](https://github.com/DailyXplorer/Murmur/releases/latest):
    `aarch64` for Apple Silicon, `x64` for Intel.
@@ -64,9 +76,20 @@ Murmur's built-in updater installs releases signed with the same certificate,
 so macOS keeps both permissions and asks nothing again after an update. Murmur
 does not store anything in the keychain.
 
+### Windows (beta)
+
+1. Download `Murmur_1.7.7-beta.1_x64-setup.exe` from the
+   [v1.7.7-beta.1 pre-release](https://github.com/DailyXplorer/Murmur/releases/tag/v1.7.7-beta.1).
+2. Run the installer. It is not signed, so SmartScreen blocks it: click
+   **More info**, then **Run anyway**. Murmur installs for the current user.
+3. Open Murmur and connect Codex. Hold Ctrl+Win to dictate, or double-tap it
+   to record hands-free.
+
+The Windows source lives on the `beta` branch for now, not on `main`.
+
 ## Features
 
-- One recording shortcut (Option+Space by default): hold it to talk, or double-tap it to record hands-free and press it once to stop
+- One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Automatic language detection, or an explicit dictation language
@@ -88,6 +111,11 @@ does not store anything in the keychain.
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
+
+The Windows beta has dictation, Codex transcription and AI cleanup, history,
+Insights, custom words, sounds, and launch at login. It does not have
+Meetings, correction learning, names read from the focused window, or
+automatic updates yet.
 
 ## Getting started
 
