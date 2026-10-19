@@ -2,6 +2,7 @@ use crate::input::{self, TargetedModifier};
 use crate::operation::ProcessingOperation;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
+#[cfg(target_os = "macos")]
 use objc2_app_kit::NSWorkspace;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -64,6 +65,7 @@ fn complete_clipboard_only_output(
     PasteOutcome::IntentionalNone
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrontmostTarget {
     pid: i32,
@@ -75,6 +77,43 @@ pub(crate) struct FrontmostTarget {
     launch_time_bits: Option<u64>,
 }
 
+/// The window a dictation is pasted into. Windows delivers synthesized keys
+/// to the foreground window, so the target is that window, not only its
+/// process.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FrontmostTarget {
+    pid: i32,
+    window: isize,
+    /// Catches a pid reused by another process, when Windows reports it.
+    started_at: Option<u64>,
+}
+
+#[cfg(target_os = "windows")]
+impl FrontmostTarget {
+    fn new(pid: u32, window: isize, started_at: Option<u64>) -> Option<Self> {
+        if pid == 0 || window == 0 || pid == std::process::id() {
+            return None;
+        }
+        Some(Self {
+            pid: i32::try_from(pid).ok()?,
+            window,
+            started_at,
+        })
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
+    let foreground = crate::foreground::window()?;
+    FrontmostTarget::new(
+        foreground.pid,
+        foreground.window,
+        crate::foreground::process_start_time(foreground.pid),
+    )
+}
+
+#[cfg(target_os = "macos")]
 impl FrontmostTarget {
     fn new(pid: i32, bundle_identifier: Option<String>, launch_time: Option<f64>) -> Option<Self> {
         if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
@@ -88,6 +127,7 @@ impl FrontmostTarget {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
     let application = NSWorkspace::sharedWorkspace().frontmostApplication()?;
     FrontmostTarget::new(
@@ -440,6 +480,7 @@ mod tests {
     use super::*;
     use crate::operation::OperationId;
 
+    #[cfg(target_os = "macos")]
     fn target(pid: i32) -> FrontmostTarget {
         FrontmostTarget::new(
             pid,
@@ -449,6 +490,34 @@ mod tests {
         .unwrap()
     }
 
+    #[cfg(target_os = "windows")]
+    fn target(pid: i32) -> FrontmostTarget {
+        FrontmostTarget::new(pid as u32, pid as isize * 16, Some(pid as u64)).unwrap()
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_windows_target_is_one_window_of_one_process() {
+        let window = FrontmostTarget::new(42, 0x1000, Some(7));
+        assert!(window.is_some());
+        // Another window of the same process is another target.
+        assert!(!same_frontmost_target(
+            window.clone(),
+            FrontmostTarget::new(42, 0x2000, Some(7))
+        ));
+        // So is a later process that reused the pid.
+        assert!(!same_frontmost_target(
+            window.clone(),
+            FrontmostTarget::new(42, 0x1000, Some(8))
+        ));
+        // A process whose start time Windows withheld is still a target.
+        assert!(FrontmostTarget::new(42, 0x1000, None).is_some());
+        assert_eq!(FrontmostTarget::new(0, 0x1000, None), None);
+        assert_eq!(FrontmostTarget::new(42, 0, None), None);
+        assert_eq!(FrontmostTarget::new(std::process::id(), 0x1000, None), None);
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn an_app_without_a_bundle_id_or_launch_date_is_still_a_paste_target() {
         let unbundled = FrontmostTarget::new(42, None, None);

@@ -98,7 +98,11 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
     let locale = locale.unwrap_or(&settings.app_language);
     let strings = get_tray_translations(Some(locale.to_string()));
 
+    // A tray menu on Windows shows accelerators it does not bind.
+    #[cfg(target_os = "macos")]
     let (settings_accelerator, quit_accelerator) = (Some("Cmd+,"), Some("Cmd+Q"));
+    #[cfg(target_os = "windows")]
+    let (settings_accelerator, quit_accelerator) = (None::<&str>, None::<&str>);
 
     let version_label = version_label();
     let version_i = MenuItem::with_id(app, "version", &version_label, false, None::<&str>)
@@ -182,10 +186,12 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
         &copy_last_transcript_i,
         &separators[3],
         &settings_i,
-        &check_updates_i,
-        &separators[4],
-        &quit_i,
     ]);
+    // The Windows beta ships without an updater.
+    if cfg!(target_os = "macos") {
+        items.push(&check_updates_i);
+    }
+    items.extend([&separators[4] as &dyn IsMenuItem<Wry>, &quit_i]);
     let menu = Menu::with_items(app, &items).expect("failed to create menu");
 
     let tray = app.state::<TrayIcon>();

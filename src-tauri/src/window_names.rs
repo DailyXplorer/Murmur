@@ -7,14 +7,19 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_os = "macos")]
+use std::time::Instant;
 
 const MAX_NAMES: usize = 50;
 const MAX_NAME_CHARS: usize = 40;
 /// Unbroken tokens this long are keys or hashes, not names.
 const LONG_TOKEN_CHARS: usize = 20;
+#[cfg(target_os = "macos")]
 const MAX_NODES: usize = 1_500;
+#[cfg(target_os = "macos")]
 const MAX_TEXT_CHARS: usize = 40_000;
+#[cfg(target_os = "macos")]
 const READ_BUDGET: Duration = Duration::from_millis(400);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
@@ -48,7 +53,15 @@ pub fn collect() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Reading another app's window text on Windows needs UI Automation, which
+/// this build does not have; the setting is off there (see `settings`).
+#[cfg(target_os = "windows")]
+fn read_frontmost_window() -> Option<(String, String)> {
+    None
+}
+
 /// The frontmost app's bundle identifier and the text of its focused window.
+#[cfg(target_os = "macos")]
 fn read_frontmost_window() -> Option<(String, String)> {
     use crate::accessibility::frontmost_app;
 

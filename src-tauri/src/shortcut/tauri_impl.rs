@@ -13,6 +13,8 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutSt
 use crate::settings::{self, get_settings, AppSettings, ShortcutBinding};
 
 use super::handler::handle_shortcut_event;
+#[cfg(target_os = "windows")]
+use super::modifier_chord::{self, Chord};
 
 // Registration happens on the async runtime because global-shortcut callbacks
 // must not register or unregister themselves. The epoch and mutex ensure an
@@ -57,6 +59,10 @@ struct TauriCancelShortcutRegistry<'a> {
 
 impl CancelShortcutRegistry for TauriCancelShortcutRegistry<'_> {
     fn is_registered(&self, binding: &ShortcutBinding) -> bool {
+        #[cfg(target_os = "windows")]
+        if let Some(chord) = Chord::parse(&binding.current_binding) {
+            return modifier_chord::is_registered(chord);
+        }
         binding
             .current_binding
             .parse::<Shortcut>()
@@ -480,6 +486,16 @@ pub fn parse_shortcut(raw: &str) -> Result<Shortcut, String> {
     Ok(shortcut)
 }
 
+/// Checks that `raw` can register: a global shortcut, or on Windows a chord
+/// of modifiers alone (see `modifier_chord`).
+pub fn validate_binding(raw: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    if Chord::parse(raw).is_some() {
+        return Ok(());
+    }
+    parse_shortcut(raw).map(|_| ())
+}
+
 /// The other binding whose keys are the same shortcut as `raw`. Shortcuts are
 /// compared parsed, so spellings such as "esc" and "escape" collide. While
 /// the user edits a shortcut every other one is suspended, so registration
@@ -490,6 +506,15 @@ pub fn conflicting_binding<'a>(
     id: &str,
     raw: &str,
 ) -> Option<&'a ShortcutBinding> {
+    #[cfg(target_os = "windows")]
+    if let Some(chord) = Chord::parse(raw) {
+        return settings.bindings.iter().find_map(|(other_id, other)| {
+            (other_id != id
+                && super::binding_active(settings, other_id)
+                && Chord::parse(&other.current_binding) == Some(chord))
+            .then_some(other)
+        });
+    }
     let shortcut = raw.parse::<Shortcut>().ok()?;
     settings.bindings.iter().find_map(|(other_id, other)| {
         (other_id != id
@@ -501,6 +526,10 @@ pub fn conflicting_binding<'a>(
 
 /// Register a shortcut using Tauri's global-shortcut plugin
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    if let Some(chord) = Chord::parse(&binding.current_binding) {
+        return modifier_chord::register(app, &binding.id, &binding.current_binding, chord);
+    }
     let shortcut = parse_shortcut(&binding.current_binding).inspect_err(|e| {
         warn!("register_tauri_shortcut validation error: {e}");
     })?;
@@ -545,6 +574,10 @@ pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<()
 
 /// Unregister a shortcut from Tauri's global-shortcut plugin
 pub fn unregister_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    if let Some(chord) = Chord::parse(&binding.current_binding) {
+        return modifier_chord::unregister(chord);
+    }
     let shortcut = match binding.current_binding.parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {

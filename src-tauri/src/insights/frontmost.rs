@@ -8,6 +8,7 @@ pub struct DictationTarget {
 
 /// Reduces a URL to its lowercase host without a leading `www.`. Returns
 /// `None` for non-web documents such as `file://` or `about:blank`.
+#[cfg(target_os = "macos")]
 pub fn host_of(url: &str) -> Option<String> {
     let (scheme, rest) = url.split_once("://")?;
     if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
@@ -23,6 +24,23 @@ pub fn host_of(url: &str) -> Option<String> {
     Some(host.strip_prefix("www.").map(str::to_owned).unwrap_or(host))
 }
 
+/// The app in front, named by its executable. A browser's active tab is not
+/// read on Windows: that needs UI Automation, so browsers count as
+/// themselves.
+#[cfg(target_os = "windows")]
+pub fn current() -> Option<DictationTarget> {
+    let foreground = crate::foreground::window()?;
+    if foreground.pid == std::process::id() {
+        return None;
+    }
+    let path = crate::foreground::process_image_path(foreground.pid)?;
+    Some(DictationTarget {
+        bundle_id: crate::foreground::executable_name(&path)?,
+        host: None,
+    })
+}
+
+#[cfg(target_os = "macos")]
 pub fn current() -> Option<DictationTarget> {
     let application = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = application.processIdentifier();
@@ -40,6 +58,7 @@ pub fn current() -> Option<DictationTarget> {
     Some(DictationTarget { bundle_id, host })
 }
 
+#[cfg(target_os = "macos")]
 mod macos {
     use core_foundation::base::{CFType, CFTypeRef, TCFType};
     use core_foundation::string::{CFString, CFStringRef};
@@ -106,7 +125,7 @@ mod macos {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::host_of;
 

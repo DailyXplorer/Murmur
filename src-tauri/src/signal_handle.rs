@@ -1,11 +1,6 @@
 use crate::TranscriptionCoordinator;
-use log::debug;
 use log::warn;
 use tauri::{AppHandle, Manager};
-
-use signal_hook::consts::SIGUSR2;
-use signal_hook::iterator::Signals;
-use std::thread;
 
 /// Send a transcription input to the coordinator.
 /// Used by signal handlers, CLI flags, and any other external trigger.
@@ -17,8 +12,15 @@ pub fn send_transcription_input(app: &AppHandle, binding_id: &str, source: &str)
     }
 }
 
-/// Listen for SIGUSR2 to remotely toggle transcription.
+/// Listen for SIGUSR2 to remotely toggle transcription. Windows has no
+/// signals; `--toggle-transcription` does the same there.
+#[cfg(unix)]
 pub fn setup_signal_handler(app_handle: AppHandle) {
+    use log::debug;
+    use signal_hook::consts::SIGUSR2;
+    use signal_hook::iterator::Signals;
+    use std::thread;
+
     let mut signals =
         Signals::new([SIGUSR2]).expect("failed to register transcription signal handlers");
     debug!("Signal handler registered for SIGUSR2");

@@ -1,9 +1,11 @@
+#[cfg(target_os = "macos")]
 use std::process::Command;
 
 /// Checks if the MacBook is in clamshell mode (lid closed with external display)
 ///
 /// This queries the macOS IORegistry for the AppleClamshellState key.
 /// Returns true if the lid is closed, false if open.
+#[cfg(target_os = "macos")]
 pub fn is_clamshell() -> Result<bool, String> {
     let output = Command::new("ioreg")
         .args(["-r", "-k", "AppleClamshellState", "-d", "4"])
@@ -22,10 +24,18 @@ pub fn is_clamshell() -> Result<bool, String> {
     Ok(stdout.contains("\"AppleClamshellState\" = Yes"))
 }
 
+/// The clamshell microphone is a MacBook setting: Windows offers no lid
+/// state to switch on, so the selected microphone always applies.
+#[cfg(target_os = "windows")]
+pub fn is_clamshell() -> Result<bool, String> {
+    Ok(false)
+}
+
 /// Checks if the Mac is a laptop by detecting battery presence
 ///
 /// This uses pmset to check for battery information.
 /// Returns true if a battery is detected (laptop), false otherwise (desktop)
+#[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
 pub fn is_laptop() -> Result<bool, String> {
@@ -40,7 +50,16 @@ pub fn is_laptop() -> Result<bool, String> {
     Ok(stdout.contains("InternalBattery"))
 }
 
-#[cfg(test)]
+/// Only decides whether the clamshell microphone setting is offered, which
+/// it never is on Windows (see `is_clamshell`).
+#[cfg(target_os = "windows")]
+#[tauri::command]
+#[specta::specta]
+pub fn is_laptop() -> Result<bool, String> {
+    Ok(false)
+}
+
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
 

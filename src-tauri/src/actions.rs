@@ -296,6 +296,7 @@ impl ShortcutAction for TranscribeAction {
                     "Recording request accepted in {:?}; waiting for first microphone samples",
                     recording_start_time.elapsed()
                 );
+                #[cfg(target_os = "macos")]
                 crate::dictionary::stop_observing();
                 crate::window_names::capture(
                     settings.window_names_enabled && settings.ai_cleanup_enabled,
@@ -571,6 +572,7 @@ impl ShortcutAction for TranscribeAction {
                                         return;
                                     }
                                     Ok(outcome) => {
+                                        #[cfg(target_os = "macos")]
                                         if outcome == crate::clipboard::PasteOutcome::Injected {
                                             crate::dictionary::watch_pasted_text(
                                                 &ah,

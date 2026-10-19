@@ -46,6 +46,7 @@ fn status(code: i32) -> Result<()> {
     }
 }
 
+#[cfg(unix)]
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 fn c_path(path: &Path) -> Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;

@@ -1,7 +1,8 @@
-#[cfg(not(target_os = "macos"))]
-compile_error!("Murmur supports macOS only.");
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+compile_error!("Murmur supports macOS and Windows only.");
 
 mod accent;
+#[cfg(target_os = "macos")]
 mod accessibility;
 mod actions;
 mod audio_feedback;
@@ -16,6 +17,8 @@ mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
 mod dictionary;
+#[cfg(target_os = "windows")]
+mod foreground;
 mod gemini_transcribe;
 mod helpers;
 mod input;
@@ -37,6 +40,8 @@ mod tray_i18n;
 mod user_alert;
 mod utils;
 mod window_names;
+#[cfg(target_os = "windows")]
+mod window_placement;
 
 pub use cli::CliArgs;
 pub use operation::{OperationId, PastePermit, ProcessingOperation};
@@ -133,6 +138,7 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
+#[cfg(target_os = "macos")]
 fn settings_window_collection_behavior(
     mut behavior: objc2_app_kit::NSWindowCollectionBehavior,
 ) -> objc2_app_kit::NSWindowCollectionBehavior {
@@ -143,10 +149,12 @@ fn settings_window_collection_behavior(
     behavior
 }
 
+#[cfg(target_os = "macos")]
 fn settings_window_needs_order_out(is_visible: bool, is_on_active_space: bool) -> bool {
     is_visible && !is_on_active_space
 }
 
+#[cfg(target_os = "macos")]
 fn prepare_settings_window_for_active_space(
     main_window: &tauri::WebviewWindow,
 ) -> tauri::Result<()> {
@@ -178,6 +186,7 @@ fn prepare_settings_window_for_active_space(
 
 /// Index of the first screen frame holding `point`, edges included, all in
 /// AppKit's global coordinates.
+#[cfg(target_os = "macos")]
 fn screen_containing(
     frames: &[objc2_foundation::NSRect],
     point: objc2_foundation::NSPoint,
@@ -192,6 +201,7 @@ fn screen_containing(
 /// frame without the menu bar and Dock, as Rectangle's Center does.
 /// NSWindow.center() would sit it "somewhat above center" instead. A window
 /// too large for the area keeps its left edge and title bar inside it.
+#[cfg(target_os = "macos")]
 fn centered_window_origin(
     visible: objc2_foundation::NSRect,
     size: objc2_foundation::NSSize,
@@ -211,6 +221,7 @@ fn centered_window_origin(
 
 /// Centers the settings window, at its current size, on the screen under the
 /// pointer. Every show of the window goes through here.
+#[cfg(target_os = "macos")]
 fn center_settings_window_on_pointer_screen(
     main_window: &tauri::WebviewWindow,
 ) -> tauri::Result<()> {
@@ -246,11 +257,35 @@ fn center_settings_window_on_pointer_screen(
     Ok(())
 }
 
+/// Centers the settings window in the work area of the monitor under the
+/// pointer, as the macOS build does with its screens.
+#[cfg(target_os = "windows")]
+fn center_settings_window_on_pointer_screen(
+    main_window: &tauri::WebviewWindow,
+) -> tauri::Result<()> {
+    if main_window.is_fullscreen()? || main_window.is_maximized()? {
+        return Ok(());
+    }
+    let Some(monitor) = window_placement::monitor_under_cursor(main_window.app_handle()) else {
+        return Ok(());
+    };
+    // The window may still sit on a monitor with another scale; its size on
+    // the destination is its logical size at the destination's scale.
+    let size = main_window
+        .outer_size()?
+        .to_logical::<f64>(main_window.scale_factor()?)
+        .to_physical::<u32>(monitor.scale_factor());
+    let position = window_placement::centered_in(monitor.work_area(), size);
+    main_window.set_position(position)
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
         let app = app.clone();
         let window = main_window.clone();
         if let Err(e) = main_window.run_on_main_thread(move || {
+            #[cfg(target_os = "macos")]
             if let Err(e) = prepare_settings_window_for_active_space(&window) {
                 log::error!("Failed to prepare settings window for active Space: {}", e);
             }
@@ -266,6 +301,7 @@ fn show_main_window(app: &AppHandle) {
             if let Err(e) = window.set_focus() {
                 log::error!("Failed to focus webview window: {}", e);
             }
+            #[cfg(target_os = "macos")]
             if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
                 log::error!("Failed to set activation policy to Regular: {}", e);
             }
@@ -350,12 +386,16 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // Note: Shortcuts are NOT initialized here.
     // The frontend calls `initialize_shortcuts` after permissions are confirmed.
 
+    #[cfg(unix)]
     signal_handle::setup_signal_handler(app_handle.clone());
 
     // If the tray icon is disabled, keep the dock icon so the user can reopen.
-    let settings = settings::get_settings(app_handle);
-    if settings.start_hidden && settings.show_tray_icon {
-        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    #[cfg(target_os = "macos")]
+    {
+        let settings = settings::get_settings(app_handle);
+        if settings.start_hidden && settings.show_tray_icon {
+            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        }
     }
     let initial_icon = accent::tray_icon().expect("failed to build initial tray icon");
 
@@ -742,7 +782,10 @@ pub fn run(cli_args: CliArgs) {
                 .build(),
         );
 
-    builder = builder.plugin(tauri_nspanel::init());
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
 
     // Single-instance forwards CLI args to an already-running Murmur and exits.
     // That would make `--transcribe-file` a silent no-op whenever the app is
@@ -820,6 +863,7 @@ pub fn run(cli_args: CliArgs) {
                     .visible(false)
                     .build()?;
 
+            #[cfg(target_os = "macos")]
             prepare_settings_window_for_active_space(&main_window)?;
 
             let mut settings = get_settings(app.handle());
@@ -897,15 +941,18 @@ pub fn run(cli_args: CliArgs) {
                 api.prevent_close();
                 let _res = window.hide();
 
-                let settings = get_settings(window.app_handle());
-                let tray_visible =
-                    settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
-                if tray_visible {
-                    let res = window
-                        .app_handle()
-                        .set_activation_policy(tauri::ActivationPolicy::Accessory);
-                    if let Err(e) = res {
-                        log::error!("Failed to set activation policy: {}", e);
+                #[cfg(target_os = "macos")]
+                {
+                    let settings = get_settings(window.app_handle());
+                    let tray_visible =
+                        settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
+                    if tray_visible {
+                        let res = window
+                            .app_handle()
+                            .set_activation_policy(tauri::ActivationPolicy::Accessory);
+                        if let Err(e) = res {
+                            log::error!("Failed to set activation policy: {}", e);
+                        }
                     }
                 }
             }
@@ -919,6 +966,7 @@ pub fn run(cli_args: CliArgs) {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match &event {
+            #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
             }
@@ -949,65 +997,10 @@ pub fn run(cli_args: CliArgs) {
 
 #[cfg(test)]
 mod headless_guard_tests {
-    use super::{normalize_generated_bindings_source, run_headless_guarded};
-
     use super::{
-        centered_window_origin, leave_update_relaunch_marker, screen_containing,
-        settings_window_collection_behavior, settings_window_needs_order_out,
+        leave_update_relaunch_marker, normalize_generated_bindings_source, run_headless_guarded,
         take_update_relaunch_marker,
     };
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
-
-    #[test]
-    fn settings_window_moves_to_active_space_without_joining_every_space() {
-        use objc2_app_kit::NSWindowCollectionBehavior;
-
-        let current =
-            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
-        let configured = settings_window_collection_behavior(current);
-
-        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
-        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
-        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
-    }
-
-    #[test]
-    fn settings_window_is_reordered_only_when_visible_on_another_space() {
-        assert!(settings_window_needs_order_out(true, false));
-        assert!(!settings_window_needs_order_out(false, false));
-        assert!(!settings_window_needs_order_out(true, true));
-        assert!(!settings_window_needs_order_out(false, true));
-    }
-
-    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
-        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
-    }
-
-    #[test]
-    fn settings_window_is_centered_in_the_visible_frame() {
-        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
-        // a 70-point Dock. The vertical center is the visible frame's, not the
-        // slightly higher spot NSWindow.center() picks.
-        let visible = rect(0.0, 70.0, 1512.0, 879.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (416.0, 224.0));
-    }
-
-    #[test]
-    fn settings_window_is_centered_on_a_secondary_screen() {
-        // A screen left of the main one has negative AppKit coordinates.
-        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (-1300.0, 42.0));
-    }
-
-    #[test]
-    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
-        let visible = rect(0.0, 0.0, 600.0, 500.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        // Left edge and top edge stay inside the visible frame.
-        assert_eq!((origin.x, origin.y + 570.0), (0.0, 500.0));
-    }
 
     #[test]
     fn an_update_relaunch_shows_the_window_once() {
@@ -1019,23 +1012,6 @@ mod headless_guard_tests {
         assert!(take_update_relaunch_marker(&app_data_dir));
         // The next start, at login for instance, follows "Start hidden" again.
         assert!(!take_update_relaunch_marker(&app_data_dir));
-    }
-
-    #[test]
-    fn the_screen_under_the_pointer_is_the_one_containing_it() {
-        let screens = [
-            rect(0.0, 0.0, 1512.0, 982.0),
-            rect(1512.0, -100.0, 1920.0, 1080.0),
-        ];
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
-            Some(1)
-        );
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
-            Some(0)
-        );
-        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
     }
 
     /// `MURMUR_WRITE_BINDINGS=1 cargo test bindings_are_current` rewrites the
@@ -1092,6 +1068,83 @@ mod headless_guard_tests {
             "async second(): Promise<Result<null, string>> { error: e as unknown }",
         );
         assert!(normalize_generated_bindings_source(generated).is_err());
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod settings_window_tests {
+    use super::{
+        centered_window_origin, screen_containing, settings_window_collection_behavior,
+        settings_window_needs_order_out,
+    };
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    #[test]
+    fn settings_window_moves_to_active_space_without_joining_every_space() {
+        use objc2_app_kit::NSWindowCollectionBehavior;
+
+        let current =
+            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
+        let configured = settings_window_collection_behavior(current);
+
+        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
+        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
+        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+    }
+
+    #[test]
+    fn settings_window_is_reordered_only_when_visible_on_another_space() {
+        assert!(settings_window_needs_order_out(true, false));
+        assert!(!settings_window_needs_order_out(false, false));
+        assert!(!settings_window_needs_order_out(true, true));
+        assert!(!settings_window_needs_order_out(false, true));
+    }
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+    }
+
+    #[test]
+    fn settings_window_is_centered_in_the_visible_frame() {
+        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
+        // a 70-point Dock. The vertical center is the visible frame's, not the
+        // slightly higher spot NSWindow.center() picks.
+        let visible = rect(0.0, 70.0, 1512.0, 879.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        assert_eq!((origin.x, origin.y), (416.0, 224.0));
+    }
+
+    #[test]
+    fn settings_window_is_centered_on_a_secondary_screen() {
+        // A screen left of the main one has negative AppKit coordinates.
+        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        assert_eq!((origin.x, origin.y), (-1300.0, 42.0));
+    }
+
+    #[test]
+    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
+        let visible = rect(0.0, 0.0, 600.0, 500.0);
+        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        // Left edge and top edge stay inside the visible frame.
+        assert_eq!((origin.x, origin.y + 570.0), (0.0, 500.0));
+    }
+
+    #[test]
+    fn the_screen_under_the_pointer_is_the_one_containing_it() {
+        let screens = [
+            rect(0.0, 0.0, 1512.0, 982.0),
+            rect(1512.0, -100.0, 1920.0, 1080.0),
+        ];
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
+            Some(1)
+        );
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
+            Some(0)
+        );
+        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
     }
 }
 

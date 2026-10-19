@@ -3,9 +3,14 @@ use tauri::image::Image;
 use tauri::AppHandle;
 
 const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+#[cfg(target_os = "macos")]
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../resources/tray.png");
+/// Windows draws tray icons as they are, on light and dark taskbars alike,
+/// so its tray shows the app's colored mark rather than a black template.
+#[cfg(target_os = "windows")]
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/32x32.png");
 const SOURCE_PINK_HUE: f32 = 325.0;
-pub const TRAY_ICON_IS_TEMPLATE: bool = true;
+pub const TRAY_ICON_IS_TEMPLATE: bool = cfg!(target_os = "macos");
 
 impl AccentColor {
     fn hue(self) -> f32 {
@@ -34,7 +39,13 @@ pub fn tray_icon() -> Result<Image<'static>, String> {
 pub fn apply_native_accent(app: &AppHandle, accent_color: AccentColor) -> Result<(), String> {
     let icon = app_icon(accent_color)?;
 
+    #[cfg(target_os = "macos")]
     set_macos_application_icon(app, icon)?;
+    // The taskbar shows the settings window's own icon.
+    #[cfg(target_os = "windows")]
+    if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+        window.set_icon(icon).map_err(|error| error.to_string())?;
+    }
 
     Ok(())
 }
@@ -111,6 +122,7 @@ fn hsl_to_rgb(hue: f32, saturation: f32, lightness: f32) -> [u8; 3] {
     ]
 }
 
+#[cfg(target_os = "macos")]
 fn set_macos_application_icon(app: &AppHandle, icon: Image<'static>) -> Result<(), String> {
     use image::codecs::png::PngEncoder;
     use image::{ExtendedColorType, ImageEncoder};
@@ -228,6 +240,20 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_tray_icon_is_the_colored_app_mark() {
+        let tray = tray_icon().expect("tray icon should decode");
+
+        assert_eq!((tray.width(), tray.height()), (32, 32));
+        assert!(!TRAY_ICON_IS_TEMPLATE);
+        assert!(tray.rgba().chunks_exact(4).any(|pixel| {
+            let (_, saturation, _) = rgb_to_hsl(pixel[0], pixel[1], pixel[2]);
+            pixel[3] > 0 && saturation > 0.5
+        }));
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn macos_tray_icon_is_a_monochrome_template() {
         let tray = tray_icon().expect("tray icon should decode");

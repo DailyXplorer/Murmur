@@ -131,7 +131,8 @@ pub async fn run(
     })
 }
 
-#[cfg(test)]
+/// The helper is stood in for by shell scripts, so these run on macOS.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::meetings::merge::Track;

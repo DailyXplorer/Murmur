@@ -243,6 +243,7 @@ mod tests {
 
     /// A strong link to either would stop the app from launching on macOS
     /// before 26, or before 12.
+    #[cfg(target_os = "macos")]
     #[test]
     fn the_bridge_is_weak_linked_to_what_older_macos_lacks() {
         let executable = std::env::current_exe().unwrap();

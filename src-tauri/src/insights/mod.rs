@@ -131,6 +131,7 @@ fn insert_dictation(conn: &Connection, d: &NewDictation) -> Result<()> {
 }
 
 /// Returns whether a row was written; a correction of zero words is ignored.
+#[cfg(any(test, target_os = "macos"))]
 fn insert_correction(conn: &Connection, at: i64, words: u32) -> Result<bool> {
     if words == 0 {
         return Ok(false);
@@ -313,6 +314,7 @@ impl InsightsManager {
 
     /// Records misheard words the user corrected after a paste, one per
     /// word the dictionary learned from it.
+    #[cfg(target_os = "macos")]
     pub fn record_correction(&self, words_corrected: u32) -> Result<()> {
         if insert_correction(&self.connection()?, Utc::now().timestamp(), words_corrected)? {
             self.notify();
@@ -484,20 +486,24 @@ mod tests {
             host,
             dictionary_fixes: fixes,
         };
+        let (slack, browser, mail) = if cfg!(target_os = "windows") {
+            ("slack.exe", "chrome.exe", "olk.exe")
+        } else {
+            (
+                "com.tinyspeck.slackmacgap",
+                "com.apple.Safari",
+                "com.apple.mail",
+            )
+        };
         for d in [
-            dictation(
-                ts(2026, 10, 13, 9),
-                Some("com.tinyspeck.slackmacgap"),
-                None,
-                0,
-            ),
+            dictation(ts(2026, 10, 13, 9), Some(slack), None, 0),
             dictation(
                 ts(2026, 10, 14, 9),
-                Some("com.apple.Safari"),
+                Some(browser),
                 Some("mail.google.com"),
                 2,
             ),
-            dictation(ts(2026, 10, 15, 9), Some("com.apple.mail"), None, 1),
+            dictation(ts(2026, 10, 15, 9), Some(mail), None, 1),
             dictation(ts(2026, 10, 15, 10), None, None, 0),
         ] {
             insert_dictation(&conn, &d).unwrap();

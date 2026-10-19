@@ -211,8 +211,10 @@ pub enum TranscriptionProvider {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CleanupEngine {
-    #[default]
+    #[cfg_attr(target_os = "macos", default)]
     Apple,
+    /// The only engine on Windows, which has no Apple Intelligence.
+    #[cfg_attr(target_os = "windows", default)]
     Codex,
 }
 
@@ -348,8 +350,9 @@ pub struct AppSettings {
     pub meeting_capture_mode: MeetingCaptureMode,
 }
 
+/// On macOS only: see `restrict_to_windows`.
 fn default_meetings_enabled() -> bool {
-    true
+    cfg!(target_os = "macos")
 }
 
 fn default_always_on_microphone() -> bool {
@@ -364,8 +367,9 @@ fn default_autostart_enabled() -> bool {
     false
 }
 
+/// On macOS only: see `restrict_to_windows`.
 fn default_update_checks_enabled() -> bool {
-    true
+    cfg!(target_os = "macos")
 }
 
 fn default_show_whats_new_on_update() -> bool {
@@ -392,8 +396,9 @@ fn default_ai_cleanup_enabled() -> bool {
     true
 }
 
+/// On macOS only: see `restrict_to_windows`.
 fn default_window_names_enabled() -> bool {
-    true
+    cfg!(target_os = "macos")
 }
 
 fn default_debug_mode() -> bool {
@@ -471,8 +476,45 @@ pub const MAX_CUSTOM_WORDS: usize = 200;
 pub const MAX_CUSTOM_WORD_CHARS: usize = 50;
 pub const MAX_HISTORY_LIMIT: usize = 1_000;
 
+/// The recording shortcut out of the box.
+#[cfg(target_os = "macos")]
+pub const DEFAULT_TRANSCRIBE_BINDING: &str = "option+space";
+/// Ctrl+Win held: Alt+Space opens the window menu on Windows, and Ctrl and
+/// Win alone trigger nothing there.
+#[cfg(target_os = "windows")]
+pub const DEFAULT_TRANSCRIBE_BINDING: &str = "ctrl+super";
+
+/// Turns off what the Windows build does not offer: meetings (the system
+/// audio tap and the analysis helper are macOS code), Apple Intelligence
+/// cleanup, Gemini through Antigravity for macOS, window-name hints and the
+/// clamshell microphone (both read through macOS APIs), and update checks,
+/// as the Windows beta ships without an updater. Returns whether anything
+/// changed.
+#[cfg(target_os = "windows")]
+fn restrict_to_windows(settings: &mut AppSettings) -> bool {
+    let mut changed = false;
+    let mut set = |value: &mut bool| {
+        changed |= std::mem::replace(value, false);
+    };
+    set(&mut settings.meetings_enabled);
+    set(&mut settings.window_names_enabled);
+    set(&mut settings.update_checks_enabled);
+    if settings.cleanup_engine != CleanupEngine::Codex {
+        settings.cleanup_engine = CleanupEngine::Codex;
+        changed = true;
+    }
+    if settings.transcription_provider != TranscriptionProvider::Codex {
+        settings.transcription_provider = TranscriptionProvider::Codex;
+        changed = true;
+    }
+    if settings.clamshell_microphone.take().is_some() {
+        changed = true;
+    }
+    changed
+}
+
 pub fn get_default_settings() -> AppSettings {
-    let default_shortcut = "option+space";
+    let default_shortcut = DEFAULT_TRANSCRIBE_BINDING;
 
     let mut bindings = HashMap::new();
     bindings.insert(
@@ -701,6 +743,11 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
 
     updated |= reconcile_bindings(&mut settings.bindings);
 
+    #[cfg(target_os = "windows")]
+    {
+        updated |= restrict_to_windows(settings);
+    }
+
     updated
 }
 
@@ -729,7 +776,7 @@ fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
             }
             std::collections::hash_map::Entry::Occupied(mut entry) => {
                 let current = &entry.get().current_binding;
-                if crate::shortcut::tauri_impl::parse_shortcut(current).is_err() {
+                if crate::shortcut::tauri_impl::validate_binding(current).is_err() {
                     warn!(
                         "Resetting unsupported shortcut for binding '{}'",
                         entry.key()
@@ -1255,12 +1302,68 @@ mod tests {
         assert_eq!(settings.paste_method, PasteMethod::CtrlV);
         assert_eq!(
             settings.bindings["transcribe"].default_binding,
-            "option+space"
+            DEFAULT_TRANSCRIBE_BINDING
         );
         assert_eq!(
             settings.bindings["transcribe"].current_binding,
-            "option+space"
+            DEFAULT_TRANSCRIBE_BINDING
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_records_with_ctrl_and_win_held_by_default() {
+        let settings = get_default_settings();
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "ctrl+super"
+        );
+        assert!(crate::shortcut::tauri_impl::validate_binding("ctrl+super").is_ok());
+        // Modifiers alone are a Windows chord; a single one is not.
+        assert!(crate::shortcut::tauri_impl::validate_binding("ctrl").is_err());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_defaults_offer_only_what_the_windows_build_has() {
+        let settings = get_default_settings();
+        assert!(!settings.meetings_enabled);
+        assert!(!settings.window_names_enabled);
+        assert!(!settings.update_checks_enabled);
+        assert_eq!(settings.cleanup_engine, CleanupEngine::Codex);
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Codex
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_store_with_macos_only_features_is_restricted_on_windows() {
+        let mut stored = default_settings_json();
+        stored["meetings_enabled"] = serde_json::json!(true);
+        stored["window_names_enabled"] = serde_json::json!(true);
+        stored["update_checks_enabled"] = serde_json::json!(true);
+        stored["cleanup_engine"] = serde_json::json!("apple");
+        stored["transcription_provider"] = serde_json::json!("gemini");
+        stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
+        stored["selected_language"] = serde_json::json!("fr");
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert!(updated);
+        assert!(!settings.meetings_enabled);
+        assert!(!settings.window_names_enabled);
+        assert!(!settings.update_checks_enabled);
+        assert_eq!(settings.cleanup_engine, CleanupEngine::Codex);
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Codex
+        );
+        assert!(settings.clamshell_microphone.is_none());
+        assert_eq!(settings.selected_language, "fr");
+        let (_, rewritten) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
+        assert!(!rewritten);
     }
 
     #[test]
@@ -1340,6 +1443,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn meetings_are_on_by_default_and_record_both_sources() {
         let mut stored = default_settings_json();
@@ -1378,7 +1482,7 @@ mod tests {
         assert_eq!(settings.bindings["cancel"].current_binding, "escape");
         assert_eq!(
             settings.bindings["transcribe"].current_binding,
-            "option+space"
+            DEFAULT_TRANSCRIBE_BINDING
         );
     }
 
@@ -1392,7 +1496,7 @@ mod tests {
         assert!(updated);
         assert_eq!(
             settings.bindings["transcribe"].current_binding,
-            "option+space"
+            DEFAULT_TRANSCRIBE_BINDING
         );
     }
 

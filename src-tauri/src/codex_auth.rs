@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Condvar, Mutex, PoisonError};
@@ -295,11 +296,19 @@ enum RefreshFailure {
     Transient(TranscriptionError),
 }
 
+/// The variable naming the user's home folder, where Codex keeps `.codex`:
+/// Codex resolves it with `dirs::home_dir`, which is the profile folder on
+/// Windows.
+#[cfg(unix)]
+const HOME_VARIABLE: &str = "HOME";
+#[cfg(windows)]
+const HOME_VARIABLE: &str = "USERPROFILE";
+
 pub fn auth_path() -> Result<PathBuf, TranscriptionError> {
     if let Some(codex_home) = std::env::var_os("CODEX_HOME") {
         return Ok(PathBuf::from(codex_home).join("auth.json"));
     }
-    let home = std::env::var_os("HOME").ok_or_else(|| {
+    let home = std::env::var_os(HOME_VARIABLE).ok_or_else(|| {
         TranscriptionError::new(FailureKind::SignedOut, "User home directory is not set")
     })?;
     Ok(PathBuf::from(home).join(".codex").join("auth.json"))
@@ -587,17 +596,17 @@ fn classify_refresh_failure(status: u16, body: &str) -> RefreshFailure {
 }
 
 /// Writes through a temporary file in the same directory, then renames it
-/// over the target, so readers never see a partial file. Mode 0600 like Codex.
+/// over the target, so readers never see a partial file. Mode 0600 like Codex;
+/// on Windows the file keeps the access rules of the user's profile folder.
 fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let temporary = directory.join(format!(".auth.json.murmur-{}.tmp", std::process::id()));
     let result = (|| {
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&temporary)?;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let mut file = options.open(&temporary)?;
         file.write_all(content.as_bytes())?;
         file.sync_all()?;
         fs::rename(&temporary, path)
@@ -678,6 +687,7 @@ mod tests {
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use std::io::{BufRead, BufReader, Read};
     use std::net::TcpListener;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use std::sync::mpsc;
     use std::thread;
@@ -858,8 +868,11 @@ mod tests {
                 "agent_identity": {"kept": true}
             })
         );
-        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
+        #[cfg(unix)]
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
         let leftovers: Vec<_> = fs::read_dir(directory.path())
             .unwrap()
             .map(|entry| entry.unwrap().file_name())

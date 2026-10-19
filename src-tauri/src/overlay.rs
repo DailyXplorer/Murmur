@@ -1,15 +1,22 @@
-use crate::input;
 use crate::settings;
-use crate::settings::{OverlayPosition, OverlayStyle};
+use crate::settings::OverlayStyle;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, Emitter, Manager};
 
 use tauri::WebviewUrl;
 
+#[cfg(target_os = "macos")]
+use crate::input;
+#[cfg(target_os = "macos")]
+use crate::settings::OverlayPosition;
+#[cfg(target_os = "macos")]
+use tauri::{PhysicalPosition, PhysicalSize};
+#[cfg(target_os = "macos")]
 use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelBuilder, PanelLevel, StyleMask};
 
+#[cfg(target_os = "macos")]
 tauri_panel! {
     panel!(RecordingOverlayPanel {
         config: {
@@ -63,9 +70,11 @@ static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
 // Distance from the screen edge to the visible capsule.
+#[cfg(target_os = "macos")]
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 
+#[cfg(target_os = "macos")]
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     if let Some(mouse_location) = input::get_cursor_position(app_handle) {
         if let Ok(monitors) = app_handle.available_monitors() {
@@ -89,6 +98,7 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     app_handle.primary_monitor().ok().flatten()
 }
 
+#[cfg(target_os = "macos")]
 fn is_mouse_within_monitor(
     mouse_pos: (i32, i32),
     monitor_pos: &PhysicalPosition<i32>,
@@ -121,6 +131,7 @@ fn is_mouse_within_monitor(
 /// We must use LogicalPosition (not PhysicalPosition) because Tauri/tao
 /// converts PhysicalPosition using the scale factor of the monitor the window
 /// is *currently* on, which is wrong when moving cross-monitor.
+#[cfg(target_os = "macos")]
 fn calculate_overlay_position(
     app_handle: &AppHandle,
     width: f64,
@@ -147,13 +158,96 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
+/// Sizes and moves the overlay in one native call, in the destination
+/// monitor's physical pixels: tao converts logical values with the scale of
+/// the monitor the window is leaving. Also keeps it above other topmost
+/// windows, which Windows may have raised over it since the last show.
+#[cfg(target_os = "windows")]
+fn place_overlay(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE};
+
+    let Some(monitor) = crate::window_placement::monitor_under_cursor(app_handle) else {
+        return;
+    };
+    let bounds = crate::window_placement::overlay_bounds(
+        monitor.work_area(),
+        monitor.scale_factor(),
+        (width, height),
+        OVERLAY_BOTTOM_OFFSET - CARD_MARGIN,
+        settings::get_settings(app_handle).overlay_position,
+    );
+    let hwnd = match window.hwnd() {
+        Ok(hwnd) => hwnd,
+        Err(e) => {
+            log::error!("Failed to get the overlay window handle: {e}");
+            return;
+        }
+    };
+    // SAFETY: `hwnd` belongs to the live overlay window, on its UI thread.
+    let placed = unsafe {
+        SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            bounds.position.x,
+            bounds.position.y,
+            bounds.size.width as i32,
+            bounds.size.height as i32,
+            SWP_NOACTIVATE,
+        )
+    };
+    if let Err(e) = placed {
+        log::error!("Failed to place the recording overlay: {e}");
+    }
+}
+
 fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Option<(f64, f64)> {
     let size = window.inner_size().ok()?;
     let scale = window.scale_factor().ok()?;
     Some((size.width as f64 / scale, size.height as f64 / scale))
 }
 
+/// Creates the recording overlay window and keeps it hidden by default. It
+/// never takes focus, so the dictation still lands in the app the user was
+/// in, and clicks go through it.
+#[cfg(target_os = "windows")]
+pub fn create_recording_overlay(app_handle: &AppHandle) {
+    match tauri::WebviewWindowBuilder::new(
+        app_handle,
+        "recording_overlay",
+        WebviewUrl::App("src/overlay/index.html".into()),
+    )
+    .title("Recording")
+    .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focusable(false)
+    .focused(false)
+    .visible(false)
+    .build()
+    {
+        Ok(window) => {
+            let _ = window.set_ignore_cursor_events(true);
+        }
+        Err(e) => {
+            log::error!("Failed to create recording overlay window: {}", e);
+        }
+    }
+}
+
 /// Creates the recording overlay panel and keeps it hidden by default.
+#[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
     match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
         .url(WebviewUrl::App("src/overlay/index.html".into()))
@@ -242,34 +336,49 @@ fn present_overlay_window(
     height: f64,
 ) -> Option<tauri::webview::WebviewWindow> {
     let overlay_window = app_handle.get_webview_window("recording_overlay")?;
-    let size_started = std::time::Instant::now();
-    let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
-    let size_elapsed = size_started.elapsed();
 
-    let pos_started = std::time::Instant::now();
-    let set_pos_elapsed =
-        if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
-            let set_pos_started = std::time::Instant::now();
-            let _ = overlay_window
-                .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
-            set_pos_started.elapsed()
-        } else {
-            std::time::Duration::ZERO
-        };
-    let pos_calc_elapsed = pos_started.elapsed() - set_pos_elapsed;
+    #[cfg(target_os = "windows")]
+    {
+        let started = std::time::Instant::now();
+        place_overlay(app_handle, &overlay_window, width, height);
+        let _ = overlay_window.show();
+        // Showing can move a window that changed monitor back by tao's
+        // stale scale; placing it again settles it.
+        place_overlay(app_handle, &overlay_window, width, height);
+        log::debug!("overlay '{}': place+show={:?}", state, started.elapsed());
+    }
 
-    let show_started = std::time::Instant::now();
-    let _ = overlay_window.show();
-    let show_elapsed = show_started.elapsed();
+    #[cfg(target_os = "macos")]
+    {
+        let size_started = std::time::Instant::now();
+        let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+        let size_elapsed = size_started.elapsed();
 
-    log::debug!(
-        "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
-        state,
-        size_elapsed,
-        pos_calc_elapsed,
-        set_pos_elapsed,
-        show_elapsed
-    );
+        let pos_started = std::time::Instant::now();
+        let set_pos_elapsed =
+            if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
+                let set_pos_started = std::time::Instant::now();
+                let _ = overlay_window
+                    .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+                set_pos_started.elapsed()
+            } else {
+                std::time::Duration::ZERO
+            };
+        let pos_calc_elapsed = pos_started.elapsed() - set_pos_elapsed;
+
+        let show_started = std::time::Instant::now();
+        let _ = overlay_window.show();
+        let show_elapsed = show_started.elapsed();
+
+        log::debug!(
+            "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
+            state,
+            size_elapsed,
+            pos_calc_elapsed,
+            set_pos_elapsed,
+            show_elapsed
+        );
+    }
     Some(overlay_window)
 }
 
@@ -307,6 +416,9 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));
+        #[cfg(target_os = "windows")]
+        place_overlay(app_handle, &overlay_window, width, height);
+        #[cfg(target_os = "macos")]
         if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
             let _ = overlay_window
                 .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
@@ -413,7 +525,7 @@ pub fn emit_levels(app_handle: &AppHandle, levels: &[f32]) {
     let _ = app_handle.emit_to("recording_overlay", "mic-level", levels);
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
 

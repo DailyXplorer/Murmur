@@ -1,6 +1,8 @@
 //! Global shortcut registration and settings commands.
 
 mod handler;
+#[cfg(target_os = "windows")]
+mod modifier_chord;
 pub mod tauri_impl;
 
 use crate::accent;
@@ -160,7 +162,7 @@ pub fn change_binding(
     id: String,
     binding: String,
 ) -> Result<BindingResponse, String> {
-    tauri_impl::parse_shortcut(&binding)?;
+    tauri_impl::validate_binding(&binding)?;
 
     if let Some(other) =
         tauri_impl::conflicting_binding(&settings::get_settings(&app), &id, &binding)

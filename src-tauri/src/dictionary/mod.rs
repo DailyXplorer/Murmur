@@ -3,21 +3,20 @@
 //! fuzzy matches in the transcript. `learned_words` marks the ones Murmur
 //! learned from a correction: those are hints only and never rewrite text.
 
+// Learning reads the field the user corrects through Accessibility, which
+// has no Windows counterpart here.
+#[cfg(target_os = "macos")]
 mod learn;
+#[cfg(target_os = "macos")]
 mod observer;
 
+#[cfg(target_os = "macos")]
 pub use observer::{stop_observing, watch_pasted_text};
 
 use crate::audio_toolkit::apply_custom_words_counted;
-use crate::insights::InsightsManager;
-use crate::settings::{self, MAX_CUSTOM_WORDS};
-use learn::Correction;
-use log::{error, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
 pub struct LearnedWord {
@@ -56,42 +55,6 @@ pub fn correct(
         .cloned()
         .collect();
     apply_custom_words_counted(text, &typed, threshold)
-}
-
-/// Adds learned words to the dictionary, tells the settings UI, and counts
-/// each new word once in Insights as a word the user corrected.
-fn remember(app: &AppHandle, corrections: Vec<Correction>) {
-    let mut value = settings::get_settings(app);
-    let mut added = 0;
-    for correction in corrections {
-        if value.custom_words.contains(&correction.word) {
-            continue;
-        }
-        if value.custom_words.len() >= MAX_CUSTOM_WORDS {
-            break;
-        }
-        value.custom_words.push(correction.word.clone());
-        value.learned_words.push(LearnedWord {
-            word: correction.word,
-            heard_as: correction.heard_as,
-        });
-        added += 1;
-    }
-    if added == 0 {
-        return;
-    }
-    settings::write_settings(app, value);
-    info!("Learned {added} dictionary word(s) from a correction");
-    let _ = app.emit(
-        "settings-changed",
-        serde_json::json!({"setting": "custom_words"}),
-    );
-    let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
-        return;
-    };
-    if let Err(e) = insights.record_correction(added) {
-        error!("Failed to record corrected words in insights: {e}");
-    }
 }
 
 #[cfg(test)]

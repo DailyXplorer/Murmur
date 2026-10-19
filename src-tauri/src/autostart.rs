@@ -6,6 +6,9 @@
 //! code-signing certificate's developer name instead of the app (#337).
 //! `SMAppService` login items are attributed to the app bundle itself and
 //! appear under "Open at Login" with the app's name and icon.
+//!
+//! Windows uses the plugin, which writes the per-user `Run` registry key:
+//! no administrator rights, listed under Settings > Apps > Startup.
 
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
@@ -17,6 +20,7 @@ use tauri_plugin_autostart::ManagerExt;
 /// startup. This mirrors the pre-existing behavior of ignoring
 /// enable()/disable() results.
 pub fn apply_autostart(app: &AppHandle, enabled: bool) {
+    #[cfg(target_os = "macos")]
     if macos::login_item_api_available() {
         macos::remove_plugin_launch_agent(app);
         macos::set_login_item(enabled);
@@ -38,6 +42,7 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     }
 }
 
+#[cfg(target_os = "macos")]
 mod macos {
     use std::path::{Path, PathBuf};
 

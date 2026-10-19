@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use prost::Message;
+#[cfg(target_os = "macos")]
 use security_framework::os::macos::code_signing::{
     Flags as CodeSigningFlags, GuestAttributes, SecCode, SecRequirement,
 };
@@ -7,6 +8,7 @@ use std::collections::BTreeSet;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+#[cfg(target_os = "macos")]
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{
@@ -37,9 +39,12 @@ const SUPERVISOR_INTERVAL: Duration = Duration::from_secs(5);
 const CHILD_REAP_TIMEOUT: Duration = Duration::from_secs(1);
 
 const ANTIGRAVITY_APP: &str = "/Applications/Antigravity.app";
+#[cfg(target_os = "macos")]
 const ANTIGRAVITY_BINARY: &str =
     "/Applications/Antigravity.app/Contents/Resources/bin/language_server";
+#[cfg(target_os = "macos")]
 const CODESIGN_PATH: &str = "/usr/bin/codesign";
+#[cfg(target_os = "macos")]
 const ANTIGRAVITY_CODE_REQUIREMENT: &str = r#"anchor apple generic and identifier "language_server" and certificate leaf[subject.OU] = "EQHXZ8M8AV""#;
 
 const START_PATH: &str = "/exa.language_server_pb.LanguageServerService/StreamAudioTranscription";
@@ -487,6 +492,7 @@ fn spawn_supervisor(state: Weak<Mutex<RuntimeState>>) {
 /// Returns the fixed system binary only when its on-disk identity matches the
 /// Google-signed Antigravity language server. User-writable install locations,
 /// symlinks, ad-hoc signatures, and lookalike identifiers fail closed.
+#[cfg(target_os = "macos")]
 fn verified_antigravity_binary() -> Result<PathBuf> {
     let expected = PathBuf::from(ANTIGRAVITY_BINARY);
     let metadata = std::fs::symlink_metadata(&expected).map_err(|_| {
@@ -511,6 +517,16 @@ fn verified_antigravity_binary() -> Result<PathBuf> {
     Ok(canonical)
 }
 
+/// Gemini dictation goes through the Antigravity app for macOS, so it is
+/// never available on Windows.
+#[cfg(target_os = "windows")]
+fn verified_antigravity_binary() -> Result<PathBuf> {
+    Err(anyhow!(
+        "Gemini transcription needs Antigravity for macOS. Use the ChatGPT session on Windows."
+    ))
+}
+
+#[cfg(target_os = "macos")]
 fn codesign_command(binary: &Path) -> Command {
     let mut command = Command::new(CODESIGN_PATH);
     command
@@ -520,6 +536,7 @@ fn codesign_command(binary: &Path) -> Command {
     command
 }
 
+#[cfg(target_os = "macos")]
 fn verify_antigravity_signature(binary: &Path) -> Result<()> {
     let output = codesign_command(binary)
         .output()
@@ -537,6 +554,7 @@ fn verify_antigravity_signature(binary: &Path) -> Result<()> {
 /// if a user-writable application bundle changes after `codesign` returns,
 /// an unsigned or differently signed process is rejected before discovery or
 /// reuse of its listener.
+#[cfg(target_os = "macos")]
 fn verify_running_antigravity_process(pid: u32) -> Result<()> {
     let requirement = SecRequirement::from_str(ANTIGRAVITY_CODE_REQUIREMENT)
         .context("failed to compile the Antigravity code requirement")?;
@@ -548,6 +566,14 @@ fn verify_running_antigravity_process(pid: u32) -> Result<()> {
     .context("running Antigravity transcription service failed identity verification")
 }
 
+/// No Antigravity process can be verified on Windows (see
+/// `verified_antigravity_binary`).
+#[cfg(target_os = "windows")]
+fn verify_running_antigravity_process(_pid: u32) -> Result<()> {
+    verified_antigravity_binary().map(|_| ())
+}
+
+#[cfg(target_os = "macos")]
 fn running_process_code(pid: u32) -> Result<SecCode> {
     let pid = i32::try_from(pid).context("Antigravity process ID is out of range")?;
     let mut attributes = GuestAttributes::new();
@@ -1093,7 +1119,9 @@ struct GetCapabilitiesResponse {
     supports_hook_result_proto_bytes: bool,
 }
 
-#[cfg(test)]
+/// Antigravity, its signatures and the owned-server protocol exist only on
+/// macOS, which is where these tests run.
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
     use crate::OperationId;

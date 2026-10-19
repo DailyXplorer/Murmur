@@ -63,6 +63,9 @@ impl Alert {
             .clone(),
             Self::PasteFailed => strings.error_paste.clone(),
             Self::RecordingFailed => strings.error_recording.clone(),
+            Self::MicrophoneDenied if cfg!(target_os = "windows") => {
+                strings.error_microphone_denied_windows.clone()
+            }
             Self::MicrophoneDenied => strings.error_microphone_denied.clone(),
             Self::LongRecording => strings.warning_long_recording.clone(),
             Self::RecordingLimitSoon => strings.warning_recording_limit.clone(),
@@ -96,11 +99,26 @@ impl Alert {
     }
 }
 
-/// "option+space" becomes "Option+Space".
+/// Windows names its modifier keys Ctrl, Alt and Win.
+#[cfg(target_os = "windows")]
+fn windows_key_name(part: &str) -> Option<&'static str> {
+    match part.to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => Some("Ctrl"),
+        "alt" | "option" => Some("Alt"),
+        "super" | "command" | "cmd" | "meta" | "win" | "windows" => Some("Win"),
+        _ => None,
+    }
+}
+
+/// "option+space" becomes "Option+Space", and "Alt+Space" on Windows.
 fn display_shortcut(shortcut: &str) -> String {
     shortcut
         .split('+')
         .map(|part| {
+            #[cfg(target_os = "windows")]
+            if let Some(name) = windows_key_name(part.trim()) {
+                return name.to_string();
+            }
             let mut characters = part.trim().chars();
             characters
                 .next()
@@ -202,7 +220,19 @@ mod tests {
             shortcut: "option+space".to_string(),
         }
         .message(&strings);
-        assert!(message.contains("Option+Space"), "{message}");
+        let expected = if cfg!(target_os = "windows") {
+            "Alt+Space"
+        } else {
+            "Option+Space"
+        };
+        assert!(message.contains(expected), "{message}");
         assert!(!message.contains("{{"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_names_the_default_shortcut_with_its_own_keys() {
+        assert_eq!(display_shortcut("ctrl+super"), "Ctrl+Win");
+        assert_eq!(display_shortcut("alt+shift+v"), "Alt+Shift+V");
     }
 }

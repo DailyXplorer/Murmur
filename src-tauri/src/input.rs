@@ -1,9 +1,20 @@
+#[cfg(target_os = "macos")]
 use core_graphics::event::{CGEvent, CGEventFlags, KeyCode};
+#[cfg(target_os = "macos")]
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use enigo::{Enigo, Mouse, Settings};
+use enigo::{Enigo, Settings};
 use std::sync::Mutex;
+#[cfg(target_os = "macos")]
 use tauri::{AppHandle, Manager};
 
+#[cfg(target_os = "windows")]
+mod win32;
+#[cfg(target_os = "windows")]
+pub use win32::{
+    release_paste_modifier_to_pid, send_paste_to_pid, send_return_to_pid, send_text_to_pid,
+};
+
+#[cfg(target_os = "macos")]
 mod macos {
     use log::{debug, warn};
     use std::ffi::c_void;
@@ -150,6 +161,7 @@ pub enum TargetedModifier {
     Control,
 }
 
+#[cfg(target_os = "macos")]
 fn modifier_event(modifier: TargetedModifier) -> (u16, CGEventFlags) {
     match modifier {
         TargetedModifier::Command => (KeyCode::COMMAND, CGEventFlags::CGEventFlagCommand),
@@ -157,6 +169,7 @@ fn modifier_event(modifier: TargetedModifier) -> (u16, CGEventFlags) {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn keyboard_event(
     source: &CGEventSource,
     keycode: u16,
@@ -169,6 +182,7 @@ fn keyboard_event(
     Ok(event)
 }
 
+#[cfg(target_os = "macos")]
 fn send_key_chord_to_pid(
     pid: i32,
     keycode: u16,
@@ -212,6 +226,7 @@ fn send_key_chord_to_pid(
 /// Posts Command+V without releasing Command. The caller must schedule
 /// `release_paste_modifier_to_pid` after the hardware-compatibility hold.
 /// Both calls must run on the macOS main thread.
+#[cfg(target_os = "macos")]
 pub fn send_paste_to_pid(pid: i32) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
         .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
@@ -230,6 +245,7 @@ pub fn send_paste_to_pid(pid: i32) -> Result<(), String> {
 /// Releases the Command key for a previously posted targeted paste chord.
 /// This deliberately does not revalidate focus: a focus switch must not leave
 /// Command logically held in the process that received the original key-down.
+#[cfg(target_os = "macos")]
 pub fn release_paste_modifier_to_pid(pid: i32) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
         .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
@@ -244,12 +260,15 @@ pub fn release_paste_modifier_to_pid(pid: i32) -> Result<(), String> {
 }
 
 /// Sends Return, optionally with a modifier, directly to one process.
+#[cfg(target_os = "macos")]
 pub fn send_return_to_pid(pid: i32, modifier: Option<TargetedModifier>) -> Result<(), String> {
     send_key_chord_to_pid(pid, KeyCode::RETURN, modifier)
 }
 
+#[cfg(target_os = "macos")]
 const MAX_UNICODE_EVENT_UNITS: usize = 20;
 
+#[cfg(target_os = "macos")]
 fn targeted_text_chunks(text: &str) -> Vec<String> {
     let mut chunks = Vec::new();
     let mut current = String::new();
@@ -281,6 +300,7 @@ fn targeted_text_chunks(text: &str) -> Vec<String> {
 /// Posts Unicode text only to the captured process. Each CoreGraphics payload
 /// is bounded to macOS's 20 UTF-16-unit limit, so no later chunk can leak to a
 /// process that steals focus while a long transcription is being inserted.
+#[cfg(target_os = "macos")]
 pub fn send_text_to_pid(pid: i32, text: &str) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
         .map_err(|_| "Failed to create targeted text event source".to_string())?;
@@ -305,7 +325,10 @@ impl EnigoState {
 
 /// Get the current mouse cursor position using the managed Enigo instance.
 /// Returns None if the state is not available or if getting the location fails.
+#[cfg(target_os = "macos")]
 pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
+    use enigo::Mouse;
+
     let enigo_state = app_handle.try_state::<EnigoState>()?;
     let enigo = enigo_state.0.lock().ok()?;
     enigo.location().ok()
@@ -313,6 +336,15 @@ pub fn get_cursor_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
 
 #[cfg(test)]
 mod targeted_input_tests {
+    #[test]
+    fn targeted_input_does_not_block_for_modifier_holds() {
+        let forbidden = ["thread", "::sleep"].concat();
+        assert!(!include_str!("input.rs").contains(&forbidden));
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod macos_targeted_input_tests {
     use super::*;
 
     #[test]
@@ -332,11 +364,5 @@ mod targeted_input_tests {
             assert!(chunks[0].starts_with('\u{200b}'));
             assert_eq!(chunks[0].trim_start_matches('\u{200b}'), input);
         }
-    }
-
-    #[test]
-    fn targeted_input_does_not_block_for_modifier_holds() {
-        let forbidden = ["thread", "::sleep"].concat();
-        assert!(!include_str!("input.rs").contains(&forbidden));
     }
 }
