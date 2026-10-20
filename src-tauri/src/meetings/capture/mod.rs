@@ -326,6 +326,12 @@ impl CaptureBackend for DeviceCapture {
             Ok(1 | 2)
         )
     }
+
+    /// Only an explicit denial: not asked yet lets macOS show its prompt
+    /// when the tap starts.
+    fn system_audio_denied(&self) -> bool {
+        system::permission() == system::SystemAudioPermission::Denied
+    }
 }
 
 /// The space an unprivileged process may still write on the volume of

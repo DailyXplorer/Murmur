@@ -84,6 +84,7 @@ impl Alert {
                 MeetingAlert::SystemAudioInterrupted => &strings.meeting_system_audio_interrupted,
                 MeetingAlert::MicrophoneInterrupted => &strings.meeting_microphone_interrupted,
                 MeetingAlert::MicrophoneDenied => &strings.meeting_microphone_denied,
+                MeetingAlert::SystemAudioDenied => &strings.meeting_system_audio_denied,
             }
             .clone(),
         }
@@ -161,6 +162,7 @@ mod tests {
             MeetingAlert::SystemAudioInterrupted,
             MeetingAlert::MicrophoneInterrupted,
             MeetingAlert::MicrophoneDenied,
+            MeetingAlert::SystemAudioDenied,
         ];
         let messages: std::collections::HashSet<_> = alerts
             .iter()

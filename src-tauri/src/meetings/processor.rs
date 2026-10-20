@@ -717,7 +717,7 @@ fn build_transcript(
             &system.levels.levels,
         );
         if removed > 0 {
-            log::info!("Removed {removed} microphone sentence(s) echoing system audio");
+            log::info!("Removed {removed} echo(es) of system audio from the microphone");
         }
     }
     let turns: Vec<MeetingTurn> = merge(units)

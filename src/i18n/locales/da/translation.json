@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "Der er under 1,5 GB ledigt på denne Mac. Et langt møde kan stoppe før tid; det optagne bevares.",
     "meetingSystemAudioInterrupted": "Systemlyden stoppede, efter at lydudgangen blev skiftet. Murmur prøver fortsat at få den tilbage; din mikrofon optages stadig.",
     "meetingMicrophoneInterrupted": "Mikrofonen stoppede med at optage. Murmur prøver fortsat at få den tilbage; tjek, at den stadig er tilsluttet.",
-    "meetingMicrophoneDenied": "Mikrofonadgang er slået fra, så mødet optager ikke din stemme. Tillad Murmur under Systemindstillinger → Privatliv og sikkerhed → Mikrofon."
+    "meetingMicrophoneDenied": "Mikrofonadgang er slået fra, så mødet optager ikke din stemme. Tillad Murmur under Systemindstillinger → Privatliv og sikkerhed → Mikrofon.",
+    "meetingSystemAudioDenied": "Optagelse af systemlyd er slået fra, så mødet optager ikke de andre deltagere. Tillad Murmur under Systemindstillinger → Privatliv og sikkerhed → Optagelse af skærm og systemlyd."
   },
   "sidebar": {
     "general": "Generelt",

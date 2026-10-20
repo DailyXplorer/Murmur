@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "इस Mac पर 1.5 GB से कम जगह खाली है। लंबी मीटिंग जल्दी रुक सकती है; जो रिकॉर्ड हुआ है वह सुरक्षित रहेगा।",
     "meetingSystemAudioInterrupted": "ध्वनि आउटपुट बदलने के बाद सिस्टम ऑडियो रुक गया। Murmur इसे वापस लाने की कोशिश करता रहेगा; आपका माइक्रोफ़ोन अब भी रिकॉर्ड हो रहा है।",
     "meetingMicrophoneInterrupted": "माइक्रोफ़ोन ने रिकॉर्ड करना बंद कर दिया। Murmur इसे वापस लाने की कोशिश करता रहेगा; जाँच लें कि यह अब भी जुड़ा है।",
-    "meetingMicrophoneDenied": "माइक्रोफ़ोन ऐक्सेस बंद है, इसलिए यह मीटिंग आपकी आवाज़ रिकॉर्ड नहीं कर रही है। System Settings → Privacy & Security → Microphone में Murmur को अनुमति दें।"
+    "meetingMicrophoneDenied": "माइक्रोफ़ोन ऐक्सेस बंद है, इसलिए यह मीटिंग आपकी आवाज़ रिकॉर्ड नहीं कर रही है। System Settings → Privacy & Security → Microphone में Murmur को अनुमति दें।",
+    "meetingSystemAudioDenied": "सिस्टम ऑडियो रिकॉर्डिंग बंद है, इसलिए यह मीटिंग दूसरे प्रतिभागियों को रिकॉर्ड नहीं कर रही है। System Settings → Privacy & Security → Screen & System Audio Recording में Murmur को अनुमति दें।"
   },
   "sidebar": {
     "general": "सामान्य",

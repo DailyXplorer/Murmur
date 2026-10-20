@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "Na tomto Macu je volných méně než 1,5 GB. Dlouhá schůzka se může zastavit dříve; co se nahraje, zůstane zachováno.",
     "meetingSystemAudioInterrupted": "Systémový zvuk se po změně zvukového výstupu přestal nahrávat. Murmur se ho dál pokouší obnovit; mikrofon se nahrává dál.",
     "meetingMicrophoneInterrupted": "Mikrofon přestal nahrávat. Murmur se ho dál pokouší obnovit; zkontrolujte, zda je stále připojený.",
-    "meetingMicrophoneDenied": "Přístup k mikrofonu je vypnutý, schůzka proto nenahrává váš hlas. Povolte Murmur v Nastavení systému → Soukromí a zabezpečení → Mikrofon."
+    "meetingMicrophoneDenied": "Přístup k mikrofonu je vypnutý, schůzka proto nenahrává váš hlas. Povolte Murmur v Nastavení systému → Soukromí a zabezpečení → Mikrofon.",
+    "meetingSystemAudioDenied": "Nahrávání systémového zvuku je vypnuté, schůzka proto nenahrává ostatní účastníky. Povolte Murmur v Nastavení systému → Soukromí a zabezpečení → Nahrávání obrazovky a systémového zvuku."
   },
   "sidebar": {
     "general": "Obecné",

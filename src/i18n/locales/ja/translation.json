@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "この Mac の空き容量が 1.5 GB 未満です。長い会議は途中で止まる場合がありますが、録音済みの部分は保存されます。",
     "meetingSystemAudioInterrupted": "サウンド出力が切り替わった後、システムオーディオが止まりました。Murmur は復旧を試み続けています。マイクは引き続き録音されています。",
     "meetingMicrophoneInterrupted": "マイクの録音が止まりました。Murmur は復旧を試み続けています。マイクが接続されたままか確認してください。",
-    "meetingMicrophoneDenied": "マイクへのアクセスがオフのため、この会議ではあなたの声を録音できません。システム設定 → プライバシーとセキュリティ → マイクで Murmur を許可してください。"
+    "meetingMicrophoneDenied": "マイクへのアクセスがオフのため、この会議ではあなたの声を録音できません。システム設定 → プライバシーとセキュリティ → マイクで Murmur を許可してください。",
+    "meetingSystemAudioDenied": "システムオーディオ録音がオフのため、この会議では相手の声を録音できません。システム設定 → プライバシーとセキュリティ → 画面収録とシステムオーディオ録音で Murmur を許可してください。"
   },
   "sidebar": {
     "general": "一般",
