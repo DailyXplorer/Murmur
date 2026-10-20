@@ -926,8 +926,11 @@ pub fn run(cli_args: CliArgs) {
             }
             tauri::RunEvent::Exit => {
                 // Cmd+Q, the Dock's Quit and a logout skip `ExitRequested` and
-                // so the coordinator's cancel, and macOS keeps the mute.
+                // so the coordinator's cancel, and macOS keeps the mute. A
+                // dictation's readiness thread may still mute while a meeting
+                // closes below, so its recording is made stale first.
                 if let Some(audio) = app.try_state::<Arc<AudioRecordingManager>>() {
+                    audio.invalidate_recording_readiness();
                     audio.remove_mute();
                 }
                 paste_tx::settle_before_exit();
@@ -1118,6 +1121,14 @@ mod exit_tests {
             .nth(1)
             .and_then(|rest| rest.split("_ => {}").next())
             .expect("the run loop handles RunEvent::Exit");
-        assert!(exit_arm.contains(".remove_mute()"));
+        let restore = exit_arm
+            .find(".remove_mute()")
+            .expect("quitting restores the mute");
+        // A dictation's readiness thread may still mute after the restore,
+        // while a meeting is being closed: it must find its recording stale.
+        let invalidate = exit_arm
+            .find(".invalidate_recording_readiness()")
+            .expect("quitting invalidates a dictation's pending mute");
+        assert!(invalidate < restore);
     }
 }
