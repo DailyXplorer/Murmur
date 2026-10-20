@@ -36,7 +36,7 @@ const SENTENCE_ENDS: [char; 7] = ['.', '?', '!', '…', '。', '？', '！'];
 const CJK_SENTENCE_ENDS: [char; 3] = ['。', '？', '！'];
 /// Closing marks that may follow a sentence end: `"Oui."`, `(voilà.)` or
 /// `「好的。」`.
-const CLOSERS: [char; 12] = [
+pub(crate) const CLOSERS: [char; 12] = [
     '"', '\'', '’', '”', '»', ')', ']', '」', '』', '）', '】', '》',
 ];
 

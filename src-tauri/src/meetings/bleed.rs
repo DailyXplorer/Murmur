@@ -1,9 +1,10 @@
 //! Without headphones the microphone also hears the remote participants, so
 //! their words would show twice: once under their name, once as "Me". A
 //! sentence of the microphone track is such an echo when the system track
-//! says the same words at the same moment, at least as loud; only those
-//! words go, and a reply Codex wrote in the same sentence stays. The user
-//! talking over someone says different words, so it is kept.
+//! says the same words at the same moment, at least as loud. Only the
+//! clauses that echo go: a reply Codex set off with punctuation in the same
+//! sentence stays. The user talking over someone says different words, so it
+//! is kept.
 
 use std::ops::Range;
 
@@ -11,6 +12,7 @@ use super::align::dp::{align, similarity, Step};
 use super::align::TimedWord;
 use super::chunking::FRAME_MS;
 use super::merge::{Track, Unit};
+use super::tokens::{Token, CLOSERS};
 
 /// An echo is heard while the system track plays it, so only system words
 /// said during the sentence, give or take this much for the word times, are
@@ -19,6 +21,11 @@ use super::merge::{Track, Unit};
 const SLACK_MS: u64 = 300;
 /// Share of the sentence's words found in the system track.
 const MIN_OVERLAP: f32 = 0.6;
+/// Share of a clause's words found in the system track for the clause to be
+/// part of the echo. Lower than the sentence's, so a clause of two words with
+/// a name or a time the recognisers spell apart ("à 15h.") still goes; a
+/// reply sharing one word with the remote side ("je le relis.") stays.
+const CLAUSE_OVERLAP: f32 = 0.5;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
 /// The system track must be no quieter than the microphone by more than this.
@@ -44,22 +51,89 @@ fn during(unit: &Unit, start_ms: u64, end_ms: u64) -> bool {
     start_ms < unit.end_ms + SLACK_MS && end_ms + SLACK_MS > unit.start_ms
 }
 
-/// The part of a microphone sentence that echoes the system track.
+/// A run of clauses of a microphone sentence that echoes the system track.
 struct Echo {
-    /// From the sentence's first token heard on the system track to its last.
     tokens: Range<usize>,
     /// When the system track said them.
     start_ms: u64,
     end_ms: u64,
 }
 
-/// The echo of the system track in the microphone sentence `unit`, if any.
-fn echo(
+/// Whether Codex ended a clause after `token`: "vendredi," or "Oui.".
+fn ends_clause(token: &Token) -> bool {
+    token.sentence_end
+        || token
+            .text
+            .trim_end_matches(CLOSERS)
+            .ends_with([',', ';', ':', '，', '；', '：', '、'])
+}
+
+/// The token ranges of the clauses of `tokens`.
+fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
+    let mut clauses = Vec::new();
+    let mut start = 0;
+    for (index, token) in tokens.iter().enumerate() {
+        if ends_clause(token) || index + 1 == tokens.len() {
+            clauses.push(start..index + 1);
+            start = index + 1;
+        }
+    }
+    clauses
+}
+
+/// The echoes of the system track in the microphone sentence `unit`, in
+/// order; none when the sentence is not an echo. A word the recognisers
+/// spell apart goes with its clause, and a clause Codex set off within the
+/// echo ("oui,") stays even when the remote side went on around it.
+fn echoes(
     unit: &Unit,
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
-) -> Option<Echo> {
+) -> Vec<Echo> {
+    let Some(heard) = echoed_words(unit, system_words, mic_levels, system_levels) else {
+        return Vec::new();
+    };
+    let mut echoes: Vec<Echo> = Vec::new();
+    for clause in clauses(&unit.tokens) {
+        let words = unit.tokens[clause.clone()]
+            .iter()
+            .filter(|token| !token.key.is_empty())
+            .count();
+        let times: Vec<(u64, u64)> = heard
+            .iter()
+            .filter(|(token, _)| clause.contains(token))
+            .map(|&(_, times)| times)
+            .collect();
+        let (Some(&(start_ms, _)), Some(&(_, end_ms))) = (times.first(), times.last()) else {
+            continue;
+        };
+        if (times.len() as f32) < CLAUSE_OVERLAP * words as f32 {
+            continue;
+        }
+        match echoes.last_mut() {
+            Some(last) if last.tokens.end == clause.start => {
+                last.tokens.end = clause.end;
+                last.end_ms = end_ms;
+            }
+            _ => echoes.push(Echo {
+                tokens: clause,
+                start_ms,
+                end_ms,
+            }),
+        }
+    }
+    echoes
+}
+
+/// The tokens of the microphone sentence `unit` heard on the system track,
+/// each with when the system track said it, if the sentence is an echo.
+fn echoed_words(
+    unit: &Unit,
+    system_words: &[TimedWord],
+    mic_levels: &[f32],
+    system_levels: &[f32],
+) -> Option<Vec<(usize, (u64, u64))>> {
     let (indices, keys): (Vec<usize>, Vec<&str>) = unit
         .tokens
         .iter()
@@ -93,43 +167,39 @@ fn echo(
         (Some(mic), Some(system)) => system >= mic - MAX_QUIETER_DB,
         _ => false,
     };
-    let (&(first, first_heard), &(last, last_heard)) = (same.first()?, same.last()?);
-    loud_enough.then(|| Echo {
-        tokens: indices[first]..indices[last] + 1,
-        start_ms: nearby[first_heard].start_ms,
-        end_ms: nearby[last_heard].end_ms,
+    loud_enough.then(|| {
+        same.iter()
+            .map(|&(m, s)| (indices[m], (nearby[s].start_ms, nearby[s].end_ms)))
+            .collect()
     })
 }
 
-/// What is left of `unit` around its `echo`: the user's own words, as when
+/// What is left of `unit` around its `echoes`: the user's own words, as when
 /// Codex wrote "On t'envoie le rapport, d'accord." for the remote side's
-/// sentence and the user's reply. Each side is timed by where the system
-/// track said the echo.
-fn around(unit: Unit, echo: &Echo) -> Vec<Unit> {
+/// sentence and the user's reply. Each piece is timed by where the system
+/// track said the echoes on either side of it.
+fn around(unit: Unit, echoes: &[Echo]) -> Vec<Unit> {
     let boundary = |ms: u64| ms.clamp(unit.start_ms, unit.end_ms);
-    [
-        (
-            &unit.tokens[..echo.tokens.start],
-            unit.start_ms,
-            boundary(echo.start_ms),
-        ),
-        (
-            &unit.tokens[echo.tokens.end..],
-            boundary(echo.end_ms),
-            unit.end_ms,
-        ),
-    ]
-    .into_iter()
-    .filter(|(tokens, _, _)| tokens.iter().any(|token| !token.key.is_empty()))
-    .map(|(tokens, start_ms, end_ms)| Unit {
-        track: unit.track,
-        speaker: unit.speaker.clone(),
-        start_ms,
-        end_ms,
-        tokens: tokens.to_vec(),
-        low_confidence: unit.low_confidence,
-    })
-    .collect()
+    let mut pieces = Vec::with_capacity(echoes.len() + 1);
+    let mut start = (0, unit.start_ms);
+    for echo in echoes {
+        pieces.push((start, (echo.tokens.start, boundary(echo.start_ms))));
+        start = (echo.tokens.end, boundary(echo.end_ms));
+    }
+    pieces.push((start, (unit.tokens.len(), unit.end_ms)));
+    pieces
+        .into_iter()
+        .map(|((from, start_ms), (to, end_ms))| (&unit.tokens[from..to], start_ms, end_ms))
+        .filter(|(tokens, _, _)| tokens.iter().any(|token| !token.key.is_empty()))
+        .map(|(tokens, start_ms, end_ms)| Unit {
+            track: unit.track,
+            speaker: unit.speaker.clone(),
+            start_ms,
+            end_ms,
+            tokens: tokens.to_vec(),
+            low_confidence: unit.low_confidence,
+        })
+        .collect()
 }
 
 /// Removes the parts of microphone sentences that echo the system track.
@@ -150,18 +220,20 @@ pub fn remove_echoes(
     let mut removed = 0;
     let mut kept = Vec::with_capacity(units.len());
     for unit in units.drain(..) {
-        let found = (unit.track == Track::Mic
+        let found = if unit.track == Track::Mic
             && transcribed
                 .iter()
-                .any(|&(start, end)| during(&unit, start, end)))
-        .then(|| echo(&unit, system_words, mic_levels, system_levels))
-        .flatten();
-        match found {
-            Some(found) => {
-                removed += 1;
-                kept.extend(around(unit, &found));
-            }
-            None => kept.push(unit),
+                .any(|&(start, end)| during(&unit, start, end))
+        {
+            echoes(&unit, system_words, mic_levels, system_levels)
+        } else {
+            Vec::new()
+        };
+        if found.is_empty() {
+            kept.push(unit);
+        } else {
+            removed += 1;
+            kept.extend(around(unit, &found));
         }
     }
     *units = kept;
@@ -196,7 +268,7 @@ mod tests {
     }
 
     fn is_echo(unit: &Unit, system: &[TimedWord], mic_levels: &[f32], levels: &[f32]) -> bool {
-        echo(unit, system, mic_levels, levels).is_some()
+        !echoes(unit, system, mic_levels, levels).is_empty()
     }
 
     /// 20 s of levels: `db` everywhere.
@@ -280,8 +352,9 @@ mod tests {
         );
     }
 
-    /// What the system track said and when (after " / ", what it said once
-    /// the microphone sentence was over), whether it has its own transcript
+    /// What the system track said and when (after " + ", what it went on to
+    /// say 200 ms later, during the microphone sentence; after " / ", what it
+    /// said once that sentence was over), whether it has its own transcript
     /// there, what the microphone wrote from 2.1 s, the two levels, and the
     /// microphone sentences left. Every reported case stays.
     #[allow(clippy::type_complexity)]
@@ -429,14 +502,94 @@ mod tests {
             -30.0,
             &["okay, I'll read it."],
         ),
+        // Round 33: an edge word the on-device recogniser wrote otherwise
+        // is part of the echo's clause and goes with it.
+        (
+            "on se voit à quinze heures",
+            2_000,
+            true,
+            "On se voit à 15h.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "on en parle avec jean baptiste",
+            2_000,
+            true,
+            "On en parle avec Jean-Baptiste.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "we ship in q three",
+            2_000,
+            true,
+            "We ship in Q3.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "let's ask mary jane",
+            2_000,
+            true,
+            "Let's ask Mary-Jane.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        // Round 33: the remote side goes on during the reply (after " + ").
+        (
+            "on t'envoie le rapport avant vendredi + et le budget aussi",
+            2_000,
+            true,
+            "On t'envoie le rapport avant vendredi, d'accord, je le relis.",
+            -40.0,
+            -30.0,
+            &["d'accord, je le relis."],
+        ),
+        (
+            "we'll send you the report before friday + and i'll send the slides",
+            2_000,
+            true,
+            "We'll send you the report before Friday, okay, I'll read it.",
+            -40.0,
+            -30.0,
+            &["okay, I'll read it."],
+        ),
+        (
+            "on valide le budget jeudi prochain",
+            2_000,
+            true,
+            "On valide le budget, oui, jeudi prochain.",
+            -40.0,
+            -30.0,
+            &["oui,"],
+        ),
+        (
+            "we'll send you the report before friday",
+            2_000,
+            true,
+            "We'll send you the report, right, before Friday.",
+            -40.0,
+            -30.0,
+            &["right,"],
+        ),
     ];
 
     #[test]
     fn echo_corpus() {
+        let mut failures = Vec::new();
         for &(said, at_ms, transcribed, written, mic_db, system_db, kept) in CORPUS {
             let end_ms = |start_ms: u64, text: &str| start_ms + tokenize(text).len() as u64 * 400;
             let (said, then) = said.split_once(" / ").unwrap_or((said, ""));
+            let (said, meanwhile) = said.split_once(" + ").unwrap_or((said, ""));
             let mut system = heard(said, at_ms, 400);
+            if !meanwhile.is_empty() {
+                system.extend(heard(meanwhile, end_ms(at_ms, said) + 200, 400));
+            }
             if !then.is_empty() {
                 system.extend(heard(then, end_ms(2_100, written) + 200, 400));
             }
@@ -454,8 +607,11 @@ mod tests {
                 .filter(|unit| unit.track == Track::Mic)
                 .map(|unit| join(&unit.tokens))
                 .collect();
-            assert_eq!(left, kept, "{written}");
+            if left != kept {
+                failures.push(format!("{written:?}: got {left:?}, want {kept:?}"));
+            }
         }
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 
     #[test]
