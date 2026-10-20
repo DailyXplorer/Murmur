@@ -27,6 +27,14 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
 async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: ShortcutRegistrationError }>> {
     return await TAURI_INVOKE("get_shortcut_registration_errors");
 },
+/**
+ * What the active keyboard layout writes on the keys shortcuts name, keyed
+ * by the name, so a shortcut shows the key to press. Empty when macOS cannot
+ * tell, and the names are shown as they are.
+ */
+async getKeyLabels() : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("get_key_labels");
+},
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_audio_feedback_setting", { enabled }) };

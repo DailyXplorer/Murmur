@@ -1,6 +1,7 @@
 //! Global shortcut registration and settings commands.
 
 mod handler;
+mod key_labels;
 pub mod tauri_impl;
 
 use crate::accent;
@@ -102,6 +103,30 @@ pub fn get_shortcut_registration_errors(
     app.try_state::<ShortcutRegistrationErrors>()
         .map(|errors| errors.snapshot())
         .unwrap_or_default()
+}
+
+#[tauri::command]
+#[specta::specta]
+/// What the active keyboard layout writes on the keys shortcuts name, keyed
+/// by the name, so a shortcut shows the key to press. Empty when macOS cannot
+/// tell, and the names are shown as they are.
+pub async fn get_key_labels(app: AppHandle) -> HashMap<String, String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    // The layout APIs answer only on the main thread.
+    if let Err(error) = app.run_on_main_thread(move || {
+        let _ = sender.send(crate::input::command_key_chars());
+    }) {
+        warn!("Cannot read the keyboard layout: {error}");
+        return HashMap::new();
+    }
+    match receiver.await {
+        Ok(Ok(chars)) => key_labels::labels(|code| chars.get(usize::from(code)).copied().flatten()),
+        Ok(Err(error)) => {
+            warn!("Cannot read the keyboard layout: {error}");
+            HashMap::new()
+        }
+        Err(_) => HashMap::new(),
+    }
 }
 
 /// Whether `id` is in use: the meeting shortcut exists only while meetings

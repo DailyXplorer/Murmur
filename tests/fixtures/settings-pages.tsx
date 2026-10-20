@@ -482,6 +482,7 @@ const RESPONSES: Record<string, unknown> = {
   get_microphone_authorization_status: 3,
   get_microphone_channels: 1,
   get_shortcut_registration_errors: {},
+  get_key_labels: {},
   initialize_enigo: null,
   initialize_shortcuts: null,
   is_laptop: true,

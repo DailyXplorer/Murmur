@@ -120,9 +120,17 @@ const capitalizeKey = (key: string): string => {
   return key.replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-const formatKeyPart = (part: string): string => {
+/**
+ * What the active keyboard layout writes on a key, by the key's name in a
+ * shortcut: on AZERTY, "m" is the "," key.
+ */
+export type KeyLabels = Partial<Record<string, string>>;
+
+const formatKeyPart = (part: string, labels: KeyLabels): string => {
   const trimmed = part.trim();
   if (!trimmed) return "";
+  const label = labels[trimmed];
+  if (label) return capitalizeKey(label);
 
   if (trimmed.endsWith("_left")) {
     const name = trimmed.slice(0, -5);
@@ -136,9 +144,15 @@ const formatKeyPart = (part: string): string => {
   return capitalizeKey(trimmed);
 };
 
-export const formatKeyCombination = (combination: string): string => {
+export const formatKeyCombination = (
+  combination: string,
+  labels: KeyLabels = {},
+): string => {
   if (!combination) return "";
-  return combination.split("+").map(formatKeyPart).join(" + ");
+  return combination
+    .split("+")
+    .map((part) => formatKeyPart(part, labels))
+    .join(" + ");
 };
 
 export const normalizeKey = (key: string): string => {

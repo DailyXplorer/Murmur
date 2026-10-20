@@ -22,8 +22,17 @@ const SETTINGS: AppSettings = {
     transcribe: binding("transcribe", "Transcribe", "option+space"),
     cancel: binding("cancel", "Cancel", "escape"),
     paste_last: binding("paste_last", "Paste last", "ctrl+command+v"),
+    meeting_toggle: binding(
+      "meeting_toggle",
+      "Start or stop a meeting",
+      "ctrl+option+command+m",
+    ),
   },
 };
+
+// A few keys of the French AZERTY layout: the key a US keyboard calls "m"
+// types ",", and the key printed M is the one it calls ";".
+const AZERTY_LABELS = { a: "q", q: "a", m: ",", ";": "m", v: "v" };
 
 declare global {
   interface Window {
@@ -39,6 +48,7 @@ const calls: string[] = [];
 mockIPC(
   (command, args) => {
     if (command === "get_shortcut_registration_errors") return {};
+    if (command === "get_key_labels") return AZERTY_LABELS;
     if (
       command === "suspend_all_bindings" ||
       command === "resume_all_bindings"

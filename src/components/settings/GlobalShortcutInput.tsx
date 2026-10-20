@@ -4,6 +4,7 @@ import {
   getKeyName,
   formatKeyCombination,
   normalizeKey,
+  type KeyLabels,
 } from "../../lib/utils/keyboard";
 import { ResetButton } from "../ui/ResetButton";
 import {
@@ -55,6 +56,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [originalBinding, setOriginalBinding] = useState<string>("");
   const [registrationError, setRegistrationError] =
     useState<ShortcutRegistrationError>();
+  const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
   // The optimistic update re-attaches the key listeners while the first
   // combo is still being saved; a second combo then must not start another.
@@ -78,6 +80,21 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       void unlisten.then((fn) => fn());
     };
   }, [shortcutId]);
+
+  // Shortcuts name physical keys after a US keyboard; show what the user's
+  // layout prints on them instead.
+  useEffect(() => {
+    let active = true;
+    commands
+      .getKeyLabels()
+      .then((labels) => {
+        if (active) setKeyLabels(labels);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => () => endCapture(shortcutId), [shortcutId, endCapture]);
 
@@ -189,7 +206,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     if (heldModifiers.length === 0)
       return t("settings.general.shortcut.pressKeys");
 
-    return formatKeyCombination(heldModifiers.join("+"));
+    return formatKeyCombination(heldModifiers.join("+"), keyLabels);
   };
 
   const setShortcutRef = (id: string, ref: HTMLElement | null) => {
@@ -284,7 +301,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
                 startRecording(shortcutId);
               }}
             >
-              {formatKeyCombination(binding.current_binding)}
+              {formatKeyCombination(binding.current_binding, keyLabels)}
             </button>
           )}
           <ResetButton
