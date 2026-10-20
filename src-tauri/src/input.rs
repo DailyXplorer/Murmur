@@ -62,17 +62,14 @@ mod macos {
         }
     }
 
-    fn find_keycode(mut matches: impl FnMut(u16) -> bool) -> Option<u16> {
-        (0..KEYCODE_COUNT).find(|&keycode| matches(keycode))
-    }
-
-    /// Resolves the physical key that macOS interprets as `v` while Command is
-    /// held. Including Command is important: non-Latin layouts commonly map
-    /// Cmd shortcuts to their ANSI equivalents, while standard Dvorak does not.
+    /// What the current layout types on each virtual key code while Command
+    /// is held, indexed by key code. Including Command is important:
+    /// non-Latin layouts commonly map Cmd shortcuts to their ANSI
+    /// equivalents, while standard Dvorak does not.
     ///
     /// TIS APIs must run on the main thread. Murmur's paste path already enters
     /// through `AppHandle::run_on_main_thread` before reaching this function.
-    fn resolve_command_v_keycode() -> Result<u16, String> {
+    pub(super) fn command_chars() -> Result<Vec<Option<char>>, String> {
         // SAFETY: This function is called on the macOS main thread. The returned
         // source follows the Create Rule and is released by InputSource::drop.
         let source = InputSource(unsafe { TISCopyCurrentKeyboardLayoutInputSource() });
@@ -98,34 +95,47 @@ mod macos {
         // SAFETY: LMGetKbdType has no arguments and returns the current physical
         // keyboard type used by UCKeyTranslate.
         let keyboard_type = unsafe { LMGetKbdType() } as u32;
-        let keycode = find_keycode(|keycode| {
-            let mut dead_key_state = 0;
-            let mut chars = [0_u16; 4];
-            let mut length = 0_usize;
+        Ok((0..KEYCODE_COUNT)
+            .map(|keycode| {
+                let mut dead_key_state = 0;
+                let mut chars = [0_u16; 4];
+                let mut length = 0_usize;
 
-            // SAFETY: layout points to valid UCKeyboardLayout bytes while source
-            // is retained. All output pointers reference initialized local
-            // storage of the declared sizes.
-            let status = unsafe {
-                UCKeyTranslate(
-                    layout,
-                    keycode,
-                    UC_KEY_ACTION_DISPLAY,
-                    COMMAND_MODIFIER_STATE,
-                    keyboard_type,
-                    UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK,
-                    &mut dead_key_state,
-                    chars.len(),
-                    &mut length,
-                    chars.as_mut_ptr(),
-                )
-            };
+                // SAFETY: layout points to valid UCKeyboardLayout bytes while
+                // source is retained. All output pointers reference initialized
+                // local storage of the declared sizes.
+                let status = unsafe {
+                    UCKeyTranslate(
+                        layout,
+                        keycode,
+                        UC_KEY_ACTION_DISPLAY,
+                        COMMAND_MODIFIER_STATE,
+                        keyboard_type,
+                        UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK,
+                        &mut dead_key_state,
+                        chars.len(),
+                        &mut length,
+                        chars.as_mut_ptr(),
+                    )
+                };
 
-            status == 0 && length == 1 && chars[0] == u16::from(b'v')
-        })
-        .ok_or_else(|| "could not map Cmd+V in the current macOS keyboard layout".to_string())?;
+                if status == 0 && length == 1 {
+                    char::from_u32(u32::from(chars[0]))
+                } else {
+                    None
+                }
+            })
+            .collect())
+    }
 
-        Ok(keycode)
+    /// Resolves the physical key that macOS interprets as `v` while Command is
+    /// held.
+    fn resolve_command_v_keycode() -> Result<u16, String> {
+        command_chars()?
+            .iter()
+            .position(|&typed| typed == Some('v'))
+            .map(|keycode| keycode as u16)
+            .ok_or_else(|| "could not map Cmd+V in the current macOS keyboard layout".to_string())
     }
 
     pub(super) fn command_v_keycode() -> u16 {
@@ -142,6 +152,12 @@ mod macos {
             }
         }
     }
+}
+
+/// What the current keyboard layout types on each virtual key code while
+/// Command is held, indexed by key code. Call it on the main thread.
+pub fn command_key_chars() -> Result<Vec<Option<char>>, String> {
+    macos::command_chars()
 }
 
 #[derive(Clone, Copy)]
