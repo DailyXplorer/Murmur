@@ -22,6 +22,23 @@ test.describe("settings labels in French", () => {
     ).toBeVisible();
   });
 
+  test("auto-delete says it deletes the transcriptions, not only the audio", async ({
+    page,
+  }) => {
+    const retention = page.getByTestId("retention");
+    await expect(
+      retention.getByText("Suppression automatique de l’historique", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      retention.getByText(
+        "Supprime les anciennes transcriptions et leur audio. Les favoris sont conservés.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+  });
+
   test("languages are listed and found by their French name", async ({
     page,
   }) => {

@@ -365,8 +365,8 @@
         "entries": "záznamů"
       },
       "recordingRetention": {
-        "title": "Automatické mazání nahrávek",
-        "description": "Automaticky mazat staré nahrávky pro úsporu místa",
+        "title": "Automatické mazání historie",
+        "description": "Maže staré přepisy i jejich zvuk. Uložené záznamy zůstanou zachovány.",
         "never": "Nikdy",
         "preserveLimit": "Ponechat posledních {{count}}",
         "days3": "Po 3 dnech",

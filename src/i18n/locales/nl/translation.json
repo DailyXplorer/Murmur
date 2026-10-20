@@ -372,8 +372,8 @@
         "entries": "items"
       },
       "recordingRetention": {
-        "title": "Opnames automatisch verwijderen",
-        "description": "Oude opnames automatisch verwijderen om ruimte te besparen",
+        "title": "Geschiedenis automatisch verwijderen",
+        "description": "Verwijdert oude transcripties en hun audio. Opgeslagen items blijven bewaard.",
         "never": "Nooit",
         "preserveLimit": "Bewaar de nieuwste {{count}}",
         "days3": "Na 3 dagen",

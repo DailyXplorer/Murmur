@@ -365,8 +365,8 @@
         "entries": "筆"
       },
       "recordingRetention": {
-        "title": "自動刪除錄音",
-        "description": "自動刪除舊錄音以節省空間",
+        "title": "自動刪除歷史紀錄",
+        "description": "刪除舊的轉錄內容及其音訊。已儲存的條目會保留。",
         "never": "從不",
         "preserveLimit": "保留最新 {{count}} 筆",
         "days3": "3 天後",

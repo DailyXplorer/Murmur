@@ -24,6 +24,11 @@ const MIN_OVERLAP: f32 = 0.6;
 /// system word is its echo: in "à dix heures, dix heures", the user repeats
 /// the remote side's words. Small, so it only settles such ties.
 const COST_PER_SECOND_APART: f32 = 0.01;
+/// Of two copies equally near, as when the recogniser missed both, the
+/// earlier is the echo: the user repeats what they heard. Per word of the
+/// sentence: a word later costs what a millisecond apart does, and stays
+/// above the rounding of the sums.
+const COST_PER_WORD_LATER: f32 = 0.00001;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
 /// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
@@ -220,7 +225,9 @@ fn echoed_words(
         let middle = (word.start_ms + word.end_ms) / 2;
         let (from, to) = said_at[indices[m]];
         let apart_ms = from.saturating_sub(middle) + middle.saturating_sub(to);
-        pair_cost(keys[m], &word.key) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
+        pair_cost(keys[m], &word.key)
+            + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
+            + COST_PER_WORD_LATER * m as f32
     })?;
     let same: Vec<(usize, usize)> = steps
         .iter()
@@ -884,6 +891,26 @@ mod tests {
             -40.0,
             -30.0,
             &["Hello.", "before Friday, great."],
+        ),
+        // Round 37: it missed the user's repeat too, so both copies may have
+        // been said anywhere in the same stretch.
+        (
+            "on se voit jeudi ~1500 à dix heures",
+            2_000,
+            true,
+            "@2000 On se voit jeudi ~1500 ^à ^dix ^heures, ^dix ^heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "we'll send you the report ~1500 before friday",
+            2_000,
+            true,
+            "@2000 We'll send you the report ~1500 ^before ^Friday, ^before ^Friday, great.",
+            -40.0,
+            -30.0,
+            &["before Friday, great."],
         ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,

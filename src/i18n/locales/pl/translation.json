@@ -365,8 +365,8 @@
         "entries": "wpisy"
       },
       "recordingRetention": {
-        "title": "Automatyczne usuwanie nagrań",
-        "description": "Automatycznie usuwaj stare nagrania, aby zaoszczędzić miejsce",
+        "title": "Automatyczne usuwanie historii",
+        "description": "Usuwa stare transkrypcje razem z ich dźwiękiem. Zapisane wpisy są zachowywane.",
         "never": "Nigdy",
         "preserveLimit": "Zachowaj ostatnie {{count}}",
         "days3": "Po 3 dniach",

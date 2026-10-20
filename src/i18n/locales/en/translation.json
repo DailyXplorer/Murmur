@@ -372,8 +372,8 @@
         "entries": "entries"
       },
       "recordingRetention": {
-        "title": "Auto-Delete Recordings",
-        "description": "Automatically delete old recordings to save space",
+        "title": "Auto-Delete History",
+        "description": "Deletes old transcriptions and their audio. Saved entries are kept.",
         "never": "Never",
         "preserveLimit": "Keep latest {{count}}",
         "days3": "After 3 days",
