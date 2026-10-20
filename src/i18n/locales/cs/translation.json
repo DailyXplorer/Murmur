@@ -184,13 +184,15 @@
         "title": "Mikrofon",
         "description": "Vyberte preferované zařízení mikrofonu",
         "placeholder": "Vyberte mikrofon...",
-        "loading": "Načítání..."
+        "loading": "Načítání...",
+        "changeFailed": "Mikrofon se nepodařilo přepnout. Ukončete probíhající diktování a zkuste to znovu."
       },
       "channel": {
         "title": "Vstupní kanál",
         "description": "Vyberte vstupní kanál, ze kterého se má nahrávat. Tuto možnost použijte, pokud má vaše zvukové rozhraní více vstupů.",
         "average": "Průměr všech kanálů",
-        "channel": "Kanál {{n}}"
+        "channel": "Kanál {{n}}",
+        "changeFailed": "Vstupní kanál se nepodařilo přepnout. Ukončete probíhající diktování a zkuste to znovu."
       },
       "audioFeedback": {
         "label": "Zvuková odezva",

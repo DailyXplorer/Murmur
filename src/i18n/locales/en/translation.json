@@ -184,13 +184,15 @@
         "title": "Microphone",
         "description": "Select your preferred microphone device",
         "placeholder": "Select microphone...",
-        "loading": "Loading..."
+        "loading": "Loading...",
+        "changeFailed": "Couldn't switch the microphone. Stop the dictation in progress, then try again."
       },
       "channel": {
         "title": "Input Channel",
         "description": "Select which input channel to record from. Use this if your audio interface has multiple inputs.",
         "average": "Average all channels",
-        "channel": "Channel {{n}}"
+        "channel": "Channel {{n}}",
+        "changeFailed": "Couldn't switch the input channel. Stop the dictation in progress, then try again."
       },
       "audioFeedback": {
         "label": "Audio Feedback",

@@ -184,13 +184,15 @@
         "title": "Microphone",
         "description": "Sélectionnez votre périphérique d'entrée audio",
         "placeholder": "Sélectionner un microphone...",
-        "loading": "Chargement..."
+        "loading": "Chargement...",
+        "changeFailed": "Impossible de changer de microphone. Arrêtez la dictée en cours, puis réessayez."
       },
       "channel": {
         "title": "Canal d’entrée",
         "description": "Sélectionnez le canal d’entrée à enregistrer. Utilisez cette option si votre interface audio possède plusieurs entrées.",
         "average": "Moyenne de tous les canaux",
-        "channel": "Canal {{n}}"
+        "channel": "Canal {{n}}",
+        "changeFailed": "Impossible de changer de canal d’entrée. Arrêtez la dictée en cours, puis réessayez."
       },
       "audioFeedback": {
         "label": "Signal sonore",

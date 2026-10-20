@@ -24,7 +24,7 @@ interface SettingsStore {
     key: K,
     value: Settings[K],
   ) => Promise<boolean>;
-  resetSetting: (key: keyof Settings) => Promise<void>;
+  resetSetting: (key: keyof Settings) => Promise<boolean>;
   refreshSettings: () => Promise<void>;
   refreshAudioDevices: () => Promise<void>;
   refreshOutputDevices: () => Promise<void>;
@@ -520,9 +520,10 @@ export const useSettingsStore = create<SettingsStore>()(
       if (defaultSettings) {
         const defaultValue = defaultSettings[key];
         if (defaultValue !== undefined) {
-          await get().updateSetting(key, defaultValue as any);
+          return get().updateSetting(key, defaultValue as any);
         }
       }
+      return true;
     },
 
     updateBinding: async (id, binding) => {

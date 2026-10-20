@@ -184,13 +184,15 @@
         "title": "Microfoon",
         "description": "Selecteer de gewenste microfoon",
         "placeholder": "Microfoon selecteren...",
-        "loading": "Laden..."
+        "loading": "Laden...",
+        "changeFailed": "Kan niet van microfoon wisselen. Stop het lopende dicteren en probeer het opnieuw."
       },
       "channel": {
         "title": "Ingangskanaal",
         "description": "Selecteer het ingangskanaal waarvan moet worden opgenomen. Gebruik dit als je audio-interface meerdere ingangen heeft.",
         "average": "Gemiddelde van alle kanalen",
-        "channel": "Kanaal {{n}}"
+        "channel": "Kanaal {{n}}",
+        "changeFailed": "Kan niet van invoerkanaal wisselen. Stop het lopende dicteren en probeer het opnieuw."
       },
       "audioFeedback": {
         "label": "Geluidsfeedback",

@@ -184,13 +184,15 @@
         "title": "Micrô",
         "description": "Chọn thiết bị micrô ưa thích của bạn",
         "placeholder": "Chọn micrô...",
-        "loading": "Đang tải..."
+        "loading": "Đang tải...",
+        "changeFailed": "Không thể chuyển micrô. Hãy dừng phần đọc chính tả đang chạy rồi thử lại."
       },
       "channel": {
         "title": "Kênh đầu vào",
         "description": "Chọn kênh đầu vào để ghi âm. Sử dụng tùy chọn này nếu giao diện âm thanh của bạn có nhiều đầu vào.",
         "average": "Trung bình tất cả các kênh",
-        "channel": "Kênh {{n}}"
+        "channel": "Kênh {{n}}",
+        "changeFailed": "Không thể chuyển kênh đầu vào. Hãy dừng phần đọc chính tả đang chạy rồi thử lại."
       },
       "audioFeedback": {
         "label": "Phản hồi âm thanh",
