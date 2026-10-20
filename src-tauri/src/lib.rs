@@ -925,6 +925,11 @@ pub fn run(cli_args: CliArgs) {
                 }
             }
             tauri::RunEvent::Exit => {
+                // Cmd+Q, the Dock's Quit and a logout skip `ExitRequested` and
+                // so the coordinator's cancel, and macOS keeps the mute.
+                if let Some(audio) = app.try_state::<Arc<AudioRecordingManager>>() {
+                    audio.remove_mute();
+                }
                 paste_tx::settle_before_exit();
                 // Close a meeting's tracks so it is kept, not left interrupted.
                 if let Some(manager) = app.try_state::<Arc<meetings::MeetingsManager>>() {
@@ -1100,5 +1105,19 @@ mod exit_tests {
             .and_then(|rest| rest.split("_ => {}").next())
             .expect("the run loop handles RunEvent::Exit");
         assert!(exit_arm.contains("paste_tx::settle_before_exit()"));
+    }
+
+    /// Cmd+Q, the Dock's Quit and a logout end in `Exit` without
+    /// `ExitRequested`, so only `Exit` can lift "mute while recording":
+    /// macOS keeps the output mute after the process is gone.
+    #[test]
+    fn quitting_restores_the_mute() {
+        let source = include_str!("lib.rs");
+        let exit_arm = source
+            .split("tauri::RunEvent::Exit => {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => {}").next())
+            .expect("the run loop handles RunEvent::Exit");
+        assert!(exit_arm.contains(".remove_mute()"));
     }
 }
