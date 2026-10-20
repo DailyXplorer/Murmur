@@ -927,11 +927,11 @@ pub fn run(cli_args: CliArgs) {
             tauri::RunEvent::Exit => {
                 // Cmd+Q, the Dock's Quit and a logout skip `ExitRequested` and
                 // so the coordinator's cancel, and macOS keeps the mute. A
-                // dictation's readiness thread may still mute while a meeting
-                // closes below, so its recording is made stale first.
+                // dictation may still start and become ready while a meeting
+                // closes below, so the mute is lifted for good.
                 if let Some(audio) = app.try_state::<Arc<AudioRecordingManager>>() {
                     audio.invalidate_recording_readiness();
-                    audio.remove_mute();
+                    audio.remove_mute_for_good();
                 }
                 paste_tx::settle_before_exit();
                 // Close a meeting's tracks so it is kept, not left interrupted.
@@ -940,6 +940,12 @@ pub fn run(cli_args: CliArgs) {
                 }
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
                     manager.shutdown();
+                }
+                // They skip the coordinator's drain too, which waits for a
+                // token refresh: one cut off would sign every Codex client
+                // out. A refresh request times out on its own within this.
+                if !codex_auth::wait_for_refreshes(codex_auth::REFRESH_TIMEOUT) {
+                    log::warn!("Timed out waiting for a Codex token refresh while quitting");
                 }
             }
             _ => {}
@@ -1096,18 +1102,21 @@ mod headless_guard_tests {
 
 #[cfg(test)]
 mod exit_tests {
-    /// The run-loop closure needs a live AppKit event loop, so this pins the
-    /// call instead: the promised transcript dies with the process, and only
-    /// the exiting process can still put the user's clipboard back.
-    #[test]
-    fn quitting_settles_the_pending_paste() {
-        let source = include_str!("lib.rs");
-        let exit_arm = source
+    /// The run-loop closure needs a live AppKit event loop, so these tests
+    /// pin the calls of its `RunEvent::Exit` arm instead.
+    fn exit_arm() -> &'static str {
+        include_str!("lib.rs")
             .split("tauri::RunEvent::Exit => {")
             .nth(1)
             .and_then(|rest| rest.split("_ => {}").next())
-            .expect("the run loop handles RunEvent::Exit");
-        assert!(exit_arm.contains("paste_tx::settle_before_exit()"));
+            .expect("the run loop handles RunEvent::Exit")
+    }
+
+    /// The promised transcript dies with the process, and only the exiting
+    /// process can still put the user's clipboard back.
+    #[test]
+    fn quitting_settles_the_pending_paste() {
+        assert!(exit_arm().contains("paste_tx::settle_before_exit()"));
     }
 
     /// Cmd+Q, the Dock's Quit and a logout end in `Exit` without
@@ -1115,20 +1124,33 @@ mod exit_tests {
     /// macOS keeps the output mute after the process is gone.
     #[test]
     fn quitting_restores_the_mute() {
-        let source = include_str!("lib.rs");
-        let exit_arm = source
-            .split("tauri::RunEvent::Exit => {")
-            .nth(1)
-            .and_then(|rest| rest.split("_ => {}").next())
-            .expect("the run loop handles RunEvent::Exit");
+        let exit_arm = exit_arm();
+        // A dictation started while a meeting is being closed below still
+        // reaches its mute step with a current recording, so the restore
+        // must refuse every later mute.
         let restore = exit_arm
-            .find(".remove_mute()")
-            .expect("quitting restores the mute");
-        // A dictation's readiness thread may still mute after the restore,
-        // while a meeting is being closed: it must find its recording stale.
+            .find(".remove_mute_for_good()")
+            .expect("quitting restores the mute for good");
         let invalidate = exit_arm
             .find(".invalidate_recording_readiness()")
             .expect("quitting invalidates a dictation's pending mute");
         assert!(invalidate < restore);
+    }
+
+    /// Only the tray's Quit goes through `ExitRequested`, whose drain waits
+    /// for a Codex token refresh. A refresh cut off by the exit has spent the
+    /// old refresh token without saving the new one, which signs every Codex
+    /// client out.
+    #[test]
+    fn quitting_waits_for_a_token_refresh() {
+        let exit_arm = exit_arm();
+        let wait = exit_arm
+            .find("codex_auth::wait_for_refreshes(")
+            .expect("quitting waits for a token refresh");
+        // Once the managers have cancelled the calls that could start one.
+        let shutdown = exit_arm
+            .rfind(".shutdown()")
+            .expect("quitting shuts the managers down");
+        assert!(shutdown < wait);
     }
 }

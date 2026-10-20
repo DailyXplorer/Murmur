@@ -75,7 +75,8 @@ fn during(from_ms: u64, to_ms: u64, start_ms: u64, end_ms: u64) -> bool {
 /// placed back from that word at an average pace, so a token it missed
 /// before it may have been said as early as it and the missed ones after it
 /// take at `MAX_MS_PER_WEIGHT`, but not before the chunk, and as late as the
-/// ones after it leave at `MIN_MS_PER_WEIGHT`.
+/// ones after it leave at `MIN_MS_PER_WEIGHT`. Both bounds take the user to
+/// speak on to that word without a pause.
 fn lead_times(unit: &Unit, chunk_start_ms: u64) -> Vec<(u64, u64)> {
     let Some((first, heard_ms)) = unit
         .tokens
@@ -340,10 +341,20 @@ fn echoed_words(
         let apart_ms = from.saturating_sub(middle) + middle.saturating_sub(to);
         1.0 - 2.0 * alike(m, s) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
     })?;
+    // A missed token's earliest time is at the slowest pace already, so a
+    // system word that ended before it, paired only within the slack, is
+    // not its echo: "Next Tuesday, perfect." said 200 ms after the remote
+    // side's "next Tuesday" is the user's.
+    let echoed = |m: usize, s: usize| {
+        alike(m, s) >= SAME_WORD
+            && lead
+                .get(indices[m])
+                .is_none_or(|&(from_ms, _)| nearby[s].end_ms > from_ms)
+    };
     let same: Vec<(usize, usize)> = steps
         .iter()
         .filter_map(|step| match *step {
-            Step::Pair(m, s) if alike(m, s) >= SAME_WORD => Some((m, s)),
+            Step::Pair(m, s) if echoed(m, s) => Some((m, s)),
             _ => None,
         })
         .collect();
@@ -1235,25 +1246,44 @@ mod tests {
             -30.0,
             &["September fifteenth, perfect.", "I'll let the team know."],
         ),
-        // The round 40 echo, with the user pausing before their own words:
-        // the echo still goes.
+        // Round 42: a shorter confirmation, started 200 ms after the remote
+        // side's last word: the earliest the user may have said a missed
+        // word is the slowest pace already, with no slack on top.
         (
-            "on se voit jeudi à dix heures",
+            "let's meet next tuesday | and we'll go over the budget",
             2_000,
             true,
-            "^On ^se ^voit ^jeudi ^à ^dix ^heures, ~400 dix heures, parfait.",
+            "@2000 ~1800 ^Next ^Tuesday, perfect. ~200 I'll book the room.",
             -40.0,
             -30.0,
-            &["dix heures, parfait."],
+            &["Next Tuesday, perfect.", "I'll book the room."],
         ),
         (
-            "we'll meet on thursday at ten",
+            "on se voit mercredi prochain | et on fera le point sur le budget",
             2_000,
             true,
-            "^We'll ^meet ^on ^Thursday ^at ^ten, ~400 at ten, sounds good.",
+            "@2000 ~2200 ^Mercredi ^prochain, parfait. ~200 Je note.",
             -40.0,
             -30.0,
-            &["at ten, sounds good."],
+            &["Mercredi prochain, parfait.", "Je note."],
+        ),
+        (
+            "the deadline is september fifteenth | so please send the drafts before then",
+            2_000,
+            true,
+            "@2000 ~2200 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
+        ),
+        (
+            "the deadline is september fifteenth so please send the drafts before then",
+            2_000,
+            true,
+            "@2000 ~2200 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
         ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
@@ -1370,6 +1400,28 @@ mod tests {
             -40.0,
             -30.0,
             &["We meet at 3:30, right,"],
+        ),
+        // Round 42: the round 40 echo, with the user pausing before their own
+        // words. The echo's last words ended before the user may have said
+        // them at the slowest pace without a pause, as round 42's quick
+        // confirmations did, so the whole sentence stays:
+        (
+            "on se voit jeudi à dix heures",
+            2_000,
+            true,
+            "^On ^se ^voit ^jeudi ^à ^dix ^heures, ~400 dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["On se voit jeudi à dix heures, dix heures, parfait."],
+        ),
+        (
+            "we'll meet on thursday at ten",
+            2_000,
+            true,
+            "^We'll ^meet ^on ^Thursday ^at ^ten, ~400 at ten, sounds good.",
+            -40.0,
+            -30.0,
+            &["We'll meet on Thursday at ten, at ten, sounds good."],
         ),
     ];
 
