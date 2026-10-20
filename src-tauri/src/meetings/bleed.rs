@@ -30,6 +30,15 @@ const COST_PER_SECOND_APART: f32 = 0.01;
 /// heures, c'est parfait", said before "c'est parfait". So each run of
 /// echoed words costs what 10 ms apart does.
 const COST_PER_RUN: f32 = 0.0001;
+/// The pause the system track leaves before a word for the user to say
+/// microphone words between it and the echoed words before. A run of echoed
+/// words that starts after a shorter pause also costs what being that much
+/// short of it apart does: pairing the second "dix" of "à dix heures, dix
+/// heures" after "à" would have the user say the first one in no time.
+const ROOM_MS: u64 = 300;
+/// The fastest the user is taken to speak, per character of a word
+/// (`Token::weight`): the words the recogniser missed take at least this.
+const MIN_MS_PER_WEIGHT: u64 = 40;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
 /// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
@@ -145,10 +154,12 @@ fn echoes(
 
 /// When each token of `unit` may have been said, as a range. A word the
 /// on-device recogniser heard was said at the middle of the time it heard
-/// it; one it missed, anywhere between the words it heard around it, as a
-/// time placed there would only be a guess. When it heard none of the
-/// sentence, each word is at the middle of its share of the speaking time,
-/// which misplaces words after a pause.
+/// it; one it missed, between the words it heard around it, as a time
+/// placed there would only be a guess, but leaving time for the missed
+/// words on either side: said right after "à", the second "dix" of "à dix
+/// heures, dix heures" would leave the first no time. When it heard none of
+/// the sentence, each word is at the middle of its share of the speaking
+/// time, which misplaces words after a pause.
 fn token_times(unit: &Unit) -> Vec<(u64, u64)> {
     if unit.tokens.iter().all(|token| token.heard_ms.is_none()) {
         let duration = unit.end_ms.saturating_sub(unit.start_ms);
@@ -166,27 +177,51 @@ fn token_times(unit: &Unit) -> Vec<(u64, u64)> {
             })
             .collect();
     }
+    let mut times = Vec::with_capacity(unit.tokens.len());
     let mut after = unit.start_ms;
-    let mut times: Vec<(u64, u64)> = unit
+    let mut runs = unit
         .tokens
-        .iter()
-        .map(|token| match token.heard_ms {
-            Some((start_ms, end_ms)) => {
-                after = end_ms;
-                let middle = (start_ms + end_ms) / 2;
-                (middle, middle)
-            }
-            None => (after, unit.end_ms),
-        })
-        .collect();
-    let mut before = unit.end_ms;
-    for (token, time) in unit.tokens.iter().zip(&mut times).rev() {
-        match token.heard_ms {
-            Some((start_ms, _)) => before = start_ms,
-            None => time.1 = before,
+        .chunk_by(|a, b| a.heard_ms.is_none() && b.heard_ms.is_none())
+        .peekable();
+    while let Some(run) = runs.next() {
+        if let Some((start_ms, end_ms)) = run[0].heard_ms {
+            after = end_ms;
+            let middle = (start_ms + end_ms) / 2;
+            times.push((middle, middle));
+            continue;
         }
+        let before = runs
+            .peek()
+            .and_then(|next| next[0].heard_ms)
+            .map_or(unit.end_ms, |(start_ms, _)| start_ms);
+        times.extend(missed_times(run, after, before));
     }
     times
+}
+
+/// When each of the `missed` tokens, said between `from_ms` and `to_ms`, may
+/// have been said: late enough for the ones before it, early enough for the
+/// ones after it, at `MIN_MS_PER_WEIGHT` or as fast as the time between
+/// needs.
+fn missed_times(missed: &[Token], from_ms: u64, to_ms: u64) -> Vec<(u64, u64)> {
+    let total: u64 = missed.iter().map(|token| token.weight() as u64).sum();
+    let span_ms = to_ms.saturating_sub(from_ms);
+    // How long `half` half weights take.
+    let lasts = |half: u64| (half * MIN_MS_PER_WEIGHT).min(span_ms * half / total.max(1)) / 2;
+    let mut before = 0;
+    missed
+        .iter()
+        .map(|token| {
+            let weight = token.weight() as u64;
+            let after = total - before - weight;
+            let time = (
+                from_ms + lasts(2 * before + weight),
+                to_ms.saturating_sub(lasts(2 * after + weight)),
+            );
+            before += weight;
+            time
+        })
+        .collect()
 }
 
 /// The tokens of the microphone sentence `unit` heard on the system track
@@ -221,7 +256,15 @@ fn echoed_words(
         })
         .collect();
     let said_at = token_times(unit);
-    let steps = align_by(keys.len(), nearby.len(), COST_PER_RUN, |m, s| {
+    let run_cost = |m: usize, s: usize| {
+        // A run from the sentence's first word skips no microphone words.
+        let pause_ms = match s.checked_sub(1) {
+            Some(previous) if m > 0 => nearby[s].start_ms.saturating_sub(nearby[previous].end_ms),
+            _ => ROOM_MS,
+        };
+        COST_PER_RUN + COST_PER_SECOND_APART * ROOM_MS.saturating_sub(pause_ms) as f32 / 1000.0
+    };
+    let steps = align_by(keys.len(), nearby.len(), run_cost, |m, s| {
         let word = nearby[s];
         let middle = (word.start_ms + word.end_ms) / 2;
         let (from, to) = said_at[indices[m]];
@@ -948,6 +991,65 @@ mod tests {
             -40.0,
             -30.0,
             &["So Friday at ten,"],
+        ),
+        // Round 39: the user repeats the remote side's words in a pause in
+        // the remote's sentence, and it missed both copies; the echo is the
+        // copy said when the system track said it, whichever runs on.
+        (
+            "on se voit à dix heures ~800 c'est bon pour toi",
+            2_000,
+            true,
+            "@2000 On se voit à ^dix ^heures, ^dix ^heures, c'est bon pour toi ?",
+            -40.0,
+            -30.0,
+            &["dix heures,"],
+        ),
+        (
+            "we'll meet at ten ~800 does that work for you",
+            2_000,
+            true,
+            "@2000 We'll meet ^at ^ten, ^at ^ten, does that work for you?",
+            -40.0,
+            -30.0,
+            &["at ten,"],
+        ),
+        (
+            "dix heures ~1000 c'est parfait on valide le budget",
+            2_000,
+            true,
+            "@2000 ^Dix ^heures, ^dix ^heures, ~200 c'est parfait, on valide le budget.",
+            -40.0,
+            -30.0,
+            &["dix heures,"],
+        ),
+        (
+            "ten thirty ~1000 that works we'll send the report",
+            2_000,
+            true,
+            "@2000 ^Ten ^thirty, ^ten ^thirty, ~200 that works, we'll send the report.",
+            -40.0,
+            -30.0,
+            &["ten thirty,"],
+        ),
+        // A longer pause before the remote side's words than round 37's: an
+        // even spread of the missed words would place the user's copy there.
+        (
+            "on se voit jeudi ~3000 à dix heures",
+            2_000,
+            true,
+            "@2000 On se voit jeudi ~3000 ^à ^dix ^heures, ^dix ^heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "we'll send you the report ~3000 before friday",
+            2_000,
+            true,
+            "@2000 We'll send you the report ~3000 ^before ^Friday, ^before ^Friday, great.",
+            -40.0,
+            -30.0,
+            &["before Friday, great."],
         ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
