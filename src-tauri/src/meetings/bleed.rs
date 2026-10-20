@@ -2,9 +2,9 @@
 //! their words would show twice: once under their name, once as "Me". A
 //! sentence of the microphone track is such an echo when the system track
 //! says the same words at the same moment, at least as loud. Only the
-//! clauses that echo go: a reply Codex set off with punctuation in the same
-//! sentence stays. The user talking over someone says different words, so it
-//! is kept.
+//! clauses that echo go, each judged on its own words: a reply Codex set off
+//! with punctuation in the same sentence stays, whatever surrounds it. The
+//! user talking over someone says different words, so it is kept.
 
 use std::ops::Range;
 
@@ -14,20 +14,16 @@ use super::chunking::FRAME_MS;
 use super::merge::{Track, Unit};
 use super::tokens::{Token, CLOSERS};
 
-/// An echo is heard while the system track plays it, so only system words
-/// said during the sentence, give or take this much for the word times, are
-/// compared with it. Further out, the remote side's next sentence would
-/// share a word with the user's reply ("le", "I'll") and pull it in.
+/// An echo is heard while the system track plays it, so a microphone
+/// sentence is compared only with a system sentence said at the same time,
+/// give or take this much for the sentence times.
 const SLACK_MS: u64 = 300;
 /// Share of the sentence's words found in the system track.
 const MIN_OVERLAP: f32 = 0.6;
-/// Share of a clause's words found in the system track for the clause to be
-/// part of the echo. Lower than the sentence's, so a clause of two words with
-/// a name or a time the recognisers spell apart ("à 15h.") still goes; a
-/// reply sharing one word with the remote side ("je le relis.") stays.
-const CLAUSE_OVERLAP: f32 = 0.5;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
+/// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
+const MIN_CLAUSE_WORDS: usize = 2;
 /// The system track must be no quieter than the microphone by more than this.
 const MAX_QUIETER_DB: f32 = 6.0;
 /// Two words this alike count as the same word.
@@ -62,8 +58,6 @@ struct Echo {
 /// A token of a microphone sentence heard on the system track.
 struct Heard {
     token: usize,
-    /// Its place among the system words said during the sentence.
-    word: usize,
     start_ms: u64,
     end_ms: u64,
 }
@@ -90,67 +84,38 @@ fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
     clauses
 }
 
-/// The echoes of the system track in the microphone sentence `unit`, in
-/// order; none when the sentence is not an echo. When in doubt, the user's
-/// words stay. A clause goes when the system track said at least
-/// `CLAUSE_OVERLAP` of its words, so a word the recognisers spell apart goes
-/// with its clause ("à 15h."). Any other clause stays, unless it lies alone
-/// between two such clauses whose edge words the system track said too, with
-/// system words between those two: it is then those words written otherwise
-/// ("jeudi, 15h30, devant"). A reply has no system words there ("le budget,
-/// oui, jeudi"), or sits beside an edge word written otherwise ("à 15h, oui,
-/// devant"), where nothing tells it from those words: it stays.
+/// The echoes of the system sentence said over `said_ms` in the microphone
+/// sentence `unit`, in order; none when the sentence is not an echo. When in
+/// doubt, the user's words stay: a clause goes only when it has at least
+/// `MIN_CLAUSE_WORDS` words and the system track said every one of them
+/// during that sentence. Every other clause stays, whatever its neighbours:
+/// a reply ("d'accord, je regarde."), and a word the recognisers spell apart
+/// ("à 15h."), which leaves some echo under "Me".
 fn echoes(
     unit: &Unit,
+    said_ms: (u64, u64),
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> Vec<Echo> {
-    let Some(heard) = echoed_words(unit, system_words, mic_levels, system_levels) else {
+    let Some(heard) = echoed_words(unit, said_ms, system_words, mic_levels, system_levels) else {
         return Vec::new();
     };
-    let clauses = clauses(&unit.tokens);
-    let keyed = |clause: &Range<usize>| {
-        clause
+    let echoed = |clause: &Range<usize>| {
+        let keyed: Vec<usize> = clause
             .clone()
             .filter(|&index| !unit.tokens[index].key.is_empty())
-    };
-    let found: Vec<Vec<&Heard>> = clauses
-        .iter()
-        .map(|clause| {
-            heard
+            .collect();
+        keyed.len() >= MIN_CLAUSE_WORDS
+            && keyed
                 .iter()
-                .filter(|heard| clause.contains(&heard.token))
-                .collect()
-        })
-        .collect();
-    let echoed: Vec<bool> = clauses
-        .iter()
-        .zip(&found)
-        .map(|(clause, found)| {
-            !found.is_empty() && found.len() as f32 >= CLAUSE_OVERLAP * keyed(clause).count() as f32
-        })
-        .collect();
-    let respelt = |index: usize| {
-        if index == 0 || index + 1 == clauses.len() || !echoed[index - 1] || !echoed[index + 1] {
-            return false;
-        }
-        let (Some(before), Some(after)) = (found[index - 1].last(), found[index + 1].first())
-        else {
-            return false;
-        };
-        keyed(&clauses[index - 1]).next_back() == Some(before.token)
-            && keyed(&clauses[index + 1]).next() == Some(after.token)
-            && after.word > before.word + 1
+                .all(|&index| heard.iter().any(|heard| heard.token == index))
     };
     let mut runs: Vec<Range<usize>> = Vec::new();
-    for (index, clause) in clauses.iter().enumerate() {
-        if !echoed[index] && !respelt(index) {
-            continue;
-        }
+    for clause in clauses(&unit.tokens).into_iter().filter(echoed) {
         match runs.last_mut() {
             Some(run) if run.end == clause.start => run.end = clause.end,
-            _ => runs.push(clause.clone()),
+            _ => runs.push(clause),
         }
     }
     runs.into_iter()
@@ -167,10 +132,13 @@ fn echoes(
         .collect()
 }
 
-/// The tokens of the microphone sentence `unit` heard on the system track,
-/// in order, if the sentence is an echo.
+/// The tokens of the microphone sentence `unit` heard on the system track
+/// within the system sentence said over `said_ms`, in order, if the sentence
+/// is an echo. What the remote side went on to say after that sentence does
+/// not count, even while the user was still speaking.
 fn echoed_words(
     unit: &Unit,
+    (said_start_ms, said_end_ms): (u64, u64),
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
@@ -187,7 +155,7 @@ fn echoed_words(
     }
     let nearby: Vec<&TimedWord> = system_words
         .iter()
-        .filter(|word| during(unit, word.start_ms, word.end_ms))
+        .filter(|word| word.start_ms < said_end_ms && word.end_ms > said_start_ms)
         .collect();
     let nearby_keys: Vec<&str> = nearby.iter().map(|word| word.key.as_str()).collect();
     let steps = align(&keys, &nearby_keys)?;
@@ -212,7 +180,6 @@ fn echoed_words(
         same.iter()
             .map(|&(m, s)| Heard {
                 token: indices[m],
-                word: s,
                 start_ms: nearby[s].start_ms,
                 end_ms: nearby[s].end_ms,
             })
@@ -248,6 +215,19 @@ fn around(unit: Unit, echoes: &[Echo]) -> Vec<Unit> {
         .collect()
 }
 
+/// Of the system sentences timed `transcribed`, the one said over `unit`
+/// that overlaps it most.
+fn said_over(unit: &Unit, transcribed: &[(u64, u64)]) -> Option<(u64, u64)> {
+    transcribed
+        .iter()
+        .copied()
+        .filter(|&(start, end)| during(unit, start, end))
+        .max_by_key(|&(start, end)| {
+            end.min(unit.end_ms)
+                .saturating_sub(start.max(unit.start_ms))
+        })
+}
+
 /// Removes the parts of microphone sentences that echo the system track.
 /// Returns how many echoes were removed. An echo is removed only where the
 /// system track has its own transcript: a reply too short to send to Codex,
@@ -266,14 +246,11 @@ pub fn remove_echoes(
     let mut removed = 0;
     let mut kept = Vec::with_capacity(units.len());
     for unit in units.drain(..) {
-        let found = if unit.track == Track::Mic
-            && transcribed
-                .iter()
-                .any(|&(start, end)| during(&unit, start, end))
-        {
-            echoes(&unit, system_words, mic_levels, system_levels)
-        } else {
-            Vec::new()
+        let found = match said_over(&unit, &transcribed) {
+            Some(said_ms) if unit.track == Track::Mic => {
+                echoes(&unit, said_ms, system_words, mic_levels, system_levels)
+            }
+            _ => Vec::new(),
         };
         if found.is_empty() {
             kept.push(unit);
@@ -313,8 +290,11 @@ mod tests {
             .collect()
     }
 
+    /// Whether `unit` echoes the system sentence of all the words in `system`.
     fn is_echo(unit: &Unit, system: &[TimedWord], mic_levels: &[f32], levels: &[f32]) -> bool {
-        !echoes(unit, system, mic_levels, levels).is_empty()
+        let sentence = (system[0].start_ms, system[system.len() - 1].end_ms);
+        said_over(unit, &[sentence])
+            .is_some_and(|said_ms| !echoes(unit, said_ms, system, mic_levels, levels).is_empty())
     }
 
     /// 20 s of levels: `db` everywhere.
@@ -419,16 +399,6 @@ mod tests {
             2_000,
             true,
             "We'll send you the report before Friday.",
-            -40.0,
-            -30.0,
-            &[],
-        ),
-        // A word Codex misheard inside the echo goes with it.
-        (
-            "on valide le budget jeudi prochain",
-            2_000,
-            true,
-            "On valide le bidule jeudi prochain.",
             -40.0,
             -30.0,
             &[],
@@ -548,44 +518,6 @@ mod tests {
             -30.0,
             &["okay, I'll read it."],
         ),
-        // Round 33: an edge word the on-device recogniser wrote otherwise
-        // is part of the echo's clause and goes with it.
-        (
-            "on se voit à quinze heures",
-            2_000,
-            true,
-            "On se voit à 15h.",
-            -40.0,
-            -30.0,
-            &[],
-        ),
-        (
-            "on en parle avec jean baptiste",
-            2_000,
-            true,
-            "On en parle avec Jean-Baptiste.",
-            -40.0,
-            -30.0,
-            &[],
-        ),
-        (
-            "we ship in q three",
-            2_000,
-            true,
-            "We ship in Q3.",
-            -40.0,
-            -30.0,
-            &[],
-        ),
-        (
-            "let's ask mary jane",
-            2_000,
-            true,
-            "Let's ask Mary-Jane.",
-            -40.0,
-            -30.0,
-            &[],
-        ),
         // Round 33: the remote side goes on during the reply (after " + ").
         (
             "on t'envoie le rapport avant vendredi + et le budget aussi",
@@ -623,9 +555,40 @@ mod tests {
             -30.0,
             &["right,"],
         ),
-        // A time, an amount or a name set off inside the echo that the
-        // on-device recogniser wrote otherwise goes with it: the system track
-        // said words there, where it said none for "oui,".
+        // Review 3: the remote side goes on during the reply with a word of
+        // it ("je", "I'll"); the reply stays.
+        (
+            "on t'envoie le rapport avant vendredi + et je te mets en copie",
+            2_000,
+            true,
+            "On t'envoie le rapport avant vendredi, d'accord, je regarde.",
+            -40.0,
+            -30.0,
+            &["d'accord, je regarde."],
+        ),
+        (
+            "we'll send you the report before friday + and i'll copy you",
+            2_000,
+            true,
+            "We'll send you the report before Friday, okay, I'll check.",
+            -40.0,
+            -30.0,
+            &["okay, I'll check."],
+        ),
+        (
+            "on t'envoie le rapport avant vendredi + et je te le renvoie",
+            2_000,
+            true,
+            "On t'envoie le rapport avant vendredi, d'accord, je le relis.",
+            -40.0,
+            -30.0,
+            &["d'accord, je le relis."],
+        ),
+        // Accepted echo left in the transcript. A clause goes only when the
+        // system track said every one of its words, whatever its neighbours,
+        // so these rows, which expected the echo gone, now keep part of it
+        // under "Me". A time, an amount or a name set off between echoed
+        // clauses no longer goes with them:
         (
             "on se retrouve jeudi quinze heures trente devant le bureau",
             2_000,
@@ -633,7 +596,7 @@ mod tests {
             "On se retrouve jeudi, 15h30, devant le bureau.",
             -40.0,
             -30.0,
-            &[],
+            &["15h30,"],
         ),
         (
             "we meet thursday three thirty by the office",
@@ -642,7 +605,7 @@ mod tests {
             "We meet Thursday, 3:30, by the office.",
             -40.0,
             -30.0,
-            &[],
+            &["3:30,"],
         ),
         (
             "le budget quinze mille euros est validé",
@@ -651,7 +614,7 @@ mod tests {
             "Le budget, 15 000 euros, est validé.",
             -40.0,
             -30.0,
-            &[],
+            &["15 000 euros,"],
         ),
         (
             "the budget fifteen thousand dollars is approved",
@@ -660,7 +623,7 @@ mod tests {
             "The budget, $15,000, is approved.",
             -40.0,
             -30.0,
-            &[],
+            &["$15,000,"],
         ),
         (
             "écoute jean baptiste on valide le budget",
@@ -669,10 +632,55 @@ mod tests {
             "Écoute, Jean-Baptiste, on valide le budget.",
             -40.0,
             -30.0,
-            &[],
+            &["Écoute, Jean-Baptiste,"],
         ),
-        // The system words between the echo's clauses are those of an edge
-        // word written otherwise ("15h"), not of the reply: the reply stays.
+        // A word the recognisers spell apart, or that Codex misheard, keeps
+        // its whole clause:
+        (
+            "on valide le budget jeudi prochain",
+            2_000,
+            true,
+            "On valide le bidule jeudi prochain.",
+            -40.0,
+            -30.0,
+            &["On valide le bidule jeudi prochain."],
+        ),
+        (
+            "on se voit à quinze heures",
+            2_000,
+            true,
+            "On se voit à 15h.",
+            -40.0,
+            -30.0,
+            &["On se voit à 15h."],
+        ),
+        (
+            "on en parle avec jean baptiste",
+            2_000,
+            true,
+            "On en parle avec Jean-Baptiste.",
+            -40.0,
+            -30.0,
+            &["On en parle avec Jean-Baptiste."],
+        ),
+        (
+            "we ship in q three",
+            2_000,
+            true,
+            "We ship in Q3.",
+            -40.0,
+            -30.0,
+            &["We ship in Q3."],
+        ),
+        (
+            "let's ask mary jane",
+            2_000,
+            true,
+            "Let's ask Mary-Jane.",
+            -40.0,
+            -30.0,
+            &["Let's ask Mary-Jane."],
+        ),
         (
             "on se voit à quinze heures devant le bureau",
             2_000,
@@ -680,7 +688,7 @@ mod tests {
             "On se voit à 15h, oui, devant le bureau.",
             -40.0,
             -30.0,
-            &["oui,"],
+            &["On se voit à 15h, oui,"],
         ),
         (
             "we meet at three thirty by the office",
@@ -689,7 +697,7 @@ mod tests {
             "We meet at 3:30, right, by the office.",
             -40.0,
             -30.0,
-            &["right,"],
+            &["We meet at 3:30, right,"],
         ),
     ];
 
