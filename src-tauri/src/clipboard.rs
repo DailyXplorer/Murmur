@@ -1,8 +1,9 @@
+use crate::accessibility::Element;
 use crate::input::{self, TargetedModifier};
 use crate::operation::ProcessingOperation;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
-use objc2_app_kit::NSWorkspace;
+use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -88,13 +89,41 @@ impl FrontmostTarget {
     }
 }
 
+/// Spotlight, Raycast and Alfred take the keyboard in a non-activating panel
+/// while the app behind it stays frontmost, and a pid-targeted event goes to
+/// that app, not to the panel. The keyboard focus wins unless it is Murmur's
+/// own or Accessibility cannot tell.
+fn keyboard_target_pid(frontmost: Option<i32>, focused: Option<i32>, own_pid: u32) -> Option<i32> {
+    focused
+        .filter(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
+        .or(frontmost)
+}
+
+/// The app that holds the keyboard, which every paste, typed text and Return
+/// is posted to.
 pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
-    let application = NSWorkspace::sharedWorkspace().frontmostApplication()?;
+    let frontmost = NSWorkspace::sharedWorkspace().frontmostApplication();
+    let focused = Element::system_wide()
+        .and_then(|system| system.element("AXFocusedApplication"))
+        .and_then(|application| application.pid());
+    let pid = keyboard_target_pid(
+        frontmost.as_ref().map(|app| app.processIdentifier()),
+        focused,
+        std::process::id(),
+    )?;
+    let application = match frontmost {
+        Some(app) if app.processIdentifier() == pid => Some(app),
+        _ => NSRunningApplication::runningApplicationWithProcessIdentifier(pid),
+    };
     FrontmostTarget::new(
-        application.processIdentifier(),
-        application.bundleIdentifier().map(|id| id.to_string()),
+        pid,
         application
-            .launchDate()
+            .as_ref()
+            .and_then(|app| app.bundleIdentifier())
+            .map(|id| id.to_string()),
+        application
+            .as_ref()
+            .and_then(|app| app.launchDate())
             .map(|date| date.timeIntervalSinceReferenceDate()),
     )
 }
@@ -465,6 +494,30 @@ mod tests {
         assert_eq!(FrontmostTarget::new(0, None, None), None);
         let own_pid = i32::try_from(std::process::id()).unwrap();
         assert_eq!(FrontmostTarget::new(own_pid, None, None), None);
+    }
+
+    #[test]
+    fn output_goes_to_the_app_that_holds_the_keyboard() {
+        const OWN: u32 = 7;
+        // (frontmost, focused, expected)
+        let cases = [
+            // Spotlight's panel over Slack: the panel holds the keyboard.
+            (Some(100), Some(200), Some(200)),
+            (Some(100), Some(100), Some(100)),
+            // No Accessibility answer, or Murmur's own window.
+            (Some(100), None, Some(100)),
+            (Some(100), Some(7), Some(100)),
+            (Some(100), Some(0), Some(100)),
+            (None, Some(200), Some(200)),
+            (None, None, None),
+        ];
+        for (frontmost, focused, expected) in cases {
+            assert_eq!(
+                keyboard_target_pid(frontmost, focused, OWN),
+                expected,
+                "frontmost {frontmost:?}, focused {focused:?}"
+            );
+        }
     }
 
     #[test]
