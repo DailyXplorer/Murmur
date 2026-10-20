@@ -72,19 +72,21 @@ fn cheaper(paired: f32, unpaired: f32) -> (f32, u8) {
 /// Aligns `codex` against `local` (comparison keys). Every Codex word appears
 /// exactly once, in order. `None` when the inputs are too large.
 pub fn align(codex: &[&str], local: &[&str]) -> Option<Vec<Step>> {
-    align_by(codex.len(), local.len(), 0.0, |i, j| {
-        pair_cost(codex[i], local[j])
-    })
+    align_by(
+        codex.len(),
+        local.len(),
+        |_, _| 0.0,
+        |i, j| pair_cost(codex[i], local[j]),
+    )
 }
 
 /// `align` for `n` Codex words and `m` on-device words, where pairing Codex
 /// word `i` with on-device word `j` costs `pair_cost(i, j)`, and each run of
-/// paired Codex words costs `run_cost` more: of two alignments otherwise
-/// equal, the one that pairs fewer, longer runs wins.
+/// paired Codex words costs `run_cost(i, j)` more, `(i, j)` its first pair.
 pub fn align_by(
     n: usize,
     m: usize,
-    run_cost: f32,
+    run_cost: impl Fn(usize, usize) -> f32,
     pair_cost: impl Fn(usize, usize) -> f32,
 ) -> Option<Vec<Step>> {
     if (n + 1).saturating_mul(m + 1) > MAX_CELLS {
@@ -103,8 +105,10 @@ pub fn align_by(
         unpaired[0] = i as f32 * CODEX_GAP;
         from[i * width] = FROM_LOCAL | (AFTER_UNPAIRED << 2);
         for j in 1..=m {
-            let (before, after) =
-                cheaper(previous_paired[j - 1], previous_unpaired[j - 1] + run_cost);
+            let (before, after) = cheaper(
+                previous_paired[j - 1],
+                previous_unpaired[j - 1] + run_cost(i - 1, j - 1),
+            );
             let pair = before + pair_cost(i - 1, j - 1);
             let skip_local = paired[j - 1] + LOCAL_GAP;
             let paired_from = if pair <= skip_local {
@@ -266,9 +270,12 @@ mod tests {
     fn a_run_cost_pairs_the_copy_that_runs_on() {
         let paired = |codex: &str, local: &str| -> Vec<(usize, usize)> {
             let (codex, local) = (words(codex), words(local));
-            align_by(codex.len(), local.len(), 0.0001, |i, j| {
-                pair_cost(codex[i], local[j])
-            })
+            align_by(
+                codex.len(),
+                local.len(),
+                |_, _| 0.0001,
+                |i, j| pair_cost(codex[i], local[j]),
+            )
             .unwrap()
             .into_iter()
             .filter_map(|step| match step {

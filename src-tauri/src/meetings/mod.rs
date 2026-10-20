@@ -653,8 +653,14 @@ impl MeetingsManager {
     }
 
     /// Processes an interrupted meeting, or the parts of a failed one that
-    /// are missing.
+    /// are missing. It shows as waiting at once, even while another meeting
+    /// is processing.
     pub fn retry(&self, id: i64) {
+        match self.store.wait_for_retry(id) {
+            Ok(true) => self.updated(id),
+            Ok(false) => {}
+            Err(error) => error!("Meeting {id}: cannot mark it waiting: {error}"),
+        }
         self.queue.enqueue_asked(id);
     }
 

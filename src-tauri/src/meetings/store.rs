@@ -867,6 +867,19 @@ impl MeetingsStore {
         Ok(updated > 0)
     }
 
+    /// Makes a failed or interrupted meeting wait for processing, as Retry
+    /// asks: it shows as waiting while other meetings go first, not as still
+    /// failed. `begin_processing` clears its error when its turn comes.
+    /// Returns false when it is neither.
+    pub fn wait_for_retry(&self, id: i64) -> Result<bool> {
+        let updated = self.connection()?.execute(
+            "UPDATE meetings SET status = 'processing', stage = NULL
+             WHERE id = ?1 AND status IN ('failed', 'interrupted')",
+            params![id],
+        )?;
+        Ok(updated > 0)
+    }
+
     /// Makes a finished meeting wait for processing again, to tell its
     /// speakers apart anew. Returns false when it is not finished.
     pub fn reopen(&self, id: i64) -> Result<bool> {
@@ -1285,6 +1298,36 @@ mod tests {
             assert!(reader.duration() >= 31_840);
         }
         assert_eq!(store.recover_interrupted(&root).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_retried_meeting_waits_for_processing_at_once() {
+        let (dir, store) = store();
+        let failed = recorded(&store);
+        store.begin_processing(failed).unwrap();
+        store
+            .finish_processing(failed, Some(ProcessingError::SignedOut))
+            .unwrap();
+        let interrupted = store.insert_recording(1, MeetingTracks::Mic).unwrap();
+        store.recover_interrupted(dir.path()).unwrap();
+
+        // Another meeting is processing: the worker takes these later.
+        for id in [failed, interrupted] {
+            assert!(store.wait_for_retry(id).unwrap());
+            let meeting = store.get(id).unwrap().unwrap();
+            assert_eq!(meeting.status, MeetingStatus::Processing);
+            assert_eq!(meeting.stage, None);
+            assert!(!store.wait_for_retry(id).unwrap());
+        }
+        // A quit before their turn processes them at the next launch.
+        assert_eq!(
+            store.waiting_for_processing().unwrap(),
+            [failed, interrupted]
+        );
+        assert!(store.begin_processing(failed).unwrap());
+        assert_eq!(store.get(failed).unwrap().unwrap().error, None);
+        store.finish_processing(failed, None).unwrap();
+        assert!(!store.wait_for_retry(failed).unwrap(), "ready");
     }
 
     #[test]
