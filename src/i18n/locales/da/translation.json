@@ -184,13 +184,15 @@
         "title": "Mikrofon",
         "description": "Vælg din foretrukne mikrofonenhed",
         "placeholder": "Vælg mikrofon...",
-        "loading": "Indlæser..."
+        "loading": "Indlæser...",
+        "changeFailed": "Mikrofonen kunne ikke skiftes. Stop den igangværende diktering, og prøv igen."
       },
       "channel": {
         "title": "Inputkanal",
         "description": "Vælg, hvilken inputkanal der skal optages fra. Brug dette, hvis din lydgrænseflade har flere indgange.",
         "average": "Gennemsnit af alle kanaler",
-        "channel": "Kanal {{n}}"
+        "channel": "Kanal {{n}}",
+        "changeFailed": "Inputkanalen kunne ikke skiftes. Stop den igangværende diktering, og prøv igen."
       },
       "audioFeedback": {
         "label": "Lydfeedback",

@@ -184,13 +184,15 @@
         "title": "麦克风",
         "description": "选择您偏好的麦克风设备",
         "placeholder": "选择麦克风...",
-        "loading": "加载中..."
+        "loading": "加载中...",
+        "changeFailed": "无法切换麦克风。请先停止正在进行的听写，然后重试。"
       },
       "channel": {
         "title": "输入通道",
         "description": "选择要录制的输入通道。如果您的音频接口有多个输入，请使用此选项。",
         "average": "所有通道的平均值",
-        "channel": "通道 {{n}}"
+        "channel": "通道 {{n}}",
+        "changeFailed": "无法切换输入通道。请先停止正在进行的听写，然后重试。"
       },
       "audioFeedback": {
         "label": "音频反馈",

@@ -184,13 +184,15 @@
         "title": "Mikrofon",
         "description": "Bevorzugtes Mikrofon auswählen",
         "placeholder": "Mikrofon auswählen...",
-        "loading": "Wird geladen..."
+        "loading": "Wird geladen...",
+        "changeFailed": "Das Mikrofon konnte nicht gewechselt werden. Beende das laufende Diktat und versuche es erneut."
       },
       "channel": {
         "title": "Eingangskanal",
         "description": "Wähle den Eingangskanal aus, von dem aufgenommen werden soll. Verwende diese Option, wenn dein Audio-Interface mehrere Eingänge hat.",
         "average": "Alle Kanäle mitteln",
-        "channel": "Kanal {{n}}"
+        "channel": "Kanal {{n}}",
+        "changeFailed": "Der Eingangskanal konnte nicht gewechselt werden. Beende das laufende Diktat und versuche es erneut."
       },
       "audioFeedback": {
         "label": "Audio-Feedback",

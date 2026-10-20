@@ -184,13 +184,15 @@
         "title": "Microfone",
         "description": "Selecione seu dispositivo de microfone preferido",
         "placeholder": "Selecionar microfone...",
-        "loading": "Carregando..."
+        "loading": "Carregando...",
+        "changeFailed": "Não foi possível trocar o microfone. Pare o ditado em andamento e tente novamente."
       },
       "channel": {
         "title": "Canal de entrada",
         "description": "Selecione o canal de entrada que será gravado. Use esta opção se a sua interface de áudio tiver várias entradas.",
         "average": "Média de todos os canais",
-        "channel": "Canal {{n}}"
+        "channel": "Canal {{n}}",
+        "changeFailed": "Não foi possível trocar o canal de entrada. Pare o ditado em andamento e tente novamente."
       },
       "audioFeedback": {
         "label": "Feedback de Áudio",

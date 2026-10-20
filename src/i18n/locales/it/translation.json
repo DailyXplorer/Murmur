@@ -184,13 +184,15 @@
         "title": "Microfono",
         "description": "Scegli il microfono preferito",
         "placeholder": "Scegli microfono...",
-        "loading": "Caricamento..."
+        "loading": "Caricamento...",
+        "changeFailed": "Impossibile cambiare il microfono. Interrompi la dettatura in corso e riprova."
       },
       "channel": {
         "title": "Canale di ingresso",
         "description": "Seleziona il canale di ingresso da cui registrare. Usa questa opzione se l'interfaccia audio dispone di più ingressi.",
         "average": "Media di tutti i canali",
-        "channel": "Canale {{n}}"
+        "channel": "Canale {{n}}",
+        "changeFailed": "Impossibile cambiare il canale di ingresso. Interrompi la dettatura in corso e riprova."
       },
       "audioFeedback": {
         "label": "Feedback Audio",

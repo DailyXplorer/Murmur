@@ -184,13 +184,15 @@
         "title": "Micrófono",
         "description": "Selecciona tu dispositivo de micrófono preferido",
         "placeholder": "Seleccionar micrófono...",
-        "loading": "Cargando..."
+        "loading": "Cargando...",
+        "changeFailed": "No se pudo cambiar el micrófono. Detén el dictado en curso y vuelve a intentarlo."
       },
       "channel": {
         "title": "Canal de entrada",
         "description": "Selecciona el canal de entrada desde el que se grabará. Usa esta opción si tu interfaz de audio tiene varias entradas.",
         "average": "Promediar todos los canales",
-        "channel": "Canal {{n}}"
+        "channel": "Canal {{n}}",
+        "changeFailed": "No se pudo cambiar el canal de entrada. Detén el dictado en curso y vuelve a intentarlo."
       },
       "audioFeedback": {
         "label": "Retroalimentación de audio",

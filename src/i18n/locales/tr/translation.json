@@ -184,13 +184,15 @@
         "title": "Mikrofon",
         "description": "Tercih ettiğiniz mikrofon cihazını seçin",
         "placeholder": "Mikrofon seçin...",
-        "loading": "Yükleniyor..."
+        "loading": "Yükleniyor...",
+        "changeFailed": "Mikrofon değiştirilemedi. Devam eden dikteyi durdurup yeniden deneyin."
       },
       "channel": {
         "title": "Giriş Kanalı",
         "description": "Kayıt yapılacak giriş kanalını seçin. Ses arabiriminizde birden fazla giriş varsa bu seçeneği kullanın.",
         "average": "Tüm kanalların ortalaması",
-        "channel": "Kanal {{n}}"
+        "channel": "Kanal {{n}}",
+        "changeFailed": "Giriş kanalı değiştirilemedi. Devam eden dikteyi durdurup yeniden deneyin."
       },
       "audioFeedback": {
         "label": "Sesli Geri Bildirim",
