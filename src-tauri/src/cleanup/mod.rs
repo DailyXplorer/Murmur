@@ -166,6 +166,8 @@ async fn clean_with_session(
         max_output_chars: reply::max_output_chars(raw.chars().count()),
         effort: "low",
         verbosity: "low",
+        // Short: a dictation that waits ends with the raw text anyway.
+        connect_timeout: Duration::from_secs(3),
     };
     let output = responses::complete(url, session, &request, operation).await?;
     accept(raw, &output, context)

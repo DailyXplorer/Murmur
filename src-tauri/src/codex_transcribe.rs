@@ -27,6 +27,9 @@ pub const UPLOAD_SOFT_LIMIT_BYTES: usize = 25 * 1024 * 1024;
 /// shared by the uploads that run at once.
 const BASE_REQUEST_TIMEOUT_SECS: u64 = 60;
 const TIMEOUT_BYTES_PER_EXTRA_SECOND: u64 = 64 * 1024;
+/// For the TCP and TLS handshakes: about three round trips, so a link of a
+/// second or more of round-trip time still connects.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Deserialize)]
 struct TranscribeJson {
@@ -143,7 +146,7 @@ async fn transcribe_with_session_at(
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
     let client = reqwest::Client::builder()
         .user_agent(user_agent())
-        .connect_timeout(Duration::from_secs(10))
+        .connect_timeout(CONNECT_TIMEOUT)
         .timeout(timeout)
         .build()
         .map_err(|error| {

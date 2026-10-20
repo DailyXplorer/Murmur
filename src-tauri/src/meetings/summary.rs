@@ -303,14 +303,7 @@ impl Summarizer for CodexSummarizer {
             let mut session = codex_auth::session_for_request(&auth_path).await?;
             let model =
                 responses::default_model(&responses::models_url(&url), &session, codex_home).await;
-            let mut request = Request {
-                model: &model,
-                instructions: &instructions,
-                user_message: &input,
-                max_output_chars: MAX_OUTPUT_CHARS,
-                effort: "medium",
-                verbosity: "medium",
-            };
+            let mut request = summary_request(&model, &instructions, &input);
             let mut result = responses::complete(&url, &session, &request, &operation).await;
             if let Err(CompletionError::Failed {
                 kind: FailureKind::SessionExpired,
@@ -331,6 +324,21 @@ impl Summarizer for CodexSummarizer {
                 other => other,
             }
         })
+    }
+}
+
+/// One summary call to Codex.
+fn summary_request<'a>(model: &'a str, instructions: &'a str, input: &'a str) -> Request<'a> {
+    Request {
+        model,
+        instructions,
+        user_message: input,
+        max_output_chars: MAX_OUTPUT_CHARS,
+        effort: "medium",
+        verbosity: "medium",
+        // As long as a transcription piece: the summary has no fallback, and
+        // retrying on the same slow link would only time out again.
+        connect_timeout: crate::codex_transcribe::CONNECT_TIMEOUT,
     }
 }
 
@@ -533,6 +541,12 @@ mod tests {
     use super::*;
     use crate::OperationId;
     use std::sync::Mutex;
+
+    #[test]
+    fn a_summary_connects_on_any_link_a_transcription_connects_on() {
+        let request = summary_request("model", "instructions", "transcript");
+        assert!(request.connect_timeout >= crate::codex_transcribe::CONNECT_TIMEOUT);
+    }
 
     fn speaker(key: &str, name: &str) -> MeetingSpeaker {
         MeetingSpeaker {

@@ -66,10 +66,13 @@ pub struct Request<'a> {
     pub effort: &'a str,
     /// `low`, `medium` or `high`: how much the model writes.
     pub verbosity: &'a str,
+    /// How long to wait for the TCP and TLS handshakes.
+    pub connect_timeout: Duration,
 }
 
 /// Posts one request and returns the streamed output text. The caller owns
-/// the overall deadline; this only bounds connecting.
+/// the overall deadline; this only bounds connecting, by the request's
+/// `connect_timeout`.
 pub async fn complete(
     url: &str,
     session: &Session,
@@ -78,7 +81,7 @@ pub async fn complete(
 ) -> Result<String, CompletionError> {
     let client = reqwest::Client::builder()
         .user_agent(crate::codex_transcribe::user_agent())
-        .connect_timeout(Duration::from_secs(3))
+        .connect_timeout(request.connect_timeout)
         .build()
         .map_err(|error| CompletionError::failed(FailureKind::Other, error.to_string()))?;
 
