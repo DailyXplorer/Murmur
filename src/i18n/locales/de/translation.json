@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
     "meetingSystemAudioInterrupted": "Der Systemton wurde nach einem Wechsel der Audioausgabe unterbrochen. Murmur versucht weiter, ihn wiederherzustellen; dein Mikrofon wird weiter aufgenommen.",
     "meetingMicrophoneInterrupted": "Das Mikrofon nimmt nicht mehr auf. Murmur versucht weiter, es wiederherzustellen; prüfe, ob es noch verbunden ist.",
-    "meetingMicrophoneDenied": "Der Mikrofonzugriff ist aus, daher nimmt das Meeting deine Stimme nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon."
+    "meetingMicrophoneDenied": "Der Mikrofonzugriff ist aus, daher nimmt das Meeting deine Stimme nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
+    "meetingSystemAudioDenied": "Die Systemaudioaufnahme ist aus, daher nimmt das Meeting die anderen Teilnehmer nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme."
   },
   "sidebar": {
     "general": "Allgemein",

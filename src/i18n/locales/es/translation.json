@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva.",
     "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando.",
     "meetingMicrophoneInterrupted": "El micrófono dejó de grabar. Murmur sigue intentando recuperarlo; comprueba que siga conectado.",
-    "meetingMicrophoneDenied": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Micrófono."
+    "meetingMicrophoneDenied": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
+    "meetingSystemAudioDenied": "La grabación de audio del sistema está desactivada, así que la reunión no graba a los demás participantes. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema."
   },
   "sidebar": {
     "general": "General",

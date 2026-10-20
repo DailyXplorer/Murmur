@@ -37,7 +37,8 @@
     "meetingLowDiskSpace": "Bu Mac'te 1,5 GB'tan az boş alan var. Uzun bir toplantı erken durabilir; kaydedilenler saklanır.",
     "meetingSystemAudioInterrupted": "Ses çıkışı değiştikten sonra sistem sesi durdu. Murmur onu geri getirmeyi denemeye devam ediyor; mikrofonunuz hâlâ kaydediliyor.",
     "meetingMicrophoneInterrupted": "Mikrofon kaydı durdu. Murmur onu geri getirmeyi denemeye devam ediyor; hâlâ bağlı olduğunu kontrol edin.",
-    "meetingMicrophoneDenied": "Mikrofon erişimi kapalı, bu nedenle toplantı sesinizi kaydetmiyor. Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden Murmur'a izin verin."
+    "meetingMicrophoneDenied": "Mikrofon erişimi kapalı, bu nedenle toplantı sesinizi kaydetmiyor. Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon bölümünden Murmur'a izin verin.",
+    "meetingSystemAudioDenied": "Sistem sesi kaydı kapalı, bu nedenle toplantı diğer katılımcıları kaydetmiyor. Sistem Ayarları → Gizlilik ve Güvenlik → Ekran ve Sistem Sesi Kaydı bölümünden Murmur'a izin verin."
   },
   "sidebar": {
     "general": "Genel",
