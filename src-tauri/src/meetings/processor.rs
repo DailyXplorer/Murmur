@@ -710,8 +710,14 @@ fn build_transcript(
         audio.get(&Track::System),
         words.get(&Track::System),
     ) {
+        let mic_chunk_starts: Vec<u64> = chunks
+            .iter()
+            .filter(|chunk| chunk.track == Track::Mic)
+            .map(|chunk| chunk.start_ms)
+            .collect();
         let removed = remove_echoes(
             &mut units,
+            &mic_chunk_starts,
             system_words,
             &mic.levels.levels,
             &system.levels.levels,
