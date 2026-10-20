@@ -76,6 +76,9 @@ pub enum MicrophoneMode {
 struct MuteState {
     did_mute: bool,
     prev_muted: Option<bool>,
+    /// Murmur is quitting: no recording mutes any more, as a mute applied
+    /// now would outlive the process.
+    quitting: bool,
 }
 
 impl MuteState {
@@ -90,7 +93,7 @@ impl MuteState {
     ) {
         // A duplicate apply must not re-snapshot our own forced mute as the
         // user's state, or release would leave audio muted.
-        if !current || self.did_mute {
+        if !current || self.did_mute || self.quitting {
             return;
         }
         self.prev_muted = read_system();
@@ -105,6 +108,11 @@ impl MuteState {
             self.did_mute = false;
             debug!("Mute removed (restored prev_muted={:?})", self.prev_muted);
         }
+    }
+
+    fn release_for_good(&mut self, restore_system: impl FnOnce(Option<bool>)) {
+        self.release(restore_system);
+        self.quitting = true;
     }
 }
 
@@ -508,6 +516,15 @@ impl AudioRecordingManager {
     /// (a system already muted before recording stays muted).
     pub fn remove_mute(&self) {
         self.mute_state.lock().unwrap().release(restore_mute);
+    }
+
+    /// Removes mute as Murmur quits, and refuses it to every later recording:
+    /// one may still start, and become ready, before the process ends.
+    pub fn remove_mute_for_good(&self) {
+        self.mute_state
+            .lock()
+            .unwrap()
+            .release_for_good(restore_mute);
     }
 
     pub fn ensure_recorder(&self) -> Result<(), anyhow::Error> {
@@ -1093,6 +1110,27 @@ mod tests {
 
         assert!(system.borrow().is_empty());
         assert!(!mute.did_mute);
+    }
+
+    #[test]
+    fn no_recording_can_mute_once_quitting_released_the_mute() {
+        let system = RefCell::new(Vec::new());
+        let mut mute = MuteState::default();
+
+        mute.engage(
+            true,
+            || Some(false),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+        mute.release_for_good(|prev| system.borrow_mut().push(format!("restore {prev:?}")));
+        // A dictation started while quitting has a current generation.
+        mute.engage(
+            true,
+            || Some(false),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+
+        assert_eq!(*system.borrow(), ["mute", "restore Some(false)"]);
     }
 
     #[test]
