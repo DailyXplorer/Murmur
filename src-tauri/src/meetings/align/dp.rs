@@ -17,7 +17,7 @@ const LOCAL_GAP: f32 = 0.3;
 /// when they are unrelated. A match must earn, not just cost less: since the
 /// on-device words around the chunk are free to skip, a pairing that only
 /// cost less would let the alignment skip a true match at the edges.
-fn pair_cost(a: &str, b: &str) -> f32 {
+pub fn pair_cost(a: &str, b: &str) -> f32 {
     1.0 - 2.0 * similarity(a, b)
 }
 
@@ -60,7 +60,14 @@ const FROM_LOCAL: u8 = 2;
 /// Aligns `codex` against `local` (comparison keys). Every Codex word appears
 /// exactly once, in order. `None` when the inputs are too large.
 pub fn align(codex: &[&str], local: &[&str]) -> Option<Vec<Step>> {
-    let (n, m) = (codex.len(), local.len());
+    align_by(codex.len(), local.len(), |i, j| {
+        pair_cost(codex[i], local[j])
+    })
+}
+
+/// `align` for `n` Codex words and `m` on-device words, where pairing Codex
+/// word `i` with on-device word `j` costs `pair_cost(i, j)`.
+pub fn align_by(n: usize, m: usize, pair_cost: impl Fn(usize, usize) -> f32) -> Option<Vec<Step>> {
     if (n + 1).saturating_mul(m + 1) > MAX_CELLS {
         return None;
     }
@@ -73,7 +80,7 @@ pub fn align(codex: &[&str], local: &[&str]) -> Option<Vec<Step>> {
         current[0] = i as f32 * CODEX_GAP;
         from[i * width] = FROM_CODEX;
         for j in 1..=m {
-            let pair = previous[j - 1] + pair_cost(codex[i - 1], local[j - 1]);
+            let pair = previous[j - 1] + pair_cost(i - 1, j - 1);
             let skip_codex = previous[j] + CODEX_GAP;
             let skip_local = current[j - 1] + LOCAL_GAP;
             let (cost, step) = if pair <= skip_codex && pair <= skip_local {
