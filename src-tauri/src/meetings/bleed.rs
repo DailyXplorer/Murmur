@@ -12,8 +12,11 @@ use super::align::TimedWord;
 use super::chunking::FRAME_MS;
 use super::merge::{Track, Unit};
 
-/// System words this far around the sentence are compared with it.
-const AROUND_MS: u64 = 1_500;
+/// An echo is heard while the system track plays it, so only system words
+/// said during the sentence, give or take this much for the word times, are
+/// compared with it. Further out, the remote side's next sentence would
+/// share a word with the user's reply ("le", "I'll") and pull it in.
+const SLACK_MS: u64 = 300;
 /// Share of the sentence's words found in the system track.
 const MIN_OVERLAP: f32 = 0.6;
 /// Shorter sentences ("Oui.") are too common to judge.
@@ -34,6 +37,11 @@ pub fn mean_level(levels: &[f32], start_ms: u64, end_ms: u64) -> Option<f32> {
     let power: f32 =
         frames.iter().map(|db| 10f32.powf(db / 10.0)).sum::<f32>() / frames.len() as f32;
     Some(10.0 * power.max(1e-12).log10())
+}
+
+/// Whether `[start_ms, end_ms)` overlaps `unit`, within `SLACK_MS`.
+fn during(unit: &Unit, start_ms: u64, end_ms: u64) -> bool {
+    start_ms < unit.end_ms + SLACK_MS && end_ms + SLACK_MS > unit.start_ms
 }
 
 /// The part of a microphone sentence that echoes the system track.
@@ -62,11 +70,9 @@ fn echo(
     if keys.len() < MIN_WORDS {
         return None;
     }
-    let from = unit.start_ms.saturating_sub(AROUND_MS);
-    let to = unit.end_ms + AROUND_MS;
     let nearby: Vec<&TimedWord> = system_words
         .iter()
-        .filter(|word| word.start_ms >= from && word.end_ms <= to)
+        .filter(|word| during(unit, word.start_ms, word.end_ms))
         .collect();
     let nearby_keys: Vec<&str> = nearby.iter().map(|word| word.key.as_str()).collect();
     let steps = align(&keys, &nearby_keys)?;
@@ -144,12 +150,10 @@ pub fn remove_echoes(
     let mut removed = 0;
     let mut kept = Vec::with_capacity(units.len());
     for unit in units.drain(..) {
-        let from = unit.start_ms.saturating_sub(AROUND_MS);
-        let to = unit.end_ms + AROUND_MS;
         let found = (unit.track == Track::Mic
             && transcribed
                 .iter()
-                .any(|&(start, end)| start < to && end > from))
+                .any(|&(start, end)| during(&unit, start, end)))
         .then(|| echo(&unit, system_words, mic_levels, system_levels))
         .flatten();
         match found {
@@ -276,9 +280,10 @@ mod tests {
         );
     }
 
-    /// What the system track said and when, whether it has its own
-    /// transcript there, what the microphone wrote from 2.1 s, the two
-    /// levels, and the microphone sentences left. Every reported case stays.
+    /// What the system track said and when (after " / ", what it said once
+    /// the microphone sentence was over), whether it has its own transcript
+    /// there, what the microphone wrote from 2.1 s, the two levels, and the
+    /// microphone sentences left. Every reported case stays.
     #[allow(clippy::type_complexity)]
     const CORPUS: &[(&str, u64, bool, &str, f32, f32, &[&str])] = &[
         (
@@ -404,13 +409,37 @@ mod tests {
             -30.0,
             &["Sure,"],
         ),
+        // The remote side goes on right after the reply, with a word of the
+        // reply ("le", "I'll"): that word is not part of the echo.
+        (
+            "on t'envoie le rapport avant vendredi / super et le budget",
+            2_000,
+            true,
+            "On t'envoie le rapport avant vendredi, d'accord, je le relis.",
+            -40.0,
+            -30.0,
+            &["d'accord, je le relis."],
+        ),
+        (
+            "we'll send you the report before friday / great and i'll share",
+            2_000,
+            true,
+            "We'll send you the report before Friday, okay, I'll read it.",
+            -40.0,
+            -30.0,
+            &["okay, I'll read it."],
+        ),
     ];
 
     #[test]
     fn echo_corpus() {
         for &(said, at_ms, transcribed, written, mic_db, system_db, kept) in CORPUS {
-            let system = heard(said, at_ms, 400);
             let end_ms = |start_ms: u64, text: &str| start_ms + tokenize(text).len() as u64 * 400;
+            let (said, then) = said.split_once(" / ").unwrap_or((said, ""));
+            let mut system = heard(said, at_ms, 400);
+            if !then.is_empty() {
+                system.extend(heard(then, end_ms(2_100, written) + 200, 400));
+            }
             let mut units = vec![if transcribed {
                 let mut unit = mic(said, at_ms, end_ms(at_ms, said));
                 unit.track = Track::System;
@@ -449,6 +478,27 @@ mod tests {
             .map(|unit| (unit.start_ms, unit.end_ms))
             .collect();
         assert_eq!(mic_times, [(1_500, 2_000), (4_400, 5_400)]);
+    }
+
+    #[test]
+    fn a_reply_shares_no_word_with_what_the_remote_side_said_before_it() {
+        // "then I'll call you" ends just before the user answers, and the
+        // reply's "I'll" must not pull the echo back over it.
+        let mut system = heard("then i'll call you", 200, 400);
+        system.extend(heard("we'll send you the report before friday", 3_200, 400));
+        let mut said = mic("We'll send you the report before Friday.", 3_200, 6_000);
+        said.track = Track::System;
+        let mut units = vec![
+            said,
+            mic(
+                "Sure, I'll wait, we'll send you the report before Friday.",
+                2_000,
+                6_100,
+            ),
+        ];
+        remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0));
+        let left: Vec<String> = units[1..].iter().map(|unit| join(&unit.tokens)).collect();
+        assert_eq!(left, ["Sure, I'll wait,"]);
     }
 
     #[test]
