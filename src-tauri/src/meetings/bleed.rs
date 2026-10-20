@@ -15,8 +15,8 @@ use super::merge::{Track, Unit};
 use super::tokens::{Token, CLOSERS};
 
 /// An echo is heard while the system track plays it, so a microphone
-/// sentence is compared only with a system sentence said at the same time,
-/// give or take this much for the sentence times.
+/// sentence is compared only with the words of a system sentence said at the
+/// same time, give or take this much for the sentence and word times.
 const SLACK_MS: u64 = 300;
 /// Share of the sentence's words found in the system track.
 const MIN_OVERLAP: f32 = 0.6;
@@ -133,9 +133,10 @@ fn echoes(
 }
 
 /// The tokens of the microphone sentence `unit` heard on the system track
-/// within the system sentence said over `said_ms`, in order, if the sentence
-/// is an echo. What the remote side went on to say after that sentence does
-/// not count, even while the user was still speaking.
+/// while the user spoke and within the system sentence said over `said_ms`,
+/// in order, if the sentence is an echo. What the remote side went on to say
+/// after that sentence does not count, even while the user was still
+/// speaking, nor what it said in it seconds before the user repeated it.
 fn echoed_words(
     unit: &Unit,
     (said_start_ms, said_end_ms): (u64, u64),
@@ -155,7 +156,11 @@ fn echoed_words(
     }
     let nearby: Vec<&TimedWord> = system_words
         .iter()
-        .filter(|word| word.start_ms < said_end_ms && word.end_ms > said_start_ms)
+        .filter(|word| {
+            during(unit, word.start_ms, word.end_ms)
+                && word.start_ms < said_end_ms
+                && word.end_ms > said_start_ms
+        })
         .collect();
     let nearby_keys: Vec<&str> = nearby.iter().map(|word| word.key.as_str()).collect();
     let steps = align(&keys, &nearby_keys)?;
@@ -381,8 +386,8 @@ mod tests {
     /// What the system track said and when (after " + ", what it went on to
     /// say 200 ms later, during the microphone sentence; after " / ", what it
     /// said once that sentence was over), whether it has its own transcript
-    /// there, what the microphone wrote from 2.1 s, the two levels, and the
-    /// microphone sentences left. Every reported case stays.
+    /// there, what the microphone wrote from 2.1 s (or from the time after
+    /// "@", in ms), the two levels, and the microphone sentences left. Every reported case stays.
     #[allow(clippy::type_complexity)]
     const CORPUS: &[(&str, u64, bool, &str, f32, f32, &[&str])] = &[
         (
@@ -584,11 +589,32 @@ mod tests {
             -30.0,
             &["d'accord, je le relis."],
         ),
+        // Review 4: with headphones, the user repeats a time the remote side
+        // said seconds earlier in the same long sentence; the repeat stays.
+        (
+            "on se voit jeudi à dix heures dans la grande salle avec toute l'équipe",
+            2_000,
+            true,
+            "@6400 Jeudi, dix heures, ok.",
+            -25.0,
+            -20.0,
+            &["Jeudi, dix heures, ok."],
+        ),
+        (
+            "so we meet on thursday at ten in the big room with the whole team",
+            2_000,
+            true,
+            "@6400 Thursday at ten, okay.",
+            -25.0,
+            -20.0,
+            &["Thursday at ten, okay."],
+        ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
         // so these rows, which expected the echo gone, now keep part of it
         // under "Me". A time, an amount or a name set off between echoed
-        // clauses no longer goes with them:
+        // clauses no longer goes with them, nor a last clause the system
+        // track ends after the microphone sentence ("devant le bureau."):
         (
             "on se retrouve jeudi quinze heures trente devant le bureau",
             2_000,
@@ -596,7 +622,7 @@ mod tests {
             "On se retrouve jeudi, 15h30, devant le bureau.",
             -40.0,
             -30.0,
-            &["15h30,"],
+            &["15h30, devant le bureau."],
         ),
         (
             "we meet thursday three thirty by the office",
@@ -623,7 +649,7 @@ mod tests {
             "The budget, $15,000, is approved.",
             -40.0,
             -30.0,
-            &["$15,000,"],
+            &["$15,000, is approved."],
         ),
         (
             "écoute jean baptiste on valide le budget",
@@ -706,6 +732,10 @@ mod tests {
         let mut failures = Vec::new();
         for &(said, at_ms, transcribed, written, mic_db, system_db, kept) in CORPUS {
             let end_ms = |start_ms: u64, text: &str| start_ms + tokenize(text).len() as u64 * 400;
+            let (mic_ms, written) = written
+                .strip_prefix('@')
+                .and_then(|rest| rest.split_once(' '))
+                .map_or((2_100, written), |(ms, rest)| (ms.parse().unwrap(), rest));
             let (said, then) = said.split_once(" / ").unwrap_or((said, ""));
             let (said, meanwhile) = said.split_once(" + ").unwrap_or((said, ""));
             let mut system = heard(said, at_ms, 400);
@@ -713,7 +743,7 @@ mod tests {
                 system.extend(heard(meanwhile, end_ms(at_ms, said) + 200, 400));
             }
             if !then.is_empty() {
-                system.extend(heard(then, end_ms(2_100, written) + 200, 400));
+                system.extend(heard(then, end_ms(mic_ms, written) + 200, 400));
             }
             let mut units = vec![if transcribed {
                 let mut unit = mic(said, at_ms, end_ms(at_ms, said));
@@ -722,7 +752,7 @@ mod tests {
             } else {
                 Unit::placeholder(Track::System, 0, 600_000)
             }];
-            units.push(mic(written, 2_100, end_ms(2_100, written)));
+            units.push(mic(written, mic_ms, end_ms(mic_ms, written)));
             remove_echoes(&mut units, &system, &flat(mic_db), &flat(system_db));
             let left: Vec<String> = units
                 .iter()
