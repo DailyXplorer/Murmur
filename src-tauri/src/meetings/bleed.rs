@@ -137,25 +137,50 @@ fn echoes(
         .collect()
 }
 
-/// When each token of `unit` was said: the middle of the time the on-device
-/// recogniser heard it, else of its share of the sentence's speaking time,
+/// When each token of `unit` may have been said, as a range. A word the
+/// on-device recogniser heard was said at the middle of the time it heard
+/// it; one it missed, anywhere between the words it heard around it, as a
+/// time placed there would only be a guess. When it heard none of the
+/// sentence, each word is at the middle of its share of the speaking time,
 /// which misplaces words after a pause.
-fn token_times(unit: &Unit) -> Vec<u64> {
-    let duration = unit.end_ms.saturating_sub(unit.start_ms);
-    let total: usize = unit.tokens.iter().map(Token::weight).sum();
-    let mut before = 0;
-    unit.tokens
+fn token_times(unit: &Unit) -> Vec<(u64, u64)> {
+    if unit.tokens.iter().all(|token| token.heard_ms.is_none()) {
+        let duration = unit.end_ms.saturating_sub(unit.start_ms);
+        let total: usize = unit.tokens.iter().map(Token::weight).sum();
+        let mut before = 0;
+        return unit
+            .tokens
+            .iter()
+            .map(|token| {
+                // The token's middle, in half weights.
+                let middle = 2 * before + token.weight();
+                before += token.weight();
+                let ms = unit.start_ms + duration * middle as u64 / (2 * total.max(1)) as u64;
+                (ms, ms)
+            })
+            .collect();
+    }
+    let mut after = unit.start_ms;
+    let mut times: Vec<(u64, u64)> = unit
+        .tokens
         .iter()
-        .map(|token| {
-            // The token's middle, in half weights.
-            let middle = 2 * before + token.weight();
-            before += token.weight();
-            token.heard_ms.map_or(
-                unit.start_ms + duration * middle as u64 / (2 * total.max(1)) as u64,
-                |(start_ms, end_ms)| (start_ms + end_ms) / 2,
-            )
+        .map(|token| match token.heard_ms {
+            Some((start_ms, end_ms)) => {
+                after = end_ms;
+                let middle = (start_ms + end_ms) / 2;
+                (middle, middle)
+            }
+            None => (after, unit.end_ms),
         })
-        .collect()
+        .collect();
+    let mut before = unit.end_ms;
+    for (token, time) in unit.tokens.iter().zip(&mut times).rev() {
+        match token.heard_ms {
+            Some((start_ms, _)) => before = start_ms,
+            None => time.1 = before,
+        }
+    }
+    times
 }
 
 /// The tokens of the microphone sentence `unit` heard on the system track
@@ -192,7 +217,9 @@ fn echoed_words(
     let said_at = token_times(unit);
     let steps = align_by(keys.len(), nearby.len(), |m, s| {
         let word = nearby[s];
-        let apart_ms = said_at[indices[m]].abs_diff((word.start_ms + word.end_ms) / 2);
+        let middle = (word.start_ms + word.end_ms) / 2;
+        let (from, to) = said_at[indices[m]];
+        let apart_ms = from.saturating_sub(middle) + middle.saturating_sub(to);
         pair_cost(keys[m], &word.key) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
     })?;
     let same: Vec<(usize, usize)> = steps
@@ -288,6 +315,8 @@ pub fn remove_echoes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::meetings::align::timing::time_chunk;
+    use crate::meetings::speakers;
     use crate::meetings::tokens::{join, key, tokenize};
 
     fn mic(text: &str, start_ms: u64, end_ms: u64) -> Unit {
@@ -399,24 +428,30 @@ mod tests {
         );
     }
 
-    /// The text of `said` without its pauses, and when each of its tokens
-    /// was said from `start_ms`: 400 ms a token, "~1500" a pause of 1.5 s.
-    fn schedule(said: &str, start_ms: u64) -> (String, Vec<(u64, u64)>) {
+    /// The text of `said` without its pauses, when each of its tokens was
+    /// said from `start_ms` (400 ms a token, "~1500" a pause of 1.5 s), and
+    /// whether the on-device recogniser heard it ("^" before a word it
+    /// missed).
+    fn schedule(said: &str, start_ms: u64) -> (String, Vec<(u64, u64)>, Vec<bool>) {
         let mut words = Vec::new();
         let mut times = Vec::new();
+        let mut heard = Vec::new();
         let mut at_ms = start_ms;
         for word in said.split(' ') {
             if let Some(pause_ms) = word.strip_prefix('~') {
                 at_ms += pause_ms.parse::<u64>().unwrap();
                 continue;
             }
+            let missed = word.strip_prefix('^');
+            let word = missed.unwrap_or(word);
             for _ in tokenize(word) {
                 times.push((at_ms, at_ms + 400));
+                heard.push(missed.is_none());
                 at_ms += 400;
             }
             words.push(word);
         }
-        (words.join(" "), times)
+        (words.join(" "), times, heard)
     }
 
     /// What the system track said and when (" | " between two sentences
@@ -426,8 +461,9 @@ mod tests {
     /// there, what the microphone wrote from 2.1 s (or from the time after
     /// "@", in ms), the two levels, and the microphone sentences left. Every
     /// reported case stays. Each row runs with the microphone's words timed
-    /// by the on-device recogniser, and again with only the sentence timed,
-    /// unless the microphone pauses ("~"): an even spread cannot place it.
+    /// from what the on-device recogniser heard of them, and again with only
+    /// the sentence timed, unless the microphone pauses ("~"): an even spread
+    /// cannot place it.
     #[allow(clippy::type_complexity)]
     const CORPUS: &[(&str, u64, bool, &str, f32, f32, &[&str])] = &[
         (
@@ -774,6 +810,81 @@ mod tests {
             -30.0,
             &["before Friday, great."],
         ),
+        // Round 36: the recogniser missed the faint echo of the words the
+        // user repeats ("^"), so their time is only known to lie between the
+        // words it heard around them, whatever the user said before.
+        (
+            "on se voit jeudi ~300 à dix heures",
+            2_000,
+            true,
+            "On se voit jeudi ~300 ^à ^dix ^heures, dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "on se voit jeudi ~1500 à dix heures",
+            2_000,
+            true,
+            "On se voit jeudi ~1500 ^à ^dix ^heures, dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "on se voit jeudi ~3000 à dix heures",
+            2_000,
+            true,
+            "On se voit jeudi ~3000 ^à ^dix ^heures, dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "on se voit jeudi ~1500 à dix heures",
+            2_000,
+            true,
+            "@1300 Bonjour. ~400 On se voit jeudi ~1500 ^à ^dix ^heures, dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["Bonjour.", "dix heures, parfait."],
+        ),
+        (
+            "we'll send you the report ~300 before friday",
+            2_000,
+            true,
+            "We'll send you the report ~300 ^before ^Friday, before Friday, great.",
+            -40.0,
+            -30.0,
+            &["before Friday, great."],
+        ),
+        (
+            "we'll send you the report ~1500 before friday",
+            2_000,
+            true,
+            "We'll send you the report ~1500 ^before ^Friday, before Friday, great.",
+            -40.0,
+            -30.0,
+            &["before Friday, great."],
+        ),
+        (
+            "we'll send you the report ~3000 before friday",
+            2_000,
+            true,
+            "We'll send you the report ~3000 ^before ^Friday, before Friday, great.",
+            -40.0,
+            -30.0,
+            &["before Friday, great."],
+        ),
+        (
+            "we'll send you the report ~1500 before friday",
+            2_000,
+            true,
+            "@1300 Hello. ~400 We'll send you the report ~1500 ^before ^Friday, before Friday, great.",
+            -40.0,
+            -30.0,
+            &["Hello.", "before Friday, great."],
+        ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
         // so these rows, which expected the echo gone, now keep part of it
@@ -897,7 +1008,7 @@ mod tests {
         let mut failures = Vec::new();
         let end_ms = |start_ms: u64, times: &[(u64, u64)]| times.last().map_or(start_ms, |t| t.1);
         let said_at = |said: &str, start_ms: u64| {
-            let (text, times) = schedule(said, start_ms);
+            let (text, times, _) = schedule(said, start_ms);
             let words: Vec<TimedWord> = tokenize(&text)
                 .into_iter()
                 .zip(&times)
@@ -914,7 +1025,7 @@ mod tests {
                 .strip_prefix('@')
                 .and_then(|rest| rest.split_once(' '))
                 .map_or((2_100, written), |(ms, rest)| (ms.parse().unwrap(), rest));
-            let (written, mic_times) = schedule(written, mic_ms);
+            let (written, mic_times, mic_heard) = schedule(written, mic_ms);
             let mic_end_ms = end_ms(mic_ms, &mic_times);
             let (said, then) = said.split_once(" / ").unwrap_or((said, ""));
             let (said, meanwhile) = said.split_once(" + ").unwrap_or((said, ""));
@@ -941,14 +1052,25 @@ mod tests {
             let paused = mic_times.windows(2).any(|pair| pair[0].1 < pair[1].0);
             let modes: &[bool] = if paused { &[true] } else { &[true, false] };
             for &measured in modes {
-                let mut unit = mic(&written, mic_ms, mic_end_ms);
-                if measured {
-                    for (token, &time) in unit.tokens.iter_mut().zip(&mic_times) {
-                        token.heard_ms = Some(time);
-                    }
-                }
                 let mut units = sentences.clone();
-                units.push(unit);
+                if measured {
+                    let words: Vec<TimedWord> = tokenize(&written)
+                        .into_iter()
+                        .zip(&mic_times)
+                        .zip(&mic_heard)
+                        .filter(|(_, &heard)| heard)
+                        .map(|((token, &(start_ms, end_ms)), _)| TimedWord {
+                            key: token.key,
+                            start_ms,
+                            end_ms,
+                        })
+                        .collect();
+                    let timed = time_chunk(tokenize(&written), &words, mic_ms, mic_end_ms);
+                    let me = vec!["me".to_string(); timed.tokens.len()];
+                    units.extend(speakers::units(Track::Mic, timed.tokens, &me));
+                } else {
+                    units.push(mic(&written, mic_ms, mic_end_ms));
+                }
                 remove_echoes(&mut units, &system, &flat(mic_db), &flat(system_db));
                 let left: Vec<String> = units
                     .iter()
