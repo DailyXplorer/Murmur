@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use super::align::TimedToken;
 use super::merge::{Track, Unit};
 use super::store::MeetingSpeaker;
+use super::tokens::Token;
 
 /// A word with no turn under it takes a turn this close.
 const NEAREST_MS: u64 = 1_000;
@@ -286,7 +287,10 @@ pub fn units(track: Track, tokens: Vec<TimedToken>, speakers: &[String]) -> Vec<
         unit.end_ms = unit.end_ms.max(token.end_ms);
         low += usize::from(token.low_confidence);
         closed = token.token.sentence_end;
-        unit.tokens.push(token.token);
+        unit.tokens.push(Token {
+            heard_ms: (!token.low_confidence).then_some((token.start_ms, token.end_ms)),
+            ..token.token
+        });
     }
     if let Some(unit) = units.last_mut() {
         unit.low_confidence = low * 2 > unit.tokens.len();
@@ -461,5 +465,15 @@ mod tests {
                 ("s2", 3_000, 5_000, 2)
             ]
         );
+    }
+
+    #[test]
+    fn units_keep_the_times_the_recogniser_heard() {
+        let mut tokens = timed("Dix heures, parfait.", 5_000, 400);
+        tokens[2].low_confidence = true;
+        let units = units(Track::Mic, tokens, &["me", "me", "me"].map(String::from));
+        let heard: Vec<Option<(u64, u64)>> =
+            units[0].tokens.iter().map(|token| token.heard_ms).collect();
+        assert_eq!(heard, [Some((5_000, 5_400)), Some((5_400, 5_800)), None]);
     }
 }

@@ -13,6 +13,9 @@ pub struct Token {
     pub key: String,
     pub sentence_end: bool,
     pub gap: Gap,
+    /// When the on-device recogniser heard the word on its track; `None`
+    /// when its time is only estimated.
+    pub heard_ms: Option<(u64, u64)>,
 }
 
 /// What came between a word and the one before it in the text Codex wrote.
@@ -97,6 +100,7 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                 sentence_end: ends_sentence(word) && !is_title(word),
                 text: word.to_string(),
                 gap,
+                heard_ms: None,
             });
         }
     }
