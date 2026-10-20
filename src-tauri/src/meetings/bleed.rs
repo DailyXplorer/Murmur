@@ -57,6 +57,17 @@ struct Echo {
     /// When the system track said them.
     start_ms: u64,
     end_ms: u64,
+    /// The system word heard last, as a `Heard::word`.
+    last_word: usize,
+}
+
+/// A token of a microphone sentence heard on the system track.
+struct Heard {
+    token: usize,
+    /// Its place among the system words said during the sentence.
+    word: usize,
+    start_ms: u64,
+    end_ms: u64,
 }
 
 /// Whether Codex ended a clause after `token`: "vendredi," or "Oui.".
@@ -83,8 +94,10 @@ fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
 
 /// The echoes of the system track in the microphone sentence `unit`, in
 /// order; none when the sentence is not an echo. A word the recognisers
-/// spell apart goes with its clause, and a clause Codex set off within the
-/// echo ("oui,") stays even when the remote side went on around it.
+/// spell apart goes with its clause. A clause Codex set off within the echo
+/// stays when the system track said nothing between the echo's words around
+/// it ("le budget, oui, jeudi"), and goes when it did: it is then those words
+/// written otherwise ("jeudi, 15h30, devant").
 fn echoes(
     unit: &Unit,
     system_words: &[TimedWord],
@@ -100,26 +113,27 @@ fn echoes(
             .iter()
             .filter(|token| !token.key.is_empty())
             .count();
-        let times: Vec<(u64, u64)> = heard
+        let found: Vec<&Heard> = heard
             .iter()
-            .filter(|(token, _)| clause.contains(token))
-            .map(|&(_, times)| times)
+            .filter(|heard| clause.contains(&heard.token))
             .collect();
-        let (Some(&(start_ms, _)), Some(&(_, end_ms))) = (times.first(), times.last()) else {
+        let (Some(first), Some(last)) = (found.first(), found.last()) else {
             continue;
         };
-        if (times.len() as f32) < CLAUSE_OVERLAP * words as f32 {
+        if (found.len() as f32) < CLAUSE_OVERLAP * words as f32 {
             continue;
         }
         match echoes.last_mut() {
-            Some(last) if last.tokens.end == clause.start => {
-                last.tokens.end = clause.end;
-                last.end_ms = end_ms;
+            Some(echo) if echo.tokens.end == clause.start || first.word > echo.last_word + 1 => {
+                echo.tokens.end = clause.end;
+                echo.end_ms = last.end_ms;
+                echo.last_word = last.word;
             }
             _ => echoes.push(Echo {
                 tokens: clause,
-                start_ms,
-                end_ms,
+                start_ms: first.start_ms,
+                end_ms: last.end_ms,
+                last_word: last.word,
             }),
         }
     }
@@ -127,13 +141,13 @@ fn echoes(
 }
 
 /// The tokens of the microphone sentence `unit` heard on the system track,
-/// each with when the system track said it, if the sentence is an echo.
+/// in order, if the sentence is an echo.
 fn echoed_words(
     unit: &Unit,
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
-) -> Option<Vec<(usize, (u64, u64))>> {
+) -> Option<Vec<Heard>> {
     let (indices, keys): (Vec<usize>, Vec<&str>) = unit
         .tokens
         .iter()
@@ -169,7 +183,12 @@ fn echoed_words(
     };
     loud_enough.then(|| {
         same.iter()
-            .map(|&(m, s)| (indices[m], (nearby[s].start_ms, nearby[s].end_ms)))
+            .map(|&(m, s)| Heard {
+                token: indices[m],
+                word: s,
+                start_ms: nearby[s].start_ms,
+                end_ms: nearby[s].end_ms,
+            })
             .collect()
     })
 }
@@ -576,6 +595,54 @@ mod tests {
             -40.0,
             -30.0,
             &["right,"],
+        ),
+        // A time, an amount or a name set off inside the echo that the
+        // on-device recogniser wrote otherwise goes with it: the system track
+        // said words there, where it said none for "oui,".
+        (
+            "on se retrouve jeudi quinze heures trente devant le bureau",
+            2_000,
+            true,
+            "On se retrouve jeudi, 15h30, devant le bureau.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "we meet thursday three thirty by the office",
+            2_000,
+            true,
+            "We meet Thursday, 3:30, by the office.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "le budget quinze mille euros est validé",
+            2_000,
+            true,
+            "Le budget, 15 000 euros, est validé.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "the budget fifteen thousand dollars is approved",
+            2_000,
+            true,
+            "The budget, $15,000, is approved.",
+            -40.0,
+            -30.0,
+            &[],
+        ),
+        (
+            "écoute jean baptiste on valide le budget",
+            2_000,
+            true,
+            "Écoute, Jean-Baptiste, on valide le budget.",
+            -40.0,
+            -30.0,
+            &[],
         ),
     ];
 
