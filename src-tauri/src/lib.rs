@@ -941,6 +941,12 @@ pub fn run(cli_args: CliArgs) {
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
                     manager.shutdown();
                 }
+                // They skip the coordinator's drain too, which waits for a
+                // token refresh: one cut off would sign every Codex client
+                // out. A refresh request times out on its own within this.
+                if !codex_auth::wait_for_refreshes(codex_auth::REFRESH_TIMEOUT) {
+                    log::warn!("Timed out waiting for a Codex token refresh while quitting");
+                }
             }
             _ => {}
         });
@@ -1129,5 +1135,22 @@ mod exit_tests {
             .find(".invalidate_recording_readiness()")
             .expect("quitting invalidates a dictation's pending mute");
         assert!(invalidate < restore);
+    }
+
+    /// Only the tray's Quit goes through `ExitRequested`, whose drain waits
+    /// for a Codex token refresh. A refresh cut off by the exit has spent the
+    /// old refresh token without saving the new one, which signs every Codex
+    /// client out.
+    #[test]
+    fn quitting_waits_for_a_token_refresh() {
+        let exit_arm = exit_arm();
+        let wait = exit_arm
+            .find("codex_auth::wait_for_refreshes(")
+            .expect("quitting waits for a token refresh");
+        // Once the managers have cancelled the calls that could start one.
+        let shutdown = exit_arm
+            .rfind(".shutdown()")
+            .expect("quitting shuts the managers down");
+        assert!(shutdown < wait);
     }
 }
