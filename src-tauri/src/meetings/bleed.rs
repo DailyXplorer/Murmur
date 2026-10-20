@@ -39,6 +39,8 @@ const ROOM_MS: u64 = 300;
 /// The fastest the user is taken to speak, per character of a word
 /// (`Token::weight`): the words the recogniser missed take at least this.
 const MIN_MS_PER_WEIGHT: u64 = 40;
+/// The slowest the user is taken to speak, per character of a word.
+const MAX_MS_PER_WEIGHT: u64 = 100;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
 /// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
@@ -61,9 +63,27 @@ pub fn mean_level(levels: &[f32], start_ms: u64, end_ms: u64) -> Option<f32> {
     Some(10.0 * power.max(1e-12).log10())
 }
 
-/// Whether `[start_ms, end_ms)` overlaps `unit`, within `SLACK_MS`.
-fn during(unit: &Unit, start_ms: u64, end_ms: u64) -> bool {
-    start_ms < unit.end_ms + SLACK_MS && end_ms + SLACK_MS > unit.start_ms
+/// Whether `[start_ms, end_ms)` overlaps `unit`, said from `from_ms`, within
+/// `SLACK_MS`.
+fn during(unit: &Unit, from_ms: u64, start_ms: u64, end_ms: u64) -> bool {
+    start_ms < unit.end_ms + SLACK_MS && end_ms + SLACK_MS > from_ms
+}
+
+/// The earliest `unit` may have started. Its start was placed back from the
+/// first word the on-device recogniser heard at an average pace, so the
+/// words it missed before that one may have been said earlier, at up to
+/// `MAX_MS_PER_WEIGHT`: at the start of a chunk, nothing else bounds them.
+fn earliest_start_ms(unit: &Unit) -> u64 {
+    let mut lead = 0;
+    for token in &unit.tokens {
+        if let Some((start_ms, _)) = token.heard_ms {
+            return start_ms
+                .saturating_sub(lead * MAX_MS_PER_WEIGHT)
+                .min(unit.start_ms);
+        }
+        lead += token.weight() as u64;
+    }
+    unit.start_ms
 }
 
 /// A run of clauses of a microphone sentence that echoes the system track.
@@ -246,10 +266,11 @@ fn echoed_words(
     if keys.len() < MIN_WORDS {
         return None;
     }
+    let from_ms = earliest_start_ms(unit);
     let nearby: Vec<&TimedWord> = system_words
         .iter()
         .filter(|word| {
-            during(unit, word.start_ms, word.end_ms)
+            during(unit, from_ms, word.start_ms, word.end_ms)
                 && transcribed
                     .iter()
                     .any(|&(start, end)| word.start_ms < end && word.end_ms > start)
@@ -1050,6 +1071,27 @@ mod tests {
             -40.0,
             -30.0,
             &["before Friday, great."],
+        ),
+        // Round 40: at the start of a chunk, it missed the remote side's
+        // first words too, which were said slower than the pace the
+        // sentence's start was estimated from.
+        (
+            "on se voit jeudi à dix heures",
+            2_000,
+            true,
+            "^On ^se ^voit ^jeudi ^à ^dix ^heures, dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "we'll meet on thursday at ten",
+            2_000,
+            true,
+            "^We'll ^meet ^on ^Thursday ^at ^ten, at ten, sounds good.",
+            -40.0,
+            -30.0,
+            &["at ten, sounds good."],
         ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
