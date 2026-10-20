@@ -57,8 +57,6 @@ struct Echo {
     /// When the system track said them.
     start_ms: u64,
     end_ms: u64,
-    /// The system word heard last, as a `Heard::word`.
-    last_word: usize,
 }
 
 /// A token of a microphone sentence heard on the system track.
@@ -93,11 +91,15 @@ fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
 }
 
 /// The echoes of the system track in the microphone sentence `unit`, in
-/// order; none when the sentence is not an echo. A word the recognisers
-/// spell apart goes with its clause. A clause Codex set off within the echo
-/// stays when the system track said nothing between the echo's words around
-/// it ("le budget, oui, jeudi"), and goes when it did: it is then those words
-/// written otherwise ("jeudi, 15h30, devant").
+/// order; none when the sentence is not an echo. When in doubt, the user's
+/// words stay. A clause goes when the system track said at least
+/// `CLAUSE_OVERLAP` of its words, so a word the recognisers spell apart goes
+/// with its clause ("à 15h."). Any other clause stays, unless it lies alone
+/// between two such clauses whose edge words the system track said too, with
+/// system words between those two: it is then those words written otherwise
+/// ("jeudi, 15h30, devant"). A reply has no system words there ("le budget,
+/// oui, jeudi"), or sits beside an edge word written otherwise ("à 15h, oui,
+/// devant"), where nothing tells it from those words: it stays.
 fn echoes(
     unit: &Unit,
     system_words: &[TimedWord],
@@ -107,37 +109,62 @@ fn echoes(
     let Some(heard) = echoed_words(unit, system_words, mic_levels, system_levels) else {
         return Vec::new();
     };
-    let mut echoes: Vec<Echo> = Vec::new();
-    for clause in clauses(&unit.tokens) {
-        let words = unit.tokens[clause.clone()]
-            .iter()
-            .filter(|token| !token.key.is_empty())
-            .count();
-        let found: Vec<&Heard> = heard
-            .iter()
-            .filter(|heard| clause.contains(&heard.token))
-            .collect();
-        let (Some(first), Some(last)) = (found.first(), found.last()) else {
-            continue;
+    let clauses = clauses(&unit.tokens);
+    let keyed = |clause: &Range<usize>| {
+        clause
+            .clone()
+            .filter(|&index| !unit.tokens[index].key.is_empty())
+    };
+    let found: Vec<Vec<&Heard>> = clauses
+        .iter()
+        .map(|clause| {
+            heard
+                .iter()
+                .filter(|heard| clause.contains(&heard.token))
+                .collect()
+        })
+        .collect();
+    let echoed: Vec<bool> = clauses
+        .iter()
+        .zip(&found)
+        .map(|(clause, found)| {
+            !found.is_empty() && found.len() as f32 >= CLAUSE_OVERLAP * keyed(clause).count() as f32
+        })
+        .collect();
+    let respelt = |index: usize| {
+        if index == 0 || index + 1 == clauses.len() || !echoed[index - 1] || !echoed[index + 1] {
+            return false;
+        }
+        let (Some(before), Some(after)) = (found[index - 1].last(), found[index + 1].first())
+        else {
+            return false;
         };
-        if (found.len() as f32) < CLAUSE_OVERLAP * words as f32 {
+        keyed(&clauses[index - 1]).next_back() == Some(before.token)
+            && keyed(&clauses[index + 1]).next() == Some(after.token)
+            && after.word > before.word + 1
+    };
+    let mut runs: Vec<Range<usize>> = Vec::new();
+    for (index, clause) in clauses.iter().enumerate() {
+        if !echoed[index] && !respelt(index) {
             continue;
         }
-        match echoes.last_mut() {
-            Some(echo) if echo.tokens.end == clause.start || first.word > echo.last_word + 1 => {
-                echo.tokens.end = clause.end;
-                echo.end_ms = last.end_ms;
-                echo.last_word = last.word;
-            }
-            _ => echoes.push(Echo {
-                tokens: clause,
-                start_ms: first.start_ms,
-                end_ms: last.end_ms,
-                last_word: last.word,
-            }),
+        match runs.last_mut() {
+            Some(run) if run.end == clause.start => run.end = clause.end,
+            _ => runs.push(clause.clone()),
         }
     }
-    echoes
+    runs.into_iter()
+        .filter_map(|tokens| {
+            let mut within = heard.iter().filter(|heard| tokens.contains(&heard.token));
+            let first = within.next()?;
+            let end_ms = within.next_back().unwrap_or(first).end_ms;
+            Some(Echo {
+                start_ms: first.start_ms,
+                end_ms,
+                tokens,
+            })
+        })
+        .collect()
 }
 
 /// The tokens of the microphone sentence `unit` heard on the system track,
@@ -643,6 +670,26 @@ mod tests {
             -40.0,
             -30.0,
             &[],
+        ),
+        // The system words between the echo's clauses are those of an edge
+        // word written otherwise ("15h"), not of the reply: the reply stays.
+        (
+            "on se voit à quinze heures devant le bureau",
+            2_000,
+            true,
+            "On se voit à 15h, oui, devant le bureau.",
+            -40.0,
+            -30.0,
+            &["oui,"],
+        ),
+        (
+            "we meet at three thirty by the office",
+            2_000,
+            true,
+            "We meet at 3:30, right, by the office.",
+            -40.0,
+            -30.0,
+            &["right,"],
         ),
     ];
 
