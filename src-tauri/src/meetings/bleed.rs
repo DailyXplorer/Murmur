@@ -24,11 +24,12 @@ const MIN_OVERLAP: f32 = 0.6;
 /// system word is its echo: in "à dix heures, dix heures", the user repeats
 /// the remote side's words. Small, so it only settles such ties.
 const COST_PER_SECOND_APART: f32 = 0.01;
-/// Of two copies equally near, as when the recogniser missed both, the
-/// earlier is the echo: the user repeats what they heard. Per word of the
-/// sentence: a word later costs what a millisecond apart does, and stays
-/// above the rounding of the sums.
-const COST_PER_WORD_LATER: f32 = 0.00001;
+/// Of two copies equally near, as when the recogniser missed both, the echo
+/// is the one that runs on with the other echoed words: the first in "à dix
+/// heures, dix heures", said after "à", the second in "dix heures, dix
+/// heures, c'est parfait", said before "c'est parfait". So each run of
+/// echoed words costs what 10 ms apart does.
+const COST_PER_RUN: f32 = 0.0001;
 /// Shorter sentences ("Oui.") are too common to judge.
 const MIN_WORDS: usize = 3;
 /// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
@@ -220,14 +221,12 @@ fn echoed_words(
         })
         .collect();
     let said_at = token_times(unit);
-    let steps = align_by(keys.len(), nearby.len(), |m, s| {
+    let steps = align_by(keys.len(), nearby.len(), COST_PER_RUN, |m, s| {
         let word = nearby[s];
         let middle = (word.start_ms + word.end_ms) / 2;
         let (from, to) = said_at[indices[m]];
         let apart_ms = from.saturating_sub(middle) + middle.saturating_sub(to);
-        pair_cost(keys[m], &word.key)
-            + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
-            + COST_PER_WORD_LATER * m as f32
+        pair_cost(keys[m], &word.key) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
     })?;
     let same: Vec<(usize, usize)> = steps
         .iter()
@@ -911,6 +910,44 @@ mod tests {
             -40.0,
             -30.0,
             &["before Friday, great."],
+        ),
+        // Round 38: the other way round, the remote side repeats the user
+        // before going on, and it missed both copies; the user's words stay.
+        (
+            "dix heures c'est parfait on valide le budget",
+            3_800,
+            true,
+            "@2000 ^Dix ^heures, ~1000 ^dix ^heures, c'est parfait, on valide le budget.",
+            -40.0,
+            -30.0,
+            &["Dix heures,"],
+        ),
+        (
+            "dix heures c'est parfait on valide le budget",
+            4_600,
+            true,
+            "@2000 Jeudi à ^dix ^heures, ~1000 ^dix ^heures, c'est parfait, on valide le budget.",
+            -40.0,
+            -30.0,
+            &["Jeudi à dix heures,"],
+        ),
+        (
+            "at ten that works we'll send the report",
+            3_800,
+            true,
+            "@2000 ^At ^ten, ~1000 ^at ^ten, that works, we'll send the report.",
+            -40.0,
+            -30.0,
+            &["At ten,"],
+        ),
+        (
+            "at ten that works we'll send the report",
+            4_600,
+            true,
+            "@2000 So Friday ^at ^ten, ~1000 ^at ^ten, that works, we'll send the report.",
+            -40.0,
+            -30.0,
+            &["So Friday at ten,"],
         ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
