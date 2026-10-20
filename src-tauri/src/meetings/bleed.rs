@@ -8,7 +8,7 @@
 
 use std::ops::Range;
 
-use super::align::dp::{align_by, pair_cost, similarity, Step};
+use super::align::dp::{align_by, similarity, Step};
 use super::align::TimedWord;
 use super::chunking::FRAME_MS;
 use super::merge::{Track, Unit};
@@ -63,27 +63,43 @@ pub fn mean_level(levels: &[f32], start_ms: u64, end_ms: u64) -> Option<f32> {
     Some(10.0 * power.max(1e-12).log10())
 }
 
-/// Whether `[start_ms, end_ms)` overlaps `unit`, said from `from_ms`, within
+/// Whether `[start_ms, end_ms)` overlaps `[from_ms, to_ms)` within
 /// `SLACK_MS`.
-fn during(unit: &Unit, from_ms: u64, start_ms: u64, end_ms: u64) -> bool {
-    start_ms < unit.end_ms + SLACK_MS && end_ms + SLACK_MS > from_ms
+fn during(from_ms: u64, to_ms: u64, start_ms: u64, end_ms: u64) -> bool {
+    start_ms < to_ms + SLACK_MS && end_ms + SLACK_MS > from_ms
 }
 
-/// The earliest `unit` may have started. Its start was placed back from the
-/// first word the on-device recogniser heard at an average pace, so the
-/// words it missed before that one may have been said earlier, at up to
-/// `MAX_MS_PER_WEIGHT`: at the start of a chunk, nothing else bounds them.
-fn earliest_start_ms(unit: &Unit) -> u64 {
-    let mut lead = 0;
-    for token in &unit.tokens {
-        if let Some((start_ms, _)) = token.heard_ms {
-            return start_ms
-                .saturating_sub(lead * MAX_MS_PER_WEIGHT)
-                .min(unit.start_ms);
-        }
-        lead += token.weight() as u64;
-    }
-    unit.start_ms
+/// When each token of `unit` before the first word the on-device
+/// recogniser heard may have been said, in the microphone chunk starting
+/// at `chunk_start_ms`; none when it heard none. The sentence's start was
+/// placed back from that word at an average pace, so a token it missed
+/// before it may have been said as early as it and the missed ones after it
+/// take at `MAX_MS_PER_WEIGHT`, but not before the chunk, and as late as the
+/// ones after it leave at `MIN_MS_PER_WEIGHT`.
+fn lead_times(unit: &Unit, chunk_start_ms: u64) -> Vec<(u64, u64)> {
+    let Some((first, heard_ms)) = unit
+        .tokens
+        .iter()
+        .enumerate()
+        .find_map(|(index, token)| token.heard_ms.map(|(start_ms, _)| (index, start_ms)))
+    else {
+        return Vec::new();
+    };
+    let mut after = 0;
+    let mut times: Vec<(u64, u64)> = unit.tokens[..first]
+        .iter()
+        .rev()
+        .map(|token| {
+            let to_ms = heard_ms.saturating_sub(after * MIN_MS_PER_WEIGHT);
+            after += token.weight() as u64;
+            let from_ms = heard_ms
+                .saturating_sub(after * MAX_MS_PER_WEIGHT)
+                .max(chunk_start_ms);
+            (from_ms, to_ms)
+        })
+        .collect();
+    times.reverse();
+    times
 }
 
 /// A run of clauses of a microphone sentence that echoes the system track.
@@ -124,7 +140,8 @@ fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
 }
 
 /// The echoes of the system sentences timed `transcribed` in the microphone
-/// sentence `unit`, in order; none when the sentence is not an echo. When in
+/// sentence `unit`, cut from the chunk starting at `chunk_start_ms`, in
+/// order; none when the sentence is not an echo. When in
 /// doubt, the user's words stay: a clause goes only when it has at least
 /// `MIN_CLAUSE_WORDS` words and the system track said every one of them
 /// during the sentence. Every other clause stays, whatever its neighbours:
@@ -132,13 +149,20 @@ fn clauses(tokens: &[Token]) -> Vec<Range<usize>> {
 /// ("à 15h."), which leaves some echo under "Me".
 fn echoes(
     unit: &Unit,
+    chunk_start_ms: u64,
     transcribed: &[(u64, u64)],
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> Vec<Echo> {
-    let Some(heard) = echoed_words(unit, transcribed, system_words, mic_levels, system_levels)
-    else {
+    let Some(heard) = echoed_words(
+        unit,
+        chunk_start_ms,
+        transcribed,
+        system_words,
+        mic_levels,
+        system_levels,
+    ) else {
         return Vec::new();
     };
     let echoed = |clause: &Range<usize>| {
@@ -248,9 +272,15 @@ fn missed_times(missed: &[Token], from_ms: u64, to_ms: u64) -> Vec<(u64, u64)> {
 /// while the user spoke, in order, if the sentence is an echo. Every system
 /// sentence timed `transcribed` counts, as Codex may end one where the
 /// microphone's copy has a comma; what the remote side said seconds before
-/// the user repeated it does not.
+/// the user repeated it does not. An echo is heard as the system track says
+/// it, so a word the recogniser missed before the first one it heard is
+/// echoed only by a system word said when the user may have said it: the
+/// user confirming a date said seconds before, as in "Mercredi prochain
+/// quatorze heures, c'est noté.", is not echoing it, even while the remote
+/// side goes on talking.
 fn echoed_words(
     unit: &Unit,
+    chunk_start_ms: u64,
     transcribed: &[(u64, u64)],
     system_words: &[TimedWord],
     mic_levels: &[f32],
@@ -266,16 +296,34 @@ fn echoed_words(
     if keys.len() < MIN_WORDS {
         return None;
     }
-    let from_ms = earliest_start_ms(unit);
+    let lead = lead_times(unit, chunk_start_ms);
+    // Whether the system track said `word` when the user may have said the
+    // token at `index`.
+    let within = |index: usize, word: &TimedWord| {
+        let (from_ms, to_ms) = lead
+            .get(index)
+            .copied()
+            .unwrap_or((unit.start_ms, unit.end_ms));
+        during(from_ms, to_ms, word.start_ms, word.end_ms)
+    };
     let nearby: Vec<&TimedWord> = system_words
         .iter()
         .filter(|word| {
-            during(unit, from_ms, word.start_ms, word.end_ms)
+            indices.iter().any(|&index| within(index, word))
                 && transcribed
                     .iter()
                     .any(|&(start, end)| word.start_ms < end && word.end_ms > start)
         })
         .collect();
+    // A system word said when the user could not have said the microphone
+    // word is no echo of it, however alike they are.
+    let alike = |m: usize, s: usize| {
+        if within(indices[m], nearby[s]) {
+            similarity(keys[m], &nearby[s].key)
+        } else {
+            0.0
+        }
+    };
     let said_at = token_times(unit);
     let run_cost = |m: usize, s: usize| {
         // A run from the sentence's first word skips no microphone words.
@@ -290,12 +338,12 @@ fn echoed_words(
         let middle = (word.start_ms + word.end_ms) / 2;
         let (from, to) = said_at[indices[m]];
         let apart_ms = from.saturating_sub(middle) + middle.saturating_sub(to);
-        pair_cost(keys[m], &word.key) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
+        1.0 - 2.0 * alike(m, s) + COST_PER_SECOND_APART * apart_ms as f32 / 1000.0
     })?;
     let same: Vec<(usize, usize)> = steps
         .iter()
         .filter_map(|step| match *step {
-            Step::Pair(m, s) if similarity(keys[m], &nearby[s].key) >= SAME_WORD => Some((m, s)),
+            Step::Pair(m, s) if alike(m, s) >= SAME_WORD => Some((m, s)),
             _ => None,
         })
         .collect();
@@ -351,9 +399,11 @@ fn around(unit: Unit, echoes: &[Echo]) -> Vec<Unit> {
 /// Removes the parts of microphone sentences that echo the system track.
 /// Returns how many echoes were removed. An echo is removed only where the
 /// system track has its own transcript: a reply too short to send to Codex,
-/// or a piece that failed, would otherwise be lost.
+/// or a piece that failed, would otherwise be lost. `mic_chunk_starts` are
+/// where the microphone track was cut into the pieces sent to Codex.
 pub fn remove_echoes(
     units: &mut Vec<Unit>,
+    mic_chunk_starts: &[u64],
     system_words: &[TimedWord],
     mic_levels: &[f32],
     system_levels: &[f32],
@@ -367,7 +417,22 @@ pub fn remove_echoes(
     let mut kept = Vec::with_capacity(units.len());
     for unit in units.drain(..) {
         let found = if unit.track == Track::Mic {
-            echoes(&unit, &transcribed, system_words, mic_levels, system_levels)
+            // A sentence never runs across chunks, so it starts in the last
+            // one cut before it.
+            let chunk_start_ms = mic_chunk_starts
+                .iter()
+                .copied()
+                .filter(|&start_ms| start_ms <= unit.start_ms)
+                .max()
+                .unwrap_or(0);
+            echoes(
+                &unit,
+                chunk_start_ms,
+                &transcribed,
+                system_words,
+                mic_levels,
+                system_levels,
+            )
         } else {
             Vec::new()
         };
@@ -414,7 +479,7 @@ mod tests {
     /// Whether `unit` echoes the system sentence of all the words in `system`.
     fn is_echo(unit: &Unit, system: &[TimedWord], mic_levels: &[f32], levels: &[f32]) -> bool {
         let sentence = (system[0].start_ms, system[system.len() - 1].end_ms);
-        !echoes(unit, &[sentence], system, mic_levels, levels).is_empty()
+        !echoes(unit, 0, &[sentence], system, mic_levels, levels).is_empty()
     }
 
     /// 20 s of levels: `db` everywhere.
@@ -432,7 +497,7 @@ mod tests {
         said.track = Track::System;
         let mut units = vec![said, unit, mic("Moi je préfère lundi.", 6_000, 7_000)];
         assert_eq!(
-            remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
             1
         );
         assert_eq!(units.len(), 2);
@@ -447,7 +512,7 @@ mod tests {
         assert!(is_echo(&unit, &system, &flat(-40.0), &flat(-30.0)));
         let mut units = vec![unit, Unit::placeholder(Track::System, 0, 600_000)];
         assert_eq!(
-            remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
             0
         );
         assert_eq!(units.len(), 2);
@@ -493,7 +558,7 @@ mod tests {
         unit.track = Track::System;
         let mut units = vec![unit];
         assert_eq!(
-            remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
             0
         );
     }
@@ -1093,6 +1158,103 @@ mod tests {
             -30.0,
             &["at ten, sounds good."],
         ),
+        // Round 41: at the start of a chunk, the user confirms a date or time
+        // the remote side has just said, and it missed their first words,
+        // long ones said faster than the slowest pace. The confirmation is
+        // theirs, not an echo, even while the remote side goes on talking:
+        // the remote side said those words before the user could have.
+        (
+            "on se voit mercredi prochain à quatorze heures | et on fera le point sur le budget",
+            2_000,
+            true,
+            "@5400 ^Mercredi ^prochain ^quatorze ^heures, c'est noté. ~200 Je bloque le créneau.",
+            -40.0,
+            -30.0,
+            &["Mercredi prochain quatorze heures, c'est noté.", "Je bloque le créneau."],
+        ),
+        (
+            "the deadline is september fifteenth | so please send the drafts before then",
+            2_000,
+            true,
+            "@4600 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
+        ),
+        (
+            "on se voit mercredi prochain à quatorze heures et on fera le point sur le budget",
+            2_000,
+            true,
+            "@5400 ^Mercredi ^prochain ^quatorze ^heures, c'est noté. ~200 Je bloque le créneau.",
+            -40.0,
+            -30.0,
+            &["Mercredi prochain quatorze heures, c'est noté.", "Je bloque le créneau."],
+        ),
+        (
+            "the deadline is september fifteenth so please send the drafts before then",
+            2_000,
+            true,
+            "@4600 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
+        ),
+        (
+            "on se voit mercredi prochain à quatorze heures | et on fera le point sur le budget",
+            2_000,
+            true,
+            "@2000 ~3400 ^Mercredi ^prochain ^quatorze ^heures, c'est noté. ~200 Je bloque le créneau.",
+            -40.0,
+            -30.0,
+            &["Mercredi prochain quatorze heures, c'est noté.", "Je bloque le créneau."],
+        ),
+        (
+            "the deadline is september fifteenth | so please send the drafts before then",
+            2_000,
+            true,
+            "@2000 ~2600 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
+        ),
+        (
+            "on se voit mercredi prochain à quatorze heures et on fera le point sur le budget",
+            2_000,
+            true,
+            "@2000 ~3400 ^Mercredi ^prochain ^quatorze ^heures, c'est noté. ~200 Je bloque le créneau.",
+            -40.0,
+            -30.0,
+            &["Mercredi prochain quatorze heures, c'est noté.", "Je bloque le créneau."],
+        ),
+        (
+            "the deadline is september fifteenth so please send the drafts before then",
+            2_000,
+            true,
+            "@2000 ~2600 ^September ^fifteenth, perfect. ~200 I'll let the team know.",
+            -40.0,
+            -30.0,
+            &["September fifteenth, perfect.", "I'll let the team know."],
+        ),
+        // The round 40 echo, with the user pausing before their own words:
+        // the echo still goes.
+        (
+            "on se voit jeudi à dix heures",
+            2_000,
+            true,
+            "^On ^se ^voit ^jeudi ^à ^dix ^heures, ~400 dix heures, parfait.",
+            -40.0,
+            -30.0,
+            &["dix heures, parfait."],
+        ),
+        (
+            "we'll meet on thursday at ten",
+            2_000,
+            true,
+            "^We'll ^meet ^on ^Thursday ^at ^ten, ~400 at ten, sounds good.",
+            -40.0,
+            -30.0,
+            &["at ten, sounds good."],
+        ),
         // Accepted echo left in the transcript. A clause goes only when the
         // system track said every one of its words, whatever its neighbours,
         // so these rows, which expected the echo gone, now keep part of it
@@ -1279,7 +1441,13 @@ mod tests {
                 } else {
                     units.push(mic(&written, mic_ms, mic_end_ms));
                 }
-                remove_echoes(&mut units, &system, &flat(mic_db), &flat(system_db));
+                remove_echoes(
+                    &mut units,
+                    &[mic_ms],
+                    &system,
+                    &flat(mic_db),
+                    &flat(system_db),
+                );
                 let left: Vec<String> = units
                     .iter()
                     .filter(|unit| unit.track == Track::Mic)
@@ -1310,7 +1478,7 @@ mod tests {
                 5_400,
             ),
         ];
-        remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0));
+        remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0));
         let mic_times: Vec<(u64, u64)> = units[1..]
             .iter()
             .map(|unit| (unit.start_ms, unit.end_ms))
@@ -1334,7 +1502,7 @@ mod tests {
                 6_100,
             ),
         ];
-        remove_echoes(&mut units, &system, &flat(-40.0), &flat(-30.0));
+        remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0));
         let left: Vec<String> = units[1..].iter().map(|unit| join(&unit.tokens)).collect();
         assert_eq!(left, ["Sure, I'll wait,"]);
     }
