@@ -365,8 +365,8 @@
         "entries": "elementi"
       },
       "recordingRetention": {
-        "title": "Eliminazione Automatica Registrazioni",
-        "description": "Elimina automaticamente le registrazioni vecchie per liberare spazio",
+        "title": "Eliminazione Automatica Cronologia",
+        "description": "Elimina le trascrizioni vecchie e il loro audio. Gli elementi salvati vengono conservati.",
         "never": "Mai",
         "preserveLimit": "Conserva le ultime {{count}}",
         "days3": "Dopo 3 giorni",

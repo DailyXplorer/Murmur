@@ -372,8 +372,8 @@
         "entries": "poster"
       },
       "recordingRetention": {
-        "title": "Automatisk sletning af optagelser",
-        "description": "Slet automatisk gamle optagelser for at spare plads",
+        "title": "Automatisk sletning af historik",
+        "description": "Sletter gamle transskriptioner og deres lyd. Gemte poster bevares.",
         "never": "Aldrig",
         "preserveLimit": "Behold de seneste {{count}}",
         "days3": "Efter 3 dage",

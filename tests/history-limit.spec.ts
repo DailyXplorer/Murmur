@@ -50,6 +50,20 @@ test("an emptied field restores the saved limit", async ({ page }) => {
   expect(await limitWrites(page)).toEqual([]);
 });
 
+test("auto-delete says it deletes the transcriptions, not only the audio", async ({
+  page,
+}) => {
+  await expect(
+    page.getByText("Auto-Delete History", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Deletes old transcriptions and their audio. Saved entries are kept.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+});
+
 test("Escape discards the edit", async ({ page }) => {
   await limitField(page).fill("7");
   await page.keyboard.press("Escape");

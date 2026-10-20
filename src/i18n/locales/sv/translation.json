@@ -365,8 +365,8 @@
         "entries": "poster"
       },
       "recordingRetention": {
-        "title": "Radera inspelningar automatiskt",
-        "description": "Radera gamla inspelningar automatiskt för att spara utrymme",
+        "title": "Radera historik automatiskt",
+        "description": "Raderar gamla transkriptioner och deras ljud. Sparade poster behålls.",
         "never": "Aldrig",
         "preserveLimit": "Behåll de senaste {{count}}",
         "days3": "Efter 3 dagar",

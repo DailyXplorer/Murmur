@@ -365,8 +365,8 @@
         "entries": "条"
       },
       "recordingRetention": {
-        "title": "自动删除录音",
-        "description": "自动删除旧录音以节省空间",
+        "title": "自动删除历史记录",
+        "description": "删除旧的转录内容及其音频。已保存的条目会保留。",
         "never": "从不",
         "preserveLimit": "保留最新 {{count}} 条",
         "days3": "3 天后",

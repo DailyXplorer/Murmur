@@ -365,8 +365,8 @@
         "entries": "Einträge"
       },
       "recordingRetention": {
-        "title": "Aufnahmen automatisch löschen",
-        "description": "Alte Aufnahmen automatisch löschen, um Speicherplatz zu sparen",
+        "title": "Verlauf automatisch löschen",
+        "description": "Löscht alte Transkriptionen samt Audio. Gespeicherte Einträge bleiben erhalten.",
         "never": "Nie",
         "preserveLimit": "Neueste {{count}} behalten",
         "days3": "Nach 3 Tagen",

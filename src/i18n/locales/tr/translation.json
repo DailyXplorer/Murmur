@@ -365,8 +365,8 @@
         "entries": "kayıt"
       },
       "recordingRetention": {
-        "title": "Kayıtları Otomatik Sil",
-        "description": "Alan tasarrufu için eski kayıtları otomatik olarak siler",
+        "title": "Geçmişi Otomatik Sil",
+        "description": "Eski transkripsiyonları ve seslerini siler. Kaydedilenler korunur.",
         "never": "Asla",
         "preserveLimit": "Son {{count}} kaydı tut",
         "days3": "3 gün sonra",

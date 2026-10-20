@@ -6,6 +6,7 @@ import type { AppSettings, AudioDevice } from "../../src/bindings";
 import { LanguageSelector } from "../../src/components/settings/LanguageSelector";
 import { MicrophoneSelector } from "../../src/components/settings/MicrophoneSelector";
 import { OutputDeviceSelector } from "../../src/components/settings/OutputDeviceSelector";
+import { RecordingRetentionPeriodSelector } from "../../src/components/settings/RecordingRetentionPeriod";
 import { useSettingsStore } from "../../src/stores/settingsStore";
 import frTranslation from "../../src/i18n/locales/fr/translation.json";
 import "../../src/App.css";
@@ -42,6 +43,9 @@ const SettingsFrenchLabelsFixture: React.FC = () => (
       </div>
       <div data-testid="language">
         <LanguageSelector />
+      </div>
+      <div data-testid="retention">
+        <RecordingRetentionPeriodSelector descriptionMode="inline" />
       </div>
     </section>
   </main>

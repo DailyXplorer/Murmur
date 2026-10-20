@@ -365,8 +365,8 @@
         "entries": "entrées"
       },
       "recordingRetention": {
-        "title": "Suppression automatique des enregistrements",
-        "description": "Supprimer automatiquement les anciens enregistrements pour économiser de l'espace",
+        "title": "Suppression automatique de l’historique",
+        "description": "Supprime les anciennes transcriptions et leur audio. Les favoris sont conservés.",
         "never": "Jamais",
         "preserveLimit": "Conserver les {{count}} plus récents",
         "days3": "Après 3 jours",

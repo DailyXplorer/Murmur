@@ -365,8 +365,8 @@
         "entries": "entradas"
       },
       "recordingRetention": {
-        "title": "Excluir Gravações Automaticamente",
-        "description": "Excluir automaticamente gravações antigas para economizar espaço",
+        "title": "Excluir Histórico Automaticamente",
+        "description": "Exclui transcrições antigas e o áudio delas. Entradas salvas são mantidas.",
         "never": "Nunca",
         "preserveLimit": "Manter as últimas {{count}}",
         "days3": "Após 3 dias",

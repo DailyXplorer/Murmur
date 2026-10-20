@@ -365,8 +365,8 @@
         "entries": "件"
       },
       "recordingRetention": {
-        "title": "録音の自動削除",
-        "description": "古い録音を自動的に削除して容量を節約",
+        "title": "履歴の自動削除",
+        "description": "古い文字起こしとその音声を削除します。保存したエントリーは残ります。",
         "never": "しない",
         "preserveLimit": "最新{{count}}件を保持",
         "days3": "3日後",

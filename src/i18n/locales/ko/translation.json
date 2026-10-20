@@ -365,8 +365,8 @@
         "entries": "항목"
       },
       "recordingRetention": {
-        "title": "녹음 자동 삭제",
-        "description": "공간을 절약하기 위해 오래된 녹음을 자동으로 삭제합니다",
+        "title": "히스토리 자동 삭제",
+        "description": "오래된 전사 내용과 오디오를 삭제합니다. 저장한 항목은 유지됩니다.",
         "never": "안 함",
         "preserveLimit": "최근 {{count}}개 유지",
         "days3": "3일 후",

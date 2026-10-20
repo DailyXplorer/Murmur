@@ -5,6 +5,7 @@ import { initReactI18next } from "react-i18next";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";
 import { HistoryLimit } from "../../src/components/settings/HistoryLimit";
+import { RecordingRetentionPeriodSelector } from "../../src/components/settings/RecordingRetentionPeriod";
 import { useSettingsStore } from "../../src/stores/settingsStore";
 import enTranslation from "../../src/i18n/locales/en/translation.json";
 import "../../src/App.css";
@@ -50,6 +51,7 @@ const renderFixture = async () => {
   ReactDOM.createRoot(rootElement).render(
     <main className="min-h-screen bg-background px-8 py-10 text-text">
       <HistoryLimit />
+      <RecordingRetentionPeriodSelector descriptionMode="inline" />
       <button type="button">Elsewhere</button>
     </main>,
   );

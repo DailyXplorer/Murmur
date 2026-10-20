@@ -365,8 +365,8 @@
         "entries": "mục"
       },
       "recordingRetention": {
-        "title": "Tự động xóa ghi âm",
-        "description": "Tự động xóa các bản ghi âm cũ để tiết kiệm dung lượng",
+        "title": "Tự động xóa lịch sử",
+        "description": "Xóa các bản chép lời cũ cùng âm thanh của chúng. Các mục đã lưu được giữ lại.",
         "never": "Không bao giờ",
         "preserveLimit": "Giữ {{count}} bản mới nhất",
         "days3": "Sau 3 ngày",
