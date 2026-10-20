@@ -192,14 +192,17 @@ pub fn time_chunk(
     ChunkTiming {
         tokens: tokens
             .into_iter()
+            .zip(measured)
             .zip(times)
             .zip(low)
-            .map(|((token, (start_ms, end_ms)), low_confidence)| TimedToken {
-                token,
-                start_ms,
-                end_ms,
-                low_confidence,
-            })
+            .map(
+                |(((token, heard_ms), (start_ms, end_ms)), low_confidence)| TimedToken {
+                    token: Token { heard_ms, ..token },
+                    start_ms,
+                    end_ms,
+                    low_confidence,
+                },
+            )
             .collect(),
         score,
         comparable: comparable.len(),
@@ -278,6 +281,35 @@ mod tests {
         assert_eq!(placed[1], (375, 2_000));
         assert_eq!(placed[2], (2_000, 2_375));
         assert_eq!(timing.score, 0.75);
+    }
+
+    #[test]
+    fn only_the_words_the_recogniser_heard_carry_its_time() {
+        // It missed "à dix heures," amid well-heard speech: they are placed,
+        // trusted, but not heard.
+        let words = heard("on se voit jeudi parfait", 0, 500);
+        let timing = time_chunk(
+            tokenize("On se voit jeudi à dix heures, parfait."),
+            &words,
+            0,
+            5_000,
+        );
+        let heard: Vec<Option<(u64, u64)>> =
+            timing.tokens.iter().map(|t| t.token.heard_ms).collect();
+        assert_eq!(
+            heard,
+            [
+                Some((0, 375)),
+                Some((500, 875)),
+                Some((1_000, 1_375)),
+                Some((1_500, 1_875)),
+                None,
+                None,
+                None,
+                Some((2_000, 2_375))
+            ]
+        );
+        assert!(timing.tokens.iter().all(|t| !t.low_confidence));
     }
 
     #[test]
