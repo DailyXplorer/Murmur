@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -67,6 +68,16 @@ const useFormatters = () => {
         unit: "day",
         unitDisplay: "long",
       }),
+      hours: new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: "hour",
+        unitDisplay: "narrow",
+      }),
+      minutes: new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: "minute",
+        unitDisplay: "narrow",
+      }),
       fullDate: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }),
       month: new Intl.DateTimeFormat(locale, { month: "short" }),
       weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }),
@@ -74,12 +85,21 @@ const useFormatters = () => {
   }, [i18n.language]);
 };
 
-const StatTile: React.FC<{
+type Stat = {
   icon: Icon;
   label: string;
   value: string;
+  /** A shorter form of `value`, shown when even the smallest scale is too wide. */
+  short?: string;
   tooltip?: string;
-}> = ({ icon: TileIcon, label, value, tooltip }) => (
+};
+
+const StatTile: React.FC<Stat> = ({
+  icon: TileIcon,
+  label,
+  value,
+  tooltip,
+}) => (
   <section className="flex min-w-0 flex-col gap-1 rounded-lg border border-mid-gray/20 bg-background p-4">
     {/* Two lines high in every tile, so a label that wraps keeps the values
         level. The info icon flows with the label and wraps with its last
@@ -95,9 +115,104 @@ const StatTile: React.FC<{
         )}
       </div>
     </div>
-    <p className="text-3xl font-semibold tabular-nums">{value}</p>
+    <p
+      className="mt-auto whitespace-nowrap leading-9 font-semibold tabular-nums"
+      style={{ fontSize: "calc(1.875rem * var(--stat-fit, 1))" }}
+    >
+      <span>{value}</span>
+    </p>
   </section>
 );
+
+/** The smallest scale, in percent, before the values switch to short forms. */
+const MIN_STAT_FIT = 50;
+
+const StatRow: React.FC<{ stats: Stat[] }> = ({ stats }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const values = stats.map((stat) => stat.value).join("\n");
+  // Set when the values did not fit at the smallest scale: which values,
+  // and the room they had, in pixels.
+  const [tooWide, setTooWide] = useState<{
+    values: string;
+    room: number;
+  } | null>(null);
+  const short = tooWide?.values === values;
+  const shown = short
+    ? stats.map((stat) => ({ ...stat, value: stat.short ?? stat.value }))
+    : stats;
+  const canShorten = stats.some(
+    (stat) => stat.short !== undefined && stat.short !== stat.value,
+  );
+
+  // One scale for every value, so the row stays uniform: the largest at
+  // which every value fits on one line in its tile. Text does not get
+  // narrower in exact proportion to its size (Linux rounds each glyph to
+  // whole pixels), so each scale is measured after it is applied.
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    let active = true;
+    const fit = () => {
+      if (!active) return;
+      const boxes = Array.from(
+        row.querySelectorAll<HTMLElement>("section > p"),
+        (value) => ({ value, text: value.firstElementChild! }),
+      );
+      const room = Math.min(
+        ...boxes.map(({ value }) => value.getBoundingClientRect().width),
+      );
+      if (tooWide && short && room > tooWide.room) {
+        setTooWide(null);
+        return;
+      }
+      // How far past its box the widest value reaches, with a pixel spare
+      // for the rounding of the box to whole pixels.
+      const overflow = () =>
+        Math.max(
+          ...boxes.map(
+            ({ value, text }) =>
+              text.getBoundingClientRect().width /
+              (value.getBoundingClientRect().width - 1),
+          ),
+        );
+      // Past the short forms, or without any, values shrink as far as they
+      // must.
+      const floor = canShorten && !short ? MIN_STAT_FIT : 1;
+      let percent = 100;
+      row.style.setProperty("--stat-fit", "1");
+      let ratio = overflow();
+      while (ratio > 1 && percent > floor) {
+        percent = Math.max(
+          floor,
+          Math.min(percent - 1, Math.floor(percent / ratio)),
+        );
+        row.style.setProperty("--stat-fit", String(percent / 100));
+        ratio = overflow();
+      }
+      if (ratio > 1 && !short && canShorten) setTooWide({ values, room });
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(row);
+    // A font that arrives later changes every width: start again from the
+    // full values.
+    const refit = () => (short ? setTooWide(null) : fit());
+    document.fonts.addEventListener("loadingdone", refit);
+    return () => {
+      active = false;
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", refit);
+    };
+  }, [values, short, canShorten, tooWide]);
+
+  return (
+    <div ref={rowRef} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {shown.map((stat) => (
+        <StatTile key={stat.label} {...stat} />
+      ))}
+    </div>
+  );
+};
 
 const AppUsage: React.FC<{ summary: InsightsSummary }> = ({ summary }) => {
   const { t } = useTranslation();
@@ -273,34 +388,41 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatTile
-          icon={GaugeIcon}
-          label={t("insights.wpm.title")}
-          value={
-            summary.words_per_minute === null
-              ? "–"
-              : format.number.format(summary.words_per_minute)
-          }
-          tooltip={t("insights.wpm.formula")}
-        />
-        <StatTile
-          icon={TextAaIcon}
-          label={t("insights.words.title")}
-          value={format.number.format(summary.total_words)}
-        />
-        <StatTile
-          icon={TimerIcon}
-          label={t("insights.timeSaved.title")}
-          value={t(`insights.timeSaved.value.${saved.unit}`, {
-            hours: format.number.format(saved.hours),
-            minutes: format.number.format(saved.minutes),
-          })}
-          tooltip={t("insights.timeSaved.formula", {
-            wpm: format.number.format(TYPING_WPM),
-          })}
-        />
-      </div>
+      <StatRow
+        stats={[
+          {
+            icon: GaugeIcon,
+            label: t("insights.wpm.title"),
+            value:
+              summary.words_per_minute === null
+                ? "–"
+                : format.number.format(summary.words_per_minute),
+            tooltip: t("insights.wpm.formula"),
+          },
+          {
+            icon: TextAaIcon,
+            label: t("insights.words.title"),
+            value: format.number.format(summary.total_words),
+          },
+          {
+            icon: TimerIcon,
+            label: t("insights.timeSaved.title"),
+            value: t(`insights.timeSaved.value.${saved.unit}`, {
+              hours: format.number.format(saved.hours),
+              minutes: format.number.format(saved.minutes),
+            }),
+            short: [
+              saved.unit !== "minutes" && format.hours.format(saved.hours),
+              saved.unit !== "hours" && format.minutes.format(saved.minutes),
+            ]
+              .filter(Boolean)
+              .join(" "),
+            tooltip: t("insights.timeSaved.formula", {
+              wpm: format.number.format(TYPING_WPM),
+            }),
+          },
+        ]}
+      />
 
       <SettingsGroup title={t("insights.apps.title")}>
         <AppUsage summary={summary} />

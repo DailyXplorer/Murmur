@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { readdirSync } from "node:fs";
+import { DEFAULT_WINDOW, MIN_WINDOW } from "./windowSizes";
 
-// The window opens at this size (lib.rs) and cannot be made smaller.
-const DEFAULT_WINDOW = { width: 680, height: 570 };
+const LOCALES = readdirSync(new URL("../src/i18n/locales/", import.meta.url));
 
 const SECTIONS = [
   "General",
@@ -11,8 +12,13 @@ const SECTIONS = [
   "Insights",
 ];
 
-const openSection = async (page: Page, section: string, query = "") => {
-  await page.setViewportSize(DEFAULT_WINDOW);
+const openSection = async (
+  page: Page,
+  section: string,
+  query = "",
+  size = MIN_WINDOW,
+) => {
+  await page.setViewportSize(size);
   await page.goto(`/tests/fixtures/settings-pages.html${query}`);
   const button = page
     .getByRole("navigation")
@@ -69,38 +75,154 @@ test("Custom Words puts a full-width field under its title", async ({
   await expect(row.getByPlaceholder("Add a word")).toHaveValue("");
 });
 
-for (const language of ["en", "de", "es", "fr", "ru", "uk"]) {
-  test(`Insights stat labels fit in full (${language})`, async ({ page }) => {
-    await openSection(page, "Insights", `?lang=${language}`);
-    // The stat cards are the sections that show a value right under the label.
-    const tiles = page.getByRole("main").locator("section:has(> p)");
-    await expect(tiles).toHaveCount(3);
-    const overflows = await tiles.evaluateAll((elements) =>
-      elements.flatMap((tile) => {
-        const padding = parseFloat(getComputedStyle(tile).paddingRight);
-        const right = tile.getBoundingClientRect().right - padding;
-        const label = tile.querySelector("h2")!;
-        const parts = [
-          ...Array.from(label.getClientRects()),
-          ...Array.from(tile.querySelectorAll("svg, button")).map((element) =>
-            element.getBoundingClientRect(),
-          ),
-        ];
-        return [
-          ...(label.scrollWidth > label.clientWidth
-            ? [`${label.textContent} is cut off`]
-            : []),
-          ...parts
-            .filter((rect) => rect.right > right + 0.5)
-            .map(
-              (rect) =>
-                `${label.textContent} reaches ${rect.right - right}px past the padding`,
+const statTiles = (page: Page) =>
+  // The stat cards are the sections that show a value right under the label.
+  page.getByRole("main").locator("section:has(> p)");
+
+for (const [name, size] of [
+  ["default", DEFAULT_WINDOW],
+  ["minimum", MIN_WINDOW],
+] as const) {
+  for (const language of ["en", "de", "es", "fr", "ru", "uk"]) {
+    test(`Insights stat labels fit in full (${language}, ${name} window)`, async ({
+      page,
+    }) => {
+      await openSection(page, "Insights", `?lang=${language}`, size);
+      const tiles = statTiles(page);
+      await expect(tiles).toHaveCount(3);
+      const overflows = await tiles.evaluateAll((elements) =>
+        elements.flatMap((tile) => {
+          const padding = parseFloat(getComputedStyle(tile).paddingRight);
+          const right = tile.getBoundingClientRect().right - padding;
+          const label = tile.querySelector("h2")!;
+          const parts = [
+            ...Array.from(label.getClientRects()),
+            ...Array.from(tile.querySelectorAll("svg, button")).map((element) =>
+              element.getBoundingClientRect(),
             ),
-        ];
-      }),
-    );
-    expect(overflows).toEqual([]);
+          ];
+          return [
+            ...(label.scrollWidth > label.clientWidth
+              ? [`${label.textContent} is cut off`]
+              : []),
+            ...parts
+              .filter((rect) => rect.right > right + 0.5)
+              .map(
+                (rect) =>
+                  `${label.textContent} reaches ${rect.right - right}px past the padding`,
+              ),
+          ];
+        }),
+      );
+      expect(overflows).toEqual([]);
+    });
+  }
+}
+
+/** Every way a stat value fails to sit on one line inside its tile. */
+const statValueProblems = (tiles: Locator, language: string) =>
+  tiles.evaluateAll((elements, language) => {
+    // Some locales write numbers in their own digits.
+    const huge = new Intl.NumberFormat(language).format(999);
+    const values = elements.map((tile) => tile.querySelector(":scope > p")!);
+    const problems = values.flatMap((value, index) => {
+      const tile = elements[index];
+      const text = value.textContent ?? "";
+      const style = getComputedStyle(value);
+      const tileStyle = getComputedStyle(tile);
+      const tileBox = tile.getBoundingClientRect();
+      const left = tileBox.left + parseFloat(tileStyle.paddingLeft);
+      const right = tileBox.right - parseFloat(tileStyle.paddingRight);
+      const inner = document.createRange();
+      inner.selectNodeContents(value);
+      const innerBox = inner.getBoundingClientRect();
+      // Mixed-direction text gets one rect per bidi run on the same line.
+      const lines = new Set(
+        Array.from(inner.getClientRects(), (rect) => Math.round(rect.top)),
+      ).size;
+      const height = value.getBoundingClientRect().height;
+      return [
+        ...(text.includes(huge) ? [] : [`${text} does not show ${huge}`]),
+        ...(value.scrollWidth > value.clientWidth
+          ? [`${text} overflows its box`]
+          : []),
+        ...(lines === 1 && height <= parseFloat(style.lineHeight) + 1
+          ? []
+          : [`${text} takes ${lines} lines, ${height}px high`]),
+        ...(innerBox.left < left - 0.5 || innerBox.right > right + 0.5
+          ? [`${text} reaches past the tile padding`]
+          : []),
+      ];
+    });
+    const tops = values.map((value) => value.getBoundingClientRect().top);
+    const heights = elements.map((tile) => tile.getBoundingClientRect().height);
+    if (Math.max(...tops) - Math.min(...tops) > 1) {
+      problems.push(`values sit at different heights: ${tops.join(", ")}`);
+    }
+    if (Math.max(...heights) - Math.min(...heights) > 0.5) {
+      problems.push(`tiles differ in height: ${heights.join(", ")}`);
+    }
+    return problems;
+  }, language);
+
+const expectStatValuesOnOneLine = async (
+  page: Page,
+  language: string,
+  theme: "light" | "dark",
+) => {
+  await page.emulateMedia({ colorScheme: theme });
+  await openSection(
+    page,
+    "Insights",
+    `?insights=huge&lang=${language}&theme=${theme}`,
+    DEFAULT_WINDOW,
+  );
+  const tiles = statTiles(page);
+  await expect(tiles).toHaveCount(3);
+  await page.evaluate(() => document.fonts.ready);
+  for (const size of [DEFAULT_WINDOW, MIN_WINDOW]) {
+    await page.setViewportSize(size);
+    await expect
+      .poll(
+        () => statValueProblems(tiles, language),
+        `${theme}, ${size.width}px`,
+      )
+      .toEqual([]);
+  }
+};
+
+for (const language of LOCALES) {
+  test(`Insights stat values stay on one line in their tiles (${language})`, async ({
+    page,
+  }) => {
+    for (const theme of ["light", "dark"] as const) {
+      await expectStatValuesOnOneLine(page, language, theme);
+    }
   });
+
+  // Linux draws text wider than macOS: wider fallback fonts, and glyph
+  // advances rounded up to whole pixels, which do not shrink with the font
+  // size. A wide font with a fixed spacing between letters reproduces both,
+  // so the fit cannot rely on the metrics of one machine. The widest spacing
+  // leaves no room for the full values even at the smallest scale.
+  for (const [width, spacing] of [
+    ["wide", "1px"],
+    ["very wide", "8px"],
+  ]) {
+    test(`Insights stat values stay on one line in their tiles with a ${width} font (${language})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((spacing) => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(`main section > p {
+          font-family: "DejaVu Sans", Verdana, sans-serif !important;
+          letter-spacing: ${spacing};
+        }`);
+        document.adoptedStyleSheets = [sheet];
+      }, spacing);
+      await expectStatValuesOnOneLine(page, language, "light");
+    });
+  }
 }
 
 test("Insights has no subtitles or footnote", async ({ page }) => {

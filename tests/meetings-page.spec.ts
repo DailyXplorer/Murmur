@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MIN_WINDOW } from "./windowSizes";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 
@@ -394,10 +395,10 @@ test("a double click on Start or Stop runs only its first action", async ({
   expect(await actions()).toEqual(["start_meeting"]);
 });
 
-test("the system audio row's title fits at the default window size in every language", async ({
+test("the system audio row's title fits at the minimum window size in every language", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 680, height: 570 });
+  await page.setViewportSize(MIN_WINDOW);
   for (const { locale, page: meetings, title } of LOCALES) {
     await page.goto(`${fixture}?meetings=1&lang=${locale}`);
     await sidebarButton(page, meetings).click();
