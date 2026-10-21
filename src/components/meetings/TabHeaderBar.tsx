@@ -81,8 +81,10 @@ export const useTextSearch = (texts: string[]) => {
             if (isCurrent) currentMark.current = element;
           }}
           data-current={isCurrent || undefined}
-          className={`rounded-sm text-text ${
-            isCurrent ? "bg-logo-primary/60" : "bg-logo-primary/25"
+          className={`rounded-sm ${
+            isCurrent
+              ? "bg-background-ui text-on-accent"
+              : "bg-logo-primary/25 text-text"
           }`}
         >
           {text.slice(match.start, match.end)}

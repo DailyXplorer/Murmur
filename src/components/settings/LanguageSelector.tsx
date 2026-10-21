@@ -240,7 +240,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     tabIndex={language.value === initialTabStopValue ? 0 : -1}
                     className={`min-h-control w-full px-3 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                       selectedLanguage === language.value
-                        ? "bg-logo-primary/20 text-logo-primary"
+                        ? "bg-logo-primary/20 text-accent-text"
                         : ""
                     }`}
                     onClick={() => handleLanguageSelect(language.value)}

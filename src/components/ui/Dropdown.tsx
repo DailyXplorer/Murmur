@@ -68,7 +68,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         id={triggerId}
         type="button"
         data-control="field"
-        className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} grid w-full min-w-[200px] grid-cols-[1fr_auto] items-center gap-2 transition-[background-color,border-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] ${
+        className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} grid w-full min-w-[200px] grid-cols-[1fr_auto] items-center gap-2 transition-[background-color,border-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] ${
           disabled
             ? "opacity-50 cursor-not-allowed"
             : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
@@ -106,7 +106,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 role="option"
                 aria-selected={selectedValue === option.value}
                 tabIndex={option.value === initialTabStopValue ? 0 : -1}
-                className={`min-h-control w-full px-3 py-1 text-start text-sm font-normal transition-colors duration-150 hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-logo-primary ${
+                className={`min-h-control w-full px-3 py-1 text-start text-sm font-normal transition-colors duration-150 hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-text ${
                   selectedValue === option.value ? "bg-logo-primary/20" : ""
                 } ${option.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 onClick={() => handleSelect(option.value)}

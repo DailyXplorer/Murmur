@@ -295,7 +295,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
               aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
               disabled={disabled || isUpdating(`binding_${shortcutId}`)}
               data-control="field"
-              className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} min-w-0 flex-1 cursor-pointer truncate hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50`}
+              className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} min-w-0 flex-1 cursor-pointer truncate hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-not-allowed disabled:opacity-50`}
               onClick={(event) => {
                 event.stopPropagation();
                 startRecording(shortcutId);
