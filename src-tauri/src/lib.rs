@@ -20,6 +20,7 @@ mod engine;
 mod helpers;
 mod input;
 mod insights;
+pub mod local_models;
 mod managers;
 mod meetings;
 mod operation;
