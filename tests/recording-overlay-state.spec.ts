@@ -276,6 +276,25 @@ test("without a text field the pill is one Copy button that confirms the copy", 
   expect(await page.evaluate(() => window.overlayHarness.copyCalls())).toBe(1);
 });
 
+test("a refused copy leaves the pill on Copy and says why in the log", async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "warning") warnings.push(message.text());
+  });
+  await openOverlay(page, {
+    copyError: "copy_notice_again not allowed on window recording_overlay",
+  });
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect
+    .poll(() => warnings.join("\n"))
+    .toContain("copy_notice_again not allowed");
+  await expect(page.locator(".ov-stage")).toHaveText("Copy");
+});
+
 test("the copy pill hides on request and gives way to a new recording", async ({
   page,
 }) => {

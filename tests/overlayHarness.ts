@@ -6,8 +6,15 @@ export const ERROR_WINDOW = { width: 312, height: 116 };
 export const COPY_WINDOW = { width: 200, height: 62 };
 
 /** Opens the overlay page with Tauri's event bridge mocked. */
-export async function openOverlay(page: Page, { holdSettings = false } = {}) {
-  await page.addInitScript((hold) => {
+export async function openOverlay(
+  page: Page,
+  {
+    holdSettings = false,
+    copyError,
+  }: { holdSettings?: boolean; copyError?: string } = {},
+) {
+  const options = { hold: holdSettings, copyRejection: copyError };
+  await page.addInitScript(({ hold, copyRejection }) => {
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -42,6 +49,8 @@ export async function openOverlay(page: Page, { holdSettings = false } = {}) {
         }
         if (command === "copy_notice_again") {
           copyCalls += 1;
+          // Tauri rejects a command the ACL denies with a plain string.
+          if (copyRejection) return Promise.reject(copyRejection);
           return Promise.resolve(null);
         }
         throw new Error(`Unexpected Tauri command: ${command}`);
@@ -59,7 +68,7 @@ export async function openOverlay(page: Page, { holdSettings = false } = {}) {
         callbacks.delete(id);
       },
     };
-  }, holdSettings);
+  }, options);
 
   await page.goto("/tests/fixtures/recording-overlay-listeners.html");
   await expect

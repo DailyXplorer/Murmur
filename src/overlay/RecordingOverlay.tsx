@@ -219,12 +219,14 @@ const RecordingOverlay: React.FC = () => {
       void commands
         .copyNoticeAgain()
         .then((result) => {
-          if (result.status !== "ok") return;
+          if (result.status !== "ok") throw result.error;
           setView((current) =>
             current.kind === "copy" ? { ...current, copied: true } : current,
           );
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          console.warn("Copying the dictation again failed:", error);
+        });
     };
     const Icon = view.copied ? CheckIcon : CopyIcon;
     return (

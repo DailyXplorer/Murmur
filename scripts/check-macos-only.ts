@@ -249,6 +249,7 @@ checkCapability(
     "os:allow-locale",
     "allow-get-app-settings",
     "allow-cancel-operation",
+    "allow-copy-notice-again",
   ],
 );
 
