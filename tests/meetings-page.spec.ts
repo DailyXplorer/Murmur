@@ -66,7 +66,7 @@ test("lists meetings newest first with their duration and status", async ({
   await expect(items.nth(1)).toContainText("1:12:05 · Ready");
   await expect(items.nth(2)).toContainText("09:41 · Interrupted");
   await expect(
-    page.getByRole("button", { name: "Start Meeting" }),
+    page.getByRole("button", { name: "Start meeting" }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => window.settingsPages.unhandledCommands),
@@ -78,14 +78,14 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   const items = page.getByRole("listitem");
   await expect(items).toHaveCount(3);
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Delete this meeting?");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(items).toHaveCount(3);
   expect(await calls(page)).not.toContain("delete_meeting");
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Delete" })
@@ -107,7 +107,7 @@ test("a double click on a meeting's trash leaves the confirmation open", async (
   const trash = page
     .getByRole("listitem")
     .nth(1)
-    .getByRole("button", { name: "Delete Meeting" });
+    .getByRole("button", { name: "Delete meeting" });
 
   // The trash lies outside the dialog, so the second click lands on the
   // backdrop that the first one put up.
@@ -143,7 +143,7 @@ test("a list load already on its way does not bring a deleted meeting back", asy
   });
   await expect.poll(loads).toBeGreaterThan(before);
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Delete" })
@@ -163,7 +163,7 @@ test("an update keeps every page of the list that is shown", async ({
   const items = page.getByRole("listitem");
   await expect(items).toHaveCount(50);
 
-  await page.getByRole("button", { name: "Show More" }).click();
+  await page.getByRole("button", { name: "Show more" }).click();
   await expect(items).toHaveCount(63);
 
   const loads = async () =>
@@ -174,12 +174,12 @@ test("an update keeps every page of the list that is shown", async ({
   await expect.poll(loads).toBeGreaterThan(before);
   await page.waitForTimeout(100);
   await expect(items).toHaveCount(63);
-  await expect(page.getByRole("button", { name: "Show More" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show more" })).toHaveCount(0);
 });
 
 test("the start button starts a meeting", async ({ page }) => {
   await openMeetings(page);
-  await page.getByRole("button", { name: "Start Meeting" }).click();
+  await page.getByRole("button", { name: "Start meeting" }).click();
   await expect.poll(() => calls(page)).toContain("start_meeting");
 });
 
@@ -192,12 +192,12 @@ test("a meeting in progress shows its time, can be stopped and cannot be deleted
   const live = page.getByRole("listitem").nth(0);
   await expect(live).toContainText("· Recording");
   await expect(
-    live.getByRole("button", { name: "Delete Meeting" }),
+    live.getByRole("button", { name: "Delete meeting" }),
   ).toBeDisabled();
 
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("dialog")).toContainText("Discard this meeting?");
-  await page.getByRole("button", { name: "Keep Recording" }).click();
+  await page.getByRole("button", { name: "Keep recording" }).click();
   expect(await calls(page)).not.toContain("discard_meeting");
 
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -270,9 +270,9 @@ test("without system audio support the sources are fixed to the microphone", asy
   await expect(
     page.getByText(/System audio needs macOS 14\.4 or later/),
   ).toBeVisible();
-  const sources = page.getByRole("button", { name: "Microphone Only" });
+  const sources = page.getByRole("button", { name: "Microphone only" });
   await expect(sources).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Open Settings" })).toHaveCount(
+  await expect(page.getByRole("button", { name: "Open settings" })).toHaveCount(
     0,
   );
 });
@@ -284,7 +284,7 @@ test("the page starts with the recording controls, and its buttons show text onl
   await expect(page.getByText(/Transcripts and summaries appear/)).toHaveCount(
     0,
   );
-  const start = page.getByRole("button", { name: "Start Meeting" });
+  const start = page.getByRole("button", { name: "Start meeting" });
   await expect(start).toBeVisible();
   await expect(start.locator("svg")).toHaveCount(0);
 
@@ -296,7 +296,7 @@ test("the page starts with the recording controls, and its buttons show text onl
 
 const speakerGroup = (page: Page) =>
   page.locator("section").filter({
-    has: page.getByRole("heading", { name: "Speaker Detection", exact: true }),
+    has: page.getByRole("heading", { name: "Speaker detection", exact: true }),
   });
 
 test("speaker detection has no licences button, in any state", async ({
@@ -368,7 +368,7 @@ test("a double click on a speaker models button runs only its first action", asy
   await openMeetings(page, "&models=ready");
   await doubleClickAcrossStates(
     page,
-    button("Delete Models"),
+    button("Delete models"),
     button("Download"),
   );
   expect(await actions()).toEqual(["delete_meeting_models"]);
@@ -381,7 +381,7 @@ test("a double click on Start or Stop runs only its first action", async ({
     (await calls(page)).filter((command) =>
       ["start_meeting", "stop_meeting", "discard_meeting"].includes(command),
     );
-  const start = page.getByRole("button", { name: "Start Meeting" });
+  const start = page.getByRole("button", { name: "Start meeting" });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
 
   await openMeetings(page, "&meeting=recording");
@@ -421,8 +421,8 @@ test("the system audio row's title fits at the minimum window size in every lang
 test("the speaker models' licences open from About", async ({ page }) => {
   await page.goto(fixture);
   await sidebarButton(page, "About").click();
-  await page.getByRole("button", { name: "View Licences" }).click();
-  const dialog = page.getByRole("dialog", { name: "Model Licences" });
+  await page.getByRole("button", { name: "View licences" }).click();
+  const dialog = page.getByRole("dialog", { name: "Model licences" });
   await expect(dialog).toContainText("pyannote, CC BY 4.0");
   await expect(dialog).toContainText("Murmur doesn't include them.");
 });

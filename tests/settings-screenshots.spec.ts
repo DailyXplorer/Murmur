@@ -105,16 +105,16 @@ test.describe("settings screenshots", () => {
         fullPage: true,
       });
 
-      await page.getByRole("button", { name: "Search Transcript" }).click();
+      await page.getByRole("button", { name: "Search transcript" }).click();
       await page
-        .getByRole("textbox", { name: "Search Transcript" })
+        .getByRole("textbox", { name: "Search transcript" })
         .fill("plateforme");
       await page.screenshot({
         path: `${outputDir}/meeting-search-${theme}.png`,
         fullPage: true,
       });
 
-      await page.getByRole("button", { name: "Rename Speakers" }).click();
+      await page.getByRole("button", { name: "Rename speakers" }).click();
       await page.waitForTimeout(300);
       await page.screenshot({
         path: `${outputDir}/meeting-rename-${theme}.png`,
@@ -246,13 +246,20 @@ test.describe("settings screenshots", () => {
       await page.screenshot({ path: `${outputDir}/meeting-transcript.png` });
 
       await page
-        .getByRole("button", { name: "Delete Audio" })
+        .getByRole("button", { name: "Delete audio" })
         .scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${outputDir}/meeting-footer.png` });
     });
 
-    for (const section of ["Transcription", "Meetings", "Advanced", "About"]) {
+    for (const section of [
+      "General",
+      "Transcription",
+      "Insights",
+      "Meetings",
+      "Advanced",
+      "About",
+    ]) {
       test(`${section} page`, async ({ page }) => {
         await page.goto("/tests/fixtures/settings-pages.html?meetings=1");
         await page

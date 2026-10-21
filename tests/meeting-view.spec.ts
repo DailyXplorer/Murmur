@@ -98,7 +98,7 @@ test("a meeting whose system audio was pure silence points to the privacy settin
   await expect(notice).toBeVisible();
   await expect(notice).toContainText("System Audio Recording");
   await expectOneSmallLine(page, notice);
-  const open = notice.getByRole("button", { name: "Open Settings" });
+  const open = notice.getByRole("button", { name: "Open settings" });
   await expect(open).toHaveCSS("background-color", TRANSPARENT);
   await open.click();
   expect(
@@ -128,16 +128,16 @@ test("the icon actions of each tab sit together as a toolbar", async ({
 }) => {
   await openMeeting(page, /Point hebdo produit/);
   await expectToolbar(page, [
-    "Search Summary",
-    "Copy Summary",
+    "Search summary",
+    "Copy summary",
     "Export as Markdown",
   ]);
   await page.getByRole("tab", { name: "Transcript" }).click();
   await expectToolbar(page, [
-    "Search Transcript",
-    "Copy Transcript",
+    "Search transcript",
+    "Copy transcript",
     "Export as Markdown",
-    "Rename Speakers",
+    "Rename speakers",
   ]);
 });
 
@@ -145,8 +145,8 @@ test("the audio row's actions are the same pink button, side by side", async ({
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
-  const again = page.getByRole("button", { name: "Transcribe Again" });
-  const remove = page.getByRole("button", { name: "Delete Audio" });
+  const again = page.getByRole("button", { name: "Transcribe again" });
+  const remove = page.getByRole("button", { name: "Delete audio" });
   await expect(again).toBeVisible();
   await expect(remove).toBeVisible();
   const [againBox, removeBox] = await Promise.all([
@@ -172,12 +172,12 @@ test("deleting the meeting or its audio asks with a pink button, never red", asy
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/, "&audioBytes=350623");
-  const again = page.getByRole("button", { name: "Transcribe Again" });
+  const again = page.getByRole("button", { name: "Transcribe again" });
   const pink = await cssOf(again, "background-color");
-  await page.getByRole("button", { name: "Delete Audio" }).click();
+  await page.getByRole("button", { name: "Delete audio" }).click();
   const confirm = page
     .getByRole("dialog")
-    .getByRole("button", { name: "Delete Audio" });
+    .getByRole("button", { name: "Delete audio" });
   await expect(confirm).toHaveCSS("background-color", pink);
   const classes = await page.evaluate(() =>
     Array.from(document.querySelectorAll("button")).map((b) => b.className),
@@ -219,10 +219,10 @@ test("text buttons are filled from the start, icon buttons only tint on hover", 
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/);
-  const back = page.getByRole("button", { name: "All Meetings" });
+  const back = page.getByRole("button", { name: "All meetings" });
   await expect(back).not.toHaveCSS("background-color", TRANSPARENT);
 
-  const copy = page.getByRole("button", { name: "Copy Summary" });
+  const copy = page.getByRole("button", { name: "Copy summary" });
   await expect(copy).toHaveCSS("background-color", TRANSPARENT);
   await copy.hover();
   await expect(copy).not.toHaveCSS("background-color", TRANSPARENT);
@@ -239,7 +239,7 @@ test("a meeting shows its transcript in order, with a name at each change of spe
 }) => {
   await openMeeting(page, /Point hebdo produit/);
 
-  await expect(page.getByLabel("Meeting Title")).toHaveValue(
+  await expect(page.getByLabel("Meeting title")).toHaveValue(
     "Point hebdo produit",
   );
   // A ready meeting opens on its summary.
@@ -270,7 +270,7 @@ test("a meeting shows its transcript in order, with a name at each change of spe
 
 test("the title saves on Enter and reverts on Escape", async ({ page }) => {
   await openMeeting(page, /Point hebdo produit/);
-  const title = page.getByLabel("Meeting Title");
+  const title = page.getByLabel("Meeting title");
 
   await title.fill("Revue produit");
   await title.press("Escape");
@@ -289,8 +289,8 @@ test("search ignores case and accents and cycles through the matches", async ({
   page,
 }) => {
   await openTranscript(page);
-  await page.getByRole("button", { name: "Search Transcript" }).click();
-  const search = page.getByRole("textbox", { name: "Search Transcript" });
+  await page.getByRole("button", { name: "Search transcript" }).click();
+  const search = page.getByRole("textbox", { name: "Search transcript" });
 
   await search.fill("INTEGRATION");
   await expect(page.getByText("1/1")).toBeVisible();
@@ -316,7 +316,7 @@ test("clicking a speaker's name renames them everywhere", async ({ page }) => {
   await openTranscript(page);
   await bubbles(page).nth(0).getByRole("button", { name: "Speaker 2" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  const dialog = page.getByRole("dialog", { name: "Rename speakers" });
   const field = dialog.getByRole("textbox", { name: "Name for Speaker 2" });
   await expect(field).toBeFocused();
   await field.fill("Camille");
@@ -338,8 +338,8 @@ test("the rename dialog opens from the header and saves nothing unchanged", asyn
   page,
 }) => {
   await openTranscript(page);
-  await page.getByRole("button", { name: "Rename Speakers" }).click();
-  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  await page.getByRole("button", { name: "Rename speakers" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename speakers" });
   await expect(dialog.getByRole("textbox")).toHaveCount(2);
   await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
   await dialog.getByRole("textbox", { name: "Name for Me" }).fill(" ");
@@ -352,7 +352,7 @@ test("the transcript copies and exports as Markdown", async ({ page }) => {
   await refuseWebviewClipboard(page);
   await openTranscript(page);
 
-  await page.getByRole("button", { name: "Copy Transcript" }).click();
+  await page.getByRole("button", { name: "Copy transcript" }).click();
   await expect(page.getByText("Transcript copied.")).toBeVisible();
   expect(await callsTo(page, "copy_meeting_markdown")).toEqual([
     { id: 3, kind: "transcript" },
@@ -387,7 +387,7 @@ test("a ready meeting's summary names people and shows its read time", async ({
 test("renaming a speaker renames them in the summary too", async ({ page }) => {
   await openTranscript(page);
   await bubbles(page).nth(0).getByRole("button", { name: "Speaker 2" }).click();
-  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  const dialog = page.getByRole("dialog", { name: "Rename speakers" });
   await dialog
     .getByRole("textbox", { name: "Name for Speaker 2" })
     .fill("Camille");
@@ -404,8 +404,8 @@ test("summary search ignores case and cycles through the matches", async ({
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/);
-  await page.getByRole("button", { name: "Search Summary" }).click();
-  const search = page.getByRole("textbox", { name: "Search Summary" });
+  await page.getByRole("button", { name: "Search summary" }).click();
+  const search = page.getByRole("textbox", { name: "Search summary" });
 
   await search.fill("PAYMENT");
   await expect(page.getByText("1/1")).toBeVisible();
@@ -424,8 +424,8 @@ test("the search counter stays within the matches when the text changes", async 
   page,
 }) => {
   await openMeeting(page, /Point hebdo produit/);
-  await page.getByRole("button", { name: "Search Summary" }).click();
-  const search = page.getByRole("textbox", { name: "Search Summary" });
+  await page.getByRole("button", { name: "Search summary" }).click();
+  const search = page.getByRole("textbox", { name: "Search summary" });
 
   // "Speaker 2" three times, and "November".
   await search.fill("er");
@@ -452,7 +452,7 @@ test("the summary copies and exports as Markdown", async ({ page }) => {
   await refuseWebviewClipboard(page);
   await openMeeting(page, /Point hebdo produit/);
 
-  await page.getByRole("button", { name: "Copy Summary" }).click();
+  await page.getByRole("button", { name: "Copy summary" }).click();
   await expect(page.getByText("Summary copied.")).toBeVisible();
   expect(await callsTo(page, "copy_meeting_markdown")).toEqual([
     { id: 3, kind: "summary" },
@@ -472,7 +472,7 @@ test("a failed summary shows why, and Retry writes it", async ({ page }) => {
   );
   // The transcript is unaffected.
   await expect(
-    page.getByRole("button", { name: "Copy Summary" }),
+    page.getByRole("button", { name: "Copy summary" }),
   ).toBeDisabled();
 
   await alert.getByRole("button", { name: "Retry" }).click();
@@ -501,11 +501,11 @@ test("deleting the audio asks first and keeps the text", async ({ page }) => {
   await openMeeting(page, /Point hebdo produit/);
   await expect(page.getByText("Audio kept · 35 MB")).toBeVisible();
 
-  await page.getByRole("button", { name: "Delete Audio" }).click();
+  await page.getByRole("button", { name: "Delete audio" }).click();
   const dialog = page.getByRole("dialog", {
     name: "Delete this meeting's audio?",
   });
-  await dialog.getByRole("button", { name: "Delete Audio" }).click();
+  await dialog.getByRole("button", { name: "Delete audio" }).click();
   await expect
     .poll(() => callsTo(page, "delete_meeting_audio"))
     .toEqual([{ id: 3 }]);
@@ -513,22 +513,22 @@ test("deleting the audio asks first and keeps the text", async ({ page }) => {
     page.getByText("Audio deleted. The transcript and summary stay."),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Transcribe Again" }),
+    page.getByRole("button", { name: "Transcribe again" }),
   ).toHaveCount(0);
   await expect(summary(page)).toContainText("Weekly product check-in");
 });
 
 test("transcribing again asks first", async ({ page }) => {
   await openMeeting(page, /Point hebdo produit/);
-  await page.getByRole("button", { name: "Transcribe Again" }).click();
+  await page.getByRole("button", { name: "Transcribe again" }).click();
   const dialog = page.getByRole("dialog", {
     name: "Transcribe this meeting again?",
   });
   await dialog.getByRole("button", { name: "Cancel" }).click();
   expect(await callsTo(page, "retranscribe_meeting")).toEqual([]);
 
-  await page.getByRole("button", { name: "Transcribe Again" }).click();
-  await dialog.getByRole("button", { name: "Transcribe Again" }).click();
+  await page.getByRole("button", { name: "Transcribe again" }).click();
+  await dialog.getByRole("button", { name: "Transcribe again" }).click();
   await expect
     .poll(() => callsTo(page, "retranscribe_meeting"))
     .toEqual([{ id: 3 }]);
@@ -611,7 +611,7 @@ test("a meeting held by a rate limit says when it resumes and can go now", async
   await expect(status).toContainText(
     /Codex is limiting requests\. Processing resumes at \d{1,2}:\d{2}/,
   );
-  await status.getByRole("button", { name: "Process Now" }).click();
+  await status.getByRole("button", { name: "Process now" }).click();
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 4 }]);
 });
 
@@ -624,7 +624,7 @@ test("a ready meeting whose summary is held says when it resumes, not that it wr
     /Codex is limiting requests\. Processing resumes at \d{1,2}:\d{2}/,
   );
   await expect(page.getByText("Writing the summary…")).toHaveCount(0);
-  await status.getByRole("button", { name: "Process Now" }).click();
+  await status.getByRole("button", { name: "Process now" }).click();
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
 });
 
@@ -632,8 +632,8 @@ test("a speaker name being typed survives the meeting reloading", async ({
   page,
 }) => {
   await openTranscript(page);
-  await page.getByRole("button", { name: "Rename Speakers" }).click();
-  const dialog = page.getByRole("dialog", { name: "Rename Speakers" });
+  await page.getByRole("button", { name: "Rename speakers" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename speakers" });
   // The dialog focuses the first field a frame after opening; typing before
   // that would land the name there.
   await expect(
@@ -679,9 +679,9 @@ test("an interrupted recording can be transcribed, and Back returns to the list"
   await page.getByRole("button", { name: "Transcribe" }).click();
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 2 }]);
 
-  await page.getByRole("button", { name: "All Meetings" }).click();
+  await page.getByRole("button", { name: "All meetings" }).click();
   await expect(
-    page.getByRole("button", { name: "Start Meeting" }),
+    page.getByRole("button", { name: "Start meeting" }),
   ).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(3);
 });

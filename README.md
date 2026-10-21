@@ -78,8 +78,8 @@ does not store anything in the keychain.
 
 ### Windows (beta)
 
-1. Download `Murmur_1.7.7-beta.1_x64-setup.exe` from the
-   [v1.7.7-beta.1 pre-release](https://github.com/DailyXplorer/Murmur/releases/tag/v1.7.7-beta.1).
+1. Open the [Windows releases](https://github.com/DailyXplorer/Murmur/releases?q=Murmur%20for%20Windows&expanded=true)
+   and download `Murmur_…_x64-setup.exe` from the first one in the list.
 2. Run the installer. It is not signed, so SmartScreen blocks it: click
    **More info**, then **Run anyway**. Murmur installs for the current user.
 3. Open Murmur and connect Codex. Hold Ctrl+Win to dictate, or double-tap it
@@ -149,7 +149,7 @@ length.
 ### Meetings
 
 Meetings are on by default and can be turned off in Settings → Advanced.
-Press Control+Option+Command+M, or choose Start Meeting in the menu bar, to
+Press Control+Option+Command+M, or choose Start meeting in the menu bar, to
 start recording; press it again to stop. You can pick other keys in Settings;
 if another app already holds them, the shortcut field says so. A red pill
 shows the elapsed time. A meeting stops by itself after 3 hours, with a
@@ -269,7 +269,7 @@ Guarded paste saves the clipboard before it places the transcription there.
 By default, Murmur puts the saved items back, with every format they had, once
 the 8-second paste window ends. If you copy something else during that window,
 Murmur leaves your new clipboard alone. If insertion fails, Murmur keeps the
-transcription on the clipboard for manual paste. The Keep Transcription option
+transcription on the clipboard for manual paste. The Keep transcription option
 leaves the transcription on the clipboard after insertion.
 
 ## Origin
@@ -278,6 +278,11 @@ Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur now
 transcribes through Codex using the session already present on the computer.
+
+## Support
+
+Murmur is free. To support development,
+[buy a coffee](https://buymeacoffee.com/dailyxplorer).
 
 ## License
 

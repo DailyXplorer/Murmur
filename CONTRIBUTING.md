@@ -6,6 +6,7 @@ Keep each change focused. Explain why it is needed and test the behavior it affe
 
 - Search existing [issues](https://github.com/DailyXplorer/Murmur/issues) and [pull requests](https://github.com/DailyXplorer/Murmur/pulls).
 - Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) for reproducible bugs.
+- Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md) when the outcome, behaviour, and done-when are already clear.
 - Start a [discussion](https://github.com/DailyXplorer/Murmur/discussions) for feature ideas that would benefit from feedback before implementation.
 
 ## Set up the project
@@ -51,9 +52,13 @@ Run the checks relevant to the files and behavior you changed. Common frontend c
 bun run lint
 bun run format:check
 bun run check:translations
+bun run check:macos-only
+bun run check:versions
 bun run build
 bun run test:playwright
 ```
+
+`bun install` points the clone at `.githooks/pre-commit`. That hook runs the fast checks (lint, Prettier, translations, the macOS-only invariants, and the release-version check). Rust formatting runs only when a Rust file is staged. `cargo test`, Clippy, and Playwright stay on CI.
 
 For Rust changes, run the backend formatter, tests, and Clippy from `src-tauri`:
 
