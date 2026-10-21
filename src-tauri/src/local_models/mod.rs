@@ -14,7 +14,7 @@ mod pinned;
 pub mod verify;
 
 pub use crate::meetings::helper::AnalysisSupport;
-pub use app::init;
+pub use app::{init, switch_if_asked};
 
 use serde::Serialize;
 use specta::Type;
@@ -61,6 +61,10 @@ pub struct LocalModelStatus {
     /// What the download takes on this Mac.
     pub size_bytes: u64,
 }
+
+/// Dictation moved to this Mac, as the user asked, once the model was ready.
+#[derive(Serialize, Debug, Clone, Type, tauri_specta::Event)]
+pub struct SwitchedToLocal {}
 
 pub enum Prepared {
     Done,
