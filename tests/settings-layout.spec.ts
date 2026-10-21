@@ -165,32 +165,64 @@ const statValueProblems = (tiles: Locator, language: string) =>
     return problems;
   }, language);
 
+const expectStatValuesOnOneLine = async (
+  page: Page,
+  language: string,
+  theme: "light" | "dark",
+) => {
+  await page.emulateMedia({ colorScheme: theme });
+  await openSection(
+    page,
+    "Insights",
+    `?insights=huge&lang=${language}&theme=${theme}`,
+    DEFAULT_WINDOW,
+  );
+  const tiles = statTiles(page);
+  await expect(tiles).toHaveCount(3);
+  await page.evaluate(() => document.fonts.ready);
+  for (const size of [DEFAULT_WINDOW, MIN_WINDOW]) {
+    await page.setViewportSize(size);
+    await expect
+      .poll(
+        () => statValueProblems(tiles, language),
+        `${theme}, ${size.width}px`,
+      )
+      .toEqual([]);
+  }
+};
+
 for (const language of LOCALES) {
   test(`Insights stat values stay on one line in their tiles (${language})`, async ({
     page,
   }) => {
     for (const theme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme: theme });
-      await openSection(
-        page,
-        "Insights",
-        `?insights=huge&lang=${language}&theme=${theme}`,
-        DEFAULT_WINDOW,
-      );
-      const tiles = statTiles(page);
-      await expect(tiles).toHaveCount(3);
-      await page.evaluate(() => document.fonts.ready);
-      for (const size of [DEFAULT_WINDOW, MIN_WINDOW]) {
-        await page.setViewportSize(size);
-        await expect
-          .poll(
-            () => statValueProblems(tiles, language),
-            `${theme}, ${size.width}px`,
-          )
-          .toEqual([]);
-      }
+      await expectStatValuesOnOneLine(page, language, theme);
     }
   });
+
+  // Linux draws text wider than macOS: wider fallback fonts, and glyph
+  // advances rounded up to whole pixels, which do not shrink with the font
+  // size. A wide font with a fixed spacing between letters reproduces both,
+  // so the fit cannot rely on the metrics of one machine. The widest spacing
+  // leaves no room for the full values even at the smallest scale.
+  for (const [width, spacing] of [
+    ["wide", "1px"],
+    ["very wide", "8px"],
+  ]) {
+    test(`Insights stat values stay on one line in their tiles with a ${width} font (${language})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((spacing) => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(`main section > p {
+          font-family: "DejaVu Sans", Verdana, sans-serif !important;
+          letter-spacing: ${spacing};
+        }`);
+        document.adoptedStyleSheets = [sheet];
+      }, spacing);
+      await expectStatValuesOnOneLine(page, language, "light");
+    });
+  }
 }
 
 test("Insights has no subtitles or footnote", async ({ page }) => {
