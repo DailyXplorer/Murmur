@@ -78,11 +78,8 @@ does not store anything in the keychain.
 
 ### Windows (beta)
 
-1. Download the newest `Murmur_*_x64-setup.exe` from the
-   [Windows beta releases](https://github.com/DailyXplorer/Murmur/releases?q=Murmur%20for%20Windows&expanded=true).
-   Use the top pre-release. Stable releases are macOS-only until Mac and
-   Windows ship in one release
-   ([#157](https://github.com/DailyXplorer/Murmur/issues/157)).
+1. Open the [Windows releases](https://github.com/DailyXplorer/Murmur/releases?q=Murmur%20for%20Windows&expanded=true)
+   and download `Murmur_…_x64-setup.exe` from the first one in the list.
 2. Run the installer. It is not signed, so SmartScreen blocks it: click
    **More info**, then **Run anyway**. Murmur installs for the current user.
 3. Open Murmur and connect Codex. Hold Ctrl+Win to dictate, or double-tap it
