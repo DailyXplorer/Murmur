@@ -282,8 +282,7 @@ transcribes through Codex using the session already present on the computer.
 ## Support
 
 Murmur is free. To support development,
-[sponsor the project on GitHub](https://github.com/sponsors/DailyXplorer)
-or [buy a coffee](https://buymeacoffee.com/dailyxplorer).
+[buy a coffee](https://buymeacoffee.com/dailyxplorer).
 
 ## License
 
