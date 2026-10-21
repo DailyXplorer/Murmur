@@ -1,96 +1,34 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import {
+  COPY_WINDOW,
+  dispatch,
+  entranceFinished,
+  ERROR_WINDOW,
+  openOverlay,
+  RECORDING_WINDOW,
+} from "./overlayHarness";
 
 const LOUD = Array(16).fill(0.9);
 
 const localesDir = fileURLToPath(
   new URL("../src/i18n/locales/", import.meta.url),
 );
-const errorStringsByLocale = readdirSync(localesDir).map((locale) => {
+const trayStringsByLocale = readdirSync(localesDir).map((locale) => {
   const { tray } = JSON.parse(
     readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
   ) as { tray: Record<string, string> };
+  return { locale, tray };
+});
+const errorStringsByLocale = trayStringsByLocale.map(({ locale, tray }) => {
   const messages = Object.entries(tray)
     .filter(([key]) => key.startsWith("error"))
     .map(([, text]) => text.replace("{{shortcut}}", "⌥ Space"));
   return { locale, messages };
 });
 
-// OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
-const RECORDING_WINDOW = { width: 158, height: 62 };
-const ERROR_WINDOW = { width: 312, height: 116 };
-
-async function openOverlay(page: Page, { holdSettings = false } = {}) {
-  await page.addInitScript((hold) => {
-    const callbacks = new Map<number, (event: unknown) => unknown>();
-    const listeners = new Map<number, string>();
-    const pendingSettings: Array<(settings: unknown) => void> = [];
-    let nextId = 1;
-
-    window.overlayHarness = {
-      dispatch: (event, payload) => {
-        const ids = [...listeners].filter(([, name]) => name === event);
-        ids.forEach(([id]) => callbacks.get(id)?.({ event, id, payload }));
-        return ids.length;
-      },
-      releaseSettings: () => {
-        pendingSettings.splice(0).forEach((resolve) => resolve({}));
-      },
-    };
-
-    window.__TAURI_INTERNALS__ = {
-      invoke: (
-        command: string,
-        args?: { event?: string; handler?: number },
-      ) => {
-        if (command === "plugin:event|listen") {
-          listeners.set(args?.handler ?? 0, args?.event ?? "");
-          return Promise.resolve(args?.handler);
-        }
-        if (command === "plugin:event|unlisten") return Promise.resolve();
-        if (command === "get_app_settings") {
-          if (!hold) return Promise.resolve({});
-          return new Promise((resolve) => pendingSettings.push(resolve));
-        }
-        throw new Error(`Unexpected Tauri command: ${command}`);
-      },
-      transformCallback: (callback: (event: unknown) => unknown) => {
-        const id = nextId++;
-        callbacks.set(id, callback);
-        return id;
-      },
-      unregisterCallback: (id: number) => callbacks.delete(id),
-    };
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
-      unregisterListener: (_event: string, id: number) => {
-        listeners.delete(id);
-        callbacks.delete(id);
-      },
-    };
-  }, holdSettings);
-
-  await page.goto("/tests/fixtures/recording-overlay-listeners.html");
-  await expect
-    .poll(() =>
-      page.evaluate(() => window.overlayHarness.dispatch("mic-level", [0])),
-    )
-    .toBe(1);
-}
-
-const dispatch = (page: Page, event: string, payload?: unknown) =>
-  page.evaluate(
-    ([name, value]) => window.overlayHarness.dispatch(name as string, value),
-    [event, payload] as const,
-  );
-
-// Drawn sizes include the capsule's pop-in scale until it ends.
-const entranceFinished = (page: Page) =>
-  page
-    .locator(".ov-capsule")
-    .evaluate((capsule) =>
-      Promise.all(capsule.getAnimations().map((entry) => entry.finished)),
-    );
+const COPY_LABELS = { copy: "Copy", copied: "Copied" };
 
 const centerBarHeight = (page: Page) =>
   page
@@ -318,6 +256,97 @@ for (const { locale, messages } of errorStringsByLocale) {
     }
   });
 }
+
+test("without a text field the pill is one Copy button that confirms the copy", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "transcribing");
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+
+  const button = page.getByRole("button", { name: "Copy" });
+  await expect(button).toBeVisible();
+  await expect(page.locator(".ov-stage button")).toHaveCount(1);
+  await expect(page.locator(".ov-stage")).toHaveText("Copy");
+  await expect(page.locator(".ov-wave")).toHaveCount(0);
+
+  await button.click();
+  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  await expect(page.locator(".ov-stage")).toHaveText("Copied");
+  expect(await page.evaluate(() => window.overlayHarness.copyCalls())).toBe(1);
+});
+
+test("the copy pill hides on request and gives way to a new recording", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await dispatch(page, "hide-overlay");
+  await expect(page.locator(".ov-stage")).toHaveCount(0);
+
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await dispatch(page, "show-overlay", "recording");
+  await expect(page.locator(".ov-stage button")).toHaveCount(0);
+  await expect(page.locator(".ov-wave")).toBeVisible();
+});
+
+for (const { locale, tray } of trayStringsByLocale) {
+  test(`the ${locale} copy pill fits the copy window unclipped`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(COPY_WINDOW);
+    await openOverlay(page);
+    await page.evaluate(() => document.fonts.ready);
+    const labels = { copy: tray.overlayCopy, copied: tray.overlayCopied };
+    expect(labels.copy && labels.copied, "both labels exist").toBeTruthy();
+
+    await dispatch(page, "show-overlay-copy", labels);
+    for (const label of [labels.copy, labels.copied]) {
+      const button = page.getByRole("button", { name: label, exact: true });
+      await expect(button).toBeVisible();
+      await entranceFinished(page);
+      const fit = await button.evaluate((capsule) => {
+        const box = capsule.getBoundingClientRect();
+        const text = capsule.querySelector("span")!;
+        return {
+          clipped:
+            capsule.scrollWidth > capsule.clientWidth ||
+            text.getBoundingClientRect().right > box.right ||
+            text.getBoundingClientRect().left < box.left,
+          insideWindow:
+            box.left >= 0 &&
+            box.right <= window.innerWidth &&
+            box.top >= 0 &&
+            box.bottom <= window.innerHeight,
+          height: box.height,
+        };
+      });
+      expect(fit, label).toEqual({
+        clipped: false,
+        insideWindow: true,
+        height: 30,
+      });
+      if (label === labels.copy) await button.click();
+    }
+  });
+}
+
+test("reduced motion shows the copy pill without any animation", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  const button = page.getByRole("button", { name: "Copy" });
+  await expect(button).toBeVisible();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+
+  await button.click();
+  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+});
 
 test("reduced motion shows static bars that ignore the voice", async ({
   page,
