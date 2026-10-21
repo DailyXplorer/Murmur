@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Ayarlar bozulmuştu ve sıfırlandı. Yeniden bir sınır belirleyene kadar geçmişten hiçbir şey silinmeyecek. Bozuk dosya yanında saklandı.",
     "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
     "pasteLastTranscript": "Son dökümü yapıştır",
+    "overlayCopy": "Kopyala",
+    "overlayCopied": "Kopyalandı",
     "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok.",
     "startMeeting": "Toplantıyı başlat",
     "stopMeeting": "Toplantıyı durdur",

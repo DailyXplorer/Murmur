@@ -25,6 +25,8 @@
     "noticeSettingsReset": "ההגדרות נפגמו ואופסו. שום דבר לא יימחק מההיסטוריה עד שתגדיר מגבלה מחדש. הקובץ הפגום נשמר לצידן.",
     "warningRecordingLimit": "ההקלטה תיעצר בעוד דקה (מגבלה של 15 דקות).",
     "pasteLastTranscript": "הדבקת התמלול האחרון",
+    "overlayCopy": "העתק",
+    "overlayCopied": "הועתק",
     "noticeNothingToPaste": "עדיין אין תמלול להדבקה.",
     "startMeeting": "התחלת פגישה",
     "stopMeeting": "עצירת הפגישה",

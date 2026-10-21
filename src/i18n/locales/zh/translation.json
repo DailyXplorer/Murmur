@@ -25,6 +25,8 @@
     "noticeSettingsReset": "设置已损坏并已重置。在你重新设置上限之前，历史记录中的内容不会被删除。损坏的文件保留在旁边。",
     "warningRecordingLimit": "录音将在 1 分钟后停止（上限 15 分钟）。",
     "pasteLastTranscript": "粘贴上一条转录",
+    "overlayCopy": "复制",
+    "overlayCopied": "已复制",
     "noticeNothingToPaste": "还没有可粘贴的转录。",
     "startMeeting": "开始会议",
     "stopMeeting": "停止会议",

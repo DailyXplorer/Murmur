@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Die Einstellungen waren beschädigt und wurden zurückgesetzt. Aus dem Verlauf wird nichts gelöscht, bis du wieder ein Limit festlegst. Die beschädigte Datei liegt daneben.",
     "warningRecordingLimit": "Die Aufnahme endet in 1 Minute (Limit 15 Minuten).",
     "pasteLastTranscript": "Letzte Transkription einfügen",
+    "overlayCopy": "Kopieren",
+    "overlayCopied": "Kopiert",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",

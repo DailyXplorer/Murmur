@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Settings were damaged and have been reset. Nothing in History will be deleted until you set a limit again. The damaged file was kept next to it.",
     "warningRecordingLimit": "Recording stops in 1 minute (15-minute limit).",
     "pasteLastTranscript": "Paste last transcript",
+    "overlayCopy": "Copy",
+    "overlayCopied": "Copied",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",

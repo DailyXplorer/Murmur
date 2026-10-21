@@ -25,6 +25,8 @@
     "noticeSettingsReset": "كانت الإعدادات تالفة وتمت إعادة تعيينها. لن يُحذف أي شيء من السجل حتى تحدد حدًا مجددًا. احتُفظ بالملف التالف بجانبها.",
     "warningRecordingLimit": "سيتوقف التسجيل خلال دقيقة واحدة (الحد 15 دقيقة).",
     "pasteLastTranscript": "لصق آخر نص",
+    "overlayCopy": "نسخ",
+    "overlayCopied": "تم النسخ",
     "noticeNothingToPaste": "لا يوجد نص منسوخ للصق بعد.",
     "startMeeting": "بدء اجتماع",
     "stopMeeting": "إيقاف الاجتماع",

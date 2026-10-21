@@ -773,6 +773,7 @@ mod tests {
     fn pasted_or_recoverable_output_survives_late_cancellation() {
         assert!(!paste_outcome_commits_history(PasteOutcome::Cancelled));
         assert!(paste_outcome_commits_history(PasteOutcome::Injected));
+        assert!(paste_outcome_commits_history(PasteOutcome::Copied));
         assert!(paste_outcome_commits_history(PasteOutcome::IntentionalNone));
         assert!(paste_outcome_commits_history(PasteOutcome::Skipped));
     }

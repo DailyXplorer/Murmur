@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Le impostazioni erano danneggiate e sono state reimpostate. Nulla verrà eliminato dalla cronologia finché non imposti di nuovo un limite. Il file danneggiato è stato conservato accanto.",
     "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti).",
     "pasteLastTranscript": "Incolla l'ultima trascrizione",
+    "overlayCopy": "Copia",
+    "overlayCopied": "Copiato",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",

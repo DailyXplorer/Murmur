@@ -623,6 +623,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             show_main_window_command,
             relaunch_after_update,
             commands::cancel_operation,
+            overlay::copy_notice_again,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,
@@ -960,7 +961,7 @@ pub fn run(cli_args: CliArgs) {
                     audio.invalidate_recording_readiness();
                     audio.remove_mute_for_good();
                 }
-                paste_tx::settle_before_exit();
+                paste_tx::settle_pending();
                 // Close a meeting's tracks so it is kept, not left interrupted.
                 if let Some(manager) = app.try_state::<Arc<meetings::MeetingsManager>>() {
                     manager.shutdown();
@@ -1183,7 +1184,7 @@ mod exit_tests {
     /// process can still put the user's clipboard back.
     #[test]
     fn quitting_settles_the_pending_paste() {
-        assert!(exit_arm().contains("paste_tx::settle_before_exit()"));
+        assert!(exit_arm().contains("paste_tx::settle_pending()"));
     }
 
     /// Cmd+Q, the Dock's Quit and a logout end in `Exit` without

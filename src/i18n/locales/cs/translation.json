@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Nastavení bylo poškozené a bylo obnoveno na výchozí hodnoty. Z historie se nic nesmaže, dokud znovu nenastavíte limit. Poškozený soubor zůstal vedle něj.",
     "warningRecordingLimit": "Nahrávání se zastaví za 1 minutu (limit 15 minut).",
     "pasteLastTranscript": "Vložit poslední přepis",
+    "overlayCopy": "Kopírovat",
+    "overlayCopied": "Zkopírováno",
     "noticeNothingToPaste": "Zatím není co vložit.",
     "startMeeting": "Spustit schůzku",
     "stopMeeting": "Ukončit schůzku",

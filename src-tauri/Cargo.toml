@@ -77,6 +77,8 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 objc2-service-management = "0.3.2"
+# The copy notice's Escape monitor handler.
+block2 = "0.6"
 # Accessibility attribute values: window names, the correction watcher and
 # the Insights browser-domain lookup.
 core-foundation = "0.10"
