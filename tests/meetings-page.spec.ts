@@ -276,6 +276,24 @@ test("without system audio support the sources are fixed to the microphone", asy
   );
 });
 
+test("a Mac that tells no speakers apart offers no speaker models, even with the dictation model", async ({
+  page,
+}) => {
+  await openMeetings(page, "&analysis=unsupported&models=ready");
+  await expect(
+    page.getByText(/Speaker detection needs a Mac with Apple silicon/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete Models" })).toHaveCount(
+    0,
+  );
+
+  await openMeetings(page, "&analysis=os_too_old");
+  await expect(
+    page.getByText(/Speaker detection needs macOS 15 or later/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download" })).toHaveCount(0);
+});
+
 test("the page starts with the recording controls, and its buttons show text only", async ({
   page,
 }) => {

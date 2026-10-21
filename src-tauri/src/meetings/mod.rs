@@ -569,8 +569,10 @@ impl MeetingsManager {
         info!("Meeting {id} started");
         self.spawn_ticker(id);
         // The speaker models download while the meeting records, so they are
-        // ready when it stops.
-        self.models.download_unless_declined();
+        // ready when it stops. Intel Macs tell no speakers apart.
+        if helper::support() == AnalysisSupport::Available {
+            self.models.download_unless_declined();
+        }
         Ok(())
     }
 

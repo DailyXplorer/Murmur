@@ -89,10 +89,16 @@ pub fn init(app: &AppHandle) {
             return;
         }
     };
+    // Intel Macs run the model on the CPU, without the helper.
+    let support = if cfg!(target_arch = "aarch64") {
+        helper::support()
+    } else {
+        helper::AnalysisSupport::Available
+    };
     let models = LocalModels::new(
         models_dir(&app_data),
         manifest::this_mac(),
-        helper::support(),
+        support,
         manifest::HUGGING_FACE.to_string(),
         Arc::new(AppHost { app: app.clone() }),
     );

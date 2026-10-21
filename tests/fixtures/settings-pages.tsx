@@ -77,8 +77,10 @@ const MODEL_COMMANDS: Record<string, LocalModelStatus> = {
   cancel_local_model_download: MODELS.missing,
   delete_local_model: MODELS.missing,
 };
+// Intel Macs (`unsupported`) download the model for dictation, without
+// speaker detection; macOS 14 has neither.
 const modelsStatus: LocalModelStatus =
-  analysis === "available"
+  analysis !== "os_too_old"
     ? MODELS[params.get("models") ?? "ready"]
     : {
         size_bytes: MODEL_BYTES,
