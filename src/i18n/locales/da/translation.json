@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Indstillingerne var beskadiget og er nulstillet. Intet i historikken slettes, før du angiver en grænse igen. Den beskadigede fil ligger ved siden af.",
     "warningRecordingLimit": "Optagelsen stopper om 1 minut (grænse på 15 minutter).",
     "pasteLastTranscript": "Indsæt seneste transskription",
+    "overlayCopy": "Kopiér",
+    "overlayCopied": "Kopieret",
     "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte.",
     "startMeeting": "Start møde",
     "stopMeeting": "Stop møde",

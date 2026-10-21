@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Inställningarna var skadade och har återställts till standard. Inget i historiken tas bort förrän du anger en gräns igen. Den skadade filen finns kvar bredvid.",
     "warningRecordingLimit": "Inspelningen stoppas om 1 minut (gräns på 15 minuter).",
     "pasteLastTranscript": "Klistra in senaste transkriptionen",
+    "overlayCopy": "Kopiera",
+    "overlayCopied": "Kopierat",
     "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu.",
     "startMeeting": "Starta möte",
     "stopMeeting": "Stoppa möte",

@@ -25,6 +25,8 @@
     "noticeSettingsReset": "De instellingen waren beschadigd en zijn opnieuw ingesteld. Er wordt niets uit de geschiedenis verwijderd totdat je opnieuw een limiet instelt. Het beschadigde bestand staat ernaast.",
     "warningRecordingLimit": "De opname stopt over 1 minuut (limiet van 15 minuten).",
     "pasteLastTranscript": "Laatste transcriptie plakken",
+    "overlayCopy": "Kopieer",
+    "overlayCopied": "Gekopieerd",
     "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken.",
     "startMeeting": "Vergadering starten",
     "stopMeeting": "Vergadering stoppen",

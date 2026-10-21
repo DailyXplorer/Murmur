@@ -25,6 +25,8 @@
     "noticeSettingsReset": "設定已損毀並已重設。在你重新設定上限之前，歷史紀錄中的內容不會被刪除。損毀的檔案保留在旁邊。",
     "warningRecordingLimit": "錄音將在 1 分鐘後停止（上限 15 分鐘）。",
     "pasteLastTranscript": "貼上上一則轉錄",
+    "overlayCopy": "複製",
+    "overlayCopied": "已複製",
     "noticeNothingToPaste": "目前還沒有可貼上的轉錄。",
     "startMeeting": "開始會議",
     "stopMeeting": "停止會議",

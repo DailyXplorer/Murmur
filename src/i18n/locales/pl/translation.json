@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Ustawienia były uszkodzone i zostały zresetowane. Nic nie zostanie usunięte z historii, dopóki ponownie nie ustawisz limitu. Uszkodzony plik zachowano obok.",
     "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut).",
     "pasteLastTranscript": "Wklej ostatnią transkrypcję",
+    "overlayCopy": "Kopiuj",
+    "overlayCopied": "Skopiowano",
     "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia.",
     "startMeeting": "Rozpocznij spotkanie",
     "stopMeeting": "Zakończ spotkanie",

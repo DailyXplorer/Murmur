@@ -25,6 +25,8 @@
     "noticeSettingsReset": "設定が破損していたためリセットしました。上限を設定し直すまで、履歴は削除されません。破損したファイルは同じ場所に残してあります。",
     "warningRecordingLimit": "録音はあと1分で停止します（上限15分）。",
     "pasteLastTranscript": "最後の文字起こしを貼り付け",
+    "overlayCopy": "コピー",
+    "overlayCopied": "コピーしました",
     "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。",
     "startMeeting": "会議を開始",
     "stopMeeting": "会議を停止",

@@ -25,6 +25,8 @@
     "noticeSettingsReset": "Les paramètres étaient endommagés et ont été réinitialisés. Rien ne sera supprimé de l'historique tant que vous n'aurez pas fixé de nouvelle limite. Le fichier endommagé a été conservé à côté.",
     "warningRecordingLimit": "L’enregistrement s’arrête dans 1 minute (limite de 15 minutes).",
     "pasteLastTranscript": "Coller la dernière transcription",
+    "overlayCopy": "Copier",
+    "overlayCopied": "Copié",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
     "startMeeting": "Démarrer une réunion",
     "stopMeeting": "Arrêter la réunion",

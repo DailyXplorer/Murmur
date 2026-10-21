@@ -25,6 +25,8 @@
     "noticeSettingsReset": "La configuración estaba dañada y se ha restablecido. No se eliminará nada del historial hasta que vuelva a fijar un límite. El archivo dañado se conservó al lado.",
     "warningRecordingLimit": "La grabación se detendrá en 1 minuto (límite de 15 minutos).",
     "pasteLastTranscript": "Pegar la última transcripción",
+    "overlayCopy": "Copiar",
+    "overlayCopied": "Copiado",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
     "startMeeting": "Iniciar reunión",
     "stopMeeting": "Detener reunión",
