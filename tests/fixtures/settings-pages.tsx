@@ -144,6 +144,8 @@ const SETTINGS: AppSettings = {
   extra_recording_buffer_ms: 0,
   history_limit: 50,
   learned_words: [{ heard_as: "play right", word: "Playwright" }],
+  local_model_download_wanted: false,
+  local_stt_card_dismissed: false,
   log_level: "info",
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
@@ -165,6 +167,7 @@ const SETTINGS: AppSettings = {
   sound_theme: "marimba",
   start_hidden: false,
   theme,
+  transcription_engine: "cloud",
   update_checks_enabled: true,
   whats_new_last_seen_version: "1.3.7",
   whisper_mode: false,
@@ -177,6 +180,8 @@ const NOW = 1_760_000_000;
 const HISTORY: HistoryEntry[] = [
   {
     cleanup: "cleaned",
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-1.wav",
     id: 3,
     raw_text: "um so the quarterly report is ready for review",
@@ -187,6 +192,8 @@ const HISTORY: HistoryEntry[] = [
   },
   {
     cleanup: null,
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-2.wav",
     id: 2,
     raw_text: null,
@@ -197,6 +204,8 @@ const HISTORY: HistoryEntry[] = [
   },
   {
     cleanup: "failed",
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-3.wav",
     id: 1,
     raw_text: "remember to water the plants",

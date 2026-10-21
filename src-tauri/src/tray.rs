@@ -252,6 +252,8 @@ mod tests {
             transcription_text: transcription.to_string(),
             raw_text: None,
             cleanup: None,
+            engine: crate::engine::Engine::Cloud,
+            fallback_reason: None,
         }
     }
 

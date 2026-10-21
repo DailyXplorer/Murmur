@@ -1,3 +1,4 @@
+use crate::engine::Engine;
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
 use serde::de::{self, Visitor};
@@ -324,6 +325,15 @@ pub struct AppSettings {
     pub meetings_enabled: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
+    /// Which engine transcribes dictations.
+    #[serde(default)]
+    pub transcription_engine: Engine,
+    /// The one-time card announcing local transcription was closed.
+    #[serde(default)]
+    pub local_stt_card_dismissed: bool,
+    /// The user asked for the local model, so its download resumes at launch.
+    #[serde(default)]
+    pub local_model_download_wanted: bool,
 }
 
 fn default_meetings_enabled() -> bool {
@@ -544,6 +554,9 @@ pub fn get_default_settings() -> AppSettings {
         overlay_style: default_overlay_style(),
         meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
+        transcription_engine: Engine::default(),
+        local_stt_card_dismissed: false,
+        local_model_download_wanted: false,
     }
 }
 
@@ -583,6 +596,12 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
         if settings_value.get("ai_cleanup_enabled").is_none() {
             settings.ai_cleanup_enabled = filler_removal;
         }
+    }
+    // Users from before the local engine dictated with Codex; a fresh install
+    // gets its engine from onboarding.
+    if settings.onboarding_completed && settings_value.get("transcription_engine").is_none() {
+        settings.transcription_engine = Engine::Cloud;
+        updated = true;
     }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
@@ -1030,6 +1049,46 @@ mod tests {
         let path = dir.path().join(SETTINGS_STORE_PATH);
         assert_eq!(recovered(&path), None);
         assert!(!path.exists());
+    }
+
+    /// Users who finished onboarding before the local engine existed keep
+    /// the cloud engine, written down so a later default cannot move them.
+    #[test]
+    fn an_existing_user_without_an_engine_keeps_the_cloud() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("transcription_engine");
+        stored["onboarding_completed"] = serde_json::json!(true);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
+        assert!(updated, "the engine must be persisted");
+    }
+
+    #[test]
+    fn a_stored_engine_choice_is_kept() {
+        let mut stored = default_settings_json();
+        stored["onboarding_completed"] = serde_json::json!(true);
+        stored["transcription_engine"] = serde_json::json!("local");
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert!(!updated);
+    }
+
+    #[test]
+    fn a_new_install_gets_the_default_engine() {
+        let (settings, _) = parse_stored_settings(&serde_json::json!({}));
+        assert_eq!(
+            settings.transcription_engine,
+            get_default_settings().transcription_engine
+        );
+        assert!(!settings.local_stt_card_dismissed);
+        assert!(!settings.local_model_download_wanted);
     }
 
     /// Every field must survive a partial store: a missing key must never fail
