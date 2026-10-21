@@ -7,7 +7,7 @@
     "cancel": "Zrušit",
     "errorNetwork": "Službu přepisu nelze zastihnout. Zkontrolujte připojení.",
     "errorTimeout": "Služba přepisu odpovídala příliš dlouho. Zkuste to znovu z historie.",
-    "errorRateLimited": "Příliš mnoho požadavků. Chvíli počkejte a zkuste to znovu z historie.",
+    "errorRateLimited": "Příliš mnoho požadavků nebo byl dosažen limit diktování. Zkuste to později znovu z historie.",
     "errorServer": "Služba přepisu má potíže. Zkuste to znovu z historie.",
     "errorSessionExpired": "Relace Codex vypršela. Otevřete Codex a znovu se přihlaste.",
     "errorSignedOut": "Nejste přihlášeni do Codex. Otevřete Codex a přihlaste se.",

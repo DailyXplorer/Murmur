@@ -7,7 +7,7 @@
     "cancel": "Cancelar",
     "errorNetwork": "No se puede acceder al servicio de transcripción. Compruebe su conexión.",
     "errorTimeout": "El servicio de transcripción tardó demasiado. Reinténtelo desde el historial.",
-    "errorRateLimited": "Demasiadas solicitudes. Espere un momento y reinténtelo desde el historial.",
+    "errorRateLimited": "Demasiadas solicitudes o se alcanzó el límite de dictado. Reinténtelo más tarde desde el historial.",
     "errorServer": "El servicio de transcripción tiene problemas. Reinténtelo desde el historial.",
     "errorSessionExpired": "Su sesión de Codex ha caducado. Abra Codex e inicie sesión de nuevo.",
     "errorSignedOut": "No ha iniciado sesión en Codex. Abra Codex e inicie sesión.",

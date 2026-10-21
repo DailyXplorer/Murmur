@@ -7,7 +7,7 @@
     "cancel": "Hủy",
     "errorNetwork": "Không kết nối được dịch vụ chép lời. Hãy kiểm tra kết nối.",
     "errorTimeout": "Dịch vụ chép lời phản hồi quá lâu. Hãy thử lại từ Lịch sử.",
-    "errorRateLimited": "Quá nhiều yêu cầu. Hãy đợi một chút rồi thử lại từ Lịch sử.",
+    "errorRateLimited": "Quá nhiều yêu cầu hoặc đã đạt giới hạn đọc chính tả. Hãy thử lại sau từ Lịch sử.",
     "errorServer": "Dịch vụ chép lời đang gặp sự cố. Hãy thử lại từ Lịch sử.",
     "errorSessionExpired": "Phiên Codex đã hết hạn. Hãy mở Codex và đăng nhập lại.",
     "errorSignedOut": "Chưa đăng nhập Codex. Hãy mở Codex và đăng nhập.",

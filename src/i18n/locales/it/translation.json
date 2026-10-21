@@ -7,7 +7,7 @@
     "cancel": "Annulla",
     "errorNetwork": "Impossibile raggiungere il servizio di trascrizione. Controlla la connessione.",
     "errorTimeout": "Il servizio di trascrizione ha impiegato troppo tempo. Riprova dalla cronologia.",
-    "errorRateLimited": "Troppe richieste. Attendi un momento, poi riprova dalla cronologia.",
+    "errorRateLimited": "Troppe richieste o limite di dettatura raggiunto. Riprova più tardi dalla cronologia.",
     "errorServer": "Il servizio di trascrizione ha dei problemi. Riprova dalla cronologia.",
     "errorSessionExpired": "La sessione di Codex è scaduta. Apri Codex e accedi di nuovo.",
     "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",

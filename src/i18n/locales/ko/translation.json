@@ -7,7 +7,7 @@
     "cancel": "취소",
     "errorNetwork": "음성 인식 서비스에 연결할 수 없습니다. 연결을 확인하세요.",
     "errorTimeout": "음성 인식 서비스 응답이 너무 오래 걸렸습니다. 기록에서 다시 시도하세요.",
-    "errorRateLimited": "요청이 너무 많습니다. 잠시 후 기록에서 다시 시도하세요.",
+    "errorRateLimited": "요청이 너무 많거나 받아쓰기 사용 한도에 도달했습니다. 나중에 기록에서 다시 시도하세요.",
     "errorServer": "음성 인식 서비스에 문제가 있습니다. 기록에서 다시 시도하세요.",
     "errorSessionExpired": "Codex 세션이 만료되었습니다. Codex를 열고 다시 로그인하세요.",
     "errorSignedOut": "Codex에 로그인되어 있지 않습니다. Codex를 열고 로그인하세요.",

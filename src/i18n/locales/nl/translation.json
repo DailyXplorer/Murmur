@@ -7,7 +7,7 @@
     "cancel": "Annuleren",
     "errorNetwork": "De transcriptiedienst is niet bereikbaar. Controleer je verbinding.",
     "errorTimeout": "De transcriptiedienst deed er te lang over. Probeer het opnieuw via Geschiedenis.",
-    "errorRateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw via Geschiedenis.",
+    "errorRateLimited": "Te veel verzoeken of de dicteerlimiet is bereikt. Probeer het later opnieuw via Geschiedenis.",
     "errorServer": "De transcriptiedienst heeft problemen. Probeer het opnieuw via Geschiedenis.",
     "errorSessionExpired": "Je Codex-sessie is verlopen. Open Codex en log opnieuw in.",
     "errorSignedOut": "Niet ingelogd bij Codex. Open Codex en log in.",

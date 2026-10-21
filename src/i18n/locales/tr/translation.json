@@ -7,7 +7,7 @@
     "cancel": "İptal",
     "errorNetwork": "Transkripsiyon hizmetine ulaşılamıyor. Bağlantınızı kontrol edin.",
     "errorTimeout": "Transkripsiyon hizmeti çok uzun sürdü. Geçmiş'ten yeniden deneyin.",
-    "errorRateLimited": "Çok fazla istek. Biraz bekleyin, sonra Geçmiş'ten yeniden deneyin.",
+    "errorRateLimited": "Çok fazla istek veya dikte kullanım sınırına ulaşıldı. Daha sonra Geçmiş'ten yeniden deneyin.",
     "errorServer": "Transkripsiyon hizmetinde sorun var. Geçmiş'ten yeniden deneyin.",
     "errorSessionExpired": "Codex oturumunuzun süresi doldu. Codex'i açıp yeniden oturum açın.",
     "errorSignedOut": "Codex'te oturum açılmamış. Codex'i açıp oturum açın.",
