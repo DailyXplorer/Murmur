@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import type { AppSettings } from "../../src/bindings";
+import { useTextSearch } from "../../src/components/meetings/TabHeaderBar";
 import { LanguageSelector } from "../../src/components/settings/LanguageSelector";
 import { Button } from "../../src/components/ui/Button";
 import { IconButton } from "../../src/components/ui/IconButton";
@@ -15,6 +16,19 @@ import "../../src/App.css";
 const TEST_SETTINGS = {
   selected_language: "auto",
 } as AppSettings;
+
+const SEARCHED = ["The plan holds, and the plan ships."];
+
+/** A transcript searched for "plan": the current match, then another one. */
+const SearchMatches: React.FC = () => {
+  const search = useTextSearch(SEARCHED);
+  const { open, setQuery } = search;
+  useEffect(() => {
+    open();
+    setQuery("plan");
+  }, [open, setQuery]);
+  return <p data-testid="search">{search.highlight(SEARCHED[0], 0)}</p>;
+};
 
 /** Every accent-coloured text and focus ring that sits on the page. */
 const AccentTextFixture: React.FC = () => (
@@ -33,6 +47,7 @@ const AccentTextFixture: React.FC = () => (
         </li>
       ))}
     </ol>
+    <SearchMatches />
     <LanguageSelector />
   </main>
 );

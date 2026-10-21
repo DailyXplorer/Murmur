@@ -125,12 +125,14 @@ test("accent text reads at 4.5:1 for every accent in both themes", async ({
   await page.goto(fixture);
   await page.locator('[aria-haspopup="listbox"]').click();
   await expect(page.getByRole("option", { selected: true })).toBeVisible();
+  await expect(page.locator("mark[data-current]")).toHaveCount(1);
 
   const selectors = [
     '[data-testid="markdown"] a',
     '[data-testid="speakers"] li',
     'button[aria-label="Pinned"]',
     '[role="option"][aria-selected="true"]',
+    '[data-testid="search"] mark',
   ];
   for (const selector of selectors) {
     expectContrast(await sample(page, selector, "text"), 4.5);
