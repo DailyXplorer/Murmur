@@ -30,6 +30,12 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
+      # The JS side of tauri-plugin-macos-permissions. The build check does
+      # not cover this pair, so a lone bump would fail at runtime instead.
+      - dependency-name: "tauri-plugin-macos-permissions-api"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -62,6 +68,8 @@ updates:
       # Pinned on purpose to one release candidate.
       - dependency-name: "specta*"
       - dependency-name: "tauri-specta"
+      # Git dependency pinned to a commit that matches the Tauri version.
+      - dependency-name: "tauri-nspanel"
 
   - package-ecosystem: github-actions
     directory: /
