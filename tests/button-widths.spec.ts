@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MIN_WINDOW } from "./windowSizes";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 
@@ -170,8 +171,8 @@ const visit = async (
   await page.waitForTimeout(200);
 };
 
-test.describe("at the default window size", () => {
-  test.use({ viewport: { width: 680, height: 570 } });
+test.describe("at the minimum window size", () => {
+  test.use({ viewport: MIN_WINDOW });
 
   test("English text buttons all have the shared width", async ({ page }) => {
     for (const screen of SCREENS) {

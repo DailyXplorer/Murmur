@@ -175,6 +175,11 @@ fn prepare_settings_window_for_active_space(
     Ok(())
 }
 
+/// Logical content size the settings window opens at, before it is fitted to the screen.
+const SETTINGS_WINDOW_SIZE: (f64, f64) = (780.0, 720.0);
+/// The smallest content size every settings page fits in.
+const SETTINGS_WINDOW_MIN_SIZE: (f64, f64) = (680.0, 570.0);
+
 /// Index of the first screen frame holding `point`, edges included, all in
 /// AppKit's global coordinates.
 fn screen_containing(
@@ -208,8 +213,23 @@ fn centered_window_origin(
     objc2_foundation::NSPoint::new(x, y)
 }
 
-/// Centers the settings window, at its current size, on the screen under the
-/// pointer. Every show of the window goes through here.
+/// The frame size that fits a window of `size` in `visible`, a screen's frame
+/// without the menu bar and Dock, never smaller than `min`. All are frame sizes.
+fn fitted_window_size(
+    visible: objc2_foundation::NSSize,
+    size: objc2_foundation::NSSize,
+    min: objc2_foundation::NSSize,
+) -> objc2_foundation::NSSize {
+    objc2_foundation::NSSize::new(
+        size.width.min(visible.width).max(min.width),
+        size.height.min(visible.height).max(min.height),
+    )
+}
+
+/// Centers the settings window on the screen under the pointer. A window too
+/// tall or wide for that screen, such as a 13" 1280x800 display with the Dock
+/// showing, shrinks to fit, never below its minimum size. Every show of the
+/// window goes through here.
 fn center_settings_window_on_pointer_screen(
     main_window: &tauri::WebviewWindow,
 ) -> tauri::Result<()> {
@@ -237,8 +257,15 @@ fn center_settings_window_on_pointer_screen(
             .or_else(|| native_window.screen())
             .or_else(|| NSScreen::mainScreen(mtm));
         if let Some(screen) = screen {
-            let origin = centered_window_origin(screen.visibleFrame(), native_window.frame().size);
-            native_window.setFrameOrigin(origin);
+            let visible = screen.visibleFrame();
+            // tao stores min_inner_size as the frame's minSize, title bar included.
+            let size = fitted_window_size(
+                visible.size,
+                native_window.frame().size,
+                native_window.minSize(),
+            );
+            let origin = centered_window_origin(visible, size);
+            native_window.setFrame_display(objc2_foundation::NSRect::new(origin, size), true);
         }
     }
 
@@ -804,8 +831,8 @@ pub fn run(cli_args: CliArgs) {
             let main_window =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Murmur")
-                    .inner_size(680.0, 570.0)
-                    .min_inner_size(680.0, 570.0)
+                    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
+                    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
                     .resizable(true)
                     .maximizable(true)
                     .visible(false)
@@ -957,9 +984,9 @@ mod headless_guard_tests {
     use super::{normalize_generated_bindings_source, run_headless_guarded};
 
     use super::{
-        centered_window_origin, leave_update_relaunch_marker, screen_containing,
-        settings_window_collection_behavior, settings_window_needs_order_out,
-        take_update_relaunch_marker,
+        centered_window_origin, fitted_window_size, leave_update_relaunch_marker,
+        screen_containing, settings_window_collection_behavior, settings_window_needs_order_out,
+        take_update_relaunch_marker, SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE,
     };
     use objc2_foundation::{NSPoint, NSRect, NSSize};
 
@@ -994,24 +1021,64 @@ mod headless_guard_tests {
         // a 70-point Dock. The vertical center is the visible frame's, not the
         // slightly higher spot NSWindow.center() picks.
         let visible = rect(0.0, 70.0, 1512.0, 879.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (416.0, 224.0));
+        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+        assert_eq!((origin.x, origin.y), (366.0, 135.0));
     }
 
     #[test]
     fn settings_window_is_centered_on_a_secondary_screen() {
         // A screen left of the main one has negative AppKit coordinates.
         let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (-1300.0, 42.0));
+        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+        assert_eq!((origin.x, origin.y), (-1350.0, -47.0));
     }
 
     #[test]
     fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
         let visible = rect(0.0, 0.0, 600.0, 500.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
+        let size = frame(SETTINGS_WINDOW_SIZE);
+        let origin = centered_window_origin(visible, size);
         // Left edge and top edge stay inside the visible frame.
-        assert_eq!((origin.x, origin.y + 570.0), (0.0, 500.0));
+        assert_eq!((origin.x, origin.y + size.height), (0.0, 500.0));
+    }
+
+    /// The frame size of a content size, with the 28-point title bar.
+    fn frame(content: (f64, f64)) -> NSSize {
+        NSSize::new(content.0, content.1 + 28.0)
+    }
+
+    #[test]
+    fn settings_window_keeps_its_default_size_on_a_large_screen() {
+        let visible = NSSize::new(1512.0, 879.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
+    }
+
+    #[test]
+    fn settings_window_shrinks_to_a_small_screen() {
+        // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
+        let visible = NSSize::new(1280.0, 705.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, NSSize::new(SETTINGS_WINDOW_SIZE.0, 705.0));
+    }
+
+    #[test]
+    fn settings_window_never_shrinks_below_its_minimum() {
+        let visible = NSSize::new(600.0, 500.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
     }
 
     #[test]
