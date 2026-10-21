@@ -1,7 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { commands, type LocalModelStatus } from "@/bindings";
+import {
+  commands,
+  type AnalysisSupport,
+  type LocalModelStatus,
+} from "@/bindings";
 import { downloadPercent } from "@/hooks/useLocalModel";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../ui/Button";
@@ -15,10 +19,14 @@ type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
  * About. */
 export const SpeakerModels: React.FC<{
   status: LocalModelStatus | null;
-}> = ({ status }) => {
+  /** Whether this Mac tells speakers apart. Intel Macs download the model
+   * for dictation only. */
+  analysis: AnalysisSupport | null;
+}> = ({ status, analysis }) => {
   const { t, i18n } = useTranslation();
-  if (!status) return null;
+  if (!status || !analysis) return null;
   const { state } = status;
+  const support = state.state === "unsupported" ? state.support : analysis;
 
   // The state, and with it the button's action, changes within milliseconds
   // of a click, so the rest of a double click would undo the first one.
@@ -33,11 +41,11 @@ export const SpeakerModels: React.FC<{
     }
   };
 
-  if (state.state === "unsupported") {
+  if (state.state === "unsupported" || support !== "available") {
     return (
       <SettingsGroup title={t("meetings.models.title")}>
         <p className="px-4 py-3 text-sm text-text/60">
-          {t(`meetings.models.${state.support}`)}
+          {t(`meetings.models.${support}`)}
         </p>
       </SettingsGroup>
     );

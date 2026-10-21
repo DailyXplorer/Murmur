@@ -74,6 +74,8 @@ pub struct Processor {
     pub store: Arc<MeetingsStore>,
     pub root: PathBuf,
     pub transcriber: Arc<dyn Transcriber>,
+    /// Takes the pieces Codex refuses for good; `None` without a ready model.
+    pub local: Option<Arc<dyn Transcriber>>,
     pub analyzer: Arc<dyn Analyzer>,
     pub summarizer: Arc<dyn Summarizer>,
     pub policy: RetryPolicy,
@@ -201,6 +203,19 @@ impl RunObserver for Saver {
                 self.done.fetch_add(1, Ordering::SeqCst);
                 self.answered.store(true, Ordering::SeqCst);
                 self.store.chunk_done(self.id, job.track, job.idx, text)
+            }
+            Outcome::DoneLocally { text, codex } => {
+                self.done.fetch_add(1, Ordering::SeqCst);
+                if *codex == FailureKind::RateLimited {
+                    self.rate_limited.store(true, Ordering::SeqCst);
+                }
+                self.store.chunk_done_locally(
+                    self.id,
+                    job.track,
+                    job.idx,
+                    text,
+                    &format!("{codex:?}"),
+                )
             }
             Outcome::Failed(kind) => {
                 if *kind == FailureKind::RateLimited {
@@ -412,6 +427,7 @@ impl Processor {
         let source = Arc::new(TrackFiles(audio));
         let runner = Runner {
             transcriber: Arc::clone(&self.transcriber),
+            local: self.local.clone(),
             source: Arc::clone(&source) as Arc<dyn ChunkSource>,
             observer: Arc::clone(&saver) as Arc<dyn RunObserver>,
             policy: self.policy.clone(),
@@ -1009,6 +1025,8 @@ mod tests {
         events: Arc<Events>,
         /// The language chosen in Settings.
         language: Option<&'static str>,
+        /// This Mac's model, when it is ready.
+        local: Option<Arc<dyn Transcriber>>,
         _dir: tempfile::TempDir,
     }
 
@@ -1020,6 +1038,7 @@ mod tests {
             root: dir.path().join("meetings"),
             events: Arc::default(),
             language: None,
+            local: None,
             _dir: dir,
         }
     }
@@ -1069,6 +1088,7 @@ mod tests {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
                 transcriber: codex,
+                local: self.local.clone(),
                 analyzer,
                 summarizer,
                 policy: RetryPolicy {
@@ -1737,6 +1757,50 @@ mod tests {
             FakeSummarizer::answering(vec![Ok("Notes.".into())]),
         );
         assert_eq!(verdict, CodexVerdict::Answered);
+    }
+
+    #[test]
+    fn past_the_rate_limit_a_ready_model_fills_the_meeting_and_counts_its_time() {
+        let local = codex(|seconds| Ok(format!("Sur ce Mac, {seconds} secondes.")));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let verdict = h.process_with(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.error, None);
+        assert!(meeting
+            .turns
+            .iter()
+            .all(|turn| turn.text.contains("Sur ce Mac")));
+        let spoken_ms: i64 = h
+            .store
+            .chunks(id)
+            .unwrap()
+            .iter()
+            .filter(|chunk| chunk.status == ChunkStatus::Done)
+            .map(|chunk| (chunk.end_ms - chunk.start_ms) as i64)
+            .sum();
+        assert_eq!(local.calls.lock().unwrap().len(), 2);
+        assert!(spoken_ms > 0);
+        assert_eq!(meeting.local_fallback_ms, spoken_ms);
+        // Codex still limits: the meetings queued after this one wait.
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+
+        // Transcribing again with Codex leaves nothing done on this Mac.
+        assert!(h.store.retranscribe(id).unwrap());
+        let h = Harness { local: None, ..h };
+        h.process(id, codex(|_| Ok("Par Codex.".into())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.local_fallback_ms, 0);
     }
 
     #[test]

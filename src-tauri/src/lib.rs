@@ -346,6 +346,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         Err(e) => log::error!("Failed to initialize insights: {e}"),
     }
     local_models::init(app_handle);
+    engine::local::init(app_handle);
     meetings::init(app_handle, true);
     app_handle.manage(tray::CurrentTrayIconState::new());
 
