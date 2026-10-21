@@ -19,4 +19,4 @@
 - [ ] User-facing strings go through i18next
 - [ ] A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together
 - [ ] The checks listed under Testing were run
-- [ ] Review comments are handled in one pass. After two completed bot-review rounds, stop and ask a maintainer. The `review loop` workflow comments and applies `review-loop` when that happens
+- [ ] Each real bug found in review is fixed with a test that fails first. Style suggestions are optional. If the same comment comes back after a fix, I replied on the thread instead of applying it again

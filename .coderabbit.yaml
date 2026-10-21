@@ -40,8 +40,8 @@ reviews:
         Flag a workflow that skips a check, widens permissions, or interpolates untrusted input into a shell. Ignore comment wording.
   auto_review:
     enabled: true
-    # Drafts are reviewed too, so finish the change before the first push.
-    drafts: true
+    # A draft is work in progress. Reviewing every draft push only adds rounds.
+    drafts: false
     base_branches:
       - "^main$"
       - "^beta$"
@@ -61,15 +61,20 @@ reviews:
       enabled: false
   pre_merge_checks:
     docstrings:
-      mode: off
+      mode: "off"
     issue_assessment:
-      mode: off
+      mode: "off"
     title:
       mode: warning
       requirements: "Conventional Commits title: type(scope): subject. Types include feat, fix, docs, refactor, test, chore, style, perf, ci, and build. The subject says why."
     description:
       mode: warning
-      requirements: "Body contains ## Summary, ## Changes, and ## Testing. ## Testing lists the exact commands that were run. Visible UI changes include screenshots or recordings, or the words Not applicable."
+    # description has no requirements key in the schema; a custom check
+    # carries the section rule instead.
+    custom_checks:
+      - mode: warning
+        name: "Pull request sections"
+        instructions: "The body contains ## Summary, ## Changes, and ## Testing. ## Testing lists the exact commands that were run. Visible UI changes include screenshots or recordings, or the words Not applicable."
   tools:
     # CI already runs eslint, clippy, rustfmt, and prettier. Extra linters here
     # repeat those findings and start another fix round.

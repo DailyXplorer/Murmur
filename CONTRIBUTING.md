@@ -83,11 +83,13 @@ Use a Conventional Commits title. Keep the description specific enough for a rev
 
 ## Review rounds
 
-Handle review comments in one pass, then push once.
+A pull request goes back and forth with reviews until a review finds no more problems. There is no fixed number of rounds. Only real problems (something broken, unsafe, or behaving wrongly) need a fix before merging. Style suggestions are optional.
 
-After two completed rounds with a bot (a review, your fix, another review, your fix, and a third review), stop and ask a maintainer to decide what is left. The `review loop` workflow comments on the pull request and applies the `review-loop` label when that happens, and also when the same inline comment comes back after a fix. The label is created the first time a pull request needs it.
+When you fix a bug, add a test that fails without your fix.
 
-CodeRabbit comments on correctness bugs. Formatting is enforced by rustfmt, Clippy, Prettier, and ESLint. A style-only suggestion can stay unresolved. Do not ask CodeRabbit to push commits onto the branch.
+If a review raises the same point again after you fixed it, or keeps finding problems in the same file, reply on the thread instead of pushing another small patch, and a maintainer will help. A workflow adds the `review-loop` label when this happens. It asks for a second look; it is not a reason to stop fixing bugs.
+
+Formatting is checked automatically by rustfmt, Clippy, Prettier, and ESLint. Do not ask CodeRabbit to push commits to your branch.
 
 ## Translations
 

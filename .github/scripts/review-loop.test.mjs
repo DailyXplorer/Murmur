@@ -2,15 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   COMMENT_MARKER,
-  COMPLETED_ROUND_LIMIT,
   REVIEW_LOOP_LABEL,
   assessReviewLoop,
   flagReviewLoop,
   normalizeComment,
 } from "./review-loop.mjs";
 
-const review = (submittedAt, body = "Found a real bug in the paste path.") => ({
-  user: "coderabbitai[bot]",
+const BOT = "coderabbitai[bot]";
+const BUG =
+  "This reads past the end of the sample buffer when the recording is shorter than one frame.";
+
+const at = (minute) => `2026-10-21T00:${String(minute).padStart(2, "0")}:00Z`;
+
+const review = (
+  id,
+  submittedAt,
+  body = "**Actionable comments posted: 1**",
+) => ({
+  id,
+  user: BOT,
   state: "COMMENTED",
   body,
   submittedAt,
@@ -22,124 +32,140 @@ const commit = (committerDate, author = "octocat") => ({
   committerDate,
 });
 
-test("one fix and a follow-up review is still in bounds", () => {
+// createdAt mirrors the API; the detector ignores it and groups by review id.
+const finding = (reviewId, path, body, inReplyTo) => ({
+  user: BOT,
+  reviewId,
+  path,
+  body,
+  inReplyTo,
+  createdAt: at((reviewId - 1) * 20),
+});
+
+test("one fix and a follow-up review is two rounds and no loop", () => {
   const result = assessReviewLoop({
-    reviews: [review("2026-10-21T00:00:00Z"), review("2026-10-21T00:20:00Z")],
-    commits: [commit("2026-10-21T00:10:00Z")],
+    reviews: [review(1, at(0)), review(2, at(20))],
+    commits: [commit(at(10))],
   });
-  assert.equal(result.completedRounds, 1);
+  assert.equal(result.rounds, 2);
   assert.equal(result.stalled, false);
 });
 
-test("a third bot review after two fixes is a loop", () => {
+test("new findings in different files every round never flag", () => {
   const result = assessReviewLoop({
-    reviews: [
-      review("2026-10-21T00:00:00Z"),
-      review("2026-10-21T00:20:00Z"),
-      review("2026-10-21T00:40:00Z"),
+    reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
+    commits: [commit(at(10)), commit(at(30))],
+    reviewComments: [
+      finding(1, "src-tauri/src/a.rs", `${BUG} a`),
+      finding(2, "src-tauri/src/b.rs", `${BUG} b`),
+      finding(3, "src-tauri/src/c.rs", `${BUG} c`),
     ],
-    commits: [commit("2026-10-21T00:10:00Z"), commit("2026-10-21T00:30:00Z")],
   });
-  assert.equal(result.completedRounds, COMPLETED_ROUND_LIMIT);
+  assert.equal(result.rounds, 3);
+  assert.equal(result.stalled, false);
+});
+
+test("a clean review after two fix rounds is convergence, not a loop", () => {
+  const result = assessReviewLoop({
+    reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
+    commits: [commit(at(10)), commit(at(30))],
+    reviewComments: [
+      finding(1, "src/a.ts", `${BUG} a`),
+      finding(2, "src/b.ts", `${BUG} b`),
+    ],
+  });
+  assert.equal(result.stalled, false);
+});
+
+test("findings in the same file in three rounds flag the area for simplification", () => {
+  const path = "src-tauri/src/audio_toolkit/gain.rs";
+  const result = assessReviewLoop({
+    reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
+    commits: [commit(at(10)), commit(at(30))],
+    reviewComments: [1, 2, 3].map((id) =>
+      finding(id, path, `${BUG} variant ${id}`),
+    ),
+  });
+  assert.deepEqual(result.hotspots, [{ path, rounds: 3 }]);
+  assert.equal(result.repeated.length, 0);
   assert.equal(result.stalled, true);
 });
 
-test("a summary comment posted with the review counts as one round", () => {
+test("a bot reply in a thread is not a comment coming back", () => {
+  const reply =
+    "Thanks for the fix, the bounds check now covers the short recording case.";
   const result = assessReviewLoop({
-    reviews: [review("2026-10-21T00:00:00Z")],
-    issueComments: [
-      {
-        user: "coderabbitai[bot]",
-        body: "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\nWalkthrough",
-        createdAt: "2026-10-21T00:00:30Z",
-      },
+    reviews: [review(1, at(0)), review(2, at(20))],
+    commits: [commit(at(10))],
+    reviewComments: [
+      finding(1, "src/a.ts", reply, 100),
+      finding(2, "src/a.ts", reply, 101),
     ],
-    commits: [commit("2026-10-21T00:10:00Z")],
   });
-  assert.equal(result.completedRounds, 0);
+  assert.equal(result.repeated.length, 0);
   assert.equal(result.stalled, false);
 });
 
-test("the free-tier skip comment does not start a round", () => {
+test("twenty rounds is the emergency stop", () => {
+  const reviews = [];
+  const commits = [];
+  for (let i = 0; i < 20; i += 1) {
+    const hour = String(i).padStart(2, "0");
+    reviews.push(review(i + 1, `2026-10-21T${hour}:00:00Z`));
+    commits.push(commit(`2026-10-21T${hour}:30:00Z`));
+  }
+  const result = assessReviewLoop({ reviews, commits });
+  assert.equal(result.emergency, true);
+  assert.equal(result.stalled, true);
+});
+
+test("the free-tier skip review does not start a round", () => {
   const result = assessReviewLoop({
     reviews: [
       review(
-        "2026-10-21T00:00:00Z",
+        1,
+        at(0),
         "This repository does not receive automatic reviews because it has fewer than 10 stars.",
       ),
     ],
-    issueComments: [
-      {
-        user: "coderabbitai[bot]",
-        body: "<!-- skip review by coderabbit.ai --> fewer than 10 stars",
-        createdAt: "2026-10-21T00:00:00Z",
-      },
-    ],
-    commits: [commit("2026-10-21T00:10:00Z"), commit("2026-10-21T00:20:00Z")],
+    commits: [commit(at(10)), commit(at(20))],
   });
-  assert.equal(result.completedRounds, 0);
+  assert.equal(result.rounds, 0);
   assert.equal(result.stalled, false);
 });
 
 test("merge commits and CodeRabbit commits do not count as fixes", () => {
   const result = assessReviewLoop({
-    reviews: [review("2026-10-21T00:00:00Z"), review("2026-10-21T00:30:00Z")],
+    reviews: [review(1, at(0)), review(2, at(30))],
     commits: [
-      {
-        author: "octocat",
-        isMerge: true,
-        committerDate: "2026-10-21T00:10:00Z",
-      },
-      commit("2026-10-21T00:20:00Z", "coderabbitai[bot]"),
+      { author: "octocat", isMerge: true, committerDate: at(10) },
+      commit(at(20), BOT),
     ],
   });
-  assert.equal(result.completedRounds, 0);
+  assert.equal(result.rounds, 1);
 });
 
-test("the same inline comment after a fix is a loop even before the round limit", () => {
-  const body =
-    "This reads past the end of the sample buffer when the recording is shorter than one frame.";
+test("the same inline comment after a fix is a loop", () => {
+  const path = "src-tauri/src/audio_toolkit/gain.rs";
   const result = assessReviewLoop({
-    reviews: [review("2026-10-21T00:00:00Z"), review("2026-10-21T00:20:00Z")],
-    commits: [commit("2026-10-21T00:10:00Z")],
+    reviews: [review(1, at(0)), review(2, at(20))],
+    commits: [commit(at(10))],
     reviewComments: [
-      {
-        user: "coderabbitai[bot]",
-        path: "src-tauri/src/audio_toolkit/gain.rs",
-        body,
-        createdAt: "2026-10-21T00:00:00Z",
-      },
-      {
-        user: "coderabbitai[bot]",
-        path: "src-tauri/src/audio_toolkit/gain.rs",
-        body: `${body}\n\n<!-- line 40 -->`,
-        createdAt: "2026-10-21T00:20:00Z",
-      },
+      finding(1, path, BUG),
+      finding(2, path, `${BUG}\n\n<!-- line 40 -->`),
     ],
   });
-  assert.equal(result.completedRounds, 1);
+  assert.equal(result.rounds, 2);
   assert.equal(result.repeated.length, 1);
   assert.equal(result.stalled, true);
 });
 
 test("identical comments inside one review are not a repeat", () => {
-  const body =
-    "This reads past the end of the sample buffer when the recording is shorter than one frame.";
   const result = assessReviewLoop({
-    reviews: [review("2026-10-21T00:00:00Z")],
+    reviews: [review(1, at(0))],
     reviewComments: [
-      {
-        user: "coderabbitai[bot]",
-        path: "src-tauri/src/lib.rs",
-        body,
-        createdAt: "2026-10-21T00:00:00Z",
-      },
-      {
-        user: "coderabbitai[bot]",
-        path: "src-tauri/src/lib.rs",
-        body,
-        createdAt: "2026-10-21T00:00:05Z",
-      },
+      finding(1, "src-tauri/src/lib.rs", BUG),
+      finding(1, "src-tauri/src/lib.rs", BUG),
     ],
   });
   assert.equal(result.repeated.length, 0);
@@ -201,27 +227,19 @@ function githubFixture(state) {
 
 function stalledState() {
   return {
-    reviews: [
-      {
-        user: { login: "coderabbitai[bot]" },
-        state: "COMMENTED",
-        body: "bug",
-        submitted_at: "2026-10-21T00:00:00Z",
-      },
-      {
-        user: { login: "coderabbitai[bot]" },
-        state: "COMMENTED",
-        body: "bug",
-        submitted_at: "2026-10-21T00:20:00Z",
-      },
-      {
-        user: { login: "coderabbitai[bot]" },
-        state: "COMMENTED",
-        body: "bug",
-        submitted_at: "2026-10-21T00:40:00Z",
-      },
-    ],
-    reviewComments: [],
+    reviews: [1, 2, 3].map((id) => ({
+      id,
+      user: { login: "coderabbitai[bot]" },
+      state: "COMMENTED",
+      body: "bug",
+      submitted_at: at((id - 1) * 20),
+    })),
+    reviewComments: [1, 3].map((reviewId) => ({
+      user: { login: "coderabbitai[bot]" },
+      path: "src-tauri/src/audio_toolkit/gain.rs",
+      body: BUG,
+      pull_request_review_id: reviewId,
+    })),
     issueComments: [],
     commits: [
       {
@@ -302,5 +320,24 @@ test("flagReviewLoop ignores issues that are not pull requests", async () => {
     },
     core: { info() {}, warning() {} },
   });
+  assert.equal(result.commented, false);
+});
+
+test("a fork pull request with a read-only token keeps the job green", async () => {
+  const state = stalledState();
+  const github = githubFixture(state);
+  const forbidden = async () => {
+    const error = new Error("Resource not accessible by integration");
+    error.status = 403;
+    throw error;
+  };
+  github.rest.issues.createComment = forbidden;
+  github.rest.issues.addLabels = forbidden;
+  const result = await flagReviewLoop({
+    github,
+    context,
+    core: { info() {}, warning() {} },
+  });
+  assert.equal(result.stalled, true);
   assert.equal(result.commented, false);
 });

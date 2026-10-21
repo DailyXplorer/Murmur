@@ -204,27 +204,9 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
 ## Checks before pushing
 
-Run the checks that match the files you changed before pushing. CI runs the same checks, including the macOS Rust job.
+Run the tests your change adds or modifies, plus a build: `bun run build` for frontend changes, and from `src-tauri` `cargo test <your tests>` for Rust changes. CI runs the full suite (lint, formatting, translations, Clippy, all Rust tests, Playwright) and is the safety net.
 
-```bash
-bun run lint
-bun run format:check
-bun run check:translations
-bun run check:macos-only
-bun run build
-```
-
-`bun install` sets `core.hooksPath` to `.githooks` when that hook is in the tree. Let the hook run. If you skip it, say why in the pull request.
-
-For Rust changes, from `src-tauri`:
-
-```bash
-cargo fmt -- --check
-cargo test --locked
-cargo clippy --locked --all-targets --all-features -- -D warnings
-```
-
-For UI changes, run `bun run test:playwright`.
+`bun install` sets `core.hooksPath` to `.githooks`, whose pre-commit hook runs the fast checks. Let the hook run. If you skip it, say why in the pull request.
 
 ## Pull requests
 
@@ -238,10 +220,13 @@ For UI changes, run `bun run test:playwright`.
 
 ## Review rounds
 
-Address review comments in one pass, then push once.
+Review and fix rounds continue until a review comes back clean. There is no round limit. Only real bugs (correctness, security, behavior) block a merge; style never does.
 
-CodeRabbit is configured to report correctness, security, and behavior bugs. rustfmt, Clippy, Prettier, and ESLint already cover formatting, so a style nit does not need a follow-up commit.
+- Fix each real bug with a test that fails before the fix.
+- If the same comment comes back after a fix, do not apply it again: check whether the fix works or the comment is wrong, and reply on the thread.
+- If one file has had bugs in three rounds, simplify that part (reuse a proven approach) instead of patching it again.
+- After 20 rounds, stop and ask a maintainer.
 
-After two completed rounds (bot review, your fix, bot review, your fix, and another bot review) stop. The `review loop` workflow comments and applies the `review-loop` label when that happens, or when the same inline comment comes back after a fix commit. That label is created the first time it is needed. Summarize the remaining disagreements and wait for a maintainer.
+The `review loop` workflow comments and applies the `review-loop` label in those three cases, so a maintainer or the lead agent takes a look. The label is created the first time it is needed. It never means "stop fixing bugs".
 
-Do not ask CodeRabbit to push the fixes. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled so a review cannot commit onto the branch and start another round.
+Do not ask CodeRabbit to push the fixes. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled so a review cannot commit onto the branch.

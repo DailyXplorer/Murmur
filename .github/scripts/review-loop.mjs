@@ -1,11 +1,13 @@
 /**
- * Detects a pull request whose bot review and follow-up fixes are no longer
- * converging. The workflow comments once and applies the `review-loop` label.
- * The job itself stays green: a loop is a signal for a maintainer, not a
- * compile failure.
+ * Flags a pull request whose bot reviews show a real loop: the same comment
+ * coming back after a fix, findings in the same file for three rounds, or the
+ * twentieth round. The workflow comments once and applies the `review-loop`
+ * label. The job itself stays green: a loop is a signal for a maintainer, not
+ * a compile failure.
  */
 
-export const COMPLETED_ROUND_LIMIT = 2;
+export const SAME_AREA_ROUNDS = 3;
+export const EMERGENCY_ROUNDS = 20;
 export const COMMENT_MARKER = "<!-- murmur-review-loop -->";
 export const REVIEW_LOOP_LABEL = "review-loop";
 
@@ -40,40 +42,33 @@ function time(value) {
 }
 
 /**
+ * Flags a pull request for a maintainer or the lead agent. It never asks
+ * authors to stop fixing real bugs, except at the emergency stop.
+ *
  * @param {{
- *   reviews?: { user: string, state?: string, body?: string, submittedAt: string }[],
- *   issueComments?: { user: string, body?: string, createdAt: string }[],
- *   reviewComments?: { user: string, body?: string, path?: string, createdAt: string }[],
+ *   reviews?: { id?: number, user: string, state?: string, body?: string, submittedAt: string }[],
+ *   reviewComments?: { user: string, body?: string, path?: string, reviewId?: number, inReplyTo?: number }[],
  *   commits?: { author?: string, isMerge?: boolean, committerDate?: string, authorDate?: string }[],
  * }} input
  */
 export function assessReviewLoop(input) {
-  /** @type {{ at: number, kind: "review" | "commit" }[]} */
+  /** @type {{ at: number, kind: "review" | "commit", id?: number }[]} */
   const events = [];
 
+  // Only submitted reviews count. The walkthrough is one comment edited in
+  // place, so its created_at says nothing about when a round happened.
   for (const review of input.reviews ?? []) {
     if (!isReviewBot(review.user) || review.state === "PENDING") continue;
     if (isSkipReview(review.body)) continue;
     const at = time(review.submittedAt);
     if (at === undefined) continue;
-    events.push({ at, kind: "review" });
+    events.push({ at, kind: "review", id: review.id });
   }
 
-  for (const comment of input.issueComments ?? []) {
-    if (!isReviewBot(comment.user) || isSkipReview(comment.body)) continue;
-    if (!(comment.body ?? "").includes("summarize by coderabbit.ai")) continue;
-    const at = time(comment.createdAt);
-    if (at === undefined) continue;
-    events.push({ at, kind: "review" });
-  }
-
-  /** @type {number[]} */
-  const authorCommits = [];
   for (const commit of input.commits ?? []) {
     if (commit.isMerge || isReviewBot(commit.author)) continue;
     const at = time(commit.committerDate) ?? time(commit.authorDate);
     if (at === undefined) continue;
-    authorCommits.push(at);
     events.push({ at, kind: "commit" });
   }
 
@@ -81,95 +76,115 @@ export function assessReviewLoop(input) {
     (left, right) => left.at - right.at || (left.kind === "review" ? -1 : 1),
   );
 
-  let completedRounds = 0;
-  let phase = "idle";
+  // A round is the bot reviews between two author pushes.
+  let rounds = 0;
+  let pushed = true;
+  /** @type {Map<number, number>} */
+  const roundOfReview = new Map();
   for (const event of events) {
-    if (event.kind === "review") {
-      if (phase === "fixed") completedRounds += 1;
-      phase = "reviewed";
+    if (event.kind === "commit") {
+      pushed = true;
       continue;
     }
-    if (phase === "reviewed") phase = "fixed";
+    if (pushed) rounds += 1;
+    pushed = false;
+    if (event.id !== undefined) roundOfReview.set(event.id, rounds);
   }
 
-  /** @type {Map<string, number[]>} */
-  const groups = new Map();
+  /** @type {Map<string, Set<number>>} */
+  const roundsByFinding = new Map();
+  /** @type {Map<string, Set<number>>} */
+  const roundsByPath = new Map();
+  const add = (map, key, round) =>
+    map.set(key, (map.get(key) ?? new Set()).add(round));
   for (const comment of input.reviewComments ?? []) {
-    if (!isReviewBot(comment.user)) continue;
+    // Thread replies answer a finding; they are not a finding.
+    if (!isReviewBot(comment.user) || comment.inReplyTo) continue;
+    const round = roundOfReview.get(comment.reviewId);
+    if (round === undefined) continue;
+    const path = comment.path ?? "";
+    add(roundsByPath, path, round);
     const text = normalizeComment(comment.body);
-    if (text.length < 24) continue;
-    const key = `${comment.path ?? ""}\n${text}`;
-    const at = time(comment.createdAt);
-    if (at === undefined) continue;
-    const times = groups.get(key) ?? [];
-    times.push(at);
-    groups.set(key, times);
+    if (text.length >= 24) add(roundsByFinding, `${path}\n${text}`, round);
   }
 
-  /** @type {{ path: string, text: string, count: number }[]} */
-  const repeated = [];
-  for (const [key, times] of groups) {
-    if (times.length < 2) continue;
-    times.sort((left, right) => left - right);
-    const first = times[0];
-    const last = times[times.length - 1];
-    const commitBetween = authorCommits.some((at) => at > first && at < last);
-    if (!commitBetween) continue;
-    const newline = key.indexOf("\n");
-    repeated.push({
-      path: key.slice(0, newline),
-      text: key.slice(newline + 1),
-      count: times.length,
+  const repeated = [...roundsByFinding]
+    .filter(([, seen]) => seen.size >= 2)
+    .map(([key, seen]) => {
+      const newline = key.indexOf("\n");
+      return {
+        path: key.slice(0, newline),
+        text: key.slice(newline + 1),
+        count: seen.size,
+      };
     });
-  }
+  const hotspots = [...roundsByPath]
+    .filter(([, seen]) => seen.size >= SAME_AREA_ROUNDS)
+    .map(([path, seen]) => ({ path, rounds: seen.size }));
+  const emergency = rounds >= EMERGENCY_ROUNDS;
 
   return {
-    stalled: completedRounds >= COMPLETED_ROUND_LIMIT || repeated.length > 0,
-    completedRounds,
+    stalled: emergency || repeated.length > 0 || hotspots.length > 0,
+    rounds,
     repeated,
+    hotspots,
+    emergency,
   };
 }
 
 export function renderLoopComment(result) {
-  const repeats =
-    result.repeated.length === 0
-      ? ""
-      : `\nComments that came back after a fix:\n${result.repeated
-          .map(
-            (item) =>
-              `- \`${item.path}\` (${item.count} times): ${item.text.slice(0, 120)}`,
-          )
-          .join("\n")}\n`;
+  const sections = [];
+  if (result.repeated.length > 0) {
+    const items = result.repeated.map(
+      (item) =>
+        `- \`${item.path}\` (${item.count} rounds): ${item.text.slice(0, 120)}`,
+    );
+    sections.push(`### The same comment came back after a fix
+
+Check whether the fix works or the comment is wrong, then reply on the thread. Do not apply the same change again.
+
+${items.join("\n")}`);
+  }
+  if (result.hotspots.length > 0) {
+    const items = result.hotspots.map(
+      (item) => `- \`${item.path}\` (${item.rounds} rounds)`,
+    );
+    sections.push(`### Findings in the same file for ${SAME_AREA_ROUNDS} or more rounds
+
+Simplify this part, reusing a proven approach, instead of patching it again.
+
+${items.join("\n")}`);
+  }
+  if (result.emergency) {
+    sections.push(`### ${result.rounds} review rounds
+
+Emergency stop: stop pushing and ask a maintainer.`);
+  }
 
   return `${COMMENT_MARKER}
-## Review loop detected
+## Review loop flagged
 
-This pull request has completed ${result.completedRounds} bot review rounds with a fix commit between them.
-${repeats}
-Stop the mechanical fixes. A maintainer should decide which remaining comments are in scope. Reply on each open thread with the change you will make, or with the reason the thread can be resolved.
+This is a note for a maintainer or the lead agent. Unless the emergency stop applies, keep fixing real bugs, each with a test that fails first, until a review comes back clean. Style suggestions never block.
 
-Two completed rounds is the limit: bot review, author commit, bot review, author commit, bot review. Further pushes keep the loop going.
+${sections.join("\n\n")}
 `;
 }
 
-function mapInput(reviews, issueComments, reviewComments, commits) {
+function mapInput(reviews, reviewComments, commits) {
   return {
     reviews: reviews.map((review) => ({
+      id: review.id,
       user: review.user?.login ?? "",
       state: review.state,
       body: review.body ?? "",
       submittedAt: review.submitted_at,
     })),
-    issueComments: issueComments.map((comment) => ({
-      user: comment.user?.login ?? "",
-      body: comment.body ?? "",
-      createdAt: comment.created_at,
-    })),
     reviewComments: reviewComments.map((comment) => ({
       user: comment.user?.login ?? "",
       body: comment.body ?? "",
       path: comment.path,
-      createdAt: comment.created_at,
+      reviewId: comment.pull_request_review_id,
+      inReplyTo: comment.in_reply_to_id,
     })),
     commits: commits.map((commit) => ({
       author: commit.author?.login ?? "",
@@ -243,12 +258,10 @@ export async function flagReviewLoop({ github, context, core }) {
     }),
   ]);
 
-  const result = assessReviewLoop(
-    mapInput(reviews, issueComments, reviewComments, commits),
-  );
+  const result = assessReviewLoop(mapInput(reviews, reviewComments, commits));
   if (!result.stalled) {
     core.info(
-      `No review loop (${result.completedRounds} completed rounds, ${result.repeated.length} repeated comments)`,
+      `No review loop (${result.rounds} rounds, ${result.repeated.length} repeated comments, ${result.hotspots.length} hotspots)`,
     );
     return { stalled: false, commented: false, ...result };
   }
@@ -257,20 +270,28 @@ export async function flagReviewLoop({ github, context, core }) {
   const existing = issueComments.find((comment) =>
     (comment.body ?? "").includes(COMMENT_MARKER),
   );
-  if (existing) {
-    await github.rest.issues.updateComment({
-      owner,
-      repo,
-      comment_id: existing.id,
-      body,
-    });
-  } else {
-    await github.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: pullNumber,
-      body,
-    });
+  try {
+    if (existing) {
+      await github.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: existing.id,
+        body,
+      });
+    } else {
+      await github.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: pullNumber,
+        body,
+      });
+    }
+  } catch (error) {
+    // Pull requests from forks get a read-only token.
+    core.warning(
+      `Could not comment on the pull request: ${error?.message ?? error}`,
+    );
+    return { stalled: true, commented: false, ...result };
   }
 
   try {
@@ -282,7 +303,7 @@ export async function flagReviewLoop({ github, context, core }) {
   }
 
   core.info(
-    `Flagged review loop (${result.completedRounds} completed rounds, ${result.repeated.length} repeated comments)`,
+    `Flagged review loop (${result.rounds} rounds, ${result.repeated.length} repeated comments, ${result.hotspots.length} hotspots)`,
   );
   return { stalled: true, commented: true, ...result };
 }
