@@ -362,6 +362,32 @@ impl HistoryManager {
         Ok(conn)
     }
 
+    /// Reads the entries `clause` selects. Every read of whole entries goes
+    /// through here, so the columns always match `map_history_entry`.
+    fn query_entries(
+        conn: &Connection,
+        clause: &str,
+        params: impl rusqlite::Params,
+    ) -> Result<Vec<HistoryEntry>> {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ENTRY_COLUMNS} FROM transcription_history {clause}"
+        ))?;
+        let entries = stmt
+            .query_map(params, Self::map_history_entry)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(entries)
+    }
+
+    fn query_entry(
+        conn: &Connection,
+        clause: &str,
+        params: impl rusqlite::Params,
+    ) -> Result<Option<HistoryEntry>> {
+        Ok(Self::query_entries(conn, clause, params)?
+            .into_iter()
+            .next())
+    }
+
     fn map_history_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryEntry> {
         Ok(HistoryEntry {
             id: row.get("id")?,
@@ -528,11 +554,8 @@ impl HistoryManager {
             return Err(anyhow!("History entry {} not found", id));
         }
 
-        let entry = conn.query_row(
-            &format!("SELECT {ENTRY_COLUMNS} FROM transcription_history WHERE id = ?1"),
-            params![id],
-            Self::map_history_entry,
-        )?;
+        let entry = Self::query_entry(&conn, "WHERE id = ?1", params![id])?
+            .ok_or_else(|| anyhow!("History entry {} not found", id))?;
 
         debug!("Updated transcription for history entry {}", id);
 
@@ -697,45 +720,18 @@ impl HistoryManager {
         let conn = self.get_connection()?;
         let limit = limit.map(|l| l.min(100));
 
-        let mut entries: Vec<HistoryEntry> = match (cursor, limit) {
-            (Some(cursor_id), Some(lim)) => {
-                let fetch_count = (lim + 1) as i64;
-                let mut stmt = conn.prepare(&format!(
-                    "SELECT {ENTRY_COLUMNS}
-                     FROM transcription_history
-                     WHERE id < ?1
-                     ORDER BY id DESC
-                     LIMIT ?2"
-                ))?;
-                let result = stmt
-                    .query_map(params![cursor_id, fetch_count], Self::map_history_entry)?
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
-                result
-            }
-            (None, Some(lim)) => {
-                let fetch_count = (lim + 1) as i64;
-                let mut stmt = conn.prepare(&format!(
-                    "SELECT {ENTRY_COLUMNS}
-                     FROM transcription_history
-                     ORDER BY id DESC
-                     LIMIT ?1"
-                ))?;
-                let result = stmt
-                    .query_map(params![fetch_count], Self::map_history_entry)?
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
-                result
-            }
-            (_, None) => {
-                let mut stmt = conn.prepare(&format!(
-                    "SELECT {ENTRY_COLUMNS}
-                     FROM transcription_history
-                     ORDER BY id DESC"
-                ))?;
-                let result = stmt
-                    .query_map([], Self::map_history_entry)?
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
-                result
-            }
+        let mut entries = match (cursor, limit) {
+            (Some(cursor_id), Some(lim)) => Self::query_entries(
+                &conn,
+                "WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
+                params![cursor_id, (lim + 1) as i64],
+            )?,
+            (None, Some(lim)) => Self::query_entries(
+                &conn,
+                "ORDER BY id DESC LIMIT ?1",
+                params![(lim + 1) as i64],
+            )?,
+            (_, None) => Self::query_entries(&conn, "ORDER BY id DESC", [])?,
         };
 
         let has_more = limit.is_some_and(|lim| entries.len() > lim);
@@ -748,15 +744,7 @@ impl HistoryManager {
 
     #[cfg(test)]
     fn get_latest_entry_with_conn(conn: &Connection) -> Result<Option<HistoryEntry>> {
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {ENTRY_COLUMNS}
-             FROM transcription_history
-             ORDER BY timestamp DESC
-             LIMIT 1"
-        ))?;
-
-        let entry = stmt.query_row([], Self::map_history_entry).optional()?;
-        Ok(entry)
+        Self::query_entry(conn, "ORDER BY timestamp DESC LIMIT 1", [])
     }
 
     /// Get the latest entry with non-empty transcription text.
@@ -766,16 +754,11 @@ impl HistoryManager {
     }
 
     fn get_latest_completed_entry_with_conn(conn: &Connection) -> Result<Option<HistoryEntry>> {
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {ENTRY_COLUMNS}
-             FROM transcription_history
-             WHERE transcription_text != ''
-             ORDER BY timestamp DESC
-             LIMIT 1"
-        ))?;
-
-        let entry = stmt.query_row([], Self::map_history_entry).optional()?;
-        Ok(entry)
+        Self::query_entry(
+            conn,
+            "WHERE transcription_text != '' ORDER BY timestamp DESC LIMIT 1",
+            [],
+        )
     }
 
     pub async fn toggle_saved_status(&self, id: i64) -> Result<()> {
@@ -814,23 +797,11 @@ impl HistoryManager {
 
     pub async fn get_entry_by_id(&self, id: i64) -> Result<Option<HistoryEntry>> {
         let conn = self.get_connection()?;
-        let mut stmt = conn.prepare(
-            "SELECT
-                id,
-                file_name,
-                timestamp,
-                saved,
-                title,
-                transcription_text,
-                raw_text,
-                cleanup
-             FROM transcription_history
-             WHERE id = ?1",
-        )?;
+        Self::get_entry_by_id_with_conn(&conn, id)
+    }
 
-        let entry = stmt.query_row([id], Self::map_history_entry).optional()?;
-
-        Ok(entry)
+    fn get_entry_by_id_with_conn(conn: &Connection, id: i64) -> Result<Option<HistoryEntry>> {
+        Self::query_entry(conn, "WHERE id = ?1", [id])
     }
 
     fn delete_entry_with_conn(conn: &Connection, recordings_dir: &Path, id: i64) -> Result<()> {
@@ -1060,6 +1031,28 @@ mod tests {
         assert_eq!(entry.cleanup, Some(CleanupOutcome::Cleaned));
         assert_eq!(entry.engine, Engine::Cloud);
         assert_eq!(entry.fallback_reason, Some(FallbackReason::ModelNotReady));
+    }
+
+    /// Playback and Retry find their recording through this lookup.
+    #[test]
+    fn an_entry_read_by_id_keeps_its_engine_and_fallback_reason() {
+        let conn = setup_conn();
+        let source = EngineUsed {
+            engine: Engine::Cloud,
+            fallback: Some(FallbackReason::ModelNotReady),
+        };
+        let text = ProcessedText::unprocessed("text".to_string());
+        let id = insert_row(&conn, "a.wav", 5, "t", &text, source).unwrap();
+
+        let entry = HistoryManager::get_entry_by_id_with_conn(&conn, id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(entry.file_name, "a.wav");
+        assert_eq!(entry.engine, Engine::Cloud);
+        assert_eq!(entry.fallback_reason, Some(FallbackReason::ModelNotReady));
+        assert!(HistoryManager::get_entry_by_id_with_conn(&conn, id + 1)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
