@@ -120,8 +120,10 @@ for (const [name, size] of [
 }
 
 /** Every way a stat value fails to sit on one line inside its tile. */
-const statValueProblems = (tiles: Locator) =>
-  tiles.evaluateAll((elements) => {
+const statValueProblems = (tiles: Locator, language: string) =>
+  tiles.evaluateAll((elements, language) => {
+    // Some locales write numbers in their own digits.
+    const huge = new Intl.NumberFormat(language).format(999);
     const values = elements.map((tile) => tile.querySelector(":scope > p")!);
     const problems = values.flatMap((value, index) => {
       const tile = elements[index];
@@ -140,7 +142,7 @@ const statValueProblems = (tiles: Locator) =>
       ).size;
       const height = value.getBoundingClientRect().height;
       return [
-        ...(text.includes("999") ? [] : [`${text} does not show 999`]),
+        ...(text.includes(huge) ? [] : [`${text} does not show ${huge}`]),
         ...(value.scrollWidth > value.clientWidth
           ? [`${text} overflows its box`]
           : []),
@@ -161,7 +163,7 @@ const statValueProblems = (tiles: Locator) =>
       problems.push(`tiles differ in height: ${heights.join(", ")}`);
     }
     return problems;
-  });
+  }, language);
 
 for (const language of LOCALES) {
   test(`Insights stat values stay on one line in their tiles (${language})`, async ({
@@ -181,7 +183,10 @@ for (const language of LOCALES) {
       for (const size of [DEFAULT_WINDOW, MIN_WINDOW]) {
         await page.setViewportSize(size);
         await expect
-          .poll(() => statValueProblems(tiles), `${theme}, ${size.width}px`)
+          .poll(
+            () => statValueProblems(tiles, language),
+            `${theme}, ${size.width}px`,
+          )
           .toEqual([]);
       }
     }
