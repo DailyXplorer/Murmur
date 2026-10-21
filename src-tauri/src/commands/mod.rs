@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod cleanup;
 pub mod history;
+pub mod local_models;
 pub mod meetings;
 pub mod transcription;
 

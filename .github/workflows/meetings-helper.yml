@@ -1,7 +1,8 @@
 name: "meetings helper"
 # End-to-end check of the on-device meeting analysis: downloads the models
-# (about 480 MB, cached), then analyses a synthetic two-voice dialogue. Not
-# on the PR path, to avoid the download on every change.
+# with Murmur's own downloader (about 505 MB, cached), loads them once, then
+# analyses a synthetic two-voice dialogue. Not on the PR path, to avoid the
+# download on every change.
 on:
   workflow_dispatch:
   schedule:
@@ -28,7 +29,16 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/models
-          key: meetings-models-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+          key: meetings-models-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved', 'src-tauri/src/local_models/pinned.rs') }}
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
 
       - name: Build the helper
         working-directory: src-tauri/swift/MurmurMeetingsHelper
@@ -36,12 +46,17 @@ jobs:
           swift build -c release --arch arm64
           echo "HELPER=$(swift build -c release --arch arm64 --show-bin-path)/murmur-meetings-helper" >> "$GITHUB_ENV"
 
+      - name: Download the models
+        working-directory: src-tauri
+        run: cargo run --locked --example fetch_models -- "$RUNNER_TEMP/models"
+
       # The helper quits when its stdin closes, as when Murmur quits, so
       # stdin is held open.
-      - name: Download the models
+      - name: Load the models once
         shell: bash
         run: |
-          "$HELPER" download --models-dir "$RUNNER_TEMP/models" < <(sleep 7200) | tail -n 3
+          set -o pipefail
+          "$HELPER" prepare --models-dir "$RUNNER_TEMP/models" < <(sleep 7200) | tail -n 3
 
       - name: Analyse a synthetic dialogue
         working-directory: src-tauri/swift/MurmurMeetingsHelper/smoke

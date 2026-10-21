@@ -760,33 +760,33 @@ async retranscribeMeeting(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getMeetingModelsStatus() : Promise<Result<MeetingModelsStatus, string>> {
+async getLocalModelStatus() : Promise<Result<LocalModelStatus, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_meeting_models_status") };
+    return { status: "ok", data: await TAURI_INVOKE("get_local_model_status") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async downloadMeetingModels() : Promise<Result<null, string>> {
+async downloadLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("download_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("download_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async cancelMeetingModelsDownload() : Promise<Result<null, string>> {
+async cancelLocalModelDownload() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cancel_meeting_models_download") };
+    return { status: "ok", data: await TAURI_INVOKE("cancel_local_model_download") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async deleteMeetingModels() : Promise<Result<null, string>> {
+async deleteLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("delete_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -863,14 +863,14 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
-meetingModelsStatus: MeetingModelsStatus,
+localModelStatus: LocalModelStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
-meetingModelsStatus: "meeting-models-status",
+localModelStatus: "local-model-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated"
@@ -1010,6 +1010,26 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+/**
+ * Why a download stopped, as the user is told.
+ */
+export type DownloadFailure = { kind: "no_internet" } | 
+/**
+ * Unreachable, an HTTP error, or no data for `STALL_TIMEOUT`.
+ */
+{ kind: "server_unavailable" } | 
+/**
+ * The file arrived twice with the wrong SHA-256.
+ */
+{ kind: "damaged" } | { kind: "not_enough_space"; needed_bytes: number; free_bytes: number } | 
+/**
+ * The models folder could not be written.
+ */
+{ kind: "disk" } | 
+/**
+ * The models downloaded but would not load on this Mac.
+ */
+{ kind: "prepare_failed" }
 export type Engine = 
 /**
  * Parakeet TDT 0.6B v3 on this Mac.
@@ -1089,6 +1109,21 @@ export type LearnedWord = { word: string;
  * How Murmur wrote it before the user corrected it.
  */
 heard_as: string }
+export type LocalModelState = 
+/**
+ * This Mac cannot run the models.
+ */
+{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; done_bytes: number; total_bytes: number } | 
+/**
+ * Checking models an earlier version downloaded, or loading new ones
+ * once so they are compiled for this Mac.
+ */
+{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+export type LocalModelStatus = { state: LocalModelState; 
+/**
+ * What the download takes on this Mac.
+ */
+size_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
@@ -1133,7 +1168,6 @@ title: string | null; started_at_ms: number; duration_ms: number; status: Meetin
  * Which tab Copy and Export take their text from.
  */
 export type MeetingMarkdownKind = "summary" | "transcript"
-export type MeetingModelsStatus = { state: ModelsState; bytes_on_disk: number }
 /**
  * How far processing has come, for the progress bar.
  */
@@ -1191,15 +1225,6 @@ export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
-export type ModelsState = 
-/**
- * This Mac cannot run the analysis.
- */
-{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; fraction: number } | 
-/**
- * Compiling the models for this Mac, once.
- */
-{ state: "preparing" } | { state: "ready" } | { state: "failed" }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }

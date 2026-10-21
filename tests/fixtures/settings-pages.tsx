@@ -8,8 +8,8 @@ import type {
   HistoryEntry,
   InsightsSummary,
   MeetingDetail,
+  LocalModelStatus,
   MeetingListItem,
-  MeetingModelsStatus,
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
@@ -58,24 +58,30 @@ const heldUntilMs =
 const manyMeetings = params.get("manyMeetings") === "1";
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
-const MODELS: Record<string, MeetingModelsStatus> = {
+/** The Apple silicon download, as the manifest gives it. */
+const MODEL_BYTES = 505_044_208;
+const MODELS: Record<string, LocalModelStatus> = {
   downloading: {
-    bytes_on_disk: 210_000_000,
-    state: { fraction: 0.42, state: "downloading" },
+    size_bytes: MODEL_BYTES,
+    state: {
+      done_bytes: 212_000_000,
+      state: "downloading",
+      total_bytes: MODEL_BYTES,
+    },
   },
-  missing: { bytes_on_disk: 0, state: { state: "missing" } },
-  ready: { bytes_on_disk: 482_000_000, state: { state: "ready" } },
+  missing: { size_bytes: MODEL_BYTES, state: { state: "missing" } },
+  ready: { size_bytes: MODEL_BYTES, state: { state: "ready" } },
 };
-const MODEL_COMMANDS: Record<string, MeetingModelsStatus> = {
-  download_meeting_models: MODELS.downloading,
-  cancel_meeting_models_download: MODELS.missing,
-  delete_meeting_models: MODELS.missing,
+const MODEL_COMMANDS: Record<string, LocalModelStatus> = {
+  download_local_model: MODELS.downloading,
+  cancel_local_model_download: MODELS.missing,
+  delete_local_model: MODELS.missing,
 };
-const modelsStatus: MeetingModelsStatus =
+const modelsStatus: LocalModelStatus =
   analysis === "available"
     ? MODELS[params.get("models") ?? "ready"]
     : {
-        bytes_on_disk: 0,
+        size_bytes: MODEL_BYTES,
         state: {
           state: "unsupported",
           support: analysis as AnalysisSupport,
@@ -467,10 +473,10 @@ const RESPONSES: Record<string, unknown> = {
   retry_meeting: null,
   retranscribe_meeting: null,
   reanalyze_meeting: null,
-  get_meeting_models_status: modelsStatus,
-  download_meeting_models: null,
-  cancel_meeting_models_download: null,
-  delete_meeting_models: null,
+  get_local_model_status: modelsStatus,
+  download_local_model: null,
+  cancel_local_model_download: null,
+  delete_local_model: null,
   get_meeting_capabilities: { analysis, system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
   get_system_audio_permission: systemAudioPermission,
@@ -529,7 +535,7 @@ mockIPC(
     if (meeting.handled) return meeting.value;
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
-    if (models) void events.meetingModelsStatus.emit(models);
+    if (models) void events.localModelStatus.emit(models);
     // So does the meeting's.
     if (command === "start_meeting") {
       void events.meetingStateChanged.emit({

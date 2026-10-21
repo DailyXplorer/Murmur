@@ -14,7 +14,7 @@ import {
 import { formatDuration } from "@/lib/meetings/format";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
-import { useMeetingModels } from "../../hooks/useMeetingModels";
+import { useLocalModel } from "../../hooks/useLocalModel";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -74,7 +74,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     null,
   );
   const requestRef = useRef(0);
-  const models = useMeetingModels();
+  const models = useLocalModel();
   const recording = runtime.state === "recording";
   const now = useNow(recording);
   // The dialog closes by itself once its meeting stops some other way.
