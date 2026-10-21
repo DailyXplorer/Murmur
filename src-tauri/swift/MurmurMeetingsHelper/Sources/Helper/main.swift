@@ -1,13 +1,15 @@
 // murmur-meetings-helper: on-device analysis of a recorded meeting.
 //
-//   download --models-dir <dir>
+//   prepare  --models-dir <dir>
 //   analyze  --models-dir <dir> [--system <wav>] [--mic <wav>]
 //   diarize  --models-dir <dir> (--system <wav> | --mic <wav>)
 //
-// `analyze` prints the words heard on each track, `diarize` who spoke when
-// on one track: Murmur picks it from those words. Prints one JSON object per
-// line on stdout (see `meetings/protocol.rs`). Neither downloads: missing
-// models are reported as an error.
+// Murmur downloads the models itself (`local_models`). `prepare` loads them
+// once, so Core ML compiles them for this Mac; `analyze` prints the words
+// heard on each track, `diarize` who spoke when on one track: Murmur picks
+// it from those words. Prints one JSON object per line on stdout (see
+// `meetings/protocol.rs`). None of them downloads: missing models are
+// reported as an error.
 
 import FluidAudio
 import Foundation
@@ -82,17 +84,12 @@ func value(of flag: String, in arguments: [String]) -> String? {
     return arguments[index + 1]
 }
 
-/// Download, then compile: FluidAudio reports both through one handler.
-func progressHandler(from: Double, to: Double) -> ProgressHandler {
+/// The share of `prepare` done, from `from` to `to`.
+func compileProgress(from: Double, to: Double) -> ProgressHandler {
     { progress in
-        let phase: String
-        switch progress.phase {
-        case .compiling: phase = "compile"
-        default: phase = "download"
-        }
         emit(
             Progress(
-                phase: phase, track: nil,
+                phase: "compile", track: nil,
                 fraction: from + (to - from) * min(max(progress.fractionCompleted, 0), 1)))
     }
 }
@@ -101,22 +98,19 @@ func asrDirectory(_ models: URL) -> URL {
     models.appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)
 }
 
-func download(models: URL) async -> Int32 {
-    ModelHub.offlineMode = false
+/// The first load compiles the models for this Mac; later loads are fast.
+func prepare(models: URL) async -> Int32 {
+    ModelHub.offlineMode = true
     do {
-        try await AsrModels.download(
-            to: asrDirectory(models), version: .v3,
-            progressHandler: progressHandler(from: 0, to: 0.8))
+        _ = try await AsrModels.load(
+            from: asrDirectory(models), version: .v3,
+            progressHandler: compileProgress(from: 0, to: 0.8))
         _ = try await OfflineDiarizerModels.load(
-            from: models, progressHandler: progressHandler(from: 0.8, to: 0.9))
-        // The first load compiles the models for this Mac; later loads are fast.
-        emit(Progress(phase: "compile", track: nil, fraction: 0.9))
-        _ = try await AsrModels.load(from: asrDirectory(models), version: .v3)
-        emit(Progress(phase: "compile", track: nil, fraction: 1))
+            from: models, progressHandler: compileProgress(from: 0.8, to: 1))
         emit(Done())
         return 0
     } catch {
-        fail("download", error)
+        fail("prepare", error)
         return 1
     }
 }
@@ -204,13 +198,13 @@ Thread.detachNewThread {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments)
 else {
-    FileHandle.standardError.write(Data("usage: download|analyze|diarize --models-dir <dir> …\n".utf8))
+    FileHandle.standardError.write(Data("usage: prepare|analyze|diarize --models-dir <dir> …\n".utf8))
     exit(2)
 }
 let models = URL(fileURLWithPath: modelsPath, isDirectory: true)
 switch command {
-case "download":
-    exit(await download(models: models))
+case "prepare":
+    exit(await prepare(models: models))
 case "analyze":
     exit(await analyze(models: models, arguments: arguments))
 case "diarize":

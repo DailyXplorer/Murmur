@@ -353,8 +353,7 @@ test("a double click on a speaker models button runs only its first action", asy
   const actions = async () =>
     (await calls(page)).filter(
       (command) =>
-        command.includes("meeting_models") &&
-        command !== "get_meeting_models_status",
+        command.includes("local_model") && command !== "get_local_model_status",
     );
 
   const button = (name: string) =>
@@ -362,7 +361,7 @@ test("a double click on a speaker models button runs only its first action", asy
 
   await openMeetings(page, "&models=missing");
   await doubleClickAcrossStates(page, button("Download"), button("Cancel"));
-  expect(await actions()).toEqual(["download_meeting_models"]);
+  expect(await actions()).toEqual(["download_local_model"]);
 
   await openMeetings(page, "&models=ready");
   await doubleClickAcrossStates(
@@ -370,7 +369,7 @@ test("a double click on a speaker models button runs only its first action", asy
     button("Delete Models"),
     button("Download"),
   );
-  expect(await actions()).toEqual(["delete_meeting_models"]);
+  expect(await actions()).toEqual(["delete_local_model"]);
 });
 
 test("a double click on Start or Stop runs only its first action", async ({

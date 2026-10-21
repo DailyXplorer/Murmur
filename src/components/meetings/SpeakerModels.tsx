@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { commands, type MeetingModelsStatus } from "@/bindings";
+import { commands, type LocalModelStatus } from "@/bindings";
+import { downloadPercent } from "@/hooks/useLocalModel";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
@@ -10,9 +11,10 @@ import { SettingsGroup } from "../ui/SettingsGroup";
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
 
 /** Download, cancel or delete the on-device speaker models, with progress.
- * Their licences are in About. */
+ * They are the local models dictation uses too. Their licences are in
+ * About. */
 export const SpeakerModels: React.FC<{
-  status: MeetingModelsStatus | null;
+  status: LocalModelStatus | null;
 }> = ({ status }) => {
   const { t, i18n } = useTranslation();
   if (!status) return null;
@@ -41,14 +43,13 @@ export const SpeakerModels: React.FC<{
     );
   }
 
-  const percent =
-    state.state === "downloading" ? Math.round(state.fraction * 100) : 0;
+  const percent = downloadPercent(status);
   const label = {
     missing: t("meetings.models.missing"),
     downloading: t("meetings.models.downloading", { percent }),
     preparing: t("meetings.models.preparing"),
     ready: t("meetings.models.ready", {
-      size: formatSize(status.bytes_on_disk, i18n.language),
+      size: formatSize(status.size_bytes, i18n.language),
     }),
     failed: t("meetings.models.failed"),
   }[state.state];
@@ -58,7 +59,7 @@ export const SpeakerModels: React.FC<{
       case "missing":
         return (
           <Button
-            onClick={(event) => void run(event, commands.downloadMeetingModels)}
+            onClick={(event) => void run(event, commands.downloadLocalModel)}
           >
             {t("meetings.models.download")}
           </Button>
@@ -66,7 +67,7 @@ export const SpeakerModels: React.FC<{
       case "failed":
         return (
           <Button
-            onClick={(event) => void run(event, commands.downloadMeetingModels)}
+            onClick={(event) => void run(event, commands.downloadLocalModel)}
           >
             {t("meetings.models.retry")}
           </Button>
@@ -76,7 +77,7 @@ export const SpeakerModels: React.FC<{
         return (
           <Button
             onClick={(event) =>
-              void run(event, commands.cancelMeetingModelsDownload)
+              void run(event, commands.cancelLocalModelDownload)
             }
           >
             {t("meetings.cancel")}
@@ -85,7 +86,7 @@ export const SpeakerModels: React.FC<{
       case "ready":
         return (
           <Button
-            onClick={(event) => void run(event, commands.deleteMeetingModels)}
+            onClick={(event) => void run(event, commands.deleteLocalModel)}
           >
             {t("meetings.models.delete")}
           </Button>

@@ -337,7 +337,7 @@ impl CaptureBackend for DeviceCapture {
 /// The space an unprivileged process may still write on the volume of
 /// `path`. Space macOS could purge on demand is not counted, so this errs on
 /// the low side.
-fn free_bytes(path: &Path) -> Option<u64> {
+pub(crate) fn free_bytes(path: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     let mut stats = std::mem::MaybeUninit::<libc::statvfs>::uninit();

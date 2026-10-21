@@ -82,6 +82,8 @@ objc2-service-management = "0.3.2"
 core-foundation = "0.10"
 # Free disk space before a meeting records (statvfs).
 libc = "0.2"
+# Checks each downloaded model file against the manifest.
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

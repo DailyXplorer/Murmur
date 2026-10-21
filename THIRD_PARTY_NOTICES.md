@@ -3,8 +3,9 @@
 ## Meetings: on-device speaker detection
 
 Murmur's meetings helper (`src-tauri/swift/MurmurMeetingsHelper`) links
-FluidAudio and, on first use, downloads the models below from Hugging Face
-into the app's data folder. The models are not bundled with Murmur.
+FluidAudio to run the models below. On first use, Murmur downloads them from
+Hugging Face, at pinned commits and checked by SHA-256, into the app's data
+folder. The models are not bundled with Murmur.
 
 ### FluidAudio
 

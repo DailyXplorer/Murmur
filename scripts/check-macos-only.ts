@@ -42,6 +42,7 @@ const obsoletePaths = [
   "src/components/ui/Badge.tsx",
   "src/components/ui/Select.tsx",
   "src/hooks/useOsType.ts",
+  "src/hooks/useMeetingModels.ts",
   "src-tauri/capabilities/default.json",
 ];
 
@@ -55,6 +56,13 @@ const requiredPaths = [
   "src-tauri/src/engine/mod.rs",
   "src-tauri/src/engine/parakeet_languages.rs",
   "src-tauri/src/audio_toolkit/pauses.rs",
+  "src-tauri/src/local_models/mod.rs",
+  "src-tauri/src/local_models/manifest.rs",
+  "src-tauri/src/local_models/pinned.rs",
+  "src-tauri/src/local_models/download.rs",
+  "src-tauri/src/local_models/verify.rs",
+  "src-tauri/src/commands/local_models.rs",
+  "src/hooks/useLocalModel.ts",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {

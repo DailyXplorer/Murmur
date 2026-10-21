@@ -20,6 +20,7 @@ mod engine;
 mod helpers;
 mod input;
 mod insights;
+pub mod local_models;
 mod managers;
 mod meetings;
 mod operation;
@@ -344,6 +345,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
         Err(e) => log::error!("Failed to initialize insights: {e}"),
     }
+    local_models::init(app_handle);
     meetings::init(app_handle, true);
     app_handle.manage(tray::CurrentTrayIconState::new());
 
@@ -645,10 +647,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::retry_meeting_summary,
             commands::meetings::delete_meeting_audio,
             commands::meetings::retranscribe_meeting,
-            commands::meetings::get_meeting_models_status,
-            commands::meetings::download_meeting_models,
-            commands::meetings::cancel_meeting_models_download,
-            commands::meetings::delete_meeting_models,
+            commands::local_models::get_local_model_status,
+            commands::local_models::download_local_model,
+            commands::local_models::cancel_local_model_download,
+            commands::local_models::delete_local_model,
             commands::meetings::copy_meeting_markdown,
             commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
@@ -663,7 +665,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             meetings::MeetingStateChanged,
             meetings::MeetingsUpdated,
             meetings::processor::MeetingProgress,
-            meetings::models::MeetingModelsStatus
+            local_models::LocalModelStatus
         ])
 }
 
