@@ -370,19 +370,17 @@ impl Shared {
                         let first = Arc::clone(&self)
                             .transcribe_range(track, start_ms, cut)
                             .await;
-                        let Attempt::Outcome(Outcome::Done(first)) = first else {
+                        let Attempt::Outcome(
+                            first @ (Outcome::Done(_) | Outcome::DoneLocally { .. }),
+                        ) = first
+                        else {
                             return first;
                         };
                         let second = Arc::clone(&self).transcribe_range(track, cut, end_ms).await;
-                        let Attempt::Outcome(Outcome::Done(second)) = second else {
+                        let Attempt::Outcome(second) = second else {
                             return second;
                         };
-                        let joined = [first, second]
-                            .into_iter()
-                            .filter(|text| !text.is_empty())
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        return Attempt::Outcome(Outcome::Done(joined));
+                        return Attempt::Outcome(joined(first, second));
                     }
                     FailureKind::SessionExpired | FailureKind::SignedOut => {
                         self.signed_out.store(true, Ordering::SeqCst);
@@ -394,6 +392,29 @@ impl Shared {
                 }
             }
         })
+    }
+}
+
+/// The two halves of a piece as one piece: done on this Mac when either half
+/// was, failed when either failed, since a done piece is never sent again.
+fn joined(first: Outcome, second: Outcome) -> Outcome {
+    let mut local = None;
+    let mut texts = Vec::with_capacity(2);
+    for half in [first, second] {
+        match half {
+            Outcome::Done(text) => texts.push(text),
+            Outcome::DoneLocally { text, codex } => {
+                local.get_or_insert(codex);
+                texts.push(text);
+            }
+            failed @ Outcome::Failed(_) => return failed,
+        }
+    }
+    texts.retain(|text| !text.is_empty());
+    let text = texts.join(" ");
+    match local {
+        Some(codex) => Outcome::DoneLocally { text, codex },
+        None => Outcome::Done(text),
     }
 }
 
@@ -1027,6 +1048,65 @@ mod tests {
         assert_eq!(
             outcomes(&run),
             [(0, Outcome::Done("moitié 1 moitié 2".into()))]
+        );
+    }
+
+    /// A 150 s piece refused as too large, whose request `refused` (1 for
+    /// the first half, 2 for the second) Codex then rejects.
+    fn halved_with_one_half_rejected(refused: usize) -> (Run, usize) {
+        let server = serve(Box::new(move |number, request| {
+            if request.body_bytes > 3_000_000 {
+                (413, "too large".into())
+            } else if number == refused {
+                (400, "bad request".into())
+            } else {
+                ok(&format!("moitié {number}"))
+            }
+        }));
+        let piece = Job {
+            track: Track::System,
+            idx: 0,
+            start_ms: 0,
+            end_ms: 150_000,
+        };
+        let run = run_with_local(
+            &server,
+            vec![piece],
+            operation(),
+            Some(FakeLocal::answering() as Arc<dyn Transcriber>),
+        );
+        let requests = server.requests.lock().unwrap().len();
+        (run, requests)
+    }
+
+    #[test]
+    fn a_halved_piece_whose_first_half_goes_to_this_mac_keeps_the_second_half() {
+        let (run, requests) = halved_with_one_half_rejected(1);
+        assert_eq!(
+            outcomes(&run),
+            [(
+                0,
+                Outcome::DoneLocally {
+                    text: "local 1439680 moitié 2".into(),
+                    codex: FailureKind::Rejected
+                }
+            )]
+        );
+        assert_eq!(requests, 3);
+    }
+
+    #[test]
+    fn a_halved_piece_whose_second_half_goes_to_this_mac_keeps_the_first_half() {
+        let (run, _) = halved_with_one_half_rejected(2);
+        assert_eq!(
+            outcomes(&run),
+            [(
+                0,
+                Outcome::DoneLocally {
+                    text: "moitié 1 local 960320".into(),
+                    codex: FailureKind::Rejected
+                }
+            )]
         );
     }
 
