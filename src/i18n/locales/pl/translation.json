@@ -220,7 +220,7 @@
         "storage": "Pamięć"
       },
       "experimentalToggle": {
-        "label": "Funkcje Eksperymentalne",
+        "label": "Funkcje eksperymentalne",
         "description": "Włącz funkcje eksperymentalne, które są jeszcze w fazie rozwoju."
       },
       "lazyStreamClose": {

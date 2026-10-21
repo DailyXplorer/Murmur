@@ -97,7 +97,7 @@
       "title": "Cần cấp quyền",
       "description": "Murmur cần một số quyền để hoạt động bình thường.",
       "microphone": {
-        "title": "Quyền truy cập Micrô",
+        "title": "Quyền truy cập micrô",
         "description": "Cần thiết để nghe giọng nói của bạn để chuyển đổi."
       },
       "accessibility": {
@@ -267,7 +267,7 @@
         }
       },
       "clipboardHandling": {
-        "title": "Xử lý Clipboard",
+        "title": "Xử lý clipboard",
         "description": "Murmur dán thông qua bảng nhớ tạm. \"Khôi phục bảng nhớ tạm trước đó\" đặt lại nội dung bạn đã sao chép khi khoảng dán 8 giây kết thúc, trừ khi bạn đã sao chép thứ khác trong lúc đó. \"Giữ bản chép lời\" để bản chép lời trong bảng nhớ tạm. Nếu dán thất bại, Murmur giữ bản chép lời trong bảng nhớ tạm để khôi phục.",
         "options": {
           "dontModify": "Khôi phục bảng nhớ tạm trước đó",
@@ -480,7 +480,7 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur cần quyền truy cập để gõ văn bản đã chuyển đổi.",
-    "openSettings": "Mở Cài đặt Hệ thống"
+    "openSettings": "Mở Cài đặt hệ thống"
   },
   "errors": {
     "loadDirectory": "Lỗi khi tải thư mục: {{error}}",

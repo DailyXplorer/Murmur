@@ -54,7 +54,7 @@ test("auto-delete says it deletes the transcriptions, not only the audio", async
   page,
 }) => {
   await expect(
-    page.getByText("Auto-Delete History", { exact: true }),
+    page.getByText("Auto-delete history", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText(

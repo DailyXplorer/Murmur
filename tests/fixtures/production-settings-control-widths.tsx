@@ -31,7 +31,7 @@ const TRANSCRIBE_BINDING: ShortcutBinding = {
   default_binding: "Alt+Space",
   description: "Record and transcribe",
   id: "transcribe",
-  name: "Transcribe Shortcut",
+  name: "Transcribe shortcut",
 };
 
 const TEST_SETTINGS: AppSettings = {

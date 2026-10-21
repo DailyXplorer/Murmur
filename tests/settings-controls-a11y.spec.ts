@@ -7,7 +7,7 @@ test("settings controls expose names and keyboard-operable roles", async ({
 
   const shortcutButton = () =>
     page.getByRole("button", {
-      name: "Transcribe Shortcut: Press keys...",
+      name: "Transcribe shortcut: Press keys...",
     });
   const shortcutStatus = page.getByRole("status");
 

@@ -33,7 +33,6 @@ Search [existing issues](https://github.com/DailyXplorer/Murmur/issues) to avoid
 - Murmur version:
 - Operating system:
 - CPU:
-- GPU:
 
 ## Logs or screenshots
 
