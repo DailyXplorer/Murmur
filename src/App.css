@@ -34,6 +34,7 @@
   --color-on-accent: var(--color-on-accent);
   --color-slider-track: var(--color-slider-track);
   --color-logo-primary: var(--color-logo-primary);
+  --color-accent-text: var(--color-accent-text);
   --color-logo-stroke: var(--color-logo-stroke);
   --color-text-stroke: var(--color-text-stroke);
   --color-mid-gray: var(--color-mid-gray);
@@ -81,6 +82,13 @@
   /* Apply colors */
   color: var(--color-text);
   background-color: var(--color-background);
+}
+
+/* Faculty Glyphic has no Vietnamese tone letters (U+1EA0-1EF9) and fontsource
+   ships no Vietnamese subset, so a Vietnamese title would switch fonts inside
+   a word. Titles keep the body font in Vietnamese. */
+:lang(vi) .font-title {
+  font-family: var(--font-sans);
 }
 
 .container {

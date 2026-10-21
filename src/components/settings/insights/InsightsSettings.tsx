@@ -247,7 +247,7 @@ const Streak: React.FC<{ summary: InsightsSummary }> = ({ summary }) => {
       <div className="grid grid-cols-2 gap-4">
         {stats.map(({ icon: StatIcon, label, days }) => (
           <div key={label} className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-logo-primary/15 text-logo-primary">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-logo-primary/15 text-accent-text">
               <StatIcon size={18} weight="fill" aria-hidden="true" />
             </span>
             <div className="min-w-0">

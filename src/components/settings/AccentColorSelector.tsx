@@ -75,7 +75,7 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
                 {/* Selected, the swatch wears the range sliders' white knob
                     edge: a white gap, a thin neutral line, a soft shadow. */}
                 <span
-                  className={`pointer-events-none flex size-6 items-center justify-center rounded-full ring-1 ring-black/10 ring-inset transition-shadow duration-150 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-logo-primary dark:ring-white/10 ${
+                  className={`pointer-events-none flex size-6 items-center justify-center rounded-full ring-1 ring-black/10 ring-inset transition-shadow duration-150 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-accent-text dark:ring-white/10 ${
                     selected
                       ? "shadow-[0_0_0_2px_#fff,0_0_0_3px_rgb(0_0_0/0.18),0_1px_3px_3px_rgb(0_0_0/0.2)]"
                       : disabled

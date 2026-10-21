@@ -12,7 +12,7 @@ impl AccentColor {
         match self {
             Self::Pink => SOURCE_PINK_HUE,
             Self::Blue => 212.0,
-            Self::Green => 145.0,
+            Self::Green => 131.0,
             Self::Yellow => 47.0,
             Self::Orange => 25.0,
             Self::Red => 2.0,
@@ -207,7 +207,7 @@ mod tests {
         for (accent, expected_hue) in [
             (AccentColor::Pink, 325.0),
             (AccentColor::Blue, 212.0),
-            (AccentColor::Green, 145.0),
+            (AccentColor::Green, 131.0),
             (AccentColor::Yellow, 47.0),
             (AccentColor::Orange, 25.0),
             (AccentColor::Red, 2.0),

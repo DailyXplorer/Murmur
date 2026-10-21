@@ -46,6 +46,9 @@ export const formatMeetingDate = (milliseconds: number, locale: string) =>
     minute: "2-digit",
   }).format(new Date(milliseconds));
 
+/** The letters with Vietnamese tone marks, which Faculty Glyphic lacks. */
+const VIETNAMESE_TONES = /[Ạ-ỹ]/;
+
 /** A heading that edits in place: Enter or leaving saves, Escape reverts. */
 const TitleField: React.FC<{
   title: string | null;
@@ -61,9 +64,13 @@ const TitleField: React.FC<{
     if (editedFrom.current === null) setDraft(title ?? "");
   }, [title]);
 
+  // A title in Vietnamese, whatever the UI language, keeps the body font: see
+  // `:lang(vi) .font-title` in App.css.
+  const font = VIETNAMESE_TONES.test(draft) ? "font-sans" : "font-title";
+
   return (
     <input
-      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 font-title text-[28px] font-normal leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-logo-primary focus:outline-none"
+      className={`w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 ${font} text-[28px] font-normal leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-accent-text focus:outline-none`}
       value={draft}
       placeholder={placeholder}
       maxLength={120}
@@ -277,7 +284,7 @@ const SystemAudioNotice: React.FC = () => {
           {t("meetings.permission.silent")}{" "}
           <button
             type="button"
-            className="cursor-pointer rounded-sm font-medium text-text underline decoration-logo-primary decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+            className="cursor-pointer rounded-sm font-medium text-text underline decoration-accent-text decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
             onClick={() => void commands.openSystemAudioPrivacySettings()}
           >
             {t("meetings.permission.open")}

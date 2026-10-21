@@ -302,7 +302,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                     type="button"
                     disabled={live}
                     onClick={() => onOpen(meeting.id)}
-                    className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-default"
+                    className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
                   >
                     <p className="truncate text-sm font-medium">
                       {meeting.title ?? t("meetings.list.untitled", { date })}

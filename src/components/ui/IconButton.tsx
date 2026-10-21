@@ -34,11 +34,11 @@ export const IconButton: React.FC<IconButtonProps> = ({
       aria-label={label}
       title={label}
       data-control={resolvedSize === "control" ? "icon" : undefined}
-      className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary active:scale-[0.96] disabled:cursor-not-allowed disabled:bg-transparent disabled:text-text/25 disabled:active:scale-100 ${
+      className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text active:scale-[0.96] disabled:cursor-not-allowed disabled:bg-transparent disabled:text-text/25 disabled:active:scale-100 ${
         resolvedSize === "control" ? "size-control" : "size-7"
       } ${
         active
-          ? "bg-logo-primary/15 text-logo-primary hover:bg-logo-primary/25"
+          ? "bg-logo-primary/15 text-accent-text hover:bg-logo-primary/25"
           : "text-text/60 hover:bg-logo-primary/15 hover:text-text"
       } ${className}`}
       {...props}
