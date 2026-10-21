@@ -197,10 +197,11 @@ const TEXT_ROLES: [&str; 5] = [
     "AXSearchField",
 ];
 
-const NON_TEXT_ROLES: [&str; 18] = [
+/// Tables, rows and cells are left out: a selected spreadsheet cell takes a
+/// paste without exposing any text attribute.
+const NON_TEXT_ROLES: [&str; 15] = [
     "AXList",
     "AXOutline",
-    "AXTable",
     "AXBrowser",
     "AXScrollArea",
     "AXImage",
@@ -211,8 +212,6 @@ const NON_TEXT_ROLES: [&str; 18] = [
     "AXMenuButton",
     "AXSlider",
     "AXTabGroup",
-    "AXRow",
-    "AXCell",
     "AXStaticText",
     "AXLayoutArea",
     "AXToolbar",
@@ -316,7 +315,15 @@ mod tests {
             classify_focus(Some(FocusedElement::default())),
             FocusedField::Unknown
         );
-        for role in ["AXGroup", "AXWebArea", "AXWindow", "AXApplication", "AXNew"] {
+        for role in [
+            "AXGroup",
+            "AXWebArea",
+            "AXWindow",
+            "AXApplication",
+            "AXTable",
+            "AXCell",
+            "AXNew",
+        ] {
             assert_eq!(
                 classify_focus(element(role, false)),
                 FocusedField::Unknown,
