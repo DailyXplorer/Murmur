@@ -27,7 +27,7 @@ test("a Vietnamese meeting title keeps the body font", async ({ page }) => {
     .getByRole("button", { name: "Meetings", exact: true })
     .click();
   await page.getByRole("button", { name: /Point hebdo produit/ }).click();
-  const title = page.getByLabel("Meeting Title");
+  const title = page.getByLabel("Meeting title");
 
   expect(await fontFamily(title)).toMatch(/^"Faculty Glyphic"/);
   await title.fill("Họp nhóm hàng tuần");

@@ -142,7 +142,7 @@
         "pressKeys": "Appuyez sur les touches...",
         "bindings": {
           "transcribe": {
-            "name": "Raccourci de Transcription",
+            "name": "Raccourci de transcription",
             "description": "Maintenez pour parler et relâchez pour terminer. Appuyez deux fois pour enregistrer en mains libres, puis une fois pour arrêter."
           },
           "cancel": {
@@ -220,7 +220,7 @@
         "storage": "Stockage"
       },
       "experimentalToggle": {
-        "label": "Fonctionnalités Expérimentales",
+        "label": "Fonctionnalités expérimentales",
         "description": "Activer les fonctionnalités expérimentales encore en développement."
       },
       "lazyStreamClose": {

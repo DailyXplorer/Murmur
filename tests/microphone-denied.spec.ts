@@ -31,7 +31,7 @@ test("the open system prompt shows no denied hint until the user denies", async 
   await page.goto("/tests/fixtures/microphone-denied.html?microphone=0");
   await expect(page.getByTestId("microphone-denied-fixture")).toBeVisible();
 
-  await page.getByRole("button", { name: "Grant Permission" }).click();
+  await page.getByRole("button", { name: "Grant permission" }).click();
 
   await expect(page.getByText("Waiting...")).toBeVisible();
   await expect(page.getByText(DENIED_HINT)).toBeHidden();

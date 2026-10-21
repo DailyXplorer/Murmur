@@ -30,7 +30,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByTestId("production-history-limit")
     .getByText("entries", { exact: true });
 
-  // Custom Words and the Codex status sit on their own line under the title,
+  // Custom words and the Codex status sit on their own line under the title,
   // so only the controls beside their titles share the rail.
   const slots = [microphone, language, shortcut, historyLabel].map(controlSlot);
   const slotNames = ["microphone", "language", "shortcut", "history limit"];
@@ -113,7 +113,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
 
   const customWordsTitle = page
     .getByTestId("production-custom-words")
-    .getByRole("heading", { name: "Custom Words" });
+    .getByRole("heading", { name: "Custom words" });
   const customTitleBox = await customWordsTitle.boundingBox();
   expect(customTitleBox).not.toBeNull();
   expect(chipMeasurements.x).toBeCloseTo(customTitleBox?.x ?? 0, 1);

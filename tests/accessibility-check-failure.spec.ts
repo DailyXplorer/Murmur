@@ -21,6 +21,6 @@ test("contains an initial accessibility bridge failure", async ({ page }) => {
     ),
   ).resolves.toEqual([]);
   await expect(
-    page.getByRole("button", { name: "Allow Access" }),
+    page.getByRole("button", { name: "Allow access" }),
   ).toBeVisible();
 });

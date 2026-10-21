@@ -198,6 +198,7 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
 - Pull requests should explain the change, its boundaries, and the exact checks run. Include screenshots or recordings for visible changes.
 - Use [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) for bug reports.
+- Use [`.github/ISSUE_TEMPLATE/feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md) for a feature whose outcome and done-when are already clear.
 - Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) for translation changes and [CONTRIBUTING.md](CONTRIBUTING.md) for the general workflow.
 - Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). Focus the message on why the change is needed.
 

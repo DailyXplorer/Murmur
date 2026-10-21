@@ -228,7 +228,7 @@ test.describe("at the minimum window size", () => {
 test("buttons side by side have the same width", async ({ page }) => {
   await openAbout(page);
   const about = await Promise.all(
-    ["Donate", "View on GitHub", "View Licences"].map((name) =>
+    ["Donate", "View on GitHub", "View licences"].map((name) =>
       page.getByRole("button", { name, exact: true }).boundingBox(),
     ),
   );
@@ -240,7 +240,7 @@ test("buttons side by side have the same width", async ({ page }) => {
     SCREENS.find(({ name }) => name === "meeting")!,
   );
   const footer = await Promise.all(
-    ["Transcribe Again", "Delete Audio"].map((name) =>
+    ["Transcribe again", "Delete audio"].map((name) =>
       page.getByRole("button", { name, exact: true }).boundingBox(),
     ),
   );

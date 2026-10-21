@@ -126,7 +126,7 @@ const SETTINGS: AppSettings = {
       default_binding: "option+shift+v",
       description: "Paste the last transcription",
       id: "paste_last",
-      name: "Paste Last Transcript",
+      name: "Paste last transcript",
     },
     transcribe: {
       current_binding: "option+space",

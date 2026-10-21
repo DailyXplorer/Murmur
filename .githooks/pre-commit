@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Fast checks. cargo test, clippy, and Playwright stay on CI.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-commit: install bun from https://bun.sh before committing" >&2
+  exit 1
+fi
+
+bun run lint
+bunx prettier --check .
+bun run check:translations
+bun run check:macos-only
+bun run check:versions
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+if grep -q '^src-tauri/.*\.rs$' <<<"$staged"; then
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "pre-commit: install Rust to format src-tauri changes" >&2
+    exit 1
+  fi
+  cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+fi
