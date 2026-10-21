@@ -78,11 +78,11 @@ jobs:
       - name: Check macOS-only invariants
         run: bun run check:macos-only
 
-      - name: Test updater manifest
-        run: bun run test:updater-manifest
-
       - name: Check release versions
         run: bun run test:versions && bun run check:versions
+
+      - name: Test updater manifest
+        run: bun run test:updater-manifest
 
       - name: Run ESLint
         run: bun run lint
