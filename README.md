@@ -269,7 +269,7 @@ Guarded paste saves the clipboard before it places the transcription there.
 By default, Murmur puts the saved items back, with every format they had, once
 the 8-second paste window ends. If you copy something else during that window,
 Murmur leaves your new clipboard alone. If insertion fails, Murmur keeps the
-transcription on the clipboard for manual paste. The Keep Transcription option
+transcription on the clipboard for manual paste. The Keep transcription option
 leaves the transcription on the clipboard after insertion.
 
 ## Origin
