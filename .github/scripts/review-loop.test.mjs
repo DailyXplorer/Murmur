@@ -14,9 +14,11 @@ const BUG =
 
 const at = (minute) => `2026-10-21T00:${String(minute).padStart(2, "0")}:00Z`;
 
+// Each review covers its own pushed head unless a test says otherwise.
 const review = (
   id,
   submittedAt,
+  commitId = `sha${id}`,
   body = "**Actionable comments posted: 1**",
 ) => ({
   id,
@@ -24,12 +26,7 @@ const review = (
   state: "COMMENTED",
   body,
   submittedAt,
-});
-
-const commit = (committerDate, author = "octocat") => ({
-  author,
-  isMerge: false,
-  committerDate,
+  commitId,
 });
 
 // createdAt mirrors the API; the detector ignores it and groups by review id.
@@ -45,7 +42,6 @@ const finding = (reviewId, path, body, inReplyTo) => ({
 test("one fix and a follow-up review is two rounds and no loop", () => {
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20))],
-    commits: [commit(at(10))],
   });
   assert.equal(result.rounds, 2);
   assert.equal(result.stalled, false);
@@ -54,7 +50,6 @@ test("one fix and a follow-up review is two rounds and no loop", () => {
 test("new findings in different files every round never flag", () => {
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
-    commits: [commit(at(10)), commit(at(30))],
     reviewComments: [
       finding(1, "src-tauri/src/a.rs", `${BUG} a`),
       finding(2, "src-tauri/src/b.rs", `${BUG} b`),
@@ -68,7 +63,6 @@ test("new findings in different files every round never flag", () => {
 test("a clean review after two fix rounds is convergence, not a loop", () => {
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
-    commits: [commit(at(10)), commit(at(30))],
     reviewComments: [
       finding(1, "src/a.ts", `${BUG} a`),
       finding(2, "src/b.ts", `${BUG} b`),
@@ -81,7 +75,6 @@ test("findings in the same file in three rounds flag the area for simplification
   const path = "src-tauri/src/audio_toolkit/gain.rs";
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20)), review(3, at(40))],
-    commits: [commit(at(10)), commit(at(30))],
     reviewComments: [1, 2, 3].map((id) =>
       finding(id, path, `${BUG} variant ${id}`),
     ),
@@ -96,7 +89,6 @@ test("a bot reply in a thread is not a comment coming back", () => {
     "Thanks for the fix, the bounds check now covers the short recording case.";
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20))],
-    commits: [commit(at(10))],
     reviewComments: [
       finding(1, "src/a.ts", reply, 100),
       finding(2, "src/a.ts", reply, 101),
@@ -108,13 +100,11 @@ test("a bot reply in a thread is not a comment coming back", () => {
 
 test("twenty rounds is the emergency stop", () => {
   const reviews = [];
-  const commits = [];
   for (let i = 0; i < 20; i += 1) {
     const hour = String(i).padStart(2, "0");
     reviews.push(review(i + 1, `2026-10-21T${hour}:00:00Z`));
-    commits.push(commit(`2026-10-21T${hour}:30:00Z`));
   }
-  const result = assessReviewLoop({ reviews, commits });
+  const result = assessReviewLoop({ reviews });
   assert.equal(result.emergency, true);
   assert.equal(result.stalled, true);
 });
@@ -125,31 +115,35 @@ test("the free-tier skip review does not start a round", () => {
       review(
         1,
         at(0),
+        "sha1",
         "This repository does not receive automatic reviews because it has fewer than 10 stars.",
       ),
     ],
-    commits: [commit(at(10)), commit(at(20))],
   });
   assert.equal(result.rounds, 0);
   assert.equal(result.stalled, false);
 });
 
-test("merge commits and CodeRabbit commits do not count as fixes", () => {
+test("reviews of the same pushed head are one round", () => {
   const result = assessReviewLoop({
-    reviews: [review(1, at(0)), review(2, at(30))],
-    commits: [
-      { author: "octocat", isMerge: true, committerDate: at(10) },
-      commit(at(20), BOT),
-    ],
+    reviews: [review(1, at(0), "sha1"), review(2, at(30), "sha1")],
   });
   assert.equal(result.rounds, 1);
+});
+
+test("the same comment twice on one head is not a repeat", () => {
+  const result = assessReviewLoop({
+    reviews: [review(1, at(0), "sha1"), review(2, at(20), "sha1")],
+    reviewComments: [finding(1, "src/a.ts", BUG), finding(2, "src/a.ts", BUG)],
+  });
+  assert.equal(result.repeated.length, 0);
+  assert.equal(result.stalled, false);
 });
 
 test("the same inline comment after a fix is a loop", () => {
   const path = "src-tauri/src/audio_toolkit/gain.rs";
   const result = assessReviewLoop({
     reviews: [review(1, at(0)), review(2, at(20))],
-    commits: [commit(at(10))],
     reviewComments: [
       finding(1, path, BUG),
       finding(2, path, `${BUG}\n\n<!-- line 40 -->`),
@@ -191,7 +185,6 @@ function githubFixture(state) {
       pulls: {
         listReviews: async () => state.reviews,
         listReviewComments: async () => state.reviewComments,
-        listCommits: async () => state.commits,
       },
       issues: {
         listComments: async () => state.issueComments,
@@ -233,6 +226,7 @@ function stalledState() {
       state: "COMMENTED",
       body: "bug",
       submitted_at: at((id - 1) * 20),
+      commit_id: `sha${id}`,
     })),
     reviewComments: [1, 3].map((reviewId) => ({
       user: { login: "coderabbitai[bot]" },
@@ -241,24 +235,6 @@ function stalledState() {
       pull_request_review_id: reviewId,
     })),
     issueComments: [],
-    commits: [
-      {
-        author: { login: "octocat" },
-        parents: [{}],
-        commit: {
-          message: "fix: first",
-          committer: { date: "2026-10-21T00:10:00Z" },
-        },
-      },
-      {
-        author: { login: "octocat" },
-        parents: [{}],
-        commit: {
-          message: "fix: second",
-          committer: { date: "2026-10-21T00:30:00Z" },
-        },
-      },
-    ],
     labels: [],
     createdLabels: [],
     labelExists: false,
@@ -299,7 +275,6 @@ test("flagReviewLoop comments once, creates the label, and updates the comment",
 test("flagReviewLoop stays quiet when the review is converging", async () => {
   const state = stalledState();
   state.reviews = state.reviews.slice(0, 1);
-  state.commits = [];
   const result = await flagReviewLoop({
     github: githubFixture(state),
     context,
@@ -340,4 +315,21 @@ test("a fork pull request with a read-only token keeps the job green", async () 
   });
   assert.equal(result.stalled, true);
   assert.equal(result.commented, false);
+});
+
+test("flagReviewLoop does not overwrite a pasted marker from someone else", async () => {
+  const state = stalledState();
+  state.issueComments.push({
+    id: 1,
+    body: `quoting ${COMMENT_MARKER}`,
+    user: { login: "octocat" },
+  });
+  await flagReviewLoop({
+    github: githubFixture(state),
+    context,
+    core: { info() {}, warning() {} },
+  });
+  assert.equal(state.updates, 0);
+  assert.equal(state.issueComments[0].body, `quoting ${COMMENT_MARKER}`);
+  assert.equal(state.issueComments.length, 2);
 });

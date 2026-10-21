@@ -46,50 +46,38 @@ function time(value) {
  * authors to stop fixing real bugs, except at the emergency stop.
  *
  * @param {{
- *   reviews?: { id?: number, user: string, state?: string, body?: string, submittedAt: string }[],
+ *   reviews?: { id?: number, user: string, state?: string, body?: string, submittedAt: string, commitId?: string }[],
  *   reviewComments?: { user: string, body?: string, path?: string, reviewId?: number, inReplyTo?: number }[],
- *   commits?: { author?: string, isMerge?: boolean, committerDate?: string, authorDate?: string }[],
  * }} input
  */
 export function assessReviewLoop(input) {
-  /** @type {{ at: number, kind: "review" | "commit", id?: number }[]} */
-  const events = [];
-
   // Only submitted reviews count. The walkthrough is one comment edited in
   // place, so its created_at says nothing about when a round happened.
-  for (const review of input.reviews ?? []) {
-    if (!isReviewBot(review.user) || review.state === "PENDING") continue;
-    if (isSkipReview(review.body)) continue;
-    const at = time(review.submittedAt);
-    if (at === undefined) continue;
-    events.push({ at, kind: "review", id: review.id });
-  }
+  const reviews = (input.reviews ?? [])
+    .filter(
+      (review) =>
+        isReviewBot(review.user) &&
+        review.state !== "PENDING" &&
+        !isSkipReview(review.body) &&
+        time(review.submittedAt) !== undefined,
+    )
+    .sort((left, right) => time(left.submittedAt) - time(right.submittedAt));
 
-  for (const commit of input.commits ?? []) {
-    if (commit.isMerge || isReviewBot(commit.author)) continue;
-    const at = time(commit.committerDate) ?? time(commit.authorDate);
-    if (at === undefined) continue;
-    events.push({ at, kind: "commit" });
-  }
-
-  events.sort(
-    (left, right) => left.at - right.at || (left.kind === "review" ? -1 : 1),
-  );
-
-  // A round is the bot reviews between two author pushes.
-  let rounds = 0;
-  let pushed = true;
+  // A round is the bot reviews of one pushed head. Commit dates would merge
+  // rounds after a rebase, or when a fix was committed before the review.
+  /** @type {Map<string | undefined, number>} */
+  const roundOfCommit = new Map();
   /** @type {Map<number, number>} */
   const roundOfReview = new Map();
-  for (const event of events) {
-    if (event.kind === "commit") {
-      pushed = true;
-      continue;
+  for (const review of reviews) {
+    if (!roundOfCommit.has(review.commitId)) {
+      roundOfCommit.set(review.commitId, roundOfCommit.size + 1);
     }
-    if (pushed) rounds += 1;
-    pushed = false;
-    if (event.id !== undefined) roundOfReview.set(event.id, rounds);
+    if (review.id !== undefined) {
+      roundOfReview.set(review.id, roundOfCommit.get(review.commitId));
+    }
   }
+  const rounds = roundOfCommit.size;
 
   /** @type {Map<string, Set<number>>} */
   const roundsByFinding = new Map();
@@ -170,7 +158,7 @@ ${sections.join("\n\n")}
 `;
 }
 
-function mapInput(reviews, reviewComments, commits) {
+function mapInput(reviews, reviewComments) {
   return {
     reviews: reviews.map((review) => ({
       id: review.id,
@@ -178,6 +166,7 @@ function mapInput(reviews, reviewComments, commits) {
       state: review.state,
       body: review.body ?? "",
       submittedAt: review.submitted_at,
+      commitId: review.commit_id,
     })),
     reviewComments: reviewComments.map((comment) => ({
       user: comment.user?.login ?? "",
@@ -185,14 +174,6 @@ function mapInput(reviews, reviewComments, commits) {
       path: comment.path,
       reviewId: comment.pull_request_review_id,
       inReplyTo: comment.in_reply_to_id,
-    })),
-    commits: commits.map((commit) => ({
-      author: commit.author?.login ?? "",
-      isMerge:
-        (commit.parents?.length ?? 0) > 1 ||
-        (commit.commit?.message ?? "").startsWith("Merge "),
-      committerDate: commit.commit?.committer?.date,
-      authorDate: commit.commit?.author?.date,
     })),
   };
 }
@@ -235,7 +216,7 @@ export async function flagReviewLoop({ github, context, core }) {
   }
 
   const { owner, repo } = context.repo;
-  const [reviews, issueComments, reviewComments, commits] = await Promise.all([
+  const [reviews, issueComments, reviewComments] = await Promise.all([
     github.paginate(github.rest.pulls.listReviews, {
       owner,
       repo,
@@ -251,14 +232,9 @@ export async function flagReviewLoop({ github, context, core }) {
       repo,
       pull_number: pullNumber,
     }),
-    github.paginate(github.rest.pulls.listCommits, {
-      owner,
-      repo,
-      pull_number: pullNumber,
-    }),
   ]);
 
-  const result = assessReviewLoop(mapInput(reviews, reviewComments, commits));
+  const result = assessReviewLoop(mapInput(reviews, reviewComments));
   if (!result.stalled) {
     core.info(
       `No review loop (${result.rounds} rounds, ${result.repeated.length} repeated comments, ${result.hotspots.length} hotspots)`,
@@ -267,8 +243,11 @@ export async function flagReviewLoop({ github, context, core }) {
   }
 
   const body = renderLoopComment(result);
-  const existing = issueComments.find((comment) =>
-    (comment.body ?? "").includes(COMMENT_MARKER),
+  // Anyone can paste the marker; only update the workflow's own comment.
+  const existing = issueComments.find(
+    (comment) =>
+      comment.user?.login === "github-actions[bot]" &&
+      (comment.body ?? "").includes(COMMENT_MARKER),
   );
   try {
     if (existing) {
