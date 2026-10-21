@@ -83,6 +83,10 @@ impl Element {
         Self::from_create(unsafe { AXUIElementCreateSystemWide() })
     }
 
+    fn has(&self, name: &str) -> bool {
+        self.attribute(name).is_some()
+    }
+
     fn attribute(&self, name: &str) -> Option<CFType> {
         let name = CFString::new(name);
         let mut value: CFTypeRef = std::ptr::null();
@@ -156,4 +160,168 @@ pub fn focused_text_element() -> Option<Element> {
     let (pid, _, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
+}
+
+/// What holds the keyboard when a dictation ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FocusedField {
+    TextField,
+    /// A list, a button, a PDF page: nothing that takes typed text.
+    NoTextField,
+    /// Accessibility cannot tell. Electron apps without their accessibility
+    /// tree report no focus at all, and pasting there works.
+    Unknown,
+}
+
+/// The role of the focused element and whether it takes text input.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FocusedElement {
+    pub role: Option<String>,
+    pub subrole: Option<String>,
+    pub accepts_text: bool,
+}
+
+/// Any one of these marks an element that takes text, whatever its role,
+/// such as a contenteditable web element reported as AXGroup.
+const TEXT_INPUT_ATTRIBUTES: [&str; 3] = [
+    "AXSelectedTextRange",
+    "AXInsertionPointLineNumber",
+    "AXEditableAncestor",
+];
+
+const TEXT_ROLES: [&str; 5] = [
+    "AXTextField",
+    "AXTextArea",
+    "AXComboBox",
+    SECURE_TEXT_FIELD,
+    "AXSearchField",
+];
+
+const NON_TEXT_ROLES: [&str; 18] = [
+    "AXList",
+    "AXOutline",
+    "AXTable",
+    "AXBrowser",
+    "AXScrollArea",
+    "AXImage",
+    "AXButton",
+    "AXCheckBox",
+    "AXRadioButton",
+    "AXPopUpButton",
+    "AXMenuButton",
+    "AXSlider",
+    "AXTabGroup",
+    "AXRow",
+    "AXCell",
+    "AXStaticText",
+    "AXLayoutArea",
+    "AXToolbar",
+];
+
+/// Only a role known to take no text is `NoTextField`; containers such as
+/// AXGroup, AXWebArea or AXWindow may hold an editor and stay `Unknown`.
+pub fn classify_focus(focused: Option<FocusedElement>) -> FocusedField {
+    let Some(focused) = focused else {
+        return FocusedField::Unknown;
+    };
+    let role = focused.role.as_deref();
+    let subrole = focused.subrole.as_deref();
+    let in_table = |table: &[&str], name: Option<&str>| name.is_some_and(|n| table.contains(&n));
+    if focused.accepts_text || in_table(&TEXT_ROLES, role) || in_table(&TEXT_ROLES, subrole) {
+        FocusedField::TextField
+    } else if in_table(&NON_TEXT_ROLES, role) {
+        FocusedField::NoTextField
+    } else {
+        FocusedField::Unknown
+    }
+}
+
+/// Reads the keyboard focus of the frontmost app. Only the role and the
+/// presence of text attributes are read, never the text, and password
+/// managers are left alone.
+pub fn keyboard_focus() -> FocusedField {
+    classify_focus(focused_element())
+}
+
+fn focused_element() -> Option<FocusedElement> {
+    let (pid, _, _) = frontmost_app()?;
+    let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
+    (focused.pid() == Some(pid)).then(|| FocusedElement {
+        role: focused.string("AXRole"),
+        subrole: focused.string("AXSubrole"),
+        accepts_text: TEXT_INPUT_ATTRIBUTES
+            .iter()
+            .any(|attribute| focused.has(attribute)),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn element(role: &str, accepts_text: bool) -> Option<FocusedElement> {
+        Some(FocusedElement {
+            role: Some(role.to_string()),
+            subrole: None,
+            accepts_text,
+        })
+    }
+
+    #[test]
+    fn an_editable_element_is_a_text_field() {
+        for (focused, why) in [
+            (element("AXTextArea", false), "text area"),
+            (element("AXTextField", false), "text field"),
+            (element("AXComboBox", false), "combo box"),
+            (element("AXGroup", true), "contenteditable group"),
+            (element("AXWebArea", true), "editable web area"),
+            (element("AXList", true), "list that takes text"),
+            (element(SECURE_TEXT_FIELD, false), "secure field"),
+            (
+                Some(FocusedElement {
+                    role: Some("AXTextField".to_string()),
+                    subrole: Some("AXSearchField".to_string()),
+                    accepts_text: false,
+                }),
+                "search field",
+            ),
+            (
+                Some(FocusedElement {
+                    role: None,
+                    subrole: Some(SECURE_TEXT_FIELD.to_string()),
+                    accepts_text: false,
+                }),
+                "secure subrole",
+            ),
+        ] {
+            assert_eq!(classify_focus(focused), FocusedField::TextField, "{why}");
+        }
+    }
+
+    #[test]
+    fn a_non_editable_element_is_no_text_field() {
+        for role in ["AXList", "AXScrollArea", "AXButton", "AXLayoutArea"] {
+            assert_eq!(
+                classify_focus(element(role, false)),
+                FocusedField::NoTextField,
+                "{role}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unreadable_or_container_focus_is_unknown() {
+        assert_eq!(classify_focus(None), FocusedField::Unknown);
+        assert_eq!(
+            classify_focus(Some(FocusedElement::default())),
+            FocusedField::Unknown
+        );
+        for role in ["AXGroup", "AXWebArea", "AXWindow", "AXApplication", "AXNew"] {
+            assert_eq!(
+                classify_focus(element(role, false)),
+                FocusedField::Unknown,
+                "{role}"
+            );
+        }
+    }
 }
