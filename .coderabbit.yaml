@@ -1,5 +1,98 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+# 227 characters. CodeRabbit rejects tone instructions over 250.
+tone_instructions: "Report only correctness, security, and behavior bugs. Skip style, formatting, and naming that rustfmt, clippy, prettier, or eslint already enforce. Do not repeat a comment the latest commit addressed. Call preferences optional."
 
 reviews:
+  profile: chill
+  # Comments only. Requesting changes turns every nit into another required round.
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  poem: false
+  collapse_walkthrough: true
+  # The "Prompt for AI Agents" block makes an agent apply every comment and push again.
+  enable_prompt_for_ai_agents: false
   path_filters:
-    - "**/*"
+    - "!src/bindings.ts"
+    - "!src-tauri/gen/**"
+    - "!src-tauri/target/**"
+    - "!**/dist/**"
+    - "!bun.lock"
+    - "!src-tauri/Cargo.lock"
+  path_instructions:
+    - path: "src-tauri/**"
+      instructions: |
+        main is macOS-only. Do not suggest removing the compile_error guard in lib.rs or adding target_os branches; Windows work belongs on the beta branch.
+        Flag behavior bugs, dropped errors, races, and permission mistakes. A new unwrap or expect on a fallible path in the changed lines is a bug. Existing unwraps outside the diff are out of scope.
+        Logic changes need tests. Do not ask for a drive-by split of a large file.
+    - path: "src/**"
+      instructions: |
+        User-facing JSX text must go through i18next. Flag hardcoded UI strings.
+        Flag broken hooks, stale state, and incorrect setting writes. Ignore Tailwind class order and naming.
+        src/bindings.ts is generated. Do not review it.
+    - path: "tests/**"
+      instructions: |
+        Specs must keep typechecking against the production types. Flag a fixture that drops a required field or asserts a behavior the changed code no longer has.
+        Do not request stylistic rewrites of tests.
+    - path: ".github/**"
+      instructions: |
+        Flag a workflow that skips a check, widens permissions, or interpolates untrusted input into a shell. Ignore comment wording.
+  auto_review:
+    enabled: true
+    # A draft is work in progress. Reviewing every draft push only adds rounds.
+    drafts: false
+    base_branches:
+      - "^main$"
+      - "^beta$"
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    # These push commits or open follow-up PRs, which starts another review round.
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+    title:
+      mode: warning
+      requirements: "Conventional Commits title: type(scope): subject. Types include feat, fix, docs, refactor, test, chore, style, perf, ci, and build. The subject says why."
+    description:
+      mode: warning
+    # description has no requirements key in the schema; a custom check
+    # carries the section rule instead.
+    custom_checks:
+      - mode: warning
+        name: "Pull request sections"
+        instructions: "The body contains ## Summary, ## Changes, and ## Testing. ## Testing lists the exact commands that were run. Visible UI changes include screenshots or recordings, or the words Not applicable."
+  tools:
+    # CI already runs eslint, clippy, rustfmt, and prettier. Extra linters here
+    # repeat those findings and start another fix round.
+    eslint:
+      enabled: false
+    swiftlint:
+      enabled: false
+    ruff:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "CONTRIBUTING.md"
+      - "CONTRIBUTING_TRANSLATIONS.md"
