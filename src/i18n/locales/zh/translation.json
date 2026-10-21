@@ -7,7 +7,7 @@
     "cancel": "取消",
     "errorNetwork": "无法连接转录服务。请检查网络连接。",
     "errorTimeout": "转录服务响应时间过长。请在历史记录中重试。",
-    "errorRateLimited": "请求过多。请稍候，然后在历史记录中重试。",
+    "errorRateLimited": "请求过多，或已达到听写使用上限。请稍后在历史记录中重试。",
     "errorServer": "转录服务出现问题。请在历史记录中重试。",
     "errorSessionExpired": "你的 Codex 会话已过期。请打开 Codex 并重新登录。",
     "errorSignedOut": "尚未登录 Codex。请打开 Codex 并登录。",

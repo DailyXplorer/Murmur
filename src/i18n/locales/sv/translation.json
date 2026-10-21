@@ -7,7 +7,7 @@
     "cancel": "Avbryt",
     "errorNetwork": "Transkriberingstjänsten går inte att nå. Kontrollera anslutningen.",
     "errorTimeout": "Transkriberingstjänsten tog för lång tid. Försök igen från historiken.",
-    "errorRateLimited": "För många förfrågningar. Vänta en stund och försök igen från historiken.",
+    "errorRateLimited": "För många förfrågningar, eller så är dikteringsgränsen nådd. Försök igen senare från historiken.",
     "errorServer": "Transkriberingstjänsten har problem. Försök igen från historiken.",
     "errorSessionExpired": "Din Codex-session har gått ut. Öppna Codex och logga in igen.",
     "errorSignedOut": "Inte inloggad i Codex. Öppna Codex och logga in.",

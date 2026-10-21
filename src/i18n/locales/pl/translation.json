@@ -7,7 +7,7 @@
     "cancel": "Anuluj",
     "errorNetwork": "Brak połączenia z usługą transkrypcji. Sprawdź połączenie.",
     "errorTimeout": "Usługa transkrypcji odpowiadała zbyt długo. Spróbuj ponownie z historii.",
-    "errorRateLimited": "Zbyt wiele żądań. Odczekaj chwilę i spróbuj ponownie z historii.",
+    "errorRateLimited": "Zbyt wiele żądań lub osiągnięto limit dyktowania. Spróbuj ponownie później z historii.",
     "errorServer": "Usługa transkrypcji ma problemy. Spróbuj ponownie z historii.",
     "errorSessionExpired": "Sesja Codex wygasła. Otwórz Codex i zaloguj się ponownie.",
     "errorSignedOut": "Nie zalogowano do Codex. Otwórz Codex i zaloguj się.",
