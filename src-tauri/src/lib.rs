@@ -623,6 +623,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             show_main_window_command,
             relaunch_after_update,
             commands::cancel_operation,
+            overlay::copy_notice_again,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,

@@ -1,4 +1,4 @@
-use crate::accessibility::Element;
+use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
 use crate::operation::ProcessingOperation;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
@@ -25,6 +25,9 @@ pub(crate) enum PasteOutcome {
     Skipped,
     /// The user selected PasteMethod::None; history may still be committed.
     IntentionalNone,
+    /// No text field had the keyboard focus, so the text went on the
+    /// clipboard and the overlay offers to copy it again.
+    Copied,
 }
 
 fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
@@ -63,6 +66,56 @@ fn complete_clipboard_only_output(
         }
     }
     PasteOutcome::IntentionalNone
+}
+
+fn complete_copy_output(
+    operation: &ProcessingOperation,
+    write: impl FnOnce() -> Result<(), String>,
+) -> PasteOutcome {
+    let Some(_permit) = operation.try_enter_paste() else {
+        return PasteOutcome::Cancelled;
+    };
+    if let Err(error) = write() {
+        warn!("Failed to copy the transcription without a text field: {error}");
+        return PasteOutcome::Skipped;
+    }
+    PasteOutcome::Copied
+}
+
+/// Puts the text on the clipboard, after any pending guarded paste settles,
+/// so it stays there. Must run on the main thread.
+pub(crate) fn copy_to_keep(app_handle: &AppHandle, text: &str) -> Result<(), String> {
+    crate::paste_tx::settle_pending();
+    write_text_to_clipboard(app_handle, text)
+}
+
+/// Where no text field takes the paste, the clipboard keeps the text instead
+/// of a keystroke going nowhere.
+async fn copy_without_text_field(
+    text: String,
+    app_handle: AppHandle,
+    operation: ProcessingOperation,
+) -> Result<PasteOutcome, String> {
+    let app_for_main = app_handle.clone();
+    let operation_for_main = operation.clone();
+    let text_for_main = text.clone();
+    let outcome = await_main_or_cancel(&app_handle, &operation, move || {
+        complete_copy_output(&operation_for_main, || {
+            copy_to_keep(&app_for_main, &text_for_main)
+        })
+    })
+    .await?
+    .unwrap_or(PasteOutcome::Cancelled);
+    if outcome == PasteOutcome::Copied {
+        crate::overlay::show_copy_notice(&app_handle, text);
+    }
+    Ok(outcome)
+}
+
+async fn keyboard_focus() -> FocusedField {
+    tauri::async_runtime::spawn_blocking(crate::accessibility::keyboard_focus)
+        .await
+        .unwrap_or(FocusedField::Unknown)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -363,6 +416,12 @@ pub(crate) async fn paste(
 
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;
+    if matches!(paste_method, PasteMethod::CtrlV | PasteMethod::Direct)
+        && keyboard_focus().await == FocusedField::NoTextField
+    {
+        info!("No text field has the keyboard focus; copying instead of pasting");
+        return copy_without_text_field(text, app_handle, operation).await;
+    }
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
@@ -575,6 +634,42 @@ mod tests {
                 || panic!("history-only output must not touch the clipboard"),
             ),
             PasteOutcome::IntentionalNone
+        );
+    }
+
+    #[test]
+    fn copy_without_a_text_field_keeps_the_text_on_the_clipboard() {
+        let operation = ProcessingOperation::new(OperationId(14));
+        let mut wrote_text = false;
+        let outcome = complete_copy_output(&operation, || {
+            wrote_text = true;
+            Ok(())
+        });
+
+        assert_eq!(outcome, PasteOutcome::Copied);
+        assert!(wrote_text);
+        assert!(!operation.cancel(), "the copy claimed the output");
+    }
+
+    #[test]
+    fn copy_without_a_text_field_that_fails_is_recoverable() {
+        let outcome = complete_copy_output(&ProcessingOperation::new(OperationId(15)), || {
+            Err("clipboard unavailable".to_string())
+        });
+
+        assert_eq!(outcome, PasteOutcome::Skipped);
+    }
+
+    #[test]
+    fn cancelled_copy_never_touches_the_clipboard() {
+        let cancelled = ProcessingOperation::new(OperationId(16));
+        assert!(cancelled.cancel());
+
+        assert_eq!(
+            complete_copy_output(&cancelled, || panic!(
+                "cancelled output must not touch the clipboard"
+            )),
+            PasteOutcome::Cancelled
         );
     }
 
