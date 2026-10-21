@@ -230,7 +230,14 @@ test.describe("settings screenshots", () => {
       await page.screenshot({ path: `${outputDir}/meeting-footer.png` });
     });
 
-    for (const section of ["Transcription", "Meetings", "Advanced", "About"]) {
+    for (const section of [
+      "General",
+      "Transcription",
+      "Insights",
+      "Meetings",
+      "Advanced",
+      "About",
+    ]) {
       test(`${section} page`, async ({ page }) => {
         await page.goto("/tests/fixtures/settings-pages.html?meetings=1");
         await page
