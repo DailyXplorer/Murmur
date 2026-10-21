@@ -52,9 +52,13 @@ Run the checks relevant to the files and behavior you changed. Common frontend c
 bun run lint
 bun run format:check
 bun run check:translations
+bun run check:macos-only
+bun run check:versions
 bun run build
 bun run test:playwright
 ```
+
+`bun install` points the clone at `.githooks/pre-commit`. That hook runs the fast checks (lint, Prettier, translations, the macOS-only invariants, and the release-version check). Rust formatting runs only when a Rust file is staged. `cargo test`, Clippy, and Playwright stay on CI.
 
 For Rust changes, run the backend formatter, tests, and Clippy from `src-tauri`:
 
