@@ -7,7 +7,7 @@
     "cancel": "Annuller",
     "errorNetwork": "Transskriptionstjenesten kan ikke nås. Tjek din forbindelse.",
     "errorTimeout": "Transskriptionstjenesten var for længe om det. Prøv igen fra historikken.",
-    "errorRateLimited": "For mange forespørgsler. Vent et øjeblik, og prøv igen fra historikken.",
+    "errorRateLimited": "For mange forespørgsler, eller grænsen for diktering er nået. Prøv igen senere fra historikken.",
     "errorServer": "Transskriptionstjenesten har problemer. Prøv igen fra historikken.",
     "errorSessionExpired": "Din Codex-session er udløbet. Åbn Codex, og log ind igen.",
     "errorSignedOut": "Ikke logget ind på Codex. Åbn Codex, og log ind.",

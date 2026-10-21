@@ -7,7 +7,7 @@
     "cancel": "Annuler",
     "errorNetwork": "Impossible de joindre le service de transcription. Vérifiez votre connexion.",
     "errorTimeout": "Le service de transcription a mis trop de temps. Réessayez depuis l'historique.",
-    "errorRateLimited": "Trop de requêtes. Patientez un instant, puis réessayez depuis l'historique.",
+    "errorRateLimited": "Trop de requêtes, ou la limite de dictée est atteinte. Réessayez plus tard depuis l'historique.",
     "errorServer": "Le service de transcription rencontre des problèmes. Réessayez depuis l'historique.",
     "errorSessionExpired": "Votre session Codex a expiré. Ouvrez Codex et reconnectez-vous.",
     "errorSignedOut": "Non connecté à Codex. Ouvrez Codex et connectez-vous.",
