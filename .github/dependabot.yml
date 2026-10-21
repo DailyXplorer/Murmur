@@ -1,6 +1,7 @@
 # Weekly grouped updates. Major updates stay as their own pull requests.
 # No labels: this repo does not have a dependencies label, and the review-loop
-# label is only for the review-loop workflow.
+# label is only for the review-loop workflow. Without `labels: []` Dependabot
+# would add its default labels.
 version: 2
 updates:
   - package-ecosystem: bun
@@ -9,11 +10,26 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       bun-minor-and-patch:
         update-types:
           - minor
           - patch
+    ignore:
+      # Tauri's CLI refuses to build when @tauri-apps/* and the matching
+      # crates differ in minor version, and bun and cargo updates arrive in
+      # separate pull requests. Bump Tauri minors by hand, both sides together.
+      - dependency-name: "@tauri-apps/api"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "@tauri-apps/plugin-*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -21,11 +37,31 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: "chore(deps)"
     groups:
       cargo-minor-and-patch:
         update-types:
           - minor
           - patch
+    ignore:
+      # See the bun entry: Tauri minors move by hand on both sides together.
+      - dependency-name: "tauri"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "tauri-build"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "tauri-plugin-*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # Pinned on purpose to one release candidate.
+      - dependency-name: "specta*"
+      - dependency-name: "tauri-specta"
 
   - package-ecosystem: github-actions
     directory: /
@@ -33,6 +69,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    labels: []
+    commit-message:
+      prefix: "ci(deps)"
     groups:
       github-actions-minor-and-patch:
         update-types:
