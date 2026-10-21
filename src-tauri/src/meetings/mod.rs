@@ -53,7 +53,7 @@ use models::Models;
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
-use transcribe::{CodexTranscriber, CodexVerdict, RetryPolicy};
+use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, Transcriber};
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
@@ -355,6 +355,14 @@ fn spawn_processing(
                     url: crate::codex_transcribe::TRANSCRIBE_URL.to_string(),
                     auth_path: None,
                 }),
+                // Its own engine, released with the run.
+                local: models
+                    .is_ready()
+                    .then(|| crate::engine::local::engine(&app, Box::new(|| false)))
+                    .flatten()
+                    .map(|engine| {
+                        Arc::new(LocalTranscriber(Arc::new(engine))) as Arc<dyn Transcriber>
+                    }),
                 analyzer: Arc::new(HelperAnalyzer {
                     models: Arc::clone(&models),
                     support: helper::support(),

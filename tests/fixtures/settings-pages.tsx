@@ -354,6 +354,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   error: item.status === "failed" ? "parts_failed" : null,
   held_until_ms:
     item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
+  local_fallback_ms: 0,
   speakers:
     item.id === 3
       ? [

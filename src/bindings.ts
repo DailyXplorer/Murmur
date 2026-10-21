@@ -1158,7 +1158,12 @@ system_audio_silent: boolean;
  * When a Codex rate-limit hold stops keeping this queued meeting
  * waiting. Only the processing queue knows; the store never sets it.
  */
-held_until_ms: number | null }
+held_until_ms: number | null; 
+/**
+ * How much of the recorded audio this Mac transcribed because Codex
+ * refused it. "Transcribe again" sends it all to Codex once more.
+ */
+local_fallback_ms: number }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
