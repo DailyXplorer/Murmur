@@ -16,6 +16,7 @@ mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
 mod dictionary;
+mod engine;
 mod helpers;
 mod input;
 mod insights;

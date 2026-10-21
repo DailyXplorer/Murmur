@@ -109,6 +109,8 @@ mod tests {
             transcription_text: text.to_string(),
             raw_text: None,
             cleanup: None,
+            engine: crate::engine::Engine::Cloud,
+            fallback_reason: None,
         }
     }
 

@@ -1,10 +1,12 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
+use crate::engine::{self, Conditions, Engine, EngineUsed, FallbackReason, Route};
 use crate::settings::get_settings;
+use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -15,6 +17,40 @@ use tauri::AppHandle;
 pub struct Transcript {
     pub text: String,
     pub dictionary_fixes: u32,
+    pub source: EngineUsed,
+}
+
+/// Transcribes `audio` with `engine`. `language` is the dictation setting.
+async fn run(
+    engine: Engine,
+    audio: &[f32],
+    language: &str,
+    operation: &ProcessingOperation,
+) -> Result<String> {
+    match engine {
+        Engine::Cloud => {
+            let language = (language != "auto").then_some(language);
+            debug!(
+                "Sending {} samples to Codex transcription (language={:?})",
+                audio.len(),
+                language
+            );
+            codex_transcribe::transcribe(audio, language, operation)
+                .await
+                .inspect_err(|err| error!("Codex transcription failed: {err}"))
+        }
+        Engine::Local => Err(anyhow::anyhow!("Local transcription is not available yet")),
+    }
+}
+
+/// Local cannot serve and no account can: the user's way out is to connect
+/// ChatGPT, which is what a signed-out failure tells them.
+fn refused(reason: FallbackReason) -> anyhow::Error {
+    TranscriptionError::new(
+        FailureKind::SignedOut,
+        format!("Local transcription unavailable ({reason:?}) and no ChatGPT account"),
+    )
+    .into()
 }
 
 /// Sends audio to Codex cloud transcription.
@@ -87,29 +123,48 @@ impl TranscriptionManager {
         }
 
         let settings = get_settings(&self.app_handle);
-        let language =
-            (settings.selected_language != "auto").then(|| settings.selected_language.clone());
-        // The saved WAV keeps the original level; only the upload is raised.
+        let conditions = Conditions {
+            // Nothing downloads the local model yet.
+            model_ready: false,
+            signed_in: crate::codex_auth::auth_status().signed_in,
+            language: &settings.selected_language,
+        };
+        let mut source = match engine::route(settings.transcription_engine, conditions) {
+            Route::Run(source) => source,
+            Route::Refuse(reason) => return Err(refused(reason)),
+        };
+        // The saved WAV keeps the original level; only the engine's input is
+        // raised.
         let audio = match normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode)) {
             Some(louder) => {
-                debug!("Raised the level of quiet speech before upload");
+                debug!("Raised the level of quiet speech before transcription");
                 Arc::new(louder)
             }
             None => audio,
         };
 
-        debug!(
-            "Sending {} samples to Codex transcription (language={:?})",
-            audio.len(),
-            language
-        );
-
-        let text = codex_transcribe::transcribe(audio.as_slice(), language.as_deref(), &operation)
-            .await
-            .map_err(|err| {
-                error!("Codex transcription failed: {err}");
-                err
-            })?;
+        let text = match run(source.engine, &audio, conditions.language, &operation).await {
+            Ok(text) => text,
+            Err(error) => {
+                if operation.is_cancelled() {
+                    return Err(error);
+                }
+                let kind = TranscriptionError::kind_of(&error);
+                match engine::reroute(source, kind, conditions) {
+                    None => return Err(error),
+                    Some(Route::Refuse(reason)) => return Err(refused(reason)),
+                    Some(Route::Run(fallback)) => {
+                        warn!(
+                            "Transcribing with the {} engine instead ({:?})",
+                            fallback.engine.as_str(),
+                            fallback.fallback
+                        );
+                        source = fallback;
+                        run(source.engine, &audio, conditions.language, &operation).await?
+                    }
+                }
+            }
+        };
 
         if operation.is_cancelled() {
             return Err(anyhow::anyhow!("Transcription cancelled"));
@@ -123,12 +178,14 @@ impl TranscriptionManager {
         );
 
         info!(
-            "Codex transcription produced {} characters",
+            "The {} engine produced {} characters",
+            source.engine.as_str(),
             processed.len()
         );
         Ok(Transcript {
             text: processed,
             dictionary_fixes,
+            source,
         })
     }
 

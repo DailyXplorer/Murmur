@@ -948,7 +948,19 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; 
+/**
+ * Which engine transcribes dictations.
+ */
+transcription_engine?: Engine; 
+/**
+ * The one-time card announcing local transcription was closed.
+ */
+local_stt_card_dismissed?: boolean; 
+/**
+ * The user asked for the local model, so its download resumes at launch.
+ */
+local_model_download_wanted?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -998,6 +1010,39 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+export type Engine = 
+/**
+ * Parakeet TDT 0.6B v3 on this Mac.
+ */
+"local" | 
+/**
+ * Codex through the user's ChatGPT session.
+ */
+"cloud"
+/**
+ * Why a dictation was transcribed by the engine the user did not choose.
+ */
+export type FallbackReason = 
+/**
+ * Local chosen: the model is not downloaded or not ready yet.
+ */
+"model_not_ready" | 
+/**
+ * Local chosen: the local run failed.
+ */
+"local_failed" | 
+/**
+ * Local chosen: the dictation language is outside Parakeet's 25.
+ */
+"language_not_supported" | 
+/**
+ * Cloud chosen: ChatGPT refused for the account's usage limit.
+ */
+"cloud_limit_reached" | 
+/**
+ * Cloud chosen: ChatGPT failed for any other reason.
+ */
+"cloud_failed"
 export type HeatmapDay = { 
 /**
  * Local calendar date, `YYYY-MM-DD`.
@@ -1015,7 +1060,11 @@ transcription_text: string;
 /**
  * The transcript before AI cleanup, when cleanup ran.
  */
-raw_text: string | null; cleanup: CleanupOutcome | null }
+raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine; 
+/**
+ * Set when the engine is not the one the user chose.
+ */
+fallback_reason: FallbackReason | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**

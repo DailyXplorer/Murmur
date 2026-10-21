@@ -1,5 +1,6 @@
 use crate::actions::process_transcription_output;
 use crate::cleanup::ProcessedText;
+use crate::engine::EngineUsed;
 use crate::managers::{
     history::{HistoryEntry, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
@@ -69,25 +70,26 @@ pub async fn delete_history_entry(
 pub const NO_SPEECH_ERROR: &str = "Recording contains no speech";
 
 /// Sends a saved recording through the current provider again and stores the
-/// result in its history entry. Any failure leaves the entry as it was.
+/// result, with the engine that produced it, in its history entry. Any
+/// failure leaves the entry as it was.
 async fn retranscribe<Transcribe, Fut>(
     samples: Result<Vec<f32>, String>,
     transcribe: Transcribe,
-    save: impl FnOnce(ProcessedText) -> Result<HistoryEntry, String>,
+    save: impl FnOnce(ProcessedText, EngineUsed) -> Result<HistoryEntry, String>,
 ) -> Result<HistoryEntry, String>
 where
     Transcribe: FnOnce(Vec<f32>) -> Fut,
-    Fut: Future<Output = Result<ProcessedText, String>>,
+    Fut: Future<Output = Result<(ProcessedText, EngineUsed), String>>,
 {
     let samples = samples
         .ok()
         .filter(|samples| !samples.is_empty())
         .ok_or_else(|| RECORDING_UNAVAILABLE_ERROR.to_string())?;
-    let text = transcribe(samples).await?;
+    let (text, source) = transcribe(samples).await?;
     if text.text.trim().is_empty() {
         return Err(NO_SPEECH_ERROR.to_string());
     }
-    save(text)
+    save(text, source)
 }
 
 #[tauri::command]
@@ -109,24 +111,26 @@ pub async fn retry_history_entry_transcription(
             // operation: cancelling a new dictation must never cancel a
             // user-requested retry.
             let operation = ProcessingOperation::new(OperationId(0));
-            let transcription = transcription_manager
+            let transcript = transcription_manager
                 .transcribe_samples(Arc::new(samples), operation.clone())
                 .await
-                .map_err(|e| e.to_string())?
-                .text;
+                .map_err(|e| e.to_string())?;
+            let (transcription, source) = (transcript.text, transcript.source);
             // A retry is not delivered by paste, so it stays out of Insights,
             // which only counts delivered dictations.
             if transcription.is_empty() {
-                return Ok(ProcessedText::unprocessed(transcription));
+                return Ok((ProcessedText::unprocessed(transcription), source));
             }
             // A retry gets the same cleanup as the dictation it replaces; the
             // raw transcript stays in the entry. The window the user dictated
             // into is gone, so there are no window names to pass.
-            Ok(process_transcription_output(&app, &transcription, Vec::new(), &operation).await)
+            let text =
+                process_transcription_output(&app, &transcription, Vec::new(), &operation).await;
+            Ok((text, source))
         },
-        |text| {
+        |text, source| {
             history_manager
-                .update_transcription(id, text)
+                .update_transcription(id, text, source)
                 .map_err(|e| e.to_string())
         },
     )
@@ -201,6 +205,8 @@ mod tests {
             transcription_text: text.to_string(),
             raw_text: None,
             cleanup: None,
+            engine: crate::engine::Engine::Cloud,
+            fallback_reason: None,
         }
     }
 
@@ -229,10 +235,15 @@ mod tests {
                 assert_eq!(samples, [0.1, -0.2]);
                 calls.transcribed.set(calls.transcribed.get() + 1);
                 provider
-                    .map(|text| ProcessedText::unprocessed(text.to_string()))
+                    .map(|text| {
+                        (
+                            ProcessedText::unprocessed(text.to_string()),
+                            EngineUsed::default(),
+                        )
+                    })
                     .map_err(str::to_string)
             },
-            |text| {
+            |text, _source| {
                 *calls.saved.borrow_mut() = Some(text.text.clone());
                 Ok(entry(&text.text))
             },
@@ -266,6 +277,26 @@ mod tests {
             assert_eq!(calls.transcribed.get(), 0);
             assert_eq!(*calls.saved.borrow(), None);
         }
+    }
+
+    #[test]
+    fn a_retry_saves_the_engine_that_transcribed_it() {
+        use crate::engine::{Engine, FallbackReason};
+        let used = EngineUsed {
+            engine: Engine::Cloud,
+            fallback: Some(FallbackReason::ModelNotReady),
+        };
+        let saved = std::cell::Cell::new(None);
+        tauri::async_runtime::block_on(retranscribe(
+            Ok(vec![0.1]),
+            |_| async move { Ok((ProcessedText::unprocessed("Hi.".to_string()), used)) },
+            |text, source| {
+                saved.set(Some(source));
+                Ok(entry(&text.text))
+            },
+        ))
+        .unwrap();
+        assert_eq!(saved.get(), Some(used));
     }
 
     #[test]

@@ -52,6 +52,9 @@ const requiredPaths = [
   "src-tauri/capabilities/main.json",
   "src-tauri/capabilities/recording-overlay.json",
   "src-tauri/permissions/default.toml",
+  "src-tauri/src/engine/mod.rs",
+  "src-tauri/src/engine/parakeet_languages.rs",
+  "src-tauri/src/audio_toolkit/pauses.rs",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {
