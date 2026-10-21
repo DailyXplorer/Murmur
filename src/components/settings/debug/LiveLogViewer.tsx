@@ -37,34 +37,34 @@ const LEVEL_META: Record<
   { tag: string; tagClass: string; msgClass: string }
 > = {
   1: {
-    tag: "TRACE",
+    tag: "Trace",
     tagClass: "text-mid-gray",
     msgClass: "text-mid-gray",
   },
   2: {
-    tag: "DEBUG",
+    tag: "Debug",
     tagClass: "text-sky-600 dark:text-sky-400",
     msgClass: "text-text/80",
   },
   3: {
-    tag: "INFO",
+    tag: "Info",
     tagClass: "text-emerald-600 dark:text-emerald-400",
     msgClass: "text-text",
   },
   4: {
-    tag: "WARN",
+    tag: "Warn",
     tagClass: "text-amber-600 dark:text-amber-400",
     msgClass: "text-amber-700 dark:text-amber-300",
   },
   5: {
-    tag: "ERROR",
+    tag: "Error",
     tagClass: "text-red-600 dark:text-red-400",
     msgClass: "text-red-700 dark:text-red-300",
   },
 };
 
 const UNKNOWN_META = {
-  tag: "LOG",
+  tag: "Log",
   tagClass: "text-mid-gray",
   msgClass: "text-text",
 };

@@ -171,7 +171,7 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           <span className="flex shrink-0 text-mid-gray" aria-hidden="true">
             {icon}
           </span>
-          <span className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-mid-gray tabular-nums">
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-mid-gray tabular-nums">
             {label}
           </span>
         </>

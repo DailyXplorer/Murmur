@@ -149,7 +149,7 @@ length.
 ### Meetings
 
 Meetings are on by default and can be turned off in Settings → Advanced.
-Press Control+Option+Command+M, or choose Start Meeting in the menu bar, to
+Press Control+Option+Command+M, or choose Start meeting in the menu bar, to
 start recording; press it again to stop. You can pick other keys in Settings;
 if another app already holds them, the shortcut field says so. A red pill
 shows the elapsed time. A meeting stops by itself after 3 hours, with a
@@ -269,7 +269,7 @@ Guarded paste saves the clipboard before it places the transcription there.
 By default, Murmur puts the saved items back, with every format they had, once
 the 8-second paste window ends. If you copy something else during that window,
 Murmur leaves your new clipboard alone. If insertion fails, Murmur keeps the
-transcription on the clipboard for manual paste. The Keep Transcription option
+transcription on the clipboard for manual paste. The Keep transcription option
 leaves the transcription on the clipboard after insertion.
 
 ## Origin
