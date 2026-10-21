@@ -1,16 +1,17 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
-use crate::engine::{self, Conditions, Engine, EngineUsed, FallbackReason, Route};
-use crate::settings::get_settings;
-use crate::transcription_error::{FailureKind, TranscriptionError};
+use crate::engine::local::LocalEngine;
+use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
+use crate::local_models::LocalModels;
+use crate::settings::{get_settings, AppSettings};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// Final dictation text plus how many dictionary replacements produced it.
 #[derive(Debug, Default)]
@@ -23,6 +24,7 @@ pub struct Transcript {
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
 async fn run(
     engine: Engine,
+    local: Option<&LocalEngine>,
     audio: &[f32],
     language: &str,
     operation: &ProcessingOperation,
@@ -39,21 +41,15 @@ async fn run(
                 .await
                 .inspect_err(|err| error!("Codex transcription failed: {err}"))
         }
-        Engine::Local => Err(anyhow::anyhow!("Local transcription is not available yet")),
+        Engine::Local => {
+            let local = local.ok_or_else(|| anyhow::anyhow!("No local engine in this build"))?;
+            debug!("Transcribing {} samples on this Mac", audio.len());
+            local.transcribe(audio, operation).await
+        }
     }
 }
 
-/// Local cannot serve and no account can: the user's way out is to connect
-/// ChatGPT, which is what a signed-out failure tells them.
-fn refused(reason: FallbackReason) -> anyhow::Error {
-    TranscriptionError::new(
-        FailureKind::SignedOut,
-        format!("Local transcription unavailable ({reason:?}) and no ChatGPT account"),
-    )
-    .into()
-}
-
-/// Sends audio to Codex cloud transcription.
+/// Sends audio to the local engine or Codex.
 pub struct TranscriptionManager {
     app_handle: AppHandle,
     active_operations: Arc<Mutex<HashMap<u64, ProcessingOperation>>>,
@@ -123,16 +119,7 @@ impl TranscriptionManager {
         }
 
         let settings = get_settings(&self.app_handle);
-        let conditions = Conditions {
-            // Nothing downloads the local model yet.
-            model_ready: false,
-            signed_in: crate::codex_auth::auth_status().signed_in,
-            language: &settings.selected_language,
-        };
-        let mut source = match engine::route(settings.transcription_engine, conditions) {
-            Route::Run(source) => source,
-            Route::Refuse(reason) => return Err(refused(reason)),
-        };
+        let conditions = self.conditions(&settings);
         // The saved WAV keeps the original level; only the engine's input is
         // raised.
         let audio = match normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode)) {
@@ -143,28 +130,15 @@ impl TranscriptionManager {
             None => audio,
         };
 
-        let text = match run(source.engine, &audio, conditions.language, &operation).await {
-            Ok(text) => text,
-            Err(error) => {
-                if operation.is_cancelled() {
-                    return Err(error);
-                }
-                let kind = TranscriptionError::kind_of(&error);
-                match engine::reroute(source, kind, conditions) {
-                    None => return Err(error),
-                    Some(Route::Refuse(reason)) => return Err(refused(reason)),
-                    Some(Route::Run(fallback)) => {
-                        warn!(
-                            "Transcribing with the {} engine instead ({:?})",
-                            fallback.engine.as_str(),
-                            fallback.fallback
-                        );
-                        source = fallback;
-                        run(source.engine, &audio, conditions.language, &operation).await?
-                    }
-                }
-            }
-        };
+        let local = self.app_handle.try_state::<Arc<LocalEngine>>();
+        let local = local.as_deref().map(Arc::as_ref);
+        let (text, source) = engine::transcribe(
+            settings.transcription_engine,
+            conditions,
+            || operation.is_cancelled(),
+            |engine| run(engine, local, &audio, conditions.language, &operation),
+        )
+        .await?;
 
         if operation.is_cancelled() {
             return Err(anyhow::anyhow!("Transcription cancelled"));
@@ -187,6 +161,37 @@ impl TranscriptionManager {
             dictionary_fixes,
             source,
         })
+    }
+
+    fn conditions<'a>(&self, settings: &'a AppSettings) -> Conditions<'a> {
+        let model_ready = self
+            .app_handle
+            .try_state::<Arc<LocalModels>>()
+            .is_some_and(|models| models.is_ready())
+            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+        Conditions {
+            model_ready,
+            signed_in: crate::codex_auth::auth_status().signed_in,
+            language: &settings.selected_language,
+        }
+    }
+
+    /// At the start of a recording: loads the local model when the dictation
+    /// will go to it, so the speaking time hides the load.
+    pub fn warm_if_local(&self) {
+        let settings = get_settings(&self.app_handle);
+        let route = engine::route(settings.transcription_engine, self.conditions(&settings));
+        if matches!(
+            route,
+            Route::Run(EngineUsed {
+                engine: Engine::Local,
+                ..
+            })
+        ) {
+            if let Some(local) = self.app_handle.try_state::<Arc<LocalEngine>>() {
+                local.warm();
+            }
+        }
     }
 
     /// Keeps CLI calls synchronous and independent of desktop cancellation.

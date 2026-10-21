@@ -275,6 +275,8 @@ impl ShortcutAction for TranscribeAction {
                 crate::window_names::capture(
                     settings.window_names_enabled && settings.ai_cleanup_enabled,
                 );
+                let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+                std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);

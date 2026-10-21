@@ -2,11 +2,13 @@
 //! cloud. `route` decides before any audio is sent, and `reroute` decides once
 //! after the chosen engine failed. Both are pure, so the whole table is tested.
 
+pub mod local;
 pub mod parakeet_languages;
 
-use crate::transcription_error::FailureKind;
+use crate::transcription_error::{FailureKind, TranscriptionError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::future::Future;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -145,6 +147,57 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
                     }),
                 })
             })
+        }
+    }
+}
+
+/// Local cannot serve and no account can: the user's way out is to connect
+/// ChatGPT, which is what a signed-out failure tells them.
+fn refused(reason: FallbackReason) -> anyhow::Error {
+    TranscriptionError::new(
+        FailureKind::SignedOut,
+        format!("Local transcription unavailable ({reason:?}) and no ChatGPT account"),
+    )
+    .into()
+}
+
+/// Transcribes with the engine `route` picks, then once with the one
+/// `reroute` picks if that failed. `run` transcribes with one engine. An
+/// error once `cancelled` stands as it is.
+pub async fn transcribe<F, Fut>(
+    choice: Engine,
+    conditions: Conditions<'_>,
+    cancelled: impl Fn() -> bool,
+    mut run: F,
+) -> anyhow::Result<(String, EngineUsed)>
+where
+    F: FnMut(Engine) -> Fut,
+    Fut: Future<Output = anyhow::Result<String>>,
+{
+    let source = match route(choice, conditions) {
+        Route::Run(source) => source,
+        Route::Refuse(reason) => return Err(refused(reason)),
+    };
+    let error = match run(source.engine).await {
+        Ok(text) => return Ok((text, source)),
+        Err(error) => error,
+    };
+    if cancelled() {
+        return Err(error);
+    }
+    match reroute(source, TranscriptionError::kind_of(&error), conditions) {
+        None => Err(error),
+        Some(Route::Refuse(reason)) => {
+            log::warn!("Local transcription failed: {error:#}");
+            Err(refused(reason))
+        }
+        Some(Route::Run(fallback)) => {
+            log::warn!(
+                "Transcribing with the {} engine instead ({:?}): {error:#}",
+                fallback.engine.as_str(),
+                fallback.fallback
+            );
+            Ok((run(fallback.engine).await?, fallback))
         }
     }
 }
@@ -321,6 +374,117 @@ mod tests {
                 "{failed:?}"
             );
         }
+    }
+
+    /// Runs a dictation where each engine answers as given, and returns the
+    /// outcome with the engines asked, in order.
+    fn dictate(
+        choice: Engine,
+        conditions: Conditions,
+        local: Result<&str, FailureKind>,
+        cloud: Result<&str, FailureKind>,
+    ) -> (anyhow::Result<(String, EngineUsed)>, Vec<Engine>) {
+        let mut asked = Vec::new();
+        let result = tauri::async_runtime::block_on(transcribe(
+            choice,
+            conditions,
+            || false,
+            |engine| {
+                asked.push(engine);
+                let answer = match engine {
+                    Engine::Local => local,
+                    Engine::Cloud => cloud,
+                };
+                async move {
+                    answer
+                        .map(str::to_string)
+                        .map_err(|kind| TranscriptionError::new(kind, "fake").into())
+                }
+            },
+        ));
+        (result, asked)
+    }
+
+    #[test]
+    fn a_local_failure_is_transcribed_in_the_cloud_with_an_account() {
+        let (result, asked) = dictate(
+            Engine::Local,
+            when(READY, ACCOUNT, "fr"),
+            Err(FailureKind::Other),
+            Ok("Bonjour"),
+        );
+        let (text, source) = result.unwrap();
+        assert_eq!(text, "Bonjour");
+        assert_eq!(source, used(cloud(Some(LocalFailed))));
+        assert_eq!(asked, [Engine::Local, Engine::Cloud]);
+    }
+
+    #[test]
+    fn a_local_failure_without_an_account_asks_to_connect_chatgpt() {
+        let (result, asked) = dictate(
+            Engine::Local,
+            when(READY, NO_ACCOUNT, "fr"),
+            Err(FailureKind::Other),
+            Ok("never"),
+        );
+        let error = result.unwrap_err();
+        assert_eq!(TranscriptionError::kind_of(&error), FailureKind::SignedOut);
+        assert_eq!(asked, [Engine::Local]);
+    }
+
+    #[test]
+    fn a_refused_route_sends_no_audio() {
+        let (result, asked) = dictate(
+            Engine::Local,
+            when(NOT_READY, NO_ACCOUNT, "fr"),
+            Ok("never"),
+            Ok("never"),
+        );
+        assert_eq!(
+            TranscriptionError::kind_of(&result.unwrap_err()),
+            FailureKind::SignedOut
+        );
+        assert!(asked.is_empty());
+    }
+
+    #[test]
+    fn a_cloud_limit_is_transcribed_on_this_mac_once() {
+        let (result, asked) = dictate(
+            Engine::Cloud,
+            when(READY, ACCOUNT, "auto"),
+            Ok("Salut"),
+            Err(FailureKind::RateLimited),
+        );
+        let (text, source) = result.unwrap();
+        assert_eq!(text, "Salut");
+        assert_eq!(source, used(local(Some(CloudLimitReached))));
+        assert_eq!(asked, [Engine::Cloud, Engine::Local]);
+
+        // A failing fallback is the error, with no third try.
+        let (result, asked) = dictate(
+            Engine::Cloud,
+            when(READY, ACCOUNT, "auto"),
+            Err(FailureKind::Other),
+            Err(FailureKind::RateLimited),
+        );
+        assert!(result.is_err());
+        assert_eq!(asked, [Engine::Cloud, Engine::Local]);
+    }
+
+    #[test]
+    fn a_cancelled_dictation_is_not_sent_again() {
+        let mut asked = 0;
+        let result = tauri::async_runtime::block_on(transcribe(
+            Engine::Local,
+            when(READY, ACCOUNT, "fr"),
+            || true,
+            |_| {
+                asked += 1;
+                async { Err::<String, _>(anyhow::anyhow!("cancelled")) }
+            },
+        ));
+        assert!(result.is_err());
+        assert_eq!(asked, 1);
     }
 
     #[test]

@@ -55,6 +55,10 @@ const requiredPaths = [
   "src-tauri/permissions/default.toml",
   "src-tauri/src/engine/mod.rs",
   "src-tauri/src/engine/parakeet_languages.rs",
+  "src-tauri/src/engine/local/mod.rs",
+  "src-tauri/src/engine/local/session.rs",
+  "src-tauri/src/engine/local/fluid.rs",
+  "src-tauri/src/engine/local/cpu.rs",
   "src-tauri/src/audio_toolkit/pauses.rs",
   "src-tauri/src/local_models/mod.rs",
   "src-tauri/src/local_models/manifest.rs",
@@ -188,7 +192,16 @@ for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
   }
 }
 
-const cargoManifest = read("src-tauri/Cargo.toml");
+// The one target section allowed: the CPU engine of Intel Macs, by
+// architecture, never by OS.
+const cpuEngineSection = [
+  `[target.'cfg(target_arch = "x86_64")'.dependencies]`,
+  `transcribe-cpp = { version = "=0.4.0", default-features = false }`,
+].join("\n");
+const cargoManifest = read("src-tauri/Cargo.toml").replace(
+  cpuEngineSection,
+  "",
+);
 for (const text of [
   "tauri-plugin-dialog",
   "tauri-plugin-fs",

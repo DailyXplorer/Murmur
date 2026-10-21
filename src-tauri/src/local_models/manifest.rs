@@ -42,6 +42,13 @@ pub fn this_mac() -> &'static [Source] {
     }
 }
 
+/// The GGUF model the CPU loads, relative to the models directory.
+#[cfg(not(target_arch = "aarch64"))]
+pub fn gguf_path() -> std::path::PathBuf {
+    let source = &pinned::X86_64[0];
+    std::path::Path::new(source.folder).join(source.files[0].path)
+}
+
 pub fn total_bytes(sources: &[Source]) -> u64 {
     sources
         .iter()

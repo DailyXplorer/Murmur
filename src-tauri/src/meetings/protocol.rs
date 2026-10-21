@@ -84,6 +84,43 @@ pub fn parse_line(line: &str) -> serde_json::Result<Message> {
     serde_json::from_str(line)
 }
 
+/// What Murmur asks `serve`, one JSON object per line on its stdin.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+pub enum Request<'a> {
+    /// Transcribe a 16 kHz mono WAV of at most 15 s.
+    Transcribe { id: u64, wav: &'a std::path::Path },
+}
+
+/// What `serve` prints, one JSON object per line on its stdout.
+#[derive(Deserialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+pub enum Reply {
+    /// The models are loaded: requests are answered from now on.
+    Ready,
+    Text {
+        id: u64,
+        text: String,
+    },
+    /// A failed request, or without `id` a failed load.
+    Error {
+        #[serde(default)]
+        id: Option<u64>,
+        code: ErrorCode,
+        #[serde(default)]
+        message: String,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+pub fn parse_reply(line: &str) -> serde_json::Result<Reply> {
+    serde_json::from_str(line)
+}
+
 fn ms(seconds: f64) -> u64 {
     (seconds.max(0.0) * 1000.0).round() as u64
 }
@@ -203,6 +240,52 @@ mod tests {
                 message: String::new()
             }
         );
+    }
+
+    #[test]
+    fn serve_requests_and_replies_round_trip() {
+        assert_eq!(
+            serde_json::to_string(&Request::Transcribe {
+                id: 7,
+                wav: std::path::Path::new("/tmp/piece 7.wav")
+            })
+            .unwrap(),
+            r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
+        );
+        assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
+        assert_eq!(
+            parse_reply(r#"{"type":"text","id":7,"text":"Bonjour à tous."}"#).unwrap(),
+            Reply::Text {
+                id: 7,
+                text: "Bonjour à tous.".into()
+            }
+        );
+        assert_eq!(
+            parse_reply(
+                r#"{"type":"error","id":7,"stage":"transcribe","code":"io","message":"bad wav"}"#
+            )
+            .unwrap(),
+            Reply::Error {
+                id: Some(7),
+                code: ErrorCode::Io,
+                message: "bad wav".into()
+            }
+        );
+        assert_eq!(
+            parse_reply(r#"{"type":"error","stage":"load","code":"model_missing"}"#).unwrap(),
+            Reply::Error {
+                id: None,
+                code: ErrorCode::ModelMissing,
+                message: String::new()
+            }
+        );
+        assert_eq!(
+            parse_reply(r#"{"type":"progress","phase":"compile","fraction":0.5}"#).unwrap(),
+            Reply::Unknown
+        );
+        for line in ["not json", r#"{"type":"text","id":7}"#, r#"{"id":7}"#] {
+            assert!(parse_reply(line).is_err(), "{line}");
+        }
     }
 
     #[test]
