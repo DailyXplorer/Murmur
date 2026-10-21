@@ -6,6 +6,7 @@ Keep each change focused. Explain why it is needed and test the behavior it affe
 
 - Search existing [issues](https://github.com/DailyXplorer/Murmur/issues) and [pull requests](https://github.com/DailyXplorer/Murmur/pulls).
 - Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) for reproducible bugs.
+- Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md) when the outcome, behaviour, and done-when are already clear.
 - Start a [discussion](https://github.com/DailyXplorer/Murmur/discussions) for feature ideas that would benefit from feedback before implementation.
 
 ## Set up the project
