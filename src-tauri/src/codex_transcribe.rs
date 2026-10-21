@@ -8,7 +8,9 @@
 //! counts against ChatGPT's own dictation quota. Requests go as Codex first;
 //! when the server answers that the Codex dictation quota is spent, the same
 //! audio is resent at once without the Codex headers, and every request in
-//! the process skips the Codex identity for `CODEX_QUOTA_BACKOFF`.
+//! the process skips the Codex identity for `CODEX_QUOTA_BACKOFF`. When
+//! ChatGPT's quota is spent during that window, the window closes and the
+//! audio is resent as Codex. Each request switches identity at most once.
 
 use anyhow::{anyhow, Context, Result};
 use hound::WavSpec;
@@ -81,40 +83,54 @@ impl RequestIdentity {
 /// within the hour.
 const CODEX_QUOTA_BACKOFF: Duration = Duration::from_secs(60 * 60);
 
-/// Until when the Codex dictation quota is known to be spent. Shared by
-/// every request in the process, dictations and parallel meeting uploads.
+/// When the Codex dictation quota was found spent. Shared by every request
+/// in the process, dictations and parallel meeting uploads.
 struct DictationQuota {
-    codex_spent_until: Mutex<Option<SystemTime>>,
+    codex_spent_at: Mutex<Option<SystemTime>>,
 }
 
 static DICTATION_QUOTA: DictationQuota = DictationQuota {
-    codex_spent_until: Mutex::new(None),
+    codex_spent_at: Mutex::new(None),
 };
 
 impl DictationQuota {
     fn identity(&self, now: SystemTime) -> RequestIdentity {
-        match *self.spent_until() {
-            Some(until) if now < until => RequestIdentity::ChatGpt,
-            _ => RequestIdentity::Codex,
+        if codex_window_open(*self.spent_at(), now) {
+            RequestIdentity::ChatGpt
+        } else {
+            RequestIdentity::Codex
         }
     }
 
     /// Remembers the spent Codex quota. True when no window was running, so
     /// the parallel requests that all hit the quota report it once.
     fn codex_spent(&self, now: SystemTime) -> bool {
-        let mut until = self.spent_until();
-        if until.is_some_and(|until| now < until) {
+        let mut spent_at = self.spent_at();
+        if codex_window_open(*spent_at, now) {
             return false;
         }
-        *until = Some(now + CODEX_QUOTA_BACKOFF);
+        *spent_at = Some(now);
         true
     }
 
-    fn spent_until(&self) -> std::sync::MutexGuard<'_, Option<SystemTime>> {
-        self.codex_spent_until
+    fn codex_available(&self) {
+        *self.spent_at() = None;
+    }
+
+    fn spent_at(&self) -> std::sync::MutexGuard<'_, Option<SystemTime>> {
+        self.codex_spent_at
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+/// Wall-clock time, so the window also runs out while the Mac sleeps. A
+/// clock set back before the window opened ends it.
+fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
+    spent_at.is_some_and(|spent_at| {
+        now.duration_since(spent_at)
+            .is_ok_and(|elapsed| elapsed < CODEX_QUOTA_BACKOFF)
+    })
 }
 
 pub fn auth_status() -> CodexAuthStatus {
@@ -191,6 +207,7 @@ async fn transcribe_with_quota(
         session = codex_auth::session_for_request(&auth_path) => session?,
     };
     let mut identity = quota.identity(SystemTime::now());
+    let mut switched_identity = false;
     let mut recovered_from_unauthorized = false;
     let mut retries = 0;
 
@@ -204,19 +221,33 @@ async fn transcribe_with_quota(
         let error = match result {
             Ok(text) => return Ok(text),
             Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
-            // The ChatGPT quota is a separate count, so resend at once and
-            // outside the retry budget.
-            Err(RequestError::DictationQuotaSpent(_)) if identity == RequestIdentity::Codex => {
-                if quota.codex_spent(SystemTime::now()) {
+            Err(RequestError::DictationQuotaSpent(error)) => {
+                if identity == RequestIdentity::Codex && quota.codex_spent(SystemTime::now()) {
                     info!(
                         "Codex dictation quota reached; using ChatGPT dictation quota for the next {} min",
                         CODEX_QUOTA_BACKOFF.as_secs() / 60
                     );
                 }
-                identity = RequestIdentity::ChatGpt;
-                continue;
+                if switched_identity {
+                    error
+                } else {
+                    // The other quota is a separate count, so resend at once
+                    // and outside the retry budget.
+                    switched_identity = true;
+                    identity = match identity {
+                        RequestIdentity::Codex => RequestIdentity::ChatGpt,
+                        RequestIdentity::ChatGpt => {
+                            info!(
+                                "ChatGPT dictation quota reached; trying the Codex dictation quota again"
+                            );
+                            quota.codex_available();
+                            RequestIdentity::Codex
+                        }
+                    };
+                    continue;
+                }
             }
-            Err(RequestError::DictationQuotaSpent(error) | RequestError::Failed(error)) => error,
+            Err(RequestError::Failed(error)) => error,
         };
 
         // Like Codex: on the first 401, refresh once and resend once.
@@ -613,7 +644,7 @@ mod tests {
 
     fn quota() -> DictationQuota {
         DictationQuota {
-            codex_spent_until: Mutex::new(None),
+            codex_spent_at: Mutex::new(None),
         }
     }
 
