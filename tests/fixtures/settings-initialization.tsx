@@ -197,10 +197,11 @@ window.settingsInitialization = {
       throw new Error("Generation A did not begin listener registration");
     }
 
-    addActiveListener(aHandler);
+    const generationAHandler = aHandler;
+    addActiveListener(generationAHandler);
     aListenerRegistration.resolve(async () => {
       await aUnlistenFinished.promise;
-      activeListeners.delete(aHandler);
+      activeListeners.delete(generationAHandler);
     });
     await flushMicrotasks();
 

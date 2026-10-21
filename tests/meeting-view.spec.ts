@@ -434,7 +434,9 @@ test("the search counter stays within the matches when the text changes", async 
   await expect(page.getByText("4/4")).toBeVisible();
 
   await page.evaluate(async () => {
-    await window.__TAURI_INTERNALS__.invoke("rename_speaker", {
+    const internals = window.__TAURI_INTERNALS__;
+    if (!internals) throw new Error("Tauri internals missing");
+    await internals.invoke("rename_speaker", {
       id: 3,
       key: "s1",
       name: "Camille",
