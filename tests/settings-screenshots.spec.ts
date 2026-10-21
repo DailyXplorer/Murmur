@@ -247,6 +247,143 @@ test.describe("settings screenshots", () => {
     }
   });
 
+  test.describe("local transcription at the default window size", () => {
+    test.use({ viewport: { width: 680, height: 570 }, deviceScaleFactor: 2 });
+
+    const shoot = async (
+      page: Page,
+      file: string,
+      query: string,
+      section: string,
+    ) => {
+      await page.goto(`/tests/fixtures/settings-pages.html?${query}`);
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: section, exact: true })
+        .click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${outputDir}/${file}.png` });
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    };
+
+    for (const theme of ["light", "dark"] as const) {
+      test(`states (${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        const at = `theme=${theme}`;
+        for (const models of [
+          "missing",
+          "downloading",
+          "preparing",
+          "ready",
+          "failed",
+          "damaged",
+          "noSpace",
+        ]) {
+          await shoot(
+            page,
+            `local-${models}-${theme}`,
+            `${at}&engine=local&models=${models}`,
+            "Transcription",
+          );
+        }
+        await shoot(
+          page,
+          `local-no-account-${theme}`,
+          `${at}&engine=local&account=none`,
+          "Transcription",
+        );
+        await shoot(
+          page,
+          `local-intel-${theme}`,
+          `${at}&engine=local&analysis=unsupported`,
+          "Transcription",
+        );
+        await shoot(
+          page,
+          `cloud-${theme}`,
+          `${at}&engine=cloud`,
+          "Transcription",
+        );
+        await shoot(
+          page,
+          `cloud-no-account-${theme}`,
+          `${at}&engine=cloud&account=none`,
+          "Transcription",
+        );
+        await shoot(
+          page,
+          `cloud-macos-too-old-${theme}`,
+          `${at}&engine=cloud&analysis=os_too_old`,
+          "Transcription",
+        );
+        for (const [query, file] of [
+          ["", "delete-with-account"],
+          ["&account=none", "delete-without-account"],
+          ["&analysis=unsupported", "delete-intel"],
+        ]) {
+          await shoot(
+            page,
+            `${file}-${theme}`,
+            `${at}&engine=local${query}`,
+            "Transcription",
+          );
+          await page.getByRole("button", { name: "Delete" }).click();
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: `${outputDir}/${file}-${theme}.png` });
+        }
+        for (const models of ["missing", "ready", "failed"]) {
+          await shoot(
+            page,
+            `card-${models}-${theme}`,
+            `${at}&card=1&models=${models}`,
+            "General",
+          );
+        }
+        await shoot(
+          page,
+          `card-downloading-${theme}`,
+          `${at}&card=1&models=missing`,
+          "General",
+        );
+        await page.getByRole("button", { name: /^Download/ }).click();
+        await page.waitForTimeout(300);
+        await page.screenshot({
+          path: `${outputDir}/card-downloading-${theme}.png`,
+        });
+        await page.evaluate(() => window.settingsPages.finishModelDownload());
+        await page.waitForTimeout(300);
+        await page.screenshot({
+          path: `${outputDir}/card-switched-toast-${theme}.png`,
+        });
+        await shoot(
+          page,
+          `history-fallback-${theme}`,
+          `${at}&history=fallback`,
+          "History",
+        );
+        await shoot(page, `about-${theme}`, at, "About");
+        await page.getByRole("button", { name: "View Licences" }).click();
+        await page.waitForTimeout(300);
+        await page.screenshot({
+          path: `${outputDir}/about-licences-${theme}.png`,
+        });
+        await shoot(
+          page,
+          `meeting-local-fallback-${theme}`,
+          `${at}&meetings=1&localFallback=1`,
+          "Meetings",
+        );
+        await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+        await page.waitForTimeout(400);
+        await page.screenshot({
+          path: `${outputDir}/meeting-local-fallback-${theme}.png`,
+        });
+      });
+    }
+  });
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

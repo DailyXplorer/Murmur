@@ -1,5 +1,5 @@
 use crate::codex_transcribe::CodexAuthStatus;
-use crate::commands::local_models::runnable_models;
+use crate::commands::local_models::{announce_switch_dropped, runnable_models};
 use crate::engine::Engine;
 use crate::settings::{get_settings, write_settings};
 use tauri::AppHandle;
@@ -13,9 +13,13 @@ pub fn change_transcription_engine_setting(app: AppHandle, engine: Engine) -> Re
         Engine::Cloud => None,
     };
     let mut settings = get_settings(&app);
+    let was_switching = settings.switch_to_local_when_ready;
     settings.transcription_engine = engine;
     settings.switch_to_local_when_ready = false;
     write_settings(&app, settings);
+    if was_switching {
+        announce_switch_dropped(&app);
+    }
     if let Some(models) = models.filter(|models| !models.is_ready()) {
         models.download();
     }

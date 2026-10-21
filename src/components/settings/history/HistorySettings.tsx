@@ -598,6 +598,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               : t("settings.history.noRecording")}
       </p>
 
+      {!retrying && entry.fallback_reason && (
+        <p className="-mt-3 text-xs text-text/50">
+          {t(`settings.history.fallback.${entry.fallback_reason}`)}
+        </p>
+      )}
       {!retrying && entry.cleanup === "failed" && (
         <p className="-mt-3 text-xs text-text/50">
           {t("settings.history.cleanupFailed")}

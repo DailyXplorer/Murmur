@@ -323,7 +323,14 @@
       "noSpeech": "Không tìm thấy giọng nói trong bản ghi âm.",
       "cleanupFailed": "Không dùng được bước dọn dẹp AI, nên bản chép thô đã được dán.",
       "showOriginal": "Hiện bản chép gốc",
-      "hideOriginal": "Ẩn bản chép gốc"
+      "hideOriginal": "Ẩn bản chép gốc",
+      "fallback": {
+        "model_not_ready": "Đã chép lời trên đám mây: mô hình trên máy chưa sẵn sàng.",
+        "local_failed": "Đã chép lời trên đám mây: chép lời trên máy thất bại.",
+        "language_not_supported": "Đã chép lời trên đám mây: ngôn ngữ này không được hỗ trợ trên máy Mac này.",
+        "cloud_limit_reached": "Đã chép lời trên máy Mac này: đã đạt hạn mức ChatGPT.",
+        "cloud_failed": "Đã chép lời trên máy Mac này: ChatGPT không khả dụng."
+      }
     },
     "debug": {
       "title": "Gỡ lỗi",
@@ -427,9 +434,10 @@
         "description": "Hiển thị ghi chú phát hành sau khi Murmur cập nhật"
       },
       "modelLicences": {
-        "description": "Giấy phép của các mô hình nhận dạng người nói",
+        "description": "Giấy phép của các mô hình giọng nói chạy trên thiết bị",
         "button": "Xem giấy phép"
-      }
+      },
+      "parakeet": "Chép lời trên máy dùng NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Phiên âm",
@@ -439,14 +447,15 @@
       "statusUnavailable": "Không thể lấy trạng thái",
       "missing": "Chưa đăng nhập",
       "groups": {
-        "service": "Dịch vụ",
         "processing": "Xử lý văn bản",
-        "output": "Đầu ra"
+        "output": "Đầu ra",
+        "engine": "Cách Murmur chép lời"
       },
       "sessionExpired": "Phiên đã hết hạn, hãy đăng nhập lại trong Codex",
       "aiCleanup": {
         "title": "Dọn dẹp và định dạng bằng AI",
-        "description": "Xóa từ đệm, chỉ giữ cách diễn đạt cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Nếu thất bại hoặc mất quá nhiều thời gian, bản chép lời gốc sẽ được dán."
+        "description": "Xóa từ đệm, chỉ giữ cách diễn đạt cuối cùng khi bạn tự sửa, sửa dấu câu và định dạng danh sách cùng các lần xuống dòng được đọc. Không bao giờ dịch hay viết lại. Nếu thất bại hoặc mất quá nhiều thời gian, bản chép lời gốc sẽ được dán.",
+        "needsAccount": "Kết nối ChatGPT để dùng tính năng dọn dẹp bằng AI."
       },
       "windowNames": {
         "title": "Tên từ cửa sổ đang hoạt động",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "Chế độ thì thầm",
         "description": "Tăng thêm độ nhạy cho giọng nói rất nhỏ và báo cho bước dọn dẹp AI rằng giọng nói có thể yếu. Không bao giờ khuếch đại sự im lặng và tiếng ồn nền."
+      },
+      "engine": {
+        "local": {
+          "title": "Trên máy Mac này",
+          "description": "25 ngôn ngữ châu Âu. Âm thanh của bạn ở lại trên máy Mac này."
+        },
+        "cloud": {
+          "title": "Trên đám mây",
+          "description": "Nhiều ngôn ngữ hơn, dùng hạn mức tài khoản ChatGPT của bạn."
+        },
+        "os_too_old": "Chép lời trên máy cần macOS 15 trở lên.",
+        "unsupported": "Chép lời trên máy cần máy Mac dùng chip Apple.",
+        "error": "Không thể thay đổi cách chép lời."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "Mô hình nhận dạng giọng nói của NVIDIA. Mô hình được tải một lần từ Hugging Face và chạy trên máy Mac này.",
+        "meetings": "Cũng được Cuộc họp dùng để phân biệt người nói.",
+        "missing": "Chưa tải xuống",
+        "downloading": "Đang tải xuống… {{done}} / {{total}}",
+        "preparing": "Đang chuẩn bị cho máy Mac này… (khoảng 15 giây, chỉ lần đầu)",
+        "ready": "Sẵn sàng · {{size}}",
+        "download": "Tải xuống ({{size}})",
+        "retry": "Thử lại",
+        "delete": "Xóa",
+        "error": "Không thể cập nhật mô hình trên máy.",
+        "failed": {
+          "no_internet": "Không có kết nối internet. Quá trình tải sẽ tiếp tục từ chỗ đã dừng.",
+          "server_unavailable": "Máy chủ tải xuống không phản hồi. Hãy thử lại sau.",
+          "damaged": "Tệp đã tải bị hỏng. Hãy thử lại.",
+          "not_enough_space": "Không đủ dung lượng: cần {{needed}}, còn trống {{free}}.",
+          "disk": "Không thể lưu mô hình trên máy Mac này.",
+          "prepare_failed": "Mô hình đã được tải xuống nhưng không thể nạp trên máy Mac này."
+        },
+        "deleteDialog": {
+          "title": "Xóa mô hình trên máy?",
+          "withAccount": "Đọc chính tả sẽ dùng đám mây cho đến khi bạn tải lại mô hình.",
+          "withoutAccount": "Bạn sẽ không thể đọc chính tả cho đến khi tải lại mô hình hoặc kết nối ChatGPT.",
+          "meetings": "Cuộc họp sẽ hiển thị một người nói cho mỗi nguồn âm thanh.",
+          "confirm": "Xóa mô hình"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Tùy chọn: kết nối để dùng tính năng dọn dẹp bằng AI và nhiều ngôn ngữ hơn."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "Giấy phép mô hình",
       "licencesNote": "Các mô hình được tải từ Hugging Face trong lần dùng đầu tiên. Murmur không kèm theo chúng.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (thời điểm của từ): NVIDIA, CC BY 4.0. Chuyển đổi sang Core ML bởi Fluid Inference.",
+        "parakeet": "Nhận dạng giọng nói: NVIDIA Parakeet TDT 0.6B v3 của NVIDIA, CC BY 4.0. Được Fluid Inference chuyển sang Core ML (chip Apple) và handy-computer chuyển sang GGUF 8-bit (máy Mac Intel).",
         "diarization": "Phân tách người nói Community-1: pyannote, CC BY 4.0, cùng WeSpeaker và BUT Speech@FIT. Bản chuyển đổi Core ML đã chỉnh sửa bởi Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Giấy phép Apache 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "Chép lời lại cuộc họp này?",
         "description": "Codex sẽ chép lời lại bản ghi âm, bản ghi lời và bản tóm tắt sẽ được thay thế. Tiêu đề bạn đã đặt vẫn được giữ."
       }
-    }
+    },
+    "localFallback": "Codex không khả dụng trong {{duration}} của cuộc họp này, nên phần đó đã được chép lời trên máy Mac này."
+  },
+  "localSttCard": {
+    "title": "Mới: chép lời trên máy, không giới hạn hạn mức.",
+    "description": "Chép lời trên máy Mac này với 25 ngôn ngữ châu Âu. Âm thanh của bạn ở lại trên máy Mac này.",
+    "useLocal": "Dùng chép lời trên máy",
+    "downloading": "Đang tải xuống… {{percent}}%. Murmur sẽ chuyển sang máy Mac này khi tải xong.",
+    "dismiss": "Đóng",
+    "error": "Không thể bắt đầu chép lời trên máy.",
+    "switched": "Giờ đây việc chép lời diễn ra trên máy Mac này.",
+    "switchedDescription": "Bạn có thể thay đổi trong {{section}}."
   }
 }

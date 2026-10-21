@@ -323,7 +323,14 @@
       "noSpeech": "Nenhuma fala foi encontrada na gravação.",
       "cleanupFailed": "A limpeza com IA estava indisponível, então a transcrição bruta foi colada.",
       "showOriginal": "Mostrar transcrição original",
-      "hideOriginal": "Ocultar transcrição original"
+      "hideOriginal": "Ocultar transcrição original",
+      "fallback": {
+        "model_not_ready": "Transcrito na nuvem: o modelo local não estava pronto.",
+        "local_failed": "Transcrito na nuvem: a transcrição local falhou.",
+        "language_not_supported": "Transcrito na nuvem: este idioma não é compatível neste Mac.",
+        "cloud_limit_reached": "Transcrito neste Mac: o limite do ChatGPT foi atingido.",
+        "cloud_failed": "Transcrito neste Mac: o ChatGPT estava indisponível."
+      }
     },
     "debug": {
       "title": "Depuração",
@@ -427,9 +434,10 @@
         "description": "Mostrar notas de versão após atualizações do Murmur"
       },
       "modelLicences": {
-        "description": "Licenças dos modelos de deteção de participantes",
+        "description": "Licenças dos modelos de fala que rodam no dispositivo",
         "button": "Ver licenças"
-      }
+      },
+      "parakeet": "A transcrição local usa o NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transcrição",
@@ -439,14 +447,15 @@
       "statusUnavailable": "Estado indisponível",
       "missing": "Sem sessão iniciada",
       "groups": {
-        "service": "Serviço",
         "processing": "Processamento de texto",
-        "output": "Saída"
+        "output": "Saída",
+        "engine": "Como o Murmur transcreve"
       },
       "sessionExpired": "Sessão expirada, entre novamente no Codex",
       "aiCleanup": {
         "title": "Limpeza e formatação com IA",
-        "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem reescreve. Se falhar ou demorar demasiado, a transcrição bruta é colada."
+        "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem reescreve. Se falhar ou demorar demasiado, a transcrição bruta é colada.",
+        "needsAccount": "Conecte o ChatGPT para usar a limpeza com IA."
       },
       "windowNames": {
         "title": "Nomes da janela ativa",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "Modo sussurro",
         "description": "Aumenta ainda mais a sensibilidade para fala muito baixa e avisa a limpeza com IA que a fala pode estar fraca. Silêncio e ruído de fundo nunca são amplificados."
+      },
+      "engine": {
+        "local": {
+          "title": "Neste Mac",
+          "description": "25 idiomas europeus. Seu áudio fica neste Mac."
+        },
+        "cloud": {
+          "title": "Na nuvem",
+          "description": "Mais idiomas, usa os limites da sua conta do ChatGPT."
+        },
+        "os_too_old": "A transcrição local requer o macOS 15 ou posterior.",
+        "unsupported": "A transcrição local requer um Mac com Apple silicon.",
+        "error": "Não foi possível mudar como o Murmur transcreve."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "O modelo de reconhecimento de fala da NVIDIA. É baixado uma vez do Hugging Face e roda neste Mac.",
+        "meetings": "Também usado por Reuniões para distinguir quem fala.",
+        "missing": "Não baixado",
+        "downloading": "Baixando… {{done}} de {{total}}",
+        "preparing": "Preparando para este Mac… (cerca de 15 segundos, só na primeira vez)",
+        "ready": "Pronto · {{size}}",
+        "download": "Baixar ({{size}})",
+        "retry": "Tentar de novo",
+        "delete": "Excluir",
+        "error": "Não foi possível atualizar o modelo local.",
+        "failed": {
+          "no_internet": "Sem conexão com a internet. O download continuará de onde parou.",
+          "server_unavailable": "O servidor de download não está respondendo. Tente mais tarde.",
+          "damaged": "O arquivo baixado está danificado. Tente de novo.",
+          "not_enough_space": "Espaço insuficiente: {{needed}} necessários, {{free}} livres.",
+          "disk": "Não foi possível salvar o modelo neste Mac.",
+          "prepare_failed": "O modelo foi baixado, mas não carregou neste Mac."
+        },
+        "deleteDialog": {
+          "title": "Excluir o modelo local?",
+          "withAccount": "O ditado usará a nuvem até você baixá-lo de novo.",
+          "withoutAccount": "Você não poderá ditar até baixá-lo de novo ou conectar o ChatGPT.",
+          "meetings": "As reuniões mostrarão um participante por fonte de áudio.",
+          "confirm": "Excluir modelo"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Opcional: conecte para a limpeza com IA e mais idiomas."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "Licenças dos modelos",
       "licencesNote": "Os modelos são transferidos do Hugging Face na primeira utilização. O Murmur não os inclui.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (tempos das palavras): NVIDIA, CC BY 4.0. Conversão Core ML da Fluid Inference.",
+        "parakeet": "Reconhecimento de fala: NVIDIA Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0. Convertido para Core ML pela Fluid Inference (Apple silicon) e para GGUF de 8 bits por handy-computer (Macs Intel).",
         "diarization": "Diarização Community-1: pyannote, CC BY 4.0, com WeSpeaker e BUT Speech@FIT. Conversão Core ML modificada da Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Licença Apache 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "Transcrever esta reunião de novo?",
         "description": "O Codex transcreve a gravação de novo, e a transcrição e o resumo são substituídos. Um título que você definiu é mantido."
       }
-    }
+    },
+    "localFallback": "O Codex ficou indisponível por {{duration}} desta reunião, então essa parte foi transcrita neste Mac."
+  },
+  "localSttCard": {
+    "title": "Novo: transcrição local, sem cota.",
+    "description": "Transcreva neste Mac em 25 idiomas europeus. Seu áudio fica neste Mac.",
+    "useLocal": "Usar transcrição local",
+    "downloading": "Baixando… {{percent}}%. O Murmur passa para este Mac quando terminar.",
+    "dismiss": "Fechar",
+    "error": "Não foi possível iniciar a transcrição local.",
+    "switched": "Agora a transcrição é feita neste Mac.",
+    "switchedDescription": "Você pode mudar isso em {{section}}."
   }
 }

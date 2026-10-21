@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  Engine,
   MeetingCaptureMode,
   Result,
 } from "@/bindings";
@@ -293,6 +294,10 @@ const settingUpdaters: {
     commands.changeMeetingsEnabledSetting(value as boolean),
   meeting_capture_mode: (value) =>
     commands.changeMeetingCaptureModeSetting(value as MeetingCaptureMode),
+  transcription_engine: (value) =>
+    commands.changeTranscriptionEngineSetting(value as Engine),
+  local_stt_card_dismissed: (value) =>
+    commands.changeLocalSttCardDismissedSetting(value as boolean),
 };
 
 interface SettingWriteState {

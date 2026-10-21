@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::local_models::{LocalModelState, LocalModelStatus, LocalModels};
 use crate::settings::{get_settings, write_settings};
@@ -27,7 +27,17 @@ fn forget_switch(app: &AppHandle) {
     if settings.switch_to_local_when_ready {
         settings.switch_to_local_when_ready = false;
         write_settings(app, settings);
+        announce_switch_dropped(app);
     }
+}
+
+/// The one-time card reads the pending switch from the windows' copy of the
+/// settings, which only a `settings-changed` event refreshes.
+pub(crate) fn announce_switch_dropped(app: &AppHandle) {
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({"setting": "switch_to_local_when_ready"}),
+    );
 }
 
 #[tauri::command]

@@ -1,10 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
   AnalysisSupport,
   AppSettings,
   AudioDevice,
+  DownloadFailure,
+  Engine,
   HistoryEntry,
   InsightsSummary,
   MeetingDetail,
@@ -28,6 +31,8 @@ declare global {
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
+      /** The local model finished downloading, as the backend reports it. */
+      finishModelDownload: () => void;
     };
   }
 }
@@ -58,8 +63,24 @@ const heldUntilMs =
 const manyMeetings = params.get("manyMeetings") === "1";
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
+/** `local` or `cloud`; cloud by default, as for every existing user. */
+const engine = (params.get("engine") ?? "cloud") as Engine;
+/** `engineRefused=1`: the backend refuses every engine change. */
+const engineRefused = params.get("engineRefused") === "1";
+/** `account=none`: no ChatGPT session on this Mac. */
+const signedIn = params.get("account") !== "none";
+/** `card=1` shows the one-time local transcription card. */
+const cardShown = params.get("card") === "1";
+/** `history=fallback`: entries transcribed by the engine not chosen. */
+const historyFallback = params.get("history") === "fallback";
+/** `localFallback=1`: part of a meeting was transcribed on this Mac. */
+const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The Apple silicon download, as the manifest gives it. */
 const MODEL_BYTES = 505_044_208;
+const failed = (reason: DownloadFailure): LocalModelStatus => ({
+  size_bytes: MODEL_BYTES,
+  state: { reason, state: "failed" },
+});
 const MODELS: Record<string, LocalModelStatus> = {
   downloading: {
     size_bytes: MODEL_BYTES,
@@ -70,7 +91,15 @@ const MODELS: Record<string, LocalModelStatus> = {
     },
   },
   missing: { size_bytes: MODEL_BYTES, state: { state: "missing" } },
+  preparing: { size_bytes: MODEL_BYTES, state: { state: "preparing" } },
   ready: { size_bytes: MODEL_BYTES, state: { state: "ready" } },
+  failed: failed({ kind: "no_internet" }),
+  damaged: failed({ kind: "damaged" }),
+  noSpace: failed({
+    free_bytes: 120_000_000,
+    kind: "not_enough_space",
+    needed_bytes: 555_548_628,
+  }),
 };
 const MODEL_COMMANDS: Record<string, LocalModelStatus> = {
   download_local_model: MODELS.downloading,
@@ -153,7 +182,7 @@ const SETTINGS: AppSettings = {
   history_limit: 50,
   learned_words: [{ heard_as: "play right", word: "Playwright" }],
   local_model_download_wanted: false,
-  local_stt_card_dismissed: false,
+  local_stt_card_dismissed: !cardShown,
   log_level: "info",
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
@@ -175,7 +204,8 @@ const SETTINGS: AppSettings = {
   sound_theme: "marimba",
   start_hidden: false,
   theme,
-  transcription_engine: "cloud",
+  switch_to_local_when_ready: false,
+  transcription_engine: engine,
   update_checks_enabled: true,
   whats_new_last_seen_version: "1.3.7",
   whisper_mode: false,
@@ -223,6 +253,25 @@ const HISTORY: HistoryEntry[] = [
     transcription_text: "remember to water the plants",
   },
 ];
+
+/** One entry per fallback reason, then one transcribed by the chosen engine. */
+const FALLBACK_HISTORY: HistoryEntry[] = (
+  [
+    ["cloud", "model_not_ready"],
+    ["cloud", "local_failed"],
+    ["cloud", "language_not_supported"],
+    ["local", "cloud_limit_reached"],
+    ["local", "cloud_failed"],
+    ["local", null],
+  ] as const
+).map(([used, fallback_reason], index) => ({
+  ...HISTORY[1],
+  engine: used,
+  fallback_reason,
+  file_name: `murmur-fallback-${index}.wav`,
+  id: 10 + index,
+  timestamp: NOW - index * HOUR,
+}));
 
 const INSIGHTS: InsightsSummary = {
   apps_used: 9,
@@ -354,7 +403,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   error: item.status === "failed" ? "parts_failed" : null,
   held_until_ms:
     item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
-  local_fallback_ms: 0,
+  local_fallback_ms: item.id === 3 ? localFallbackMs : 0,
   speakers:
     item.id === 3
       ? [
@@ -467,6 +516,60 @@ const handleMeetingCommand = (
   }
 };
 
+let modelNow = modelsStatus;
+const setModel = (status: LocalModelStatus) => {
+  modelNow = status;
+  void events.localModelStatus.emit(status);
+};
+
+/** The backend's switch to this Mac once the model is ready. */
+const switchIfAsked = () => {
+  if (!SETTINGS.switch_to_local_when_ready || modelNow.state.state !== "ready")
+    return;
+  SETTINGS.switch_to_local_when_ready = false;
+  SETTINGS.transcription_engine = "local";
+  void emit("settings-changed", { setting: "transcription_engine" });
+  void events.switchedToLocal.emit({});
+};
+
+const dropSwitch = () => {
+  if (!SETTINGS.switch_to_local_when_ready) return;
+  SETTINGS.switch_to_local_when_ready = false;
+  void emit("settings-changed", { setting: "switch_to_local_when_ready" });
+};
+
+/** Engine and card commands, which change the stored settings. */
+const handleEngineCommand = (
+  command: string,
+  args: Record<string, unknown>,
+): { handled: boolean; value?: unknown } => {
+  switch (command) {
+    case "get_app_settings":
+      return { handled: true, value: structuredClone(SETTINGS) };
+    case "get_local_model_status":
+      return { handled: true, value: modelNow };
+    case "change_transcription_engine_setting":
+      // The backend refuses an engine this Mac cannot run.
+      if (engineRefused) throw "This Mac cannot run the local model";
+      SETTINGS.transcription_engine = args.engine as Engine;
+      dropSwitch();
+      if (args.engine === "local" && modelNow.state.state !== "ready") {
+        setModel(MODELS.downloading);
+      }
+      return { handled: true, value: null };
+    case "switch_to_local_when_ready":
+      SETTINGS.switch_to_local_when_ready = true;
+      if (modelNow.state.state === "ready") switchIfAsked();
+      else setModel(MODELS.downloading);
+      return { handled: true, value: null };
+    case "change_local_stt_card_dismissed_setting":
+      SETTINGS.local_stt_card_dismissed = args.dismissed as boolean;
+      return { handled: true, value: null };
+    default:
+      return { handled: false };
+  }
+};
+
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   change_meetings_enabled_setting: null,
@@ -476,7 +579,6 @@ const RESPONSES: Record<string, unknown> = {
   retry_meeting: null,
   retranscribe_meeting: null,
   reanalyze_meeting: null,
-  get_local_model_status: modelsStatus,
   download_local_model: null,
   cancel_local_model_download: null,
   delete_local_model: null,
@@ -488,13 +590,15 @@ const RESPONSES: Record<string, unknown> = {
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },
   get_app_dir_path: APP_DATA_DIR,
-  get_app_settings: SETTINGS,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
   get_available_output_devices: OUTPUTS,
-  get_codex_auth_status: { expired: false, signed_in: true },
+  get_codex_auth_status: { expired: false, signed_in: signedIn },
   get_default_settings: SETTINGS,
-  get_history_entries: { entries: HISTORY, has_more: false },
+  get_history_entries: {
+    entries: historyFallback ? FALLBACK_HISTORY : HISTORY,
+    has_more: false,
+  },
   get_insights: INSIGHTS,
   get_log_dir_path: LOG_DIR,
   get_microphone_authorization_status: 3,
@@ -526,6 +630,10 @@ window.settingsPages = {
     });
   },
   releaseMeetingLoads: () => releaseMeetingLoads(),
+  finishModelDownload: () => {
+    setModel(MODELS.ready);
+    switchIfAsked();
+  },
 };
 
 mockIPC(
@@ -536,9 +644,16 @@ mockIPC(
       (args ?? {}) as Record<string, unknown>,
     );
     if (meeting.handled) return meeting.value;
+    const engineCommand = handleEngineCommand(
+      command,
+      (args ?? {}) as Record<string, unknown>,
+    );
+    if (engineCommand.handled) return engineCommand.value;
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
-    if (models) void events.localModelStatus.emit(models);
+    if (models) setModel(models);
+    // Stopping or deleting the model drops a pending switch to it.
+    if (command !== "download_local_model" && models) dropSwitch();
     // So does the meeting's.
     if (command === "start_meeting") {
       void events.meetingStateChanged.emit({
