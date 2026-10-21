@@ -32,6 +32,7 @@ declare global {
     overlayHarness: {
       dispatch(event: string, payload?: unknown): number;
       releaseSettings(): void;
+      copyCalls(): number;
     };
   }
 }
