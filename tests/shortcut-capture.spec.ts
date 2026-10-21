@@ -38,8 +38,10 @@ test("opening a second shortcut field moves the capture to it", async ({
     ]);
 });
 
-const leaveWindow = {
-  "switching to another app": () => window.dispatchEvent(new Event("blur")),
+const leaveWindow: Record<string, () => void> = {
+  "switching to another app": () => {
+    window.dispatchEvent(new Event("blur"));
+  },
   "hiding the Settings window": () => {
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -47,7 +49,9 @@ const leaveWindow = {
     });
     document.dispatchEvent(new Event("visibilitychange"));
   },
-  "leaving the settings page": () => window.shortcutCapture.unmount(),
+  "leaving the settings page": () => {
+    window.shortcutCapture.unmount();
+  },
 };
 
 for (const [action, leave] of Object.entries(leaveWindow)) {

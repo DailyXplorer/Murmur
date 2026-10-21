@@ -92,6 +92,8 @@ let databaseEntries: HistoryEntry[] = [
     timestamp: 1_700_000_404,
     title: "History 404",
     transcription_text: "Stale listener snapshot",
+    raw_text: null,
+    cleanup: null,
   },
 ];
 let deleteShouldFail = false;

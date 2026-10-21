@@ -162,10 +162,7 @@ for (const dependency of [
     failures.push(`unused frontend dependency remains: ${dependency}`);
   }
 }
-for (const dependency of [
-  "@types/react-select",
-  "@typescript-eslint/eslint-plugin",
-]) {
+for (const dependency of ["@types/react-select"]) {
   if (dependency in packageJson.devDependencies) {
     failures.push(`unused frontend dependency remains: ${dependency}`);
   }

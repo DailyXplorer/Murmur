@@ -406,10 +406,11 @@ test("the system audio row's title fits at the minimum window size in every lang
     // Room left beside the title and its info button. macOS draws text a
     // little wider than this browser, so a bare fit is not enough.
     const room = await heading.evaluate((element) => {
-      const line = element.parentElement as HTMLElement;
+      const title = element as HTMLElement;
+      const line = title.parentElement as HTMLElement;
       const used = Array.from(line.children).reduce(
         (sum, child) => sum + (child as HTMLElement).offsetWidth,
-        element.scrollWidth - element.offsetWidth,
+        title.scrollWidth - title.offsetWidth,
       );
       return line.clientWidth - used;
     });
