@@ -86,7 +86,7 @@ const StatTile: React.FC<{
         word, leaving a long single word the full width. */}
     <div className="flex min-h-8 items-center gap-1.5 text-mid-gray">
       <TileIcon size={16} aria-hidden="true" className="shrink-0" />
-      <div className="min-w-0 text-balance text-xs leading-4 font-medium uppercase tracking-wide">
+      <div className="min-w-0 text-balance text-xs leading-4 font-medium">
         <h2 className="inline">{label}</h2>
         {tooltip && (
           <span className="ms-1 inline-flex h-4 items-center align-top">

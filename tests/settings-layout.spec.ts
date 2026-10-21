@@ -47,11 +47,11 @@ test("Codex row stacks its status under the title", async ({ page }) => {
   expect(await isTruncated(status)).toBe(false);
 });
 
-test("Custom Words puts a full-width field under its title", async ({
+test("Custom words puts a full-width field under its title", async ({
   page,
 }) => {
   await openSection(page, "Transcription");
-  const row = settingRow(page, "Custom Words");
+  const row = settingRow(page, "Custom words");
   const title = await box(row.getByRole("heading"));
   const field = await box(row.getByPlaceholder("Add a word"));
   const add = row.getByRole("button", { name: "Add", exact: true });
@@ -139,7 +139,7 @@ test("History entry actions match the meeting header toolbar", async ({
   await openSection(page, "Meetings", "?meetings=1");
   await page.getByRole("button", { name: /Point hebdo produit/ }).click();
   const meetingActions = page
-    .getByRole("button", { name: "Search Summary" })
+    .getByRole("button", { name: "Search summary" })
     .locator("xpath=..")
     .getByRole("button");
   const meeting = await toolbarSpacing(meetingActions);
@@ -155,7 +155,7 @@ for (const theme of ["light", "dark"] as const) {
   }) => {
     await page.emulateMedia({ colorScheme: theme });
     await openSection(page, "General", `?theme=${theme}`);
-    const row = settingRow(page, "Accent Color");
+    const row = settingRow(page, "Accent color");
     const selected = row.getByRole("radio", { checked: true });
     const indicator = await selected.evaluate((input) => {
       const control = input.parentElement!;

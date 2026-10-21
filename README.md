@@ -149,7 +149,7 @@ length.
 ### Meetings
 
 Meetings are on by default and can be turned off in Settings → Advanced.
-Press Control+Option+Command+M, or choose Start Meeting in the menu bar, to
+Press Control+Option+Command+M, or choose Start meeting in the menu bar, to
 start recording; press it again to stop. You can pick other keys in Settings;
 if another app already holds them, the shortcut field says so. A red pill
 shows the elapsed time. A meeting stops by itself after 3 hours, with a
