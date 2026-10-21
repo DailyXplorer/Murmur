@@ -139,7 +139,7 @@ const SETTINGS: AppSettings = {
   clamshell_microphone: null,
   clipboard_handling: "dont_modify",
   custom_words: ["Murmur", "Tauri", "Playwright"],
-  debug_mode: true,
+  debug_mode: params.get("debug") !== "0",
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,
@@ -477,7 +477,15 @@ const RESPONSES: Record<string, unknown> = {
   get_codex_auth_status: { expired: false, signed_in: true },
   get_default_settings: SETTINGS,
   get_history_entries: { entries: HISTORY, has_more: false },
-  get_insights: INSIGHTS,
+  get_insights:
+    params.get("insights") === "huge"
+      ? {
+          ...INSIGHTS,
+          minutes_saved: 999 * 60 + 59,
+          total_words: 9_999_999,
+          words_per_minute: 999,
+        }
+      : INSIGHTS,
   get_log_dir_path: LOG_DIR,
   get_microphone_authorization_status: 3,
   get_microphone_channels: 1,

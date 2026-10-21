@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -74,12 +75,19 @@ const useFormatters = () => {
   }, [i18n.language]);
 };
 
-const StatTile: React.FC<{
+type Stat = {
   icon: Icon;
   label: string;
   value: string;
   tooltip?: string;
-}> = ({ icon: TileIcon, label, value, tooltip }) => (
+};
+
+const StatTile: React.FC<Stat> = ({
+  icon: TileIcon,
+  label,
+  value,
+  tooltip,
+}) => (
   <section className="flex min-w-0 flex-col gap-1 rounded-lg border border-mid-gray/20 bg-background p-4">
     {/* Two lines high in every tile, so a label that wraps keeps the values
         level. The info icon flows with the label and wraps with its last
@@ -95,9 +103,56 @@ const StatTile: React.FC<{
         )}
       </div>
     </div>
-    <p className="text-3xl font-semibold tabular-nums">{value}</p>
+    <p
+      className="mt-auto whitespace-nowrap leading-9 font-semibold tabular-nums"
+      style={{ fontSize: "calc(1.875rem * var(--stat-fit, 1))" }}
+    >
+      <span>{value}</span>
+    </p>
   </section>
 );
+
+const StatRow: React.FC<{ stats: Stat[] }> = ({ stats }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const values = stats.map((stat) => stat.value).join("\n");
+
+  // One scale for every value, so the row stays uniform: the largest that
+  // fits the widest value on one line in its tile.
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    let active = true;
+    const fit = () => {
+      if (!active) return;
+      row.style.setProperty("--stat-fit", "1");
+      let scale = 1;
+      for (const value of row.querySelectorAll("section > p")) {
+        const natural = value.firstElementChild?.getBoundingClientRect().width;
+        if (natural) scale = Math.min(scale, value.clientWidth / natural);
+      }
+      row.style.setProperty(
+        "--stat-fit",
+        String(Math.floor(scale * 100) / 100),
+      );
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(row);
+    void document.fonts.ready.then(fit);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [values]);
+
+  return (
+    <div ref={rowRef} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {stats.map((stat) => (
+        <StatTile key={stat.label} {...stat} />
+      ))}
+    </div>
+  );
+};
 
 const AppUsage: React.FC<{ summary: InsightsSummary }> = ({ summary }) => {
   const { t } = useTranslation();
@@ -273,34 +328,35 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatTile
-          icon={GaugeIcon}
-          label={t("insights.wpm.title")}
-          value={
-            summary.words_per_minute === null
-              ? "–"
-              : format.number.format(summary.words_per_minute)
-          }
-          tooltip={t("insights.wpm.formula")}
-        />
-        <StatTile
-          icon={TextAaIcon}
-          label={t("insights.words.title")}
-          value={format.number.format(summary.total_words)}
-        />
-        <StatTile
-          icon={TimerIcon}
-          label={t("insights.timeSaved.title")}
-          value={t(`insights.timeSaved.value.${saved.unit}`, {
-            hours: format.number.format(saved.hours),
-            minutes: format.number.format(saved.minutes),
-          })}
-          tooltip={t("insights.timeSaved.formula", {
-            wpm: format.number.format(TYPING_WPM),
-          })}
-        />
-      </div>
+      <StatRow
+        stats={[
+          {
+            icon: GaugeIcon,
+            label: t("insights.wpm.title"),
+            value:
+              summary.words_per_minute === null
+                ? "–"
+                : format.number.format(summary.words_per_minute),
+            tooltip: t("insights.wpm.formula"),
+          },
+          {
+            icon: TextAaIcon,
+            label: t("insights.words.title"),
+            value: format.number.format(summary.total_words),
+          },
+          {
+            icon: TimerIcon,
+            label: t("insights.timeSaved.title"),
+            value: t(`insights.timeSaved.value.${saved.unit}`, {
+              hours: format.number.format(saved.hours),
+              minutes: format.number.format(saved.minutes),
+            }),
+            tooltip: t("insights.timeSaved.formula", {
+              wpm: format.number.format(TYPING_WPM),
+            }),
+          },
+        ]}
+      />
 
       <SettingsGroup title={t("insights.apps.title")}>
         <AppUsage summary={summary} />
