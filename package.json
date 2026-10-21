@@ -17,6 +17,7 @@
     "icons:generate": "cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons",
     "icons:check": "cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check",
     "test:updater-manifest": "node .github/scripts/publish-updater-manifest.test.mjs",
+    "test:windows-download": "node .github/scripts/windows-download.test.mjs",
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
     "check:translations": "bun scripts/check-translations.ts",

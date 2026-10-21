@@ -67,6 +67,9 @@ jobs:
       - name: Test updater manifest
         run: bun run test:updater-manifest
 
+      - name: Test Windows download selection
+        run: bun run test:windows-download
+
       - name: Run ESLint
         run: bun run lint
 
