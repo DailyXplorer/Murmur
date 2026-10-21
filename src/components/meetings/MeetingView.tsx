@@ -63,7 +63,7 @@ const TitleField: React.FC<{
 
   return (
     <input
-      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[28px] font-semibold leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-logo-primary focus:outline-none"
+      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 font-title text-[28px] font-normal leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-logo-primary focus:outline-none"
       value={draft}
       placeholder={placeholder}
       maxLength={120}

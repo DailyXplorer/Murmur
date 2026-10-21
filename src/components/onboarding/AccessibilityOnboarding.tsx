@@ -286,7 +286,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
 
       <div className="max-w-md w-full flex flex-col items-center gap-4">
         <div className="text-center mb-2">
-          <h2 className="text-xl font-semibold text-text mb-2 text-balance">
+          <h2 className="mb-2 text-balance font-title text-2xl font-normal text-text">
             {t("onboarding.permissions.title")}
           </h2>
           <p className="text-text/70 text-pretty">

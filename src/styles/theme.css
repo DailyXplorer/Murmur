@@ -96,17 +96,20 @@
     contrast(102.4%);
 }
 
+/* The Murmur website palette: neon #6bff86 on deep green #03201d. The neon is
+   bright enough for both themes, and the deep green replaces the neutral
+   on-accent text, as on the site's buttons. */
 :root[data-accent-color="green"] {
-  --light-color-logo-primary: #99e8b7;
-  --light-color-logo-stroke: #27382e;
-  --dark-color-logo-primary: #78d99c;
-  --dark-color-logo-stroke: #d1fae2;
-  --light-color-background-ui-hover-fallback: #8ed7aa;
-  --light-color-background-ui-active-fallback: #88cea3;
-  --dark-color-background-ui-hover-fallback: #70c991;
-  --dark-color-background-ui-active-fallback: #6bc18b;
-  --accent-image-filter: hue-rotate(172deg) saturate(93%) brightness(111.3%)
-    contrast(95.3%);
+  --light-color-logo-primary: #6bff86;
+  --light-color-logo-stroke: #03201d;
+  --dark-color-logo-primary: #6bff86;
+  --dark-color-logo-stroke: #d9ffe1;
+  --light-color-background-ui-hover-fallback: #63ed7e;
+  --light-color-background-ui-active-fallback: #5fe479;
+  --dark-color-background-ui-hover-fallback: #63ed7e;
+  --dark-color-background-ui-active-fallback: #5fe479;
+  --color-on-accent: #03201d;
+  --accent-image-filter: hue-rotate(159deg) saturate(200%) brightness(120%);
 }
 
 :root[data-accent-color="yellow"] {

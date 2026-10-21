@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/instrument-sans/wght-italic.css";
+@import "./assets/fonts/faculty-glyphic/faculty-glyphic.css";
 @import "./styles/theme.css";
 
 /* `dark:` follows the theme chosen in Murmur (`data-theme`, see
@@ -22,6 +23,9 @@
   --font-sans:
     "Instrument Sans Variable", "Instrument Sans", ui-sans-serif, system-ui,
     sans-serif;
+  /* Page and section titles only; body text and controls stay sans. Faculty
+     Glyphic has one weight, so titles set in it use font-normal. */
+  --font-title: "Faculty Glyphic", ui-serif, Georgia, serif;
   --color-text: var(--color-text);
   --color-background: var(--color-background);
   --color-background-ui: var(--color-background-ui);
