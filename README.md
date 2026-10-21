@@ -279,6 +279,11 @@ Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur now
 transcribes through Codex using the session already present on the computer.
 
+## Support
+
+Murmur is free. To support development,
+[buy a coffee](https://buymeacoffee.com/dailyxplorer).
+
 ## License
 
 MIT. See [LICENSE](LICENSE). The original copyright notice is preserved as
