@@ -1,6 +1,9 @@
 pub mod audio;
 pub mod constants;
 pub mod gain;
+// The local engine cuts long dictations with it; it runs nothing yet.
+#[cfg_attr(not(test), allow(dead_code))]
+pub mod pauses;
 pub mod text;
 
 pub use audio::{
