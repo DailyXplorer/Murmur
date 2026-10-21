@@ -7,7 +7,7 @@
     "cancel": "Cancel",
     "errorNetwork": "Can't reach the transcription service. Check your connection.",
     "errorTimeout": "The transcription service took too long. Retry from History.",
-    "errorRateLimited": "Too many requests. Wait a moment, then retry from History.",
+    "errorRateLimited": "Too many requests, or the dictation usage limit is reached. Retry later from History.",
     "errorServer": "The transcription service is having problems. Retry from History.",
     "errorSessionExpired": "Your Codex session expired. Open Codex and sign in again.",
     "errorSignedOut": "Not signed in to Codex. Open Codex and sign in.",

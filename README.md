@@ -134,7 +134,10 @@ When a dictation fails, the recording overlay shows the reason for a few
 seconds. If the overlay is turned off, Murmur posts a macOS notification
 instead. Murmur retries a dictation twice after a timeout, a dropped
 connection, or a server error. It does not retry an expired session, a rate
-limit, or another rejected request. A finished transcription is always kept
+limit, or another rejected request. When Codex reports that its dictation
+usage limit is reached, Murmur resends the recording at once against
+ChatGPT's own dictation limit, and uses that limit for the next hour. A
+finished transcription is always kept
 in History, even when pasting or saving the recording fails.
 
 Recordings longer than about 13 minutes exceed 25 MB of audio. The Codex

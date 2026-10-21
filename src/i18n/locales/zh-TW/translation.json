@@ -7,7 +7,7 @@
     "cancel": "取消",
     "errorNetwork": "無法連線至轉錄服務。請檢查網路連線。",
     "errorTimeout": "轉錄服務回應時間過長。請從歷史記錄重試。",
-    "errorRateLimited": "請求過多。請稍候，再從歷史記錄重試。",
+    "errorRateLimited": "請求過多，或已達聽寫使用上限。請稍後從歷史記錄重試。",
     "errorServer": "轉錄服務發生問題。請從歷史記錄重試。",
     "errorSessionExpired": "你的 Codex 工作階段已過期。請開啟 Codex 並重新登入。",
     "errorSignedOut": "尚未登入 Codex。請開啟 Codex 並登入。",

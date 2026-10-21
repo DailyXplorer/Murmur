@@ -7,7 +7,7 @@
     "cancel": "Cancelar",
     "errorNetwork": "Não foi possível acessar o serviço de transcrição. Verifique sua conexão.",
     "errorTimeout": "O serviço de transcrição demorou demais. Tente novamente pelo histórico.",
-    "errorRateLimited": "Solicitações demais. Aguarde um momento e tente novamente pelo histórico.",
+    "errorRateLimited": "Solicitações demais ou o limite de ditado foi atingido. Tente novamente mais tarde pelo histórico.",
     "errorServer": "O serviço de transcrição está com problemas. Tente novamente pelo histórico.",
     "errorSessionExpired": "Sua sessão do Codex expirou. Abra o Codex e entre novamente.",
     "errorSignedOut": "Sem sessão no Codex. Abra o Codex e entre.",

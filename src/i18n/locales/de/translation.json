@@ -7,7 +7,7 @@
     "cancel": "Abbrechen",
     "errorNetwork": "Der Transkriptionsdienst ist nicht erreichbar. Prüfe deine Verbindung.",
     "errorTimeout": "Der Transkriptionsdienst hat zu lange gebraucht. Versuche es im Verlauf erneut.",
-    "errorRateLimited": "Zu viele Anfragen. Warte kurz und versuche es dann im Verlauf erneut.",
+    "errorRateLimited": "Zu viele Anfragen oder das Diktierlimit ist erreicht. Versuche es später im Verlauf erneut.",
     "errorServer": "Der Transkriptionsdienst hat Probleme. Versuche es im Verlauf erneut.",
     "errorSessionExpired": "Deine Codex-Sitzung ist abgelaufen. Öffne Codex und melde dich erneut an.",
     "errorSignedOut": "Nicht bei Codex angemeldet. Öffne Codex und melde dich an.",
