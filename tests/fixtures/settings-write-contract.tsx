@@ -164,7 +164,7 @@ declare global {
       }>;
       runMicrophoneRollbackProbe: () => Promise<{
         historyLimit: number | undefined;
-        microphone: string | undefined;
+        microphone: string | null | undefined;
         result: boolean;
       }>;
       runRefreshRaceProbe: () => Promise<{

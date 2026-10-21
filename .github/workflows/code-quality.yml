@@ -98,3 +98,6 @@ jobs:
 
       - name: Build frontend
         run: bun run build
+
+      - name: Typecheck tests
+        run: bun run check:types

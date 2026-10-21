@@ -331,10 +331,9 @@ for (const theme of ["light", "dark"] as const) {
             knob.borderLeftColor,
           ],
           // Tailwind puts empty ring layers in front of every shadow.
-          shadow: knob.boxShadow.replaceAll(
-            "rgba(0, 0, 0, 0) 0px 0px 0px 0px, ",
-            "",
-          ),
+          shadow: knob.boxShadow
+            .split("rgba(0, 0, 0, 0) 0px 0px 0px 0px, ")
+            .join(""),
           transition: [knob.transitionProperty, knob.transitionDuration],
         };
       }),
