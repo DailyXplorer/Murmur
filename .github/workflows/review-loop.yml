@@ -1,0 +1,41 @@
+name: review loop
+
+# Comments and labels a pull request when a bot review and the follow-up
+# fixes stop converging. The job stays green on purpose: this is a signal
+# for a maintainer, and it must not be a required check.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: review-loop-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review-loop:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Test the detector
+        run: node --test .github/scripts/review-loop.test.mjs
+
+      - name: Flag a stalled review
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { flagReviewLoop } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/review-loop.mjs`);
+            await flagReviewLoop({ github, context, core });

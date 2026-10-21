@@ -200,3 +200,47 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 - Use [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) for bug reports.
 - Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) for translation changes and [CONTRIBUTING.md](CONTRIBUTING.md) for the general workflow.
 - Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). Focus the message on why the change is needed.
+
+## Checks before pushing
+
+Run the checks that match the files you changed before pushing. CI runs the same checks, including the macOS Rust job.
+
+```bash
+bun run lint
+bun run format:check
+bun run check:translations
+bun run check:macos-only
+bun run build
+```
+
+`bun install` sets `core.hooksPath` to `.githooks` when that hook is in the tree. Let the hook run. If you skip it, say why in the pull request.
+
+For Rust changes, from `src-tauri`:
+
+```bash
+cargo fmt -- --check
+cargo test --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+```
+
+For UI changes, run `bun run test:playwright`.
+
+## Pull requests
+
+- Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why.
+- Body sections: `## Summary`, `## Changes`, `## Testing`. Visible UI changes include screenshots or recordings.
+- Keep the change focused. Leave lockfiles, generated `src/bindings.ts`, and unrelated refactors alone.
+- `main` is macOS-only. Windows work stays on the `beta` branch. Keep the `compile_error!` guard in `lib.rs`.
+- User-facing JSX text goes through i18next. Add the English key and keep the other locales in sync.
+- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together.
+- Fix a failing check. A `#[allow]`, `eslint-disable`, skipped test, or `--no-verify` needs an explanation in the pull request.
+
+## Review rounds
+
+Address review comments in one pass, then push once.
+
+CodeRabbit is configured to report correctness, security, and behavior bugs. rustfmt, Clippy, Prettier, and ESLint already cover formatting, so a style nit does not need a follow-up commit.
+
+After two completed rounds (bot review, your fix, bot review, your fix, and another bot review) stop. The `review loop` workflow comments and applies the `review-loop` label when that happens, or when the same inline comment comes back after a fix commit. That label is created the first time it is needed. Summarize the remaining disagreements and wait for a maintainer.
+
+Do not ask CodeRabbit to push the fixes. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled so a review cannot commit onto the branch and start another round.

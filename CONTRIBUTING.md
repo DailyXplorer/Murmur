@@ -67,13 +67,22 @@ Use `bun run tauri build` when a production build or native packaging behavior i
 
 ## Open a pull request
 
-The pull request template asks for three things:
+The pull request template asks for:
 
-- A summary of what changed and why.
+- A summary of what changed, why, and the boundaries.
+- The behavior and the files that matter (`## Changes`).
 - The exact checks run and their results.
-- Screenshots or recordings for visible changes.
+- Screenshots or recordings for visible changes, or "Not applicable".
 
-Keep the description specific enough for a reviewer to understand both the implementation and its limits.
+Use a Conventional Commits title. Keep the description specific enough for a reviewer to understand both the implementation and its limits.
+
+## Review rounds
+
+Handle review comments in one pass, then push once.
+
+After two completed rounds with a bot (a review, your fix, another review, your fix, and a third review), stop and ask a maintainer to decide what is left. The `review loop` workflow comments on the pull request and applies the `review-loop` label when that happens, and also when the same inline comment comes back after a fix. The label is created the first time a pull request needs it.
+
+CodeRabbit comments on correctness bugs. Formatting is enforced by rustfmt, Clippy, Prettier, and ESLint. A style-only suggestion can stay unresolved. Do not ask CodeRabbit to push commits onto the branch.
 
 ## Translations
 
