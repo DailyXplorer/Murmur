@@ -70,3 +70,26 @@ jobs:
               --system "$RUNNER_TEMP/dialogue.wav" < <(sleep 7200)
           done | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
           python3 check_analysis.py "$RUNNER_TEMP/analysis.jsonl"
+
+      # Dictation keeps the helper running and sends it one WAV per line.
+      - name: Transcribe dictations with serve
+        shell: bash
+        run: |
+          # `head` ends the pipeline before the helper does.
+          set -eu +o pipefail
+          french=$(say -v '?' | awk '/fr_FR/ {print $1}' | grep -xE 'Thomas|Amelie|Audrey|Aurelie' | head -n 1)
+          english=$(say -v '?' | awk '/en_US/ {print $1}' | grep -xE 'Samantha|Alex|Fred|Ralph' | head -n 1)
+          say -v "$french" -o "$RUNNER_TEMP/fr.aiff" "Bonjour, je voudrais réserver une table pour quatre personnes jeudi soir."
+          say -v "$english" -o "$RUNNER_TEMP/en.aiff" "The quick brown fox jumps over the lazy dog near the river bank."
+          for clip in fr en; do
+            afconvert -f WAVE -d LEI16@16000 -c 1 "$RUNNER_TEMP/$clip.aiff" "$RUNNER_TEMP/$clip.wav"
+          done
+          out=$({
+            printf '{"type":"transcribe","id":1,"wav":"%s"}\n' "$RUNNER_TEMP/fr.wav"
+            printf '{"type":"transcribe","id":2,"wav":"%s"}\n' "$RUNNER_TEMP/en.wav"
+            sleep 60
+          } | "$HELPER" serve --models-dir "$RUNNER_TEMP/models" | head -n 3)
+          echo "$out"
+          grep -q '"type":"ready"' <<<"$out"
+          grep '"id":1' <<<"$out" | grep -q 'jeudi'
+          grep '"id":2' <<<"$out" | grep -q 'quick brown fox'

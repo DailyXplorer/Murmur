@@ -76,6 +76,12 @@ jobs:
           fi
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
+          if out=$("$helper" serve --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+            echo "serve started without models" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
           test ! -e "$RUNNER_TEMP/no-models/parakeet-tdt-0.6b-v3"
           test ! -e "$RUNNER_TEMP/no-models/speaker-diarization"
 
