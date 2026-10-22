@@ -49,12 +49,73 @@ async fn run(
     }
 }
 
-/// Sends audio to the local engine or Codex.
-pub struct TranscriptionManager {
-    app_handle: AppHandle,
+/// Settles a request that needs no engine: empty audio gives an empty
+/// transcript, a cancelled operation an error. `None` sends it on.
+fn settle_without_engine(
+    audio: &[f32],
+    operation: &ProcessingOperation,
+) -> Option<Result<Transcript>> {
+    if audio.is_empty() {
+        return Some(Ok(Transcript::default()));
+    }
+    if operation.is_cancelled() {
+        return Some(Err(anyhow::anyhow!("Transcription cancelled")));
+    }
+    None
+}
+
+/// The requests in flight, so that shutdown can cancel them.
+struct ActiveRequests {
     active_operations: Arc<Mutex<HashMap<u64, ProcessingOperation>>>,
     next_active_operation: AtomicU64,
     shutdown_requested: AtomicBool,
+}
+
+impl ActiveRequests {
+    fn new() -> Self {
+        Self {
+            active_operations: Arc::new(Mutex::new(HashMap::new())),
+            next_active_operation: AtomicU64::new(1),
+            shutdown_requested: AtomicBool::new(false),
+        }
+    }
+
+    /// Tracks `operation` until the guard drops. After shutdown the
+    /// operation is cancelled and refused.
+    fn register(&self, operation: &ProcessingOperation) -> Result<ActiveOperationGuard> {
+        let id = self.next_active_operation.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut operations) = self.active_operations.lock() {
+            operations.insert(id, operation.clone());
+        }
+        let guard = ActiveOperationGuard {
+            id,
+            active_operations: Arc::clone(&self.active_operations),
+        };
+        if self.shutdown_requested.load(Ordering::Acquire) {
+            operation.cancel();
+            return Err(anyhow::anyhow!("Transcription manager is shutting down"));
+        }
+        Ok(guard)
+    }
+
+    /// Cancels every active request and refuses new ones, without waiting.
+    fn shutdown(&self) {
+        self.shutdown_requested.store(true, Ordering::Release);
+        let active_operations = self
+            .active_operations
+            .lock()
+            .map(|operations| operations.values().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for operation in active_operations {
+            operation.cancel();
+        }
+    }
+}
+
+/// Sends audio to the local engine or Codex.
+pub struct TranscriptionManager {
+    app_handle: AppHandle,
+    requests: ActiveRequests,
 }
 
 struct ActiveOperationGuard {
@@ -75,9 +136,7 @@ impl TranscriptionManager {
     pub fn new(app_handle: &AppHandle) -> Self {
         Self {
             app_handle: app_handle.clone(),
-            active_operations: Arc::new(Mutex::new(HashMap::new())),
-            next_active_operation: AtomicU64::new(1),
-            shutdown_requested: AtomicBool::new(false),
+            requests: ActiveRequests::new(),
         }
     }
 
@@ -99,11 +158,7 @@ impl TranscriptionManager {
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
     ) -> Result<Transcript> {
-        let _active_operation = self.register_active_operation(operation.clone());
-        if self.shutdown_requested.load(Ordering::Acquire) {
-            operation.cancel();
-            return Err(anyhow::anyhow!("Transcription manager is shutting down"));
-        }
+        let _active_operation = self.requests.register(&operation)?;
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
             return Err(anyhow::anyhow!(
@@ -111,11 +166,8 @@ impl TranscriptionManager {
             ));
         }
 
-        if audio.is_empty() {
-            return Ok(Transcript::default());
-        }
-        if operation.is_cancelled() {
-            return Err(anyhow::anyhow!("Transcription cancelled"));
+        if let Some(settled) = settle_without_engine(&audio, &operation) {
+            return settled;
         }
 
         let settings = get_settings(&self.app_handle);
@@ -202,25 +254,70 @@ impl TranscriptionManager {
 
     /// Cancels every active request and refuses new ones, without waiting.
     pub fn shutdown(&self) {
-        self.shutdown_requested.store(true, Ordering::Release);
-        let active_operations = self
-            .active_operations
-            .lock()
-            .map(|operations| operations.values().cloned().collect::<Vec<_>>())
-            .unwrap_or_default();
-        for operation in active_operations {
-            operation.cancel();
-        }
+        self.requests.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{settle_without_engine, ActiveRequests};
+    use crate::{OperationId, ProcessingOperation};
+
+    fn operation() -> ProcessingOperation {
+        ProcessingOperation::new(OperationId(1))
     }
 
-    fn register_active_operation(&self, operation: ProcessingOperation) -> ActiveOperationGuard {
-        let id = self.next_active_operation.fetch_add(1, Ordering::Relaxed);
-        if let Ok(mut operations) = self.active_operations.lock() {
-            operations.insert(id, operation);
-        }
-        ActiveOperationGuard {
-            id,
-            active_operations: Arc::clone(&self.active_operations),
-        }
+    #[test]
+    fn empty_audio_gives_an_empty_transcript_before_any_engine() {
+        let settled = settle_without_engine(&[], &operation());
+        let transcript = settled.expect("settled").expect("empty transcript");
+        assert_eq!(transcript.text, "");
+        assert_eq!(transcript.dictionary_fixes, 0);
+    }
+
+    #[test]
+    fn cancelled_audio_fails_before_any_engine() {
+        let cancelled = operation();
+        cancelled.cancel();
+        let settled = settle_without_engine(&[0.1, 0.2], &cancelled).expect("settled");
+        assert!(settled.is_err());
+    }
+
+    #[test]
+    fn live_audio_goes_on_to_an_engine() {
+        assert!(settle_without_engine(&[0.1, 0.2], &operation()).is_none());
+    }
+
+    #[test]
+    fn shutdown_cancels_a_request_in_flight() {
+        let requests = ActiveRequests::new();
+        let in_flight = operation();
+        let _guard = requests.register(&in_flight).expect("accepted");
+        assert!(!in_flight.is_cancelled());
+
+        requests.shutdown();
+        assert!(in_flight.is_cancelled());
+    }
+
+    #[test]
+    fn after_shutdown_the_next_request_fails_and_is_cancelled() {
+        let requests = ActiveRequests::new();
+        let before = operation();
+        assert!(requests.register(&before).is_ok());
+
+        requests.shutdown();
+        let next = operation();
+        assert!(requests.register(&next).is_err());
+        assert!(next.is_cancelled());
+    }
+
+    #[test]
+    fn shutdown_leaves_a_finished_request_alone() {
+        let requests = ActiveRequests::new();
+        let finished = operation();
+        drop(requests.register(&finished).expect("accepted"));
+
+        requests.shutdown();
+        assert!(!finished.is_cancelled());
     }
 }

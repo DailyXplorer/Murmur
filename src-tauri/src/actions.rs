@@ -5,7 +5,7 @@ use crate::engine::EngineUsed;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, OverlayStyle};
+use crate::settings::{get_settings, AppSettings, OverlayStyle};
 use crate::shortcut;
 use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
@@ -200,9 +200,13 @@ pub(crate) async fn process_transcription_output(
     if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
         return ProcessedText::unprocessed(final_text);
     }
-    // The setting may have been turned off while the user was dictating.
-    let context = PromptContext {
+    crate::cleanup::clean(final_text, &cleanup_context(&settings, names), operation).await
+}
+
+fn cleanup_context(settings: &AppSettings, names: Vec<String>) -> PromptContext {
+    PromptContext {
         vocabulary: settings.custom_words.clone(),
+        // The setting may have been turned off while the user was dictating.
         names: if settings.window_names_enabled {
             names
         } else {
@@ -211,8 +215,8 @@ pub(crate) async fn process_transcription_output(
         language: (settings.selected_language != "auto")
             .then(|| settings.selected_language.clone()),
         faint_speech: settings.whisper_mode,
-    };
-    crate::cleanup::clean(final_text, &context, operation).await
+        style: settings.dictation_style,
+    }
 }
 
 impl ShortcutAction for TranscribeAction {
@@ -682,14 +686,30 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 
 #[cfg(test)]
 mod tests {
-    use super::{complete_unless_cancelled, paste_outcome_commits_history, PendingWav};
+    use super::{
+        cleanup_context, complete_unless_cancelled, paste_outcome_commits_history, PendingWav,
+    };
     use crate::clipboard::PasteOutcome;
+    use crate::settings::{get_default_settings, DictationStyle};
     use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
+
+    #[test]
+    fn cleanup_follows_the_chosen_dictation_style() {
+        for style in [
+            DictationStyle::Formal,
+            DictationStyle::Normal,
+            DictationStyle::Casual,
+        ] {
+            let mut settings = get_default_settings();
+            settings.dictation_style = style;
+            assert_eq!(cleanup_context(&settings, Vec::new()).style, style);
+        }
+    }
 
     #[test]
     fn completed_operation_returns_its_output() {

@@ -150,6 +150,10 @@
       "waitForIt": "You can dictate as soon as it's ready.",
       "stoppedTitle": "The download stopped",
       "start": "Start using Murmur"
+    },
+    "style": {
+      "title": "Choose a style",
+      "description": "Cleanup will write your dictations in this style, which you can change anytime."
     }
   },
   "settings": {
@@ -472,8 +476,19 @@
       "sessionExpired": "Session expired, sign in again",
       "aiCleanup": {
         "title": "Cleanup and formatting",
-        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted.",
+        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or changes the meaning. If it fails or takes too long, the raw transcript is pasted.",
         "needsAccount": "Connect ChatGPT to use AI cleanup."
+      },
+      "style": {
+        "title": "Dictation style",
+        "description": "Formal: full punctuation and written wording. Normal: lighter punctuation, keeps your words. Casual: relaxed, like a chat message.",
+        "cleanupOff": "Styles apply only when cleanup is on.",
+        "error": "Couldn't change the dictation style.",
+        "options": {
+          "formal": "Formal",
+          "normal": "Normal",
+          "casual": "Casual"
+        }
       },
       "windowNames": {
         "title": "Names from the active window",

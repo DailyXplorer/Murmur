@@ -4,6 +4,7 @@ import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
   AppSettings,
+  DictationStyle,
   Engine,
   LocalModelStatus,
   SignInError,
@@ -120,7 +121,10 @@ const rejectStatusRefresh = (index: number) => {
 };
 
 let backendSettings: AppSettings = {
+  // `cleanup=on`: a connected account leads to the style step.
+  ai_cleanup_enabled: query.get("cleanup") === "on",
   app_language: appLanguage,
+  dictation_style: (query.get("style") ?? "normal") as DictationStyle,
   onboarding_completed: returning,
   selected_language: "fr",
   theme: (query.get("theme") ?? "light") as AppSettings["theme"],
@@ -195,6 +199,12 @@ mockIPC(
       case "download_local_model":
         void setModel("downloading");
         return null;
+      case "change_dictation_style_setting":
+        backendSettings = {
+          ...backendSettings,
+          dictation_style: (args as { style: DictationStyle }).style,
+        };
+        return null;
       case "get_available_microphones":
       case "get_available_output_devices":
         return [];
@@ -246,6 +256,7 @@ declare global {
       resolveStatusRefresh: (index: number) => void;
       selectedLanguage: () => string | undefined;
       setCodexConfigured: (configured: boolean) => void;
+      style: () => DictationStyle | undefined;
       writes: () => string[];
     };
   }
@@ -288,6 +299,7 @@ window.providerOnboardingFixture = {
   setCodexConfigured: (configured) => {
     codexConfigured = configured;
   },
+  style: () => backendSettings.dictation_style,
   writes: () => [...writes],
 };
 

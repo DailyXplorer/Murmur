@@ -7,6 +7,7 @@ import type {
   AnalysisSupport,
   AppSettings,
   AudioDevice,
+  DictationStyle,
   DownloadFailure,
   Engine,
   HistoryEntry,
@@ -80,6 +81,11 @@ let signIn: {
   resolve: (value: null) => void;
   reject: (error: string) => void;
 } | null = null;
+/** `cleanup=off` turns AI cleanup off; `style` is the stored dictation style. */
+const cleanupEnabled = params.get("cleanup") !== "off";
+const dictationStyle = (params.get("style") ?? "normal") as DictationStyle;
+/** `styleRefused=1`: the backend refuses every style change. */
+const styleRefused = params.get("styleRefused") === "1";
 /** `card=1` shows the one-time local transcription card. */
 const cardShown = params.get("card") === "1";
 /** `history=fallback`: entries transcribed by the engine not chosen. */
@@ -169,7 +175,7 @@ const OUTPUTS: AudioDevice[] = [
 
 const SETTINGS: AppSettings = {
   accent_color: (params.get("accent") ?? "pink") as AccentColor,
-  ai_cleanup_enabled: true,
+  ai_cleanup_enabled: cleanupEnabled,
   always_on_microphone: false,
   app_language: language,
   append_trailing_space: false,
@@ -212,6 +218,7 @@ const SETTINGS: AppSettings = {
   clipboard_handling: "dont_modify",
   custom_words: ["Murmur", "Tauri", "Playwright"],
   debug_mode: params.get("debug") !== "0",
+  dictation_style: dictationStyle,
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,
@@ -596,6 +603,10 @@ const handleEngineCommand = (
       SETTINGS.switch_to_local_when_ready = true;
       if (modelNow.state.state === "ready") switchIfAsked();
       else setModel(MODELS.downloading);
+      return { handled: true, value: null };
+    case "change_dictation_style_setting":
+      if (styleRefused) throw "The settings store is read-only";
+      SETTINGS.dictation_style = args.style as DictationStyle;
       return { handled: true, value: null };
     case "change_local_stt_card_dismissed_setting":
       SETTINGS.local_stt_card_dismissed = args.dismissed as boolean;

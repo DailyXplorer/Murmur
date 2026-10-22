@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  DictationStyle,
   Engine,
   MeetingCaptureMode,
   Result,
@@ -283,6 +284,8 @@ const settingUpdaters: {
   overlay_style: (value) => commands.changeOverlayStyleSetting(value as string),
   ai_cleanup_enabled: (value) =>
     commands.changeAiCleanupSetting(value as boolean),
+  dictation_style: (value) =>
+    commands.changeDictationStyleSetting(value as DictationStyle),
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),

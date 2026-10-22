@@ -11,7 +11,8 @@ import { Button } from "../ui/Button";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 
 interface ProviderOnboardingProps {
-  onComplete: () => Promise<boolean>;
+  /** `connected`: the step ends with Continue, signed in, not with Skip. */
+  onComplete: (connected: boolean) => Promise<boolean>;
   /** Dictation runs on this Mac, so the account only adds AI cleanup and
    * more languages, and the step can be skipped. */
   optional: boolean;
@@ -67,14 +68,14 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   const finish = useCallback(async () => {
     setIsCompleting(true);
     try {
-      const completed = await onComplete();
+      const completed = await onComplete(connected);
       if (!completed) {
         await refreshStatus();
       }
     } finally {
       setIsCompleting(false);
     }
-  }, [onComplete, refreshStatus]);
+  }, [connected, onComplete, refreshStatus]);
 
   const complete = useCallback(async () => {
     if (canComplete) await finish();

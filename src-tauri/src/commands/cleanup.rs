@@ -1,4 +1,4 @@
-use crate::settings::{self, AppSettings};
+use crate::settings::{self, AppSettings, DictationStyle};
 use tauri::AppHandle;
 
 fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
@@ -12,6 +12,12 @@ fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), 
 #[specta::specta]
 pub fn change_ai_cleanup_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     update(&app, |value| value.ai_cleanup_enabled = enabled)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_dictation_style_setting(app: AppHandle, style: DictationStyle) -> Result<(), String> {
+    update(&app, |value| value.dictation_style = style)
 }
 
 #[tauri::command]

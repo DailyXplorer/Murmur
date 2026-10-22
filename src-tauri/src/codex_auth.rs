@@ -369,6 +369,20 @@ async fn session_for_request_at(
     }
 }
 
+/// The session auth.json holds, read once. It never refreshes and never
+/// writes, so a live test cannot rotate the tokens every Codex client shares.
+#[cfg(test)]
+pub(crate) fn stored_session(path: &Path) -> Result<Session, TranscriptionError> {
+    let file = AuthFile::read(path)?;
+    if file.is_expired(Utc::now()) {
+        return Err(TranscriptionError::new(
+            FailureKind::SessionExpired,
+            "The stored Codex access token expired. Use Codex once to refresh it.",
+        ));
+    }
+    file.session()
+}
+
 /// Called once after the transcription endpoint answered 401 for `rejected`.
 pub async fn recover_from_unauthorized(
     path: &Path,
@@ -1084,6 +1098,25 @@ mod tests {
         assert_eq!(error.kind, FailureKind::SessionExpired);
         assert_eq!(fs::read_to_string(&path).unwrap(), original);
         assert!(was_rejected("rt-dead"));
+    }
+
+    #[test]
+    fn stored_session_never_refreshes_or_writes() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        let soon = jwt(serde_json::json!({"exp": Utc::now().timestamp() + 60}));
+        let original = auth_json(&soon, "rt");
+        fs::write(&path, &original).unwrap();
+
+        assert_eq!(stored_session(&path).unwrap().access_token, soon);
+        assert_eq!(fs::read_to_string(&path).unwrap(), original);
+
+        let expired = jwt(serde_json::json!({"exp": Utc::now().timestamp() - 1}));
+        fs::write(&path, auth_json(&expired, "rt")).unwrap();
+        assert_eq!(
+            stored_session(&path).unwrap_err().kind,
+            FailureKind::SessionExpired
+        );
     }
 
     #[test]

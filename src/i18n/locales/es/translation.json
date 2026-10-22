@@ -150,6 +150,10 @@
       "waitForIt": "Podrás dictar en cuanto esté listo.",
       "stoppedTitle": "La descarga se detuvo",
       "start": "Empezar a usar Murmur"
+    },
+    "style": {
+      "title": "Elige un estilo",
+      "description": "La limpieza escribirá tus dictados en este estilo, que puedes cambiar cuando quieras."
     }
   },
   "settings": {
@@ -472,8 +476,19 @@
       "sessionExpired": "Sesión caducada, vuelve a iniciar sesión",
       "aiCleanup": {
         "title": "Limpieza y formato",
-        "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
+        "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni cambia el significado. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
         "needsAccount": "Conecta ChatGPT para usar la limpieza con IA."
+      },
+      "style": {
+        "title": "Estilo de dictado",
+        "description": "Formal: puntuación completa y redacción escrita. Normal: puntuación más ligera, conserva tus palabras. Informal: relajado, como un mensaje de chat.",
+        "cleanupOff": "Los estilos solo se aplican con la limpieza activada.",
+        "error": "No se pudo cambiar el estilo de dictado.",
+        "options": {
+          "formal": "Formal",
+          "normal": "Normal",
+          "casual": "Informal"
+        }
       },
       "windowNames": {
         "title": "Nombres de la ventana activa",

@@ -199,6 +199,17 @@ pub enum AccentColor {
     Red,
 }
 
+/// How much AI cleanup reshapes the dictation. It applies only when cleanup
+/// runs; `Normal` is the cleanup Murmur had before styles existed.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DictationStyle {
+    Formal,
+    #[default]
+    Normal,
+    Casual,
+}
+
 /// Which sources a meeting records. Without system audio support (before
 /// macOS 14.4, or on Intel) every mode records the microphone only; the
 /// stored choice is kept for when it becomes available.
@@ -306,6 +317,8 @@ pub struct AppSettings {
     /// AI cleanup and formatting of each transcript by the Codex session.
     #[serde(default = "default_ai_cleanup_enabled")]
     pub ai_cleanup_enabled: bool,
+    #[serde(default)]
+    pub dictation_style: DictationStyle,
     /// Dictionary words learned from corrections; each is also in `custom_words`.
     #[serde(default)]
     pub learned_words: Vec<crate::dictionary::LearnedWord>,
@@ -564,6 +577,7 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: default_reliable_paste(),
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
+        dictation_style: DictationStyle::default(),
         learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
         whisper_mode: false,
@@ -1242,6 +1256,37 @@ mod tests {
 
         let salvaged = salvage_settings(&stored);
         assert_eq!(salvaged.accent_color, AccentColor::Pink);
+        assert_eq!(salvaged.selected_language, "fr");
+    }
+
+    #[test]
+    fn a_store_from_before_dictation_styles_gets_normal() {
+        let mut stored = default_settings_json();
+        stored.as_object_mut().unwrap().remove("dictation_style");
+        stored["onboarding_completed"] = serde_json::json!(true);
+        assert_eq!(
+            parse_stored_settings(&stored).0.dictation_style,
+            DictationStyle::Normal
+        );
+    }
+
+    #[test]
+    fn dictation_style_round_trips_and_an_unknown_one_falls_back_to_normal() {
+        for (style, name) in [
+            (DictationStyle::Formal, "formal"),
+            (DictationStyle::Normal, "normal"),
+            (DictationStyle::Casual, "casual"),
+        ] {
+            assert_eq!(serde_json::to_value(style).unwrap(), name);
+            let mut stored = default_settings_json();
+            stored["dictation_style"] = serde_json::json!(name);
+            assert_eq!(parse_stored_settings(&stored).0.dictation_style, style);
+        }
+        let mut stored = default_settings_json();
+        stored["dictation_style"] = serde_json::json!("shouty");
+        stored["selected_language"] = serde_json::json!("fr");
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(salvaged.dictation_style, DictationStyle::Normal);
         assert_eq!(salvaged.selected_language, "fr");
     }
 

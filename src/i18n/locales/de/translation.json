@@ -150,6 +150,10 @@
       "waitForIt": "Sie können diktieren, sobald es bereit ist.",
       "stoppedTitle": "Der Download wurde unterbrochen",
       "start": "Murmur verwenden"
+    },
+    "style": {
+      "title": "Wähle einen Stil",
+      "description": "Die Bereinigung schreibt deine Diktate in diesem Stil, den du jederzeit ändern kannst."
     }
   },
   "settings": {
@@ -472,8 +476,19 @@
       "sessionExpired": "Sitzung abgelaufen, melde dich erneut an",
       "aiCleanup": {
         "title": "Bereinigung und Formatierung",
-        "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
+        "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt nie und ändert nie die Bedeutung. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
+      },
+      "style": {
+        "title": "Diktierstil",
+        "description": "Förmlich: vollständige Zeichensetzung und schriftliche Formulierungen. Normal: etwas weniger Zeichensetzung, deine Worte bleiben. Locker: entspannt, wie eine Chatnachricht.",
+        "cleanupOff": "Stile wirken nur, wenn die Bereinigung an ist.",
+        "error": "Der Diktierstil konnte nicht geändert werden.",
+        "options": {
+          "formal": "Förmlich",
+          "normal": "Normal",
+          "casual": "Locker"
+        }
       },
       "windowNames": {
         "title": "Namen aus dem aktiven Fenster",

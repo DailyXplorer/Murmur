@@ -17,9 +17,8 @@ pub enum SoundType {
 fn resolve_sound_path(
     app: &AppHandle,
     settings: &AppSettings,
-    sound_type: SoundType,
+    sound_file: String,
 ) -> Option<PathBuf> {
-    let sound_file = get_sound_path(settings, sound_type);
     let base_dir = get_sound_base_dir(settings);
     match base_dir {
         tauri::path::BaseDirectory::AppData => app
@@ -47,29 +46,37 @@ fn get_sound_base_dir(settings: &AppSettings) -> tauri::path::BaseDirectory {
     }
 }
 
+/// The feedback sound to play, `None` while feedback is off.
+fn feedback_sound_file(settings: &AppSettings, sound_type: SoundType) -> Option<String> {
+    settings
+        .audio_feedback
+        .then(|| get_sound_path(settings, sound_type))
+}
+
 pub fn play_feedback_sound(app: &AppHandle, sound_type: SoundType) {
     let settings = settings::get_settings(app);
-    if !settings.audio_feedback {
+    let Some(sound_file) = feedback_sound_file(&settings, sound_type) else {
         return;
-    }
-    if let Some(path) = resolve_sound_path(app, &settings, sound_type) {
+    };
+    if let Some(path) = resolve_sound_path(app, &settings, sound_file) {
         play_sound_async(app, path);
     }
 }
 
 pub fn play_feedback_sound_blocking(app: &AppHandle, sound_type: SoundType) {
     let settings = settings::get_settings(app);
-    if !settings.audio_feedback {
+    let Some(sound_file) = feedback_sound_file(&settings, sound_type) else {
         return;
-    }
-    if let Some(path) = resolve_sound_path(app, &settings, sound_type) {
+    };
+    if let Some(path) = resolve_sound_path(app, &settings, sound_file) {
         play_sound_blocking(app, &path);
     }
 }
 
 pub fn play_test_sound(app: &AppHandle, sound_type: SoundType) {
     let settings = settings::get_settings(app);
-    if let Some(path) = resolve_sound_path(app, &settings, sound_type) {
+    let sound_file = get_sound_path(&settings, sound_type);
+    if let Some(path) = resolve_sound_path(app, &settings, sound_file) {
         play_sound_blocking(app, &path);
     }
 }
@@ -141,4 +148,71 @@ fn play_audio_file(
     sink.sleep_until_end();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{feedback_sound_file, get_sound_base_dir, get_sound_path, SoundType};
+    use crate::settings::{get_default_settings, AppSettings, SoundTheme};
+    use tauri::path::BaseDirectory;
+
+    fn themed(theme: SoundTheme) -> AppSettings {
+        let mut settings = get_default_settings();
+        settings.sound_theme = theme;
+        settings
+    }
+
+    #[test]
+    fn built_in_themes_play_their_bundled_resources() {
+        for (theme, name) in [(SoundTheme::Marimba, "marimba"), (SoundTheme::Pop, "pop")] {
+            let settings = themed(theme);
+            assert_eq!(
+                get_sound_path(&settings, SoundType::Start),
+                format!("resources/{name}_start.wav")
+            );
+            assert_eq!(
+                get_sound_path(&settings, SoundType::Stop),
+                format!("resources/{name}_stop.wav")
+            );
+            assert!(
+                matches!(get_sound_base_dir(&settings), BaseDirectory::Resource),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_custom_theme_plays_its_files_from_app_data() {
+        let settings = themed(SoundTheme::Custom);
+        assert_eq!(
+            get_sound_path(&settings, SoundType::Start),
+            "custom_start.wav"
+        );
+        assert_eq!(
+            get_sound_path(&settings, SoundType::Stop),
+            "custom_stop.wav"
+        );
+        assert!(matches!(
+            get_sound_base_dir(&settings),
+            BaseDirectory::AppData
+        ));
+    }
+
+    #[test]
+    fn feedback_off_plays_nothing() {
+        let mut settings = themed(SoundTheme::Marimba);
+        settings.audio_feedback = false;
+        assert!(feedback_sound_file(&settings, SoundType::Start).is_none());
+        assert!(feedback_sound_file(&settings, SoundType::Stop).is_none());
+
+        settings.audio_feedback = true;
+        assert_eq!(
+            feedback_sound_file(&settings, SoundType::Start).as_deref(),
+            Some("resources/marimba_start.wav")
+        );
+        assert_eq!(
+            feedback_sound_file(&settings, SoundType::Stop).as_deref(),
+            Some("resources/marimba_stop.wav")
+        );
+    }
 }
