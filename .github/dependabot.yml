@@ -36,6 +36,11 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
+      # Node types follow the Node that CI runs: no workflow sets up Node, so
+      # it is the ubuntu-latest default (22). Bump the major by hand with it.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -70,6 +75,13 @@ updates:
       - dependency-name: "tauri-specta"
       # Git dependency pinned to a commit that matches the Tauri version.
       - dependency-name: "tauri-nspanel"
+      # rodio 0.22 brings cpal 0.17, which links macOS 14.2 process-tap
+      # symbols strongly. Move rodio together with our own cpal; see #192.
+      # Minor is listed too in case a 0.x bump counts as minor.
+      - dependency-name: "rodio"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: /
@@ -85,3 +97,9 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # v1 renames includeUpdaterJson and changes the release asset names.
+      # Only a real release exercises that path; see #182 before upgrading.
+      - dependency-name: "tauri-apps/tauri-action"
+        update-types:
+          - "version-update:semver-major"
