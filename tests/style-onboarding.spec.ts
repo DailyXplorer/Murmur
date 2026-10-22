@@ -36,6 +36,24 @@ test("follows a connected account when cleanup can run, and Continue saves the p
   expect(await fixture(page).style()).toBe("casual");
 });
 
+test("follows a browser sign-in from Start when cleanup can run", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?cleanup=on`);
+  const step = page.getByTestId("provider-onboarding");
+  await step.getByRole("button", { name: "Start" }).click();
+  await expect(step.getByRole("button")).toHaveText(["Cancel", "Retry"]);
+  await page.evaluate(() => window.providerOnboardingFixture.resolveSignIn());
+  await expect(step.getByRole("button")).toHaveText(["Continue", "Retry"]);
+  await step.getByRole("button", { name: "Continue" }).click();
+
+  await expect(styleStep(page)).toBeVisible();
+  await style(page, "Formal").check();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  expect(await fixture(page).style()).toBe("formal");
+});
+
 test("preselects the stored style, and Skip keeps it", async ({ page }) => {
   await page.goto(`${fixturePath}?codex=configured&cleanup=on`);
   await page.getByRole("button", { name: "Continue" }).click();

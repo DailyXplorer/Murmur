@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod chatgpt;
 pub mod cleanup;
 pub mod history;
 pub mod local_models;

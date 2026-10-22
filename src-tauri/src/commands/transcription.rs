@@ -77,7 +77,7 @@ fn finish_onboarding(
         settings.transcription_engine = Engine::Cloud;
     }
     if settings.transcription_engine == Engine::Cloud && !signed_in {
-        return Err("No ChatGPT/Codex session was found. Sign in to Codex and retry.".to_string());
+        return Err("No ChatGPT session was found. Sign in with ChatGPT and retry.".to_string());
     }
     settings.onboarding_completed = true;
     // Onboarding already offered local transcription; the card is for

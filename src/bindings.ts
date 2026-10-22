@@ -576,6 +576,32 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
+ * Signs in to ChatGPT in the browser, as Codex does, and saves the session
+ * Codex and Murmur share. A sign-in already under way is cancelled first.
+ */
+async signInWithChatgpt() : Promise<Result<null, SignInError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sign_in_with_chatgpt") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as SignInError };
+}
+},
+async cancelChatgptSignIn() : Promise<void> {
+    await TAURI_INVOKE("cancel_chatgpt_sign_in");
+},
+/**
+ * Signs out as `codex logout` does, so Codex is signed out too.
+ */
+async signOutOfChatgpt() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sign_out_of_chatgpt") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * Dictation on this Mac needs no account. The cloud needs a Codex session,
  * so the first recording has somewhere to go.
  */
@@ -1348,6 +1374,7 @@ export type ShortcutRegistrationError =
  * Another Murmur action already uses the keys, and keeps them.
  */
 "used_by_another_action"
+export type SignInError = "port_busy" | "cancelled" | "timed_out" | "denied" | "not_entitled" | "network" | "rejected" | "save_failed" | "browser_failed"
 export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * How the speakers of a meeting were told apart.

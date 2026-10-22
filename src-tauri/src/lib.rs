@@ -12,6 +12,7 @@ mod cleanup;
 pub mod cli;
 mod clipboard;
 mod codex_auth;
+mod codex_login;
 mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
@@ -64,20 +65,29 @@ use crate::single_instance_actions::{
     action_from_args, SingleInstanceAction, SingleInstanceActionQueue,
 };
 
+/// Types each command's rejection instead of `any`: a `string` error as
+/// `String(e)`, an error enum as its own type.
 #[cfg(any(debug_assertions, test))]
 fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<String> {
-    let pattern = regex::Regex::new(r"error:\s*e\s+as\s+any")
-        .expect("generated-binding error pattern is valid");
+    let pattern = regex::Regex::new(
+        r"(?s)(Promise\s*<\s*Result\s*<.*?,\s*(\w+)\s*>\s*>\s*\{.*?)error:\s*e\s+as\s+any",
+    )
+    .expect("generated-binding error pattern is valid");
+    let mut normalized_error_count = 0;
     let normalized = pattern
-        .replace_all(generated, "error: String(e)")
+        .replace_all(generated, |captures: &regex::Captures| {
+            normalized_error_count += 1;
+            let error = match &captures[2] {
+                "string" => "String(e)".to_string(),
+                named => format!("e as {named}"),
+            };
+            format!("{}error: {error}", &captures[1])
+        })
         .into_owned();
 
     let result_pattern = regex::Regex::new(r"Promise\s*<\s*Result\s*<")
         .expect("generated-binding Result pattern is valid");
-    let string_error_pattern = regex::Regex::new(r"error:\s*String\s*\(\s*e\s*\)")
-        .expect("generated-binding string-error pattern is valid");
     let result_count = result_pattern.find_iter(&normalized).count();
-    let normalized_error_count = string_error_pattern.find_iter(&normalized).count();
 
     if result_count != normalized_error_count {
         return Err(std::io::Error::new(
@@ -653,6 +663,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
+            commands::chatgpt::sign_in_with_chatgpt,
+            commands::chatgpt::cancel_chatgpt_sign_in,
+            commands::chatgpt::sign_out_of_chatgpt,
             commands::transcription::complete_onboarding,
             commands::transcription::change_transcription_engine_setting,
             commands::transcription::switch_to_local_when_ready,
@@ -1152,6 +1165,21 @@ mod headless_guard_tests {
             concat!(
                 "async command(): Promise<Result<null, string>> { ",
                 r#"else return { status: "error", error: String(e) }; }"#,
+            )
+        );
+    }
+
+    #[test]
+    fn generated_enum_errors_keep_their_type() {
+        let generated = concat!(
+            "async first(): Promise<Result<Record<string, Foo>, string>> { error: e as any }\n",
+            "async second(): Promise<Result<null, SignInError>> { error: e as any }",
+        );
+        assert_eq!(
+            normalize_generated_bindings_source(generated).unwrap(),
+            concat!(
+                "async first(): Promise<Result<Record<string, Foo>, string>> { error: String(e) }\n",
+                "async second(): Promise<Result<null, SignInError>> { error: e as SignInError }",
             )
         );
     }

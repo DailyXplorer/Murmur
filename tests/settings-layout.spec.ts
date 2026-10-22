@@ -43,11 +43,11 @@ const settingRow = (page: Page, title: string) =>
 const isTruncated = (locator: Locator) =>
   locator.evaluate((element) => element.scrollWidth > element.clientWidth);
 
-test("Codex row stacks its status under the title", async ({ page }) => {
+test("ChatGPT row puts its status under the title", async ({ page }) => {
   await openSection(page, "Transcription");
-  const row = settingRow(page, "Codex");
+  const row = settingRow(page, "ChatGPT");
   const title = await box(row.getByRole("heading"));
-  const status = row.getByText("Configuration detected", { exact: true });
+  const status = row.getByText("Signed in", { exact: true });
 
   expect((await box(status)).y).toBeGreaterThanOrEqual(title.y + title.height);
   expect(await isTruncated(status)).toBe(false);

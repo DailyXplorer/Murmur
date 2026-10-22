@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import {
   type ProviderStatus,
+  signInErrorKey,
   statusTranslationKey,
+  useChatGptSignIn,
   useCodexStatus,
 } from "@/components/transcription/providerStatus";
 import { Button } from "../ui/Button";
@@ -42,21 +42,14 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     };
   }, [invalidatePendingRefreshes, refreshStatus]);
 
-  const openCodexSetup = useCallback(async () => {
-    try {
-      await openUrl("https://openai.com/codex/");
-    } catch (error) {
-      console.warn("Failed to open Codex setup:", error);
-      toast.error(t("onboarding.provider.codexSetupFailed"));
-    }
-  }, [t]);
+  const { cancel, signIn, start } = useChatGptSignIn(refreshStatus);
 
   const connected = checked?.kind === "configured";
   const canComplete = !isCompleting && connected;
   const canSkip = optional && !isCompleting && !connected;
   // "Not signed in" is what the description already says, so it shows only
   // once the user asked to check again.
-  const line =
+  const statusLine =
     retried && status.kind === "checking"
       ? status
       : checked?.kind === "error" ||
@@ -64,6 +57,13 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             (retried || checked.reason === "sessionExpired"))
         ? checked
         : null;
+  const line = connected
+    ? null
+    : signIn.phase === "waiting"
+      ? t("settings.transcription.chatgpt.waiting")
+      : signIn.phase === "failed"
+        ? t(signInErrorKey(signIn.error))
+        : statusLine && t(statusTranslationKey(statusLine));
 
   const finish = useCallback(async () => {
     setIsCompleting(true);
@@ -115,8 +115,10 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
                 <Button onClick={() => void complete()}>
                   {t("onboarding.provider.continue")}
                 </Button>
+              ) : signIn.phase === "waiting" ? (
+                <Button onClick={cancel}>{t("meetings.cancel")}</Button>
               ) : (
-                <Button onClick={() => void openCodexSetup()}>
+                <Button onClick={() => void start()}>
                   {t("onboarding.provider.start")}
                 </Button>
               )}
@@ -140,7 +142,7 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             role="status"
             className="mt-2 min-h-5 text-center text-sm text-text/70"
           >
-            {line && t(statusTranslationKey(line))}
+            {line}
           </p>
         </div>
       </div>
