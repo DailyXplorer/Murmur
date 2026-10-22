@@ -8,6 +8,7 @@ pub const APPLE_SILICON: &[Source] = &[
         commit: "7dd20fe6b1797d35f5e3307e8b1732d9a178edfe",
         folder: "parakeet-tdt-0.6b-v3",
         fluid_revision_marker: false,
+        optional: false,
         files: &[
             ModelFile {
                 path: "config.json",
@@ -131,6 +132,7 @@ pub const APPLE_SILICON: &[Source] = &[
         commit: "df2625ac79a7ac6b65ad868fee6d80f320da4232",
         folder: "speaker-diarization",
         fluid_revision_marker: true,
+        optional: false,
         files: &[
             ModelFile {
                 path: "config.json",
@@ -254,6 +256,75 @@ pub const APPLE_SILICON: &[Source] = &[
             },
         ],
     },
+    Source {
+        repo: "FluidInference/parakeet-ctc-110m-coreml",
+        commit: "accdafd8cf8a2ff1cabe3c11e54416b405d409aa",
+        folder: "parakeet-ctc-110m-coreml",
+        fluid_revision_marker: false,
+        optional: true,
+        files: &[
+            ModelFile {
+                path: "AudioEncoder.mlmodelc/analytics/coremldata.bin",
+                size: 243,
+                sha256: "8906c823e9bb3bf6b16d9f0308f98cd70573526333ad85dd767dc3f9ae6b25fa",
+            },
+            ModelFile {
+                path: "AudioEncoder.mlmodelc/coremldata.bin",
+                size: 505,
+                sha256: "a88b002b58193b4c31211754cdfdf220a85f9651dc61caf336ab84400cbc191a",
+            },
+            ModelFile {
+                path: "AudioEncoder.mlmodelc/metadata.json",
+                size: 3456,
+                sha256: "4f288bfe5cbe867ef1e592cdae33578b2fe59ada69182fc12209879558f985c2",
+            },
+            ModelFile {
+                path: "AudioEncoder.mlmodelc/model.mil",
+                size: 1060924,
+                sha256: "2f84ef93a69115e55f3b5d8ce695b3c937de1833d4d229620634fae967cd587e",
+            },
+            ModelFile {
+                path: "AudioEncoder.mlmodelc/weights/weight.bin",
+                size: 100778304,
+                sha256: "af0734b4a5d7465ad9e8bb170f0c53c5e6b91ebb75a9bdf88d3f59ae4ad6aebd",
+            },
+            ModelFile {
+                path: "MelSpectrogram.mlmodelc/analytics/coremldata.bin",
+                size: 243,
+                sha256: "22f2a8cba1de25c984050566b534a1d8caf22a82f9fe6c1c6f3149a0dd7e8ae3",
+            },
+            ModelFile {
+                path: "MelSpectrogram.mlmodelc/coremldata.bin",
+                size: 330,
+                sha256: "3a32ec67c76aa0aa2faef518413c311493e89aeb7fa11289fa4b8653ab8a160c",
+            },
+            ModelFile {
+                path: "MelSpectrogram.mlmodelc/metadata.json",
+                size: 1962,
+                sha256: "5e11d21a65c02bcfc37db43e941978e5d60d59e0efeadfda08e41f33b4f835d3",
+            },
+            ModelFile {
+                path: "MelSpectrogram.mlmodelc/model.mil",
+                size: 12584,
+                sha256: "0a7cb5693b39667295218bac5c7c09053f6bcd4b32699a83d06ac35d14ac6b79",
+            },
+            ModelFile {
+                path: "MelSpectrogram.mlmodelc/weights/weight.bin",
+                size: 567712,
+                sha256: "0a89c055bfde9022029d3cc59a23e949385e063974460d8eaec3a7614c3eaaa8",
+            },
+            ModelFile {
+                path: "tokenizer.json",
+                size: 360106,
+                sha256: "9f7c517c0bf644b1b690ab037bab4d4c53aecd38e047e7154d011013ab9160db",
+            },
+            ModelFile {
+                path: "vocab.json",
+                size: 16086,
+                sha256: "319d386eead79aadc80df9c3ecc8340d1a727efb7c02a8847eb940380dd61e1f",
+            },
+        ],
+    },
 ];
 
 pub const X86_64: &[Source] = &[Source {
@@ -261,6 +332,7 @@ pub const X86_64: &[Source] = &[Source {
     commit: "d8d8c32cb2017c57e5307767343e97870f8a7f53",
     folder: "parakeet-tdt-0.6b-v3",
     fluid_revision_marker: false,
+    optional: false,
     files: &[ModelFile {
         path: "parakeet-tdt-0.6b-v3-Q8_0.gguf",
         size: 739508576,

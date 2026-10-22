@@ -9,10 +9,13 @@ struct FakeHost {
     free: Option<u64>,
     prepared: AtomicUsize,
     prepare_fails: bool,
+    notified: Mutex<Vec<LocalModelState>>,
 }
 
 impl Host for FakeHost {
-    fn notify(&self, _: LocalModelStatus) {}
+    fn notify(&self, status: LocalModelStatus) {
+        self.notified.lock().unwrap().push(status.state);
+    }
     fn remember_wanted(&self, wanted: bool) {
         self.wanted.lock().unwrap().push(wanted);
     }
@@ -33,18 +36,31 @@ impl Host for FakeHost {
 }
 
 /// Two small sources whose files hold `contents`, the second one pinned by
-/// FluidAudio.
+/// FluidAudio, and with `fixture_with_optional` a third, optional one.
 struct Fixture {
     sources: &'static [Source],
     contents: Vec<(&'static str, Vec<u8>)>,
 }
 
 fn fixture() -> Fixture {
-    let contents: Vec<(&'static str, Vec<u8>)> = vec![
+    build_fixture(false)
+}
+
+fn fixture_with_optional() -> Fixture {
+    build_fixture(true)
+}
+
+const CTC_WEIGHTS: &str = "C.mlmodelc/weights/weight.bin";
+
+fn build_fixture(with_optional: bool) -> Fixture {
+    let mut contents: Vec<(&'static str, Vec<u8>)> = vec![
         ("A.mlmodelc/weights/weight.bin", vec![1; 6_000]),
         ("vocab.json", b"{\"0\":\"a\"}".to_vec()),
         ("plda.json", vec![7; 2_000]),
     ];
+    if with_optional {
+        contents.push((CTC_WEIGHTS, vec![9; 3_000]));
+    }
     let file = |index: usize| -> ModelFile {
         let (path, bytes) = &contents[index];
         ModelFile {
@@ -55,26 +71,38 @@ fn fixture() -> Fixture {
     };
     let asr: &'static [ModelFile] = Box::leak(vec![file(0), file(1)].into_boxed_slice());
     let diarizer: &'static [ModelFile] = Box::leak(vec![file(2)].into_boxed_slice());
-    let sources = Box::leak(
-        vec![
-            Source {
-                repo: "test/asr",
-                commit: "1111111111111111111111111111111111111111",
-                folder: "asr",
-                fluid_revision_marker: false,
-                files: asr,
-            },
-            Source {
-                repo: "test/diarizer",
-                commit: "2222222222222222222222222222222222222222",
-                folder: "diarizer",
-                fluid_revision_marker: true,
-                files: diarizer,
-            },
-        ]
-        .into_boxed_slice(),
-    );
-    Fixture { sources, contents }
+    let mut sources = vec![
+        Source {
+            repo: "test/asr",
+            commit: "1111111111111111111111111111111111111111",
+            folder: "asr",
+            fluid_revision_marker: false,
+            optional: false,
+            files: asr,
+        },
+        Source {
+            repo: "test/diarizer",
+            commit: "2222222222222222222222222222222222222222",
+            folder: "diarizer",
+            fluid_revision_marker: true,
+            optional: false,
+            files: diarizer,
+        },
+    ];
+    if with_optional {
+        sources.push(Source {
+            repo: "test/ctc",
+            commit: "3333333333333333333333333333333333333333",
+            folder: "ctc",
+            fluid_revision_marker: false,
+            optional: true,
+            files: Box::leak(vec![file(3)].into_boxed_slice()),
+        });
+    }
+    Fixture {
+        sources: Box::leak(sources.into_boxed_slice()),
+        contents,
+    }
 }
 
 impl Fixture {
@@ -101,7 +129,19 @@ impl Fixture {
 
     /// Lays every file out as a finished download would.
     fn write_all(&self, dir: &Path) {
-        for source in self.sources {
+        self.write(dir, |_| true);
+    }
+
+    /// Lays out what a version without the optional source downloaded, with
+    /// the ready marker it wrote.
+    fn write_ready_without_optional(&self, dir: &Path) {
+        self.write(dir, |source| !source.optional);
+        let earlier: Vec<&Source> = self.sources.iter().filter(|s| !s.optional).collect();
+        std::fs::write(dir.join(READY_MARKER), manifest::id(earlier)).unwrap();
+    }
+
+    fn write(&self, dir: &Path, taken: impl Fn(&Source) -> bool) {
+        for source in self.sources.iter().filter(|source| taken(source)) {
             for file in source.files {
                 let path = dir.join(source.folder).join(file.path);
                 std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -432,6 +472,115 @@ fn delete_removes_everything_and_reports_missing() {
     ready.delete().unwrap();
     assert!(!path.exists());
     assert_eq!(ready.status().state, LocalModelState::Missing);
+}
+
+fn paths(seen: &Mutex<Vec<Request>>) -> Vec<String> {
+    seen.lock()
+        .unwrap()
+        .iter()
+        .map(|r| r.path.clone())
+        .collect()
+}
+
+const CTC_URL: &str =
+    "/test/ctc/resolve/3333333333333333333333333333333333333333/C.mlmodelc/weights/weight.bin";
+
+#[test]
+fn models_ready_before_the_optional_source_stay_ready_and_fetch_it_quietly() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let ready = models(&path, &fixture, &base, &host);
+        assert!(ready.is_ready());
+        ready.resume_on_launch(false);
+        assert!(ready.is_ready());
+        ready.fetched().await;
+        assert!(ready.is_ready());
+        assert!(host.notified.lock().unwrap().is_empty());
+        assert_eq!(paths(&seen), [CTC_URL]);
+        assert_eq!(
+            std::fs::read(path.join("ctc").join(CTC_WEIGHTS)).unwrap(),
+            vec![9; 3_000]
+        );
+        // Loaded once, so Core ML compiles the new model before a dictation.
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
+
+        let after_restart = models(&path, &fixture, &base, &host);
+        after_restart.resume_on_launch(false);
+        after_restart.fetched().await;
+        assert!(after_restart.is_ready());
+        assert_eq!(seen.lock().unwrap().len(), 1, "fetched again");
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1, "prepared again");
+    });
+}
+
+#[test]
+fn a_new_download_is_ready_before_the_optional_source_and_then_fetches_it() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let models = models(&path, &fixture, &base, &host);
+        assert_eq!(models.status().size_bytes, 11_009);
+        models.download();
+        assert_eq!(settled(&models).await, LocalModelState::Ready);
+        models.fetched().await;
+        assert!(models.is_ready());
+        assert_eq!(paths(&seen).last().map(String::as_str), Some(CTC_URL));
+        assert_eq!(seen.lock().unwrap().len(), 4);
+        assert!(path.join("ctc").join(CTC_WEIGHTS).exists());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 2);
+        // Progress counts what dictation waits for.
+        assert!(host
+            .notified
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|state| match state {
+                LocalModelState::Downloading { total_bytes, .. } => *total_bytes == 8_009,
+                _ => true,
+            }));
+        assert_eq!(
+            host.notified.lock().unwrap().last(),
+            Some(&LocalModelState::Ready)
+        );
+    });
+}
+
+#[test]
+fn a_corrupt_optional_file_never_blocks_ready() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let ctc = path.join("ctc").join(CTC_WEIGHTS);
+    std::fs::create_dir_all(ctc.parent().unwrap()).unwrap();
+    std::fs::write(&ctc, vec![8; 3_000]).unwrap();
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) =
+            test_server::start(Arc::new(|_: &Request, _| Reply::Serve(vec![8; 3_000]))).await;
+        let ready = models(&path, &fixture, &base, &host);
+        ready.resume_on_launch(false);
+        ready.fetched().await;
+        assert!(ready.is_ready());
+        assert!(host.notified.lock().unwrap().is_empty());
+        assert!(!seen.lock().unwrap().is_empty());
+        assert!(!ctc.exists(), "the corrupt file was kept");
+
+        let (base, _) = test_server::start(fixture.serving()).await;
+        let after_restart = models(&path, &fixture, &base, &host);
+        after_restart.resume_on_launch(false);
+        after_restart.fetched().await;
+        assert!(after_restart.is_ready());
+        assert_eq!(std::fs::read(&ctc).unwrap(), vec![9; 3_000]);
+    });
 }
 
 #[test]

@@ -5,7 +5,9 @@
 //! them for this Mac. A marker holding the manifest's id is written last,
 //! so "ready" survives restarts and a half-finished download never counts.
 //! Models an earlier version downloaded are checked file by file and only
-//! the differing files are fetched again.
+//! the differing files are fetched again. An optional source (the CTC model
+//! that boosts custom words) is fetched once the others are ready, with a
+//! marker of its own, and never changes the state.
 
 mod app;
 pub mod download;
@@ -30,6 +32,8 @@ use download::{DownloadFailure, Fetch, Stopped};
 use manifest::{ModelFile, Source};
 
 const READY_MARKER: &str = ".murmur-ready";
+/// Holds the optional sources' id once their files are all in place.
+const OPTIONAL_MARKER: &str = ".murmur-optional";
 const FLUID_REVISION_MARKER: &str = ".fluidaudio-revision";
 /// Progress is sent at most this often.
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
@@ -157,6 +161,11 @@ impl LocalModels {
         *self.state.borrow() == LocalModelState::Ready
     }
 
+    /// The sources dictation waits for.
+    fn required(&self) -> impl Iterator<Item = &'static Source> + Send + 'static {
+        self.sources.iter().filter(|source| !source.optional)
+    }
+
     fn set(&self, state: LocalModelState) {
         self.state.send_replace(state);
         self.host.notify(self.status());
@@ -170,7 +179,7 @@ impl LocalModels {
 
     fn on_disk(&self) -> OnDisk {
         match std::fs::read_to_string(self.dir.join(READY_MARKER)) {
-            Ok(id) if id == manifest::id(self.sources) => OnDisk::Current,
+            Ok(id) if id == manifest::id(self.required()) => OnDisk::Current,
             Ok(_) => OnDisk::Earlier,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => OnDisk::Absent,
             Err(_) => OnDisk::Earlier,
@@ -179,13 +188,15 @@ impl LocalModels {
 
     /// At launch: checks models from an earlier version, and resumes a
     /// download the user asked for before the app quit.
+    /// Ready models get the optional files they lack.
     pub fn resume_on_launch(self: &Arc<Self>, wanted: bool) {
-        match *self.state.borrow() {
-            LocalModelState::Preparing => {}
-            LocalModelState::Missing if wanted => {}
-            _ => return,
+        let state = self.state.borrow().clone();
+        match state {
+            LocalModelState::Preparing => self.start_download(),
+            LocalModelState::Missing if wanted => self.start_download(),
+            LocalModelState::Ready => self.start_optional(),
+            _ => {}
         }
-        self.start_download();
     }
 
     /// The state once no download or check is running.
@@ -201,6 +212,18 @@ impl LocalModels {
                 return current;
             }
         }
+    }
+
+    /// Waits for a fetch in the background, which leaves the state as it is.
+    #[cfg(test)]
+    pub(crate) async fn fetched(&self) {
+        for _ in 0..60_000 {
+            if self.download_slot().is_none() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the models are still fetching");
     }
 
     /// Waits until no download or check is running, then tells whether the
@@ -279,31 +302,96 @@ impl LocalModels {
         } else {
             LocalModelState::Downloading {
                 done_bytes: 0,
-                total_bytes: manifest::total_bytes(self.sources),
+                total_bytes: manifest::total_bytes(self.required()),
             }
         });
         let models = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
-            let state = match models.fetch(&operation, earlier).await {
-                Ok(()) => {
-                    log::info!("Local models ready");
-                    LocalModelState::Ready
-                }
-                Err(Stopped::Cancelled) => LocalModelState::Missing,
-                Err(Stopped::Failed(reason)) => {
-                    log::warn!("Local models download failed: {reason:?}");
-                    LocalModelState::Failed { reason }
-                }
-            };
+            let result = models.fetch(&operation, earlier).await;
+            if result.is_ok() {
+                log::info!("Local models ready");
+                models.set(LocalModelState::Ready);
+                models.fetch_optional(&operation).await;
+            }
             let mut slot = models.download_slot();
             *slot = None;
-            models.set(state);
+            match result {
+                Ok(()) => {}
+                Err(Stopped::Cancelled) => models.set(LocalModelState::Missing),
+                Err(Stopped::Failed(reason)) => {
+                    log::warn!("Local models download failed: {reason:?}");
+                    models.set(LocalModelState::Failed { reason });
+                }
+            }
         });
+    }
+
+    /// Fetches the optional files ready models lack, in the background.
+    fn start_optional(self: &Arc<Self>) {
+        let operation = {
+            let mut slot = self.download_slot();
+            if slot.is_some() {
+                return;
+            }
+            let operation = ProcessingOperation::new(OperationId(0));
+            *slot = Some(operation.clone());
+            operation
+        };
+        let models = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            models.fetch_optional(&operation).await;
+            *models.download_slot() = None;
+        });
+    }
+
+    /// The state stays as it is: a failure is logged, and the next launch
+    /// tries again.
+    async fn fetch_optional(&self, operation: &ProcessingOperation) {
+        let optional: Vec<&'static Source> = self.sources.iter().filter(|s| s.optional).collect();
+        if optional.is_empty() {
+            return;
+        }
+        let id = manifest::id(optional.iter().copied());
+        let marker = self.dir.join(OPTIONAL_MARKER);
+        if std::fs::read_to_string(&marker).is_ok_and(|held| held == id) {
+            return;
+        }
+        let dir = self.dir.clone();
+        let fetched = async {
+            let missing =
+                tauri::async_runtime::spawn_blocking(move || missing_files(&dir, optional))
+                    .await
+                    .map_err(|_| Stopped::Failed(DownloadFailure::Disk))??;
+            let client = download::client();
+            let fetch = Fetch {
+                client: &client,
+                operation,
+                stall: download::STALL_TIMEOUT,
+            };
+            for (source, file) in &missing {
+                let url = source.url(&self.base_url, file);
+                fetch
+                    .file(&url, &self.path_of(source, file), file, &mut |_| {})
+                    .await?;
+            }
+            // Core ML compiles a new model on its first load, about 12 s for
+            // the CTC model: done here, the first dictation does not wait.
+            match self.host.prepare(self.dir.clone(), operation.clone()).await {
+                Prepared::Done => {}
+                Prepared::Cancelled => return Err(Stopped::Cancelled),
+                Prepared::Failed => return Err(Stopped::Failed(DownloadFailure::PrepareFailed)),
+            }
+            std::fs::write(&marker, &id)?;
+            Ok::<_, Stopped>(())
+        };
+        if let Err(Stopped::Failed(reason)) = fetched.await {
+            log::warn!("Optional local model files not fetched: {reason:?}");
+        }
     }
 
     async fn fetch(&self, operation: &ProcessingOperation, earlier: bool) -> Result<(), Stopped> {
         std::fs::create_dir_all(&self.dir)?;
-        let (dir, sources) = (self.dir.clone(), self.sources);
+        let (dir, sources) = (self.dir.clone(), self.required());
         let missing = tauri::async_runtime::spawn_blocking(move || missing_files(&dir, sources))
             .await
             .map_err(|_| Stopped::Failed(DownloadFailure::Disk))??;
@@ -319,7 +407,7 @@ impl LocalModels {
         if operation.is_cancelled() {
             return Err(Stopped::Cancelled);
         }
-        let total = manifest::total_bytes(self.sources);
+        let total = manifest::total_bytes(self.required());
         let mut done = total - missing.iter().map(|(_, file)| file.size).sum::<u64>();
         let remaining: u64 = missing
             .iter()
@@ -370,7 +458,7 @@ impl LocalModels {
                 .await?;
             done += file.size;
         }
-        for source in self.sources.iter().filter(|s| s.fluid_revision_marker) {
+        for source in self.required().filter(|s| s.fluid_revision_marker) {
             std::fs::write(
                 self.dir.join(source.folder).join(FLUID_REVISION_MARKER),
                 format!("{}\n", source.commit),
@@ -385,7 +473,7 @@ impl LocalModels {
                 Prepared::Failed => return Err(Stopped::Failed(DownloadFailure::PrepareFailed)),
             }
         }
-        std::fs::write(self.dir.join(READY_MARKER), manifest::id(self.sources))?;
+        std::fs::write(self.dir.join(READY_MARKER), manifest::id(self.required()))?;
         Ok(())
     }
 
@@ -435,7 +523,7 @@ fn dir_bytes(dir: &Path) -> u64 {
 /// removed; partial downloads stay to be resumed.
 fn missing_files(
     dir: &Path,
-    sources: &'static [Source],
+    sources: impl IntoIterator<Item = &'static Source>,
 ) -> std::io::Result<Vec<(&'static Source, &'static ModelFile)>> {
     let mut missing = Vec::new();
     for source in sources {

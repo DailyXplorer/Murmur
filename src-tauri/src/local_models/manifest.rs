@@ -23,6 +23,9 @@ pub struct Source {
     /// FluidAudio loads this repository only with a `.fluidaudio-revision`
     /// marker naming `commit`.
     pub fluid_revision_marker: bool,
+    /// Not needed to dictate: fetched once the others are ready, and never
+    /// keeps them from being ready.
+    pub optional: bool,
     pub files: &'static [ModelFile],
 }
 
@@ -49,18 +52,18 @@ pub fn gguf_path() -> std::path::PathBuf {
     std::path::Path::new(source.folder).join(source.files[0].path)
 }
 
-pub fn total_bytes(sources: &[Source]) -> u64 {
+pub fn total_bytes<'a>(sources: impl IntoIterator<Item = &'a Source>) -> u64 {
     sources
-        .iter()
+        .into_iter()
         .flat_map(|source| source.files)
         .map(|file| file.size)
         .sum()
 }
 
 /// Held by the ready marker, so a new pin has the folder checked again.
-pub fn id(sources: &[Source]) -> String {
+pub fn id<'a>(sources: impl IntoIterator<Item = &'a Source>) -> String {
     sources
-        .iter()
+        .into_iter()
         .map(|source| format!("{}@{}", source.repo, source.commit))
         .collect::<Vec<_>>()
         .join("\n")
@@ -92,14 +95,36 @@ mod tests {
 
     #[test]
     fn the_download_sizes_are_the_ones_shown() {
-        assert_eq!(total_bytes(pinned::APPLE_SILICON), 505_044_208);
+        assert_eq!(total_bytes(pinned::APPLE_SILICON), 607_846_663);
         assert_eq!(total_bytes(pinned::X86_64), 739_508_576);
+    }
+
+    #[test]
+    fn only_the_boosting_model_is_optional() {
+        let optional: Vec<_> = pinned::APPLE_SILICON
+            .iter()
+            .chain(pinned::X86_64)
+            .filter(|source| source.optional)
+            .map(|source| source.folder)
+            .collect();
+        assert_eq!(optional, ["parakeet-ctc-110m-coreml"]);
+        let ctc = &pinned::APPLE_SILICON[2];
+        // FluidAudio checks for vocab.json last; it is also fetched last.
+        assert_eq!(ctc.files.last().map(|file| file.path), Some("vocab.json"));
+        assert!(ctc.files.iter().any(|f| f.path == "tokenizer.json"));
     }
 
     #[test]
     fn fluid_audio_finds_the_core_ml_models_where_it_looks() {
         let folders: Vec<_> = pinned::APPLE_SILICON.iter().map(|s| s.folder).collect();
-        assert_eq!(folders, ["parakeet-tdt-0.6b-v3", "speaker-diarization"]);
+        assert_eq!(
+            folders,
+            [
+                "parakeet-tdt-0.6b-v3",
+                "speaker-diarization",
+                "parakeet-ctc-110m-coreml"
+            ]
+        );
         let asr = &pinned::APPLE_SILICON[0];
         for bundle in [
             "Preprocessor.mlmodelc",
