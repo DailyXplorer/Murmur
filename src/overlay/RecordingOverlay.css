@@ -227,7 +227,8 @@
   width: max-content;
   max-width: var(--ov-copy-max-w);
   min-height: var(--ov-h);
-  padding: 4px 4px 4px 14px;
+  padding-block: 4px;
+  padding-inline: 14px 4px;
   text-align: start;
 }
 .ov-copy-note {

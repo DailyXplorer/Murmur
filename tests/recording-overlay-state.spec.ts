@@ -425,10 +425,17 @@ for (const { locale, tray } of trayStringsByLocale) {
             const lines = [...text.getClientRects()];
             const action = capsule.querySelector(".ov-copy-action")!;
             const actionBox = action.getBoundingClientRect();
+            const linesLeft = Math.min(...lines.map((line) => line.left));
+            const linesRight = Math.max(...lines.map((line) => line.right));
             const gapToAction = Math.max(
-              actionBox.left - Math.max(...lines.map((line) => line.right)),
-              Math.min(...lines.map((line) => line.left)) - actionBox.right,
+              actionBox.left - linesRight,
+              linesLeft - actionBox.right,
             );
+            // Right-to-left locales put the note on the right of the action.
+            const noteInset =
+              actionBox.left >= linesRight
+                ? linesLeft - box.left
+                : box.right - linesRight;
             return {
               shown: spans.map((span) => span.textContent),
               clipped:
@@ -448,6 +455,7 @@ for (const { locale, tray } of trayStringsByLocale) {
                 box.bottom <= window.innerHeight,
               noteLines: Math.round(rects[0].height / lineHeight),
               gapToAction,
+              noteInset,
             };
           },
           [labels.note, label],
@@ -457,12 +465,17 @@ for (const { locale, tray } of trayStringsByLocale) {
           fit.gapToAction,
           `${label}: note ends by the action`,
         ).toBeLessThan(12);
+        expect(
+          fit.noteInset,
+          `${label}: note clears the rounded edge`,
+        ).toBeGreaterThanOrEqual(12);
         expect(fit, label).toEqual({
           shown: [labels.note, label],
           clipped: false,
           insideWindow: true,
           noteLines: fit.noteLines,
           gapToAction: fit.gapToAction,
+          noteInset: fit.noteInset,
         });
         if (label === labels.copy) await button.click();
       }
