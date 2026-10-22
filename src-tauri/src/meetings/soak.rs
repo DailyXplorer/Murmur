@@ -905,7 +905,8 @@ fn sent_again(done_before: &[u64], sent: &[u64], done_after: &[u64]) -> usize {
         .collect::<HashSet<u64>>()
         .into_iter()
         .map(|piece| {
-            (count(done_before, piece) + count(sent, piece)).saturating_sub(count(done_after, piece))
+            (count(done_before, piece) + count(sent, piece))
+                .saturating_sub(count(done_after, piece))
         })
         .sum()
 }
