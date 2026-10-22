@@ -415,9 +415,11 @@ for (const { locale, tray } of trayStringsByLocale) {
         await entranceFinished(page);
         windows.push(await fitCopyWindow(page));
         const fit = await button.evaluate(
-          (capsule, { texts, widestPill }) => {
+          (capsule: HTMLElement, { texts, widestPill }) => {
             const box = capsule.getBoundingClientRect();
-            const leaves = capsule.querySelectorAll("span:not(:has(span))");
+            const leaves = capsule.querySelectorAll<HTMLElement>(
+              "span:not(:has(span))",
+            );
             const spans = [...leaves].filter((span) =>
               texts.includes(span.textContent ?? ""),
             );
