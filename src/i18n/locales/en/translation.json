@@ -501,7 +501,7 @@
       },
       "windowNames": {
         "title": "Context from the active window",
-        "description": "When you start dictating, Murmur reads the text of the frontmost window through Accessibility and sends the names it finds to AI cleanup, so they are spelled right. It also sends a short excerpt of the text around the cursor. Nothing is stored. Password fields and password managers are never read."
+        "description": "When you start dictating, Murmur reads the text of the frontmost window through Accessibility and sends the names it finds to cleanup, so they are spelled right. It also sends a short excerpt of the text around the cursor. Nothing is stored. Password fields and password managers are never read."
       },
       "whisperMode": {
         "title": "Whisper mode",
