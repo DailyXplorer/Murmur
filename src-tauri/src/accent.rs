@@ -45,7 +45,9 @@ pub enum DockPresence {
     Hidden,
 }
 
-/// The only place Murmur changes its activation policy.
+/// The only place Murmur changes its activation policy. Becoming Regular gives
+/// the app a new Dock tile with the bundle's pink icon, and AppKit does not draw
+/// the earlier `setApplicationIconImage` into it, so showing re-applies the accent.
 pub fn set_dock_presence(app: &AppHandle, presence: DockPresence) {
     #[allow(clippy::disallowed_methods)]
     update_dock(
@@ -61,7 +63,7 @@ pub fn set_dock_presence(app: &AppHandle, presence: DockPresence) {
 fn update_dock(
     presence: DockPresence,
     set_activation_policy: impl FnOnce(ActivationPolicy) -> Result<(), String>,
-    _apply_accent: impl FnOnce() -> Result<(), String>,
+    apply_accent: impl FnOnce() -> Result<(), String>,
 ) {
     let policy = match presence {
         DockPresence::Shown => ActivationPolicy::Regular,
@@ -69,6 +71,11 @@ fn update_dock(
     };
     if let Err(error) = set_activation_policy(policy) {
         log::error!("Failed to set the activation policy for {presence:?}: {error}");
+    }
+    if presence == DockPresence::Shown {
+        if let Err(error) = apply_accent() {
+            log::warn!("Failed to apply the accent icon to the Dock tile: {error}");
+        }
     }
 }
 
