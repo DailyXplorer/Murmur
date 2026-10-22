@@ -480,7 +480,7 @@
       },
       "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex",
       "aiCleanup": {
-        "title": "Limpieza y formato con IA",
+        "title": "Limpieza y formato",
         "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
         "needsAccount": "Conecta ChatGPT para usar la limpieza con IA."
       },

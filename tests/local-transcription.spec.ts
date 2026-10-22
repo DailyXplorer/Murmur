@@ -229,7 +229,7 @@ test.describe("how Murmur transcribes", () => {
       page.getByText("Optional: connect for AI cleanup and more languages."),
     ).toBeVisible();
     await expect(
-      page.getByRole("checkbox", { name: "AI cleanup and formatting" }),
+      page.getByRole("checkbox", { name: "Cleanup and formatting" }),
     ).toBeDisabled();
     await expect(
       page.getByText("Connect ChatGPT to use AI cleanup."),
@@ -240,7 +240,7 @@ test.describe("how Murmur transcribes", () => {
   test("with ChatGPT, AI cleanup stays available", async ({ page }) => {
     await open(page, "engine=local", "Transcription");
     await expect(
-      page.getByRole("checkbox", { name: "AI cleanup and formatting" }),
+      page.getByRole("checkbox", { name: "Cleanup and formatting" }),
     ).toBeEnabled();
     await expect(
       page.getByText("Connect ChatGPT to use AI cleanup."),
