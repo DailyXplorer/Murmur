@@ -123,11 +123,34 @@
       "continue": "继续",
       "completionFailed": "无法完成设置。请刷新状态后重试。",
       "setupCodex": "打开 Codex 设置",
-      "codexSetupFailed": "无法打开 Codex 设置。"
+      "codexSetupFailed": "无法打开 Codex 设置。",
+      "optionalTitle": "连接 ChatGPT（可选）",
+      "optionalDescription": "连接你的 ChatGPT 账户，以使用 AI 清理（去掉口头禅并修正语法），以及本地模型不支持的语言。",
+      "optionalSession": "用你的 ChatGPT 账户登录 Codex 应用。Murmur 会使用该会话。",
+      "skip": "跳过"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "未检测到配置"
+    },
+    "model": {
+      "title": "在这台 Mac 上转录",
+      "description": "Murmur 直接在这台 Mac 上把你的语音转成文字。音频留在这台 Mac 上，也没有额度限制。",
+      "download": "需要一次性下载 {{size}}。",
+      "alreadyHere": "模型已在这台 Mac 上。",
+      "languages": "支持 25 种欧洲语言，包括英语和法语。",
+      "downloadAndContinue": "下载并继续",
+      "useCloud": "改用云端"
+    },
+    "done": {
+      "title": "一切就绪",
+      "ready": "按住快捷键并说话。",
+      "downloading": "模型仍在下载（{{percent}}%）。",
+      "preparing": "正在为这台 Mac 准备模型。",
+      "cloudMeanwhile": "在它就绪之前，Murmur 使用云端。",
+      "waitForIt": "模型就绪后即可开始听写。",
+      "stoppedTitle": "下载已停止",
+      "start": "开始使用 Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "无法启动本地转录。",
     "switched": "现在在这台 Mac 上转录。",
     "switchedDescription": "可以在“{{section}}”中更改。"
+  },
+  "localModelPill": {
+    "downloading": "正在下载模型… {{percent}}%",
+    "preparing": "正在准备模型…"
   }
 }

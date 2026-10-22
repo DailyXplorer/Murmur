@@ -123,11 +123,34 @@
       "continue": "Tiếp tục",
       "completionFailed": "Không thể hoàn tất thiết lập. Hãy làm mới trạng thái và thử lại.",
       "setupCodex": "Mở thiết lập Codex",
-      "codexSetupFailed": "Không thể mở thiết lập Codex."
+      "codexSetupFailed": "Không thể mở thiết lập Codex.",
+      "optionalTitle": "Kết nối ChatGPT (không bắt buộc)",
+      "optionalDescription": "Kết nối tài khoản ChatGPT để dùng tính năng dọn dẹp bằng AI (bỏ từ đệm và sửa ngữ pháp) và các ngôn ngữ mà mô hình cục bộ không hỗ trợ.",
+      "optionalSession": "Đăng nhập ứng dụng Codex bằng tài khoản ChatGPT của bạn. Murmur dùng phiên đó.",
+      "skip": "Bỏ qua"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Không phát hiện cấu hình"
+    },
+    "model": {
+      "title": "Chép lời ngay trên máy Mac này",
+      "description": "Murmur chuyển giọng nói của bạn thành văn bản ngay trên máy Mac này. Âm thanh ở lại trên máy, và không có hạn mức.",
+      "download": "Cần tải xuống một lần {{size}}.",
+      "alreadyHere": "Mô hình đã có trên máy Mac này.",
+      "languages": "Hoạt động với 25 ngôn ngữ châu Âu, gồm tiếng Anh và tiếng Pháp.",
+      "downloadAndContinue": "Tải xuống và tiếp tục",
+      "useCloud": "Dùng đám mây thay thế"
+    },
+    "done": {
+      "title": "Mọi thứ đã sẵn sàng",
+      "ready": "Giữ phím tắt và nói.",
+      "downloading": "Mô hình vẫn đang tải xuống ({{percent}}%).",
+      "preparing": "Mô hình đang được chuẩn bị cho máy Mac này.",
+      "cloudMeanwhile": "Cho đến khi sẵn sàng, Murmur dùng đám mây.",
+      "waitForIt": "Bạn có thể đọc chính tả ngay khi mô hình sẵn sàng.",
+      "stoppedTitle": "Quá trình tải xuống đã dừng",
+      "start": "Bắt đầu dùng Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Không thể bắt đầu chép lời trên máy.",
     "switched": "Giờ đây việc chép lời diễn ra trên máy Mac này.",
     "switchedDescription": "Bạn có thể thay đổi trong {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Đang tải mô hình… {{percent}}%",
+    "preparing": "Đang chuẩn bị mô hình…"
   }
 }

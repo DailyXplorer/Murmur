@@ -26,8 +26,9 @@ API key.
 
 - macOS 10.15 or later
 - A working microphone
-- Codex signed in with a ChatGPT account, to finish setup and for cloud
-  transcription, AI cleanup and meetings. Local transcription runs without it.
+- Codex signed in with a ChatGPT account, for cloud transcription, AI cleanup
+  and meetings. Local transcription, the default, runs without it. A Mac that
+  cannot run the local model needs it to finish setup.
 - Accessibility permission for global shortcuts and text insertion
 - For local transcription: macOS 15 or later on Apple silicon, or an Intel
   Mac, and a one-time download of about 500 MB (740 MB on Intel)
@@ -128,10 +129,19 @@ automatic updates yet.
 
 ## Getting started
 
-Grant microphone and Accessibility permissions, then connect Codex. If no
-session is found, open Codex, sign in there, and return to Murmur to refresh
-its status. The setup screen links to the Codex download page. Codex must be
-configured before setup can finish.
+Setup first offers to transcribe on this Mac. **Download and Continue** starts
+the model's download in the background, so it runs while you grant microphone
+and Accessibility permissions; a small pill shows its progress until the model
+is ready. **Use the Cloud Instead** keeps the model off this Mac. A Mac that
+cannot run the model skips this step.
+
+Then connect Codex. If no session is found, open Codex, sign in there, and
+return to Murmur to refresh its status. The setup screen links to the Codex
+download page. With local transcription this step is optional: **Skip** it to
+dictate without an account, without AI cleanup and the cloud's extra
+languages. With cloud transcription, Codex must be configured before setup
+can finish. Until the model is ready, a connected account transcribes in the
+cloud; without one, dictation waits for the model.
 
 "Configured" means Murmur found a local session that is valid or that it can
 refresh. A Codex session that expired and has no usable refresh token shows as

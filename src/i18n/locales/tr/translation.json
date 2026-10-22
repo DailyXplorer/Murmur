@@ -123,11 +123,34 @@
       "continue": "Devam et",
       "completionFailed": "Kurulum tamamlanamadı. Durumu yenileyip yeniden deneyin.",
       "setupCodex": "Codex kurulumunu aç",
-      "codexSetupFailed": "Codex kurulumu açılamadı."
+      "codexSetupFailed": "Codex kurulumu açılamadı.",
+      "optionalTitle": "ChatGPT'yi bağla (isteğe bağlı)",
+      "optionalDescription": "Yapay zekâ temizliği (dolgu sözcüklerini kaldırır ve dil bilgisini düzeltir) ve yerel modelin desteklemediği diller için ChatGPT hesabınızı bağlayın.",
+      "optionalSession": "Codex uygulamasında ChatGPT hesabınızla oturum açın. Murmur bu oturumu kullanır.",
+      "skip": "Atla"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Yapılandırma algılanmadı"
+    },
+    "model": {
+      "title": "Bu Mac'te yazıya dök",
+      "description": "Murmur sesinizi doğrudan bu Mac'te metne çevirir. Sesiniz bu Mac'te kalır ve kota yoktur.",
+      "download": "Tek seferlik {{size}} indirme gerekir.",
+      "alreadyHere": "Model zaten bu Mac'te.",
+      "languages": "İngilizce ve Fransızca dahil 25 Avrupa dilinde çalışır.",
+      "downloadAndContinue": "İndir ve devam et",
+      "useCloud": "Bunun yerine bulutu kullan"
+    },
+    "done": {
+      "title": "Her şey hazır",
+      "ready": "Kısayolunuzu basılı tutun ve konuşun.",
+      "downloading": "Model hâlâ indiriliyor (%{{percent}}).",
+      "preparing": "Model bu Mac için hazırlanıyor.",
+      "cloudMeanwhile": "Hazır olana kadar Murmur bulutu kullanır.",
+      "waitForIt": "Hazır olur olmaz dikte edebilirsiniz.",
+      "stoppedTitle": "İndirme durdu",
+      "start": "Murmur'u kullanmaya başla"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Yerel yazıya dökme başlatılamadı.",
     "switched": "Artık bu Mac'te yazıya dökülüyor.",
     "switchedDescription": "Bunu {{section}} bölümünden değiştirebilirsiniz."
+  },
+  "localModelPill": {
+    "downloading": "Model indiriliyor… %{{percent}}",
+    "preparing": "Model hazırlanıyor…"
   }
 }

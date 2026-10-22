@@ -123,11 +123,34 @@
       "continue": "Continue",
       "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
       "setupCodex": "Open Codex setup",
-      "codexSetupFailed": "Couldn't open Codex setup."
+      "codexSetupFailed": "Couldn't open Codex setup.",
+      "optionalTitle": "Connect ChatGPT (Optional)",
+      "optionalDescription": "Connect your ChatGPT account for AI cleanup (removes ums and fixes grammar) and for languages the local model doesn't cover.",
+      "optionalSession": "Sign in to the Codex app with your ChatGPT account. Murmur uses that session.",
+      "skip": "Skip"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Configuration not detected"
+    },
+    "model": {
+      "title": "Transcribe on This Mac",
+      "description": "Murmur turns your voice into text right on this Mac. Your audio stays on it, and there's no quota.",
+      "download": "It needs a one-time download of {{size}}.",
+      "alreadyHere": "The model is already on this Mac.",
+      "languages": "Works in 25 European languages, including English and French.",
+      "downloadAndContinue": "Download and Continue",
+      "useCloud": "Use the Cloud Instead"
+    },
+    "done": {
+      "title": "You're Set",
+      "ready": "Hold your shortcut and speak.",
+      "downloading": "The model is still downloading ({{percent}}%).",
+      "preparing": "The model is getting ready for this Mac.",
+      "cloudMeanwhile": "Until it's ready, Murmur uses the cloud.",
+      "waitForIt": "You can dictate as soon as it's ready.",
+      "stoppedTitle": "The Download Stopped",
+      "start": "Start Using Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Couldn't start local transcription.",
     "switched": "Now transcribing on this Mac.",
     "switchedDescription": "You can change this in {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Downloading the model… {{percent}}%",
+    "preparing": "Preparing the model…"
   }
 }

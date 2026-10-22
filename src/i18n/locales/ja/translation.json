@@ -123,11 +123,34 @@
       "continue": "続ける",
       "completionFailed": "セットアップを完了できませんでした。状態を更新してもう一度お試しください。",
       "setupCodex": "Codex の設定を開く",
-      "codexSetupFailed": "Codex の設定を開けませんでした。"
+      "codexSetupFailed": "Codex の設定を開けませんでした。",
+      "optionalTitle": "ChatGPT に接続（任意）",
+      "optionalDescription": "AI クリーンアップ（つなぎ言葉の削除や文法の修正）と、ローカルモデルが対応していない言語のために、ChatGPT アカウントを接続します。",
+      "optionalSession": "ChatGPT アカウントで Codex アプリにサインインしてください。Murmur はそのセッションを使います。",
+      "skip": "スキップ"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "設定が見つかりません"
+    },
+    "model": {
+      "title": "このMacで文字起こし",
+      "description": "Murmur はこのMac上で直接、声をテキストに変換します。音声はこのMacから出ず、利用上限もありません。",
+      "download": "初回に {{size}} のダウンロードが必要です。",
+      "alreadyHere": "モデルはすでにこのMacにあります。",
+      "languages": "英語やフランス語を含む、ヨーロッパの25言語に対応しています。",
+      "downloadAndContinue": "ダウンロードして続ける",
+      "useCloud": "代わりにクラウドを使う"
+    },
+    "done": {
+      "title": "準備完了",
+      "ready": "ショートカットを押したまま話してください。",
+      "downloading": "モデルはまだダウンロード中です（{{percent}}%）。",
+      "preparing": "このMac用にモデルを準備しています。",
+      "cloudMeanwhile": "準備ができるまで、Murmur はクラウドを使います。",
+      "waitForIt": "準備ができ次第、音声入力できます。",
+      "stoppedTitle": "ダウンロードが止まりました",
+      "start": "Murmur を使い始める"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "ローカルの文字起こしを開始できませんでした。",
     "switched": "このMacで文字起こしするようになりました。",
     "switchedDescription": "{{section}}で変更できます。"
+  },
+  "localModelPill": {
+    "downloading": "モデルをダウンロード中… {{percent}}%",
+    "preparing": "モデルを準備中…"
   }
 }

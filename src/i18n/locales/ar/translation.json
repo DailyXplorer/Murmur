@@ -123,11 +123,34 @@
       "continue": "متابعة",
       "completionFailed": "تعذر إكمال الإعداد. حدّث الحالة وحاول مرة أخرى.",
       "setupCodex": "فتح إعداد Codex",
-      "codexSetupFailed": "تعذر فتح إعداد Codex."
+      "codexSetupFailed": "تعذر فتح إعداد Codex.",
+      "optionalTitle": "ربط ChatGPT (اختياري)",
+      "optionalDescription": "اربط حسابك في ChatGPT من أجل التنظيف بالذكاء الاصطناعي (يحذف كلمات الحشو ويصحح القواعد) ومن أجل اللغات التي لا يغطيها النموذج المحلي.",
+      "optionalSession": "سجّل الدخول إلى تطبيق Codex بحسابك في ChatGPT. يستخدم Murmur تلك الجلسة.",
+      "skip": "تخطٍّ"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "لم يتم اكتشاف تهيئة"
+    },
+    "model": {
+      "title": "النسخ على هذا الـ Mac",
+      "description": "يحوّل Murmur صوتك إلى نص مباشرةً على هذا الـ Mac. يبقى صوتك عليه، ولا توجد حصة استخدام.",
+      "download": "يحتاج إلى تنزيل لمرة واحدة بحجم {{size}}.",
+      "alreadyHere": "النموذج موجود بالفعل على هذا الـ Mac.",
+      "languages": "يعمل بـ 25 لغة أوروبية، منها الإنجليزية والفرنسية.",
+      "downloadAndContinue": "تنزيل ومتابعة",
+      "useCloud": "استخدام السحابة بدلًا من ذلك"
+    },
+    "done": {
+      "title": "كل شيء جاهز",
+      "ready": "اضغط مطولًا على اختصارك وتحدّث.",
+      "downloading": "لا يزال النموذج قيد التنزيل ({{percent}}%).",
+      "preparing": "يجري تجهيز النموذج لهذا الـ Mac.",
+      "cloudMeanwhile": "إلى أن يصبح جاهزًا، يستخدم Murmur السحابة.",
+      "waitForIt": "يمكنك الإملاء فور جاهزيته.",
+      "stoppedTitle": "توقف التنزيل",
+      "start": "ابدأ استخدام Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "تعذّر بدء النسخ المحلي.",
     "switched": "يتم النسخ الآن على جهاز Mac هذا.",
     "switchedDescription": "يمكنك تغيير ذلك في {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "جارٍ تنزيل النموذج… {{percent}}%",
+    "preparing": "جارٍ تجهيز النموذج…"
   }
 }

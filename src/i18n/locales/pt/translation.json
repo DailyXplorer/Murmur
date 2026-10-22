@@ -123,11 +123,34 @@
       "continue": "Continuar",
       "completionFailed": "Não foi possível concluir a configuração. Atualize o estado e tente novamente.",
       "setupCodex": "Abrir a configuração do Codex",
-      "codexSetupFailed": "Não foi possível abrir a configuração do Codex."
+      "codexSetupFailed": "Não foi possível abrir a configuração do Codex.",
+      "optionalTitle": "Conectar o ChatGPT (opcional)",
+      "optionalDescription": "Conecte sua conta do ChatGPT para a limpeza com IA (remove hesitações e corrige a gramática) e para os idiomas que o modelo local não cobre.",
+      "optionalSession": "Entre no app Codex com sua conta do ChatGPT. O Murmur usa essa sessão.",
+      "skip": "Pular"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Não foi detetada nenhuma configuração"
+    },
+    "model": {
+      "title": "Transcrever neste Mac",
+      "description": "O Murmur transforma sua voz em texto diretamente neste Mac. Seu áudio fica nele, e não há cota.",
+      "download": "É preciso um download único de {{size}}.",
+      "alreadyHere": "O modelo já está neste Mac.",
+      "languages": "Funciona em 25 idiomas europeus, incluindo português, inglês e francês.",
+      "downloadAndContinue": "Baixar e continuar",
+      "useCloud": "Usar a nuvem"
+    },
+    "done": {
+      "title": "Tudo pronto",
+      "ready": "Segure seu atalho e fale.",
+      "downloading": "O modelo ainda está sendo baixado ({{percent}}%).",
+      "preparing": "O modelo está sendo preparado para este Mac.",
+      "cloudMeanwhile": "Até ele ficar pronto, o Murmur usa a nuvem.",
+      "waitForIt": "Você poderá ditar assim que ele estiver pronto.",
+      "stoppedTitle": "O download parou",
+      "start": "Começar a usar o Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Não foi possível iniciar a transcrição local.",
     "switched": "Agora a transcrição é feita neste Mac.",
     "switchedDescription": "Você pode mudar isso em {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Baixando o modelo… {{percent}}%",
+    "preparing": "Preparando o modelo…"
   }
 }

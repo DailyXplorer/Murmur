@@ -123,11 +123,34 @@
       "continue": "Pokračovat",
       "completionFailed": "Nastavení se nepodařilo dokončit. Obnovte stav a zkuste to znovu.",
       "setupCodex": "Otevřít nastavení Codexu",
-      "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít."
+      "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít.",
+      "optionalTitle": "Připojit ChatGPT (volitelné)",
+      "optionalDescription": "Připojte účet ChatGPT pro úpravu pomocí AI (odstraní vycpávková slova a opraví gramatiku) a pro jazyky, které místní model nepokrývá.",
+      "optionalSession": "Přihlaste se do aplikace Codex účtem ChatGPT. Murmur používá tuto relaci.",
+      "skip": "Přeskočit"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Konfigurace nebyla rozpoznána"
+    },
+    "model": {
+      "title": "Přepis na tomto Macu",
+      "description": "Murmur převádí váš hlas na text přímo na tomto Macu. Zvuk zůstává v počítači a neplatí žádný limit.",
+      "download": "Vyžaduje jednorázové stažení {{size}}.",
+      "alreadyHere": "Model už je na tomto Macu.",
+      "languages": "Funguje v 25 evropských jazycích, včetně češtiny, angličtiny a francouzštiny.",
+      "downloadAndContinue": "Stáhnout a pokračovat",
+      "useCloud": "Použít raději cloud"
+    },
+    "done": {
+      "title": "Vše je připraveno",
+      "ready": "Podržte zkratku a mluvte.",
+      "downloading": "Model se stále stahuje ({{percent}} %).",
+      "preparing": "Model se připravuje pro tento Mac.",
+      "cloudMeanwhile": "Dokud nebude připraven, Murmur používá cloud.",
+      "waitForIt": "Diktovat můžete, jakmile bude připraven.",
+      "stoppedTitle": "Stahování se zastavilo",
+      "start": "Začít používat Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Místní přepis se nepodařilo spustit.",
     "switched": "Přepis teď probíhá na tomto Macu.",
     "switchedDescription": "Můžete to změnit v sekci {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Stahování modelu… {{percent}} %",
+    "preparing": "Příprava modelu…"
   }
 }

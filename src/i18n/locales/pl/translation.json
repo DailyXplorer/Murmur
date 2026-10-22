@@ -123,11 +123,34 @@
       "continue": "Kontynuuj",
       "completionFailed": "Nie udało się ukończyć konfiguracji. Odśwież stan i spróbuj ponownie.",
       "setupCodex": "Otwórz konfigurację Codex",
-      "codexSetupFailed": "Nie udało się otworzyć konfiguracji Codex."
+      "codexSetupFailed": "Nie udało się otworzyć konfiguracji Codex.",
+      "optionalTitle": "Połącz ChatGPT (opcjonalnie)",
+      "optionalDescription": "Połącz konto ChatGPT, aby korzystać z porządkowania przez AI (usuwa wtrącenia i poprawia gramatykę) oraz z języków, których model lokalny nie obsługuje.",
+      "optionalSession": "Zaloguj się w aplikacji Codex kontem ChatGPT. Murmur korzysta z tej sesji.",
+      "skip": "Pomiń"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Nie wykryto konfiguracji"
+    },
+    "model": {
+      "title": "Transkrypcja na tym Macu",
+      "description": "Murmur zamienia Twój głos na tekst bezpośrednio na tym Macu. Dźwięk zostaje na komputerze i nie ma limitu.",
+      "download": "Wymaga jednorazowego pobrania {{size}}.",
+      "alreadyHere": "Model jest już na tym Macu.",
+      "languages": "Działa w 25 językach europejskich, w tym po polsku, angielsku i francusku.",
+      "downloadAndContinue": "Pobierz i kontynuuj",
+      "useCloud": "Użyj chmury"
+    },
+    "done": {
+      "title": "Wszystko gotowe",
+      "ready": "Przytrzymaj skrót i mów.",
+      "downloading": "Model wciąż się pobiera ({{percent}}%).",
+      "preparing": "Model jest przygotowywany dla tego Maca.",
+      "cloudMeanwhile": "Do tego czasu Murmur korzysta z chmury.",
+      "waitForIt": "Dyktować można, gdy tylko będzie gotowy.",
+      "stoppedTitle": "Pobieranie zostało przerwane",
+      "start": "Zacznij korzystać z Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Nie udało się uruchomić lokalnej transkrypcji.",
     "switched": "Transkrypcja odbywa się teraz na tym Macu.",
     "switchedDescription": "Możesz to zmienić w sekcji {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Pobieranie modelu… {{percent}}%",
+    "preparing": "Przygotowywanie modelu…"
   }
 }
