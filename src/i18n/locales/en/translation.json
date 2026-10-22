@@ -37,8 +37,9 @@
     "meetingSystemAudioUnavailable": "System audio isn't available, so this meeting records your microphone only.",
     "meetingMicrophoneUnavailable": "The microphone isn't available, so this meeting records system audio only.",
     "meetingStartFailed": "Couldn't start the meeting. Check the microphone and audio permissions.",
-    "meetingStopsSoon": "The meeting stops in 5 minutes (3-hour limit).",
-    "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
+    "meetingStopsSoon": "The meeting stops in 5 minutes (12-hour limit).",
+    "meetingStoppedAtLimit": "The meeting reached the 12-hour limit and was saved.",
+    "meetingStoppedLowDisk": "The meeting stopped because this Mac is almost out of space. What was recorded is kept.",
     "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept.",
     "meetingLowDiskSpace": "Less than 1.5 GB is free on this Mac. A long meeting may stop early; what is recorded is kept.",
     "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded.",
@@ -658,6 +659,8 @@
     "view": {
       "back": "All meetings",
       "titleLabel": "Meeting title",
+      "part": "Part {{part}}",
+      "seePart": "See part {{part}}",
       "loadError": "Couldn't load this meeting.",
       "renameError": "Couldn't rename the meeting.",
       "tabs": {
@@ -763,6 +766,7 @@
     "discardDialog": {
       "title": "Discard this meeting?",
       "description": "The recording so far is deleted and can't be recovered.",
+      "descriptionParts": "The whole recording so far, its earlier parts included, is deleted and can't be recovered.",
       "keep": "Keep recording"
     },
     "deleteDialog": {
@@ -790,6 +794,7 @@
       "title": "Recordings",
       "empty": "No meetings yet.",
       "untitled": "Meeting · {{date}}",
+      "part": "{{title}} (part {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Show more"
     },

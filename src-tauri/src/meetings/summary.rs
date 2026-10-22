@@ -64,6 +64,16 @@ fn section_instructions() -> String {
     )
 }
 
+/// Tells Codex the transcript goes on from an earlier part titled `earlier`.
+fn continuing(instructions: String, earlier: Option<&str>) -> String {
+    match earlier {
+        Some(title) => format!(
+            "{instructions}\n\nThis transcript is a later part of a long meeting; the part before it is titled \"{title}\". Write the notes of this part, in the same terms where they fit."
+        ),
+        None => instructions,
+    }
+}
+
 fn merge_instructions() -> String {
     format!(
         "You merge the notes of the consecutive parts of one long meeting into the notes of the whole meeting: one title, one context paragraph, sections that combine the same topic across parts, and the decisions and action items of all parts without repeats.\n\n{SHAPE}"
@@ -413,25 +423,38 @@ async fn ask(
     }
 }
 
+/// What a summary is written from.
+pub struct Transcript<'a> {
+    pub turns: &'a [MeetingTurn],
+    pub speakers: &'a [MeetingSpeaker],
+    /// The title of the part before, for a meeting that went on past 3 hours.
+    pub earlier: Option<&'a str>,
+}
+
 /// Summarises the transcript in one request, or section by section and then
 /// merged when it is longer than `max_chars`. Chinese is written in the
 /// script `language` chose, whichever one Codex replied in.
 pub async fn summarize(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
-    turns: &[MeetingTurn],
-    speakers: &[MeetingSpeaker],
+    transcript: &Transcript<'_>,
     max_chars: usize,
     language: Option<&str>,
     operation: &ProcessingOperation,
 ) -> SummaryEnd {
+    let Transcript {
+        turns,
+        speakers,
+        earlier,
+    } = *transcript;
     let lines = transcript_lines(turns, speakers);
     if lines.is_empty() {
         return SummaryEnd::Failed(SummaryError::NothingToSummarize);
     }
     let transcript = lines.join("\n");
     let result = if transcript.chars().count() <= max_chars {
-        ask(summarizer, policy, instructions(), transcript, operation).await
+        let instructions = continuing(instructions(), earlier);
+        ask(summarizer, policy, instructions, transcript, operation).await
     } else {
         let parts = sections(&lines, max_chars.min(SECTION_CHARS));
         let count = parts.len();
@@ -449,7 +472,7 @@ pub async fn summarize(
         ask(
             summarizer,
             policy,
-            merge_instructions(),
+            continuing(merge_instructions(), earlier),
             notes.join("\n\n"),
             operation,
         )
@@ -494,7 +517,9 @@ impl SummaryError {
 }
 
 /// Stage D: writes the summary of a transcribed meeting that has none yet,
-/// and names the meeting unless the user did.
+/// and names the meeting unless the user did. A later part of a long
+/// meeting takes the title of the part before, so the parts read as one
+/// meeting; Codex gets that title as context.
 pub async fn write(
     store: &MeetingsStore,
     summarizer: &dyn Summarizer,
@@ -509,12 +534,20 @@ pub async fn write(
     if meeting.summary_status != SummaryStatus::Pending {
         return Ok(Summarized::not_asked());
     }
+    let earlier = match meeting.previous_id {
+        Some(previous) => store.get(previous)?.and_then(|previous| previous.title),
+        None => None,
+    };
     let started = std::time::Instant::now();
+    let transcript = Transcript {
+        turns: &meeting.turns,
+        speakers: &meeting.speakers,
+        earlier: earlier.as_deref(),
+    };
     match summarize(
         summarizer,
         policy,
-        &meeting.turns,
-        &meeting.speakers,
+        &transcript,
         MAX_SUMMARY_CHARS,
         language,
         operation,
@@ -528,7 +561,11 @@ pub async fn write(
                 summary.body.chars().count()
             );
             Ok(Summarized {
-                settled: store.save_summary(id, summary.title.as_deref(), &summary.body)?,
+                settled: store.save_summary(
+                    id,
+                    earlier.as_deref().or(summary.title.as_deref()),
+                    &summary.body,
+                )?,
                 codex: CodexVerdict::Answered,
             })
         }
@@ -737,13 +774,78 @@ mod tests {
         }
     }
 
+    fn transcript<'a>(turns: &'a [MeetingTurn], speakers: &'a [MeetingSpeaker]) -> Transcript<'a> {
+        Transcript {
+            turns,
+            speakers,
+            earlier: None,
+        }
+    }
+
+    #[test]
+    fn a_later_part_is_named_after_the_part_before_and_told_its_title() {
+        use crate::meetings::store::{MeetingTracks, SpeakerAnalysis};
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let (speakers, turns) = meeting();
+        let transcribed = |previous: Option<i64>| {
+            let id = match previous {
+                Some(previous) => store.insert_part(5_000, MeetingTracks::Both, previous),
+                None => store.insert_recording(1_000, MeetingTracks::Both),
+            }
+            .unwrap();
+            store.finish_recording(id, 9_000, 4_000).unwrap();
+            store
+                .save_transcript(
+                    id,
+                    &speakers,
+                    &turns,
+                    SpeakerAnalysis::Separated,
+                    None,
+                    None,
+                )
+                .unwrap();
+            store.finish_processing(id, None).unwrap();
+            id
+        };
+        let first = transcribed(None);
+        let second = transcribed(Some(first));
+        let write = |id: i64, script: &Script| {
+            tauri::async_runtime::block_on(super::write(
+                &store,
+                script,
+                &no_retries(),
+                id,
+                None,
+                &ProcessingOperation::new(OperationId(1)),
+            ))
+            .unwrap()
+        };
+
+        let script = Script::new(vec![Ok("# Budget\n\nNotes.".into())]);
+        write(first, &script);
+        assert_eq!(
+            store.get(first).unwrap().unwrap().title.as_deref(),
+            Some("Budget")
+        );
+        assert!(!script.requests.lock().unwrap()[0].0.contains("later part"));
+
+        let script = Script::new(vec![Ok("# Hiring\n\nMore notes.".into())]);
+        write(second, &script);
+        let meeting = store.get(second).unwrap().unwrap();
+        assert_eq!(meeting.title.as_deref(), Some("Budget"));
+        assert_eq!(meeting.summary.as_deref(), Some("More notes."));
+        assert!(script.requests.lock().unwrap()[0]
+            .0
+            .contains("the part before it is titled \"Budget\""));
+    }
+
     fn run_with(script: &dyn Summarizer, policy: &RetryPolicy, max_chars: usize) -> SummaryEnd {
         let (speakers, turns) = meeting();
         tauri::async_runtime::block_on(summarize(
             script,
             policy,
-            &turns,
-            &speakers,
+            &transcript(&turns, &speakers),
             max_chars,
             None,
             &ProcessingOperation::new(OperationId(1)),
@@ -830,12 +932,12 @@ mod tests {
             transient: vec![],
         };
         let (speakers, turns) = meeting();
+        let spoken = transcript(&turns, &speakers);
         let end = tauri::async_runtime::block_on(async {
             let summary = summarize(
                 &script,
                 &policy,
-                &turns,
-                &speakers,
+                &spoken,
                 MAX_SUMMARY_CHARS,
                 None,
                 &operation,
@@ -948,8 +1050,7 @@ mod tests {
         let end = tauri::async_runtime::block_on(summarize(
             &script,
             &no_retries(),
-            &[turn(PLACEHOLDER, 0, "")],
-            &[],
+            &transcript(&[turn(PLACEHOLDER, 0, "")], &[]),
             MAX_SUMMARY_CHARS,
             None,
             &ProcessingOperation::new(OperationId(1)),

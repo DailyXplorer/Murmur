@@ -249,8 +249,8 @@ test("a Discard dialog its meeting outlived never opens for the next meeting", a
     window.settingsPages.emitMeetingState({
       id: 4,
       started_at_ms: Date.now(),
+      meeting_started_at_ms: Date.now(),
       state: "recording",
-      stops_at_ms: Date.now() + 3 * 3_600_000,
       tracks: "both",
     }),
   );
@@ -260,6 +260,70 @@ test("a Discard dialog its meeting outlived never opens for the next meeting", a
   await page.waitForTimeout(100);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await calls(page)).not.toContain("discard_meeting");
+});
+
+test("each later part of a long meeting is listed under the meeting's title", async ({
+  page,
+}) => {
+  await openMeetings(page, "&linkedParts=1");
+  await expect(
+    page.getByText("Point hebdo produit (part 2)", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Point hebdo produit", { exact: true }),
+  ).toBeVisible();
+});
+
+test("the recording time counts from the meeting's first part", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({
+      id: 5,
+      started_at_ms: Date.now() - 20 * 60_000,
+      meeting_started_at_ms: Date.now() - (3 * 3600 + 20 * 60) * 1000,
+      state: "recording",
+      tracks: "both",
+    }),
+  );
+  await expect(page.getByText(/^Recording · 3:20:\d\d$/)).toBeVisible();
+});
+
+test("discarding during a later part warns that the earlier parts go too", async ({
+  page,
+}) => {
+  await openMeetings(page, "&meeting=recording");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "The recording so far is deleted",
+  );
+  await page.getByRole("button", { name: "Keep recording" }).click();
+
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({
+      id: 5,
+      started_at_ms: Date.now() - 20 * 60_000,
+      meeting_started_at_ms: Date.now() - (3 * 3600 + 20 * 60) * 1000,
+      state: "recording",
+      tracks: "both",
+    }),
+  );
+  await page.getByRole("button", { name: "Discard" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(
+    "The whole recording so far, its earlier parts included, is deleted",
+  );
+  await dialog.getByRole("button", { name: "Discard" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls.find(
+          ({ command }) => command === "discard_meeting",
+        ),
+      ),
+    )
+    .toEqual({ command: "discard_meeting", args: { id: 5 } });
 });
 
 test("without system audio support the sources are fixed to the microphone", async ({

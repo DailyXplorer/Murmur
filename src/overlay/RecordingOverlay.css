@@ -193,13 +193,6 @@
   border-radius: 50%;
   background: rgb(255 69 58);
 }
-/* The last 5 minutes before the 3-hour cap. */
-.ov-meeting.warning {
-  color: rgb(255 204 0);
-}
-.ov-meeting.warning::before {
-  background: rgb(255 204 0);
-}
 
 /* Copy pill: the whole capsule is one button around a body that sizes itself
    from its text: the note, on one line when it fits and balanced lines

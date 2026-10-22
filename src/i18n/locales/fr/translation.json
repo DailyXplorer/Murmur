@@ -37,8 +37,9 @@
     "meetingSystemAudioUnavailable": "L’audio du système n’est pas disponible : la réunion n’enregistre que votre microphone.",
     "meetingMicrophoneUnavailable": "Le microphone n’est pas disponible : la réunion n’enregistre que l’audio du système.",
     "meetingStartFailed": "Impossible de démarrer la réunion. Vérifiez le microphone et les autorisations audio.",
-    "meetingStopsSoon": "La réunion s’arrête dans 5 minutes (limite de 3 heures).",
-    "meetingStoppedAtLimit": "La réunion a atteint la limite de 3 heures et a été enregistrée.",
+    "meetingStopsSoon": "La réunion s’arrête dans 5 minutes (limite de 12 heures).",
+    "meetingStoppedAtLimit": "La réunion a atteint la limite de 12 heures et a été enregistrée.",
+    "meetingStoppedLowDisk": "La réunion s’est arrêtée car ce Mac n’a presque plus d’espace libre. Ce qui a été enregistré est conservé.",
     "meetingWriteFailed": "La réunion s’est arrêtée car Murmur n’a pas pu écrire sur le disque. Ce qui a été enregistré est conservé.",
     "meetingLowDiskSpace": "Il reste moins de 1,5 Go sur ce Mac. Une longue réunion peut s’arrêter plus tôt ; ce qui est enregistré est conservé.",
     "meetingSystemAudioInterrupted": "L’audio système s’est arrêté après le changement de sortie audio. Murmur continue d’essayer de le rétablir ; votre micro est toujours enregistré.",
@@ -658,6 +659,8 @@
     "view": {
       "back": "Toutes les réunions",
       "titleLabel": "Titre de la réunion",
+      "part": "Partie {{part}}",
+      "seePart": "Voir la partie {{part}}",
       "loadError": "Impossible de charger cette réunion.",
       "renameError": "Impossible de renommer la réunion.",
       "tabs": {
@@ -763,6 +766,7 @@
     "discardDialog": {
       "title": "Supprimer cette réunion ?",
       "description": "L’enregistrement en cours est supprimé et ne pourra pas être récupéré.",
+      "descriptionParts": "Tout l’enregistrement en cours, parties précédentes comprises, est supprimé et ne pourra pas être récupéré.",
       "keep": "Continuer l’enregistrement"
     },
     "deleteDialog": {
@@ -790,6 +794,7 @@
       "title": "Enregistrements",
       "empty": "Aucune réunion pour l’instant.",
       "untitled": "Réunion · {{date}}",
+      "part": "{{title}} (partie {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Afficher plus"
     },

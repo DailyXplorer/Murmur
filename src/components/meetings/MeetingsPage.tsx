@@ -53,7 +53,12 @@ export const MeetingsPage: React.FC = () => {
   return selected === null ? (
     <MeetingsList onOpen={setSelected} />
   ) : (
-    <MeetingView id={selected} onBack={() => setSelected(null)} />
+    <MeetingView
+      key={selected}
+      id={selected}
+      onBack={() => setSelected(null)}
+      onOpen={setSelected}
+    />
   );
 };
 
@@ -199,7 +204,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           title={
             runtime.state === "recording"
               ? t("meetings.recording.active", {
-                  time: formatDuration(now - runtime.started_at_ms),
+                  time: formatDuration(now - runtime.meeting_started_at_ms),
                 })
               : t("meetings.recording.idle")
           }
@@ -297,6 +302,8 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               );
               const live =
                 runtime.state === "recording" && runtime.id === meeting.id;
+              const name =
+                meeting.title ?? t("meetings.list.untitled", { date });
               return (
                 <li
                   key={meeting.id}
@@ -309,7 +316,12 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                     className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
                   >
                     <p className="truncate text-sm font-medium">
-                      {meeting.title ?? t("meetings.list.untitled", { date })}
+                      {meeting.part > 1
+                        ? t("meetings.list.part", {
+                            title: name,
+                            part: meeting.part,
+                          })
+                        : name}
                     </p>
                     <p className="text-xs text-text/60 tabular-nums">
                       {t("meetings.list.details", {
@@ -374,7 +386,12 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         }
       >
         <p className="text-sm text-text/80">
-          {t("meetings.discardDialog.description")}
+          {t(
+            runtime.state === "recording" &&
+              runtime.started_at_ms !== runtime.meeting_started_at_ms
+              ? "meetings.discardDialog.descriptionParts"
+              : "meetings.discardDialog.description",
+          )}
         </p>
       </Dialog>
 
