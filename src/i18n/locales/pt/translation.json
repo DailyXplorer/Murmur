@@ -501,7 +501,7 @@
       },
       "windowNames": {
         "title": "Contexto da janela ativa",
-        "description": "Ao começar a ditar, o Murmur lê o texto da janela em primeiro plano pela Acessibilidade e envia para a limpeza com IA os nomes encontrados, para escrevê-los corretamente. Com a transcrição local em um Mac com Apple silicon, o modelo deste Mac também presta atenção a eles. Também envia um pequeno trecho do texto ao redor do cursor. Nada é guardado. Campos de senha e gerenciadores de senhas nunca são lidos."
+        "description": "Ao começar a ditar, o Murmur lê o texto da janela em primeiro plano pela Acessibilidade e envia para a limpeza com IA os nomes encontrados, para escrevê-los corretamente. Também envia um pequeno trecho do texto ao redor do cursor. Com a transcrição local em um Mac com Apple silicon, o modelo deste Mac também presta atenção a esses nomes. Nada é guardado. Campos de senha e gerenciadores de senhas nunca são lidos."
       },
       "whisperMode": {
         "title": "Modo sussurro",
