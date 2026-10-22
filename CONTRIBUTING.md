@@ -67,11 +67,9 @@ The template asks for why (Summary, with the issue link), what (Changes), how yo
 
 ## Review rounds
 
-A pull request goes back and forth with reviews until a review finds no more problems. There is no fixed number of rounds. Only real problems (something broken, unsafe, or behaving wrongly) need a fix before merging. Style suggestions are optional.
+Address review comments in one pass, then push once. A bug fix in that pass needs a test that fails without the fix. Style suggestions do not need a commit.
 
-When you fix a bug, add a test that fails without your fix.
-
-If a review raises the same point again after you fixed it, or keeps finding problems in the same file, reply on the thread instead of pushing another small patch, and a maintainer will help. A workflow adds the `review-loop` label when this happens. It asks for a second look; it is not a reason to stop fixing bugs.
+After two completed rounds (a review, your fix, a review, your fix, and another review), stop. Summarize what is still open and wait for a maintainer. If the same point comes back after you fixed it, reply on the thread instead of pushing another patch. The `review-loop` label, when the workflow applies it, means a maintainer should decide.
 
 Do not ask CodeRabbit to push commits to your branch.
 
