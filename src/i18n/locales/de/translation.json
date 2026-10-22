@@ -492,7 +492,7 @@
       },
       "windowNames": {
         "title": "Kontext aus dem aktiven Fenster",
-        "description": "Beim Start des Diktats liest Murmur über die Bedienungshilfen den Text des vordersten Fensters und sendet die gefundenen Namen an die KI-Bereinigung, damit sie richtig geschrieben werden. Außerdem sendet Murmur einen kurzen Auszug des Textes rund um den Cursor. Nichts wird gespeichert. Passwortfelder und Passwortmanager werden nie gelesen."
+        "description": "Beim Start des Diktats liest Murmur über die Bedienungshilfen den Text des vordersten Fensters und sendet die gefundenen Namen an die Bereinigung, damit sie richtig geschrieben werden. Außerdem sendet Murmur einen kurzen Auszug des Textes rund um den Cursor. Nichts wird gespeichert. Passwortfelder und Passwortmanager werden nie gelesen."
       },
       "whisperMode": {
         "title": "Flüstermodus",

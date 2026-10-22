@@ -492,7 +492,7 @@
       },
       "windowNames": {
         "title": "Contesto dalla finestra attiva",
-        "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia IA i nomi trovati, per scriverli correttamente. Invia anche un breve estratto del testo intorno al cursore. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
+        "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia i nomi trovati, per scriverli correttamente. Invia anche un breve estratto del testo intorno al cursore. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
       },
       "whisperMode": {
         "title": "Modalità sussurro",
