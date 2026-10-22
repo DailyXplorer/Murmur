@@ -158,6 +158,19 @@ async fn clean_with_session(
     context: &PromptContext,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
+    let output = ask_for_cleanup(url, session, model, raw, context, operation).await?;
+    accept(raw, &output, context)
+}
+
+/// The model's reply, before the guard.
+async fn ask_for_cleanup(
+    url: &str,
+    session: &Session,
+    model: &str,
+    raw: &str,
+    context: &PromptContext,
+    operation: &ProcessingOperation,
+) -> Result<String, CompletionError> {
     let instructions = prompt::instructions(context.style);
     let user_message = prompt::user_message(raw, context);
     let request = Request {
@@ -170,8 +183,7 @@ async fn clean_with_session(
         // Short: a dictation that waits ends with the raw text anyway.
         connect_timeout: Duration::from_secs(3),
     };
-    let output = responses::complete(url, session, &request, operation).await?;
-    accept(raw, &output, context)
+    responses::complete(url, session, &request, operation).await
 }
 
 fn accept(raw: &str, output: &str, context: &PromptContext) -> Result<String, CompletionError> {
@@ -389,5 +401,108 @@ mod tests {
             );
             assert_eq!(processed.cleanup, Some(CleanupOutcome::Cleaned));
         }
+    }
+
+    /// Runs fixed dictations through every style with the stored session,
+    /// never refreshing it, and writes the outputs for a person to judge.
+    #[test]
+    #[ignore]
+    fn live_styles_write_samples() {
+        use crate::settings::DictationStyle;
+        use std::fmt::Write as _;
+
+        const SAMPLES: &str = "/tmp/murmur-styles-samples.md";
+        let dictations = [
+            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi"),
+            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités"),
+            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore"),
+            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before"),
+            ("en", "for the trip we need to book the flights the hotel and the rental car"),
+            ("en", "hey did you get a chance to look at the draft I sent you yesterday"),
+        ];
+        let styles = [
+            DictationStyle::Formal,
+            DictationStyle::Normal,
+            DictationStyle::Casual,
+        ];
+        let auth_path = codex_auth::auth_path().unwrap();
+        let session = codex_auth::stored_session(&auth_path).unwrap();
+        let model = responses::fast_model(auth_path.parent().unwrap_or(&auth_path));
+
+        let normal = prompt::instructions(DictationStyle::Normal);
+        let mut report = format!(
+            "# Dictation style samples\n\n{} UTC, model `{model}`\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M")
+        );
+        for style in [DictationStyle::Formal, DictationStyle::Casual] {
+            let styled = prompt::instructions(style);
+            let block = styled.strip_prefix(normal.as_ref()).unwrap_or(&styled);
+            writeln!(report, "\n{style:?} block:\n\n```\n{}\n```", block.trim()).unwrap();
+        }
+        let mut failures = Vec::new();
+        for (language, dictation) in dictations {
+            writeln!(report, "\n## {language}: {dictation}\n").unwrap();
+            let deadline = deadline_for(dictation.chars().count());
+            for style in styles {
+                let context = PromptContext {
+                    language: Some(language.to_string()),
+                    style,
+                    ..PromptContext::default()
+                };
+                let operation = ProcessingOperation::new(OperationId(13));
+                let started = Instant::now();
+                let reply = tauri::async_runtime::block_on(ask_for_cleanup(
+                    responses::RESPONSES_URL,
+                    &session,
+                    &model,
+                    dictation,
+                    &context,
+                    &operation,
+                ));
+                let elapsed = started.elapsed();
+                let slow = if elapsed > deadline {
+                    ", SLOW: the app would paste the raw text"
+                } else {
+                    ""
+                };
+                let timing = format!(
+                    "{} ms of {} ms{slow}",
+                    elapsed.as_millis(),
+                    deadline.as_millis()
+                );
+                let reply = match reply {
+                    Ok(reply) => reply,
+                    Err(error) => {
+                        writeln!(report, "- {style:?}, FAILED ({timing}): {error:?}").unwrap();
+                        failures.push(format!("{style:?} {dictation}: {error:?}"));
+                        continue;
+                    }
+                };
+                let outcome = match accept(dictation, &reply, &context) {
+                    Ok(text) => {
+                        if style == DictationStyle::Casual
+                            && !text.chars().next().is_some_and(char::is_uppercase)
+                        {
+                            failures.push(format!("{style:?} lost the capital: {text}"));
+                        }
+                        "cleaned"
+                    }
+                    Err(error) => {
+                        failures.push(format!("{style:?} {dictation}: {error:?}"));
+                        "REJECTED by the reply guard"
+                    }
+                };
+                writeln!(
+                    report,
+                    "- {style:?}, {outcome}, {} commas ({timing}):\n\n  ```\n  {}\n  ```",
+                    reply.matches(',').count(),
+                    reply.trim().replace('\n', "\n  ")
+                )
+                .unwrap();
+            }
+        }
+        std::fs::write(SAMPLES, &report).unwrap();
+        println!("{report}");
+        assert!(failures.is_empty(), "{failures:#?}");
     }
 }
