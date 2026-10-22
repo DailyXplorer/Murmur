@@ -277,6 +277,29 @@ mod tests {
     }
 
     #[test]
+    fn a_known_password_app_matches_in_any_case() {
+        for bundle_id in [
+            "com.1password.1password",
+            "COM.APPLE.PASSWORDS",
+            "com.bitwarden.desktop",
+        ] {
+            assert!(is_password_app(bundle_id), "{bundle_id}");
+        }
+    }
+
+    #[test]
+    fn other_bundle_ids_are_no_password_app() {
+        for bundle_id in [
+            "com.apple.Safari",
+            "",
+            "com.1password",
+            "com.1password.1password.helper",
+        ] {
+            assert!(!is_password_app(bundle_id), "{bundle_id:?}");
+        }
+    }
+
+    #[test]
     fn an_editable_element_is_a_text_field() {
         for (focused, why) in [
             (element("AXTextArea", false), "text area"),
