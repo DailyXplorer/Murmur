@@ -1,19 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const EXAMPLES = {
-  Formal:
-    "I think we can meet tomorrow around 3 p.m., if you are available. Otherwise, Thursday also works.",
-  Normal:
-    "I think we can meet tomorrow around 3, if you're free. Otherwise, Thursday works too.",
-  Casual:
-    "I think we can meet tomorrow around 3 if you're free, otherwise Thursday works too",
-};
-const STYLES = Object.keys(EXAMPLES) as (keyof typeof EXAMPLES)[];
+const CLEANUP_OFF = "Styles apply only when AI cleanup is on.";
 
-const style = (page: Page, name: string) =>
+/** The setting's row: its title, the (i) tooltip and the dropdown. */
+const styleRow = (page: Page, title = "Dictation style") =>
   page
-    .getByRole("radiogroup", { name: "Dictation style" })
-    .getByRole("radio", { name: new RegExp(`^${name}`) });
+    .locator("div")
+    .filter({ has: page.getByRole("heading", { name: title, exact: true }) })
+    .filter({ has: page.locator('[aria-haspopup="listbox"]') })
+    .last();
+const picker = (page: Page) =>
+  styleRow(page).locator('[aria-haspopup="listbox"]');
 
 const openTranscription = async (page: Page, query = "") => {
   await page.goto(`/tests/fixtures/settings-pages.html?${query}`);
@@ -21,6 +18,11 @@ const openTranscription = async (page: Page, query = "") => {
     .getByRole("navigation")
     .getByRole("button", { name: "Transcription", exact: true })
     .click();
+};
+
+const choose = async (page: Page, name: string) => {
+  await picker(page).click();
+  await page.getByRole("option", { name, exact: true }).click();
 };
 
 const styleWrites = (page: Page) =>
@@ -31,25 +33,32 @@ const styleWrites = (page: Page) =>
   );
 
 test.describe("the dictation style in Settings", () => {
-  test("offers the three styles, each with its example, under AI cleanup", async ({
+  test("is a dropdown row under AI cleanup, explained in its tooltip", async ({
     page,
   }) => {
     await openTranscription(page);
-    const group = page.getByRole("radiogroup", { name: "Dictation style" });
-    await expect(group.getByRole("radio")).toHaveCount(3);
-    for (const name of STYLES) {
-      await expect(style(page, name)).toBeEnabled();
-      await expect(
-        group.getByText(EXAMPLES[name], { exact: true }),
-      ).toBeVisible();
-    }
-    await expect(style(page, "Normal")).toBeChecked();
+    await expect(picker(page)).toHaveText("Normal");
+    await expect(picker(page)).toBeEnabled();
 
     const cleanup = await page
       .getByRole("checkbox", { name: "AI cleanup and formatting" })
       .boundingBox();
-    const styles = await group.boundingBox();
-    expect(styles!.y, "below AI cleanup").toBeGreaterThan(cleanup!.y);
+    const row = await styleRow(page).boundingBox();
+    expect(row!.y, "below AI cleanup").toBeGreaterThan(cleanup!.y);
+
+    await expect(
+      styleRow(page).getByRole("button", {
+        name: "Formal: full punctuation and written wording. Normal: lighter punctuation, keeps your words. Casual: relaxed, like a chat message.",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await picker(page).click();
+    await expect(page.getByRole("option")).toHaveText([
+      "Formal",
+      "Normal",
+      "Casual",
+    ]);
     expect(
       await page.evaluate(() => window.settingsPages.unhandledCommands),
     ).toEqual([]);
@@ -57,10 +66,10 @@ test.describe("the dictation style in Settings", () => {
 
   test("selecting a style saves it", async ({ page }) => {
     await openTranscription(page);
-    await style(page, "Casual").check();
-    await expect(style(page, "Casual")).toBeChecked();
-    await style(page, "Formal").check();
-    await expect(style(page, "Formal")).toBeChecked();
+    await choose(page, "Casual");
+    await expect(picker(page)).toHaveText("Casual");
+    await choose(page, "Formal");
+    await expect(picker(page)).toHaveText("Formal");
     expect(await styleWrites(page)).toEqual([
       { style: "casual" },
       { style: "formal" },
@@ -71,57 +80,35 @@ test.describe("the dictation style in Settings", () => {
     page,
   }) => {
     await openTranscription(page, "style=formal&styleRefused=1");
-    await style(page, "Casual").click();
+    await choose(page, "Casual");
     await expect(
       page.getByText("Couldn't change the dictation style."),
     ).toBeVisible();
-    await expect(style(page, "Formal")).toBeChecked();
+    await expect(picker(page)).toHaveText("Formal");
   });
 
-  test("with AI cleanup off, the styles wait for it", async ({ page }) => {
-    await openTranscription(page, "cleanup=off");
-    for (const name of STYLES) await expect(style(page, name)).toBeDisabled();
-    await expect(
-      page.getByText("Styles apply only when AI cleanup is on.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-  });
-
-  test("without a ChatGPT account, the styles say why they are off", async ({
-    page,
-  }) => {
-    await openTranscription(page, "account=none");
-    for (const name of STYLES) await expect(style(page, name)).toBeDisabled();
-    await expect(
-      page.getByText("Styles need AI cleanup, which needs a ChatGPT account.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Styles apply only when AI cleanup is on."),
-    ).toHaveCount(0);
-  });
-
-  test("the French page names the styles and shows French examples", async ({
-    page,
-  }) => {
-    await page.goto("/tests/fixtures/settings-pages.html?lang=fr");
-    await page
-      .getByRole("navigation")
-      .getByRole("button", { name: "Transcription", exact: true })
-      .click();
-    const group = page.getByRole("radiogroup", { name: "Style de dictée" });
-    for (const name of ["Formel", "Normal", "Détendu"]) {
+  for (const [why, query] of [
+    ["with AI cleanup off", "cleanup=off"],
+    ["without a ChatGPT account", "account=none"],
+  ]) {
+    test(`${why}, the dropdown waits for AI cleanup`, async ({ page }) => {
+      await openTranscription(page, query);
+      await expect(picker(page)).toBeDisabled();
       await expect(
-        group.getByRole("radio", { name: new RegExp(`^${name}`) }),
+        styleRow(page).getByText(CLEANUP_OFF, { exact: true }),
       ).toBeVisible();
-    }
-    await expect(
-      group.getByText(
-        "Je pense qu'on peut se voir demain vers 15h si t'es dispo, sinon jeudi ça marche aussi",
-        { exact: true },
-      ),
-    ).toBeVisible();
+    });
+  }
+
+  test("the French row names the styles", async ({ page }) => {
+    await openTranscription(page, "lang=fr");
+    await styleRow(page, "Style de dictée")
+      .locator('[aria-haspopup="listbox"]')
+      .click();
+    await expect(page.getByRole("option")).toHaveText([
+      "Formel",
+      "Normal",
+      "Détendu",
+    ]);
   });
 });

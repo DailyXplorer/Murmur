@@ -8,12 +8,6 @@ const LOCALES = readdirSync(
 );
 const fixturePath = "/tests/fixtures/provider-onboarding.html";
 
-const EXAMPLES = [
-  "I think we can meet tomorrow around 3 p.m., if you are available. Otherwise, Thursday also works.",
-  "I think we can meet tomorrow around 3, if you're free. Otherwise, Thursday works too.",
-  "I think we can meet tomorrow around 3 if you're free, otherwise Thursday works too",
-];
-
 const style = (page: Page, name: string) =>
   page
     .getByRole("radiogroup", { name: "Dictation style" })
@@ -32,9 +26,8 @@ test("follows a connected account when cleanup can run, and Continue saves the p
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(styleStep(page)).toBeVisible();
-  for (const example of EXAMPLES) {
-    await expect(page.getByText(example, { exact: true })).toBeVisible();
-  }
+  const group = page.getByRole("radiogroup", { name: "Dictation style" });
+  await expect(group).toHaveText("FormalNormalCasual");
   await expect(style(page, "Normal")).toBeChecked();
   await style(page, "Casual").check();
   await page.getByRole("button", { name: "Continue" }).click();

@@ -543,48 +543,71 @@ test.describe("settings screenshots", () => {
   });
 
   test.describe("the dictation style", () => {
-    test.use({ viewport: DEFAULT_WINDOW, deviceScaleFactor: 2 });
+    test.use({ deviceScaleFactor: 2 });
 
-    for (const theme of ["light", "dark"] as const) {
-      for (const lang of ["en", "fr"]) {
-        test(`each style and the disabled states (${lang}, ${theme})`, async ({
-          page,
-        }) => {
-          await page.emulateMedia({ colorScheme: theme });
-          const open = async (query: string) => {
-            await page.goto(
-              `/tests/fixtures/settings-pages.html?theme=${theme}&lang=${lang}${query}`,
+    for (const [size, viewport] of [
+      ["default", DEFAULT_WINDOW],
+      ["min", MIN_WINDOW],
+    ] as const) {
+      for (const theme of ["light", "dark"] as const) {
+        for (const lang of ["en", "fr"]) {
+          test(`each style and the disabled states (${size}, ${lang}, ${theme})`, async ({
+            page,
+          }) => {
+            await page.setViewportSize(viewport);
+            await page.emulateMedia({ colorScheme: theme });
+            const title = lang === "fr" ? "Style de dictée" : "Dictation style";
+            const shot = (name: string) =>
+              page.screenshot({
+                path: `${outputDir}/settings-${name}-${lang}-${size}-${theme}.png`,
+              });
+            const open = async (query: string) => {
+              await page.goto(
+                `/tests/fixtures/settings-pages.html?theme=${theme}&lang=${lang}${query}`,
+              );
+              await page
+                .getByRole("navigation")
+                .getByRole("button", { name: "Transcription", exact: true })
+                .click();
+              await page
+                .getByRole("heading", { name: title, exact: true })
+                .evaluate((row) => row.scrollIntoView({ block: "center" }));
+              await page.waitForTimeout(300);
+            };
+            for (const style of ["formal", "normal", "casual"]) {
+              await open(`&style=${style}`);
+              await shot(style);
+            }
+            await open("");
+            const row = page
+              .locator("div")
+              .filter({ has: page.getByRole("heading", { name: title }) })
+              .filter({ has: page.locator('[aria-haspopup="listbox"]') })
+              .last();
+            await row.locator('[aria-haspopup="listbox"]').click();
+            await expect(page.getByRole("option")).toHaveCount(3);
+            await shot("menu");
+            await page.keyboard.press("Escape");
+            await page.evaluate(() =>
+              (document.activeElement as HTMLElement | null)?.blur(),
             );
-            await page
-              .getByRole("navigation")
-              .getByRole("button", { name: "Transcription", exact: true })
-              .click();
-            await page
-              .getByRole("radiogroup", {
-                name: lang === "fr" ? "Style de dictée" : "Dictation style",
-              })
-              .evaluate((group) => group.scrollIntoView({ block: "center" }));
+            await row
+              .getByRole("button", { name: /^(Formal|Formel) ?:/ })
+              .hover();
             await page.waitForTimeout(300);
-          };
-          for (const style of ["formal", "normal", "casual"]) {
-            await open(`&style=${style}`);
-            await page.screenshot({
-              path: `${outputDir}/settings-${style}-${lang}-${theme}.png`,
-            });
-          }
-          for (const [query, file] of [
-            ["&cleanup=off", "cleanup-off"],
-            ["&account=none", "no-account"],
-          ]) {
-            await open(query);
-            await page.screenshot({
-              path: `${outputDir}/settings-${file}-${lang}-${theme}.png`,
-            });
-          }
-          expect(
-            await page.evaluate(() => window.settingsPages.unhandledCommands),
-          ).toEqual([]);
-        });
+            await shot("tooltip");
+            for (const [query, file] of [
+              ["&cleanup=off", "cleanup-off"],
+              ["&account=none", "no-account"],
+            ]) {
+              await open(query);
+              await shot(file);
+            }
+            expect(
+              await page.evaluate(() => window.settingsPages.unhandledCommands),
+            ).toEqual([]);
+          });
+        }
       }
     }
   });

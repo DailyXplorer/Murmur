@@ -4,13 +4,14 @@ interface RadioOptionProps<T extends string> {
   checked: boolean;
   disabled: boolean;
   title: string;
-  description: string;
+  description?: string;
   onSelect: (value: T) => void;
   /** The padding, which sets the option's click target. */
   className?: string;
 }
 
-/** One choice of a `role="radiogroup"`: a title over a short description. */
+/** One choice of a `role="radiogroup"`: a title, over a short description
+ * when there is one. */
 export const RadioOption = <T extends string>({
   name,
   value,
@@ -35,9 +36,11 @@ export const RadioOption = <T extends string>({
     />
     <span className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>
       <span className="block text-sm font-medium">{title}</span>
-      <span className="block text-pretty text-sm text-text/70">
-        {description}
-      </span>
+      {description && (
+        <span className="block text-pretty text-sm text-text/70">
+          {description}
+        </span>
+      )}
     </span>
   </label>
 );

@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Choisissez un style",
-      "description": "Le nettoyage par IA écrit vos dictées dans ce style. Vous pourrez le changer plus tard."
+      "description": "Le nettoyage par IA écrira vos dictées dans ce style, modifiable à tout moment."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Style de dictée",
-        "description": "Comment le nettoyage par IA écrit votre dictée : la ponctuation et le niveau de langue. Le sens ne change jamais.",
+        "description": "Formel : ponctuation complète et tournures écrites. Normal : un peu moins de ponctuation, vos mots restent les vôtres. Détendu : plus relâché, comme un message à un ami.",
         "cleanupOff": "Les styles s’appliquent seulement quand le nettoyage par IA est activé.",
-        "needsAccount": "Les styles passent par le nettoyage par IA, qui demande un compte ChatGPT.",
         "error": "Impossible de changer le style de dictée.",
-        "formal": {
-          "title": "Formel",
-          "example": "Je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi."
-        },
-        "normal": {
-          "title": "Normal",
-          "example": "Je pense qu'on peut se voir demain vers 15h, si t'es dispo. Sinon, jeudi ça marche aussi."
-        },
-        "casual": {
-          "title": "Détendu",
-          "example": "Je pense qu'on peut se voir demain vers 15h si t'es dispo, sinon jeudi ça marche aussi"
+        "options": {
+          "formal": "Formel",
+          "normal": "Normal",
+          "casual": "Détendu"
         }
       },
       "windowNames": {

@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Elige un estilo",
-      "description": "La limpieza con IA escribe tus dictados en este estilo. Puedes cambiarlo más tarde."
+      "description": "La limpieza con IA escribirá tus dictados en este estilo, que puedes cambiar cuando quieras."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Estilo de dictado",
-        "description": "Cómo escribe tu dictado la limpieza con IA: la puntuación y el grado de formalidad. El significado nunca cambia.",
+        "description": "Formal: puntuación completa y redacción escrita. Normal: puntuación más ligera, conserva tus palabras. Informal: relajado, como un mensaje de chat.",
         "cleanupOff": "Los estilos solo se aplican con la limpieza con IA activada.",
-        "needsAccount": "Los estilos necesitan la limpieza con IA, que necesita una cuenta de ChatGPT.",
         "error": "No se pudo cambiar el estilo de dictado.",
-        "formal": {
-          "title": "Formal",
-          "example": "Creo que podemos vernos mañana hacia las 15:00, si estás disponible. De lo contrario, el jueves también me viene bien."
-        },
-        "normal": {
-          "title": "Normal",
-          "example": "Creo que podemos vernos mañana sobre las 3, si te va bien. Si no, el jueves también me sirve."
-        },
-        "casual": {
-          "title": "Informal",
-          "example": "Creo que podemos vernos mañana sobre las 3 si te va bien, si no el jueves también me sirve"
+        "options": {
+          "formal": "Formal",
+          "normal": "Normal",
+          "casual": "Informal"
         }
       },
       "windowNames": {

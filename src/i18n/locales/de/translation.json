@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Wähle einen Stil",
-      "description": "Die KI-Bereinigung schreibt deine Diktate in diesem Stil. Du kannst ihn später ändern."
+      "description": "Die KI-Bereinigung schreibt deine Diktate in diesem Stil, den du jederzeit ändern kannst."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Diktierstil",
-        "description": "Wie die KI-Bereinigung dein Diktat schreibt: die Zeichensetzung und wie förmlich die Formulierung ist. Die Bedeutung ändert sich nie.",
+        "description": "Förmlich: vollständige Zeichensetzung und schriftliche Formulierungen. Normal: etwas weniger Zeichensetzung, deine Worte bleiben. Locker: entspannt, wie eine Chatnachricht.",
         "cleanupOff": "Stile wirken nur, wenn die KI-Bereinigung an ist.",
-        "needsAccount": "Stile brauchen die KI-Bereinigung, und die braucht ein ChatGPT-Konto.",
         "error": "Der Diktierstil konnte nicht geändert werden.",
-        "formal": {
-          "title": "Förmlich",
-          "example": "Ich denke, wir können uns morgen gegen 15 Uhr treffen, wenn du verfügbar bist. Andernfalls passt auch Donnerstag."
-        },
-        "normal": {
-          "title": "Normal",
-          "example": "Ich denke, wir können uns morgen gegen 15 Uhr sehen, wenn du Zeit hast. Sonst geht auch Donnerstag."
-        },
-        "casual": {
-          "title": "Locker",
-          "example": "Ich denke wir können uns morgen gegen 15 Uhr sehen wenn du Zeit hast, sonst geht auch Donnerstag"
+        "options": {
+          "formal": "Förmlich",
+          "normal": "Normal",
+          "casual": "Locker"
         }
       },
       "windowNames": {

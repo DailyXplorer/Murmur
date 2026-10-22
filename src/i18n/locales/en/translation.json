@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Choose a style",
-      "description": "AI cleanup writes your dictation in this style. You can change it later."
+      "description": "AI cleanup will write your dictations in this style, which you can change anytime."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Dictation style",
-        "description": "How AI cleanup writes your dictation: the punctuation and how formal the wording is. The meaning never changes.",
+        "description": "Formal: full punctuation and written wording. Normal: lighter punctuation, keeps your words. Casual: relaxed, like a chat message.",
         "cleanupOff": "Styles apply only when AI cleanup is on.",
-        "needsAccount": "Styles need AI cleanup, which needs a ChatGPT account.",
         "error": "Couldn't change the dictation style.",
-        "formal": {
-          "title": "Formal",
-          "example": "I think we can meet tomorrow around 3 p.m., if you are available. Otherwise, Thursday also works."
-        },
-        "normal": {
-          "title": "Normal",
-          "example": "I think we can meet tomorrow around 3, if you're free. Otherwise, Thursday works too."
-        },
-        "casual": {
-          "title": "Casual",
-          "example": "I think we can meet tomorrow around 3 if you're free, otherwise Thursday works too"
+        "options": {
+          "formal": "Formal",
+          "normal": "Normal",
+          "casual": "Casual"
         }
       },
       "windowNames": {

@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Scegli uno stile",
-      "description": "La pulizia con IA scrive le tue dettature in questo stile. Puoi cambiarlo in seguito."
+      "description": "La pulizia con IA scriverà le tue dettature in questo stile, che puoi cambiare quando vuoi."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Stile di dettatura",
-        "description": "Come la pulizia con IA scrive la tua dettatura: la punteggiatura e quanto è formale. Il significato non cambia mai.",
+        "description": "Formale: punteggiatura completa e forma scritta. Normale: punteggiatura più leggera, mantiene le tue parole. Informale: rilassato, come un messaggio in chat.",
         "cleanupOff": "Gli stili si applicano solo con la pulizia con IA attiva.",
-        "needsAccount": "Gli stili richiedono la pulizia con IA, che richiede un account ChatGPT.",
         "error": "Impossibile cambiare lo stile di dettatura.",
-        "formal": {
-          "title": "Formale",
-          "example": "Penso che possiamo vederci domani verso le 15, se sei disponibile. Altrimenti, anche giovedì va bene."
-        },
-        "normal": {
-          "title": "Normale",
-          "example": "Penso che ci possiamo vedere domani verso le 15, se ci sei. Sennò giovedì va bene lo stesso."
-        },
-        "casual": {
-          "title": "Informale",
-          "example": "Penso che ci possiamo vedere domani verso le 15 se ci sei, sennò giovedì va bene lo stesso"
+        "options": {
+          "formal": "Formale",
+          "normal": "Normale",
+          "casual": "Informale"
         }
       },
       "windowNames": {

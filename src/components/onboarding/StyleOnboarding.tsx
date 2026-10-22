@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationStyle } from "@/bindings";
 import { Button } from "../ui/Button";
+import { RadioOption } from "../ui/RadioOption";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
-import { DictationStyleOptions } from "../settings/DictationStyle";
+import { DICTATION_STYLES } from "../settings/DictationStyle";
 
 interface StyleOnboardingProps {
   stored: DictationStyle;
@@ -43,12 +44,23 @@ const StyleOnboarding: React.FC<StyleOnboardingProps> = ({
             {t("onboarding.style.description")}
           </p>
         </div>
-        <DictationStyleOptions
-          value={style}
-          disabled={saving}
-          onSelect={setStyle}
+        <div
+          role="radiogroup"
+          aria-label={t("settings.transcription.style.title")}
           className="w-full divide-y divide-mid-gray/20 rounded-lg border border-mid-gray/20 bg-background"
-        />
+        >
+          {DICTATION_STYLES.map((option) => (
+            <RadioOption
+              key={option}
+              name="dictation-style"
+              value={option}
+              checked={style === option}
+              disabled={saving}
+              title={t(`settings.transcription.style.options.${option}`)}
+              onSelect={setStyle}
+            />
+          ))}
+        </div>
         <div className="inline-grid grid-flow-col auto-cols-fr gap-2">
           <Button disabled={saving} onClick={() => void save()}>
             {t("onboarding.provider.continue")}

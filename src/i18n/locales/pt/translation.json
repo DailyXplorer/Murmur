@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Escolha um estilo",
-      "description": "A limpeza com IA escreve os seus ditados neste estilo. Pode mudá-lo mais tarde."
+      "description": "A limpeza com IA vai escrever os seus ditados neste estilo, que pode mudar quando quiser."
     }
   },
   "settings": {
@@ -490,21 +490,13 @@
       },
       "style": {
         "title": "Estilo de ditado",
-        "description": "Como a limpeza com IA escreve o seu ditado: a pontuação e o grau de formalidade. O sentido nunca muda.",
+        "description": "Formal: pontuação completa e linguagem escrita. Normal: pontuação mais leve, mantém as suas palavras. Descontraído: mais solto, como uma mensagem de chat.",
         "cleanupOff": "Os estilos só se aplicam com a limpeza com IA ativada.",
-        "needsAccount": "Os estilos precisam da limpeza com IA, que precisa de uma conta ChatGPT.",
         "error": "Não foi possível mudar o estilo de ditado.",
-        "formal": {
-          "title": "Formal",
-          "example": "Acho que podemos nos encontrar amanhã por volta das 15h, se você estiver disponível. Caso contrário, quinta-feira também é possível."
-        },
-        "normal": {
-          "title": "Normal",
-          "example": "Acho que a gente pode se ver amanhã lá pelas 15h, se você estiver livre. Senão, quinta também dá."
-        },
-        "casual": {
-          "title": "Descontraído",
-          "example": "Acho que a gente pode se ver amanhã lá pelas 15h se você estiver livre, senão quinta também dá"
+        "options": {
+          "formal": "Formal",
+          "normal": "Normal",
+          "casual": "Descontraído"
         }
       },
       "windowNames": {
