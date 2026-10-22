@@ -13,6 +13,9 @@
     "errorSignedOut": "Inte inloggad i Codex. Öppna Codex och logga in.",
     "errorTooLarge": "Inspelningen är för lång för tjänsten. Prova en kortare.",
     "errorTranscription": "Transkriberingen misslyckades. Försök igen från historiken.",
+    "errorLocalNotReady": "Den lokala modellen är inte klar än. Kontrollera den i Murmurs inställningar.",
+    "errorLocalFailed": "Den lokala transkriberingen misslyckades. Försök igen från historiken.",
+    "errorLanguageNeedsCloud": "Det här språket kräver molnet. Anslut ChatGPT eller välj ett annat språk.",
     "errorPaste": "Det gick inte att klistra in. Texten finns i urklipp och i historiken.",
     "errorRecording": "Inspelningen kunde inte starta. Kontrollera mikrofonen.",
     "errorMicrophoneDenied": "Mikrofonåtkomst är avstängd. Tillåt Murmur i Systeminställningar.",
@@ -125,11 +128,34 @@
       "continue": "Fortsätt",
       "completionFailed": "Inställningen kunde inte slutföras. Uppdatera statusen och försök igen.",
       "setupCodex": "Öppna Codex-konfigurationen",
-      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen."
+      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen.",
+      "optionalTitle": "Anslut ChatGPT (valfritt)",
+      "optionalDescription": "Anslut ditt ChatGPT-konto för AI-städning (tar bort utfyllnadsord och rättar grammatiken) och för språk som den lokala modellen inte täcker.",
+      "optionalSession": "Logga in i Codex-appen med ditt ChatGPT-konto. Murmur använder den sessionen.",
+      "skip": "Hoppa över"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Ingen konfiguration hittades"
+    },
+    "model": {
+      "title": "Transkribera på den här Macen",
+      "description": "Murmur gör om din röst till text direkt på den här Macen. Ditt ljud stannar på den, och det finns ingen kvot.",
+      "download": "Det krävs en engångsnedladdning på {{size}}.",
+      "alreadyHere": "Modellen finns redan på den här Macen.",
+      "languages": "Fungerar på 25 europeiska språk, bland annat svenska, engelska och franska.",
+      "downloadAndContinue": "Ladda ned och fortsätt",
+      "useCloud": "Använd molnet i stället"
+    },
+    "done": {
+      "title": "Allt är klart",
+      "ready": "Håll in kortkommandot och prata.",
+      "downloading": "Modellen laddas fortfarande ned ({{percent}} %).",
+      "preparing": "Modellen förbereds för den här Macen.",
+      "cloudMeanwhile": "Tills den är klar använder Murmur molnet.",
+      "waitForIt": "Du kan diktera så snart den är klar.",
+      "stoppedTitle": "Nedladdningen avbröts",
+      "start": "Börja använda Murmur"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "Inget tal hittades i inspelningen.",
       "cleanupFailed": "AI-städningen var inte tillgänglig, så den råa transkriptionen klistrades in.",
       "showOriginal": "Visa ursprunglig transkription",
-      "hideOriginal": "Dölj ursprunglig transkription"
+      "hideOriginal": "Dölj ursprunglig transkription",
+      "fallback": {
+        "model_not_ready": "Transkriberat i molnet: den lokala modellen var inte klar.",
+        "local_failed": "Transkriberat i molnet: den lokala transkriberingen misslyckades.",
+        "language_not_supported": "Transkriberat i molnet: det här språket stöds inte på den här Macen.",
+        "cloud_limit_reached": "Transkriberat på den här Macen: ChatGPT-gränsen var nådd.",
+        "cloud_failed": "Transkriberat på den här Macen: ChatGPT var inte tillgängligt."
+      }
     },
     "debug": {
       "title": "Felsökning",
@@ -429,9 +462,10 @@
         "description": "Visa versionsinformation efter Murmur-uppdateringar"
       },
       "modelLicences": {
-        "description": "Licenser för modellerna för talaridentifiering",
+        "description": "Licenser för talmodellerna på enheten",
         "button": "Visa licenser"
-      }
+      },
+      "parakeet": "Lokal transkribering använder NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transkribering",
@@ -441,14 +475,15 @@
       "statusUnavailable": "Status ej tillgänglig",
       "missing": "Inte inloggad",
       "groups": {
-        "service": "Tjänst",
         "processing": "Textbearbetning",
-        "output": "Utdata"
+        "output": "Utdata",
+        "engine": "Så transkriberar Murmur"
       },
       "sessionExpired": "Sessionen har gått ut, logga in igen i Codex",
       "aiCleanup": {
         "title": "AI-städning och formatering",
-        "description": "Tar bort utfyllnadsord, behåller bara din slutliga formulering när du rättar dig själv, rättar skiljetecken och formaterar listor och dikterade radbrytningar. Den översätter eller skriver aldrig om. Om den misslyckas eller tar för lång tid klistras den råa transkriptionen in."
+        "description": "Tar bort utfyllnadsord, behåller bara din slutliga formulering när du rättar dig själv, rättar skiljetecken och formaterar listor och dikterade radbrytningar. Den översätter eller skriver aldrig om. Om den misslyckas eller tar för lång tid klistras den råa transkriptionen in.",
+        "needsAccount": "Anslut ChatGPT för att använda AI-rensning."
       },
       "windowNames": {
         "title": "Namn från det aktiva fönstret",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "Viskläge",
         "description": "Höjer känsligheten ytterligare för mycket tyst tal och talar om för AI-städningen att talet kan vara svagt. Tystnad och bakgrundsljud förstärks aldrig."
+      },
+      "engine": {
+        "local": {
+          "title": "På den här Macen",
+          "description": "25 europeiska språk. Ditt ljud stannar på den här Macen."
+        },
+        "cloud": {
+          "title": "I molnet",
+          "description": "Fler språk, använder ditt ChatGPT-kontos gränser."
+        },
+        "os_too_old": "Lokal transkribering kräver macOS 15 eller senare.",
+        "unsupported": "Lokal transkribering kräver en Mac med Apple silicon.",
+        "error": "Det gick inte att ändra hur Murmur transkriberar."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA:s modell för taligenkänning. Den laddas ned en gång från Hugging Face och körs på den här Macen.",
+        "meetings": "Används även av Möten för att skilja talare åt.",
+        "missing": "Inte nedladdad",
+        "downloading": "Laddar ned… {{done}} av {{total}}",
+        "preparing": "Förbereder för den här Macen… (cirka 15 sekunder, bara första gången)",
+        "ready": "Klar · {{size}}",
+        "download": "Ladda ned ({{size}})",
+        "retry": "Försök igen",
+        "delete": "Radera",
+        "error": "Det gick inte att uppdatera den lokala modellen.",
+        "failed": {
+          "no_internet": "Ingen internetanslutning. Nedladdningen fortsätter där den slutade.",
+          "server_unavailable": "Nedladdningsservern svarar inte. Försök igen senare.",
+          "damaged": "Den nedladdade filen är skadad. Försök igen.",
+          "not_enough_space": "Inte tillräckligt med utrymme: {{needed}} behövs, {{free}} ledigt.",
+          "disk": "Modellen kunde inte sparas på den här Macen.",
+          "prepare_failed": "Modellen laddades ned men kunde inte läsas in på den här Macen."
+        },
+        "deleteDialog": {
+          "title": "Radera den lokala modellen?",
+          "withAccount": "Diktering använder molnet tills du laddar ned den igen.",
+          "withoutAccount": "Du kan inte diktera förrän du laddar ned den igen eller ansluter ChatGPT.",
+          "meetings": "Möten visar då en talare per ljudkälla.",
+          "confirm": "Radera modellen"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Valfritt: anslut för AI-rensning och fler språk."
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "Modellicenser",
       "licencesNote": "Modellerna hämtas från Hugging Face första gången. Murmur innehåller dem inte.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (ordtider): NVIDIA, CC BY 4.0. Core ML-konvertering av Fluid Inference.",
+        "parakeet": "Taligenkänning: Parakeet TDT 0.6B v3 av NVIDIA, CC BY 4.0. Konverterad till Core ML av Fluid Inference (Apple silicon) och till 8-bitars GGUF av handy-computer (Intel-Mac).",
         "diarization": "Talardiarisering Community-1: pyannote, CC BY 4.0, med WeSpeaker och BUT Speech@FIT. Ändrad Core ML-konvertering av Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache-licens 2.0."
       }
@@ -710,6 +790,21 @@
         "title": "Transkribera det här mötet igen?",
         "description": "Codex transkriberar inspelningen igen, och transkriptionen och sammanfattningen ersätts. En titel du har valt behålls."
       }
-    }
+    },
+    "localFallback": "Codex var otillgängligt i {{duration}} av mötet, så den delen transkriberades på den här Macen."
+  },
+  "localSttCard": {
+    "title": "Nyhet: lokal transkribering, utan kvot.",
+    "description": "Transkribera på den här Macen på 25 europeiska språk. Ditt ljud stannar på den här Macen.",
+    "useLocal": "Använd lokal transkribering",
+    "downloading": "Laddar ned… {{percent}} %. Murmur byter till den här Macen när det är klart.",
+    "dismiss": "Stäng",
+    "error": "Det gick inte att starta lokal transkribering.",
+    "switched": "Nu transkriberas det på den här Macen.",
+    "switchedDescription": "Du kan ändra det under {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Laddar ned modellen… {{percent}} %",
+    "preparing": "Förbereder modellen…"
   }
 }

@@ -1,15 +1,18 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
   AnalysisSupport,
   AppSettings,
   AudioDevice,
+  DownloadFailure,
+  Engine,
   HistoryEntry,
   InsightsSummary,
   MeetingDetail,
+  LocalModelStatus,
   MeetingListItem,
-  MeetingModelsStatus,
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
@@ -28,6 +31,8 @@ declare global {
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
+      /** The local model finished downloading, as the backend reports it. */
+      finishModelDownload: () => void;
     };
   }
 }
@@ -58,24 +63,75 @@ const heldUntilMs =
 const manyMeetings = params.get("manyMeetings") === "1";
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
-const MODELS: Record<string, MeetingModelsStatus> = {
+/** `local` or `cloud`; cloud by default, as for every existing user. */
+const engine = (params.get("engine") ?? "cloud") as Engine;
+/** `engineRefused=1`: the backend refuses every engine change. */
+const engineRefused = params.get("engineRefused") === "1";
+/** `account=none`: no ChatGPT session on this Mac. */
+const signedIn = params.get("account") !== "none";
+/** `card=1` shows the one-time local transcription card. */
+const cardShown = params.get("card") === "1";
+/** `history=fallback`: entries transcribed by the engine not chosen. */
+const historyFallback = params.get("history") === "fallback";
+/** `localFallback=1`: part of a meeting was transcribed on this Mac. */
+const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
+/** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
+const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
+const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
+  kept_bytes,
+  size_bytes: MODEL_BYTES,
+  state: { reason, state: "failed" },
+});
+const MODELS: Record<string, LocalModelStatus> = {
   downloading: {
-    bytes_on_disk: 210_000_000,
-    state: { fraction: 0.42, state: "downloading" },
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: {
+      done_bytes: 212_000_000,
+      state: "downloading",
+      total_bytes: MODEL_BYTES,
+    },
   },
-  missing: { bytes_on_disk: 0, state: { state: "missing" } },
-  ready: { bytes_on_disk: 482_000_000, state: { state: "ready" } },
+  missing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "missing" },
+  },
+  /** A cancelled download whose partial files stay to be resumed. */
+  cancelled: {
+    kept_bytes: 212_000_000,
+    size_bytes: MODEL_BYTES,
+    state: { state: "missing" },
+  },
+  preparing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "preparing" },
+  },
+  ready: { kept_bytes: 0, size_bytes: MODEL_BYTES, state: { state: "ready" } },
+  failed: failed({ kind: "no_internet" }),
+  damaged: failed({ kind: "damaged" }),
+  noSpace: failed({
+    free_bytes: 120_000_000,
+    kind: "not_enough_space",
+    needed_bytes: 555_548_628,
+  }),
+  /** Downloaded and checked, then would not load: every file stays. */
+  prepareFailed: failed({ kind: "prepare_failed" }, MODEL_BYTES),
 };
-const MODEL_COMMANDS: Record<string, MeetingModelsStatus> = {
-  download_meeting_models: MODELS.downloading,
-  cancel_meeting_models_download: MODELS.missing,
-  delete_meeting_models: MODELS.missing,
+const MODEL_COMMANDS: Record<string, LocalModelStatus> = {
+  download_local_model: MODELS.downloading,
+  cancel_local_model_download: MODELS.missing,
+  delete_local_model: MODELS.missing,
 };
-const modelsStatus: MeetingModelsStatus =
-  analysis === "available"
+// Intel Macs (`unsupported`) download the model for dictation, without
+// speaker detection; macOS 14 has neither.
+const modelsStatus: LocalModelStatus =
+  analysis !== "os_too_old"
     ? MODELS[params.get("models") ?? "ready"]
     : {
-        bytes_on_disk: 0,
+        kept_bytes: 0,
+        size_bytes: MODEL_BYTES,
         state: {
           state: "unsupported",
           support: analysis as AnalysisSupport,
@@ -144,6 +200,8 @@ const SETTINGS: AppSettings = {
   extra_recording_buffer_ms: 0,
   history_limit: 50,
   learned_words: [{ heard_as: "play right", word: "Playwright" }],
+  local_model_download_wanted: false,
+  local_stt_card_dismissed: !cardShown,
   log_level: "info",
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
@@ -165,6 +223,8 @@ const SETTINGS: AppSettings = {
   sound_theme: "marimba",
   start_hidden: false,
   theme,
+  switch_to_local_when_ready: false,
+  transcription_engine: engine,
   update_checks_enabled: true,
   whats_new_last_seen_version: "1.3.7",
   whisper_mode: false,
@@ -177,6 +237,8 @@ const NOW = 1_760_000_000;
 const HISTORY: HistoryEntry[] = [
   {
     cleanup: "cleaned",
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-1.wav",
     id: 3,
     raw_text: "um so the quarterly report is ready for review",
@@ -187,6 +249,8 @@ const HISTORY: HistoryEntry[] = [
   },
   {
     cleanup: null,
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-2.wav",
     id: 2,
     raw_text: null,
@@ -197,6 +261,8 @@ const HISTORY: HistoryEntry[] = [
   },
   {
     cleanup: "failed",
+    engine: "cloud",
+    fallback_reason: null,
     file_name: "murmur-3.wav",
     id: 1,
     raw_text: "remember to water the plants",
@@ -206,6 +272,25 @@ const HISTORY: HistoryEntry[] = [
     transcription_text: "remember to water the plants",
   },
 ];
+
+/** One entry per fallback reason, then one transcribed by the chosen engine. */
+const FALLBACK_HISTORY: HistoryEntry[] = (
+  [
+    ["cloud", "model_not_ready"],
+    ["cloud", "local_failed"],
+    ["cloud", "language_not_supported"],
+    ["local", "cloud_limit_reached"],
+    ["local", "cloud_failed"],
+    ["local", null],
+  ] as const
+).map(([used, fallback_reason], index) => ({
+  ...HISTORY[1],
+  engine: used,
+  fallback_reason,
+  file_name: `murmur-fallback-${index}.wav`,
+  id: 10 + index,
+  timestamp: NOW - index * HOUR,
+}));
 
 const INSIGHTS: InsightsSummary = {
   apps_used: 9,
@@ -337,6 +422,7 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   error: item.status === "failed" ? "parts_failed" : null,
   held_until_ms:
     item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
+  local_fallback_ms: item.id === 3 ? localFallbackMs : 0,
   speakers:
     item.id === 3
       ? [
@@ -449,6 +535,60 @@ const handleMeetingCommand = (
   }
 };
 
+let modelNow = modelsStatus;
+const setModel = (status: LocalModelStatus) => {
+  modelNow = status;
+  void events.localModelStatus.emit(status);
+};
+
+/** The backend's switch to this Mac once the model is ready. */
+const switchIfAsked = () => {
+  if (!SETTINGS.switch_to_local_when_ready || modelNow.state.state !== "ready")
+    return;
+  SETTINGS.switch_to_local_when_ready = false;
+  SETTINGS.transcription_engine = "local";
+  void emit("settings-changed", { setting: "transcription_engine" });
+  void events.switchedToLocal.emit({});
+};
+
+const dropSwitch = () => {
+  if (!SETTINGS.switch_to_local_when_ready) return;
+  SETTINGS.switch_to_local_when_ready = false;
+  void emit("settings-changed", { setting: "switch_to_local_when_ready" });
+};
+
+/** Engine and card commands, which change the stored settings. */
+const handleEngineCommand = (
+  command: string,
+  args: Record<string, unknown>,
+): { handled: boolean; value?: unknown } => {
+  switch (command) {
+    case "get_app_settings":
+      return { handled: true, value: structuredClone(SETTINGS) };
+    case "get_local_model_status":
+      return { handled: true, value: modelNow };
+    case "change_transcription_engine_setting":
+      // The backend refuses an engine this Mac cannot run.
+      if (engineRefused) throw "This Mac cannot run the local model";
+      SETTINGS.transcription_engine = args.engine as Engine;
+      dropSwitch();
+      if (args.engine === "local" && modelNow.state.state !== "ready") {
+        setModel(MODELS.downloading);
+      }
+      return { handled: true, value: null };
+    case "switch_to_local_when_ready":
+      SETTINGS.switch_to_local_when_ready = true;
+      if (modelNow.state.state === "ready") switchIfAsked();
+      else setModel(MODELS.downloading);
+      return { handled: true, value: null };
+    case "change_local_stt_card_dismissed_setting":
+      SETTINGS.local_stt_card_dismissed = args.dismissed as boolean;
+      return { handled: true, value: null };
+    default:
+      return { handled: false };
+  }
+};
+
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   change_meetings_enabled_setting: null,
@@ -458,10 +598,9 @@ const RESPONSES: Record<string, unknown> = {
   retry_meeting: null,
   retranscribe_meeting: null,
   reanalyze_meeting: null,
-  get_meeting_models_status: modelsStatus,
-  download_meeting_models: null,
-  cancel_meeting_models_download: null,
-  delete_meeting_models: null,
+  download_local_model: null,
+  cancel_local_model_download: null,
+  delete_local_model: null,
   get_meeting_capabilities: { analysis, system_audio: systemAudio },
   get_meeting_runtime: MEETING_RUNTIME,
   get_system_audio_permission: systemAudioPermission,
@@ -470,13 +609,15 @@ const RESPONSES: Record<string, unknown> = {
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },
   get_app_dir_path: APP_DATA_DIR,
-  get_app_settings: SETTINGS,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
   get_available_output_devices: OUTPUTS,
-  get_codex_auth_status: { expired: false, signed_in: true },
+  get_codex_auth_status: { expired: false, signed_in: signedIn },
   get_default_settings: SETTINGS,
-  get_history_entries: { entries: HISTORY, has_more: false },
+  get_history_entries: {
+    entries: historyFallback ? FALLBACK_HISTORY : HISTORY,
+    has_more: false,
+  },
   get_insights:
     params.get("insights") === "huge"
       ? {
@@ -516,6 +657,10 @@ window.settingsPages = {
     });
   },
   releaseMeetingLoads: () => releaseMeetingLoads(),
+  finishModelDownload: () => {
+    setModel(MODELS.ready);
+    switchIfAsked();
+  },
 };
 
 mockIPC(
@@ -526,9 +671,16 @@ mockIPC(
       (args ?? {}) as Record<string, unknown>,
     );
     if (meeting.handled) return meeting.value;
+    const engineCommand = handleEngineCommand(
+      command,
+      (args ?? {}) as Record<string, unknown>,
+    );
+    if (engineCommand.handled) return engineCommand.value;
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
-    if (models) void events.meetingModelsStatus.emit(models);
+    if (models) setModel(models);
+    // Stopping or deleting the model drops a pending switch to it.
+    if (command !== "download_local_model" && models) dropSwitch();
     // So does the meeting's.
     if (command === "start_meeting") {
       void events.meetingStateChanged.emit({

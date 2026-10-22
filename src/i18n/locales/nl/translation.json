@@ -13,6 +13,9 @@
     "errorSignedOut": "Niet ingelogd bij Codex. Open Codex en log in.",
     "errorTooLarge": "Deze opname is te lang voor de dienst. Probeer een kortere.",
     "errorTranscription": "Transcriptie mislukt. Probeer het opnieuw via Geschiedenis.",
+    "errorLocalNotReady": "Het lokale model is nog niet klaar. Bekijk het in de instellingen van Murmur.",
+    "errorLocalFailed": "Lokale transcriptie mislukt. Probeer het opnieuw via Geschiedenis.",
+    "errorLanguageNeedsCloud": "Deze taal heeft de cloud nodig. Koppel ChatGPT of kies een andere taal.",
     "errorPaste": "Plakken mislukt. De tekst staat op het klembord en in Geschiedenis.",
     "errorRecording": "Opnemen kon niet starten. Controleer je microfoon.",
     "errorMicrophoneDenied": "Microfoontoegang staat uit. Sta Murmur toe in Systeeminstellingen.",
@@ -125,11 +128,34 @@
       "continue": "Doorgaan",
       "completionFailed": "De installatie kon niet worden voltooid. Vernieuw de status en probeer het opnieuw.",
       "setupCodex": "Codex-configuratie openen",
-      "codexSetupFailed": "De Codex-configuratie kon niet worden geopend."
+      "codexSetupFailed": "De Codex-configuratie kon niet worden geopend.",
+      "optionalTitle": "ChatGPT koppelen (optioneel)",
+      "optionalDescription": "Koppel je ChatGPT-account voor AI-opschoning (haalt stopwoordjes weg en verbetert de grammatica) en voor talen die het lokale model niet dekt.",
+      "optionalSession": "Log in bij de Codex-app met je ChatGPT-account. Murmur gebruikt die sessie.",
+      "skip": "Overslaan"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Geen configuratie gedetecteerd"
+    },
+    "model": {
+      "title": "Transcriberen op deze Mac",
+      "description": "Murmur zet je stem direct op deze Mac om in tekst. Je audio blijft op de Mac en er is geen quotum.",
+      "download": "Daarvoor is een eenmalige download van {{size}} nodig.",
+      "alreadyHere": "Het model staat al op deze Mac.",
+      "languages": "Werkt in 25 Europese talen, waaronder Nederlands, Engels en Frans.",
+      "downloadAndContinue": "Download en ga door",
+      "useCloud": "Gebruik de cloud"
+    },
+    "done": {
+      "title": "Alles is klaar",
+      "ready": "Houd je sneltoets ingedrukt en spreek.",
+      "downloading": "Het model wordt nog gedownload ({{percent}}%).",
+      "preparing": "Het model wordt klaargemaakt voor deze Mac.",
+      "cloudMeanwhile": "Tot het klaar is, gebruikt Murmur de cloud.",
+      "waitForIt": "Je kunt dicteren zodra het klaar is.",
+      "stoppedTitle": "De download is gestopt",
+      "start": "Murmur gebruiken"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "Er is geen spraak gevonden in de opname.",
       "cleanupFailed": "AI-opschoning was niet beschikbaar, dus het ruwe transcript is geplakt.",
       "showOriginal": "Origineel transcript tonen",
-      "hideOriginal": "Origineel transcript verbergen"
+      "hideOriginal": "Origineel transcript verbergen",
+      "fallback": {
+        "model_not_ready": "In de cloud getranscribeerd: het lokale model was niet klaar.",
+        "local_failed": "In de cloud getranscribeerd: lokale transcriptie is mislukt.",
+        "language_not_supported": "In de cloud getranscribeerd: deze taal wordt niet ondersteund op deze Mac.",
+        "cloud_limit_reached": "Op deze Mac getranscribeerd: de ChatGPT-limiet was bereikt.",
+        "cloud_failed": "Op deze Mac getranscribeerd: ChatGPT was niet beschikbaar."
+      }
     },
     "debug": {
       "title": "Probleemoplossing",
@@ -429,9 +462,10 @@
         "button": "Doneren"
       },
       "modelLicences": {
-        "description": "Licenties van de modellen voor sprekerherkenning",
+        "description": "Licenties van de spraakmodellen op het apparaat",
         "button": "Licenties bekijken"
-      }
+      },
+      "parakeet": "Lokale transcriptie gebruikt NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transcriptie",
@@ -441,14 +475,15 @@
       "statusUnavailable": "Status niet beschikbaar",
       "missing": "Niet aangemeld",
       "groups": {
-        "service": "Service",
         "processing": "Tekstverwerking",
-        "output": "Uitvoer"
+        "output": "Uitvoer",
+        "engine": "Hoe Murmur transcribeert"
       },
       "sessionExpired": "Sessie verlopen, log opnieuw in bij Codex",
       "aiCleanup": {
         "title": "AI-opschoning en opmaak",
-        "description": "Verwijdert stopwoorden, houdt alleen je definitieve formulering over als je jezelf verbetert, herstelt interpunctie en zet lijsten en gedicteerde regeleinden om. Vertaalt of herschrijft nooit. Als het mislukt of te lang duurt, wordt het ruwe transcript geplakt."
+        "description": "Verwijdert stopwoorden, houdt alleen je definitieve formulering over als je jezelf verbetert, herstelt interpunctie en zet lijsten en gedicteerde regeleinden om. Vertaalt of herschrijft nooit. Als het mislukt of te lang duurt, wordt het ruwe transcript geplakt.",
+        "needsAccount": "Koppel ChatGPT om AI-opschoning te gebruiken."
       },
       "windowNames": {
         "title": "Namen uit het actieve venster",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "Fluistermodus",
         "description": "Verhoogt de gevoeligheid verder voor heel zachte spraak en laat de AI-opschoning weten dat de spraak zwak kan zijn. Stilte en achtergrondgeluid worden nooit versterkt."
+      },
+      "engine": {
+        "local": {
+          "title": "Op deze Mac",
+          "description": "25 Europese talen. Je audio blijft op deze Mac."
+        },
+        "cloud": {
+          "title": "In de cloud",
+          "description": "Meer talen, gebruikt de limieten van je ChatGPT-account."
+        },
+        "os_too_old": "Lokale transcriptie vereist macOS 15 of nieuwer.",
+        "unsupported": "Lokale transcriptie vereist een Mac met Apple silicon.",
+        "error": "Kan niet wijzigen hoe Murmur transcribeert."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "Het spraakherkenningsmodel van NVIDIA. Het wordt één keer gedownload van Hugging Face en draait op deze Mac.",
+        "meetings": "Wordt ook door Vergaderingen gebruikt om sprekers te onderscheiden.",
+        "missing": "Niet gedownload",
+        "downloading": "Downloaden… {{done}} van {{total}}",
+        "preparing": "Voorbereiden voor deze Mac… (ongeveer 15 seconden, alleen de eerste keer)",
+        "ready": "Klaar · {{size}}",
+        "download": "Downloaden ({{size}})",
+        "retry": "Opnieuw proberen",
+        "delete": "Verwijderen",
+        "error": "Kan het lokale model niet bijwerken.",
+        "failed": {
+          "no_internet": "Geen internetverbinding. De download gaat verder waar hij stopte.",
+          "server_unavailable": "De downloadserver reageert niet. Probeer het later opnieuw.",
+          "damaged": "Het gedownloade bestand is beschadigd. Probeer het opnieuw.",
+          "not_enough_space": "Niet genoeg ruimte: {{needed}} nodig, {{free}} vrij.",
+          "disk": "Het model kon niet op deze Mac worden opgeslagen.",
+          "prepare_failed": "Het model is gedownload, maar kon niet laden op deze Mac."
+        },
+        "deleteDialog": {
+          "title": "Het lokale model verwijderen?",
+          "withAccount": "Dicteren gebruikt de cloud tot je het opnieuw downloadt.",
+          "withoutAccount": "Je kunt pas weer dicteren als je het opnieuw downloadt of ChatGPT koppelt.",
+          "meetings": "Vergaderingen tonen dan één spreker per audiobron.",
+          "confirm": "Model verwijderen"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Optioneel: koppel voor AI-opschoning en meer talen."
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "Modellicenties",
       "licencesNote": "De modellen worden bij het eerste gebruik van Hugging Face gedownload. Murmur bevat ze niet.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (woordtijden): NVIDIA, CC BY 4.0. Core ML-conversie door Fluid Inference.",
+        "parakeet": "Spraakherkenning: Parakeet TDT 0.6B v3 van NVIDIA, CC BY 4.0. Omgezet naar Core ML door Fluid Inference (Apple silicon) en naar 8-bits GGUF door handy-computer (Intel-Macs).",
         "diarization": "Sprekerdiarisatie Community-1: pyannote, CC BY 4.0, met WeSpeaker en BUT Speech@FIT. Aangepaste Core ML-conversie door Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache-licentie 2.0."
       }
@@ -710,6 +790,21 @@
         "title": "Deze vergadering opnieuw transcriberen?",
         "description": "Codex transcribeert de opname opnieuw, en de transcriptie en samenvatting worden vervangen. Een titel die je hebt gekozen blijft."
       }
-    }
+    },
+    "localFallback": "Codex was {{duration}} van deze vergadering niet beschikbaar, dus dat deel is op deze Mac getranscribeerd."
+  },
+  "localSttCard": {
+    "title": "Nieuw: lokale transcriptie, zonder quotum.",
+    "description": "Transcribeer op deze Mac in 25 Europese talen. Je audio blijft op deze Mac.",
+    "useLocal": "Lokale transcriptie gebruiken",
+    "downloading": "Downloaden… {{percent}}%. Daarna schakelt Murmur over naar deze Mac.",
+    "dismiss": "Sluiten",
+    "error": "Kan lokale transcriptie niet starten.",
+    "switched": "Er wordt nu op deze Mac getranscribeerd.",
+    "switchedDescription": "Je kunt dit wijzigen in {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Model downloaden… {{percent}}%",
+    "preparing": "Model voorbereiden…"
   }
 }

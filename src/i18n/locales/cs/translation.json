@@ -13,6 +13,9 @@
     "errorSignedOut": "Nejste přihlášeni do Codex. Otevřete Codex a přihlaste se.",
     "errorTooLarge": "Tato nahrávka je pro službu příliš dlouhá. Zkuste kratší.",
     "errorTranscription": "Přepis se nezdařil. Zkuste to znovu z historie.",
+    "errorLocalNotReady": "Místní model ještě není připravený. Zkontrolujte ho v nastavení Murmuru.",
+    "errorLocalFailed": "Místní přepis se nezdařil. Zkuste to znovu z historie.",
+    "errorLanguageNeedsCloud": "Tento jazyk vyžaduje cloud. Připojte ChatGPT nebo zvolte jiný jazyk.",
     "errorPaste": "Vložení se nezdařilo. Text je ve schránce a v historii.",
     "errorRecording": "Nahrávání se nepodařilo spustit. Zkontrolujte mikrofon.",
     "errorMicrophoneDenied": "Přístup k mikrofonu je vypnutý. Povolte Murmur v Nastavení systému.",
@@ -125,11 +128,34 @@
       "continue": "Pokračovat",
       "completionFailed": "Nastavení se nepodařilo dokončit. Obnovte stav a zkuste to znovu.",
       "setupCodex": "Otevřít nastavení Codexu",
-      "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít."
+      "codexSetupFailed": "Nastavení Codexu se nepodařilo otevřít.",
+      "optionalTitle": "Připojit ChatGPT (volitelné)",
+      "optionalDescription": "Připojte účet ChatGPT pro úpravu pomocí AI (odstraní vycpávková slova a opraví gramatiku) a pro jazyky, které místní model nepokrývá.",
+      "optionalSession": "Přihlaste se do aplikace Codex účtem ChatGPT. Murmur používá tuto relaci.",
+      "skip": "Přeskočit"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Konfigurace nebyla rozpoznána"
+    },
+    "model": {
+      "title": "Přepis na tomto Macu",
+      "description": "Murmur převádí váš hlas na text přímo na tomto Macu. Zvuk zůstává v počítači a neplatí žádný limit.",
+      "download": "Vyžaduje jednorázové stažení {{size}}.",
+      "alreadyHere": "Model už je na tomto Macu.",
+      "languages": "Funguje v 25 evropských jazycích, včetně češtiny, angličtiny a francouzštiny.",
+      "downloadAndContinue": "Stáhnout a pokračovat",
+      "useCloud": "Použít raději cloud"
+    },
+    "done": {
+      "title": "Vše je připraveno",
+      "ready": "Podržte zkratku a mluvte.",
+      "downloading": "Model se stále stahuje ({{percent}} %).",
+      "preparing": "Model se připravuje pro tento Mac.",
+      "cloudMeanwhile": "Dokud nebude připraven, Murmur používá cloud.",
+      "waitForIt": "Diktovat můžete, jakmile bude připraven.",
+      "stoppedTitle": "Stahování se zastavilo",
+      "start": "Začít používat Murmur"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "V nahrávce nebyla nalezena žádná řeč.",
       "cleanupFailed": "Úprava AI nebyla dostupná, proto byl vložen surový přepis.",
       "showOriginal": "Zobrazit původní přepis",
-      "hideOriginal": "Skrýt původní přepis"
+      "hideOriginal": "Skrýt původní přepis",
+      "fallback": {
+        "model_not_ready": "Přepsáno v cloudu: místní model nebyl připraven.",
+        "local_failed": "Přepsáno v cloudu: místní přepis selhal.",
+        "language_not_supported": "Přepsáno v cloudu: tento jazyk není na tomto Macu podporován.",
+        "cloud_limit_reached": "Přepsáno na tomto Macu: byl dosažen limit ChatGPT.",
+        "cloud_failed": "Přepsáno na tomto Macu: ChatGPT nebyl dostupný."
+      }
     },
     "debug": {
       "title": "Ladění",
@@ -429,9 +462,10 @@
         "description": "Zobrazovat poznámky k vydání po aktualizacích Murmur"
       },
       "modelLicences": {
-        "description": "Licence modelů pro rozpoznávání mluvčích",
+        "description": "Licence modelů řeči běžících v zařízení",
         "button": "Zobrazit licence"
-      }
+      },
+      "parakeet": "Místní přepis používá NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Přepis",
@@ -441,14 +475,15 @@
       "statusUnavailable": "Stav není k dispozici",
       "missing": "Nejste přihlášeni",
       "groups": {
-        "service": "Služba",
         "processing": "Zpracování textu",
-        "output": "Výstup"
+        "output": "Výstup",
+        "engine": "Jak Murmur přepisuje"
       },
       "sessionExpired": "Relace vypršela, přihlaste se znovu v Codex",
       "aiCleanup": {
         "title": "Úprava a formátování pomocí AI",
-        "description": "Odstraňuje vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opravuje interpunkci a formátuje seznamy a nadiktovaná zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Pokud selže nebo trvá příliš dlouho, vloží se surový přepis."
+        "description": "Odstraňuje vycpávková slova, při opravách ponechá jen vaši konečnou formulaci, opravuje interpunkci a formátuje seznamy a nadiktovaná zalomení řádků. Nikdy nepřekládá ani nepřepisuje. Pokud selže nebo trvá příliš dlouho, vloží se surový přepis.",
+        "needsAccount": "Pro úpravu pomocí AI připojte ChatGPT."
       },
       "windowNames": {
         "title": "Jména z aktivního okna",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "Režim šepotu",
         "description": "Dále zvýší citlivost pro velmi tichou řeč a sdělí úpravě AI, že řeč může být slabá. Ticho a šum v pozadí se nikdy nezesilují."
+      },
+      "engine": {
+        "local": {
+          "title": "Na tomto Macu",
+          "description": "25 evropských jazyků. Váš zvuk zůstává na tomto Macu."
+        },
+        "cloud": {
+          "title": "V cloudu",
+          "description": "Více jazyků, využívá limity vašeho účtu ChatGPT."
+        },
+        "os_too_old": "Místní přepis vyžaduje macOS 15 nebo novější.",
+        "unsupported": "Místní přepis vyžaduje Mac s čipem Apple.",
+        "error": "Způsob přepisu se nepodařilo změnit."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "Model rozpoznávání řeči od NVIDIA. Stáhne se jednou z Hugging Face a běží na tomto Macu.",
+        "meetings": "Používají ho také Schůzky k rozlišení mluvčích.",
+        "missing": "Nestaženo",
+        "downloading": "Stahování… {{done}} z {{total}}",
+        "preparing": "Příprava pro tento Mac… (asi 15 sekund, jen poprvé)",
+        "ready": "Připraveno · {{size}}",
+        "download": "Stáhnout ({{size}})",
+        "retry": "Zkusit znovu",
+        "delete": "Smazat",
+        "error": "Místní model se nepodařilo aktualizovat.",
+        "failed": {
+          "no_internet": "Žádné připojení k internetu. Stahování bude pokračovat tam, kde skončilo.",
+          "server_unavailable": "Server pro stahování neodpovídá. Zkuste to později.",
+          "damaged": "Stažený soubor je poškozený. Zkuste to znovu.",
+          "not_enough_space": "Nedostatek místa: potřeba {{needed}}, volno {{free}}.",
+          "disk": "Model se na tento Mac nepodařilo uložit.",
+          "prepare_failed": "Model se stáhl, ale na tomto Macu se nepodařilo ho načíst."
+        },
+        "deleteDialog": {
+          "title": "Smazat místní model?",
+          "withAccount": "Diktování bude používat cloud, dokud ho znovu nestáhnete.",
+          "withoutAccount": "Nebudete moci diktovat, dokud ho znovu nestáhnete nebo nepřipojíte ChatGPT.",
+          "meetings": "Schůzky budou ukazovat jednoho mluvčího na zdroj zvuku.",
+          "confirm": "Smazat model"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Volitelné: připojte pro úpravu pomocí AI a další jazyky."
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "Licence modelů",
       "licencesNote": "Modely se při prvním použití stahují z Hugging Face. Murmur je neobsahuje.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (časování slov): NVIDIA, CC BY 4.0. Převod do Core ML: Fluid Inference.",
+        "parakeet": "Rozpoznávání řeči: Parakeet TDT 0.6B v3 od NVIDIA, CC BY 4.0. Převedeno do Core ML společností Fluid Inference (čip Apple) a do 8bitového GGUF autorem handy-computer (Macy s Intelem).",
         "diarization": "Diarizace Community-1: pyannote, CC BY 4.0, s WeSpeaker a BUT Speech@FIT. Upravený převod do Core ML: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, licence Apache 2.0."
       }
@@ -710,6 +790,21 @@
         "title": "Přepsat tuto schůzku znovu?",
         "description": "Codex nahrávku přepíše znovu a přepis i shrnutí se nahradí. Název, který jste zadali, zůstane."
       }
-    }
+    },
+    "localFallback": "Codex byl nedostupný po dobu {{duration}} této schůzky, takže tato část byla přepsána na tomto Macu."
+  },
+  "localSttCard": {
+    "title": "Novinka: místní přepis, bez kvóty.",
+    "description": "Přepisujte na tomto Macu ve 25 evropských jazycích. Váš zvuk zůstává na tomto Macu.",
+    "useLocal": "Používat místní přepis",
+    "downloading": "Stahování… {{percent}} %. Po dokončení Murmur přejde na tento Mac.",
+    "dismiss": "Zavřít",
+    "error": "Místní přepis se nepodařilo spustit.",
+    "switched": "Přepis teď probíhá na tomto Macu.",
+    "switchedDescription": "Můžete to změnit v sekci {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Stahování modelu… {{percent}} %",
+    "preparing": "Příprava modelu…"
   }
 }

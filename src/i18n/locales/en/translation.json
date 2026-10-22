@@ -13,6 +13,9 @@
     "errorSignedOut": "Not signed in to Codex. Open Codex and sign in.",
     "errorTooLarge": "This recording is too long for the service. Try a shorter one.",
     "errorTranscription": "Transcription failed. Retry from History.",
+    "errorLocalNotReady": "The local model isn't ready yet. Check it in Murmur settings.",
+    "errorLocalFailed": "Local transcription failed. Retry from History.",
+    "errorLanguageNeedsCloud": "This language needs the cloud. Connect ChatGPT or choose another language.",
     "errorPaste": "Couldn't paste. The text is on your clipboard and in History.",
     "errorRecording": "Couldn't start recording. Check your microphone.",
     "errorMicrophoneDenied": "Microphone access is off. Allow Murmur in System Settings.",
@@ -125,11 +128,34 @@
       "continue": "Continue",
       "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
       "setupCodex": "Open Codex setup",
-      "codexSetupFailed": "Couldn't open Codex setup."
+      "codexSetupFailed": "Couldn't open Codex setup.",
+      "optionalTitle": "Connect ChatGPT (optional)",
+      "optionalDescription": "Connect your ChatGPT account for AI cleanup (removes ums and fixes grammar) and for languages the local model doesn't cover.",
+      "optionalSession": "Sign in to the Codex app with your ChatGPT account. Murmur uses that session.",
+      "skip": "Skip"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Configuration not detected"
+    },
+    "model": {
+      "title": "Transcribe on this Mac",
+      "description": "Murmur turns your voice into text right on this Mac. Your audio stays on it, and there's no quota.",
+      "download": "It needs a one-time download of {{size}}.",
+      "alreadyHere": "The model is already on this Mac.",
+      "languages": "Works in 25 European languages, including English and French.",
+      "downloadAndContinue": "Download and continue",
+      "useCloud": "Use the cloud instead"
+    },
+    "done": {
+      "title": "You're set",
+      "ready": "Hold your shortcut and speak.",
+      "downloading": "The model is still downloading ({{percent}}%).",
+      "preparing": "The model is getting ready for this Mac.",
+      "cloudMeanwhile": "Until it's ready, Murmur uses the cloud.",
+      "waitForIt": "You can dictate as soon as it's ready.",
+      "stoppedTitle": "The download stopped",
+      "start": "Start using Murmur"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "No speech was found in the recording.",
       "cleanupFailed": "AI cleanup was unavailable, so the raw transcript was pasted.",
       "showOriginal": "Show original transcript",
-      "hideOriginal": "Hide original transcript"
+      "hideOriginal": "Hide original transcript",
+      "fallback": {
+        "model_not_ready": "Transcribed in the cloud: the local model wasn't ready.",
+        "local_failed": "Transcribed in the cloud: local transcription failed.",
+        "language_not_supported": "Transcribed in the cloud: this language isn't supported on this Mac.",
+        "cloud_limit_reached": "Transcribed on this Mac: the ChatGPT limit was reached.",
+        "cloud_failed": "Transcribed on this Mac: ChatGPT was unavailable."
+      }
     },
     "debug": {
       "title": "Debug",
@@ -429,9 +462,10 @@
         "button": "Donate"
       },
       "modelLicences": {
-        "description": "Licences of the speaker detection models",
+        "description": "Licences of the on-device speech models",
         "button": "View licences"
-      }
+      },
+      "parakeet": "Local transcription uses NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transcription",
@@ -441,14 +475,15 @@
       "statusUnavailable": "Status unavailable",
       "missing": "Not signed in",
       "groups": {
-        "service": "Service",
         "processing": "Text processing",
-        "output": "Output"
+        "output": "Output",
+        "engine": "How Murmur transcribes"
       },
       "sessionExpired": "Session expired, sign in again in Codex",
       "aiCleanup": {
         "title": "AI cleanup and formatting",
-        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted."
+        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted.",
+        "needsAccount": "Connect ChatGPT to use AI cleanup."
       },
       "windowNames": {
         "title": "Names from the active window",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "Whisper mode",
         "description": "Raises sensitivity further for very quiet speech and tells AI cleanup that speech may be faint. Silence and background noise are never amplified."
+      },
+      "engine": {
+        "local": {
+          "title": "On this Mac",
+          "description": "25 European languages. Your audio stays on this Mac."
+        },
+        "cloud": {
+          "title": "In the cloud",
+          "description": "More languages, uses your ChatGPT account's limits."
+        },
+        "os_too_old": "Local transcription needs macOS 15 or later.",
+        "unsupported": "Local transcription needs a Mac with Apple silicon.",
+        "error": "Couldn't change how Murmur transcribes."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA's speech recognition model. It downloads once from Hugging Face and runs on this Mac.",
+        "meetings": "Also used by Meetings to tell speakers apart.",
+        "missing": "Not downloaded",
+        "downloading": "Downloading… {{done}} of {{total}}",
+        "preparing": "Preparing for this Mac… (about 15 seconds, first time only)",
+        "ready": "Ready · {{size}}",
+        "download": "Download ({{size}})",
+        "retry": "Try again",
+        "delete": "Delete",
+        "error": "Couldn't update the local model.",
+        "failed": {
+          "no_internet": "No internet connection. The download will resume where it stopped.",
+          "server_unavailable": "The download server isn't responding. Try again later.",
+          "damaged": "The downloaded file is damaged. Try again.",
+          "not_enough_space": "Not enough space: {{needed}} needed, {{free}} free.",
+          "disk": "The model couldn't be saved on this Mac.",
+          "prepare_failed": "The model downloaded but couldn't load on this Mac."
+        },
+        "deleteDialog": {
+          "title": "Delete the local model?",
+          "withAccount": "Dictation will use the cloud until you download it again.",
+          "withoutAccount": "You won't be able to dictate until you download it again or connect ChatGPT.",
+          "meetings": "Meetings will show one speaker per audio source.",
+          "confirm": "Delete model"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Optional: connect for AI cleanup and more languages."
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "Model licences",
       "licencesNote": "The models download from Hugging Face on first use. Murmur doesn't include them.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (word timing): NVIDIA, CC BY 4.0. Core ML conversion by Fluid Inference.",
+        "parakeet": "Speech recognition: Parakeet TDT 0.6B v3 by NVIDIA, CC BY 4.0. Converted to Core ML by Fluid Inference (Apple silicon) and to 8-bit GGUF by handy-computer (Intel Macs).",
         "diarization": "Speaker diarization Community-1: pyannote, CC BY 4.0, with WeSpeaker and BUT Speech@FIT. Modified Core ML conversion by Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
       }
@@ -710,6 +790,21 @@
         "title": "Transcribe this meeting again?",
         "description": "Codex transcribes the recording again, and the transcript and summary are replaced. A title you set stays."
       }
-    }
+    },
+    "localFallback": "Codex was unavailable for {{duration}} of this meeting, so that part was transcribed on this Mac."
+  },
+  "localSttCard": {
+    "title": "New: local transcription, no quota.",
+    "description": "Transcribe on this Mac in 25 European languages. Your audio stays on this Mac.",
+    "useLocal": "Use local transcription",
+    "downloading": "Downloading… {{percent}}%. Murmur switches to this Mac when it's done.",
+    "dismiss": "Dismiss",
+    "error": "Couldn't start local transcription.",
+    "switched": "Now transcribing on this Mac.",
+    "switchedDescription": "You can change this in {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Downloading the model… {{percent}}%",
+    "preparing": "Preparing the model…"
   }
 }

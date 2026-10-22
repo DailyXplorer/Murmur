@@ -49,11 +49,11 @@ use capture::system::SystemAudioSupport;
 use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
 use helper::AnalysisSupport;
-use models::{MeetingModelsStatus, Models};
+use models::Models;
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
-use transcribe::{CodexTranscriber, CodexVerdict, RetryPolicy};
+use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, Transcriber};
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
@@ -355,6 +355,14 @@ fn spawn_processing(
                     url: crate::codex_transcribe::TRANSCRIBE_URL.to_string(),
                     auth_path: None,
                 }),
+                // Its own engine, released with the run.
+                local: models
+                    .is_ready()
+                    .then(|| crate::engine::local::engine(&app, Box::new(|| false)))
+                    .flatten()
+                    .map(|engine| {
+                        Arc::new(LocalTranscriber(Arc::new(engine))) as Arc<dyn Transcriber>
+                    }),
                 analyzer: Arc::new(HelperAnalyzer {
                     models: Arc::clone(&models),
                     support: helper::support(),
@@ -503,12 +511,10 @@ impl MeetingsManager {
             Err(error) => error!("Failed to recover interrupted meetings: {error}"),
         }
         let store = Arc::new(store);
-        let events = app.clone();
-        let models = Models::new(root.join("models"), helper::support(), move |status| {
-            if let Err(error) = status.emit(&events) {
-                error!("Failed to emit the meeting models status: {error}");
-            }
-        });
+        let models = app
+            .try_state::<Arc<Models>>()
+            .map(|models| Arc::clone(&models))
+            .ok_or_else(|| anyhow::anyhow!("The local models are unavailable"))?;
         let queue = spawn_processing(app, Arc::clone(&store), root.clone(), Arc::clone(&models));
         let runtime = Arc::new(Mutex::new(MeetingRuntime::Idle));
         let notifier = AppNotifier {
@@ -571,8 +577,10 @@ impl MeetingsManager {
         info!("Meeting {id} started");
         self.spawn_ticker(id);
         // The speaker models download while the meeting records, so they are
-        // ready when it stops.
-        self.models.download_unless_declined();
+        // ready when it stops. Intel Macs tell no speakers apart.
+        if helper::support() == AnalysisSupport::Available {
+            self.models.download_unless_declined();
+        }
         Ok(())
     }
 
@@ -734,22 +742,6 @@ impl MeetingsManager {
         Ok(())
     }
 
-    pub fn models_status(&self) -> MeetingModelsStatus {
-        self.models.status()
-    }
-
-    pub fn download_models(&self) {
-        self.models.download();
-    }
-
-    pub fn cancel_models_download(&self) {
-        self.models.decline_download();
-    }
-
-    pub fn delete_models(&self) -> Result<(), String> {
-        self.models.delete()
-    }
-
     /// Lets processing run again and queues the meetings a quit (or turning
     /// meetings off) left mid-way.
     pub fn resume_processing(&self) {
@@ -801,8 +793,8 @@ impl MeetingsManager {
                 error!("Failed to finish the meeting on quit: {error}");
             }
         }
+        // A models download goes on: dictation shares the models.
         self.queue.pause();
-        self.models.cancel_download();
     }
 
     /// Drives the cap and write-failure checks of meeting `id` until it ends.

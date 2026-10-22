@@ -16,9 +16,9 @@
 Murmur is a desktop speech-to-text app for macOS and Windows (beta). Press a shortcut, speak, and
 Murmur pastes the transcription into the active application.
 
-Murmur sends audio to Codex cloud transcription using the ChatGPT session
-already on the computer. It requires no API key or local speech-recognition
-model.
+Murmur transcribes on the Mac with NVIDIA's Parakeet model, or in the cloud
+with Codex, using the ChatGPT session already on the computer. It requires no
+API key.
 
 ## Requirements
 
@@ -26,11 +26,15 @@ model.
 
 - macOS 10.15 or later
 - A working microphone
-- Codex signed in with a ChatGPT account
+- Codex signed in with a ChatGPT account, for cloud transcription, AI cleanup
+  and meetings. Local transcription, the default, runs without it. A Mac that
+  cannot run the local model needs it to finish setup.
 - Accessibility permission for global shortcuts and text insertion
+- For local transcription: macOS 15 or later on Apple silicon, or an Intel
+  Mac, and a one-time download of about 500 MB (740 MB on Intel)
 - For meetings with system audio: macOS 14.4 or later on Apple silicon, and
   the System Audio Recording permission
-- Network access while transcribing
+- Network access for cloud transcription and AI cleanup
 
 ### Windows (beta)
 
@@ -92,6 +96,12 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
+- Transcription on this Mac or in the cloud, chosen in Settings →
+  Transcription. On the Mac, NVIDIA Parakeet TDT 0.6B v3 covers 25 European
+  languages with no quota. When it can't serve a dictation (model not
+  downloaded yet, failure, another language), Murmur uses the cloud if
+  ChatGPT is connected; when ChatGPT refuses in cloud mode, a downloaded model
+  takes over. History marks each such dictation.
 - Automatic language detection, or an explicit dictation language
 - Microphone and output-device selection
 - AI cleanup through the Codex session, on by default: removes fillers,
@@ -119,10 +129,19 @@ automatic updates yet.
 
 ## Getting started
 
-Grant microphone and Accessibility permissions, then connect Codex. If no
-session is found, open Codex, sign in there, and return to Murmur to refresh
-its status. The setup screen links to the Codex download page. Codex must be
-configured before setup can finish.
+Setup first offers to transcribe on this Mac. **Download and Continue** starts
+the model's download in the background, so it runs while you grant microphone
+and Accessibility permissions; a small pill shows its progress until the model
+is ready. **Use the Cloud Instead** keeps the model off this Mac. A Mac that
+cannot run the model skips this step.
+
+Then connect Codex. If no session is found, open Codex, sign in there, and
+return to Murmur to refresh its status. The setup screen links to the Codex
+download page. With local transcription this step is optional: **Skip** it to
+dictate without an account, without AI cleanup and the cloud's extra
+languages. With cloud transcription, Codex must be configured before setup
+can finish. Until the model is ready, a connected account transcribes in the
+cloud; without one, dictation waits for the model.
 
 "Configured" means Murmur found a local session that is valid or that it can
 refresh. A Codex session that expired and has no usable refresh token shows as
@@ -164,10 +183,12 @@ warning 5 minutes before.
   to the privacy settings.
 - After you stop, Codex transcribes the tracks in pieces of up to 10 minutes,
   at most 3 at a time. Processing resumes after a quit, without sending a
-  transcribed piece again.
+  transcribed piece again. Pieces Codex refuses are transcribed on the Mac
+  when the local model is downloaded, and the meeting says so.
 - On Apple silicon with macOS 15 or later, speaker detection runs on the Mac
   with [FluidAudio](https://github.com/FluidInference/FluidAudio). Its models
-  (about 480 MB) download during the first meeting. Without them, or on
+  are the local transcription download, fetched during the first meeting if
+  they aren't there yet. Without them, or on
   macOS 14, where FluidAudio's speaker model crashes, each track keeps one
   speaker.
 - Once the transcript is complete, Codex writes a title and a summary. The
@@ -229,7 +250,7 @@ Murmur uses Tauri 2 with a Rust backend and a React/TypeScript frontend. The
 runtime pipeline is:
 
 ```text
-microphone -> quiet-speech gain -> Codex transcription -> dictionary -> AI cleanup (Codex) -> clipboard/paste
+microphone -> quiet-speech gain -> local (Parakeet) or Codex transcription -> dictionary -> AI cleanup (Codex) -> clipboard/paste
 ```
 
 The backend owns audio capture, the Codex session and its refresh, transcription,
@@ -238,8 +259,11 @@ overlay.
 
 ## Privacy and security
 
-Audio sent for transcription leaves the computer and is handled by ChatGPT.
-Do not describe Murmur as offline or local-only.
+In local mode your audio stays on this Mac. If ChatGPT is connected, the text
+(not the audio) is sent for AI cleanup, and audio goes to the cloud only when
+the local model can't help; History marks those. In cloud mode, audio sent for
+transcription leaves the computer and is handled by ChatGPT. Do not describe
+Murmur as offline while AI cleanup or the cloud fallback can run.
 
 While AI cleanup is on, the transcript is sent to ChatGPT for cleanup. A
 cleanup request contains the transcript, your custom dictionary words, and the
@@ -276,8 +300,10 @@ leaves the transcription on the clipboard after insertion.
 
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
-transcription engine and local-model stack have been removed. Murmur now
-transcribes through Codex using the session already present on the computer.
+transcription engine and local-model stack have been removed. Murmur
+transcribes through Codex using the session already present on the computer,
+or on the Mac with Parakeet: FluidAudio on Apple silicon, and on Intel Macs
+transcribe.cpp, the engine Handy uses.
 
 ## Support
 

@@ -18,21 +18,36 @@ import AccessibilityPermissions from "./components/AccessibilityPermissions";
 import Footer from "./components/footer";
 import {
   AccessibilityOnboarding,
+  DoneOnboarding,
+  LocalModelOnboarding,
   ProviderOnboarding,
 } from "./components/onboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
+import { useLocalModel } from "./hooks/useLocalModel";
 import { useSettingsStore } from "./stores/settingsStore";
-import { commands } from "@/bindings";
+import {
+  commands,
+  events,
+  type Engine,
+  type LocalModelStatus,
+} from "@/bindings";
+import { LocalSttCard } from "./components/LocalSttCard";
+import { LocalModelPill } from "./components/LocalModelPill";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
-/** `returning`: setup was finished before, and a permission went missing
- * since. Granting it again leads back to the app, not to the Codex step. */
+/** A new install goes model → permissions → account → finish (on this Mac
+ * only) → done. `returning`: setup was finished before, and a permission
+ * went missing since; granting it again leads back to the app. `engine` is
+ * the one chosen in the model step; the cloud makes the account required. */
 type OnboardingState =
-  | { kind: "permissions"; returning: boolean }
-  | { kind: "provider" }
+  | { kind: "model"; status: LocalModelStatus }
+  | { kind: "permissions"; returning: true }
+  | { kind: "permissions"; returning: false; engine: Engine }
+  | { kind: "account"; engine: Engine }
+  | { kind: "finish" }
   | { kind: "done" };
 
 /** Mirrors `FailureKind` in src-tauri/src/transcription_error.rs. */
@@ -45,6 +60,9 @@ type FailureKind =
   | "signed_out"
   | "too_large"
   | "rejected"
+  | "local_not_ready"
+  | "local_failed"
+  | "language_needs_cloud"
   | "other";
 
 interface TranscriptionErrorEvent {
@@ -62,6 +80,9 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   signed_out: "tray.errorSignedOut",
   too_large: "tray.errorTooLarge",
   rejected: "tray.errorTranscription",
+  local_not_ready: "tray.errorLocalNotReady",
+  local_failed: "tray.errorLocalFailed",
+  language_needs_cloud: "tray.errorLanguageNeedsCloud",
   other: "tray.errorTranscription",
 };
 
@@ -108,6 +129,7 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
+  const localModel = useLocalModel();
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -117,9 +139,11 @@ function App() {
     initializeRTL(i18n.language);
   }, [i18n.language]);
 
+  // The finish step tells the user to hold the shortcut, so it must work.
   useEffect(() => {
     if (
-      onboardingState?.kind !== "done" ||
+      (onboardingState?.kind !== "done" &&
+        onboardingState?.kind !== "finish") ||
       hasCompletedPostOnboardingInit.current
     ) {
       return;
@@ -225,6 +249,19 @@ function App() {
     };
   }, [t]);
 
+  useEffect(() => {
+    const unlisten = events.switchedToLocal.listen(() => {
+      toast.success(t("localSttCard.switched"), {
+        description: t("localSttCard.switchedDescription", {
+          section: t("sidebar.transcription"),
+        }),
+      });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [t]);
+
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
@@ -259,19 +296,63 @@ function App() {
         refreshAudioDevices();
         refreshOutputDevices();
         setOnboardingState({ kind: "done" });
-      } else {
-        setOnboardingState({ kind: "permissions", returning: false });
+        return;
       }
     } catch (error) {
       console.error("Failed to check onboarding status:", error);
-      setOnboardingState({ kind: "permissions", returning: false });
     }
+    await startNewInstall();
+  };
+
+  /** Offers the local model first, unless this Mac cannot run it. */
+  const startNewInstall = async () => {
+    try {
+      const result = await commands.getLocalModelStatus();
+      if (result.status === "ok" && result.data.state.state !== "unsupported") {
+        setOnboardingState({ kind: "model", status: result.data });
+        return;
+      }
+    } catch (error) {
+      console.warn("Failed to read the local model status:", error);
+    }
+    await saveEngine("cloud");
+    setOnboardingState({
+      kind: "permissions",
+      returning: false,
+      engine: "cloud",
+    });
+  };
+
+  /** Picking this Mac also starts the model's download. */
+  const saveEngine = async (engine: Engine): Promise<boolean> => {
+    try {
+      const result = await commands.changeTranscriptionEngineSetting(engine);
+      if (result.status === "error") {
+        console.warn("Failed to save the engine:", result.error);
+        return false;
+      }
+      await refreshSettings();
+      return true;
+    } catch (error) {
+      console.warn("Failed to save the engine:", error);
+      return false;
+    }
+  };
+
+  const handleModelChoice = async (engine: Engine) => {
+    if (!(await saveEngine(engine))) {
+      toast.error(t("settings.transcription.engine.error"));
+      return;
+    }
+    setOnboardingState({ kind: "permissions", returning: false, engine });
   };
 
   const handlePermissionsComplete = useCallback(() => {
     setOnboardingState((current) => {
       if (current?.kind !== "permissions") return current;
-      return current.returning ? { kind: "done" } : { kind: "provider" };
+      return current.returning
+        ? { kind: "done" }
+        : { kind: "account", engine: current.engine };
     });
   }, []);
 
@@ -289,8 +370,22 @@ function App() {
       toast.error(t("onboarding.provider.completionFailed"));
       return false;
     }
-    setOnboardingState({ kind: "done" });
+    // Onboarding keeps the cloud on a Mac that cannot run the local model.
+    const engine = useSettingsStore.getState().settings?.transcription_engine;
+    setOnboardingState({ kind: engine === "local" ? "finish" : "done" });
     return true;
+  };
+
+  /** From the finish step, after the download stopped. */
+  const handleUseCloud = async () => {
+    if (!(await saveEngine("cloud"))) {
+      toast.error(t("settings.transcription.engine.error"));
+      return;
+    }
+    const auth = await commands.getCodexAuthStatus().catch(() => null);
+    setOnboardingState(
+      auth?.signed_in ? { kind: "done" } : { kind: "account", engine: "cloud" },
+    );
   };
 
   const toaster = (
@@ -314,13 +409,47 @@ function App() {
     return null;
   }
 
+  // While the user grants permissions and connects ChatGPT, the model
+  // downloads; this says how far it got.
+  const downloadingPill = settings?.transcription_engine === "local" && (
+    <LocalModelPill
+      status={localModel}
+      className="pointer-events-none fixed top-3 end-3 z-10"
+    />
+  );
+
   let content: ReactNode;
-  if (onboardingState.kind === "permissions") {
+  if (onboardingState.kind === "model") {
     content = (
-      <AccessibilityOnboarding onComplete={handlePermissionsComplete} />
+      <LocalModelOnboarding
+        status={onboardingState.status}
+        onChoose={handleModelChoice}
+      />
     );
-  } else if (onboardingState.kind === "provider") {
-    content = <ProviderOnboarding onComplete={handleProviderComplete} />;
+  } else if (onboardingState.kind === "permissions") {
+    content = (
+      <>
+        {!onboardingState.returning && downloadingPill}
+        <AccessibilityOnboarding onComplete={handlePermissionsComplete} />
+      </>
+    );
+  } else if (onboardingState.kind === "account") {
+    content = (
+      <>
+        {downloadingPill}
+        <ProviderOnboarding
+          onComplete={handleProviderComplete}
+          optional={onboardingState.engine === "local"}
+        />
+      </>
+    );
+  } else if (onboardingState.kind === "finish") {
+    content = (
+      <DoneOnboarding
+        onFinish={() => setOnboardingState({ kind: "done" })}
+        onUseCloud={handleUseCloud}
+      />
+    );
   } else {
     content = (
       <div
@@ -338,7 +467,15 @@ function App() {
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto">
               <div className="flex flex-col items-center p-4 gap-4">
+                {settings?.transcription_engine === "local" && (
+                  <LocalModelPill
+                    status={localModel}
+                    className="flex w-full max-w-3xl justify-end"
+                  />
+                )}
                 <AccessibilityPermissions />
+                {(currentSection === "general" ||
+                  currentSection === "transcription") && <LocalSttCard />}
                 {renderSettingsContent(currentSection)}
               </div>
             </div>

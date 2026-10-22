@@ -277,6 +277,24 @@ test("without system audio support the sources are fixed to the microphone", asy
   );
 });
 
+test("a Mac that tells no speakers apart offers no speaker models, even with the dictation model", async ({
+  page,
+}) => {
+  await openMeetings(page, "&analysis=unsupported&models=ready");
+  await expect(
+    page.getByText(/Speaker detection needs a Mac with Apple silicon/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete models" })).toHaveCount(
+    0,
+  );
+
+  await openMeetings(page, "&analysis=os_too_old");
+  await expect(
+    page.getByText(/Speaker detection needs macOS 15 or later/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download" })).toHaveCount(0);
+});
+
 test("the page starts with the recording controls, and its buttons show text only", async ({
   page,
 }) => {
@@ -354,8 +372,7 @@ test("a double click on a speaker models button runs only its first action", asy
   const actions = async () =>
     (await calls(page)).filter(
       (command) =>
-        command.includes("meeting_models") &&
-        command !== "get_meeting_models_status",
+        command.includes("local_model") && command !== "get_local_model_status",
     );
 
   const button = (name: string) =>
@@ -363,7 +380,7 @@ test("a double click on a speaker models button runs only its first action", asy
 
   await openMeetings(page, "&models=missing");
   await doubleClickAcrossStates(page, button("Download"), button("Cancel"));
-  expect(await actions()).toEqual(["download_meeting_models"]);
+  expect(await actions()).toEqual(["download_local_model"]);
 
   await openMeetings(page, "&models=ready");
   await doubleClickAcrossStates(
@@ -371,7 +388,7 @@ test("a double click on a speaker models button runs only its first action", asy
     button("Delete models"),
     button("Download"),
   );
-  expect(await actions()).toEqual(["delete_meeting_models"]);
+  expect(await actions()).toEqual(["delete_local_model"]);
 });
 
 test("a double click on Start or Stop runs only its first action", async ({

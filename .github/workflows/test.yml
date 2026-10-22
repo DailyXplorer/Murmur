@@ -58,18 +58,32 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
-      # Without models, analysis must report them missing and never download.
-      # The helper quits when its stdin closes, as when Murmur quits, so
-      # stdin is held open.
+      # Without models, analysis and the first load must report them missing
+      # and never download: Murmur downloads them itself. The helper quits
+      # when its stdin closes, as when Murmur quits, so stdin is held open.
       - name: Check the meetings helper stays offline
         working-directory: src-tauri
         shell: bash
         run: |
-          out=$(binaries/murmur-meetings-helper-aarch64-apple-darwin analyze --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600))
+          helper=binaries/murmur-meetings-helper-aarch64-apple-darwin
+          out=$("$helper" analyze --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600))
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
           grep -q '"type":"done"' <<<"$out"
+          if out=$("$helper" prepare --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+            echo "prepare succeeded without models" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
+          if out=$("$helper" serve --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+            echo "serve started without models" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
           test ! -e "$RUNNER_TEMP/no-models/parakeet-tdt-0.6b-v3"
+          test ! -e "$RUNNER_TEMP/no-models/speaker-diarization"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.22.2 --locked

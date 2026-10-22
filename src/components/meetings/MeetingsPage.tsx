@@ -9,12 +9,13 @@ import {
   type MeetingListItem,
   type MeetingRuntime,
   type MeetingStatus,
+  type AnalysisSupport,
   type SystemAudioSupport,
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
-import { useMeetingModels } from "../../hooks/useMeetingModels";
+import { useLocalModel } from "../../hooks/useLocalModel";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -64,6 +65,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
   const [runtime, setRuntime] = useState<MeetingRuntime>({ state: "idle" });
   const [systemAudio, setSystemAudio] =
     useState<SystemAudioSupport>("available");
+  const [analysis, setAnalysis] = useState<AnalysisSupport | null>(null);
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     null,
   );
   const requestRef = useRef(0);
-  const models = useMeetingModels();
+  const models = useLocalModel();
   const recording = runtime.state === "recording";
   const now = useNow(recording);
   // The dialog closes by itself once its meeting stops some other way.
@@ -121,7 +123,9 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
       if (!disposed) setRuntime(current);
     });
     void commands.getMeetingCapabilities().then((capabilities) => {
-      if (!disposed) setSystemAudio(capabilities.system_audio);
+      if (disposed) return;
+      setSystemAudio(capabilities.system_audio);
+      setAnalysis(capabilities.analysis);
     });
     void loadMeetings(PAGE_SIZE);
     const unlisten = events.meetingStateChanged.listen((event) => {
@@ -273,7 +277,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         )}
       </SettingsGroup>
 
-      <SpeakerModels status={models} />
+      <SpeakerModels status={models} analysis={analysis} />
 
       <SettingsGroup title={t("meetings.list.title")}>
         {loading ? (

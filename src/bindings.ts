@@ -560,12 +560,43 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
- * Onboarding ends only once a Codex session exists, so the first recording
- * has somewhere to go.
+ * Dictation on this Mac needs no account. The cloud needs a Codex session,
+ * so the first recording has somewhere to go.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("complete_onboarding") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Picking this Mac starts the local model's download if it is not there.
+ */
+async changeTranscriptionEngineSetting(engine: Engine) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_transcription_engine_setting", { engine }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The one-time card's Download: dictation moves to this Mac once the local
+ * model is ready, at once if it already is.
+ */
+async switchToLocalWhenReady() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_to_local_when_ready") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeLocalSttCardDismissedSetting(dismissed: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_local_stt_card_dismissed_setting", { dismissed }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -772,33 +803,33 @@ async retranscribeMeeting(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getMeetingModelsStatus() : Promise<Result<MeetingModelsStatus, string>> {
+async getLocalModelStatus() : Promise<Result<LocalModelStatus, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_meeting_models_status") };
+    return { status: "ok", data: await TAURI_INVOKE("get_local_model_status") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async downloadMeetingModels() : Promise<Result<null, string>> {
+async downloadLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("download_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("download_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async cancelMeetingModelsDownload() : Promise<Result<null, string>> {
+async cancelLocalModelDownload() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cancel_meeting_models_download") };
+    return { status: "ok", data: await TAURI_INVOKE("cancel_local_model_download") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async deleteMeetingModels() : Promise<Result<null, string>> {
+async deleteLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("delete_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -875,17 +906,19 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
-meetingModelsStatus: MeetingModelsStatus,
+localModelStatus: LocalModelStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
-meetingsUpdated: MeetingsUpdated
+meetingsUpdated: MeetingsUpdated,
+switchedToLocal: SwitchedToLocal
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
-meetingModelsStatus: "meeting-models-status",
+localModelStatus: "local-model-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
-meetingsUpdated: "meetings-updated"
+meetingsUpdated: "meetings-updated",
+switchedToLocal: "switched-to-local"
 })
 
 /** user-defined constants **/
@@ -960,7 +993,24 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; 
+/**
+ * Which engine transcribes dictations.
+ */
+transcription_engine?: Engine; 
+/**
+ * The one-time card announcing local transcription was closed.
+ */
+local_stt_card_dismissed?: boolean; 
+/**
+ * The user asked for the local model, so its download resumes at launch.
+ */
+local_model_download_wanted?: boolean; 
+/**
+ * The user asked to dictate on this Mac as soon as the local model is
+ * ready.
+ */
+switch_to_local_when_ready?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1010,6 +1060,59 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+/**
+ * Why a download stopped, as the user is told.
+ */
+export type DownloadFailure = { kind: "no_internet" } | 
+/**
+ * Unreachable, an HTTP error, or no data for `STALL_TIMEOUT`.
+ */
+{ kind: "server_unavailable" } | 
+/**
+ * The file arrived twice with the wrong SHA-256.
+ */
+{ kind: "damaged" } | { kind: "not_enough_space"; needed_bytes: number; free_bytes: number } | 
+/**
+ * The models folder could not be written.
+ */
+{ kind: "disk" } | 
+/**
+ * The models downloaded but would not load on this Mac.
+ */
+{ kind: "prepare_failed" }
+export type Engine = 
+/**
+ * Parakeet TDT 0.6B v3 on this Mac, what a new install starts with.
+ */
+"local" | 
+/**
+ * Codex through the user's ChatGPT session.
+ */
+"cloud"
+/**
+ * Why a dictation was transcribed by the engine the user did not choose.
+ */
+export type FallbackReason = 
+/**
+ * Local chosen: the model is not downloaded or not ready yet.
+ */
+"model_not_ready" | 
+/**
+ * Local chosen: the local run failed.
+ */
+"local_failed" | 
+/**
+ * Local chosen: the dictation language is outside Parakeet's 25.
+ */
+"language_not_supported" | 
+/**
+ * Cloud chosen: ChatGPT refused for the account's usage limit.
+ */
+"cloud_limit_reached" | 
+/**
+ * Cloud chosen: ChatGPT failed for any other reason.
+ */
+"cloud_failed"
 export type HeatmapDay = { 
 /**
  * Local calendar date, `YYYY-MM-DD`.
@@ -1027,7 +1130,11 @@ transcription_text: string;
 /**
  * The transcript before AI cleanup, when cleanup ran.
  */
-raw_text: string | null; cleanup: CleanupOutcome | null }
+raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine; 
+/**
+ * Set when the engine is not the one the user chose.
+ */
+fallback_reason: FallbackReason | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
@@ -1052,6 +1159,26 @@ export type LearnedWord = { word: string;
  * How Murmur wrote it before the user corrected it.
  */
 heard_as: string }
+export type LocalModelState = 
+/**
+ * This Mac cannot run the models.
+ */
+{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; done_bytes: number; total_bytes: number } | 
+/**
+ * Checking models an earlier version downloaded, or loading new ones
+ * once so they are compiled for this Mac.
+ */
+{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+export type LocalModelStatus = { state: LocalModelState; 
+/**
+ * What the download takes on this Mac.
+ */
+size_bytes: number; 
+/**
+ * What a download that stopped, missing or failed, left on this Mac.
+ * Deleting the models frees it.
+ */
+kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
@@ -1086,7 +1213,12 @@ system_audio_silent: boolean;
  * When a Codex rate-limit hold stops keeping this queued meeting
  * waiting. Only the processing queue knows; the store never sets it.
  */
-held_until_ms: number | null }
+held_until_ms: number | null; 
+/**
+ * How much of the recorded audio this Mac transcribed because Codex
+ * refused it. "Transcribe again" sends it all to Codex once more.
+ */
+local_fallback_ms: number }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
@@ -1096,7 +1228,6 @@ title: string | null; started_at_ms: number; duration_ms: number; status: Meetin
  * Which tab Copy and Export take their text from.
  */
 export type MeetingMarkdownKind = "summary" | "transcript"
-export type MeetingModelsStatus = { state: ModelsState; bytes_on_disk: number }
 /**
  * How far processing has come, for the progress bar.
  */
@@ -1154,15 +1285,6 @@ export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
-export type ModelsState = 
-/**
- * This Mac cannot run the analysis.
- */
-{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; fraction: number } | 
-/**
- * Compiling the models for this Mac, once.
- */
-{ state: "preparing" } | { state: "ready" } | { state: "failed" }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -1256,6 +1378,10 @@ export type SummaryStatus =
  * Not written yet: it is once the whole transcript is.
  */
 "pending" | "ready" | "failed"
+/**
+ * Dictation moved to this Mac, as the user asked, once the model was ready.
+ */
+export type SwitchedToLocal = Record<string, never>
 /**
  * The "System Audio Recording" permission, as macOS reports it now.
  */

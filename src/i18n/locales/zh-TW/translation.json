@@ -13,6 +13,9 @@
     "errorSignedOut": "尚未登入 Codex。請開啟 Codex 並登入。",
     "errorTooLarge": "此錄音對該服務來說太長。請嘗試較短的錄音。",
     "errorTranscription": "轉錄失敗。請從歷史記錄重試。",
+    "errorLocalNotReady": "本機模型尚未就緒。請在 Murmur 設定中查看。",
+    "errorLocalFailed": "本機轉錄失敗。請從歷史記錄重試。",
+    "errorLanguageNeedsCloud": "此語言需要使用雲端。請連接 ChatGPT 或選擇其他語言。",
     "errorPaste": "無法貼上。文字已在剪貼簿和歷史記錄中。",
     "errorRecording": "無法開始錄音。請檢查麥克風。",
     "errorMicrophoneDenied": "麥克風存取已關閉。請在系統設定中允許 Murmur。",
@@ -125,11 +128,34 @@
       "continue": "繼續",
       "completionFailed": "無法完成設定。請重新整理狀態後再試一次。",
       "setupCodex": "開啟 Codex 設定",
-      "codexSetupFailed": "無法開啟 Codex 設定。"
+      "codexSetupFailed": "無法開啟 Codex 設定。",
+      "optionalTitle": "連接 ChatGPT（選用）",
+      "optionalDescription": "連接你的 ChatGPT 帳號，以使用 AI 清理（去除贅詞並修正文法），以及本機模型不支援的語言。",
+      "optionalSession": "用你的 ChatGPT 帳號登入 Codex App。Murmur 會使用該工作階段。",
+      "skip": "略過"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "未偵測到設定"
+    },
+    "model": {
+      "title": "在這台 Mac 上轉錄",
+      "description": "Murmur 直接在這台 Mac 上把你的語音轉成文字。音訊留在這台 Mac 上，也沒有額度限制。",
+      "download": "需要一次性下載 {{size}}。",
+      "alreadyHere": "模型已在這台 Mac 上。",
+      "languages": "支援 25 種歐洲語言，包括英文和法文。",
+      "downloadAndContinue": "下載並繼續",
+      "useCloud": "改用雲端"
+    },
+    "done": {
+      "title": "一切就緒",
+      "ready": "按住快捷鍵並說話。",
+      "downloading": "模型仍在下載（{{percent}}%）。",
+      "preparing": "正在為這台 Mac 準備模型。",
+      "cloudMeanwhile": "在它就緒之前，Murmur 使用雲端。",
+      "waitForIt": "模型就緒後即可開始聽寫。",
+      "stoppedTitle": "下載已停止",
+      "start": "開始使用 Murmur"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "錄音中未偵測到語音。",
       "cleanupFailed": "AI 清理無法使用，因此貼上了原始轉錄文字。",
       "showOriginal": "顯示原始轉錄",
-      "hideOriginal": "隱藏原始轉錄"
+      "hideOriginal": "隱藏原始轉錄",
+      "fallback": {
+        "model_not_ready": "已在雲端轉錄：本機模型尚未就緒。",
+        "local_failed": "已在雲端轉錄：本機轉錄失敗。",
+        "language_not_supported": "已在雲端轉錄：這台 Mac 不支援此語言。",
+        "cloud_limit_reached": "已在這台 Mac 上轉錄：已達 ChatGPT 額度上限。",
+        "cloud_failed": "已在這台 Mac 上轉錄：ChatGPT 無法使用。"
+      }
     },
     "debug": {
       "title": "偵錯",
@@ -429,9 +462,10 @@
         "description": "Murmur 更新後顯示版本資訊"
       },
       "modelLicences": {
-        "description": "發言者辨識模型的授權",
+        "description": "在裝置上執行的語音模型授權",
         "button": "查看授權"
-      }
+      },
+      "parakeet": "本機轉錄使用 NVIDIA Parakeet（CC BY 4.0）。"
     },
     "transcription": {
       "title": "轉錄",
@@ -441,14 +475,15 @@
       "statusUnavailable": "無法取得狀態",
       "missing": "尚未登入",
       "groups": {
-        "service": "服務",
         "processing": "文字處理",
-        "output": "輸出"
+        "output": "輸出",
+        "engine": "轉錄方式"
       },
       "sessionExpired": "工作階段已過期，請在 Codex 中重新登入",
       "aiCleanup": {
         "title": "AI 清理與排版",
-        "description": "刪除贅詞，在你自我修正時只保留最終說法，修正標點，並整理清單和口述的換行。絕不翻譯或改寫。如果失敗或耗時過久，將貼上原始逐字稿。"
+        "description": "刪除贅詞，在你自我修正時只保留最終說法，修正標點，並整理清單和口述的換行。絕不翻譯或改寫。如果失敗或耗時過久，將貼上原始逐字稿。",
+        "needsAccount": "連接 ChatGPT 後才能使用 AI 整理。"
       },
       "windowNames": {
         "title": "目前視窗中的名稱",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "耳語模式",
         "description": "進一步提高對極小聲音的靈敏度，並告知 AI 清理語音可能較弱。靜音與背景噪音不會被放大。"
+      },
+      "engine": {
+        "local": {
+          "title": "在這台 Mac 上",
+          "description": "支援 25 種歐洲語言。音訊不會離開這台 Mac。"
+        },
+        "cloud": {
+          "title": "在雲端",
+          "description": "支援更多語言，使用你的 ChatGPT 帳號額度。"
+        },
+        "os_too_old": "本機轉錄需要 macOS 15 或以上版本。",
+        "unsupported": "本機轉錄需要搭載 Apple 晶片的 Mac。",
+        "error": "無法變更轉錄方式。"
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA 的語音辨識模型。從 Hugging Face 下載一次，在這台 Mac 上執行。",
+        "meetings": "會議也用它來區分發言者。",
+        "missing": "尚未下載",
+        "downloading": "正在下載… {{done}}/{{total}}",
+        "preparing": "正在為這台 Mac 準備…（約 15 秒，僅限第一次）",
+        "ready": "已就緒 · {{size}}",
+        "download": "下載（{{size}}）",
+        "retry": "重試",
+        "delete": "刪除",
+        "error": "無法更新本機模型。",
+        "failed": {
+          "no_internet": "沒有網路連線。下載會從中斷處繼續。",
+          "server_unavailable": "下載伺服器沒有回應。請稍後再試。",
+          "damaged": "下載的檔案已損毀。請重試。",
+          "not_enough_space": "空間不足：需要 {{needed}}，可用 {{free}}。",
+          "disk": "無法將模型儲存到這台 Mac。",
+          "prepare_failed": "模型已下載，但無法在這台 Mac 上載入。"
+        },
+        "deleteDialog": {
+          "title": "刪除本機模型？",
+          "withAccount": "在你重新下載之前，聽寫會使用雲端。",
+          "withoutAccount": "在你重新下載或連接 ChatGPT 之前，將無法聽寫。",
+          "meetings": "會議將以每個音訊來源顯示一位發言者。",
+          "confirm": "刪除模型"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "選用：連接後可使用 AI 整理和更多語言。"
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "模型授權",
       "licencesNote": "模型會在首次使用時從 Hugging Face 下載，Murmur 本身不包含這些模型。",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3（字詞時間）：NVIDIA，CC BY 4.0。Core ML 轉換：Fluid Inference。",
+        "parakeet": "語音辨識：NVIDIA 的 Parakeet TDT 0.6B v3，CC BY 4.0。由 Fluid Inference 轉換為 Core ML（Apple 晶片），由 handy-computer 轉換為 8 位元 GGUF（Intel Mac）。",
         "diarization": "發言者分離 Community-1：pyannote，CC BY 4.0，以及 WeSpeaker 和 BUT Speech@FIT。經修改的 Core ML 轉換：Fluid Inference。",
         "fluidaudio": "FluidAudio：Fluid Inference，Apache License 2.0。"
       }
@@ -710,6 +790,21 @@
         "title": "要重新轉錄這場會議嗎？",
         "description": "Codex 會重新轉錄錄音，逐字稿和摘要將被取代。你設定的標題會保留。"
       }
-    }
+    },
+    "localFallback": "本次會議中有 {{duration}} Codex 無法使用，因此該部分已在這台 Mac 上轉錄。"
+  },
+  "localSttCard": {
+    "title": "新功能：本機轉錄，沒有額度限制。",
+    "description": "在這台 Mac 上轉錄 25 種歐洲語言。音訊不會離開這台 Mac。",
+    "useLocal": "使用本機轉錄",
+    "downloading": "正在下載… {{percent}}%。完成後 Murmur 會切換到這台 Mac。",
+    "dismiss": "關閉",
+    "error": "無法啟動本機轉錄。",
+    "switched": "現在在這台 Mac 上轉錄。",
+    "switchedDescription": "可以在「{{section}}」中變更。"
+  },
+  "localModelPill": {
+    "downloading": "正在下載模型… {{percent}}%",
+    "preparing": "正在準備模型…"
   }
 }

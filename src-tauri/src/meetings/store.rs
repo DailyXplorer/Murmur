@@ -431,6 +431,9 @@ pub struct MeetingDetail {
     /// When a Codex rate-limit hold stops keeping this queued meeting
     /// waiting. Only the processing queue knows; the store never sets it.
     pub held_until_ms: Option<i64>,
+    /// How much of the recorded audio this Mac transcribed because Codex
+    /// refused it. "Transcribe again" sends it all to Codex once more.
+    pub local_fallback_ms: i64,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -716,6 +719,12 @@ impl MeetingsStore {
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        let local_fallback_ms = conn.query_row(
+            "SELECT COALESCE(SUM(end_ms - start_ms), 0) FROM meeting_chunks
+             WHERE meeting_id = ?1 AND status = 'done' AND error_kind IS NOT NULL",
+            params![id],
+            |row| row.get(0),
+        )?;
         Ok(Some(MeetingDetail {
             id,
             title,
@@ -740,6 +749,7 @@ impl MeetingsStore {
             audio_bytes,
             system_audio_silent,
             held_until_ms: None,
+            local_fallback_ms,
         }))
     }
 
@@ -980,11 +990,35 @@ impl MeetingsStore {
     }
 
     pub fn chunk_done(&self, id: i64, track: Track, idx: u32, text: &str) -> Result<()> {
+        self.save_chunk(id, track, idx, text, None)
+    }
+
+    /// A piece Codex refused with `codex`, transcribed on this Mac. A done
+    /// piece keeps the Codex failure it got past, which marks it as local.
+    pub fn chunk_done_locally(
+        &self,
+        id: i64,
+        track: Track,
+        idx: u32,
+        text: &str,
+        codex: &str,
+    ) -> Result<()> {
+        self.save_chunk(id, track, idx, text, Some(codex))
+    }
+
+    fn save_chunk(
+        &self,
+        id: i64,
+        track: Track,
+        idx: u32,
+        text: &str,
+        codex: Option<&str>,
+    ) -> Result<()> {
         self.connection()?.execute(
-            "UPDATE meeting_chunks SET status = 'done', text = ?4, error_kind = NULL,
+            "UPDATE meeting_chunks SET status = 'done', text = ?4, error_kind = ?5,
                  attempts = attempts + 1
              WHERE meeting_id = ?1 AND track = ?2 AND idx = ?3",
-            params![id, track_db(track), idx, text],
+            params![id, track_db(track), idx, text, codex],
         )?;
         Ok(())
     }

@@ -1,6 +1,7 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error};
 use crate::cleanup::{ProcessedText, PromptContext};
+use crate::engine::EngineUsed;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
@@ -170,8 +171,9 @@ fn save_history(
     recording: Option<&str>,
     pending_wav: &mut Option<PendingWav>,
     text: ProcessedText,
+    source: EngineUsed,
 ) {
-    match hm.save_entry(recording.unwrap_or_default().to_string(), text) {
+    match hm.save_entry(recording.unwrap_or_default().to_string(), text, source) {
         Ok(_) => {
             if recording.is_some() {
                 if let Some(wav) = pending_wav.as_mut() {
@@ -273,6 +275,8 @@ impl ShortcutAction for TranscribeAction {
                 crate::window_names::capture(
                     settings.window_names_enabled && settings.ai_cleanup_enabled,
                 );
+                let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+                std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);
@@ -487,6 +491,7 @@ impl ShortcutAction for TranscribeAction {
                         Ok(crate::managers::transcription::Transcript {
                             text: transcription,
                             dictionary_fixes,
+                            source,
                         }) => {
                             debug!(
                                 "Transcription completed in {:?} ({} characters)",
@@ -518,7 +523,13 @@ impl ShortcutAction for TranscribeAction {
                                 }
 
                                 if recording.is_some() {
-                                    save_history(&hm, recording, &mut pending_wav, processed);
+                                    save_history(
+                                        &hm,
+                                        recording,
+                                        &mut pending_wav,
+                                        processed,
+                                        source,
+                                    );
                                 }
                             } else {
                                 // `clipboard::paste` owns its native
@@ -566,7 +577,7 @@ impl ShortcutAction for TranscribeAction {
                                 // The transcript is kept whatever happened to
                                 // the paste or the WAV: history first, then
                                 // the clipboard as the immediate way back.
-                                save_history(&hm, recording, &mut pending_wav, processed);
+                                save_history(&hm, recording, &mut pending_wav, processed, source);
                                 if !delivered {
                                     error!("Transcription output could not be delivered");
                                     crate::clipboard::copy_for_recovery(&ah, final_text);
@@ -599,11 +610,17 @@ impl ShortcutAction for TranscribeAction {
                                     debug!("Transcription operation cancelled before failed history save");
                                     return;
                                 }
+                                // Nothing transcribed it; Retry records the
+                                // engine that does.
                                 save_history(
                                     &hm,
                                     Some(file_name.as_str()),
                                     &mut pending_wav,
                                     ProcessedText::unprocessed(String::new()),
+                                    EngineUsed {
+                                        engine: get_settings(&ah).transcription_engine,
+                                        fallback: None,
+                                    },
                                 );
                             }
                         }

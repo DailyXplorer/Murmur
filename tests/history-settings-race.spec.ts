@@ -14,6 +14,8 @@ const historyEntry = ({ id, transcription_text }: HistoryEntry) => ({
   transcription_text,
   raw_text: null,
   cleanup: null,
+  engine: "cloud" as const,
+  fallback_reason: null,
 });
 
 const openRaceFixture = async (page: Page) => {

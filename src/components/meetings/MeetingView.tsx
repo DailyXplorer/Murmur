@@ -6,12 +6,12 @@ import {
   commands,
   events,
   type MeetingDetail,
-  type MeetingModelsStatus,
+  type LocalModelStatus,
   type MeetingProgress,
   type MeetingStage,
   type SystemAudioPermission,
 } from "@/bindings";
-import { useMeetingModels } from "../../hooks/useMeetingModels";
+import { downloadPercent, useLocalModel } from "../../hooks/useLocalModel";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { AudioRow } from "./AudioRow";
@@ -201,7 +201,7 @@ const ProcessingBanner: React.FC<{
 /** Says why speakers were not told apart, and offers to do it now. */
 const SpeakerNotice: React.FC<{
   meeting: MeetingDetail;
-  models: MeetingModelsStatus | null;
+  models: LocalModelStatus | null;
   onSeparate: () => void;
   starting: boolean;
 }> = ({ meeting, models, onSeparate, starting }) => {
@@ -214,7 +214,7 @@ const SpeakerNotice: React.FC<{
     return null;
   }
   const download = async () => {
-    const result = await commands.downloadMeetingModels();
+    const result = await commands.downloadLocalModel();
     if (result.status === "error") toast.error(t("meetings.models.error"));
   };
   const state = models?.state;
@@ -237,7 +237,7 @@ const SpeakerNotice: React.FC<{
         return (
           <span className="text-sm text-text/60 tabular-nums">
             {t("meetings.models.downloading", {
-              percent: Math.round(state.fraction * 100),
+              percent: downloadPercent(models),
             })}
           </span>
         );
@@ -310,7 +310,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
-  const models = useMeetingModels();
+  const models = useLocalModel();
 
   const load = useCallback(async () => {
     try {
@@ -453,6 +453,19 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         />
       )}
       {meeting.system_audio_silent && <SystemAudioNotice />}
+      {meeting.local_fallback_ms > 0 && (
+        <p className="px-1 text-xs text-text/60">
+          {t("meetings.localFallback", {
+            duration: new Intl.NumberFormat(i18n.language, {
+              style: "unit",
+              unit: "minute",
+              unitDisplay: "long",
+            }).format(
+              Math.max(1, Math.round(meeting.local_fallback_ms / 60_000)),
+            ),
+          })}
+        </p>
+      )}
       <Tabs<Tab>
         idPrefix={TABS_ID}
         label={t("meetings.view.tabs.label")}

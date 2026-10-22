@@ -11,6 +11,7 @@ const ACRONYMS = [
   "BY", // the CC BY licence
   "CC",
   "GB",
+  "GGUF", // the file format of the Intel model
   "MB",
   "NVIDIA",
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
@@ -29,6 +30,12 @@ const PROPER_PHRASES = [
   "Community-1",
   "Speech@FIT",
   "Bluetooth",
+  "Intel Macs",
+  "European",
+  "Parakeet",
+  "ChatGPT",
+  "English",
+  "French",
   "WeSpeaker",
   "Markdown",
   "Core ML",

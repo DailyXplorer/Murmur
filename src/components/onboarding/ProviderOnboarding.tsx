@@ -11,10 +11,14 @@ import MurmurTextLogo from "../icons/MurmurTextLogo";
 
 interface ProviderOnboardingProps {
   onComplete: () => Promise<boolean>;
+  /** Dictation runs on this Mac, so the account only adds AI cleanup and
+   * more languages, and the step can be skipped. */
+  optional: boolean;
 }
 
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   onComplete,
+  optional,
 }) => {
   const { t } = useTranslation();
   const { invalidatePendingRefreshes, refreshStatus, status } =
@@ -41,10 +45,9 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   }, [t]);
 
   const canComplete = !isCompleting && status.kind === "configured";
+  const canSkip = optional && !isCompleting && status.kind !== "configured";
 
-  const complete = useCallback(async () => {
-    if (!canComplete) return;
-
+  const finish = useCallback(async () => {
     setIsCompleting(true);
     try {
       const completed = await onComplete();
@@ -54,7 +57,15 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     } finally {
       setIsCompleting(false);
     }
-  }, [canComplete, onComplete, refreshStatus]);
+  }, [onComplete, refreshStatus]);
+
+  const complete = useCallback(async () => {
+    if (canComplete) await finish();
+  }, [canComplete, finish]);
+
+  const skip = useCallback(async () => {
+    if (canSkip) await finish();
+  }, [canSkip, finish]);
 
   return (
     <div
@@ -66,10 +77,14 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
         <div className="w-full max-w-xl">
           <div className="mb-2 text-center">
             <h2 className="font-title text-2xl font-normal text-text">
-              {t("onboarding.provider.title")}
+              {optional
+                ? t("onboarding.provider.optionalTitle")
+                : t("onboarding.provider.title")}
             </h2>
             <p className="mt-1 text-pretty text-sm text-text/70">
-              {t("onboarding.provider.description")}
+              {optional
+                ? t("onboarding.provider.optionalDescription")
+                : t("onboarding.provider.description")}
             </p>
           </div>
           <div className="rounded-lg border border-mid-gray/20 bg-white/5 p-2">
@@ -77,7 +92,9 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
               {t("onboarding.providerLabels.codex")}
             </span>
             <span className="mt-0.5 block text-sm text-text/65">
-              {t("settings.transcription.sessionDescription")}
+              {optional
+                ? t("onboarding.provider.optionalSession")
+                : t("settings.transcription.sessionDescription")}
             </span>
             <span
               className="mt-1 block text-sm text-text/80"
@@ -94,6 +111,11 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             )}
           </div>
           <div className="mt-2 flex justify-end gap-2">
+            {optional && status.kind !== "configured" && (
+              <Button onClick={() => void skip()} disabled={!canSkip}>
+                {t("onboarding.provider.skip")}
+              </Button>
+            )}
             <Button
               onClick={() => void refreshStatus()}
               disabled={isCompleting}

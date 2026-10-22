@@ -94,6 +94,8 @@ let databaseEntries: HistoryEntry[] = [
     transcription_text: "Stale listener snapshot",
     raw_text: null,
     cleanup: null,
+    engine: "cloud",
+    fallback_reason: null,
   },
 ];
 let deleteShouldFail = false;

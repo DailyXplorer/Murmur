@@ -1,12 +1,16 @@
 // murmur-meetings-helper: on-device analysis of a recorded meeting.
 //
-//   download --models-dir <dir>
+//   prepare  --models-dir <dir>
 //   analyze  --models-dir <dir> [--system <wav>] [--mic <wav>]
 //   diarize  --models-dir <dir> (--system <wav> | --mic <wav>)
+//   serve    --models-dir <dir>
 //
-// `analyze` prints the words heard on each track, `diarize` who spoke when
-// on one track: Murmur picks it from those words. Prints one JSON object per
-// line on stdout (see `meetings/protocol.rs`). Neither downloads: missing
+// Murmur downloads the models itself (`local_models`). `prepare` loads them
+// once, so Core ML compiles them for this Mac; `analyze` prints the words
+// heard on each track, `diarize` who spoke when on one track: Murmur picks
+// it from those words. `serve` keeps Parakeet loaded for dictation and
+// transcribes each WAV named on stdin. Prints one JSON object per line on
+// stdout (see `meetings/protocol.rs`). None of them downloads: missing
 // models are reported as an error.
 
 import FluidAudio
@@ -54,6 +58,30 @@ struct Done: Encodable {
     let type = "done"
 }
 
+struct ServeReady: Encodable {
+    let type = "ready"
+}
+
+struct ServeText: Encodable {
+    let type = "text"
+    let id: UInt64
+    let text: String
+}
+
+struct ServeFailure: Encodable {
+    let type = "error"
+    let id: UInt64
+    let stage = "transcribe"
+    let code: String
+    let message: String
+}
+
+struct ServeRequest: Decodable {
+    let type: String
+    let id: UInt64
+    let wav: String
+}
+
 let output = FileHandle.standardOutput
 let encoder = JSONEncoder()
 
@@ -63,16 +91,17 @@ func emit<T: Encodable>(_ message: T) {
     output.write(line)
 }
 
-func fail(_ stage: String, _ error: Error) {
-    let code: String
+func code(of error: Error) -> String {
     if case DownloadError.modelMissing = error {
-        code = "model_missing"
+        return "model_missing"
     } else if case DownloadError.networkDisabled = error {
-        code = "model_missing"
-    } else {
-        code = "io"
+        return "model_missing"
     }
-    emit(Failure(stage: stage, code: code, message: String(describing: error)))
+    return "io"
+}
+
+func fail(_ stage: String, _ error: Error) {
+    emit(Failure(stage: stage, code: code(of: error), message: String(describing: error)))
 }
 
 func value(of flag: String, in arguments: [String]) -> String? {
@@ -82,17 +111,12 @@ func value(of flag: String, in arguments: [String]) -> String? {
     return arguments[index + 1]
 }
 
-/// Download, then compile: FluidAudio reports both through one handler.
-func progressHandler(from: Double, to: Double) -> ProgressHandler {
+/// The share of `prepare` done, from `from` to `to`.
+func compileProgress(from: Double, to: Double) -> ProgressHandler {
     { progress in
-        let phase: String
-        switch progress.phase {
-        case .compiling: phase = "compile"
-        default: phase = "download"
-        }
         emit(
             Progress(
-                phase: phase, track: nil,
+                phase: "compile", track: nil,
                 fraction: from + (to - from) * min(max(progress.fractionCompleted, 0), 1)))
     }
 }
@@ -101,22 +125,19 @@ func asrDirectory(_ models: URL) -> URL {
     models.appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)
 }
 
-func download(models: URL) async -> Int32 {
-    ModelHub.offlineMode = false
+/// The first load compiles the models for this Mac; later loads are fast.
+func prepare(models: URL) async -> Int32 {
+    ModelHub.offlineMode = true
     do {
-        try await AsrModels.download(
-            to: asrDirectory(models), version: .v3,
-            progressHandler: progressHandler(from: 0, to: 0.8))
+        _ = try await AsrModels.load(
+            from: asrDirectory(models), version: .v3,
+            progressHandler: compileProgress(from: 0, to: 0.8))
         _ = try await OfflineDiarizerModels.load(
-            from: models, progressHandler: progressHandler(from: 0.8, to: 0.9))
-        // The first load compiles the models for this Mac; later loads are fast.
-        emit(Progress(phase: "compile", track: nil, fraction: 0.9))
-        _ = try await AsrModels.load(from: asrDirectory(models), version: .v3)
-        emit(Progress(phase: "compile", track: nil, fraction: 1))
+            from: models, progressHandler: compileProgress(from: 0.8, to: 1))
         emit(Done())
         return 0
     } catch {
-        fail("download", error)
+        fail("prepare", error)
         return 1
     }
 }
@@ -191,30 +212,69 @@ func diarize(models: URL, arguments: [String]) async -> Int32 {
     return 0
 }
 
+/// Loads Parakeet once, then answers each request read on stdin until
+/// Murmur closes it. Pieces are at most 15 s, one pass of the encoder.
+func serve(models: URL) async -> Int32 {
+    ModelHub.offlineMode = true
+    let manager = AsrManager(config: .default)
+    do {
+        try await manager.loadModels(
+            try await AsrModels.load(from: asrDirectory(models), version: .v3))
+    } catch {
+        fail("load", error)
+        return 1
+    }
+    emit(ServeReady())
+    let decoder = JSONDecoder()
+    while let line = readLine() {
+        guard let request = try? decoder.decode(ServeRequest.self, from: Data(line.utf8)),
+            request.type == "transcribe"
+        else { continue }
+        do {
+            var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
+            let result = try await manager.transcribe(
+                URL(fileURLWithPath: request.wav), decoderState: &state)
+            emit(ServeText(id: request.id, text: result.text))
+        } catch {
+            emit(
+                ServeFailure(
+                    id: request.id, code: code(of: error), message: String(describing: error)))
+        }
+    }
+    return 0
+}
+
 // Library logs below warnings could hold transcript text.
 AppLogger.minimumLevel = .warning
-
-// Murmur holds stdin open and never writes to it: end of file means Murmur
-// quit or crashed, so the analysis stops instead of running on unseen.
-Thread.detachNewThread {
-    while !FileHandle.standardInput.availableData.isEmpty {}
-    exit(1)
-}
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments)
 else {
-    FileHandle.standardError.write(Data("usage: download|analyze|diarize --models-dir <dir> …\n".utf8))
+    FileHandle.standardError.write(
+        Data("usage: prepare|analyze|diarize|serve --models-dir <dir> …\n".utf8))
     exit(2)
 }
+
+// Murmur holds stdin open: end of file means Murmur quit or crashed, so the
+// work stops instead of running on unseen. `serve` reads its requests there
+// and stops at the same end of file.
+if command != "serve" {
+    Thread.detachNewThread {
+        while !FileHandle.standardInput.availableData.isEmpty {}
+        exit(1)
+    }
+}
+
 let models = URL(fileURLWithPath: modelsPath, isDirectory: true)
 switch command {
-case "download":
-    exit(await download(models: models))
+case "prepare":
+    exit(await prepare(models: models))
 case "analyze":
     exit(await analyze(models: models, arguments: arguments))
 case "diarize":
     exit(await diarize(models: models, arguments: arguments))
+case "serve":
+    exit(await serve(models: models))
 default:
     FileHandle.standardError.write(Data("unknown command \(command)\n".utf8))
     exit(2)

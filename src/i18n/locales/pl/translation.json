@@ -13,6 +13,9 @@
     "errorSignedOut": "Nie zalogowano do Codex. Otwórz Codex i zaloguj się.",
     "errorTooLarge": "To nagranie jest za długie dla usługi. Spróbuj krótszego.",
     "errorTranscription": "Transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
+    "errorLocalNotReady": "Model lokalny nie jest jeszcze gotowy. Sprawdź go w ustawieniach Murmura.",
+    "errorLocalFailed": "Lokalna transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
+    "errorLanguageNeedsCloud": "Ten język wymaga chmury. Połącz ChatGPT lub wybierz inny język.",
     "errorPaste": "Nie udało się wkleić. Tekst jest w schowku i w historii.",
     "errorRecording": "Nie udało się rozpocząć nagrywania. Sprawdź mikrofon.",
     "errorMicrophoneDenied": "Dostęp do mikrofonu jest wyłączony. Zezwól Murmur w Ustawieniach systemowych.",
@@ -125,11 +128,34 @@
       "continue": "Kontynuuj",
       "completionFailed": "Nie udało się ukończyć konfiguracji. Odśwież stan i spróbuj ponownie.",
       "setupCodex": "Otwórz konfigurację Codex",
-      "codexSetupFailed": "Nie udało się otworzyć konfiguracji Codex."
+      "codexSetupFailed": "Nie udało się otworzyć konfiguracji Codex.",
+      "optionalTitle": "Połącz ChatGPT (opcjonalnie)",
+      "optionalDescription": "Połącz konto ChatGPT, aby korzystać z porządkowania przez AI (usuwa wtrącenia i poprawia gramatykę) oraz z języków, których model lokalny nie obsługuje.",
+      "optionalSession": "Zaloguj się w aplikacji Codex kontem ChatGPT. Murmur korzysta z tej sesji.",
+      "skip": "Pomiń"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Nie wykryto konfiguracji"
+    },
+    "model": {
+      "title": "Transkrypcja na tym Macu",
+      "description": "Murmur zamienia Twój głos na tekst bezpośrednio na tym Macu. Dźwięk zostaje na komputerze i nie ma limitu.",
+      "download": "Wymaga jednorazowego pobrania {{size}}.",
+      "alreadyHere": "Model jest już na tym Macu.",
+      "languages": "Działa w 25 językach europejskich, w tym po polsku, angielsku i francusku.",
+      "downloadAndContinue": "Pobierz i kontynuuj",
+      "useCloud": "Użyj chmury"
+    },
+    "done": {
+      "title": "Wszystko gotowe",
+      "ready": "Przytrzymaj skrót i mów.",
+      "downloading": "Model wciąż się pobiera ({{percent}}%).",
+      "preparing": "Model jest przygotowywany dla tego Maca.",
+      "cloudMeanwhile": "Do tego czasu Murmur korzysta z chmury.",
+      "waitForIt": "Dyktować można, gdy tylko będzie gotowy.",
+      "stoppedTitle": "Pobieranie zostało przerwane",
+      "start": "Zacznij korzystać z Murmur"
     }
   },
   "settings": {
@@ -325,7 +351,14 @@
       "noSpeech": "W nagraniu nie wykryto mowy.",
       "cleanupFailed": "Porządkowanie AI było niedostępne, więc wklejono surową transkrypcję.",
       "showOriginal": "Pokaż oryginalną transkrypcję",
-      "hideOriginal": "Ukryj oryginalną transkrypcję"
+      "hideOriginal": "Ukryj oryginalną transkrypcję",
+      "fallback": {
+        "model_not_ready": "Przetranskrybowano w chmurze: model lokalny nie był gotowy.",
+        "local_failed": "Przetranskrybowano w chmurze: transkrypcja lokalna nie powiodła się.",
+        "language_not_supported": "Przetranskrybowano w chmurze: ten język nie jest obsługiwany na tym Macu.",
+        "cloud_limit_reached": "Przetranskrybowano na tym Macu: osiągnięto limit ChatGPT.",
+        "cloud_failed": "Przetranskrybowano na tym Macu: ChatGPT był niedostępny."
+      }
     },
     "debug": {
       "title": "Debugowanie",
@@ -429,9 +462,10 @@
         "description": "Pokazuj informacje o wydaniu po aktualizacjach Murmur"
       },
       "modelLicences": {
-        "description": "Licencje modeli wykrywania mówców",
+        "description": "Licencje modeli mowy działających na urządzeniu",
         "button": "Pokaż licencje"
-      }
+      },
+      "parakeet": "Lokalna transkrypcja korzysta z NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transkrypcja",
@@ -441,14 +475,15 @@
       "statusUnavailable": "Stan niedostępny",
       "missing": "Nie zalogowano",
       "groups": {
-        "service": "Usługa",
         "processing": "Przetwarzanie tekstu",
-        "output": "Wyjście"
+        "output": "Wyjście",
+        "engine": "Jak Murmur transkrybuje"
       },
       "sessionExpired": "Sesja wygasła, zaloguj się ponownie w Codex",
       "aiCleanup": {
         "title": "Porządkowanie i formatowanie AI",
-        "description": "Usuwa wtrącenia, zostawia tylko ostateczne sformułowanie, gdy się poprawiasz, poprawia interpunkcję i formatuje listy oraz dyktowane podziały wierszy. Nigdy nie tłumaczy ani nie przepisuje. Jeśli się nie uda lub potrwa za długo, wklejana jest surowa transkrypcja."
+        "description": "Usuwa wtrącenia, zostawia tylko ostateczne sformułowanie, gdy się poprawiasz, poprawia interpunkcję i formatuje listy oraz dyktowane podziały wierszy. Nigdy nie tłumaczy ani nie przepisuje. Jeśli się nie uda lub potrwa za długo, wklejana jest surowa transkrypcja.",
+        "needsAccount": "Połącz ChatGPT, aby korzystać z porządkowania przez AI."
       },
       "windowNames": {
         "title": "Nazwy z aktywnego okna",
@@ -457,6 +492,51 @@
       "whisperMode": {
         "title": "Tryb szeptu",
         "description": "Jeszcze bardziej zwiększa czułość dla bardzo cichej mowy i informuje porządkowanie AI, że mowa może być słaba. Cisza i szum tła nigdy nie są wzmacniane."
+      },
+      "engine": {
+        "local": {
+          "title": "Na tym Macu",
+          "description": "25 języków europejskich. Twoje nagrania zostają na tym Macu."
+        },
+        "cloud": {
+          "title": "W chmurze",
+          "description": "Więcej języków, korzysta z limitów Twojego konta ChatGPT."
+        },
+        "os_too_old": "Lokalna transkrypcja wymaga systemu macOS 15 lub nowszego.",
+        "unsupported": "Lokalna transkrypcja wymaga Maca z Apple silicon.",
+        "error": "Nie udało się zmienić sposobu transkrypcji."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "Model rozpoznawania mowy od NVIDIA. Pobiera się raz z Hugging Face i działa na tym Macu.",
+        "meetings": "Używany też przez Spotkania do rozróżniania mówców.",
+        "missing": "Nie pobrano",
+        "downloading": "Pobieranie… {{done}} z {{total}}",
+        "preparing": "Przygotowywanie dla tego Maca… (około 15 sekund, tylko za pierwszym razem)",
+        "ready": "Gotowy · {{size}}",
+        "download": "Pobierz ({{size}})",
+        "retry": "Spróbuj ponownie",
+        "delete": "Usuń",
+        "error": "Nie udało się zaktualizować modelu lokalnego.",
+        "failed": {
+          "no_internet": "Brak połączenia z internetem. Pobieranie wznowi się tam, gdzie się zatrzymało.",
+          "server_unavailable": "Serwer pobierania nie odpowiada. Spróbuj później.",
+          "damaged": "Pobrany plik jest uszkodzony. Spróbuj ponownie.",
+          "not_enough_space": "Za mało miejsca: potrzeba {{needed}}, wolne {{free}}.",
+          "disk": "Nie udało się zapisać modelu na tym Macu.",
+          "prepare_failed": "Model został pobrany, ale nie dał się wczytać na tym Macu."
+        },
+        "deleteDialog": {
+          "title": "Usunąć model lokalny?",
+          "withAccount": "Dyktowanie będzie korzystać z chmury, dopóki nie pobierzesz go ponownie.",
+          "withoutAccount": "Dyktowanie nie będzie możliwe, dopóki nie pobierzesz go ponownie lub nie połączysz ChatGPT.",
+          "meetings": "Spotkania pokażą jednego mówcę na źródło dźwięku.",
+          "confirm": "Usuń model"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Opcjonalnie: połącz, aby korzystać z porządkowania przez AI i większej liczby języków."
       }
     }
   },
@@ -583,7 +663,7 @@
       "licences": "Licencje modeli",
       "licencesNote": "Modele są pobierane z Hugging Face przy pierwszym użyciu. Murmur ich nie zawiera.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (czas słów): NVIDIA, CC BY 4.0. Konwersja do Core ML: Fluid Inference.",
+        "parakeet": "Rozpoznawanie mowy: Parakeet TDT 0.6B v3 od NVIDIA, CC BY 4.0. Przekonwertowany do Core ML przez Fluid Inference (Apple silicon) i do 8-bitowego GGUF przez handy-computer (Maki z procesorem Intel).",
         "diarization": "Diaryzacja Community-1: pyannote, CC BY 4.0, z WeSpeaker i BUT Speech@FIT. Zmodyfikowana konwersja do Core ML: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, licencja Apache 2.0."
       }
@@ -710,6 +790,21 @@
         "title": "Przetranskrybować to spotkanie ponownie?",
         "description": "Codex ponownie transkrybuje nagranie, a transkrypcja i podsumowanie zostaną zastąpione. Nadany przez Ciebie tytuł pozostanie."
       }
-    }
+    },
+    "localFallback": "Codex był niedostępny przez {{duration}} tego spotkania, więc ta część została przetranskrybowana na tym Macu."
+  },
+  "localSttCard": {
+    "title": "Nowość: lokalna transkrypcja, bez limitu.",
+    "description": "Transkrybuj na tym Macu w 25 językach europejskich. Twoje nagrania zostają na tym Macu.",
+    "useLocal": "Używaj lokalnej transkrypcji",
+    "downloading": "Pobieranie… {{percent}}%. Po zakończeniu Murmur przełączy się na tego Maca.",
+    "dismiss": "Zamknij",
+    "error": "Nie udało się uruchomić lokalnej transkrypcji.",
+    "switched": "Transkrypcja odbywa się teraz na tym Macu.",
+    "switchedDescription": "Możesz to zmienić w sekcji {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Pobieranie modelu… {{percent}}%",
+    "preparing": "Przygotowywanie modelu…"
   }
 }

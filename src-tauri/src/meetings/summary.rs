@@ -123,7 +123,12 @@ impl SummaryError {
             FailureKind::RateLimited => Self::RateLimited,
             FailureKind::Network | FailureKind::ServerError => Self::Network,
             FailureKind::Timeout => Self::Timeout,
-            FailureKind::TooLarge | FailureKind::Rejected | FailureKind::Other => Self::Other,
+            FailureKind::TooLarge
+            | FailureKind::Rejected
+            | FailureKind::LocalNotReady
+            | FailureKind::LocalFailed
+            | FailureKind::LanguageNeedsCloud
+            | FailureKind::Other => Self::Other,
         }
     }
 }

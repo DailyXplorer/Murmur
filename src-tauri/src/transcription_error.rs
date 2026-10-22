@@ -26,6 +26,14 @@ pub enum FailureKind {
     TooLarge,
     /// Any other 4xx answer.
     Rejected,
+    /// Local chosen with no ChatGPT account to take over: the model is not
+    /// downloaded or not ready yet.
+    LocalNotReady,
+    /// Local chosen with no ChatGPT account to take over: the local run failed.
+    LocalFailed,
+    /// Local chosen with no ChatGPT account to take over: the dictation
+    /// language is outside Parakeet's 25.
+    LanguageNeedsCloud,
     Other,
 }
 
