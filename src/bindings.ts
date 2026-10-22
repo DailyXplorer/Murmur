@@ -1248,6 +1248,18 @@ speaker_analysis: SpeakerAnalysis | null; speakers: MeetingSpeaker[]; turns: Mee
  */
 summary: string | null; summary_status: SummaryStatus; summary_error: SummaryError | null; audio: AudioState; 
 /**
+ * 1, or which part of a meeting that went on past 3 hours this is.
+ */
+part: number; 
+/**
+ * The part before this one, while it exists.
+ */
+previous_id: number | null; 
+/**
+ * The part after this one, once it is recorded.
+ */
+next_id: number | null; 
+/**
  * The size of `audio.m4a`, once compressed.
  */
 audio_bytes: number; 
@@ -1275,7 +1287,11 @@ export type MeetingListItem = { id: number;
 /**
  * `None` until a summary names the meeting.
  */
-title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks; 
+/**
+ * 1, or which part of a meeting that went on past 3 hours this is.
+ */
+part: number }
 /**
  * Which tab Copy and Export take their text from.
  */
@@ -1292,7 +1308,7 @@ chunks_done: number; chunks_total: number;
  * Codex asked to slow down; processing waits and resumes on its own.
  */
 rate_limited: boolean }
-export type MeetingRuntime = { state: "idle" } | { state: "recording"; id: number; started_at_ms: number; stops_at_ms: number; tracks: MeetingTracks }
+export type MeetingRuntime = { state: "idle" } | { state: "recording"; id: number; started_at_ms: number; meeting_started_at_ms: number; tracks: MeetingTracks }
 export type MeetingSpeaker = { 
 /**
  * `me`, `s1`, `s2`…: stable, so a rename touches no text.

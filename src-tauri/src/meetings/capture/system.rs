@@ -10,7 +10,8 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use super::{Feeder, TrackWriter};
-use crate::meetings::coordinator::Track;
+use crate::meetings::coordinator::{Rotation, Track};
+use crate::meetings::paths::SYSTEM_TRACK;
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
@@ -36,6 +37,9 @@ mod bridge {
         pub fn murmur_system_tap_stop() -> i32;
         /// 1 while the device could not be rebuilt after an output change.
         pub fn murmur_system_tap_interrupted() -> i32;
+        /// 1 when another app played sound since the tap started or since
+        /// the last call, which starts the count over.
+        pub fn murmur_system_tap_take_played() -> i32;
         /// 0 allowed, 1 denied, 2 not asked yet or unknown.
         pub fn murmur_system_audio_permission() -> i32;
     }
@@ -155,6 +159,17 @@ impl Track for SystemCapture {
 
     fn dropped_ms(&self) -> u64 {
         self.writer.dropped_ms()
+    }
+
+    /// The tap keeps running into the next part; whether another app played
+    /// sound starts over with it.
+    fn rotate(&self, dir: &Path, origin: Instant) -> Rotation {
+        #[cfg(target_arch = "aarch64")]
+        // SAFETY: takes no arguments and only reads and resets the tap's state.
+        let played = unsafe { bridge::murmur_system_tap_take_played() } == 1;
+        #[cfg(not(target_arch = "aarch64"))]
+        let played = false;
+        Rotation::new(self.writer.rotate(&dir.join(SYSTEM_TRACK), origin), played)
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {

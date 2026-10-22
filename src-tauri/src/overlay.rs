@@ -106,8 +106,8 @@ static MEETING_PILL: Mutex<Option<MeetingPill>> = Mutex::new(None);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct MeetingPill {
+    /// When the meeting's first part started: the pill counts on across parts.
     pub started_at_ms: i64,
-    pub stops_at_ms: i64,
 }
 
 fn meeting_pill() -> Option<MeetingPill> {
@@ -597,15 +597,17 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
 }
 
 /// Shows the meeting pill unless a dictation or a notice is on screen; it
-/// appears when they hide.
-pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at_ms: i64) {
-    let pill = MeetingPill {
-        started_at_ms,
-        stops_at_ms,
-    };
-    *MEETING_PILL
+/// appears when they hide. A meeting going on in its next part keeps the
+/// pill it has.
+pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64) {
+    let pill = MeetingPill { started_at_ms };
+    let previous = MEETING_PILL
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .replace(pill);
+    if previous == Some(pill) {
+        return;
+    }
     if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
         present_meeting_pill(app_handle, pill);
     }

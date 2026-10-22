@@ -199,7 +199,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           title={
             runtime.state === "recording"
               ? t("meetings.recording.active", {
-                  time: formatDuration(now - runtime.started_at_ms),
+                  time: formatDuration(now - runtime.meeting_started_at_ms),
                 })
               : t("meetings.recording.idle")
           }

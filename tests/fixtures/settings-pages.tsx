@@ -74,6 +74,9 @@ const heldUntilMs =
   params.get("held") === "1" ? Date.now() + 2 * 60 * 60 * 1000 : null;
 /** Enough older meetings to fill more than one page of the list. */
 const manyMeetings = params.get("manyMeetings") === "1";
+/** Meeting 3 is the second part of a meeting that went on past 3 hours;
+ * meeting 2 is its first part. */
+const linkedParts = params.get("linkedParts") === "1";
 const speakerAnalysis = (params.get("speakers") ??
   "separated") as SpeakerAnalysis;
 /** `local` or `cloud`; cloud by default, as for every existing user. */
@@ -357,6 +360,7 @@ const MEETINGS: MeetingListItem[] = [
     status: meetingRecording ? "recording" : "processing",
     title: null,
     tracks: "both",
+    part: 1,
   },
   {
     duration_ms: 72 * MINUTE_MS + 5_000,
@@ -365,15 +369,27 @@ const MEETINGS: MeetingListItem[] = [
     status: meetingFailed ? "failed" : "ready",
     title: "Point hebdo produit",
     tracks: "both",
+    part: linkedParts ? 2 : 1,
   },
-  {
-    duration_ms: 9 * MINUTE_MS + 41_000,
-    id: 2,
-    started_at_ms: NOW * 1000 - 74 * HOUR * 1000,
-    status: "interrupted",
-    title: null,
-    tracks: "both",
-  },
+  linkedParts
+    ? {
+        duration_ms: 3 * HOUR * 1000,
+        id: 2,
+        started_at_ms: NOW * 1000 - 29 * HOUR * 1000,
+        status: "ready",
+        title: "Point hebdo produit",
+        tracks: "both",
+        part: 1,
+      }
+    : {
+        duration_ms: 9 * MINUTE_MS + 41_000,
+        id: 2,
+        started_at_ms: NOW * 1000 - 74 * HOUR * 1000,
+        status: "interrupted",
+        title: null,
+        tracks: "both",
+        part: 1,
+      },
   ...(manyMeetings
     ? Array.from({ length: 60 }, (_, index) => ({
         duration_ms: 30 * MINUTE_MS,
@@ -382,6 +398,7 @@ const MEETINGS: MeetingListItem[] = [
         status: "ready" as const,
         title: `Older meeting ${index + 1}`,
         tracks: "both" as const,
+        part: 1,
       }))
     : []),
 ];
@@ -389,8 +406,8 @@ const MEETING_RUNTIME: MeetingRuntime = meetingRecording
   ? {
       id: 4,
       started_at_ms: Date.now() - 12 * MINUTE_MS - 34_000,
+      meeting_started_at_ms: Date.now() - 12 * MINUTE_MS - 34_000,
       state: "recording",
-      stops_at_ms: Date.now() + 3 * HOUR * 1000,
       tracks: "both",
     }
   : { state: "idle" };
@@ -449,6 +466,8 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   ...item,
   ...summaryOf(item),
   audio: item.id === 3 ? "compressed" : "tracks",
+  previous_id: linkedParts && item.id === 3 ? 2 : null,
+  next_id: linkedParts && item.id === 2 ? 3 : null,
   audio_bytes: item.id === 3 ? audioBytes : 0,
   system_audio_silent: item.id === 3 && systemAudioSilent,
   error: item.status === "failed" ? meetingError : null,
@@ -778,8 +797,8 @@ mockIPC(
       void events.meetingStateChanged.emit({
         id: 5,
         started_at_ms: Date.now(),
+        meeting_started_at_ms: Date.now(),
         state: "recording",
-        stops_at_ms: Date.now() + 3 * HOUR * 1000,
         tracks: "both",
       });
     }

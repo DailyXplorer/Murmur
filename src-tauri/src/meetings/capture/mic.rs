@@ -15,7 +15,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Sample, SizedSample};
 
 use super::{Feeder, TrackWriter};
-use crate::meetings::coordinator::Track;
+use crate::meetings::coordinator::{Rotation, Track};
+use crate::meetings::paths::MIC_TRACK;
 
 /// Core Audio delivers input every few milliseconds; this much silence from
 /// the callback means the device is gone even if cpal reported nothing.
@@ -101,6 +102,10 @@ impl Track for MicCapture {
 
     fn dropped_ms(&self) -> u64 {
         self.writer.dropped_ms()
+    }
+
+    fn rotate(&self, dir: &Path, origin: Instant) -> Rotation {
+        Rotation::new(self.writer.rotate(&dir.join(MIC_TRACK), origin), false)
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {

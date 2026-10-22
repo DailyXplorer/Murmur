@@ -249,8 +249,8 @@ test("a Discard dialog its meeting outlived never opens for the next meeting", a
     window.settingsPages.emitMeetingState({
       id: 4,
       started_at_ms: Date.now(),
+      meeting_started_at_ms: Date.now(),
       state: "recording",
-      stops_at_ms: Date.now() + 3 * 3_600_000,
       tracks: "both",
     }),
   );
