@@ -37,6 +37,8 @@ declare global {
       finishModelDownload: () => void;
       /** The browser sign-in saved a session. */
       resolveSignIn: () => void;
+      /** What the backend's last update check found. */
+      emitUpdateStatus: (available: string | null) => Promise<void>;
     };
   }
 }
@@ -674,6 +676,8 @@ const RESPONSES: Record<string, unknown> = {
   start_meeting: null,
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },
+  check_for_updates: { available: updateAvailable ? "1.9.0" : null },
+  get_update_status: { available: updateAvailable ? "1.9.0" : null },
   get_app_dir_path: APP_DATA_DIR,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
@@ -740,6 +744,7 @@ window.settingsPages = {
     signIn?.resolve(null);
     signIn = null;
   },
+  emitUpdateStatus: (available) => emit("update-status", { available }),
 };
 
 mockIPC(
