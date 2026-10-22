@@ -157,6 +157,10 @@
       "waitForIt": "Podrás dictar en cuanto esté listo.",
       "stoppedTitle": "La descarga se detuvo",
       "start": "Empezar a usar Murmur"
+    },
+    "style": {
+      "title": "Elige un estilo",
+      "description": "La limpieza con IA escribe tus dictados en este estilo. Puedes cambiarlo más tarde."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Sesión caducada, inicie sesión de nuevo en Codex",
       "aiCleanup": {
         "title": "Limpieza y formato con IA",
-        "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
+        "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni cambia el significado. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
         "needsAccount": "Conecta ChatGPT para usar la limpieza con IA."
       },
       "style": {
@@ -492,7 +496,7 @@
         "error": "No se pudo cambiar el estilo de dictado.",
         "formal": {
           "title": "Formal",
-          "example": "Creo que podemos vernos mañana hacia las 15:00, si estás disponible. De lo contrario, el jueves también nos viene bien."
+          "example": "Creo que podemos vernos mañana hacia las 15:00, si estás disponible. De lo contrario, el jueves también me viene bien."
         },
         "normal": {
           "title": "Normal",

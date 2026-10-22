@@ -157,6 +157,10 @@
       "waitForIt": "Vous pourrez dicter dès qu'il sera prêt.",
       "stoppedTitle": "Le téléchargement s'est arrêté",
       "start": "Commencer à utiliser Murmur"
+    },
+    "style": {
+      "title": "Choisissez un style",
+      "description": "Le nettoyage par IA écrit vos dictées dans ce style. Vous pourrez le changer plus tard."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Session expirée, reconnectez-vous dans Codex",
       "aiCleanup": {
         "title": "Nettoyage et mise en forme par IA",
-        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. En cas d’échec ou de lenteur, la transcription brute est collée.",
+        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
       },
       "style": {

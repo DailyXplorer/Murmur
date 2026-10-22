@@ -157,6 +157,10 @@
       "waitForIt": "Potrai dettare appena sarà pronto.",
       "stoppedTitle": "Il download si è interrotto",
       "start": "Inizia a usare Murmur"
+    },
+    "style": {
+      "title": "Scegli uno stile",
+      "description": "La pulizia con IA scrive le tue dettature in questo stile. Puoi cambiarlo in seguito."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex",
       "aiCleanup": {
         "title": "Pulizia e formattazione con IA",
-        "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce né riscrive mai. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
+        "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },
       "style": {

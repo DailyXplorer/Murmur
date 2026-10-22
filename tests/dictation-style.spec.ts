@@ -4,7 +4,7 @@ const EXAMPLES = {
   Formal:
     "I think we can meet tomorrow around 3 p.m., if you are available. Otherwise, Thursday also works.",
   Normal:
-    "I think we can meet tomorrow around 3 p.m., if you're free. Otherwise, Thursday works too.",
+    "I think we can meet tomorrow around 3, if you're free. Otherwise, Thursday works too.",
   Casual:
     "I think we can meet tomorrow around 3 if you're free, otherwise Thursday works too",
 };

@@ -157,6 +157,10 @@
       "waitForIt": "Sie können diktieren, sobald es bereit ist.",
       "stoppedTitle": "Der Download wurde unterbrochen",
       "start": "Murmur verwenden"
+    },
+    "style": {
+      "title": "Wähle einen Stil",
+      "description": "Die KI-Bereinigung schreibt deine Diktate in diesem Stil. Du kannst ihn später ändern."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an",
       "aiCleanup": {
         "title": "KI-Bereinigung und Formatierung",
-        "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
+        "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt nie und ändert nie die Bedeutung. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
       },
       "style": {

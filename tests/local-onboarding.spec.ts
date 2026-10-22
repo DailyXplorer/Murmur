@@ -314,6 +314,27 @@ test.describe("onboarding screenshots", () => {
     ["min", MIN_WINDOW],
   ] as const) {
     for (const theme of ["light", "dark"] as const) {
+      test(`the style step (${size}, ${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize(viewport);
+        for (const lang of ["en", "fr"]) {
+          await page.goto(
+            `${fixturePath}?lang=${lang}&codex=configured&cleanup=on`,
+          );
+          await page
+            .getByTestId("provider-onboarding")
+            .getByRole("button")
+            .first()
+            .click();
+          const step = page.getByTestId("style-onboarding");
+          await expect(step).toBeVisible();
+          await page.waitForTimeout(300);
+          await page.screenshot({
+            path: `${outputDir}/onboarding-style-${lang}-${size}-${theme}.png`,
+          });
+        }
+      });
+
       test(`the ChatGPT step (${size}, ${theme})`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: theme });
         await page.setViewportSize(viewport);

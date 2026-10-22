@@ -157,6 +157,10 @@
       "waitForIt": "You can dictate as soon as it's ready.",
       "stoppedTitle": "The download stopped",
       "start": "Start using Murmur"
+    },
+    "style": {
+      "title": "Choose a style",
+      "description": "AI cleanup writes your dictation in this style. You can change it later."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Session expired, sign in again in Codex",
       "aiCleanup": {
         "title": "AI cleanup and formatting",
-        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted.",
+        "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or changes the meaning. If it fails or takes too long, the raw transcript is pasted.",
         "needsAccount": "Connect ChatGPT to use AI cleanup."
       },
       "style": {
@@ -496,7 +500,7 @@
         },
         "normal": {
           "title": "Normal",
-          "example": "I think we can meet tomorrow around 3 p.m., if you're free. Otherwise, Thursday works too."
+          "example": "I think we can meet tomorrow around 3, if you're free. Otherwise, Thursday works too."
         },
         "casual": {
           "title": "Casual",

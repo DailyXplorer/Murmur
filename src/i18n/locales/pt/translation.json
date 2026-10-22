@@ -157,6 +157,10 @@
       "waitForIt": "Você poderá ditar assim que ele estiver pronto.",
       "stoppedTitle": "O download parou",
       "start": "Começar a usar o Murmur"
+    },
+    "style": {
+      "title": "Escolha um estilo",
+      "description": "A limpeza com IA escreve os seus ditados neste estilo. Pode mudá-lo mais tarde."
     }
   },
   "settings": {
@@ -481,7 +485,7 @@
       "sessionExpired": "Sessão expirada, entre novamente no Codex",
       "aiCleanup": {
         "title": "Limpeza e formatação com IA",
-        "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem reescreve. Se falhar ou demorar demasiado, a transcrição bruta é colada.",
+        "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem muda o sentido. Se falhar ou demorar demasiado, a transcrição bruta é colada.",
         "needsAccount": "Conecte o ChatGPT para usar a limpeza com IA."
       },
       "style": {
