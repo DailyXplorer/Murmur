@@ -13,12 +13,13 @@
   <img alt="Murmur Insights: words dictated, speed and daily streak" src="docs/images/insights.jpg" width="49%">
 </p>
 
-Murmur is a desktop speech-to-text app for macOS and Windows (beta). Press a shortcut, speak, and
+Murmur is a free desktop speech-to-text app for macOS and Windows (beta). Press a shortcut, speak, and
 Murmur pastes the transcription into the active application.
 
-Murmur transcribes on the Mac with NVIDIA's Parakeet model, or in the cloud
-with Codex, using the ChatGPT session already on the computer. It requires no
-API key.
+On the Mac, Murmur transcribes locally: the audio stays on your Mac, there is
+no quota, and no account is needed. Connect a ChatGPT account (through Codex)
+to add AI cleanup, more languages and cloud transcription. It requires no API
+key.
 
 ## Requirements
 
@@ -102,6 +103,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   downloaded yet, failure, another language), Murmur uses the cloud if
   ChatGPT is connected; when ChatGPT refuses in cloud mode, a downloaded model
   takes over. History marks each such dictation.
+- When no text field is focused, the text is copied instead and the overlay
+  offers a Copy button
 - Automatic language detection, or an explicit dictation language
 - Microphone and output-device selection
 - AI cleanup through the Codex session, on by default: removes fillers,
@@ -129,10 +132,10 @@ automatic updates yet.
 
 ## Getting started
 
-Setup first offers to transcribe on this Mac. **Download and Continue** starts
+Setup first offers to transcribe on this Mac. **Download and continue** starts
 the model's download in the background, so it runs while you grant microphone
 and Accessibility permissions; a small pill shows its progress until the model
-is ready. **Use the Cloud Instead** keeps the model off this Mac. A Mac that
+is ready. **Use the cloud instead** keeps the model off this Mac. A Mac that
 cannot run the model skips this step.
 
 Then connect Codex. If no session is found, open Codex, sign in there, and
