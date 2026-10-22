@@ -663,7 +663,7 @@
       "licences": "模型许可",
       "licencesNote": "模型会在首次使用时从 Hugging Face 下载，Murmur 本身不包含这些模型。",
       "licence": {
-        "parakeet": "语音识别：NVIDIA 的 NVIDIA Parakeet TDT 0.6B v3，CC BY 4.0。由 Fluid Inference 转换为 Core ML（Apple 芯片），由 handy-computer 转换为 8 位 GGUF（Intel Mac）。",
+        "parakeet": "语音识别：NVIDIA 的 Parakeet TDT 0.6B v3，CC BY 4.0。由 Fluid Inference 转换为 Core ML（Apple 芯片），由 handy-computer 转换为 8 位 GGUF（Intel Mac）。",
         "diarization": "发言人分离 Community-1：pyannote，CC BY 4.0，以及 WeSpeaker 和 BUT Speech@FIT。经修改的 Core ML 转换：Fluid Inference。",
         "fluidaudio": "FluidAudio：Fluid Inference，Apache License 2.0。"
       }

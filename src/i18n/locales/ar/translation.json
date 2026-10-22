@@ -663,7 +663,7 @@
       "licences": "تراخيص النماذج",
       "licencesNote": "تُنزَّل النماذج من Hugging Face عند أول استخدام. لا يتضمنها Murmur.",
       "licence": {
-        "parakeet": "التعرّف على الكلام: NVIDIA Parakeet TDT 0.6B v3 من NVIDIA، بترخيص CC BY 4.0. حوّلته Fluid Inference إلى Core ML (شريحة Apple) وحوّله handy-computer إلى GGUF بدقة 8 بت (أجهزة Mac بمعالج Intel).",
+        "parakeet": "التعرّف على الكلام: Parakeet TDT 0.6B v3 من NVIDIA، بترخيص CC BY 4.0. حوّلته Fluid Inference إلى Core ML (شريحة Apple) وحوّله handy-computer إلى GGUF بدقة 8 بت (أجهزة Mac بمعالج Intel).",
         "diarization": "فصل المتحدثين Community-1: pyannote، CC BY 4.0، مع WeSpeaker وBUT Speech@FIT. تحويل Core ML معدّل بواسطة Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference، رخصة Apache 2.0."
       }

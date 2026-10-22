@@ -663,7 +663,7 @@
       "licences": "मॉडल लाइसेंस",
       "licencesNote": "मॉडल पहली बार उपयोग पर Hugging Face से डाउनलोड होते हैं। Murmur में ये शामिल नहीं हैं।",
       "licence": {
-        "parakeet": "स्पीच रिकग्निशन: NVIDIA का NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0। Fluid Inference द्वारा Core ML में (Apple silicon) और handy-computer द्वारा 8-बिट GGUF में (Intel Mac) बदला गया।",
+        "parakeet": "स्पीच रिकग्निशन: NVIDIA का Parakeet TDT 0.6B v3, CC BY 4.0। Fluid Inference द्वारा Core ML में (Apple silicon) और handy-computer द्वारा 8-बिट GGUF में (Intel Mac) बदला गया।",
         "diarization": "वक्ता विभाजन Community-1: pyannote, CC BY 4.0, WeSpeaker और BUT Speech@FIT के साथ। Fluid Inference द्वारा संशोधित Core ML रूपांतरण।",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0।"
       }

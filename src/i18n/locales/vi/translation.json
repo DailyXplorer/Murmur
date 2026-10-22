@@ -663,7 +663,7 @@
       "licences": "Giấy phép mô hình",
       "licencesNote": "Các mô hình được tải từ Hugging Face trong lần dùng đầu tiên. Murmur không kèm theo chúng.",
       "licence": {
-        "parakeet": "Nhận dạng giọng nói: NVIDIA Parakeet TDT 0.6B v3 của NVIDIA, CC BY 4.0. Được Fluid Inference chuyển sang Core ML (chip Apple) và handy-computer chuyển sang GGUF 8-bit (máy Mac Intel).",
+        "parakeet": "Nhận dạng giọng nói: Parakeet TDT 0.6B v3 của NVIDIA, CC BY 4.0. Được Fluid Inference chuyển sang Core ML (chip Apple) và handy-computer chuyển sang GGUF 8-bit (máy Mac Intel).",
         "diarization": "Phân tách người nói Community-1: pyannote, CC BY 4.0, cùng WeSpeaker và BUT Speech@FIT. Bản chuyển đổi Core ML đã chỉnh sửa bởi Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Giấy phép Apache 2.0."
       }

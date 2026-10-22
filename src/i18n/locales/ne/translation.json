@@ -663,7 +663,7 @@
       "licences": "मोडेल इजाजतपत्रहरू",
       "licencesNote": "मोडेलहरू पहिलो प्रयोगमा Hugging Face बाट डाउनलोड हुन्छन्। Murmur मा यी समावेश छैनन्।",
       "licence": {
-        "parakeet": "वाक् पहिचान: NVIDIA को NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0। Fluid Inference ले Core ML मा (Apple silicon) र handy-computer ले 8-बिट GGUF मा (Intel Mac) रूपान्तरण गरेको।",
+        "parakeet": "वाक् पहिचान: NVIDIA को Parakeet TDT 0.6B v3, CC BY 4.0। Fluid Inference ले Core ML मा (Apple silicon) र handy-computer ले 8-बिट GGUF मा (Intel Mac) रूपान्तरण गरेको।",
         "diarization": "वक्ता विभाजन Community-1: pyannote, CC BY 4.0, WeSpeaker र BUT Speech@FIT सहित। Fluid Inference द्वारा परिमार्जित Core ML रूपान्तरण।",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0।"
       }

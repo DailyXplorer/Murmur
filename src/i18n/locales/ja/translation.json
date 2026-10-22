@@ -663,7 +663,7 @@
       "licences": "モデルのライセンス",
       "licencesNote": "モデルは初回使用時に Hugging Face からダウンロードされます。Murmur には含まれていません。",
       "licence": {
-        "parakeet": "音声認識：NVIDIA製のNVIDIA Parakeet TDT 0.6B v3、CC BY 4.0。Fluid InferenceがCore MLに変換（Appleシリコン）、handy-computerが8ビットGGUFに変換（Intel搭載Mac）。",
+        "parakeet": "音声認識：NVIDIA製のParakeet TDT 0.6B v3、CC BY 4.0。Fluid InferenceがCore MLに変換（Appleシリコン）、handy-computerが8ビットGGUFに変換（Intel搭載Mac）。",
         "diarization": "話者分離 Community-1：pyannote、CC BY 4.0、WeSpeaker および BUT Speech@FIT。Core ML への変換（改変あり）：Fluid Inference。",
         "fluidaudio": "FluidAudio：Fluid Inference、Apache License 2.0。"
       }

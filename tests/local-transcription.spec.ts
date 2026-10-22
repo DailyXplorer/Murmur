@@ -478,7 +478,7 @@ test.describe("lines about the engine used", () => {
     await page.getByRole("button", { name: "View licences" }).click();
     const dialog = page.getByRole("dialog", { name: "Model licences" });
     await expect(
-      dialog.getByText(/NVIDIA Parakeet TDT 0\.6B v3/),
+      dialog.getByText(/Parakeet TDT 0\.6B v3 by NVIDIA/),
     ).toBeVisible();
     await expect(dialog.getByText(/CC BY 4\.0/).first()).toBeVisible();
     await expect(dialog.getByText(/handy-computer/)).toBeVisible();

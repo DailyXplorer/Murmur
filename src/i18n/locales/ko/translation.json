@@ -663,7 +663,7 @@
       "licences": "모델 라이선스",
       "licencesNote": "모델은 처음 사용할 때 Hugging Face에서 다운로드됩니다. Murmur에는 포함되어 있지 않습니다.",
       "licence": {
-        "parakeet": "음성 인식: NVIDIA의 NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference가 Core ML로 변환(Apple 실리콘), handy-computer가 8비트 GGUF로 변환(Intel Mac).",
+        "parakeet": "음성 인식: NVIDIA의 Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference가 Core ML로 변환(Apple 실리콘), handy-computer가 8비트 GGUF로 변환(Intel Mac).",
         "diarization": "화자 분리 Community-1: pyannote, CC BY 4.0, WeSpeaker 및 BUT Speech@FIT. 수정된 Core ML 변환: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
       }

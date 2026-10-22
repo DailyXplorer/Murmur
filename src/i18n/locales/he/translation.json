@@ -663,7 +663,7 @@
       "licences": "רישיונות המודלים",
       "licencesNote": "המודלים מורדים מ־Hugging Face בשימוש הראשון. Murmur לא כולל אותם.",
       "licence": {
-        "parakeet": "זיהוי דיבור: NVIDIA Parakeet TDT 0.6B v3 מאת NVIDIA, ברישיון CC BY 4.0. הומר ל-Core ML על ידי Fluid Inference (שבב Apple) ול-GGUF של 8 ביט על ידי handy-computer (Mac עם Intel).",
+        "parakeet": "זיהוי דיבור: Parakeet TDT 0.6B v3 מאת NVIDIA, ברישיון CC BY 4.0. הומר ל-Core ML על ידי Fluid Inference (שבב Apple) ול-GGUF של 8 ביט על ידי handy-computer (Mac עם Intel).",
         "diarization": "הפרדת דוברים Community-1: pyannote, CC BY 4.0, עם WeSpeaker ו־BUT Speech@FIT. המרה מותאמת ל־Core ML מאת Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, רישיון Apache 2.0."
       }

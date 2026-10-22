@@ -663,7 +663,7 @@
       "licences": "Licences des modèles",
       "licencesNote": "Les modèles sont téléchargés depuis Hugging Face à la première utilisation. Murmur ne les inclut pas.",
       "licence": {
-        "parakeet": "Reconnaissance vocale : NVIDIA Parakeet TDT 0.6B v3 par NVIDIA, CC BY 4.0. Converti en Core ML par Fluid Inference (puce Apple) et en GGUF 8 bits par handy-computer (Mac Intel).",
+        "parakeet": "Reconnaissance vocale : Parakeet TDT 0.6B v3 par NVIDIA, CC BY 4.0. Converti en Core ML par Fluid Inference (puce Apple) et en GGUF 8 bits par handy-computer (Mac Intel).",
         "diarization": "Diarisation Community-1 : pyannote, CC BY 4.0, avec WeSpeaker et BUT Speech@FIT. Conversion Core ML modifiée par Fluid Inference.",
         "fluidaudio": "FluidAudio : Fluid Inference, licence Apache 2.0."
       }

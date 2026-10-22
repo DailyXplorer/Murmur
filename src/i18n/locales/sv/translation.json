@@ -663,7 +663,7 @@
       "licences": "Modellicenser",
       "licencesNote": "Modellerna hämtas från Hugging Face första gången. Murmur innehåller dem inte.",
       "licence": {
-        "parakeet": "Taligenkänning: NVIDIA Parakeet TDT 0.6B v3 av NVIDIA, CC BY 4.0. Konverterad till Core ML av Fluid Inference (Apple silicon) och till 8-bitars GGUF av handy-computer (Intel-Mac).",
+        "parakeet": "Taligenkänning: Parakeet TDT 0.6B v3 av NVIDIA, CC BY 4.0. Konverterad till Core ML av Fluid Inference (Apple silicon) och till 8-bitars GGUF av handy-computer (Intel-Mac).",
         "diarization": "Talardiarisering Community-1: pyannote, CC BY 4.0, med WeSpeaker och BUT Speech@FIT. Ändrad Core ML-konvertering av Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache-licens 2.0."
       }

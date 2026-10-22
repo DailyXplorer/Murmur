@@ -663,7 +663,7 @@
       "licences": "Model lisansları",
       "licencesNote": "Modeller ilk kullanımda Hugging Face'ten indirilir. Murmur bunları içermez.",
       "licence": {
-        "parakeet": "Konuşma tanıma: NVIDIA'dan NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference tarafından Core ML'e (Apple silicon) ve handy-computer tarafından 8 bit GGUF'a (Intel Mac'ler) dönüştürüldü.",
+        "parakeet": "Konuşma tanıma: NVIDIA'dan Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference tarafından Core ML'e (Apple silicon) ve handy-computer tarafından 8 bit GGUF'a (Intel Mac'ler) dönüştürüldü.",
         "diarization": "Konuşmacı ayrımı Community-1: pyannote, CC BY 4.0, WeSpeaker ve BUT Speech@FIT ile. Değiştirilmiş Core ML dönüşümü: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache Lisansı 2.0."
       }
