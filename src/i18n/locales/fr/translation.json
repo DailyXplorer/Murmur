@@ -321,8 +321,7 @@
         "remove": "Supprimer {{word}}",
         "duplicate": "\"{{word}}\" existe déjà",
         "learned": "Appris",
-        "learnedFrom": "{{word}} : appris quand vous avez corrigé « {{heard}} »",
-        "learnedHint": "Quand vous corrigez un nom mal orthographié juste après une dictée, Murmur l’ajoute ici avec la mention Appris. Cliquez sur un mot pour le retirer."
+        "learnedFrom": "{{word}} : appris quand vous avez corrigé « {{heard}} »"
       },
       "meetingsToggle": {
         "label": "Réunions",

@@ -104,11 +104,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           <div
             className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
-            {learnedWords.size > 0 && (
-              <p className="pb-2 text-xs text-text/60">
-                {t("settings.advanced.customWords.learnedHint")}
-              </p>
-            )}
             <div className="flex flex-wrap justify-start gap-1">
               {customWords.map((word) => {
                 const heardAs = learnedWords.get(word);
