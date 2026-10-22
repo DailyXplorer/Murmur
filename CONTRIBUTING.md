@@ -46,7 +46,7 @@ Commit titles use the same types (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`
 
 Open an issue before a large pull request: a new feature, a change that crosses several modules, or anything you cannot describe in a few sentences. A fix for a bug you can reproduce can go straight to a pull request that links the report.
 
-Use the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) and the [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml). Start a [discussion](https://github.com/DailyXplorer/Murmur/discussions) when you want feedback before deciding.
+Use the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) and the [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml). Open an issue when you want feedback before deciding.
 
 ## Good first issues
 
@@ -65,9 +65,15 @@ The template asks for why (Summary, with the issue link), what (Changes), how yo
 - Leave generated `src/bindings.ts` and unrelated lockfile churn alone.
 - Comments should say why (an invariant, a platform quirk, FFI ownership). Update them in the same change so they do not drift.
 
-## Review
+## Review rounds
 
-Address review comments in one pass, then push once. After two completed rounds (a review, your fix, a review, your fix, and another review), stop. Summarize what is still open and wait for a maintainer. Style comments do not need a follow-up commit. Do not ask CodeRabbit to push commits to your branch.
+A pull request goes back and forth with reviews until a review finds no more problems. There is no fixed number of rounds. Only real problems (something broken, unsafe, or behaving wrongly) need a fix before merging. Style suggestions are optional.
+
+When you fix a bug, add a test that fails without your fix.
+
+If a review raises the same point again after you fixed it, or keeps finding problems in the same file, reply on the thread instead of pushing another small patch, and a maintainer will help. A workflow adds the `review-loop` label when this happens. It asks for a second look; it is not a reason to stop fixing bugs.
+
+Do not ask CodeRabbit to push commits to your branch.
 
 ## Security
 

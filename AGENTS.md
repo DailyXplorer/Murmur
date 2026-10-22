@@ -222,8 +222,11 @@ For a UI change, also run `bun run test:playwright`. For Rust behavior, from `sr
 
 ## Review rounds
 
-Address every review comment in one pass, then push once.
+Review and fix rounds continue until a review comes back clean. There is no round limit. Only real bugs (correctness, security, behavior) block a merge; style never does.
 
-A completed round is a review, then your fix commit. After two completed rounds, stop when the next review arrives. Summarize the remaining disagreements and wait for a maintainer. A style comment does not need another commit.
+- Fix each real bug with a test that fails before the fix.
+- If the same comment comes back after a fix, do not apply it again: check whether the fix works or the comment is wrong, and reply on the thread.
+- If one file has had bugs in three rounds, simplify that part (reuse a proven approach) instead of patching it again.
+- After 20 rounds, stop and ask a maintainer.
 
-The `review loop` workflow may comment and apply the `review-loop` label. That label is created the first time it is needed. It means a maintainer decides. Do not start another fix round because of it.
+The `review loop` workflow comments and applies the `review-loop` label in those three cases, so a maintainer or the lead agent takes a look. The label is created the first time it is needed. It never means "stop fixing bugs".
