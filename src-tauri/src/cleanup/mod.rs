@@ -233,6 +233,7 @@ mod tests {
     use crate::OperationId;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::thread;
 
     fn session() -> Session {
@@ -245,12 +246,17 @@ mod tests {
     /// Serves one request with `response`, or holds the connection open
     /// without answering when `response` is `None`.
     fn serve_once(response: Option<String>) -> String {
+        serve_and_capture(response).0
+    }
+
+    /// `serve_once`, also handing back the request it read.
+    fn serve_and_capture(response: Option<String>) -> (String, mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let (sender, request) = mpsc::channel();
         thread::spawn(move || {
             let (mut peer, _) = listener.accept().unwrap();
-            let mut buffer = [0_u8; 16 * 1024];
-            let _ = peer.read(&mut buffer);
+            let _ = sender.send(read_request(&mut peer));
             match response {
                 Some(response) => {
                     let _ = peer.write_all(response.as_bytes());
@@ -258,7 +264,32 @@ mod tests {
                 None => thread::sleep(Duration::from_secs(3)),
             }
         });
-        endpoint
+        (endpoint, request)
+    }
+
+    /// Reads the headers and as much body as `content-length` announces.
+    fn read_request(peer: &mut std::net::TcpStream) -> String {
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 16 * 1024];
+        while let Ok(read) = peer.read(&mut buffer) {
+            request.extend_from_slice(&buffer[..read]);
+            let text = String::from_utf8_lossy(&request);
+            let complete = text.split_once("\r\n\r\n").is_some_and(|(head, body)| {
+                let length = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())?
+                    })
+                    .unwrap_or(0);
+                body.len() >= length
+            });
+            if read == 0 || complete {
+                break;
+            }
+        }
+        String::from_utf8_lossy(&request).into_owned()
     }
 
     fn sse_reply(text: &str) -> String {
@@ -308,6 +339,39 @@ mod tests {
                 cleanup: Some(CleanupOutcome::Cleaned),
             }
         );
+    }
+
+    #[test]
+    fn the_chosen_style_reaches_the_request() {
+        use crate::settings::DictationStyle;
+
+        for (style, block) in [
+            (DictationStyle::Formal, Some("Style: formal")),
+            (DictationStyle::Casual, Some("Style: casual")),
+            (DictationStyle::Normal, None),
+        ] {
+            let (endpoint, request) = serve_and_capture(Some(sse_reply("Hello there.")));
+            let operation = ProcessingOperation::new(OperationId(14));
+            let context = PromptContext {
+                style,
+                ..PromptContext::default()
+            };
+            let reply = tauri::async_runtime::block_on(clean_with_session(
+                &endpoint,
+                &session(),
+                "gpt-6-luna",
+                "hello there",
+                &context,
+                &operation,
+            ));
+            assert_eq!(reply.ok().as_deref(), Some("Hello there."));
+            let request = request.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert!(request.contains("You are a dictation editor."), "{style:?}");
+            match block {
+                Some(block) => assert!(request.contains(block), "{style:?} sent no style"),
+                None => assert!(!request.contains("Style:"), "Normal sent a style"),
+            }
+        }
     }
 
     #[test]
@@ -412,13 +476,18 @@ mod tests {
         use std::fmt::Write as _;
 
         const SAMPLES: &str = "/tmp/murmur-styles-samples.md";
-        let dictations = [
-            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi"),
-            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités"),
-            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore"),
-            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before"),
-            ("en", "for the trip we need to book the flights the hotel and the rental car"),
-            ("en", "hey did you get a chance to look at the draft I sent you yesterday"),
+        // Each reply must keep one of the listed words: there, "ça marche"
+        // means "it works", "enfin" means "finally" and "so" a consequence.
+        let dictations: [(&str, &str, &[&str]); 9] = [
+            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi", &[]),
+            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités", &[]),
+            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore", &[]),
+            ("fr", "le micro ça marche plus depuis hier", &["marche", "fonctionne"]),
+            ("fr", "j'ai enfin fini le rapport", &["enfin", "finalement"]),
+            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before", &[]),
+            ("en", "for the trip we need to book the flights the hotel and the rental car", &[]),
+            ("en", "hey did you get a chance to look at the draft I sent you yesterday", &[]),
+            ("en", "it's raining so I'll stay home", &["so", "therefore"]),
         ];
         let styles = [
             DictationStyle::Formal,
@@ -440,7 +509,7 @@ mod tests {
             writeln!(report, "\n{style:?} block:\n\n```\n{}\n```", block.trim()).unwrap();
         }
         let mut failures = Vec::new();
-        for (language, dictation) in dictations {
+        for (language, dictation, kept) in dictations {
             writeln!(report, "\n## {language}: {dictation}\n").unwrap();
             let deadline = deadline_for(dictation.chars().count());
             for style in styles {
@@ -480,6 +549,12 @@ mod tests {
                 };
                 let outcome = match accept(dictation, &reply, &context) {
                     Ok(text) => {
+                        let lower = text.to_lowercase();
+                        let words: Vec<&str> =
+                            lower.split(|c: char| !c.is_alphanumeric()).collect();
+                        if !kept.is_empty() && !kept.iter().any(|word| words.contains(word)) {
+                            failures.push(format!("{style:?} changed the meaning: {text}"));
+                        }
                         if style == DictationStyle::Casual
                             && !text.chars().next().is_some_and(char::is_uppercase)
                         {

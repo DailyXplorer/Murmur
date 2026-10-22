@@ -25,7 +25,7 @@ Output only the cleaned text, without quotes, tags or notes. If nothing needs ed
 
 const FORMAL: &str = "\
 Style: formal. These edits are also allowed:
-- Write casual spoken forms in full written register: \"on peut\" becomes \"nous pouvons\", \"t'es dispo\" becomes \"tu es disponible\", \"ça marche\" becomes \"convient\", \"hey\" becomes \"hello\", \"gonna\" becomes \"going to\". Drop filler words such as \"donc\", \"enfin\" or \"so\".
+- Write casual spoken forms in full written register: \"on peut\" becomes \"nous pouvons\", \"t'es dispo\" becomes \"tu es disponible\", \"ça marche\" meaning \"OK\" becomes \"cela me convient\", \"hey\" becomes \"hello\", \"gonna\" becomes \"going to\". Drop \"donc\", \"enfin\" or \"so\" only as hesitations, never when they mean \"therefore\" or \"finally\".
 - Use complete sentences and full written punctuation, with commas after an opening word and around a clause such as \"si\" or \"if\" (\"Sinon, nous partirons demain, si tu es d'accord.\").
 The edits above still apply: an enumeration of three or more items is always a list, one item per line.
 Keep \"tu\" or \"vous\" exactly as spoken. The meaning never changes.";
