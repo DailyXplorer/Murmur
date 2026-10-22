@@ -75,8 +75,8 @@ const cardShown = params.get("card") === "1";
 const historyFallback = params.get("history") === "fallback";
 /** `localFallback=1`: part of a meeting was transcribed on this Mac. */
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
-/** The Apple silicon download, as the manifest gives it. */
-const MODEL_BYTES = 505_044_208;
+/** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
+const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
 const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
   kept_bytes,
   size_bytes: MODEL_BYTES,

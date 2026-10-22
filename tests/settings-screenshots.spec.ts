@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { DEFAULT_WINDOW } from "./windowSizes";
+import { DEFAULT_WINDOW, MIN_WINDOW } from "./windowSizes";
 
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
 const VIEWPORT = { width: 960, height: 720 };
@@ -277,7 +277,7 @@ test.describe("settings screenshots", () => {
   });
 
   test.describe("local transcription at the default window size", () => {
-    test.use({ viewport: { width: 680, height: 570 }, deviceScaleFactor: 2 });
+    test.use({ viewport: DEFAULT_WINDOW, deviceScaleFactor: 2 });
 
     const shoot = async (
       page: Page,
@@ -321,6 +321,12 @@ test.describe("settings screenshots", () => {
           page,
           `local-no-account-${theme}`,
           `${at}&engine=local&account=none`,
+          "Transcription",
+        );
+        await shoot(
+          page,
+          `local-deleted-no-account-${theme}`,
+          `${at}&engine=local&models=missing&account=none`,
           "Transcription",
         );
         await shoot(
@@ -392,6 +398,13 @@ test.describe("settings screenshots", () => {
           `${at}&history=fallback`,
           "History",
         );
+        // Every fallback line, one per entry, below the fold.
+        await growViewportToContent(page);
+        await page.screenshot({
+          path: `${outputDir}/history-fallback-${theme}.png`,
+          fullPage: true,
+        });
+        await page.setViewportSize(DEFAULT_WINDOW);
         await shoot(page, `about-${theme}`, at, "About");
         await page.getByRole("button", { name: "View licences" }).click();
         await page.waitForTimeout(300);
@@ -411,6 +424,39 @@ test.describe("settings screenshots", () => {
         });
       });
     }
+
+    test("the longest states at the minimum window size", async ({ page }) => {
+      await page.setViewportSize(MIN_WINDOW);
+      for (const [file, query, section] of [
+        [
+          "min-local-downloading",
+          "engine=local&models=downloading",
+          "Transcription",
+        ],
+        ["min-local-no-space", "engine=local&models=noSpace", "Transcription"],
+        ["min-local-no-account", "engine=local&account=none", "Transcription"],
+        [
+          "min-cloud-macos-too-old",
+          "engine=cloud&analysis=os_too_old",
+          "Transcription",
+        ],
+        ["min-card", "card=1&models=missing", "General"],
+        ["min-history-fallback", "history=fallback", "History"],
+      ]) {
+        await shoot(page, file, query, section);
+      }
+      await shoot(
+        page,
+        "min-delete-without-account",
+        "engine=local&account=none",
+        "Transcription",
+      );
+      await page.getByRole("button", { name: "Delete" }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({
+        path: `${outputDir}/min-delete-without-account.png`,
+      });
+    });
   });
 
   test("onboarding", async ({ page }) => {

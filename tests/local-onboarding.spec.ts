@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEFAULT_WINDOW, MIN_WINDOW } from "./windowSizes";
 
 const fixturePath = "/tests/fixtures/provider-onboarding.html";
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
-const MIN_WINDOW = { width: 680, height: 570 };
 
 const fixture = (page: Page) => ({
   calls: () => page.evaluate(() => window.providerOnboardingFixture.calls()),
@@ -237,61 +237,75 @@ test("the French model and finish steps fit the native minimum window size", asy
 test.describe("onboarding screenshots", () => {
   test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
 
-  const shot = (page: Page, name: string) =>
-    page.screenshot({ path: `${outputDir}/onboarding-${name}.png` });
+  for (const [size, viewport, theme] of [
+    ["default", DEFAULT_WINDOW, "light"],
+    ["default", DEFAULT_WINDOW, "dark"],
+    ["min", MIN_WINDOW, "light"],
+  ] as const) {
+    test(`every step (${size}, ${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(viewport);
+      const app = fixture(page);
+      const shot = (page: Page, name: string) =>
+        page.screenshot({
+          path: `${outputDir}/onboarding-${name}-${size}-${theme}.png`,
+        });
 
-  test("every step", async ({ page }) => {
-    await page.setViewportSize(MIN_WINDOW);
-    const app = fixture(page);
+      await page.goto(`${fixturePath}?model=unsupported`);
+      await expect(
+        page.getByRole("heading", { name: "Connect Codex" }),
+      ).toBeVisible();
+      await shot(page, "unsupported-mac");
 
-    await page.goto(`${fixturePath}?model=missing&mac=intel`);
-    await expect(modelStep(page)).toBeVisible();
-    await shot(page, "model-intel");
+      await page.goto(`${fixturePath}?model=missing&mac=intel`);
+      await expect(modelStep(page)).toBeVisible();
+      await shot(page, "model-intel");
 
-    await page.goto(`${fixturePath}?model=missing&permissions=missing`);
-    await expect(modelStep(page)).toBeVisible();
-    await shot(page, "model");
-    await page.getByRole("button", { name: "Download and continue" }).click();
-    await expect(pill(page)).toBeVisible();
-    await shot(page, "permissions-downloading");
+      await page.goto(`${fixturePath}?model=missing&permissions=missing`);
+      await expect(modelStep(page)).toBeVisible();
+      await shot(page, "model");
+      await page.getByRole("button", { name: "Download and continue" }).click();
+      await expect(pill(page)).toBeVisible();
+      await shot(page, "permissions-downloading");
 
-    await page.goto(`${fixturePath}?model=missing`);
-    await page.getByRole("button", { name: "Download and continue" }).click();
-    await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
-    await shot(page, "chatgpt-optional");
-    await page.getByRole("button", { name: "Skip" }).click();
-    await expect(
-      page.getByRole("heading", { name: "You're set" }),
-    ).toBeVisible();
-    await shot(page, "done-downloading-no-account");
-    await app.setModel("failed");
-    await expect(
-      page.getByRole("heading", { name: "The download stopped" }),
-    ).toBeVisible();
-    await shot(page, "done-failed");
-    await app.setModel("downloading");
-    await page.getByRole("button", { name: "Start using Murmur" }).click();
-    await expect(pill(page)).toBeVisible();
-    await shot(page, "main-window-downloading");
+      await page.goto(`${fixturePath}?model=missing`);
+      await page.getByRole("button", { name: "Download and continue" }).click();
+      await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
+      await shot(page, "chatgpt-optional");
+      await page.getByRole("button", { name: "Skip" }).click();
+      await expect(
+        page.getByRole("heading", { name: "You're set" }),
+      ).toBeVisible();
+      await shot(page, "done-downloading-no-account");
+      await app.setModel("failed");
+      await expect(
+        page.getByRole("heading", { name: "The download stopped" }),
+      ).toBeVisible();
+      await shot(page, "done-failed");
+      await app.setModel("downloading");
+      await page.getByRole("button", { name: "Start using Murmur" }).click();
+      await expect(pill(page)).toBeVisible();
+      await shot(page, "main-window-downloading");
 
-    await page.goto(`${fixturePath}?model=missing&codex=configured`);
-    await page.getByRole("button", { name: "Download and continue" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(
-      page.getByRole("heading", { name: "You're set" }),
-    ).toBeVisible();
-    await shot(page, "done-downloading-account");
-    await app.setModel("ready");
-    await expect(
-      page.getByText("Hold your shortcut and speak.", { exact: true }),
-    ).toBeVisible();
-    await shot(page, "done-ready");
+      await page.goto(`${fixturePath}?model=missing&codex=configured`);
+      await page.getByRole("button", { name: "Download and continue" }).click();
+      await page.getByRole("button", { name: "Continue" }).click();
+      await expect(
+        page.getByRole("heading", { name: "You're set" }),
+      ).toBeVisible();
+      await shot(page, "done-downloading-account");
+      await app.setModel("ready");
+      await expect(
+        page.getByText("Hold your shortcut and speak.", { exact: true }),
+      ).toBeVisible();
+      await shot(page, "done-ready");
 
-    await page.goto(`${fixturePath}?model=missing`);
-    await page.getByRole("button", { name: "Use the cloud instead" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Connect Codex" }),
-    ).toBeVisible();
-    await shot(page, "chatgpt-required");
-  });
+      await page.goto(`${fixturePath}?model=missing`);
+      await page.getByRole("button", { name: "Use the cloud instead" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Connect Codex" }),
+      ).toBeVisible();
+      await shot(page, "chatgpt-required");
+    });
+  }
 });
