@@ -7,7 +7,7 @@ use crate::field_excerpt::Utf16Range;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
 use core_foundation::number::CFNumber;
-use core_foundation::string::{CFString, CFStringRef};
+use core_foundation::string::{CFString, CFStringGetCharacters, CFStringRef};
 use std::ffi::c_void;
 
 type AXUIElementRef = CFTypeRef;
@@ -141,7 +141,7 @@ impl Element {
     pub fn string(&self, name: &str) -> Option<String> {
         self.attribute(name)?
             .downcast::<CFString>()
-            .map(|value| value.to_string())
+            .map(|value| utf16_string(&value))
     }
 
     pub fn number(&self, name: &str) -> Option<i64> {
@@ -198,7 +198,7 @@ impl Element {
         }
         unsafe { CFType::wrap_under_create_rule(value) }
             .downcast::<CFString>()
-            .map(|text| text.to_string())
+            .map(|text| utf16_string(&text))
     }
 
     pub fn children(&self) -> Vec<Element> {
@@ -259,6 +259,22 @@ impl Element {
             .iter()
             .any(|name| self.string(name).as_deref() == Some(SECURE_TEXT_FIELD))
     }
+}
+
+/// A range can cut an emoji in half, and `CFString::to_string` panics on the
+/// lone surrogate left over. Here it becomes U+FFFD, still one UTF-16 unit,
+/// so offsets into the field stay right.
+fn utf16_string(text: &CFString) -> String {
+    let len = text.char_len();
+    let mut units = vec![0u16; usize::try_from(len).unwrap_or(0)];
+    unsafe {
+        CFStringGetCharacters(
+            text.as_concrete_TypeRef(),
+            core_foundation::base::CFRange::init(0, len),
+            units.as_mut_ptr(),
+        );
+    }
+    String::from_utf16_lossy(&units)
 }
 
 /// The frontmost app other than Murmur, unless it is a password manager:
@@ -402,6 +418,21 @@ fn focused_element() -> Option<FocusedElement> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core_foundation::base::kCFAllocatorDefault;
+    use core_foundation::string::CFStringCreateWithCharacters;
+
+    #[test]
+    fn a_range_that_cuts_an_emoji_in_half_reads_as_a_replacement_character() {
+        let units = [0xDE00, u16::from(b'a')];
+        let text = unsafe {
+            CFString::wrap_under_create_rule(CFStringCreateWithCharacters(
+                kCFAllocatorDefault,
+                units.as_ptr(),
+                2,
+            ))
+        };
+        assert_eq!(utf16_string(&text), "\u{FFFD}a");
+    }
 
     fn element(role: &str, accepts_text: bool) -> Option<FocusedElement> {
         Some(FocusedElement {
