@@ -96,7 +96,7 @@ impl Feeder {
         self.push_at(data, sample_rate, Instant::now());
     }
 
-    fn push_at(&self, data: Vec<f32>, sample_rate: u32, captured: Instant) {
+    pub(crate) fn push_at(&self, data: Vec<f32>, sample_rate: u32, captured: Instant) {
         if sample_rate == 0 || data.is_empty() {
             return;
         }
