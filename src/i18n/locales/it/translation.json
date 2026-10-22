@@ -484,6 +484,25 @@
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce né riscrive mai. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },
+      "style": {
+        "title": "Stile di dettatura",
+        "description": "Come la pulizia con IA scrive la tua dettatura: la punteggiatura e quanto è formale. Il significato non cambia mai.",
+        "cleanupOff": "Gli stili si applicano solo con la pulizia con IA attiva.",
+        "needsAccount": "Gli stili richiedono la pulizia con IA, che richiede un account ChatGPT.",
+        "error": "Impossibile cambiare lo stile di dettatura.",
+        "formal": {
+          "title": "Formale",
+          "example": "Penso che possiamo vederci domani verso le 15, se sei disponibile. Altrimenti, anche giovedì va bene."
+        },
+        "normal": {
+          "title": "Normale",
+          "example": "Penso che ci possiamo vedere domani verso le 15, se ci sei. Sennò giovedì va bene lo stesso."
+        },
+        "casual": {
+          "title": "Informale",
+          "example": "Penso che ci possiamo vedere domani verso le 15 se ci sei, sennò giovedì va bene lo stesso"
+        }
+      },
       "windowNames": {
         "title": "Nomi dalla finestra attiva",
         "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia IA solo i nomi trovati, per scriverli correttamente. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."

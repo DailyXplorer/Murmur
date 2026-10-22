@@ -33,6 +33,7 @@ const PROPER_PHRASES = [
   "Intel Macs",
   "European",
   "Parakeet",
+  "Thursday",
   "ChatGPT",
   "English",
   "French",

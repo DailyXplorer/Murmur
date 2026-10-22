@@ -484,6 +484,25 @@
         "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted.",
         "needsAccount": "Connect ChatGPT to use AI cleanup."
       },
+      "style": {
+        "title": "Dictation style",
+        "description": "How AI cleanup writes your dictation: the punctuation and how formal the wording is. The meaning never changes.",
+        "cleanupOff": "Styles apply only when AI cleanup is on.",
+        "needsAccount": "Styles need AI cleanup, which needs a ChatGPT account.",
+        "error": "Couldn't change the dictation style.",
+        "formal": {
+          "title": "Formal",
+          "example": "I think we can meet tomorrow around 3 p.m., if you are available. Otherwise, Thursday also works."
+        },
+        "normal": {
+          "title": "Normal",
+          "example": "I think we can meet tomorrow around 3 p.m., if you're free. Otherwise, Thursday works too."
+        },
+        "casual": {
+          "title": "Casual",
+          "example": "I think we can meet tomorrow around 3 if you're free, otherwise Thursday works too"
+        }
+      },
       "windowNames": {
         "title": "Names from the active window",
         "description": "When you start dictating, Murmur reads the text of the frontmost window through Accessibility and sends only the names it finds to AI cleanup, so they are spelled right. Nothing is stored. Password fields and password managers are never read."

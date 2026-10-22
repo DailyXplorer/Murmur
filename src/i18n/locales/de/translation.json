@@ -484,6 +484,25 @@
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
       },
+      "style": {
+        "title": "Diktierstil",
+        "description": "Wie die KI-Bereinigung dein Diktat schreibt: die Zeichensetzung und wie förmlich die Formulierung ist. Die Bedeutung ändert sich nie.",
+        "cleanupOff": "Stile wirken nur, wenn die KI-Bereinigung an ist.",
+        "needsAccount": "Stile brauchen die KI-Bereinigung, und die braucht ein ChatGPT-Konto.",
+        "error": "Der Diktierstil konnte nicht geändert werden.",
+        "formal": {
+          "title": "Förmlich",
+          "example": "Ich denke, wir können uns morgen gegen 15 Uhr treffen, wenn du verfügbar bist. Andernfalls passt auch Donnerstag."
+        },
+        "normal": {
+          "title": "Normal",
+          "example": "Ich denke, wir können uns morgen gegen 15 Uhr sehen, wenn du Zeit hast. Sonst geht auch Donnerstag."
+        },
+        "casual": {
+          "title": "Locker",
+          "example": "Ich denke wir können uns morgen gegen 15 Uhr sehen wenn du Zeit hast, sonst geht auch Donnerstag"
+        }
+      },
       "windowNames": {
         "title": "Namen aus dem aktiven Fenster",
         "description": "Beim Start des Diktats liest Murmur über die Bedienungshilfen den Text des vordersten Fensters und sendet nur die gefundenen Namen an die KI-Bereinigung, damit sie richtig geschrieben werden. Nichts wird gespeichert. Passwortfelder und Passwortmanager werden nie gelesen."

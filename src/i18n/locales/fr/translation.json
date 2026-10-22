@@ -484,6 +484,25 @@
         "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
       },
+      "style": {
+        "title": "Style de dictée",
+        "description": "Comment le nettoyage par IA écrit votre dictée : la ponctuation et le niveau de langue. Le sens ne change jamais.",
+        "cleanupOff": "Les styles s’appliquent seulement quand le nettoyage par IA est activé.",
+        "needsAccount": "Les styles passent par le nettoyage par IA, qui demande un compte ChatGPT.",
+        "error": "Impossible de changer le style de dictée.",
+        "formal": {
+          "title": "Formel",
+          "example": "Je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi."
+        },
+        "normal": {
+          "title": "Normal",
+          "example": "Je pense qu'on peut se voir demain vers 15h, si t'es dispo. Sinon, jeudi ça marche aussi."
+        },
+        "casual": {
+          "title": "Détendu",
+          "example": "Je pense qu'on peut se voir demain vers 15h si t'es dispo, sinon jeudi ça marche aussi"
+        }
+      },
       "windowNames": {
         "title": "Noms de la fenêtre active",
         "description": "Au début de la dictée, Murmur lit le texte de la fenêtre au premier plan via l’Accessibilité et n’envoie au nettoyage IA que les noms qu’il y trouve, pour bien les orthographier. Rien n’est conservé. Les champs de mot de passe et les gestionnaires de mots de passe ne sont jamais lus."

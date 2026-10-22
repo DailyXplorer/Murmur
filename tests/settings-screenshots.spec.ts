@@ -542,6 +542,53 @@ test.describe("settings screenshots", () => {
     }
   });
 
+  test.describe("the dictation style", () => {
+    test.use({ viewport: DEFAULT_WINDOW, deviceScaleFactor: 2 });
+
+    for (const theme of ["light", "dark"] as const) {
+      for (const lang of ["en", "fr"]) {
+        test(`each style and the disabled states (${lang}, ${theme})`, async ({
+          page,
+        }) => {
+          await page.emulateMedia({ colorScheme: theme });
+          const open = async (query: string) => {
+            await page.goto(
+              `/tests/fixtures/settings-pages.html?theme=${theme}&lang=${lang}${query}`,
+            );
+            await page
+              .getByRole("navigation")
+              .getByRole("button", { name: "Transcription", exact: true })
+              .click();
+            await page
+              .getByRole("radiogroup", {
+                name: lang === "fr" ? "Style de dictée" : "Dictation style",
+              })
+              .evaluate((group) => group.scrollIntoView({ block: "center" }));
+            await page.waitForTimeout(300);
+          };
+          for (const style of ["formal", "normal", "casual"]) {
+            await open(`&style=${style}`);
+            await page.screenshot({
+              path: `${outputDir}/settings-${style}-${lang}-${theme}.png`,
+            });
+          }
+          for (const [query, file] of [
+            ["&cleanup=off", "cleanup-off"],
+            ["&account=none", "no-account"],
+          ]) {
+            await open(query);
+            await page.screenshot({
+              path: `${outputDir}/settings-${file}-${lang}-${theme}.png`,
+            });
+          }
+          expect(
+            await page.evaluate(() => window.settingsPages.unhandledCommands),
+          ).toEqual([]);
+        });
+      }
+    }
+  });
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

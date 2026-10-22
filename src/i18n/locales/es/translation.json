@@ -484,6 +484,25 @@
         "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni reescribe. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
         "needsAccount": "Conecta ChatGPT para usar la limpieza con IA."
       },
+      "style": {
+        "title": "Estilo de dictado",
+        "description": "Cómo escribe tu dictado la limpieza con IA: la puntuación y el grado de formalidad. El significado nunca cambia.",
+        "cleanupOff": "Los estilos solo se aplican con la limpieza con IA activada.",
+        "needsAccount": "Los estilos necesitan la limpieza con IA, que necesita una cuenta de ChatGPT.",
+        "error": "No se pudo cambiar el estilo de dictado.",
+        "formal": {
+          "title": "Formal",
+          "example": "Creo que podemos vernos mañana hacia las 15:00, si estás disponible. De lo contrario, el jueves también nos viene bien."
+        },
+        "normal": {
+          "title": "Normal",
+          "example": "Creo que podemos vernos mañana sobre las 3, si te va bien. Si no, el jueves también me sirve."
+        },
+        "casual": {
+          "title": "Informal",
+          "example": "Creo que podemos vernos mañana sobre las 3 si te va bien, si no el jueves también me sirve"
+        }
+      },
       "windowNames": {
         "title": "Nombres de la ventana activa",
         "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza con IA solo los nombres que encuentra, para escribirlos bien. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."

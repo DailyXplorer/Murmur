@@ -12,6 +12,7 @@ test("a double click on a custom word removes only that word", async ({
   await expect(chips).toHaveCount(3);
 
   // The next chip slides into this one's place before the second click.
+  await chips.first().scrollIntoViewIfNeeded();
   const box = await chips.first().boundingBox();
   if (!box) throw new Error("not laid out");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
