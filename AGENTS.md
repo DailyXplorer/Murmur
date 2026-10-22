@@ -143,8 +143,7 @@ src/i18n/
 ├── languages.ts       # Language metadata
 └── locales/
     ├── en/translation.json  # English (source)
-    ├── de/, es/, fr/, ja/, ru/, zh/, ...
-    └── ...
+    └── fr/, es/, de/, it/, pt/
 ```
 
 For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
