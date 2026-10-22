@@ -548,8 +548,8 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
- * Onboarding ends only once a Codex session exists, so the first recording
- * has somewhere to go.
+ * Dictation on this Mac needs no account. The cloud needs a Codex session,
+ * so the first recording has somewhere to go.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
@@ -1070,7 +1070,7 @@ export type DownloadFailure = { kind: "no_internet" } |
 { kind: "prepare_failed" }
 export type Engine = 
 /**
- * Parakeet TDT 0.6B v3 on this Mac.
+ * Parakeet TDT 0.6B v3 on this Mac, what a new install starts with.
  */
 "local" | 
 /**
