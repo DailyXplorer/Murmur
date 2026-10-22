@@ -29,7 +29,7 @@ interface DialogProps {
   dismissible?: boolean;
   closeOnBackdrop?: boolean;
   showCloseButton?: boolean;
-  initialFocusRef?: React.RefObject<HTMLElement>;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   className?: string;
   contentClassName?: string;
   contentFades?: boolean;
