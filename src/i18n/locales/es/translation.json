@@ -44,7 +44,9 @@
     "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando.",
     "meetingMicrophoneInterrupted": "El micrófono dejó de grabar. Murmur sigue intentando recuperarlo; comprueba que siga conectado.",
     "meetingMicrophoneDenied": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
-    "meetingSystemAudioDenied": "La grabación de audio del sistema está desactivada, así que la reunión no graba a los demás participantes. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema."
+    "meetingSystemAudioDenied": "La grabación de audio del sistema está desactivada, así que la reunión no graba a los demás participantes. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema.",
+    "meetingRecovered": "Una reunión se interrumpió porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo.",
+    "meetingsRecovered": "{{count}} reuniones se interrumpieron porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo."
   },
   "sidebar": {
     "general": "General",
@@ -674,12 +676,14 @@
       "interrupted": "La grabación se interrumpió. Lo grabado aún se puede transcribir.",
       "process": "Transcribir",
       "retry": "Reintentar",
+      "retryNow": "Reintentar ahora",
       "retryError": "No se pudo reintentar el procesamiento.",
       "errors": {
         "signed_out": "Inicia sesión con ChatGPT y vuelve a intentarlo.",
         "rate_limited": "Codex está limitando las solicitudes ahora. Vuelve a intentarlo más tarde.",
         "parts_failed": "Algunas partes no se pudieron transcribir.",
         "no_audio": "No se pudo leer la grabación.",
+        "offline": "Esperando conexión. Murmur continuará solo cuando vuelva a estar en línea.",
         "other": "El procesamiento se detuvo de forma inesperada."
       }
     },

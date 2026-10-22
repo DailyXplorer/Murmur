@@ -44,7 +44,9 @@
     "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato.",
     "meetingMicrophoneInterrupted": "Il microfono ha smesso di registrare. Murmur continua a provare a ripristinarlo; verifica che sia ancora collegato.",
     "meetingMicrophoneDenied": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
-    "meetingSystemAudioDenied": "La registrazione dell'audio di sistema è disattivata, quindi la riunione non registra gli altri partecipanti. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Registrazione schermo e audio di sistema."
+    "meetingSystemAudioDenied": "La registrazione dell'audio di sistema è disattivata, quindi la riunione non registra gli altri partecipanti. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Registrazione schermo e audio di sistema.",
+    "meetingRecovered": "Una riunione è stata interrotta perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
+    "meetingsRecovered": "{{count}} riunioni sono state interrotte perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione."
   },
   "sidebar": {
     "general": "Generale",
@@ -674,12 +676,14 @@
       "interrupted": "La registrazione è stata interrotta. Quanto registrato può comunque essere trascritto.",
       "process": "Trascrivi",
       "retry": "Riprova",
+      "retryNow": "Riprova ora",
       "retryError": "Impossibile riavviare l’elaborazione.",
       "errors": {
         "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste in questo momento. Riprova più tardi.",
         "parts_failed": "Alcune parti non sono state trascritte.",
         "no_audio": "Impossibile leggere la registrazione.",
+        "offline": "In attesa di connessione. Murmur riprende da solo appena torni online.",
         "other": "L’elaborazione si è interrotta in modo imprevisto."
       }
     },

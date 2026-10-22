@@ -1262,6 +1262,11 @@ system_audio_silent: boolean;
  */
 held_until_ms: number | null; 
 /**
+ * This queued meeting waits for the connection to reach Codex. Only the
+ * processing queue knows; the store never sets it.
+ */
+waiting_for_connection: boolean; 
+/**
  * How much of the recorded audio this Mac transcribed because Codex
  * refused it. "Transcribe again" sends it all to Codex once more.
  */
@@ -1356,6 +1361,11 @@ export type ProcessingError =
  * No track could be read.
  */
 "no_audio" | 
+/**
+ * Codex could not be reached: processing goes on by itself once the
+ * connection is back.
+ */
+"offline" | 
 /**
  * Processing stopped on an unexpected error.
  */

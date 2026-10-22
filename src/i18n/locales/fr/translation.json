@@ -44,7 +44,9 @@
     "meetingSystemAudioInterrupted": "L’audio système s’est arrêté après le changement de sortie audio. Murmur continue d’essayer de le rétablir ; votre micro est toujours enregistré.",
     "meetingMicrophoneInterrupted": "Le micro a cessé d’enregistrer. Murmur continue d’essayer de le rétablir ; vérifiez qu’il est toujours branché.",
     "meetingMicrophoneDenied": "L’accès au microphone est désactivé : la réunion n’enregistre pas votre voix. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Microphone.",
-    "meetingSystemAudioDenied": "L’enregistrement audio du système est désactivé : la réunion n’enregistre pas vos interlocuteurs. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Enregistrement de l’écran et de l’audio du système."
+    "meetingSystemAudioDenied": "L’enregistrement audio du système est désactivé : la réunion n’enregistre pas vos interlocuteurs. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Enregistrement de l’écran et de l’audio du système.",
+    "meetingRecovered": "Une réunion a été interrompue par une fermeture inattendue de Murmur. Ce qui a été enregistré est en cours de transcription.",
+    "meetingsRecovered": "{{count}} réunions ont été interrompues par une fermeture inattendue de Murmur. Ce qui a été enregistré est en cours de transcription."
   },
   "sidebar": {
     "general": "Général",
@@ -674,12 +676,14 @@
       "interrupted": "L’enregistrement a été interrompu. Ce qui a été enregistré peut quand même être transcrit.",
       "process": "Transcrire",
       "retry": "Réessayer",
+      "retryNow": "Réessayer maintenant",
       "retryError": "Impossible de relancer le traitement.",
       "errors": {
         "signed_out": "Connectez-vous avec ChatGPT, puis réessayez.",
         "rate_limited": "Codex limite les requêtes pour le moment. Réessayez plus tard.",
         "parts_failed": "Certaines parties n’ont pas pu être transcrites.",
         "no_audio": "L’enregistrement n’a pas pu être lu.",
+        "offline": "En attente de connexion. Murmur reprend tout seul dès que vous êtes de nouveau en ligne.",
         "other": "Le traitement s’est arrêté de façon inattendue."
       }
     },

@@ -18,6 +18,7 @@ import type {
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
+  ProcessingError,
   SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
@@ -52,6 +53,14 @@ const audioBytes = Number(params.get("audioBytes") ?? 34_600_000);
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
+/** Why the failed meeting failed; `parts_failed` by default. */
+const meetingError = (params.get("meetingError") ??
+  "parts_failed") as ProcessingError;
+/**
+ * `offline=1`: Codex could not be reached, and the queue waits for the
+ * connection: the failed meeting, and a ready one whose summary is pending.
+ */
+const offline = params.get("offline") === "1";
 const analysis = params.get("analysis") ?? "available";
 /** `failed` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
@@ -442,9 +451,11 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   audio: item.id === 3 ? "compressed" : "tracks",
   audio_bytes: item.id === 3 ? audioBytes : 0,
   system_audio_silent: item.id === 3 && systemAudioSilent,
-  error: item.status === "failed" ? "parts_failed" : null,
+  error: item.status === "failed" ? meetingError : null,
   held_until_ms:
     item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
+  waiting_for_connection:
+    offline && (item.status === "failed" || queuedForSummary(item)),
   local_fallback_ms: item.id === 3 ? localFallbackMs : 0,
   speakers:
     item.id === 3

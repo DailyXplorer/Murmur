@@ -24,6 +24,10 @@ use crate::managers::history::{open_or_reset_database, DatabaseStartup};
 /// they are: a file that fails this often fails for good.
 const MAX_COMPRESS_FAILURES: i64 = 3;
 
+/// A meeting a crash cut off with less audio than this has nothing to
+/// transcribe.
+const MIN_RECOVERED_MS: u64 = 1_000;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(
@@ -288,6 +292,9 @@ pub enum ProcessingError {
     PartsFailed,
     /// No track could be read.
     NoAudio,
+    /// Codex could not be reached: processing goes on by itself once the
+    /// connection is back.
+    Offline,
     /// Processing stopped on an unexpected error.
     Other,
 }
@@ -299,6 +306,7 @@ impl ProcessingError {
             Self::RateLimited => "rate_limited",
             Self::PartsFailed => "parts_failed",
             Self::NoAudio => "no_audio",
+            Self::Offline => "offline",
             Self::Other => "other",
         }
     }
@@ -309,6 +317,7 @@ impl ProcessingError {
             "rate_limited" => Some(Self::RateLimited),
             "parts_failed" => Some(Self::PartsFailed),
             "no_audio" => Some(Self::NoAudio),
+            "offline" => Some(Self::Offline),
             "other" => Some(Self::Other),
             _ => None,
         }
@@ -439,6 +448,9 @@ pub struct MeetingDetail {
     /// When a Codex rate-limit hold stops keeping this queued meeting
     /// waiting. Only the processing queue knows; the store never sets it.
     pub held_until_ms: Option<i64>,
+    /// This queued meeting waits for the connection to reach Codex. Only the
+    /// processing queue knows; the store never sets it.
+    pub waiting_for_connection: bool,
     /// How much of the recorded audio this Mac transcribed because Codex
     /// refused it. "Transcribe again" sends it all to Codex once more.
     pub local_fallback_ms: i64,
@@ -599,8 +611,10 @@ impl MeetingsStore {
     /// At startup no meeting can still be recording: one that is was cut off
     /// by a crash or a forced quit. Its track headers are repaired so the
     /// audio is readable, and it is marked interrupted with the duration the
-    /// tracks hold. Returns how many meetings were recovered.
-    pub fn recover_interrupted(&self, root: &Path) -> Result<usize> {
+    /// tracks hold, to be processed like any other; with less than a second
+    /// of audio there is nothing to process, and it fails with `NoAudio`.
+    /// Returns the meetings left to process.
+    pub fn recover_interrupted(&self, root: &Path) -> Result<Vec<i64>> {
         let conn = self.connection()?;
         let cut_off = conn
             .prepare("SELECT id, capture_mode FROM meetings WHERE status = 'recording'")?
@@ -608,6 +622,7 @@ impl MeetingsStore {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut recovered = Vec::with_capacity(cut_off.len());
         for (id, tracks) in &cut_off {
             let dir = paths::meeting_dir(root, *id);
             let tracks = MeetingTracks::from_db(tracks).unwrap_or(MeetingTracks::Both);
@@ -625,24 +640,35 @@ impl MeetingsStore {
             .max()
             .unwrap_or(0);
             let duration_ms = samples * 1000 / u64::from(TARGET_SAMPLE_RATE);
+            if duration_ms < MIN_RECOVERED_MS {
+                conn.execute(
+                    "UPDATE meetings SET status = 'failed', error_kind = ?3, duration_ms = ?2
+                     WHERE id = ?1",
+                    params![id, duration_ms as i64, ProcessingError::NoAudio.as_db()],
+                )?;
+                continue;
+            }
             conn.execute(
                 "UPDATE meetings SET status = 'interrupted', duration_ms = ?2 WHERE id = ?1",
                 params![id, duration_ms as i64],
             )?;
+            recovered.push(*id);
         }
-        Ok(cut_off.len())
+        Ok(recovered)
     }
 
-    /// Meetings to process, oldest first: those a quit left mid-way, and
-    /// transcribed ones still waiting for their summary or compressed audio.
-    /// Audio that failed to compress `MAX_COMPRESS_FAILURES` times keeps its
-    /// tracks instead of being tried at every launch.
+    /// Meetings to process, oldest first: those a quit left mid-way, those a
+    /// crash cut off, those that waited for the connection, and transcribed
+    /// ones still waiting for their summary or compressed audio. Audio that
+    /// failed to compress `MAX_COMPRESS_FAILURES` times keeps its tracks
+    /// instead of being tried at every launch.
     pub fn waiting_for_processing(&self) -> Result<Vec<i64>> {
         Ok(self
             .connection()?
             .prepare(
                 "SELECT id FROM meetings
-                 WHERE status = 'processing'
+                 WHERE status IN ('processing', 'interrupted')
+                    OR (status = 'failed' AND error_kind = 'offline')
                     OR (status = 'ready' AND (summary_status = 'pending'
                         OR (audio_file IS NULL AND audio_deleted = 0
                             AND compress_failures < ?1)))
@@ -787,6 +813,7 @@ impl MeetingsStore {
             audio_bytes,
             system_audio_silent,
             held_until_ms: None,
+            waiting_for_connection: false,
             local_fallback_ms,
         }))
     }
@@ -1358,7 +1385,7 @@ mod tests {
         write_track(&track_dir.join(paths::MIC_TRACK), 32_000);
         write_track(&track_dir.join(paths::SYSTEM_TRACK), 31_840);
 
-        assert_eq!(store.recover_interrupted(&root).unwrap(), 1);
+        assert_eq!(store.recover_interrupted(&root).unwrap(), [crashed]);
 
         assert_eq!(status_of(&store, crashed), Some(MeetingStatus::Interrupted));
         assert_eq!(status_of(&store, finished), Some(MeetingStatus::Processing));
@@ -1369,7 +1396,37 @@ mod tests {
             let reader = hound::WavReader::open(track_dir.join(file)).unwrap();
             assert!(reader.duration() >= 31_840);
         }
-        assert_eq!(store.recover_interrupted(&root).unwrap(), 0);
+        assert!(store.recover_interrupted(&root).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_meeting_cut_off_by_a_crash_is_processed_at_the_next_launch() {
+        let (dir, store) = store();
+        let root = dir.path().join("meetings");
+        let crashed = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        write_track(
+            &paths::meeting_dir(&root, crashed).join(paths::MIC_TRACK),
+            32_000,
+        );
+        assert_eq!(store.recover_interrupted(&root).unwrap(), [crashed]);
+        assert_eq!(store.waiting_for_processing().unwrap(), [crashed]);
+        assert!(store.begin_processing(crashed).unwrap());
+    }
+
+    #[test]
+    fn a_meeting_that_waited_for_the_connection_is_processed_at_the_next_launch() {
+        let (_dir, store) = store();
+        let offline = recorded(&store);
+        let parts_failed = recorded(&store);
+        for (id, error) in [
+            (offline, ProcessingError::Offline),
+            (parts_failed, ProcessingError::PartsFailed),
+        ] {
+            store.begin_processing(id).unwrap();
+            store.finish_processing(id, Some(error)).unwrap();
+            assert_eq!(store.get(id).unwrap().unwrap().error, Some(error));
+        }
+        assert_eq!(store.waiting_for_processing().unwrap(), [offline]);
     }
 
     #[test]
@@ -1403,14 +1460,28 @@ mod tests {
     }
 
     #[test]
-    fn a_meeting_cut_off_before_any_audio_is_recovered_with_no_duration() {
+    fn a_meeting_cut_off_with_under_a_second_of_audio_fails_without_a_run() {
         let (dir, store) = store();
-        let id = store.insert_recording(0, MeetingTracks::System).unwrap();
-        assert_eq!(store.recover_interrupted(dir.path()).unwrap(), 1);
-        let page = store.list(None, 1).unwrap();
-        assert_eq!(page.meetings[0].id, id);
-        assert_eq!(page.meetings[0].status, MeetingStatus::Interrupted);
-        assert_eq!(page.meetings[0].duration_ms, 0);
+        let root = dir.path().join("meetings");
+        let empty = store.insert_recording(0, MeetingTracks::System).unwrap();
+        let short = store.insert_recording(1, MeetingTracks::Mic).unwrap();
+        write_track(
+            &paths::meeting_dir(&root, short).join(paths::MIC_TRACK),
+            15_000,
+        );
+        assert!(store.recover_interrupted(&root).unwrap().is_empty());
+        let page = store.list(None, 2).unwrap();
+        for meeting in &page.meetings {
+            assert_eq!(meeting.status, MeetingStatus::Failed);
+        }
+        assert_eq!(page.meetings[0].duration_ms, 937);
+        assert_eq!(page.meetings[1].id, empty);
+        assert_eq!(page.meetings[1].duration_ms, 0);
+        for id in [empty, short] {
+            let meeting = store.get(id).unwrap().unwrap();
+            assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        }
+        assert!(store.waiting_for_processing().unwrap().is_empty());
     }
 
     fn recorded(store: &MeetingsStore) -> i64 {

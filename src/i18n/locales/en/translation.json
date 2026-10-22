@@ -44,7 +44,9 @@
     "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded.",
     "meetingMicrophoneInterrupted": "The microphone stopped recording. Murmur keeps trying to bring it back; check that it's still connected.",
     "meetingMicrophoneDenied": "Microphone access is off, so this meeting isn't recording your voice. Allow Murmur in System Settings → Privacy & Security → Microphone.",
-    "meetingSystemAudioDenied": "System audio recording is off, so this meeting isn’t recording the other side of the call. Allow Murmur in System Settings → Privacy & Security → Screen & System Audio Recording."
+    "meetingSystemAudioDenied": "System audio recording is off, so this meeting isn’t recording the other side of the call. Allow Murmur in System Settings → Privacy & Security → Screen & System Audio Recording.",
+    "meetingRecovered": "A meeting was cut off when Murmur closed unexpectedly. What was recorded is being transcribed.",
+    "meetingsRecovered": "{{count}} meetings were cut off when Murmur closed unexpectedly. What was recorded is being transcribed."
   },
   "sidebar": {
     "general": "General",
@@ -674,12 +676,14 @@
       "interrupted": "The recording was interrupted. What was recorded can still be transcribed.",
       "process": "Transcribe",
       "retry": "Retry",
+      "retryNow": "Retry now",
       "retryError": "Couldn't retry processing.",
       "errors": {
         "signed_out": "Sign in with ChatGPT, then retry.",
         "rate_limited": "Codex is limiting requests right now. Retry later.",
         "parts_failed": "Some parts couldn't be transcribed.",
         "no_audio": "The recording couldn't be read.",
+        "offline": "Waiting for a connection. Murmur goes on by itself once you're back online.",
         "other": "Processing stopped unexpectedly."
       }
     },

@@ -46,7 +46,8 @@ use super::summary::{self, Summarizer};
 use super::tokens::{sentences, tokenize};
 use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
-    ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
+    unreachable, ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner,
+    Transcriber,
 };
 use crate::chinese_script::in_chosen_script;
 use crate::transcription_error::FailureKind;
@@ -168,20 +169,35 @@ struct Saver {
     done: AtomicU32,
     total: u32,
     rate_limited: AtomicBool,
+    /// A piece ran out of network retries.
+    unreachable: AtomicBool,
     /// Codex transcribed at least one piece in this run.
     answered: AtomicBool,
 }
 
 impl Saver {
     /// A piece that ran out of rate-limit budget holds the queue, whatever
-    /// else ended the run and however many pieces Codex answered first.
+    /// else ended the run and however many pieces Codex answered first; one
+    /// that ran out of network retries holds it until the connection is back.
     fn verdict(&self) -> CodexVerdict {
         if self.rate_limited.load(Ordering::SeqCst) {
             CodexVerdict::RateLimited
+        } else if self.unreachable.load(Ordering::SeqCst) {
+            CodexVerdict::Unreachable
         } else if self.answered.load(Ordering::SeqCst) {
             CodexVerdict::Answered
         } else {
             CodexVerdict::Unknown
+        }
+    }
+
+    /// Notes why Codex gave up on a piece, when that holds the queue. A
+    /// piece ends with a network failure only once its retries are spent.
+    fn codex_out(&self, kind: FailureKind) {
+        if kind == FailureKind::RateLimited {
+            self.rate_limited.store(true, Ordering::SeqCst);
+        } else if unreachable(kind) {
+            self.unreachable.store(true, Ordering::SeqCst);
         }
     }
 
@@ -206,9 +222,7 @@ impl RunObserver for Saver {
             }
             Outcome::DoneLocally { text, codex } => {
                 self.done.fetch_add(1, Ordering::SeqCst);
-                if *codex == FailureKind::RateLimited {
-                    self.rate_limited.store(true, Ordering::SeqCst);
-                }
+                self.codex_out(*codex);
                 self.store.chunk_done_locally(
                     self.id,
                     job.track,
@@ -218,9 +232,7 @@ impl RunObserver for Saver {
                 )
             }
             Outcome::Failed(kind) => {
-                if *kind == FailureKind::RateLimited {
-                    self.rate_limited.store(true, Ordering::SeqCst);
-                }
+                self.codex_out(*kind);
                 self.store
                     .chunk_failed(self.id, job.track, job.idx, &format!("{kind:?}"))
             }
@@ -301,7 +313,9 @@ impl Processor {
             .store
             .get(id)?
             .is_some_and(|meeting| meeting.status == MeetingStatus::Ready);
-        if ready && !operation.is_cancelled() {
+        // This Mac transcribed what Codex could not be reached for; the
+        // summary waits for the connection instead of spending its retries.
+        if ready && !operation.is_cancelled() && codex != CodexVerdict::Unreachable {
             codex = codex.max(self.finish(id, &operation, &mut stages).await?);
         }
         if !stages.is_empty() {
@@ -421,6 +435,7 @@ impl Processor {
                 .filter(|chunk| chunk.status != ChunkStatus::Silent)
                 .count() as u32,
             rate_limited: AtomicBool::new(false),
+            unreachable: AtomicBool::new(false),
             answered: AtomicBool::new(false),
         });
         saver.report(false);
@@ -509,6 +524,8 @@ impl Processor {
             None
         } else if saver.rate_limited.load(Ordering::SeqCst) {
             Some(ProcessingError::RateLimited)
+        } else if end == RunEnd::Unreachable {
+            Some(ProcessingError::Offline)
         } else {
             Some(ProcessingError::PartsFailed)
         };
@@ -1236,6 +1253,101 @@ mod tests {
     }
 
     #[test]
+    fn a_lost_connection_waits_offline_and_the_next_run_sends_only_what_is_left() {
+        let h = harness();
+        // 25 minutes of speech on one track: three pieces.
+        let id = h.meeting(MeetingTracks::Mic, 25 * 60);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 25 * 60, &[(0, 25 * 60)]);
+        // One piece goes through, then the connection drops.
+        let answered = Arc::new(AtomicBool::new(false));
+        let first = codex(move |seconds| {
+            if answered.swap(true, Ordering::SeqCst) {
+                Err(FailureKind::Network)
+            } else {
+                Ok(format!("Partie de {seconds} secondes."))
+            }
+        });
+        let summarizer = FakeSummarizer::answering(vec![]);
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&first),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.error, Some(ProcessingError::Offline));
+        let done = |h: &Harness| {
+            h.store
+                .chunks(id)
+                .unwrap()
+                .iter()
+                .filter(|chunk| chunk.status == ChunkStatus::Done)
+                .count()
+        };
+        assert_eq!(done(&h), 1);
+
+        // The connection is back.
+        let second = codex(|seconds| Ok(format!("Partie de {seconds} secondes.")));
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&second),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::Answered);
+        assert_eq!(second.calls.lock().unwrap().len(), 2);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.error, None);
+        assert_eq!(meeting.turns[0].text.matches("Partie").count(), 3);
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(done(&h), 3);
+    }
+
+    #[test]
+    fn offline_a_ready_model_completes_the_transcript_and_the_summary_waits() {
+        let local = codex(|seconds| Ok(format!("Sur ce Mac, {seconds} secondes.")));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Err(FailureKind::Network)),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert!(meeting.local_fallback_ms > 0);
+        assert!(meeting
+            .turns
+            .iter()
+            .all(|turn| turn.text.contains("Sur ce Mac")));
+        // Not asked while Codex is out of reach, and written once it is back.
+        assert_eq!(summarizer.calls(), 0);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert!(h.store.waiting_for_processing().unwrap().contains(&id));
+        h.process_all(
+            id,
+            codex(|_| Ok("never".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(summarizer.calls(), 1);
+    }
+
+    #[test]
     fn silent_pieces_are_never_sent() {
         let h = harness();
         let id = h.meeting(MeetingTracks::Both, 40);
@@ -1753,6 +1865,30 @@ mod tests {
     }
 
     #[test]
+    fn a_summary_codex_cannot_reach_stays_pending_for_the_queue() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
+            kind: FailureKind::Network,
+            detail: String::new(),
+        })]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary_error, None);
+        // Compressed once the summary is settled.
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        assert!(h.store.waiting_for_processing().unwrap().contains(&id));
+    }
+
+    #[test]
     fn a_meeting_codex_transcribes_says_codex_answered() {
         let h = harness();
         let id = spoken_meeting(&h);
@@ -1856,6 +1992,7 @@ mod tests {
             done: AtomicU32::new(0),
             total: 2,
             rate_limited: AtomicBool::new(false),
+            unreachable: AtomicBool::new(false),
             answered: AtomicBool::new(false),
         };
         let job = |track| Job {
@@ -2365,7 +2502,7 @@ mod tests {
 
     #[test]
     fn transcribing_again_offline_keeps_the_transcript_and_the_names() {
-        transcribing_again_while_codex_fails(FailureKind::Network, ProcessingError::PartsFailed);
+        transcribing_again_while_codex_fails(FailureKind::Network, ProcessingError::Offline);
     }
 
     /// A transcript with a part missing stays when transcribing it again

@@ -28,6 +28,10 @@ pub enum Alert {
     HistoryReset,
     SettingsRecovered(SettingsRecovery),
     Meeting(MeetingAlert),
+    /// At launch: meetings a crash cut off are being processed.
+    MeetingsRecovered {
+        count: usize,
+    },
 }
 
 impl Alert {
@@ -90,6 +94,10 @@ impl Alert {
                 MeetingAlert::SystemAudioDenied => &strings.meeting_system_audio_denied,
             }
             .clone(),
+            Self::MeetingsRecovered { count: 1 } => strings.meeting_recovered.clone(),
+            Self::MeetingsRecovered { count } => strings
+                .meetings_recovered
+                .replace("{{count}}", &count.to_string()),
         }
     }
 }
@@ -178,6 +186,22 @@ mod tests {
         assert!(alerts
             .iter()
             .all(|alert| !Alert::Meeting(*alert).belongs_in_overlay()));
+    }
+
+    #[test]
+    fn recovered_meetings_are_told_in_one_notification_with_their_count() {
+        for language in ["en", "fr", "es", "de", "it", "pt"] {
+            let strings = get_tray_translations(Some(language.to_string()));
+            let one = Alert::MeetingsRecovered { count: 1 }.message(&strings);
+            let three = Alert::MeetingsRecovered { count: 3 }.message(&strings);
+            assert!(!one.is_empty() && !one.contains("{{"), "{language}: {one}");
+            assert!(
+                three.contains('3') && !three.contains("{{"),
+                "{language}: {three}"
+            );
+            assert_ne!(one, three);
+            assert!(!Alert::MeetingsRecovered { count: 1 }.belongs_in_overlay());
+        }
     }
 
     #[test]
