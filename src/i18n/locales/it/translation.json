@@ -124,6 +124,7 @@
       "title": "Collega Codex",
       "description": "Accedi a Codex su questo Mac per completare la configurazione. Murmur rileva una configurazione locale, ma non verifica una connessione attiva.",
       "configured": "Configurazione rilevata",
+      "start": "Inizia",
       "retry": "Riprova",
       "continue": "Continua",
       "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Impossibile aprire la configurazione di Codex.",
       "optionalTitle": "Collega ChatGPT (facoltativo)",
       "optionalDescription": "Collega il tuo account ChatGPT per la pulizia con IA (toglie le esitazioni e corregge la grammatica) e per le lingue che il modello locale non copre.",
-      "optionalSession": "Accedi all'app Codex con il tuo account ChatGPT. Murmur usa quella sessione.",
       "skip": "Salta"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licenze dei modelli vocali che funzionano sul dispositivo",
         "button": "Vedi licenze"
-      },
-      "parakeet": "La trascrizione locale usa NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Trascrizione",
@@ -507,13 +506,31 @@
         "error": "Impossibile cambiare il modo in cui Murmur trascrive."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Il modello di riconoscimento vocale di NVIDIA. Si scarica una volta da Hugging Face e funziona su questo Mac.",
-        "meetings": "Usato anche da Riunioni per distinguere chi parla.",
         "missing": "Non scaricato",
-        "downloading": "Download in corso… {{done}} di {{total}}",
         "preparing": "Preparazione per questo Mac… (circa 15 secondi, solo la prima volta)",
         "ready": "Pronto · {{size}}",
+        "row": {
+          "downloading": "Download · {{percent}}%",
+          "preparing": "Preparazione…",
+          "preparingNote": "Circa 15 secondi.",
+          "meetings": "Usato anche da Riunioni.",
+          "unavailable": "Non disponibile",
+          "needs": {
+            "os_too_old": "Serve macOS 15 o successivo.",
+            "unsupported": "Serve Apple silicon."
+          },
+          "stopped": "Download interrotto",
+          "noSpace": "Spazio insufficiente",
+          "loadFailed": "Impossibile caricare",
+          "reason": {
+            "no_internet": "Internet non disponibile.",
+            "server_unavailable": "Il server non risponde.",
+            "damaged": "File arrivato danneggiato.",
+            "not_enough_space": "Servono {{needed}}, liberi {{free}}.",
+            "disk": "Salvataggio non riuscito.",
+            "prepare_failed": "Scaricato, ma non si avvia."
+          }
+        },
         "download": "Scarica ({{size}})",
         "retry": "Riprova",
         "delete": "Elimina",

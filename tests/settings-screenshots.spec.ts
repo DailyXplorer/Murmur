@@ -459,6 +459,89 @@ test.describe("settings screenshots", () => {
     });
   });
 
+  test.describe("the update pill and the local model row", () => {
+    test.use({ viewport: DEFAULT_WINDOW, deviceScaleFactor: 2 });
+
+    for (const theme of ["light", "dark"] as const) {
+      test(`model row states (${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        for (const lang of ["en", "fr"]) {
+          for (const models of ["ready", "downloading", "failed"]) {
+            await page.goto(
+              `/tests/fixtures/settings-pages.html?theme=${theme}&lang=${lang}&engine=local&models=${models}`,
+            );
+            await page
+              .getByRole("navigation")
+              .getByRole("button", { name: "Transcription", exact: true })
+              .click();
+            await page.waitForTimeout(400);
+            await page.screenshot({
+              path: `${outputDir}/transcription-${models}-${lang}-${theme}.png`,
+            });
+          }
+        }
+      });
+
+      test(`footer pill (${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        const footer = page
+          .locator("div.border-t", {
+            has: page.getByText("v1.3.7", { exact: true }),
+          })
+          .last();
+        for (const accent of ["green", "blue"]) {
+          await page.goto(
+            `/tests/fixtures/settings-pages.html?theme=${theme}&update=1&accent=${accent}`,
+          );
+          const pill = page.getByRole("button", { name: "Update available" });
+          await expect(pill).toBeVisible();
+          await page.waitForTimeout(300);
+          await page.screenshot({
+            path: `${outputDir}/window-update-${accent}-${theme}.png`,
+          });
+          await footer.screenshot({
+            path: `${outputDir}/footer-update-${accent}-${theme}.png`,
+          });
+          await pill.focus();
+          await footer.screenshot({
+            path: `${outputDir}/footer-update-focus-${accent}-${theme}.png`,
+          });
+        }
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?theme=${theme}&accent=green`,
+        );
+        await expect(
+          page.getByRole("button", { name: "Check for updates" }),
+        ).toBeVisible();
+        await footer.screenshot({
+          path: `${outputDir}/footer-check-${theme}.png`,
+        });
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?theme=${theme}&update=1&accent=green`,
+        );
+        await page.getByRole("button", { name: "Update available" }).click();
+        await expect(footer.getByText(/42%/)).toBeVisible();
+        await footer.screenshot({
+          path: `${outputDir}/footer-installing-${theme}.png`,
+        });
+      });
+
+      test(`about (${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?theme=${theme}&accent=green`,
+        );
+        await page
+          .getByRole("navigation")
+          .getByRole("button", { name: "About", exact: true })
+          .click();
+        await expect(page.getByText("View licences")).toBeVisible();
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: `${outputDir}/about-${theme}.png` });
+      });
+    }
+  });
+
   test("onboarding", async ({ page }) => {
     await page.setViewportSize(VIEWPORT);
     await page.goto("/tests/fixtures/settings-pages.html?onboarding=1");

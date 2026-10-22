@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { MIN_WINDOW } from "./windowSizes";
 
 const fixturePath = "/tests/fixtures/provider-onboarding.html";
+const localesDir = fileURLToPath(
+  new URL("../src/i18n/locales/", import.meta.url),
+);
+const LOCALES = readdirSync(localesDir);
 
 const waitForProviderStep = async (page: import("@playwright/test").Page) => {
   await expect(
@@ -16,25 +22,15 @@ test("moves from granted permissions through a focus refresh to completion", asy
   await expect(page.getByTestId("provider-onboarding-mounted")).toBeAttached();
   await waitForProviderStep(page);
 
-  await expect(
-    page.getByText("Configuration not detected", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Open Codex setup" }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Start" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
 
   await page.evaluate(() => {
     window.providerOnboardingFixture.setCodexConfigured(true);
     window.dispatchEvent(new Event("focus"));
   });
 
-  await expect(
-    page.getByText("Configuration detected", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Open Codex setup" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
@@ -127,11 +123,12 @@ test("keeps French provider onboarding recoverable after completion result and I
   }
 });
 
-test("disables completion while refreshing, ignores stale statuses, and recovers after a status failure", async ({
+test("keeps Continue through a refresh, ignores stale statuses, and recovers after a status failure", async ({
   page,
 }) => {
   await page.goto(`${fixturePath}?codex=configured`);
   await waitForProviderStep(page);
+  const step = page.getByTestId("provider-onboarding");
   const continueButton = page.getByRole("button", { name: "Continue" });
   await expect(continueButton).toBeEnabled();
 
@@ -140,7 +137,8 @@ test("disables completion while refreshing, ignores stale statuses, and recovers
     window.dispatchEvent(new Event("focus"));
     return index;
   });
-  await expect(continueButton).toBeDisabled();
+  await expect(step.getByRole("button")).toHaveText(["Continue", "Retry"]);
+  await expect(continueButton).toBeEnabled();
   await page.evaluate(
     (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
     initialRefresh,
@@ -152,7 +150,6 @@ test("disables completion while refreshing, ignores stale statuses, and recovers
     window.dispatchEvent(new Event("focus"));
     return index;
   });
-  await expect(continueButton).toBeDisabled();
   const currentRefresh = await page.evaluate(() => {
     window.providerOnboardingFixture.setCodexConfigured(false);
     const index = window.providerOnboardingFixture.deferStatusRefresh();
@@ -163,12 +160,12 @@ test("disables completion while refreshing, ignores stale statuses, and recovers
     (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
     currentRefresh,
   );
-  await expect(continueButton).toBeDisabled();
+  await expect(step.getByRole("button")).toHaveText(["Start", "Retry"]);
   await page.evaluate(
     (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
     staleRefresh,
   );
-  await expect(continueButton).toBeDisabled();
+  await expect(step.getByRole("button")).toHaveText(["Start", "Retry"]);
 
   await page.evaluate(() => {
     window.providerOnboardingFixture.setCodexConfigured(true);
@@ -185,10 +182,112 @@ test("disables completion while refreshing, ignores stale statuses, and recovers
   await expect(
     page.getByText("Status unavailable", { exact: true }),
   ).toHaveCount(1);
-  await expect(continueButton).toBeDisabled();
+  await expect(continueButton).toHaveCount(0);
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(continueButton).toBeEnabled();
+  await expect(
+    page.getByText("Status unavailable", { exact: true }),
+  ).toHaveCount(0);
 });
+
+test("a connected user never sees Start while the first check runs", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?codex=configured&slowStatus=1`);
+  await waitForProviderStep(page);
+  const buttons = page.getByTestId("provider-onboarding").getByRole("button");
+  await expect(buttons).toHaveCount(0);
+
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.resolveStatusRefresh(0),
+  );
+  await expect(buttons).toHaveText(["Continue", "Retry"]);
+});
+
+test("Retry says it is checking until the answer comes back", async ({
+  page,
+}) => {
+  await page.goto(fixturePath);
+  await waitForProviderStep(page);
+  const step = page.getByTestId("provider-onboarding");
+  await step.getByRole("button", { name: "Retry" }).click();
+  const line = step.getByRole("status");
+  await expect(line).toHaveText("Configuration not detected");
+
+  const refresh = await page.evaluate(() =>
+    window.providerOnboardingFixture.deferStatusRefresh(),
+  );
+  await step.getByRole("button", { name: "Retry" }).click();
+  await expect(line).toHaveText("Checking configuration…");
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    refresh,
+  );
+  await expect(line).toHaveText("Configuration not detected");
+});
+
+for (const mode of [
+  {
+    name: "optional",
+    query: "?model=missing",
+    heading: "Connect ChatGPT (optional)",
+    buttons: ["Start", "Retry", "Skip"],
+  },
+  {
+    name: "required",
+    query: "?model=unsupported",
+    heading: "Connect Codex",
+    buttons: ["Start", "Retry"],
+  },
+]) {
+  test(`the ${mode.name} ChatGPT step is a title, a description and one row of buttons`, async ({
+    page,
+  }) => {
+    await page.goto(`${fixturePath}${mode.query}`);
+    if (mode.name === "optional") {
+      await page.getByRole("button", { name: "Download and continue" }).click();
+    }
+    await expect(
+      page.getByRole("heading", { name: mode.heading }),
+    ).toBeVisible();
+    const step = page.getByTestId("provider-onboarding");
+    const buttons = step.getByRole("button");
+
+    await expect(buttons).toHaveText(mode.buttons);
+    await expect(step).not.toContainText("Codex app");
+    await expect(step).not.toContainText("Configuration not detected");
+    const boxes = await buttons.evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { width: Math.round(box.width), top: Math.round(box.top) };
+      }),
+    );
+    expect(new Set(boxes.map((box) => box.width)).size, "equal widths").toBe(1);
+    expect(new Set(boxes.map((box) => box.top)).size, "one row").toBe(1);
+
+    await step.getByRole("button", { name: "Start" }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.providerOnboardingFixture.calls()))
+      .toContain("plugin:opener|open_url");
+
+    await step.getByRole("button", { name: "Retry" }).click();
+    const line = step.getByText("Configuration not detected", { exact: true });
+    await expect(line).toBeVisible();
+    const lineTop = (await line.boundingBox())!.y;
+    const buttonsBottom = (await buttons.first().boundingBox())!;
+    expect(lineTop, "the line sits under the buttons").toBeGreaterThanOrEqual(
+      buttonsBottom.y + buttonsBottom.height,
+    );
+
+    await page.evaluate(() => {
+      window.providerOnboardingFixture.setCodexConfigured(true);
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(buttons).toHaveText(["Continue", "Retry"]);
+    await expect(line).toHaveCount(0);
+    await expect(step.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+}
 
 test("returns to permissions when post-onboarding initialization fails", async ({
   page,
@@ -250,6 +349,51 @@ test("fits the French provider step at the native minimum window size", async ({
     .toBe(true);
 });
 
+test("every locale keeps the ChatGPT buttons equal, on one row, at the minimum size", async ({
+  page,
+}) => {
+  await page.setViewportSize(MIN_WINDOW);
+  for (const locale of LOCALES) {
+    await page.goto(`${fixturePath}?lang=${locale}&model=missing`);
+    await page
+      .getByTestId("local-model-onboarding")
+      .getByRole("button")
+      .first()
+      .click();
+    const { onboarding } = JSON.parse(
+      readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
+    );
+    const step = page.getByTestId("provider-onboarding");
+    const buttons = step.getByRole("button");
+    await expect(buttons, locale).toHaveText([
+      onboarding.provider.start,
+      onboarding.provider.retry,
+      onboarding.provider.skip,
+    ]);
+    await buttons.nth(1).click();
+    await expect(step.getByRole("status"), locale).toHaveText(
+      onboarding.providerLabels.unavailable,
+    );
+
+    const layout = await step.evaluate((element) => ({
+      fits: element.scrollHeight <= element.clientHeight,
+      boxes: Array.from(element.querySelectorAll("button")).map((button) => {
+        const box = button.getBoundingClientRect();
+        return { width: Math.round(box.width), top: Math.round(box.top) };
+      }),
+    }));
+    expect(layout.fits, `${locale} fits`).toBe(true);
+    expect(
+      new Set(layout.boxes.map((box) => box.width)).size,
+      `${locale} equal widths`,
+    ).toBe(1);
+    expect(
+      new Set(layout.boxes.map((box) => box.top)).size,
+      `${locale} one row`,
+    ).toBe(1);
+  }
+});
+
 test("localizes the French Codex setup failure and allows retry", async ({
   page,
 }) => {
@@ -262,7 +406,7 @@ test("localizes the French Codex setup failure and allows retry", async ({
       mode,
     );
     const action = page.getByRole("button", {
-      name: "Ouvrir la configuration Codex",
+      name: "Commencer",
       exact: true,
     });
     await action.click();

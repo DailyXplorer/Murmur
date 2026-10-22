@@ -48,6 +48,11 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install chromium
 
+      # Every Mac has a Devanagari font; without one, Hindi and Nepali render
+      # as boxes twice as wide and the layout checks measure those.
+      - name: Install a Devanagari font
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-lohit-deva
+
       - name: Run Playwright tests
         run: bun run test:playwright
 
