@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::cap::{cap_action, part_length, slept, CapAction};
+use super::capture::route::OutputRoute;
 use super::capture::system::SystemAudioSupport;
 use super::merge::Track as Source;
 use super::paths;
@@ -76,6 +77,8 @@ pub trait CaptureBackend: Send {
     /// Keeps the Mac from sleeping on its own until the returned guard is
     /// dropped. `None` when macOS refuses.
     fn keep_awake(&self) -> Option<Box<dyn Send>>;
+    /// Where the Mac plays sound now.
+    fn output_route(&self) -> OutputRoute;
 }
 
 /// Below this much free space a meeting warns at start: three hours of both
@@ -204,6 +207,9 @@ struct Active {
     last_tick: (Instant, i64),
     /// The user was told the tracks dropped audio.
     dropped_told: bool,
+    /// Where this part played sound, over all of it, and at the last tick.
+    route: OutputRoute,
+    playing_on: OutputRoute,
     /// Keeps the Mac awake until the meeting ends, however it ends.
     _awake: Option<Box<dyn Send>>,
 }
@@ -335,6 +341,8 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             warn!("Meeting {id}: the System Audio Recording permission is off");
             self.notifier.alert(MeetingAlert::SystemAudioDenied);
         }
+        let route = self.backend.output_route();
+        info!("Meeting {id}: sound plays on {route:?}");
         self.active = Some(Active {
             started_as: id,
             id,
@@ -350,6 +358,8 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             interrupted: Vec::new(),
             last_tick: (origin, started_at_ms),
             dropped_told: false,
+            route,
+            playing_on: route,
             _awake: self.backend.keep_awake(),
         });
         self.notifier.runtime_changed(&self.runtime());
@@ -394,6 +404,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             duration,
             played,
             dropped_ms.saturating_sub(active.dropped_before),
+            active.route,
         );
         self.notifier.runtime_changed(&self.runtime());
         if result.is_ok() {
@@ -409,11 +420,15 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         duration: Duration,
         played: bool,
         dropped_ms: u64,
+        route: OutputRoute,
     ) -> Result<(), MeetingError> {
         if played {
             if let Err(error) = self.store.set_system_played(id) {
                 error!("Meeting {id}: cannot note system playback: {error}");
             }
+        }
+        if let Err(error) = self.store.set_output_route(id, route) {
+            error!("Meeting {id}: cannot note where sound played: {error}");
         }
         if dropped_ms > 0 {
             if let Err(error) = self.store.set_dropped_ms(id, dropped_ms) {
@@ -485,6 +500,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let duration = origin.saturating_duration_since(active.origin);
         let dropped: u64 = active.tracks.iter().map(|(_, t)| t.dropped_ms()).sum();
         let dropped_ms = dropped.saturating_sub(active.dropped_before);
+        let route = std::mem::replace(&mut active.route, active.playing_on);
         active.earlier.push(previous);
         active.id = next;
         active.started_at_ms = started_at_ms;
@@ -494,7 +510,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             "Meeting {previous} goes on as meeting {next} after {} s",
             duration.as_secs()
         );
-        let closed = self.close_part(previous, duration, played, dropped_ms);
+        let closed = self.close_part(previous, duration, played, dropped_ms, route);
         self.notifier.runtime_changed(&self.runtime());
         match closed {
             Ok(()) => self.notifier.recorded(previous),
@@ -575,6 +591,12 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             });
         }
         active.interrupted = interrupted;
+        let playing_on = self.backend.output_route();
+        if playing_on != active.playing_on {
+            info!("Meeting {id}: sound now plays on {playing_on:?}");
+            active.playing_on = playing_on;
+        }
+        active.route = active.route.and(playing_on);
         // A disk too slow for a moment is not a full one: the meeting goes on.
         let dropped_ms: u64 = active.tracks.iter().map(|(_, t)| t.dropped_ms()).sum();
         if !active.dropped_told && dropped_ms > DROPPED_ALERT_MS {
@@ -699,6 +721,8 @@ mod tests {
         dropped_ms: u64,
         /// When the Mac is kept awake.
         awake: Log,
+        /// Where the Mac plays sound.
+        route: OutputRoute,
     }
 
     /// Holds the Mac awake until dropped.
@@ -756,6 +780,9 @@ mod tests {
         fn keep_awake(&self) -> Option<Box<dyn Send>> {
             self.awake.push("awake on");
             Some(Box::new(FakeAwake(self.awake.clone())))
+        }
+        fn output_route(&self) -> OutputRoute {
+            self.route
         }
     }
 
@@ -850,6 +877,7 @@ mod tests {
             system_audio_denied: false,
             dropped_ms: 0,
             awake: awake.clone(),
+            route: OutputRoute::Speakers,
         };
         Harness {
             coordinator: Coordinator::new(
@@ -1190,6 +1218,47 @@ mod tests {
         assert!(h.store.system_played(second).unwrap());
         assert_eq!(h.store.dropped_ms(first).unwrap(), 800);
         assert_eq!(h.store.dropped_ms(second).unwrap(), 0, "nothing more");
+    }
+
+    #[test]
+    fn a_meeting_is_on_headphones_only_when_it_never_played_on_speakers() {
+        let mut h = working();
+        h.coordinator.backend.route = OutputRoute::Headphones;
+        let worn = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(worn));
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.store.output_route(worn).unwrap(), OutputRoute::Headphones);
+
+        // Headphones taken off for a minute, then put back.
+        let mixed = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.backend.route = OutputRoute::Speakers;
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(mixed));
+        h.coordinator.backend.route = OutputRoute::Headphones;
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(mixed));
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.store.output_route(mixed).unwrap(), OutputRoute::Speakers);
+    }
+
+    #[test]
+    fn each_part_keeps_where_it_played_sound() {
+        let mut h = working();
+        let first = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.backend.route = OutputRoute::Headphones;
+        h.clock.advance(3 * HOUR);
+        assert!(h.coordinator.tick(first));
+        let second = recording_id(&h);
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(first));
+        h.coordinator.stop().unwrap();
+
+        assert_eq!(h.store.output_route(first).unwrap(), OutputRoute::Speakers);
+        assert_eq!(
+            h.store.output_route(second).unwrap(),
+            OutputRoute::Headphones
+        );
     }
 
     #[test]

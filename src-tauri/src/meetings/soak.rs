@@ -35,6 +35,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 use super::analysis::{AnalysisRequest, AnalyzeFuture, Analyzer, AnalyzerOutcome, HelperAnalyzer};
+use super::capture::route::OutputRoute;
 use super::capture::{Feeder, TrackWriter};
 use super::coordinator::{
     self, CaptureBackend, Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier, Rotation,
@@ -249,6 +250,11 @@ impl CaptureBackend for PushedAudio {
 
     fn keep_awake(&self) -> Option<Box<dyn Send>> {
         None
+    }
+
+    /// The dialogue's microphone holds the echo built-in speakers give.
+    fn output_route(&self) -> OutputRoute {
+        OutputRoute::Speakers
     }
 }
 
