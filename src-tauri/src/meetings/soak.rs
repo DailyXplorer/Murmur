@@ -529,7 +529,7 @@ fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf
 
 /// What the fake Codex answers, and when.
 struct Answers {
-    /// The hash of each request's body, in order.
+    /// The hash of each request's audio, in order.
     requests: Mutex<Vec<u64>>,
     /// Requests past this many wait until it is lifted.
     hold_after: Mutex<Option<usize>>,
@@ -614,8 +614,9 @@ fn answer(stream: TcpStream, answers: &Answers) {
     let Some(body) = read_body(&mut reader) else {
         return;
     };
+    let wav = uploaded_wav(&body).expect("a transcription request uploads a WAV");
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    body.hash(&mut hasher);
+    wav.hash(&mut hasher);
     let piece = hasher.finish();
     let number = {
         let mut requests = answers.requests.lock().unwrap();
@@ -631,13 +632,22 @@ fn answer(stream: TcpStream, answers: &Answers) {
             .unwrap(),
     );
     std::thread::sleep(answers.delay);
-    let text = serde_json::json!({ "text": piece_text(piece, body.len()) }).to_string();
+    let text = serde_json::json!({ "text": piece_text(piece, wav.len()) }).to_string();
     let mut stream = stream;
     let _ = write!(
         stream,
         "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{text}",
         text.len()
     );
+}
+
+/// The WAV a transcription request uploads, which identifies the piece. The
+/// rest of the body differs at each request: reqwest draws a new multipart
+/// boundary for each form.
+fn uploaded_wav(body: &[u8]) -> Option<&[u8]> {
+    let start = body.windows(4).position(|window| window == b"RIFF")?;
+    let size: [u8; 4] = body.get(start + 4..start + 8)?.try_into().ok()?;
+    body.get(start..start + 8 + u32::from_le_bytes(size) as usize)
 }
 
 /// About as many words as a track of half a dialogue holds in a piece of
@@ -661,6 +671,35 @@ fn piece_text(piece: u64, bytes: usize) -> String {
 fn piece_of(text: &str) -> Option<u64> {
     let tag = text.strip_prefix("Piece ")?.get(..16)?;
     u64::from_str_radix(tag, 16).ok()
+}
+
+#[test]
+fn the_fake_codex_knows_a_piece_by_its_audio() {
+    let work = tempfile::tempdir().unwrap();
+    let codex = FakeCodex::start(Duration::ZERO, None);
+    let auth = auth_file(work.path());
+    let send = |samples: &[f32]| {
+        let operation = ProcessingOperation::new(OperationId(1));
+        let text = tauri::async_runtime::block_on(crate::codex_transcribe::transcribe_at(
+            &codex.url,
+            Some(&auth),
+            samples,
+            Some("fr"),
+            1,
+            &operation,
+        ))
+        .unwrap();
+        piece_of(&text).unwrap()
+    };
+    let tone: Vec<f32> = (0..RATE as usize)
+        .map(|sample| (sample as f32 * 0.07).sin() * 0.4)
+        .collect();
+    let quieter: Vec<f32> = tone.iter().map(|sample| sample / 2.0).collect();
+
+    let piece = send(&tone);
+    assert_eq!(send(&tone), piece, "the same audio sent again");
+    assert_ne!(send(&quieter), piece, "other audio");
+    assert_eq!(codex.requests().len(), 3);
 }
 
 fn auth_file(dir: &Path) -> PathBuf {
@@ -819,19 +858,10 @@ fn process_until_killed(
     store: &MeetingsStore,
     id: i64,
     done_share: f64,
-) -> HashSet<u64> {
+) -> Vec<u64> {
     let mut running = spawn(exe, child);
-    let done = |store: &MeetingsStore| -> Option<HashSet<u64>> {
-        let chunks = store.chunks(id).ok()?;
-        let speech = chunks
-            .iter()
-            .filter(|chunk| chunk.status != ChunkStatus::Silent)
-            .count();
-        let done: HashSet<u64> = chunks
-            .iter()
-            .filter(|chunk| chunk.status == ChunkStatus::Done)
-            .filter_map(|chunk| piece_of(chunk.text.as_deref()?))
-            .collect();
+    let done = |store: &MeetingsStore| -> Option<Vec<u64>> {
+        let (speech, done) = transcribed(store, id)?;
         (speech > 0 && done.len() as f64 >= (speech as f64 * done_share).max(1.0)).then_some(done)
     };
     loop {
@@ -846,6 +876,48 @@ fn process_until_killed(
     }
     running.kill();
     done(store).expect("the transcribed pieces stay saved")
+}
+
+/// How many pieces of meeting `id` hold speech, and the audio of those saved
+/// as transcribed.
+fn transcribed(store: &MeetingsStore, id: i64) -> Option<(usize, Vec<u64>)> {
+    let chunks = store.chunks(id).ok()?;
+    let speech = chunks
+        .iter()
+        .filter(|chunk| chunk.status != ChunkStatus::Silent)
+        .count();
+    let done = chunks
+        .iter()
+        .filter(|chunk| chunk.status == ChunkStatus::Done)
+        .filter_map(|chunk| piece_of(chunk.text.as_deref()?))
+        .collect();
+    Some((speech, done))
+}
+
+/// How many times a relaunch sent Codex a piece already transcribed before
+/// it: `sent` sends of the audio in `done_before`, beyond the pieces of that
+/// audio still to do. Counted per audio, as two pieces can hold the same.
+fn sent_again(done_before: &[u64], sent: &[u64], done_after: &[u64]) -> usize {
+    let count = |pieces: &[u64], piece: u64| pieces.iter().filter(|&&other| other == piece).count();
+    done_before
+        .iter()
+        .copied()
+        .collect::<HashSet<u64>>()
+        .into_iter()
+        .map(|piece| {
+            (count(done_before, piece) + count(sent, piece)).saturating_sub(count(done_after, piece))
+        })
+        .sum()
+}
+
+#[test]
+fn a_piece_sent_again_after_its_transcription_is_counted() {
+    // Pieces 1 and 2 were done, 3 and 4 were left.
+    assert_eq!(sent_again(&[1, 2], &[3, 4], &[1, 2, 3, 4]), 0);
+    assert_eq!(sent_again(&[1, 2], &[3, 1, 4], &[1, 2, 3, 4]), 1);
+    // Two pieces of the same audio, one done before: the other is still due.
+    assert_eq!(sent_again(&[7], &[7], &[7, 7]), 0);
+    assert_eq!(sent_again(&[7], &[7, 7], &[7, 7]), 1);
 }
 
 /// What one meeting ended as.
@@ -988,9 +1060,11 @@ fn a_killed_meeting_is_recovered_and_processed_at_relaunch() {
         [id],
         "the interrupted meeting is processed"
     );
-    let resent: Vec<u64> = codex.requests()[sent_before..].to_vec();
-    assert!(
-        resent.iter().all(|piece| !done.contains(piece)),
+    let sent = &codex.requests()[sent_before..];
+    let (_, done_after) = transcribed(&store, id).unwrap();
+    assert_eq!(
+        sent_again(&done, sent, &done_after),
+        0,
         "a done piece was sent again"
     );
     let meeting = outcome(&store, id);
@@ -1244,7 +1318,8 @@ fn meetings_soak() {
     let sent_before = codex.requests().len();
     let processed_c: Processed = spawn(&exe, &child_b).finish();
     let sent_c = codex.requests()[sent_before..].to_vec();
-    let resent = sent_c.iter().filter(|piece| done_c.contains(piece)).count();
+    let (_, done_after_c) = transcribed(&store_b, b.id).unwrap();
+    let resent = sent_again(&done_c, &sent_c, &done_after_c);
     let outcome_c = outcome(&store_b, b.id);
 
     let analysis_a = stage_seconds(&processed_a, "analysis");
@@ -1324,7 +1399,7 @@ fn meetings_soak() {
         if real_codex {
             "the real session for run A, the fake one for C"
         } else {
-            "a local fake that answers each piece after 2 s with about as many words as it holds, so alignment and echo removal work on text that does not match the audio"
+            "a local fake that answers each piece after 2 s with about as many words as it holds, so alignment and echo removal work on text that does not match the audio; it tags each answer with a hash of the piece's WAV, which tells the pieces sent again"
         }
     ));
     line(String::new());
