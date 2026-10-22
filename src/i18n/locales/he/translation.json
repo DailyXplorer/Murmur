@@ -323,7 +323,14 @@
       "noSpeech": "לא נמצא דיבור בהקלטה.",
       "cleanupFailed": "ניקוי הבינה המלאכותית לא היה זמין, ולכן הודבק התמלול הגולמי.",
       "showOriginal": "הצג את התמלול המקורי",
-      "hideOriginal": "הסתר את התמלול המקורי"
+      "hideOriginal": "הסתר את התמלול המקורי",
+      "fallback": {
+        "model_not_ready": "תומלל בענן: המודל המקומי לא היה מוכן.",
+        "local_failed": "תומלל בענן: התמלול המקומי נכשל.",
+        "language_not_supported": "תומלל בענן: השפה הזו לא נתמכת ב-Mac הזה.",
+        "cloud_limit_reached": "תומלל ב-Mac הזה: הגעת למגבלת ChatGPT.",
+        "cloud_failed": "תומלל ב-Mac הזה: ChatGPT לא היה זמין."
+      }
     },
     "debug": {
       "title": "ניפוי שגיאות",
@@ -427,9 +434,10 @@
         "description": "הצג הערות גרסה לאחר עדכוני Murmur"
       },
       "modelLicences": {
-        "description": "רישיונות המודלים לזיהוי דוברים",
+        "description": "הרישיונות של מודלי הדיבור שפועלים במכשיר",
         "button": "הצגת הרישיונות"
-      }
+      },
+      "parakeet": "התמלול המקומי משתמש ב-NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "תמלול",
@@ -439,14 +447,15 @@
       "statusUnavailable": "הסטטוס אינו זמין",
       "missing": "לא מחובר",
       "groups": {
-        "service": "שירות",
         "processing": "עיבוד טקסט",
-        "output": "פלט"
+        "output": "פלט",
+        "engine": "איך Murmur מתמלל"
       },
       "sessionExpired": "פג תוקף ההתחברות, התחבר מחדש ב-Codex",
       "aiCleanup": {
         "title": "ניקוי ועיצוב בבינה מלאכותית",
-        "description": "מסיר מילות מילוי, משאיר רק את הניסוח הסופי כשאתם מתקנים את עצמכם, מתקן פיסוק ומעצב רשימות ומעברי שורה מוכתבים. לעולם אינו מתרגם או משכתב. אם הוא נכשל או לוקח יותר מדי זמן, התמלול הגולמי מודבק."
+        "description": "מסיר מילות מילוי, משאיר רק את הניסוח הסופי כשאתם מתקנים את עצמכם, מתקן פיסוק ומעצב רשימות ומעברי שורה מוכתבים. לעולם אינו מתרגם או משכתב. אם הוא נכשל או לוקח יותר מדי זמן, התמלול הגולמי מודבק.",
+        "needsAccount": "יש לחבר את ChatGPT כדי להשתמש בניקוי בעזרת AI."
       },
       "windowNames": {
         "title": "שמות מהחלון הפעיל",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "מצב לחישה",
         "description": "מגביר עוד יותר את הרגישות לדיבור שקט מאוד ומודיע לניקוי הבינה המלאכותית שהדיבור עשוי להיות חלש. שקט ורעש רקע לעולם אינם מוגברים."
+      },
+      "engine": {
+        "local": {
+          "title": "ב-Mac הזה",
+          "description": "25 שפות אירופיות. השמע נשאר ב-Mac הזה."
+        },
+        "cloud": {
+          "title": "בענן",
+          "description": "יותר שפות, משתמש במגבלות של חשבון ה-ChatGPT."
+        },
+        "os_too_old": "תמלול מקומי דורש macOS 15 ומעלה.",
+        "unsupported": "תמלול מקומי דורש Mac עם שבב Apple.",
+        "error": "לא ניתן היה לשנות את אופן התמלול."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "מודל זיהוי הדיבור של NVIDIA. הוא יורד פעם אחת מ-Hugging Face ופועל ב-Mac הזה.",
+        "meetings": "משמש גם את הפגישות כדי להבחין בין דוברים.",
+        "missing": "לא הורד",
+        "downloading": "מוריד… {{done}} מתוך {{total}}",
+        "preparing": "מכין עבור ה-Mac הזה… (כ-15 שניות, רק בפעם הראשונה)",
+        "ready": "מוכן · {{size}}",
+        "download": "הורדה ({{size}})",
+        "retry": "ניסיון חוזר",
+        "delete": "מחיקה",
+        "error": "לא ניתן היה לעדכן את המודל המקומי.",
+        "failed": {
+          "no_internet": "אין חיבור לאינטרנט. ההורדה תמשיך מהמקום שבו נעצרה.",
+          "server_unavailable": "שרת ההורדה לא מגיב. אפשר לנסות שוב מאוחר יותר.",
+          "damaged": "הקובץ שהורד פגום. אפשר לנסות שוב.",
+          "not_enough_space": "אין מספיק מקום: נדרשים {{needed}}, פנויים {{free}}.",
+          "disk": "לא ניתן היה לשמור את המודל ב-Mac הזה.",
+          "prepare_failed": "המודל הורד אבל לא נטען ב-Mac הזה."
+        },
+        "deleteDialog": {
+          "title": "למחוק את המודל המקומי?",
+          "withAccount": "ההכתבה תשתמש בענן עד שהמודל יורד שוב.",
+          "withoutAccount": "לא תהיה אפשרות להכתיב עד שהמודל יורד שוב או ש-ChatGPT יחובר.",
+          "meetings": "בפגישות יוצג דובר אחד לכל מקור שמע.",
+          "confirm": "מחיקת המודל"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "אופציונלי: חיבור מאפשר ניקוי בעזרת AI ושפות נוספות."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "רישיונות המודלים",
       "licencesNote": "המודלים מורדים מ־Hugging Face בשימוש הראשון. Murmur לא כולל אותם.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (תזמון מילים): NVIDIA, CC BY 4.0. המרה ל־Core ML מאת Fluid Inference.",
+        "parakeet": "זיהוי דיבור: NVIDIA Parakeet TDT 0.6B v3 מאת NVIDIA, ברישיון CC BY 4.0. הומר ל-Core ML על ידי Fluid Inference (שבב Apple) ול-GGUF של 8 ביט על ידי handy-computer (Mac עם Intel).",
         "diarization": "הפרדת דוברים Community-1: pyannote, CC BY 4.0, עם WeSpeaker ו־BUT Speech@FIT. המרה מותאמת ל־Core ML מאת Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, רישיון Apache 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "לתמלל את הפגישה מחדש?",
         "description": "Codex יתמלל את ההקלטה מחדש, והתמלול והסיכום יוחלפו. כותרת שבחרת תישאר."
       }
-    }
+    },
+    "localFallback": "Codex לא היה זמין במשך {{duration}} מהפגישה הזו, ולכן החלק הזה תומלל ב-Mac הזה."
+  },
+  "localSttCard": {
+    "title": "חדש: תמלול מקומי, בלי מכסה.",
+    "description": "תמלול ב-Mac הזה ב-25 שפות אירופיות. השמע נשאר ב-Mac הזה.",
+    "useLocal": "שימוש בתמלול מקומי",
+    "downloading": "מוריד… {{percent}}%. בסיום Murmur יעבור ל-Mac הזה.",
+    "dismiss": "סגירה",
+    "error": "לא ניתן היה להפעיל תמלול מקומי.",
+    "switched": "התמלול מתבצע עכשיו ב-Mac הזה.",
+    "switchedDescription": "אפשר לשנות זאת ב{{section}}."
   }
 }

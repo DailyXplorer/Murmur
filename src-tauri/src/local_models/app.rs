@@ -6,10 +6,13 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_specta::Event;
 
-use super::{manifest, Host, LocalModelStatus, LocalModels, PrepareFuture, Prepared};
+use super::{
+    manifest, Host, LocalModelState, LocalModelStatus, LocalModels, PrepareFuture, Prepared,
+    SwitchedToLocal,
+};
 use crate::meetings::helper::{self, Ended};
 use crate::settings::{get_settings, write_settings};
 use crate::ProcessingOperation;
@@ -23,8 +26,12 @@ struct AppHost {
 
 impl Host for AppHost {
     fn notify(&self, status: LocalModelStatus) {
+        let ready = status.state == LocalModelState::Ready;
         if let Err(error) = status.emit(&self.app) {
             log::error!("Failed to emit the local model status: {error}");
+        }
+        if ready {
+            switch_if_asked(&self.app, true);
         }
     }
 
@@ -68,6 +75,24 @@ impl Host for AppHost {
                 }
             }
         })
+    }
+}
+
+/// Moves dictation to this Mac if the user asked for it once the model is
+/// ready, and tells the windows.
+pub fn switch_if_asked(app: &AppHandle, model_ready: bool) {
+    let mut settings = get_settings(app);
+    if !settings.switch_to_local_if_asked(model_ready) {
+        return;
+    }
+    write_settings(app, settings);
+    log::info!("Dictation switched to the local engine");
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({"setting": "transcription_engine"}),
+    );
+    if let Err(error) = (SwitchedToLocal {}).emit(app) {
+        log::error!("Failed to emit the switch to the local engine: {error}");
     }
 }
 

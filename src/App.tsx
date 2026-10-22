@@ -25,7 +25,8 @@ import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { WhatsNewGate } from "./components/whats-new";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
-import { commands } from "@/bindings";
+import { commands, events } from "@/bindings";
+import { LocalSttCard } from "./components/LocalSttCard";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 /** `returning`: setup was finished before, and a permission went missing
@@ -225,6 +226,19 @@ function App() {
     };
   }, [t]);
 
+  useEffect(() => {
+    const unlisten = events.switchedToLocal.listen(() => {
+      toast.success(t("localSttCard.switched"), {
+        description: t("localSttCard.switchedDescription", {
+          section: t("sidebar.transcription"),
+        }),
+      });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [t]);
+
   const checkOnboardingStatus = async () => {
     try {
       const settingsResult = await commands.getAppSettings();
@@ -339,6 +353,8 @@ function App() {
             <div className="flex-1 overflow-y-auto">
               <div className="flex flex-col items-center p-4 gap-4">
                 <AccessibilityPermissions />
+                {(currentSection === "general" ||
+                  currentSection === "transcription") && <LocalSttCard />}
                 {renderSettingsContent(currentSection)}
               </div>
             </div>

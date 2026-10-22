@@ -14,7 +14,7 @@ mod pinned;
 pub mod verify;
 
 pub use crate::meetings::helper::AnalysisSupport;
-pub use app::init;
+pub use app::{init, switch_if_asked};
 
 use serde::Serialize;
 use specta::Type;
@@ -60,7 +60,14 @@ pub struct LocalModelStatus {
     pub state: LocalModelState,
     /// What the download takes on this Mac.
     pub size_bytes: u64,
+    /// What a download that stopped, missing or failed, left on this Mac.
+    /// Deleting the models frees it.
+    pub kept_bytes: u64,
 }
+
+/// Dictation moved to this Mac, as the user asked, once the model was ready.
+#[derive(Serialize, Debug, Clone, Type, tauri_specta::Event)]
+pub struct SwitchedToLocal {}
 
 pub enum Prepared {
     Done,
@@ -134,9 +141,15 @@ impl LocalModels {
     }
 
     pub fn status(&self) -> LocalModelStatus {
+        let state = self.state.borrow().clone();
+        let kept_bytes = match state {
+            LocalModelState::Missing | LocalModelState::Failed { .. } => dir_bytes(&self.dir),
+            _ => 0,
+        };
         LocalModelStatus {
-            state: self.state.borrow().clone(),
+            state,
             size_bytes: manifest::total_bytes(self.sources),
+            kept_bytes,
         }
     }
 
@@ -392,6 +405,21 @@ impl LocalModels {
         }
         Ok(())
     }
+}
+
+/// The size of every file under `dir`, 0 when it is absent.
+fn dir_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.metadata() {
+            Ok(metadata) if metadata.is_dir() => dir_bytes(&entry.path()),
+            Ok(metadata) => metadata.len(),
+            Err(_) => 0,
+        })
+        .sum()
 }
 
 /// The files not yet on disk with the right content. A wrong file is

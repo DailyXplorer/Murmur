@@ -446,6 +446,19 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         />
       )}
       {meeting.system_audio_silent && <SystemAudioNotice />}
+      {meeting.local_fallback_ms > 0 && (
+        <p className="px-1 text-xs text-text/60">
+          {t("meetings.localFallback", {
+            duration: new Intl.NumberFormat(i18n.language, {
+              style: "unit",
+              unit: "minute",
+              unitDisplay: "long",
+            }).format(
+              Math.max(1, Math.round(meeting.local_fallback_ms / 60_000)),
+            ),
+          })}
+        </p>
+      )}
       <Tabs<Tab>
         idPrefix={TABS_ID}
         label={t("meetings.view.tabs.label")}

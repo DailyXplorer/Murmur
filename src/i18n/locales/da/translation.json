@@ -323,7 +323,14 @@
       "noSpeech": "Der blev ikke fundet tale i optagelsen.",
       "cleanupFailed": "AI-oprydningen var ikke tilgængelig, så den rå transskription blev indsat.",
       "showOriginal": "Vis oprindelig transskription",
-      "hideOriginal": "Skjul oprindelig transskription"
+      "hideOriginal": "Skjul oprindelig transskription",
+      "fallback": {
+        "model_not_ready": "Transskriberet i skyen: den lokale model var ikke klar.",
+        "local_failed": "Transskriberet i skyen: den lokale transskription mislykkedes.",
+        "language_not_supported": "Transskriberet i skyen: dette sprog understøttes ikke på denne Mac.",
+        "cloud_limit_reached": "Transskriberet på denne Mac: ChatGPT-grænsen var nået.",
+        "cloud_failed": "Transskriberet på denne Mac: ChatGPT var ikke tilgængelig."
+      }
     },
     "debug": {
       "title": "Fejlfinding",
@@ -427,9 +434,10 @@
         "button": "Donér"
       },
       "modelLicences": {
-        "description": "Licenser for modellerne til talergenkendelse",
+        "description": "Licenser for talemodellerne på enheden",
         "button": "Vis licenser"
-      }
+      },
+      "parakeet": "Lokal transskription bruger NVIDIA Parakeet (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transskription",
@@ -439,14 +447,15 @@
       "statusUnavailable": "Status er ikke tilgængelig",
       "missing": "Ikke logget ind",
       "groups": {
-        "service": "Tjeneste",
         "processing": "Tekstbehandling",
-        "output": "Output"
+        "output": "Output",
+        "engine": "Sådan transskriberer Murmur"
       },
       "sessionExpired": "Sessionen er udløbet, log ind igen i Codex",
       "aiCleanup": {
         "title": "AI-oprydning og formatering",
-        "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Den oversætter eller omskriver aldrig. Hvis den fejler eller tager for lang tid, indsættes den rå transskription."
+        "description": "Fjerner fyldord, beholder kun din endelige formulering, når du retter dig selv, retter tegnsætning og formaterer lister og dikterede linjeskift. Den oversætter eller omskriver aldrig. Hvis den fejler eller tager for lang tid, indsættes den rå transskription.",
+        "needsAccount": "Forbind ChatGPT for at bruge AI-oprydning."
       },
       "windowNames": {
         "title": "Navne fra det aktive vindue",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "Hviskefunktion",
         "description": "Øger følsomheden yderligere for meget lav tale og fortæller AI-oprydningen, at talen kan være svag. Stilhed og baggrundsstøj forstærkes aldrig."
+      },
+      "engine": {
+        "local": {
+          "title": "På denne Mac",
+          "description": "25 europæiske sprog. Din lyd bliver på denne Mac."
+        },
+        "cloud": {
+          "title": "I skyen",
+          "description": "Flere sprog, bruger din ChatGPT-kontos grænser."
+        },
+        "os_too_old": "Lokal transskription kræver macOS 15 eller nyere.",
+        "unsupported": "Lokal transskription kræver en Mac med Apple silicon.",
+        "error": "Kunne ikke ændre, hvordan Murmur transskriberer."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIAs model til talegenkendelse. Den hentes én gang fra Hugging Face og kører på denne Mac.",
+        "meetings": "Bruges også af Møder til at skelne mellem talere.",
+        "missing": "Ikke hentet",
+        "downloading": "Henter… {{done}} af {{total}}",
+        "preparing": "Forbereder til denne Mac… (ca. 15 sekunder, kun første gang)",
+        "ready": "Klar · {{size}}",
+        "download": "Hent ({{size}})",
+        "retry": "Prøv igen",
+        "delete": "Slet",
+        "error": "Kunne ikke opdatere den lokale model.",
+        "failed": {
+          "no_internet": "Ingen internetforbindelse. Overførslen fortsætter, hvor den stoppede.",
+          "server_unavailable": "Serveren svarer ikke. Prøv igen senere.",
+          "damaged": "Den hentede fil er beskadiget. Prøv igen.",
+          "not_enough_space": "Ikke nok plads: {{needed}} kræves, {{free}} ledig.",
+          "disk": "Modellen kunne ikke gemmes på denne Mac.",
+          "prepare_failed": "Modellen blev hentet, men kunne ikke indlæses på denne Mac."
+        },
+        "deleteDialog": {
+          "title": "Slet den lokale model?",
+          "withAccount": "Diktering bruger skyen, indtil du henter den igen.",
+          "withoutAccount": "Du kan ikke diktere, før du henter den igen eller forbinder ChatGPT.",
+          "meetings": "Møder viser så én taler pr. lydkilde.",
+          "confirm": "Slet model"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Valgfrit: forbind for AI-oprydning og flere sprog."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "Modellicenser",
       "licencesNote": "Modellerne hentes fra Hugging Face første gang. Murmur indeholder dem ikke.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (ordtider): NVIDIA, CC BY 4.0. Core ML-konvertering af Fluid Inference.",
+        "parakeet": "Talegenkendelse: NVIDIA Parakeet TDT 0.6B v3 af NVIDIA, CC BY 4.0. Konverteret til Core ML af Fluid Inference (Apple silicon) og til 8-bit GGUF af handy-computer (Intel-Mac).",
         "diarization": "Talerdiarisering Community-1: pyannote, CC BY 4.0, med WeSpeaker og BUT Speech@FIT. Ændret Core ML-konvertering af Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache-licens 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "Transskribér dette møde igen?",
         "description": "Codex transskriberer optagelsen igen, og transskriptionen og resuméet erstattes. En titel, du har valgt, bevares."
       }
-    }
+    },
+    "localFallback": "Codex var utilgængelig i {{duration}} af mødet, så den del blev transskriberet på denne Mac."
+  },
+  "localSttCard": {
+    "title": "Nyt: lokal transskription, uden kvote.",
+    "description": "Transskriber på denne Mac på 25 europæiske sprog. Din lyd bliver på denne Mac.",
+    "useLocal": "Brug lokal transskription",
+    "downloading": "Henter… {{percent}} %. Murmur skifter til denne Mac, når den er færdig.",
+    "dismiss": "Luk",
+    "error": "Kunne ikke starte lokal transskription.",
+    "switched": "Der transskriberes nu på denne Mac.",
+    "switchedDescription": "Du kan ændre det under {{section}}."
   }
 }

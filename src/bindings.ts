@@ -559,6 +559,37 @@ async completeOnboarding() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Picking this Mac starts the local model's download if it is not there.
+ */
+async changeTranscriptionEngineSetting(engine: Engine) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_transcription_engine_setting", { engine }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The one-time card's Download: dictation moves to this Mac once the local
+ * model is ready, at once if it already is.
+ */
+async switchToLocalWhenReady() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_to_local_when_ready") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeLocalSttCardDismissedSetting(dismissed: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_local_stt_card_dismissed_setting", { dismissed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<Result<PaginatedHistory, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_history_entries", { cursor, limit }) };
@@ -866,14 +897,16 @@ insightsUpdated: InsightsUpdated,
 localModelStatus: LocalModelStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
-meetingsUpdated: MeetingsUpdated
+meetingsUpdated: MeetingsUpdated,
+switchedToLocal: SwitchedToLocal
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
 localModelStatus: "local-model-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
-meetingsUpdated: "meetings-updated"
+meetingsUpdated: "meetings-updated",
+switchedToLocal: "switched-to-local"
 })
 
 /** user-defined constants **/
@@ -960,7 +993,12 @@ local_stt_card_dismissed?: boolean;
 /**
  * The user asked for the local model, so its download resumes at launch.
  */
-local_model_download_wanted?: boolean }
+local_model_download_wanted?: boolean; 
+/**
+ * The user asked to dictate on this Mac as soon as the local model is
+ * ready.
+ */
+switch_to_local_when_ready?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1123,7 +1161,12 @@ export type LocalModelStatus = { state: LocalModelState;
 /**
  * What the download takes on this Mac.
  */
-size_bytes: number }
+size_bytes: number; 
+/**
+ * What a download that stopped, missing or failed, left on this Mac.
+ * Deleting the models frees it.
+ */
+kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
@@ -1323,6 +1366,10 @@ export type SummaryStatus =
  * Not written yet: it is once the whole transcript is.
  */
 "pending" | "ready" | "failed"
+/**
+ * Dictation moved to this Mac, as the user asked, once the model was ready.
+ */
+export type SwitchedToLocal = Record<string, never>
 /**
  * The "System Audio Recording" permission, as macOS reports it now.
  */

@@ -334,6 +334,23 @@ pub struct AppSettings {
     /// The user asked for the local model, so its download resumes at launch.
     #[serde(default)]
     pub local_model_download_wanted: bool,
+    /// The user asked to dictate on this Mac as soon as the local model is
+    /// ready.
+    #[serde(default)]
+    pub switch_to_local_when_ready: bool,
+}
+
+impl AppSettings {
+    /// Moves dictation to this Mac if the user asked for it and the model is
+    /// ready. Returns whether it moved.
+    pub fn switch_to_local_if_asked(&mut self, model_ready: bool) -> bool {
+        let switch = self.switch_to_local_when_ready && model_ready;
+        if switch {
+            self.switch_to_local_when_ready = false;
+            self.transcription_engine = Engine::Local;
+        }
+        switch
+    }
 }
 
 fn default_meetings_enabled() -> bool {
@@ -557,6 +574,7 @@ pub fn get_default_settings() -> AppSettings {
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
+        switch_to_local_when_ready: false,
     }
 }
 
@@ -1089,6 +1107,26 @@ mod tests {
         );
         assert!(!settings.local_stt_card_dismissed);
         assert!(!settings.local_model_download_wanted);
+    }
+
+    #[test]
+    fn a_requested_switch_to_local_waits_for_the_model_and_happens_once() {
+        let mut settings = get_default_settings();
+        settings.transcription_engine = Engine::Cloud;
+        settings.switch_to_local_when_ready = true;
+
+        assert!(!settings.switch_to_local_if_asked(false));
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
+        assert!(settings.switch_to_local_when_ready, "still waiting");
+
+        assert!(settings.switch_to_local_if_asked(true));
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert!(!settings.switch_to_local_when_ready);
+
+        // A later choice of the cloud is not undone by the next ready model.
+        settings.transcription_engine = Engine::Cloud;
+        assert!(!settings.switch_to_local_if_asked(true));
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
     }
 
     /// Every field must survive a partial store: a missing key must never fail

@@ -625,6 +625,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
             commands::transcription::complete_onboarding,
+            commands::transcription::change_transcription_engine_setting,
+            commands::transcription::switch_to_local_when_ready,
+            commands::transcription::change_local_stt_card_dismissed_setting,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
@@ -666,7 +669,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             meetings::MeetingStateChanged,
             meetings::MeetingsUpdated,
             meetings::processor::MeetingProgress,
-            local_models::LocalModelStatus
+            local_models::LocalModelStatus,
+            local_models::SwitchedToLocal
         ])
 }
 

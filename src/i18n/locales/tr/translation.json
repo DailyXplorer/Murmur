@@ -323,7 +323,14 @@
       "noSpeech": "Kayıtta konuşma bulunamadı.",
       "cleanupFailed": "Yapay zekâ temizlemesi kullanılamadı, bu yüzden ham döküm yapıştırıldı.",
       "showOriginal": "Orijinal dökümü göster",
-      "hideOriginal": "Orijinal dökümü gizle"
+      "hideOriginal": "Orijinal dökümü gizle",
+      "fallback": {
+        "model_not_ready": "Bulutta yazıya döküldü: yerel model hazır değildi.",
+        "local_failed": "Bulutta yazıya döküldü: yerel yazıya dökme başarısız oldu.",
+        "language_not_supported": "Bulutta yazıya döküldü: bu dil bu Mac'te desteklenmiyor.",
+        "cloud_limit_reached": "Bu Mac'te yazıya döküldü: ChatGPT limitine ulaşılmıştı.",
+        "cloud_failed": "Bu Mac'te yazıya döküldü: ChatGPT kullanılamıyordu."
+      }
     },
     "debug": {
       "title": "Hata Ayıklama",
@@ -427,9 +434,10 @@
         "description": "Murmur güncellemelerinden sonra sürüm notlarını göster"
       },
       "modelLicences": {
-        "description": "Konuşmacı algılama modellerinin lisansları",
+        "description": "Cihazda çalışan konuşma modellerinin lisansları",
         "button": "Lisansları göster"
-      }
+      },
+      "parakeet": "Yerel yazıya dökme NVIDIA Parakeet kullanır (CC BY 4.0)."
     },
     "transcription": {
       "title": "Transkripsiyon",
@@ -439,14 +447,15 @@
       "statusUnavailable": "Durum kullanılamıyor",
       "missing": "Oturum açılmadı",
       "groups": {
-        "service": "Hizmet",
         "processing": "Metin işleme",
-        "output": "Çıktı"
+        "output": "Çıktı",
+        "engine": "Murmur nasıl yazıya döker"
       },
       "sessionExpired": "Oturum süresi doldu, Codex'te yeniden oturum açın",
       "aiCleanup": {
         "title": "Yapay zekâ ile temizleme ve biçimlendirme",
-        "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ile dikte edilen satır sonlarını biçimlendirir. Asla çevirmez veya yeniden yazmaz. Başarısız olursa ya da çok uzun sürerse ham transkript yapıştırılır."
+        "description": "Dolgu sözcüklerini kaldırır, kendinizi düzelttiğinizde yalnızca son ifadenizi tutar, noktalamayı düzeltir ve listeleri ile dikte edilen satır sonlarını biçimlendirir. Asla çevirmez veya yeniden yazmaz. Başarısız olursa ya da çok uzun sürerse ham transkript yapıştırılır.",
+        "needsAccount": "Yapay zekâ temizliğini kullanmak için ChatGPT'yi bağlayın."
       },
       "windowNames": {
         "title": "Etkin penceredeki adlar",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "Fısıltı modu",
         "description": "Çok alçak ses için hassasiyeti daha da artırır ve yapay zekâ temizlemesine konuşmanın zayıf olabileceğini bildirir. Sessizlik ve arka plan gürültüsü asla yükseltilmez."
+      },
+      "engine": {
+        "local": {
+          "title": "Bu Mac'te",
+          "description": "25 Avrupa dili. Sesiniz bu Mac'te kalır."
+        },
+        "cloud": {
+          "title": "Bulutta",
+          "description": "Daha fazla dil, ChatGPT hesabınızın limitlerini kullanır."
+        },
+        "os_too_old": "Yerel yazıya dökme için macOS 15 veya üstü gerekir.",
+        "unsupported": "Yerel yazıya dökme için Apple silicon'lu bir Mac gerekir.",
+        "error": "Murmur'un yazıya dökme yöntemi değiştirilemedi."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA'nın konuşma tanıma modeli. Hugging Face'ten bir kez indirilir ve bu Mac'te çalışır.",
+        "meetings": "Toplantılar da konuşanları ayırt etmek için kullanır.",
+        "missing": "İndirilmedi",
+        "downloading": "İndiriliyor… {{done}} / {{total}}",
+        "preparing": "Bu Mac için hazırlanıyor… (yaklaşık 15 saniye, yalnızca ilk seferde)",
+        "ready": "Hazır · {{size}}",
+        "download": "İndir ({{size}})",
+        "retry": "Tekrar dene",
+        "delete": "Sil",
+        "error": "Yerel model güncellenemedi.",
+        "failed": {
+          "no_internet": "İnternet bağlantısı yok. İndirme kaldığı yerden devam edecek.",
+          "server_unavailable": "İndirme sunucusu yanıt vermiyor. Daha sonra tekrar deneyin.",
+          "damaged": "İndirilen dosya bozuk. Tekrar deneyin.",
+          "not_enough_space": "Yeterli alan yok: {{needed}} gerekli, {{free}} boş.",
+          "disk": "Model bu Mac'e kaydedilemedi.",
+          "prepare_failed": "Model indirildi ancak bu Mac'te yüklenemedi."
+        },
+        "deleteDialog": {
+          "title": "Yerel model silinsin mi?",
+          "withAccount": "Siz yeniden indirene kadar dikte bulutu kullanacak.",
+          "withoutAccount": "Yeniden indirene veya ChatGPT'yi bağlayana kadar dikte edemezsiniz.",
+          "meetings": "Toplantılar her ses kaynağı için tek konuşmacı gösterecek.",
+          "confirm": "Modeli sil"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "İsteğe bağlı: yapay zekâ temizliği ve daha fazla dil için bağlayın."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "Model lisansları",
       "licencesNote": "Modeller ilk kullanımda Hugging Face'ten indirilir. Murmur bunları içermez.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (kelime zamanlaması): NVIDIA, CC BY 4.0. Core ML dönüşümü: Fluid Inference.",
+        "parakeet": "Konuşma tanıma: NVIDIA'dan NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference tarafından Core ML'e (Apple silicon) ve handy-computer tarafından 8 bit GGUF'a (Intel Mac'ler) dönüştürüldü.",
         "diarization": "Konuşmacı ayrımı Community-1: pyannote, CC BY 4.0, WeSpeaker ve BUT Speech@FIT ile. Değiştirilmiş Core ML dönüşümü: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache Lisansı 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "Bu toplantı yeniden yazıya dökülsün mü?",
         "description": "Codex kaydı yeniden yazıya döker; döküm ve özet değiştirilir. Belirlediğiniz başlık korunur."
       }
-    }
+    },
+    "localFallback": "Codex bu toplantının {{duration}} boyunca kullanılamadı, bu yüzden o bölüm bu Mac'te yazıya döküldü."
+  },
+  "localSttCard": {
+    "title": "Yeni: yerel yazıya dökme, kota yok.",
+    "description": "Bu Mac'te 25 Avrupa dilinde yazıya dökün. Sesiniz bu Mac'te kalır.",
+    "useLocal": "Yerel yazıya dökmeyi kullan",
+    "downloading": "İndiriliyor… %{{percent}}. Bittiğinde Murmur bu Mac'e geçer.",
+    "dismiss": "Kapat",
+    "error": "Yerel yazıya dökme başlatılamadı.",
+    "switched": "Artık bu Mac'te yazıya dökülüyor.",
+    "switchedDescription": "Bunu {{section}} bölümünden değiştirebilirsiniz."
   }
 }

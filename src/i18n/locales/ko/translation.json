@@ -323,7 +323,14 @@
       "noSpeech": "녹음에서 음성을 찾지 못했습니다.",
       "cleanupFailed": "AI 정리를 사용할 수 없어 원본 전사본을 붙여 넣었습니다.",
       "showOriginal": "원본 전사본 보기",
-      "hideOriginal": "원본 전사본 숨기기"
+      "hideOriginal": "원본 전사본 숨기기",
+      "fallback": {
+        "model_not_ready": "클라우드에서 받아씀: 로컬 모델이 준비되지 않았습니다.",
+        "local_failed": "클라우드에서 받아씀: 로컬 받아쓰기에 실패했습니다.",
+        "language_not_supported": "클라우드에서 받아씀: 이 Mac에서는 이 언어를 지원하지 않습니다.",
+        "cloud_limit_reached": "이 Mac에서 받아씀: ChatGPT 한도에 도달했습니다.",
+        "cloud_failed": "이 Mac에서 받아씀: ChatGPT를 사용할 수 없었습니다."
+      }
     },
     "debug": {
       "title": "디버그",
@@ -427,9 +434,10 @@
         "description": "Murmur 업데이트 후 릴리스 노트를 표시합니다"
       },
       "modelLicences": {
-        "description": "화자 감지 모델의 라이선스",
+        "description": "기기에서 실행되는 음성 모델의 라이선스",
         "button": "라이선스 보기"
-      }
+      },
+      "parakeet": "로컬 받아쓰기는 NVIDIA Parakeet(CC BY 4.0)을 사용합니다."
     },
     "transcription": {
       "title": "받아쓰기",
@@ -439,14 +447,15 @@
       "statusUnavailable": "상태를 확인할 수 없음",
       "missing": "로그인하지 않음",
       "groups": {
-        "service": "서비스",
         "processing": "텍스트 처리",
-        "output": "출력"
+        "output": "출력",
+        "engine": "받아쓰기 방식"
       },
       "sessionExpired": "세션 만료됨, Codex에서 다시 로그인하세요",
       "aiCleanup": {
         "title": "AI 정리 및 서식",
-        "description": "군더더기 말을 제거하고, 말을 고쳐 말하면 마지막 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. 실패하거나 너무 오래 걸리면 원본 전사본이 붙여넣어집니다."
+        "description": "군더더기 말을 제거하고, 말을 고쳐 말하면 마지막 표현만 남기며, 문장 부호를 고치고 목록과 말로 한 줄바꿈을 서식에 맞게 정리합니다. 번역하거나 다시 쓰지 않습니다. 실패하거나 너무 오래 걸리면 원본 전사본이 붙여넣어집니다.",
+        "needsAccount": "AI 정리를 사용하려면 ChatGPT를 연결하세요."
       },
       "windowNames": {
         "title": "활성 윈도우의 이름",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "속삭임 모드",
         "description": "아주 작은 목소리를 위해 감도를 더 높이고, 음성이 약할 수 있다고 AI 정리에 알립니다. 무음과 배경 소음은 증폭하지 않습니다."
+      },
+      "engine": {
+        "local": {
+          "title": "이 Mac에서",
+          "description": "유럽 25개 언어. 오디오가 이 Mac 밖으로 나가지 않습니다."
+        },
+        "cloud": {
+          "title": "클라우드에서",
+          "description": "더 많은 언어를 지원하며 ChatGPT 계정의 사용 한도를 씁니다."
+        },
+        "os_too_old": "로컬 받아쓰기에는 macOS 15 이상이 필요합니다.",
+        "unsupported": "로컬 받아쓰기에는 Apple 실리콘 Mac이 필요합니다.",
+        "error": "받아쓰기 방식을 변경할 수 없습니다."
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA의 음성 인식 모델입니다. Hugging Face에서 한 번 다운로드하며 이 Mac에서 실행됩니다.",
+        "meetings": "회의에서도 화자를 구분하는 데 사용됩니다.",
+        "missing": "다운로드되지 않음",
+        "downloading": "다운로드 중… {{total}} 중 {{done}}",
+        "preparing": "이 Mac에 맞게 준비 중… (약 15초, 처음 한 번만)",
+        "ready": "준비됨 · {{size}}",
+        "download": "다운로드 ({{size}})",
+        "retry": "다시 시도",
+        "delete": "삭제",
+        "error": "로컬 모델을 업데이트할 수 없습니다.",
+        "failed": {
+          "no_internet": "인터넷에 연결되어 있지 않습니다. 다운로드는 멈춘 곳부터 다시 시작됩니다.",
+          "server_unavailable": "다운로드 서버가 응답하지 않습니다. 나중에 다시 시도하세요.",
+          "damaged": "다운로드한 파일이 손상되었습니다. 다시 시도하세요.",
+          "not_enough_space": "공간이 부족합니다: {{needed}} 필요, {{free}} 남음.",
+          "disk": "모델을 이 Mac에 저장할 수 없습니다.",
+          "prepare_failed": "모델을 다운로드했지만 이 Mac에서 불러올 수 없습니다."
+        },
+        "deleteDialog": {
+          "title": "로컬 모델을 삭제할까요?",
+          "withAccount": "다시 다운로드할 때까지 받아쓰기는 클라우드를 사용합니다.",
+          "withoutAccount": "다시 다운로드하거나 ChatGPT를 연결할 때까지 받아쓰기를 할 수 없습니다.",
+          "meetings": "회의에서는 오디오 소스마다 화자가 한 명으로 표시됩니다.",
+          "confirm": "모델 삭제"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "선택 사항: 연결하면 AI 정리와 더 많은 언어를 쓸 수 있습니다."
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "모델 라이선스",
       "licencesNote": "모델은 처음 사용할 때 Hugging Face에서 다운로드됩니다. Murmur에는 포함되어 있지 않습니다.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3(단어 타이밍): NVIDIA, CC BY 4.0. Core ML 변환: Fluid Inference.",
+        "parakeet": "음성 인식: NVIDIA의 NVIDIA Parakeet TDT 0.6B v3, CC BY 4.0. Fluid Inference가 Core ML로 변환(Apple 실리콘), handy-computer가 8비트 GGUF로 변환(Intel Mac).",
         "diarization": "화자 분리 Community-1: pyannote, CC BY 4.0, WeSpeaker 및 BUT Speech@FIT. 수정된 Core ML 변환: Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
       }
@@ -708,6 +762,17 @@
         "title": "이 회의를 다시 받아쓸까요?",
         "description": "Codex가 녹음을 다시 받아쓰고 녹취록과 요약이 교체됩니다. 직접 지정한 제목은 유지됩니다."
       }
-    }
+    },
+    "localFallback": "이 회의 중 {{duration}} 동안 Codex를 사용할 수 없어 그 부분은 이 Mac에서 받아썼습니다."
+  },
+  "localSttCard": {
+    "title": "새 기능: 로컬 받아쓰기, 사용 한도 없음.",
+    "description": "이 Mac에서 유럽 25개 언어를 받아쓸 수 있습니다. 오디오가 이 Mac 밖으로 나가지 않습니다.",
+    "useLocal": "로컬 받아쓰기 사용",
+    "downloading": "다운로드 중… {{percent}}%. 완료되면 Murmur가 이 Mac으로 전환합니다.",
+    "dismiss": "닫기",
+    "error": "로컬 받아쓰기를 시작할 수 없습니다.",
+    "switched": "이제 이 Mac에서 받아씁니다.",
+    "switchedDescription": "{{section}}에서 변경할 수 있습니다."
   }
 }

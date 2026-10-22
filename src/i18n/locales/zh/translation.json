@@ -323,7 +323,14 @@
       "noSpeech": "录音中未检测到语音。",
       "cleanupFailed": "AI 清理不可用，因此粘贴了原始转录文本。",
       "showOriginal": "显示原始转录",
-      "hideOriginal": "隐藏原始转录"
+      "hideOriginal": "隐藏原始转录",
+      "fallback": {
+        "model_not_ready": "已在云端转录：本地模型尚未就绪。",
+        "local_failed": "已在云端转录：本地转录失败。",
+        "language_not_supported": "已在云端转录：这台 Mac 不支持此语言。",
+        "cloud_limit_reached": "已在这台 Mac 上转录：已达到 ChatGPT 额度上限。",
+        "cloud_failed": "已在这台 Mac 上转录：ChatGPT 不可用。"
+      }
     },
     "debug": {
       "title": "调试",
@@ -427,9 +434,10 @@
         "description": "Murmur 更新后显示发行说明"
       },
       "modelLicences": {
-        "description": "发言人识别模型的许可",
+        "description": "在设备上运行的语音模型的许可证",
         "button": "查看许可"
-      }
+      },
+      "parakeet": "本地转录使用 NVIDIA Parakeet（CC BY 4.0）。"
     },
     "transcription": {
       "title": "转录",
@@ -439,14 +447,15 @@
       "statusUnavailable": "无法获取状态",
       "missing": "未登录",
       "groups": {
-        "service": "服务",
         "processing": "文本处理",
-        "output": "输出"
+        "output": "输出",
+        "engine": "转录方式"
       },
       "sessionExpired": "会话已过期，请在 Codex 中重新登录",
       "aiCleanup": {
         "title": "AI 清理与排版",
-        "description": "删除语气词，在你自我纠正时只保留最终说法，修正标点，并整理列表和口述的换行。绝不翻译或改写。如果失败或耗时过长，将粘贴原始转写文本。"
+        "description": "删除语气词，在你自我纠正时只保留最终说法，修正标点，并整理列表和口述的换行。绝不翻译或改写。如果失败或耗时过长，将粘贴原始转写文本。",
+        "needsAccount": "连接 ChatGPT 后才能使用 AI 整理。"
       },
       "windowNames": {
         "title": "当前窗口中的名称",
@@ -455,6 +464,51 @@
       "whisperMode": {
         "title": "耳语模式",
         "description": "进一步提高对极轻声音的灵敏度，并告知 AI 清理语音可能较弱。静音和背景噪音不会被放大。"
+      },
+      "engine": {
+        "local": {
+          "title": "在这台 Mac 上",
+          "description": "支持 25 种欧洲语言。音频不会离开这台 Mac。"
+        },
+        "cloud": {
+          "title": "在云端",
+          "description": "支持更多语言，使用你的 ChatGPT 账户额度。"
+        },
+        "os_too_old": "本地转录需要 macOS 15 或更高版本。",
+        "unsupported": "本地转录需要搭载 Apple 芯片的 Mac。",
+        "error": "无法更改转录方式。"
+      },
+      "localModel": {
+        "title": "Parakeet v3",
+        "description": "NVIDIA 的语音识别模型。从 Hugging Face 下载一次，在这台 Mac 上运行。",
+        "meetings": "会议也用它来区分发言人。",
+        "missing": "未下载",
+        "downloading": "正在下载… {{done}}/{{total}}",
+        "preparing": "正在为这台 Mac 做准备…（约 15 秒，仅首次）",
+        "ready": "已就绪 · {{size}}",
+        "download": "下载（{{size}}）",
+        "retry": "重试",
+        "delete": "删除",
+        "error": "无法更新本地模型。",
+        "failed": {
+          "no_internet": "没有网络连接。下载会从中断处继续。",
+          "server_unavailable": "下载服务器没有响应。请稍后重试。",
+          "damaged": "下载的文件已损坏。请重试。",
+          "not_enough_space": "空间不足：需要 {{needed}}，可用 {{free}}。",
+          "disk": "无法将模型保存到这台 Mac。",
+          "prepare_failed": "模型已下载，但无法在这台 Mac 上加载。"
+        },
+        "deleteDialog": {
+          "title": "删除本地模型？",
+          "withAccount": "在你重新下载之前，听写将使用云端。",
+          "withoutAccount": "在你重新下载或连接 ChatGPT 之前，将无法听写。",
+          "meetings": "会议将按每个音频来源显示一位发言人。",
+          "confirm": "删除模型"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "可选：连接后可使用 AI 整理和更多语言。"
       }
     }
   },
@@ -581,7 +635,7 @@
       "licences": "模型许可",
       "licencesNote": "模型会在首次使用时从 Hugging Face 下载，Murmur 本身不包含这些模型。",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3（词语时间）：NVIDIA，CC BY 4.0。Core ML 转换：Fluid Inference。",
+        "parakeet": "语音识别：NVIDIA 的 NVIDIA Parakeet TDT 0.6B v3，CC BY 4.0。由 Fluid Inference 转换为 Core ML（Apple 芯片），由 handy-computer 转换为 8 位 GGUF（Intel Mac）。",
         "diarization": "发言人分离 Community-1：pyannote，CC BY 4.0，以及 WeSpeaker 和 BUT Speech@FIT。经修改的 Core ML 转换：Fluid Inference。",
         "fluidaudio": "FluidAudio：Fluid Inference，Apache License 2.0。"
       }
@@ -708,6 +762,17 @@
         "title": "重新转写这场会议？",
         "description": "Codex 会重新转写录音，转写和摘要将被替换。你设置的标题会保留。"
       }
-    }
+    },
+    "localFallback": "本次会议中有 {{duration}} Codex 不可用，因此该部分已在这台 Mac 上转录。"
+  },
+  "localSttCard": {
+    "title": "新功能：本地转录，无额度限制。",
+    "description": "在这台 Mac 上转录 25 种欧洲语言。音频不会离开这台 Mac。",
+    "useLocal": "使用本地转录",
+    "downloading": "正在下载… {{percent}}%。完成后 Murmur 将切换到这台 Mac。",
+    "dismiss": "关闭",
+    "error": "无法启动本地转录。",
+    "switched": "现在在这台 Mac 上转录。",
+    "switchedDescription": "可以在“{{section}}”中更改。"
   }
 }

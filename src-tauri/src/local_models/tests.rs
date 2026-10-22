@@ -317,6 +317,42 @@ fn models_that_will_not_load_are_not_marked_ready() {
 }
 
 #[test]
+fn models_that_will_not_load_report_what_they_keep_until_deleted() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let host = Arc::new(FakeHost {
+        prepare_fails: true,
+        ..FakeHost::default()
+    });
+    tauri::async_runtime::block_on(async {
+        let (base, _) = test_server::start(fixture.serving()).await;
+        let models = models(&path, &fixture, &base, &host);
+        models.download();
+        settled(&models).await;
+        // The three files and FluidAudio's 41-byte revision marker.
+        assert_eq!(models.status().kept_bytes, 8_050);
+
+        models.delete().unwrap();
+        assert_eq!(models.status().state, LocalModelState::Missing);
+        assert_eq!(models.status().kept_bytes, 0);
+    });
+}
+
+#[test]
+fn a_cancelled_download_reports_its_partial_files() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let weights = path.join("asr/A.mlmodelc/weights/weight.bin");
+    std::fs::create_dir_all(weights.parent().unwrap()).unwrap();
+    std::fs::write(download::part_path(&weights), vec![1; 2_500]).unwrap();
+    let cancelled = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
+    assert_eq!(cancelled.status().state, LocalModelState::Missing);
+    assert_eq!(cancelled.status().kept_bytes, 2_500);
+}
+
+#[test]
 fn unsupported_macs_never_download() {
     let fixture = fixture();
     let dir = tempfile::tempdir().unwrap();

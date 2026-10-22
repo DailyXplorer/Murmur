@@ -8,6 +8,8 @@ interface ToggleSwitchProps {
   isUpdating?: boolean;
   label: string;
   description: string;
+  /** Shown under the label, in the text column. */
+  detail?: React.ReactNode;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   tooltipPosition?: "top" | "bottom";
@@ -20,6 +22,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   isUpdating = false,
   label,
   description,
+  detail,
   descriptionMode = "tooltip",
   grouped = false,
   tooltipPosition = "top",
@@ -28,6 +31,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
     <SettingContainer
       title={label}
       description={description}
+      detail={detail}
       descriptionMode={descriptionMode}
       grouped={grouped}
       disabled={disabled}

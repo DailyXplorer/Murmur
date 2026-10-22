@@ -4,7 +4,7 @@ import { Dialog } from "../ui/Dialog";
 
 const LICENCES = ["parakeet", "diarization", "fluidaudio"] as const;
 
-/** The speaker models' licences and attributions. */
+/** The on-device models' licences and attributions. */
 export const ModelLicencesDialog: React.FC<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
