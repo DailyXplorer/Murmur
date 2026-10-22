@@ -11,7 +11,7 @@ use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::user_alert::{self, Alert};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
-use crate::window_names::WindowContext;
+use crate::window_names::{ContextReads, WindowContext};
 use crate::{ProcessingOperation, TranscriptionCoordinator};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -198,16 +198,30 @@ pub(crate) async fn process_transcription_output(
     let final_text =
         crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
-    if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
-        return ProcessedText::unprocessed(final_text);
+    match cleanup_request(&settings, crate::cleanup::available(), window) {
+        Some(context) => crate::cleanup::clean(final_text, &context, operation).await,
+        None => ProcessedText::unprocessed(final_text),
     }
-    crate::cleanup::clean(final_text, &cleanup_context(&settings, window), operation).await
 }
 
-/// Whether a dictation starting now reads the frontmost window: only
+/// What a dictation starting now reads from the frontmost window: only
 /// cleanup uses what it finds.
-fn reads_window_context(settings: &AppSettings) -> bool {
-    settings.window_names_enabled && settings.ai_cleanup_enabled
+fn context_reads(settings: &AppSettings) -> ContextReads {
+    let cleanup_reads = settings.window_names_enabled && settings.ai_cleanup_enabled;
+    ContextReads {
+        names: cleanup_reads,
+        field: cleanup_reads,
+    }
+}
+
+/// The context to clean a dictation with, or None when cleanup does not
+/// run, so nothing read from the window leaves the Mac.
+fn cleanup_request(
+    settings: &AppSettings,
+    available: bool,
+    window: WindowContext,
+) -> Option<PromptContext> {
+    (settings.ai_cleanup_enabled && available).then(|| cleanup_context(settings, window))
 }
 
 fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptContext {
@@ -285,7 +299,7 @@ impl ShortcutAction for TranscribeAction {
                     recording_start_time.elapsed()
                 );
                 crate::dictionary::stop_observing();
-                crate::window_names::capture(reads_window_context(&settings));
+                crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
                 std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
@@ -694,13 +708,13 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        cleanup_context, complete_unless_cancelled, paste_outcome_commits_history,
-        reads_window_context, PendingWav,
+        cleanup_context, cleanup_request, complete_unless_cancelled, context_reads,
+        paste_outcome_commits_history, PendingWav,
     };
     use crate::clipboard::PasteOutcome;
     use crate::field_excerpt::FieldExcerpt;
     use crate::settings::{get_default_settings, DictationStyle};
-    use crate::window_names::WindowContext;
+    use crate::window_names::{ContextReads, WindowContext};
     use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -736,32 +750,57 @@ mod tests {
             settings.window_names_enabled = setting;
             settings.ai_cleanup_enabled = cleanup;
             assert_eq!(
-                reads_window_context(&settings),
-                read,
+                context_reads(&settings),
+                ContextReads {
+                    names: read,
+                    field: read
+                },
                 "setting {setting}, cleanup {cleanup}"
             );
         }
     }
 
-    #[test]
-    fn a_setting_turned_off_while_dictating_drops_names_and_excerpt() {
-        let window = || WindowContext {
+    fn window() -> WindowContext {
+        WindowContext {
             names: vec!["Ingrid".to_string()],
             field: Some(FieldExcerpt {
                 before: "Hi Ingrid, ".to_string(),
                 after: String::new(),
             }),
-        };
+        }
+    }
+
+    #[test]
+    fn nothing_is_sent_with_cleanup_off() {
         let mut settings = get_default_settings();
         settings.window_names_enabled = true;
-        let context = cleanup_context(&settings, window());
+        settings.ai_cleanup_enabled = false;
+        assert!(cleanup_request(&settings, true, window()).is_none());
+    }
+
+    #[test]
+    fn nothing_is_sent_without_a_session() {
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        settings.ai_cleanup_enabled = true;
+        assert!(cleanup_request(&settings, false, window()).is_none());
+    }
+
+    #[test]
+    fn a_setting_turned_off_while_dictating_drops_names_and_excerpt() {
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        settings.ai_cleanup_enabled = true;
+        settings.custom_words = vec!["Murmur".to_string()];
+        let context = cleanup_request(&settings, true, window()).expect("cleanup runs");
         assert_eq!(context.names, vec!["Ingrid"]);
         assert_eq!(context.field, window().field);
 
         settings.window_names_enabled = false;
-        let context = cleanup_context(&settings, window());
+        let context = cleanup_request(&settings, true, window()).expect("cleanup runs");
         assert!(context.names.is_empty());
         assert_eq!(context.field, None);
+        assert_eq!(context.vocabulary, vec!["Murmur"]);
     }
 
     #[test]

@@ -19,6 +19,8 @@ const LONG_TOKEN_CHARS: usize = 20;
 const MAX_NODES: usize = 1_500;
 const MAX_TEXT_CHARS: usize = 40_000;
 const READ_BUDGET: Duration = Duration::from_millis(400);
+/// The field is read first, and a slow one must leave the window time.
+const FIELD_BUDGET: Duration = Duration::from_millis(200);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
 
@@ -29,25 +31,38 @@ pub struct WindowContext {
     pub field: Option<FieldExcerpt>,
 }
 
-static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
-
-/// Starts a dictation: reads the frontmost window when `enabled`, and
-/// always drops the context of an earlier dictation nobody claimed, such as
-/// one cancelled with Escape.
-pub fn capture(enabled: bool) {
-    capture_with(enabled, read_frontmost_window);
+/// Which parts of the frontmost window a dictation reads.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ContextReads {
+    /// Names visible anywhere in the focused window.
+    pub names: bool,
+    /// The excerpt of the focused field around the insertion point.
+    pub field: bool,
 }
 
-fn capture_with(enabled: bool, read: impl FnOnce() -> WindowContext + Send + 'static) {
+static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
+
+/// Starts a dictation: reads what `reads` asks for from the frontmost
+/// window, and always drops the context of an earlier dictation nobody
+/// claimed, such as one cancelled with Escape.
+pub fn capture(reads: ContextReads) {
+    capture_with(reads, read_frontmost_window);
+}
+
+fn capture_with(
+    reads: ContextReads,
+    read: impl FnOnce(ContextReads) -> WindowContext + Send + 'static,
+) {
     let (sender, receiver) = mpsc::channel();
+    let reads_any = reads.names || reads.field;
     if let Ok(mut pending) = PENDING.lock() {
-        *pending = enabled.then_some(receiver);
+        *pending = reads_any.then_some(receiver);
     }
-    if !enabled {
+    if !reads_any {
         return;
     }
     std::thread::spawn(move || {
-        let _ = sender.send(read());
+        let _ = sender.send(read(reads));
     });
 }
 
@@ -59,22 +74,60 @@ pub fn collect() -> WindowContext {
         .unwrap_or_default()
 }
 
-fn read_frontmost_window() -> WindowContext {
+fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
     crate::accessibility::frontmost_app()
-        .map(|(pid, bundle_id, app)| read_app(pid, &bundle_id, &app, started))
+        .map(|(pid, bundle_id, app)| read_app(reads, pid, &bundle_id, &app, started))
         .unwrap_or_default()
 }
 
 /// The focused field first, then the focused window with what is left of
 /// the budget that began at `started`.
-fn read_app(pid: i32, bundle_id: &str, app: &Element, started: Instant) -> WindowContext {
-    let field = crate::accessibility::focus_in(pid, app).and_then(|focused| read_field(&focused));
-    let text = app
-        .element("AXFocusedWindow")
-        .map(|window| window_text(window, started))
-        .unwrap_or_default();
-    window_context(bundle_id, &text, field)
+fn read_app(
+    reads: ContextReads,
+    pid: i32,
+    bundle_id: &str,
+    app: &Element,
+    started: Instant,
+) -> WindowContext {
+    read_window(
+        reads,
+        bundle_id,
+        || {
+            crate::accessibility::focus_in(pid, app)
+                .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
+        },
+        || {
+            app.element("AXFocusedWindow")
+                .map(|window| window_text(window, started))
+                .unwrap_or_default()
+        },
+    )
+}
+
+/// Runs only the reads `reads` asks for. Without the window text, a code
+/// app's other panes are not checked for assignments; the excerpt still is.
+fn read_window(
+    reads: ContextReads,
+    bundle_id: &str,
+    field: impl FnOnce() -> Option<FieldExcerpt>,
+    window_text: impl FnOnce() -> String,
+) -> WindowContext {
+    let field = if reads.field { field() } else { None };
+    let text = if reads.names {
+        window_text()
+    } else {
+        String::new()
+    };
+    let context = window_context(bundle_id, &text, field);
+    WindowContext {
+        names: if reads.names {
+            context.names
+        } else {
+            Vec::new()
+        },
+        field: context.field,
+    }
 }
 
 impl FocusedText for Element {
@@ -566,38 +619,87 @@ mod tests {
             })
             .unwrap();
         *PENDING.lock().unwrap() = Some(receiver);
-        capture(false);
+        capture(ContextReads::default());
         assert_eq!(collect(), WindowContext::default());
     }
 
     #[test]
-    fn with_the_setting_off_the_window_is_never_read() {
-        use std::sync::atomic::{AtomicBool, Ordering};
+    fn each_read_runs_only_when_asked_for() {
         use std::sync::Arc;
 
         let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
-        let read = Arc::new(AtomicBool::new(false));
-        let reader = |read: Arc<AtomicBool>| {
-            move || {
-                read.store(true, Ordering::SeqCst);
+        let excerpt = || field("Hi Priya, ", "");
+        for (reads, expected_reads, expected) in [
+            (ContextReads::default(), vec![], WindowContext::default()),
+            (
+                ContextReads {
+                    names: true,
+                    field: false,
+                },
+                vec!["window"],
                 WindowContext {
                     names: names(&["Ingrid"]),
                     field: None,
-                }
+                },
+            ),
+            (
+                ContextReads {
+                    names: false,
+                    field: true,
+                },
+                vec!["field"],
+                WindowContext {
+                    names: Vec::new(),
+                    field: excerpt(),
+                },
+            ),
+            (
+                ContextReads {
+                    names: true,
+                    field: true,
+                },
+                vec!["field", "window"],
+                WindowContext {
+                    names: names(&["Priya", "Ingrid"]),
+                    field: excerpt(),
+                },
+            ),
+        ] {
+            let asked = Arc::new(Mutex::new(Vec::new()));
+            let log = Arc::clone(&asked);
+            capture_with(reads, move |reads| {
+                let field_log = Arc::clone(&log);
+                let context = read_window(
+                    reads,
+                    "com.apple.Notes",
+                    move || {
+                        field_log.lock().unwrap().push("field");
+                        excerpt()
+                    },
+                    || {
+                        log.lock().unwrap().push("window");
+                        "meet Ingrid today".to_string()
+                    },
+                );
+                log.lock().unwrap().push("done");
+                context
+            });
+            let started = Instant::now();
+            while !asked.lock().unwrap().contains(&"done")
+                && started.elapsed() < Duration::from_millis(200)
+            {
+                std::thread::sleep(Duration::from_millis(5));
             }
-        };
-        capture_with(false, reader(Arc::clone(&read)));
-        std::thread::sleep(Duration::from_millis(100));
-        assert!(!read.load(Ordering::SeqCst), "read with the setting off");
-        assert_eq!(collect(), WindowContext::default());
-
-        capture_with(true, reader(Arc::clone(&read)));
-        let started = Instant::now();
-        while !read.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(2) {
-            std::thread::sleep(Duration::from_millis(5));
+            assert_eq!(collect(), expected, "{reads:?}");
+            let asked: Vec<_> = asked
+                .lock()
+                .unwrap()
+                .iter()
+                .copied()
+                .filter(|read| *read != "done")
+                .collect();
+            assert_eq!(asked, expected_reads, "{reads:?}");
         }
-        assert!(read.load(Ordering::SeqCst), "not read with the setting on");
-        assert_eq!(collect().names, names(&["Ingrid"]));
     }
 
     #[test]
@@ -662,17 +764,23 @@ mod tests {
         let chars = |text: Option<String>| {
             text.map_or("-".to_string(), |text| text.chars().count().to_string())
         };
-        let mut report = format!(
+        let mut main = format!(
             "# Window context coverage\n\n{} UTC, Accessibility trusted: {}\n\n\
+             Before: the window read at 71afa240 (window chars, names, ms). After: the \
+             production reader with names and field on (excerpt chars before/after the \
+             cursor, names, ms).\n\n\
+             | App | Before | After | Notes |\n|---|---|---|---|\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M"),
+            is_trusted()
+        );
+        let mut report = String::from(
+            "\n## Probe details\n\n\
              (a) selection + AXStringForRange of the reader's window, (b) selection + AXValue, \
              (c) AXSelectedText, (d) AXVisibleCharacterRange length, (e) BFS text of the nearest \
-             AXWebArea above the focus. Lengths in chars; `-` is a failed read. Before is the \
-             window read at 71afa240 (BFS of the focused window, names), after the new reader.\n\n\
+             AXWebArea above the focus. Lengths in chars; `-` is a failed read.\n\n\
              | app | focus role/subrole | secure | selection | (a) | (b) | (c) | (d) | (e) chars, ms \
              | before: window chars, names, ms | after: excerpt chars, names, ms |\n\
              |---|---|---|---|---|---|---|---|---|---|---|\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M"),
-            is_trusted()
         );
         let mut attributes = String::from("\n## Attributes of the focused element\n");
         let workspace = NSWorkspace::sharedWorkspace();
@@ -753,12 +861,49 @@ mod tests {
             });
 
             let started = Instant::now();
-            let context = read_app(pid, &bundle_id, &app, started);
+            let all = ContextReads {
+                names: true,
+                field: true,
+            };
+            let context = read_app(all, pid, &bundle_id, &app, started);
             let elapsed = started.elapsed().as_millis();
             let excerpt = context.field.as_ref().map_or(0, |field| {
                 field.before.chars().count() + field.after.chars().count()
             });
             let after = format!("{excerpt}, {}, {elapsed}", context.names.len());
+            let split = context.field.as_ref().map_or("0/0".to_string(), |field| {
+                format!(
+                    "{}/{}",
+                    field.before.chars().count(),
+                    field.after.chars().count()
+                )
+            });
+            let worked: Vec<&str> = [
+                ("selection", selection.is_some()),
+                ("AXStringForRange", ranged.is_some()),
+                ("AXValue", value.is_some()),
+                ("AXSelectedText", selected.is_some()),
+                ("AXVisibleCharacterRange", visible.is_some()),
+                ("web area", web_area != "-"),
+            ]
+            .into_iter()
+            .filter_map(|(read, ok)| ok.then_some(read))
+            .collect();
+            let app_name = running
+                .localizedName()
+                .map_or_else(|| bundle_id.clone(), |name| name.to_string());
+            writeln!(
+                main,
+                "| {app_name} | {before} | {split}, {}, {elapsed} | {role}{}; worked: {} |",
+                context.names.len(),
+                if secure { ", secure" } else { "" },
+                if worked.is_empty() {
+                    "none".to_string()
+                } else {
+                    worked.join(", ")
+                }
+            )
+            .unwrap();
 
             writeln!(
                 report,
@@ -780,9 +925,10 @@ mod tests {
                 .unwrap();
             }
         }
-        report.push_str(&attributes);
-        std::fs::write(&out, &report).unwrap();
-        println!("{report}");
+        main.push_str(&report);
+        main.push_str(&attributes);
+        std::fs::write(&out, &main).unwrap();
+        println!("{main}");
     }
 
     #[test]

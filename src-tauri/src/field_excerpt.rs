@@ -3,6 +3,7 @@
 //! through `FocusedText`, which the Accessibility element implements.
 
 use std::fmt;
+use std::time::Instant;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
@@ -100,13 +101,19 @@ pub trait FocusedText {
 
 /// The excerpt around the focused element's selection. Never reads a secure
 /// field, and never guesses the cursor: no selection range, no excerpt.
-pub fn read_field(focused: &impl FocusedText) -> Option<FieldExcerpt> {
-    if focused.is_secure() {
+/// Each read may take a hung app's whole messaging timeout, so none starts
+/// after `deadline`.
+pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
+    let in_time = || Instant::now() < deadline;
+    if focused.is_secure() || !in_time() {
         return None;
     }
     let selection = focused.selection()?;
-    let (text, offset) =
-        window_around(focused, selection).or_else(|| Some((focused.value()?, 0)))?;
+    let (text, offset) = match window_around(focused, selection, in_time) {
+        Some(window) => window,
+        None if in_time() => (focused.value()?, 0),
+        None => return None,
+    };
     cut(
         &text,
         Utf16Range {
@@ -119,7 +126,14 @@ pub fn read_field(focused: &impl FocusedText) -> Option<FieldExcerpt> {
 /// Just enough of the field for `cut`, and where it starts. A UTF-16 unit
 /// is at least half a char, so a window that does not start at the field's
 /// start holds more than the limit and `cut` drops its partial first word.
-fn window_around(focused: &impl FocusedText, selection: Utf16Range) -> Option<(String, usize)> {
+fn window_around(
+    focused: &impl FocusedText,
+    selection: Utf16Range,
+    in_time: impl Fn() -> bool,
+) -> Option<(String, usize)> {
+    if !in_time() {
+        return None;
+    }
     let count = focused.char_count()?;
     let selection_end = selection.start.saturating_add(selection.len);
     let end = selection_end
@@ -129,6 +143,9 @@ fn window_around(focused: &impl FocusedText, selection: Utf16Range) -> Option<(S
         .start
         .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
         .min(end);
+    if !in_time() {
+        return None;
+    }
     let text = focused.string_for_range(Utf16Range {
         start,
         len: end - start,
@@ -140,6 +157,11 @@ fn window_around(focused: &impl FocusedText, selection: Utf16Range) -> Option<(S
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use std::time::Duration;
+
+    fn later() -> Instant {
+        Instant::now() + Duration::from_secs(60)
+    }
 
     fn at(start: usize) -> Utf16Range {
         Utf16Range { start, len: 0 }
@@ -246,6 +268,8 @@ mod tests {
         text: String,
         selection: Option<Utf16Range>,
         range_fails: bool,
+        /// How long AXStringForRange takes, as in a slow app.
+        delay: Duration,
         reads: RefCell<Vec<&'static str>>,
         requested: RefCell<Option<Utf16Range>>,
     }
@@ -275,6 +299,7 @@ mod tests {
         fn string_for_range(&self, range: Utf16Range) -> Option<String> {
             self.reads.borrow_mut().push("string_for_range");
             *self.requested.borrow_mut() = Some(range);
+            std::thread::sleep(self.delay);
             if self.range_fails {
                 return None;
             }
@@ -295,7 +320,7 @@ mod tests {
             secure: true,
             ..Fake::new("hunter2 is my password", at(7))
         };
-        assert_eq!(read_field(&fake), None);
+        assert_eq!(read_field(&fake, later()), None);
         assert!(fake.reads.borrow().is_empty(), "{:?}", fake.reads.borrow());
     }
 
@@ -305,7 +330,7 @@ mod tests {
             selection: None,
             ..Fake::new("Hello there", at(0))
         };
-        assert_eq!(read_field(&fake), None);
+        assert_eq!(read_field(&fake, later()), None);
         assert_eq!(*fake.reads.borrow(), vec!["selection"]);
     }
 
@@ -323,7 +348,7 @@ mod tests {
                     let selection = Utf16Range { start, len };
                     let fake = Fake::new(text, selection);
                     assert_eq!(
-                        read_field(&fake),
+                        read_field(&fake, later()),
                         cut(text, selection),
                         "start {start} len {len}"
                     );
@@ -341,7 +366,7 @@ mod tests {
             len: 10,
         };
         let fake = Fake::new(&text, selection);
-        read_field(&fake);
+        read_field(&fake, later());
         assert_eq!(
             *fake.requested.borrow(),
             Some(Utf16Range {
@@ -358,7 +383,29 @@ mod tests {
             range_fails: true,
             ..Fake::new(text, at(22))
         };
-        assert_eq!(read_field(&fake), excerpt(text, ""));
+        assert_eq!(read_field(&fake, later()), excerpt(text, ""));
         assert!(fake.reads.borrow().contains(&"value"));
+    }
+
+    #[test]
+    fn no_read_starts_once_the_budget_is_spent() {
+        let text = "Thanks for the draft. ";
+        let slow = Fake {
+            range_fails: true,
+            delay: Duration::from_millis(30),
+            ..Fake::new(text, at(22))
+        };
+        assert_eq!(
+            read_field(&slow, Instant::now() + Duration::from_millis(10)),
+            None
+        );
+        assert_eq!(
+            *slow.reads.borrow(),
+            vec!["selection", "char_count", "string_for_range"]
+        );
+
+        let late = Fake::new(text, at(22));
+        assert_eq!(read_field(&late, Instant::now()), None);
+        assert!(late.reads.borrow().is_empty(), "{:?}", late.reads.borrow());
     }
 }
