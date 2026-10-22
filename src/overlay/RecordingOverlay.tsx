@@ -215,30 +215,34 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  // A wrapped note keeps the full width it wrapped in, leaving a gap before
-  // the action, so it is narrowed to its widest line. Balancing again at the
-  // narrower width can even the lines out further, so it narrows until the
-  // width holds. Line boxes are drawn through the pop-in scale, so they are
-  // converted back to layout pixels.
+  // The note takes two lines, at the narrowest width that holds them, so the
+  // pill widens with a longer translation or a wider font up to its widest
+  // body. A note that needs more lines there keeps them, again as narrow as
+  // they fit. A note only loses lines as it widens, so the narrowest width
+  // is bisected. Layout sizes ignore the pop-in scale.
   const copyShowing = view.kind === "copy";
   const copyNote = view.kind === "copy" ? view.labels.note : null;
   useLayoutEffect(() => {
     const note = copyNoteRef.current;
     if (copyNote === null || !note) return;
     note.style.width = "";
-    const lines = document.createRange();
-    lines.selectNodeContents(note);
-    const scale =
-      parseFloat(getComputedStyle(note).width) /
-      note.getBoundingClientRect().width;
-    for (let pass = 0; pass < 4; pass++) {
-      const widest = Math.max(
-        ...Array.from(lines.getClientRects(), (line) => line.width),
+    const style = getComputedStyle(note);
+    const lines = () =>
+      Math.round(
+        (note.clientHeight -
+          parseFloat(style.paddingTop) -
+          parseFloat(style.paddingBottom)) /
+          parseFloat(style.lineHeight),
       );
-      const width = `${Math.ceil(widest * scale + 0.5)}px`;
-      if (note.style.width === width) break;
-      note.style.width = width;
+    const target = Math.max(2, lines());
+    let [tooNarrow, wideEnough] = [0, Math.ceil(parseFloat(style.width))];
+    while (wideEnough - tooNarrow > 1) {
+      const width = Math.floor((tooNarrow + wideEnough) / 2);
+      note.style.width = `${width}px`;
+      if (lines() <= target) wideEnough = width;
+      else tooNarrow = width;
     }
+    note.style.width = `${wideEnough}px`;
   }, [copyNote]);
 
   // The copy pill's body sizes itself from its text, whatever font renders

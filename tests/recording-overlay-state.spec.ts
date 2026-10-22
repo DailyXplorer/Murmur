@@ -385,6 +385,10 @@ const WIDE_FONT = `.ov-stage {
   letter-spacing: 0.08em;
 }`;
 
+// The widest copy pill keeps its window, margins included, well inside a
+// 1280-px-wide screen. Below it the pill widens to keep its note on two lines.
+const WIDEST_PILL = 560;
+
 for (const { locale, tray } of trayStringsByLocale) {
   for (const font of ["app font", "wide font"] as const) {
     test(`the ${locale} copy pill fits its note and action in its window with the ${font}`, async ({
@@ -411,7 +415,7 @@ for (const { locale, tray } of trayStringsByLocale) {
         await entranceFinished(page);
         windows.push(await fitCopyWindow(page));
         const fit = await button.evaluate(
-          (capsule, texts) => {
+          (capsule, { texts, widestPill }) => {
             const box = capsule.getBoundingClientRect();
             const leaves = capsule.querySelectorAll("span:not(:has(span))");
             const spans = [...leaves].filter((span) =>
@@ -456,7 +460,24 @@ for (const { locale, tray } of trayStringsByLocale) {
               }
               lineTop = rect.top;
             }
+            const body = capsule.querySelector<HTMLElement>(".ov-copy-body")!;
+            const noteStyle = getComputedStyle(note);
+            const widestNote =
+              widestPill - (body.offsetWidth - note.offsetWidth);
+            const width = note.style.width;
+            body.style.maxWidth = "none";
+            note.style.width = `${widestNote}px`;
+            const linesInWidestPill = Math.round(
+              (note.clientHeight -
+                parseFloat(noteStyle.paddingTop) -
+                parseFloat(noteStyle.paddingBottom)) /
+                lineHeight,
+            );
+            note.style.width = width;
+            body.style.maxWidth = "";
             return {
+              pillWidth: capsule.offsetWidth,
+              linesInWidestPill,
               shown: spans.map((span) => span.textContent),
               clipped:
                 capsule.scrollWidth > capsule.clientWidth ||
@@ -482,11 +503,18 @@ for (const { locale, tray } of trayStringsByLocale) {
               ),
             };
           },
-          [labels.note, label],
+          { texts: [labels.note, label], widestPill: WIDEST_PILL },
+        );
+        expect(fit.pillWidth, `${label}: pill width`).toBeLessThanOrEqual(
+          WIDEST_PILL,
         );
         expect(fit.noteLines, `${label}: note lines`).toBeLessThanOrEqual(
-          font === "app font" ? 2 : 3,
+          ["en", "fr", "de", "es"].includes(locale) ? 2 : 3,
         );
+        expect(
+          fit.noteLines,
+          `${label}: the note takes a third line only when the widest pill needs it`,
+        ).toBeLessThanOrEqual(Math.max(2, fit.linesInWidestPill));
         expect(
           fit.gapToAction,
           `${label}: note ends by the action`,
@@ -500,6 +528,8 @@ for (const { locale, tray } of trayStringsByLocale) {
           `${label}: the action is as far from its edge (${fit.actionInset}px) as the note from its edge (${fit.noteInset}px)`,
         ).toBeLessThanOrEqual(1);
         expect(fit, label).toEqual({
+          pillWidth: fit.pillWidth,
+          linesInWidestPill: fit.linesInWidestPill,
           shown: [labels.note, label],
           clipped: false,
           insideWindow: true,
