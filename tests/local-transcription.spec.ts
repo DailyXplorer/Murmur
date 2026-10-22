@@ -167,6 +167,35 @@ test.describe("how Murmur transcribes", () => {
     });
   }
 
+  for (const [models, primary] of [
+    ["prepareFailed", "Try Again"],
+    ["cancelled", "Download (505 MB)"],
+  ] as const) {
+    test(`what a stopped download left can be deleted (${models})`, async ({
+      page,
+    }) => {
+      await open(page, `engine=local&models=${models}`, "Transcription");
+      const row = page.getByTestId("local-model-row");
+      const actions = row.getByRole("button", {
+        name: /^(Download|Cancel|Try Again|Delete)/,
+      });
+      await expect(actions).toHaveText([primary, "Delete"]);
+
+      await row.getByRole("button", { name: "Delete" }).click();
+      const dialog = page.getByRole("dialog", {
+        name: "Delete the Local Model?",
+      });
+      await expect(dialog).toBeVisible();
+      expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
+
+      await dialog.getByRole("button", { name: "Delete Model" }).click();
+      await expect(row.getByText("Not downloaded")).toBeVisible();
+      await expect(actions).toHaveText(["Download (505 MB)"]);
+      expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
+      await expectNoUnhandledCommands(page);
+    });
+  }
+
   test("without ChatGPT, local mode offers it and AI cleanup waits for it", async ({
     page,
   }) => {
@@ -194,6 +223,70 @@ test.describe("how Murmur transcribes", () => {
     await expect(
       page.getByText("Optional: connect for AI cleanup and more languages."),
     ).toHaveCount(0);
+  });
+});
+
+test.describe("the model's Delete in Meetings", () => {
+  const speakerGroup = (page: Page) =>
+    page.locator("section").filter({
+      has: page.getByRole("heading", {
+        name: "Speaker Detection",
+        exact: true,
+      }),
+    });
+  const actions = (page: Page) =>
+    speakerGroup(page).getByRole("button", {
+      name: /^(Download|Retry|Cancel|Delete)/,
+    });
+
+  for (const [query, consequence] of [
+    ["", "Dictation will use the cloud until you download it again."],
+    [
+      "&account=none",
+      "You won't be able to dictate until you download it again or connect ChatGPT.",
+    ],
+  ] as const) {
+    test(`asks first while dictation runs on this Mac (${query || "with an account"})`, async ({
+      page,
+    }) => {
+      await open(page, `engine=local${query}`, "Meetings");
+      const remove = speakerGroup(page).getByRole("button", {
+        name: "Delete Models",
+      });
+      await remove.click();
+      const dialog = page.getByRole("dialog", {
+        name: "Delete the Local Model?",
+      });
+      await expect(dialog.getByText(consequence)).toBeVisible();
+      await expect(
+        dialog.getByText("Meetings will show one speaker per audio source."),
+      ).toBeVisible();
+      expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
+
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(remove).toBeVisible();
+      expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
+
+      await remove.click();
+      await dialog.getByRole("button", { name: "Delete Model" }).click();
+      await expect(actions(page)).toHaveText(["Download"]);
+      expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
+      await expectNoUnhandledCommands(page);
+    });
+  }
+
+  test("what a stopped download left can be deleted there too", async ({
+    page,
+  }) => {
+    await open(page, "models=prepareFailed", "Meetings");
+    await expect(actions(page)).toHaveText(["Retry", "Delete Models"]);
+    await speakerGroup(page)
+      .getByRole("button", { name: "Delete Models" })
+      .click();
+    await expect(actions(page)).toHaveText(["Download"]);
+    expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
+    await expectNoUnhandledCommands(page);
   });
 });
 

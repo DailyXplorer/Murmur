@@ -77,12 +77,14 @@ const historyFallback = params.get("history") === "fallback";
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The Apple silicon download, as the manifest gives it. */
 const MODEL_BYTES = 505_044_208;
-const failed = (reason: DownloadFailure): LocalModelStatus => ({
+const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
+  kept_bytes,
   size_bytes: MODEL_BYTES,
   state: { reason, state: "failed" },
 });
 const MODELS: Record<string, LocalModelStatus> = {
   downloading: {
+    kept_bytes: 0,
     size_bytes: MODEL_BYTES,
     state: {
       done_bytes: 212_000_000,
@@ -90,9 +92,23 @@ const MODELS: Record<string, LocalModelStatus> = {
       total_bytes: MODEL_BYTES,
     },
   },
-  missing: { size_bytes: MODEL_BYTES, state: { state: "missing" } },
-  preparing: { size_bytes: MODEL_BYTES, state: { state: "preparing" } },
-  ready: { size_bytes: MODEL_BYTES, state: { state: "ready" } },
+  missing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "missing" },
+  },
+  /** A cancelled download whose partial files stay to be resumed. */
+  cancelled: {
+    kept_bytes: 212_000_000,
+    size_bytes: MODEL_BYTES,
+    state: { state: "missing" },
+  },
+  preparing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "preparing" },
+  },
+  ready: { kept_bytes: 0, size_bytes: MODEL_BYTES, state: { state: "ready" } },
   failed: failed({ kind: "no_internet" }),
   damaged: failed({ kind: "damaged" }),
   noSpace: failed({
@@ -100,6 +116,8 @@ const MODELS: Record<string, LocalModelStatus> = {
     kind: "not_enough_space",
     needed_bytes: 555_548_628,
   }),
+  /** Downloaded and checked, then would not load: every file stays. */
+  prepareFailed: failed({ kind: "prepare_failed" }, MODEL_BYTES),
 };
 const MODEL_COMMANDS: Record<string, LocalModelStatus> = {
   download_local_model: MODELS.downloading,
@@ -112,6 +130,7 @@ const modelsStatus: LocalModelStatus =
   analysis !== "os_too_old"
     ? MODELS[params.get("models") ?? "ready"]
     : {
+        kept_bytes: 0,
         size_bytes: MODEL_BYTES,
         state: {
           state: "unsupported",

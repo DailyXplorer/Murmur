@@ -10,8 +10,8 @@ import {
 import { downloadPercent } from "@/hooks/useLocalModel";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../../ui/Button";
-import { Dialog } from "../../ui/Dialog";
 import { SettingContainer } from "../../ui/SettingContainer";
+import { DeleteModelDialog } from "./DeleteModelDialog";
 
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
 
@@ -45,8 +45,9 @@ export const useModelAction = (errorKey: string) => {
   };
 };
 
-/** The local model's state with the one action it allows: download, cancel,
- * try again or delete. Deleting asks first, saying what stops working. */
+/** The local model's state with its actions: download, cancel, try again or
+ * delete, which also frees what a download that stopped left behind.
+ * Deleting asks first, saying what stops working. */
 export const LocalModelRow: React.FC<{
   status: LocalModelStatus;
   /** Without an account nothing takes over once the model is gone. */
@@ -87,23 +88,36 @@ export const LocalModelRow: React.FC<{
     }
   })();
 
+  const deleteButton = (
+    <Button onClick={() => setConfirmDelete(true)}>
+      {t("settings.transcription.localModel.delete")}
+    </Button>
+  );
+  const deleteIfKept = status.kept_bytes > 0 && deleteButton;
+
   const action = (() => {
     switch (state.state) {
       case "missing":
         return (
-          <Button
-            onClick={(event) => void run(event, commands.downloadLocalModel)}
-          >
-            {t("settings.transcription.localModel.download", { size })}
-          </Button>
+          <>
+            <Button
+              onClick={(event) => void run(event, commands.downloadLocalModel)}
+            >
+              {t("settings.transcription.localModel.download", { size })}
+            </Button>
+            {deleteIfKept}
+          </>
         );
       case "failed":
         return (
-          <Button
-            onClick={(event) => void run(event, commands.downloadLocalModel)}
-          >
-            {t("settings.transcription.localModel.retry")}
-          </Button>
+          <>
+            <Button
+              onClick={(event) => void run(event, commands.downloadLocalModel)}
+            >
+              {t("settings.transcription.localModel.retry")}
+            </Button>
+            {deleteIfKept}
+          </>
         );
       case "downloading":
         return (
@@ -116,11 +130,7 @@ export const LocalModelRow: React.FC<{
           </Button>
         );
       case "ready":
-        return (
-          <Button onClick={() => setConfirmDelete(true)}>
-            {t("settings.transcription.localModel.delete")}
-          </Button>
-        );
+        return deleteButton;
       case "preparing":
       case "unsupported":
         return null;
@@ -165,42 +175,13 @@ export const LocalModelRow: React.FC<{
       >
         <div className="flex justify-end gap-2">{action}</div>
       </SettingContainer>
-      <Dialog
+      <DeleteModelDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title={t("settings.transcription.localModel.deleteDialog.title")}
-        closeLabel={t("common.close")}
-        footer={
-          <>
-            <Button onClick={() => setConfirmDelete(false)}>
-              {t("meetings.cancel")}
-            </Button>
-            <Button
-              onClick={(event) => {
-                setConfirmDelete(false);
-                void run(event, commands.deleteLocalModel);
-              }}
-            >
-              {t("settings.transcription.localModel.deleteDialog.confirm")}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-2 text-sm text-text/80">
-          <p>
-            {signedIn
-              ? t("settings.transcription.localModel.deleteDialog.withAccount")
-              : t(
-                  "settings.transcription.localModel.deleteDialog.withoutAccount",
-                )}
-          </p>
-          {meetingsUseIt && (
-            <p>
-              {t("settings.transcription.localModel.deleteDialog.meetings")}
-            </p>
-          )}
-        </div>
-      </Dialog>
+        onConfirm={(event) => void run(event, commands.deleteLocalModel)}
+        signedIn={signedIn}
+        meetingsUseIt={meetingsUseIt}
+      />
     </div>
   );
 };

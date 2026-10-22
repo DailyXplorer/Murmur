@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -7,7 +7,10 @@ import {
   type LocalModelStatus,
 } from "@/bindings";
 import { downloadPercent } from "@/hooks/useLocalModel";
+import { useSettings } from "@/hooks/useSettings";
 import { formatSize } from "@/lib/meetings/format";
+import { DeleteModelDialog } from "../settings/transcription/DeleteModelDialog";
+import { useCodexStatus } from "../transcription/providerStatus";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
 import { SettingsGroup } from "../ui/SettingsGroup";
@@ -15,8 +18,8 @@ import { SettingsGroup } from "../ui/SettingsGroup";
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
 
 /** Download, cancel or delete the on-device speaker models, with progress.
- * They are the local models dictation uses too. Their licences are in
- * About. */
+ * They are the local models dictation uses too, so deleting them asks first
+ * while dictation runs on this Mac. Their licences are in About. */
 export const SpeakerModels: React.FC<{
   status: LocalModelStatus | null;
   /** Whether this Mac tells speakers apart. Intel Macs download the model
@@ -24,6 +27,15 @@ export const SpeakerModels: React.FC<{
   analysis: AnalysisSupport | null;
 }> = ({ status, analysis }) => {
   const { t, i18n } = useTranslation();
+  const { getSetting } = useSettings();
+  const { refreshStatus, status: account } = useCodexStatus();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const dictationUsesIt = getSetting("transcription_engine") === "local";
+
+  useEffect(() => {
+    if (dictationUsesIt) void refreshStatus();
+  }, [dictationUsesIt, refreshStatus]);
+
   if (!status || !analysis) return null;
   const { state } = status;
   const support = state.state === "unsupported" ? state.support : analysis;
@@ -62,23 +74,42 @@ export const SpeakerModels: React.FC<{
     failed: t("meetings.models.failed"),
   }[state.state];
 
+  const deleteButton = (
+    <Button
+      onClick={(event) => {
+        if (dictationUsesIt) setConfirmDelete(true);
+        else void run(event, commands.deleteLocalModel);
+      }}
+    >
+      {t("meetings.models.delete")}
+    </Button>
+  );
+  // What a download that stopped left behind.
+  const deleteIfKept = status.kept_bytes > 0 && deleteButton;
+
   const action = (() => {
     switch (state.state) {
       case "missing":
         return (
-          <Button
-            onClick={(event) => void run(event, commands.downloadLocalModel)}
-          >
-            {t("meetings.models.download")}
-          </Button>
+          <>
+            <Button
+              onClick={(event) => void run(event, commands.downloadLocalModel)}
+            >
+              {t("meetings.models.download")}
+            </Button>
+            {deleteIfKept}
+          </>
         );
       case "failed":
         return (
-          <Button
-            onClick={(event) => void run(event, commands.downloadLocalModel)}
-          >
-            {t("meetings.models.retry")}
-          </Button>
+          <>
+            <Button
+              onClick={(event) => void run(event, commands.downloadLocalModel)}
+            >
+              {t("meetings.models.retry")}
+            </Button>
+            {deleteIfKept}
+          </>
         );
       case "downloading":
       case "preparing":
@@ -92,13 +123,7 @@ export const SpeakerModels: React.FC<{
           </Button>
         );
       case "ready":
-        return (
-          <Button
-            onClick={(event) => void run(event, commands.deleteLocalModel)}
-          >
-            {t("meetings.models.delete")}
-          </Button>
-        );
+        return deleteButton;
     }
   })();
 
@@ -128,6 +153,13 @@ export const SpeakerModels: React.FC<{
       >
         <div className="flex justify-end gap-2">{action}</div>
       </SettingContainer>
+      <DeleteModelDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onConfirm={(event) => void run(event, commands.deleteLocalModel)}
+        signedIn={account.kind !== "unavailable"}
+        meetingsUseIt={true}
+      />
     </SettingsGroup>
   );
 };
