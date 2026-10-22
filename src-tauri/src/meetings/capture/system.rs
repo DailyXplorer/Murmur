@@ -153,6 +153,10 @@ impl Track for SystemCapture {
         false
     }
 
+    fn dropped_ms(&self) -> u64 {
+        self.writer.dropped_ms()
+    }
+
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         #[cfg(target_arch = "aarch64")]
         // SAFETY: stops the tap started in `start`; no callback runs after it.

@@ -20,6 +20,10 @@ use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::{open_or_reset_database, DatabaseStartup};
 
+/// Attempts at compressing a meeting's audio before its tracks are kept as
+/// they are: a file that fails this often fails for good.
+const MAX_COMPRESS_FAILURES: i64 = 3;
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(
@@ -94,6 +98,10 @@ fn migrations() -> Migrations<'static> {
             "CREATE TABLE meeting_last_id (id INTEGER NOT NULL);
     INSERT INTO meeting_last_id SELECT COALESCE(MAX(id), 0) FROM meetings;",
         ),
+        // Audio the track writers could not keep up with, recorded as silence.
+        M::up("ALTER TABLE meetings ADD COLUMN dropped_ms INTEGER NOT NULL DEFAULT 0;"),
+        // Failed attempts to compress the tracks; past a few, they stay.
+        M::up("ALTER TABLE meetings ADD COLUMN compress_failures INTEGER NOT NULL DEFAULT 0;"),
     ])
 }
 
@@ -627,6 +635,8 @@ impl MeetingsStore {
 
     /// Meetings to process, oldest first: those a quit left mid-way, and
     /// transcribed ones still waiting for their summary or compressed audio.
+    /// Audio that failed to compress `MAX_COMPRESS_FAILURES` times keeps its
+    /// tracks instead of being tried at every launch.
     pub fn waiting_for_processing(&self) -> Result<Vec<i64>> {
         Ok(self
             .connection()?
@@ -634,11 +644,39 @@ impl MeetingsStore {
                 "SELECT id FROM meetings
                  WHERE status = 'processing'
                     OR (status = 'ready' AND (summary_status = 'pending'
-                        OR (audio_file IS NULL AND audio_deleted = 0)))
+                        OR (audio_file IS NULL AND audio_deleted = 0
+                            AND compress_failures < ?1)))
                  ORDER BY id",
             )?
-            .query_map([], |row| row.get(0))?
+            .query_map(params![MAX_COMPRESS_FAILURES], |row| row.get(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// One more attempt to compress the audio of meeting `id` failed.
+    pub fn compress_failed(&self, id: i64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET compress_failures = compress_failures + 1 WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    /// Notes how much audio the recording of meeting `id` dropped.
+    pub fn set_dropped_ms(&self, id: i64, dropped_ms: u64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET dropped_ms = ?2 WHERE id = ?1",
+            params![id, i64::try_from(dropped_ms).unwrap_or(i64::MAX)],
+        )?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn dropped_ms(&self, id: i64) -> Result<i64> {
+        Ok(self.connection()?.query_row(
+            "SELECT dropped_ms FROM meetings WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?)
     }
 
     pub fn get(&self, id: i64) -> Result<Option<MeetingDetail>> {
@@ -1770,6 +1808,34 @@ mod tests {
     }
 
     #[test]
+    fn audio_that_failed_to_compress_three_times_is_no_longer_requeued() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        store.save_summary(id, None, "Notes.").unwrap();
+        for _ in 0..2 {
+            store.compress_failed(id).unwrap();
+        }
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+
+        store.compress_failed(id).unwrap();
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+        // The tracks stay: the meeting plays and transcribes again.
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        assert!(store.retranscribe(id).unwrap());
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+    }
+
+    #[test]
+    fn the_audio_a_recording_dropped_is_kept_with_the_meeting() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.dropped_ms(id).unwrap(), 0);
+        store.set_dropped_ms(id, 1_250).unwrap();
+        assert_eq!(store.dropped_ms(id).unwrap(), 1_250);
+    }
+
+    #[test]
     fn transcribing_again_forgets_the_pieces_and_the_summary_goes_with_the_words() {
         let (_dir, store) = store();
         let id = recorded(&store);
@@ -1929,8 +1995,13 @@ mod tests {
         store.rename(edited, Some("Notes sur [[s1]]")).unwrap();
         // The library as 1.7.6 left it.
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch("DROP TABLE meeting_last_id; PRAGMA user_version = 6;")
-            .unwrap();
+        conn.execute_batch(
+            "DROP TABLE meeting_last_id;
+             ALTER TABLE meetings DROP COLUMN dropped_ms;
+             ALTER TABLE meetings DROP COLUMN compress_failures;
+             PRAGMA user_version = 6;",
+        )
+        .unwrap();
         drop(conn);
 
         let (store, startup) = MeetingsStore::open(path, now());
