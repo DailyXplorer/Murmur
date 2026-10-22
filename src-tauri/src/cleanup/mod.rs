@@ -158,10 +158,11 @@ async fn clean_with_session(
     context: &PromptContext,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
+    let instructions = prompt::instructions(context.style);
     let user_message = prompt::user_message(raw, context);
     let request = Request {
         model,
-        instructions: prompt::INSTRUCTIONS,
+        instructions: &instructions,
         user_message: &user_message,
         max_output_chars: reply::max_output_chars(raw.chars().count()),
         effort: "low",
