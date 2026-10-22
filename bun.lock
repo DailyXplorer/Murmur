@@ -13,7 +13,7 @@
         "@tauri-apps/plugin-os": "~2.3.2",
         "@tauri-apps/plugin-process": "~2.3.1",
         "@tauri-apps/plugin-updater": "~2.10.1",
-        "i18next": "^25.10.10",
+        "i18next": "^26.5.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-i18next": "^16.6.6",
@@ -492,7 +492,7 @@
 
     "html-url-attributes": ["html-url-attributes@3.0.1", "", {}, "sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ=="],
 
-    "i18next": ["i18next@25.10.10", "", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-cqUW2Z3EkRx7NqSyywjkgCLK7KLCL6IFVFcONG7nVYIJ3ekZ1/N5jUsihHV6Bq37NfhgtczxJcxduELtjTwkuQ=="],
+    "i18next": ["i18next@26.5.2", "", { "peerDependencies": { "typescript": "^5 || ^6 || ^7" }, "optionalPeers": ["typescript"] }, "sha512-6fIXt//2MZNok3tULyjnypxe3vbsy3pV1bVg8p2x3yKrzZvp7z3T+wXx/88LQsATRdhyJeAUAvUxEtxsHdJ29w=="],
 
     "ignore": ["ignore@7.0.13", "", {}, "sha512-2E8Q6rh+1RRSq/YdaGsNfXsEZy9FVqv6BSSrkmZJP7BnaoPnRfKL+YaofPvP+5rzdk144qSm6i4+hvPgUcbV4Q=="],
 
