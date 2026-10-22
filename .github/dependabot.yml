@@ -75,6 +75,11 @@ updates:
       - dependency-name: "tauri-specta"
       # Git dependency pinned to a commit that matches the Tauri version.
       - dependency-name: "tauri-nspanel"
+      # rodio 0.22 brings cpal 0.17, which links macOS 14.2 process-tap
+      # symbols strongly. Move rodio together with our own cpal; see #192.
+      - dependency-name: "rodio"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: /
