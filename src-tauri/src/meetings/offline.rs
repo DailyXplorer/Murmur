@@ -17,9 +17,10 @@ pub trait Reachability: Send + Sync + 'static {
 /// online; a request that gets none means offline. HTTPS, so a captive
 /// portal that intercepts it counts as offline.
 pub struct CodexHost {
-    /// `None` when the client could not be built: the check then lets the
-    /// queue go, and the run that follows finds out.
-    client: Option<reqwest::Client>,
+    /// A client is built for each check, as for each Codex request:
+    /// reqwest reads the system proxy when it builds one, and the Mac may
+    /// have changed networks since the last check.
+    builder: Box<dyn Fn() -> reqwest::ClientBuilder + Send + Sync>,
     url: String,
 }
 
@@ -29,20 +30,17 @@ impl CodexHost {
 
     pub(super) fn new() -> Self {
         Self::with(
-            reqwest::Client::builder(),
+            reqwest::Client::builder,
             crate::codex_transcribe::TRANSCRIBE_URL,
         )
     }
 
-    fn with(builder: reqwest::ClientBuilder, url: &str) -> Self {
-        let client = builder
-            .connect_timeout(Self::CONNECT_TIMEOUT)
-            .timeout(Self::TIMEOUT)
-            .build()
-            .inspect_err(|error| log::warn!("Meeting connection check unavailable: {error}"))
-            .ok();
+    fn with(
+        builder: impl Fn() -> reqwest::ClientBuilder + Send + Sync + 'static,
+        url: &str,
+    ) -> Self {
         Self {
-            client,
+            builder: Box::new(builder),
             url: url.to_owned(),
         }
     }
@@ -51,8 +49,18 @@ impl CodexHost {
 impl Reachability for CodexHost {
     fn online(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>> {
         Box::pin(async {
-            let Some(client) = &self.client else {
-                return true;
+            let client = match (self.builder)()
+                .connect_timeout(Self::CONNECT_TIMEOUT)
+                .timeout(Self::TIMEOUT)
+                .build()
+            {
+                Ok(client) => client,
+                // Every Codex request would fail the same way: let the
+                // queue go, and the run that follows finds out.
+                Err(error) => {
+                    log::warn!("Meeting connection check unavailable: {error}");
+                    return true;
+                }
             };
             client.head(&self.url).send().await.is_ok()
         })
@@ -205,9 +213,13 @@ mod tests {
     async fn the_check_goes_through_the_proxy_the_requests_use() {
         // Only the proxy leads out: the host does not even resolve directly.
         let (proxy, request) = answer_once("403 Forbidden");
-        let builder = reqwest::Client::builder()
-            .proxy(reqwest::Proxy::all(format!("http://{proxy}")).unwrap());
-        let host = CodexHost::with(builder, "http://codex.invalid/backend-api/transcribe");
+        let host = CodexHost::with(
+            move || {
+                reqwest::Client::builder()
+                    .proxy(reqwest::Proxy::all(format!("http://{proxy}")).unwrap())
+            },
+            "http://codex.invalid/backend-api/transcribe",
+        );
         assert!(host.online().await);
         assert_eq!(
             request.recv().unwrap(),
@@ -216,10 +228,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn each_check_takes_the_proxy_the_mac_has_now() {
+        // The Mac moves from one network to another between two checks,
+        // and the system proxy with it.
+        let (first, first_request) = answer_once("403 Forbidden");
+        let (second, second_request) = answer_once("403 Forbidden");
+        let proxies = std::sync::Mutex::new(vec![second, first]);
+        let host = CodexHost::with(
+            move || {
+                let proxy = proxies.lock().unwrap().pop().unwrap();
+                reqwest::Client::builder()
+                    .proxy(reqwest::Proxy::all(format!("http://{proxy}")).unwrap())
+            },
+            "http://codex.invalid/",
+        );
+        assert!(host.online().await);
+        assert!(first_request.recv_timeout(Duration::from_secs(5)).is_ok());
+        assert!(host.online().await);
+        assert!(second_request.recv_timeout(Duration::from_secs(5)).is_ok());
+    }
+
+    #[tokio::test]
     async fn any_answer_means_online_whatever_its_status() {
         let (server, _request) = answer_once("503 Service Unavailable");
         let host = CodexHost::with(
-            reqwest::Client::builder().no_proxy(),
+            || reqwest::Client::builder().no_proxy(),
             &format!("http://{server}/"),
         );
         assert!(host.online().await);
@@ -231,7 +264,7 @@ mod tests {
         let address = closed.local_addr().unwrap();
         drop(closed);
         let host = CodexHost::with(
-            reqwest::Client::builder().no_proxy(),
+            || reqwest::Client::builder().no_proxy(),
             &format!("http://{address}/"),
         );
         assert!(!host.online().await);
