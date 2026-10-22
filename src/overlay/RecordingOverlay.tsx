@@ -238,9 +238,12 @@ const RecordingOverlay: React.FC = () => {
 
   // The copy pill's body sizes itself from its text, whatever font renders
   // it, and the window is fitted to it: only the webview can measure it.
+  // The backend opens each notice at a default size, so every copy view,
+  // even one replacing a showing pill, observes and reports again.
+  const copyView = view.kind === "copy" ? view : null;
   useLayoutEffect(() => {
     const body = copyBodyRef.current;
-    if (!copyShowing || !body) return;
+    if (!copyView || !body) return;
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands
@@ -251,7 +254,7 @@ const RecordingOverlay: React.FC = () => {
     });
     observer.observe(body);
     return () => observer.disconnect();
-  }, [copyShowing]);
+  }, [copyView]);
 
   // The pill opens as the rest capsule and grows to fit its body. CSS cannot
   // transition to an auto size, so the fitted size is measured before the

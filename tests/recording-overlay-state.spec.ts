@@ -344,6 +344,23 @@ test("a refused copy leaves the pill on Copy and says why in the log", async ({
   ).toBeVisible();
 });
 
+// The backend opens every copy notice at a default size, so a notice that
+// replaces a showing one must ask for its fit again.
+test("a copy notice that replaces a showing one fits its window again", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  const first = await fitCopyWindow(page);
+  const fits = () =>
+    page.evaluate(() => window.overlayHarness.copyFits().length);
+  const before = await fits();
+
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect.poll(fits).toBeGreaterThan(before);
+  expect(await fitCopyWindow(page)).toEqual(first);
+});
+
 test("the copy pill hides on request and gives way to a new recording", async ({
   page,
 }) => {
