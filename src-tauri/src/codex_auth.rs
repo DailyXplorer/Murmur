@@ -33,7 +33,7 @@ use crate::transcription_error::{FailureKind, TranscriptionError};
 
 const REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_REFRESH_TOKEN_URL_OVERRIDE";
-const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+pub(crate) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const ACCESS_TOKEN_REFRESH_WINDOW_MINUTES: i64 = 5;
 const TOKEN_REFRESH_INTERVAL_DAYS: i64 = 8;
 pub(crate) const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -146,7 +146,7 @@ impl AuthFile {
                     return Err(TranscriptionError::new(
                         FailureKind::SignedOut,
                         format!(
-                            "Codex/ChatGPT session not found at {}. Open the Codex app and sign in.",
+                            "No ChatGPT session at {}. Sign in with ChatGPT in Murmur's Transcription settings.",
                             path.display()
                         ),
                     ));
@@ -208,7 +208,7 @@ impl AuthFile {
         let access_token = self.access_token().ok_or_else(|| {
             TranscriptionError::new(
                 FailureKind::SignedOut,
-                "A ChatGPT subscription session is required. Sign in to Codex with ChatGPT and configure Codex to store credentials in auth.json.",
+                "A ChatGPT session is required. Sign in with ChatGPT in Murmur's Transcription settings.",
             )
         })?;
         let account_id = self
@@ -439,7 +439,7 @@ async fn refresh_to_completion(
     let refresh_token = base.refresh_token().ok_or_else(|| {
         TranscriptionError::new(
             FailureKind::SessionExpired,
-            "The Codex session has no refresh token. Open Codex and sign in again.",
+            "The ChatGPT session has no refresh token. Sign in with ChatGPT again in Murmur.",
         )
     })?;
 
@@ -457,7 +457,7 @@ async fn refresh_to_completion(
             remember_rejected(refresh_token);
             return Err(TranscriptionError::new(
                 FailureKind::SessionExpired,
-                format!("Codex session expired: {detail}. Open Codex and sign in again."),
+                format!("ChatGPT session expired: {detail}. Sign in with ChatGPT again in Murmur."),
             ));
         }
     };
@@ -588,7 +588,7 @@ fn classify_refresh_failure(status: u16, body: &str) -> RefreshFailure {
 
 /// Writes through a temporary file in the same directory, then renames it
 /// over the target, so readers never see a partial file. Mode 0600 like Codex.
-fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
+pub(crate) fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let temporary = directory.join(format!(".auth.json.murmur-{}.tmp", std::process::id()));
     let result = (|| {
