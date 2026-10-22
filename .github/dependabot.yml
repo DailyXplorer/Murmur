@@ -36,6 +36,11 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
+      # Node types follow the Node that CI runs: no workflow sets up Node, so
+      # it is the ubuntu-latest default (22). Bump the major by hand with it.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -85,3 +90,9 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # v1 renames includeUpdaterJson and changes the release asset names.
+      # Only a real release exercises that path; see #182 before upgrading.
+      - dependency-name: "tauri-apps/tauri-action"
+        update-types:
+          - "version-update:semver-major"
