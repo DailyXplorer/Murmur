@@ -48,6 +48,23 @@ extern "C" {
     fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
 }
 
+#[cfg(test)]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXUIElementCopyAttributeNames(element: AXUIElementRef, names: *mut CFTypeRef) -> i32;
+    fn AXUIElementCopyParameterizedAttributeNames(
+        element: AXUIElementRef,
+        names: *mut CFTypeRef,
+    ) -> i32;
+}
+
+/// Whether this process may use Accessibility at all.
+#[cfg(test)]
+pub fn is_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
+}
+
 /// Bundle identifiers whose windows are never read.
 const PASSWORD_APPS: [&str; 12] = [
     "com.apple.keychainaccess",
@@ -197,6 +214,37 @@ impl Element {
             .filter_map(|raw| {
                 let value = unsafe { CFType::wrap_under_get_rule(raw as CFTypeRef) };
                 Self::from_value(value)
+            })
+            .collect()
+    }
+
+    /// The names of the attributes the element answers, or of its
+    /// parameterized attributes.
+    #[cfg(test)]
+    pub fn attribute_names(&self, parameterized: bool) -> Vec<String> {
+        let mut names: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            if parameterized {
+                AXUIElementCopyParameterizedAttributeNames(self.raw(), &mut names)
+            } else {
+                AXUIElementCopyAttributeNames(self.raw(), &mut names)
+            }
+        };
+        if status != AX_SUCCESS || names.is_null() {
+            return Vec::new();
+        }
+        let Some(array) =
+            unsafe { CFType::wrap_under_create_rule(names) }.downcast::<CFArray<*const c_void>>()
+        else {
+            return Vec::new();
+        };
+        array
+            .get_all_values()
+            .into_iter()
+            .filter_map(|raw| {
+                unsafe { CFType::wrap_under_get_rule(raw as CFTypeRef) }
+                    .downcast::<CFString>()
+                    .map(|name| name.to_string())
             })
             .collect()
     }

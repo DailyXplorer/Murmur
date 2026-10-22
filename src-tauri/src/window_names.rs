@@ -59,21 +59,22 @@ pub fn collect() -> WindowContext {
         .unwrap_or_default()
 }
 
-/// The focused field first, then the focused window with what is left of
-/// the same budget.
 fn read_frontmost_window() -> WindowContext {
-    use crate::accessibility::{focus_in, frontmost_app};
-
     let started = Instant::now();
-    let Some((pid, bundle_id, app)) = frontmost_app() else {
-        return WindowContext::default();
-    };
-    let field = focus_in(pid, &app).and_then(|focused| read_field(&focused));
+    crate::accessibility::frontmost_app()
+        .map(|(pid, bundle_id, app)| read_app(pid, &bundle_id, &app, started))
+        .unwrap_or_default()
+}
+
+/// The focused field first, then the focused window with what is left of
+/// the budget that began at `started`.
+fn read_app(pid: i32, bundle_id: &str, app: &Element, started: Instant) -> WindowContext {
+    let field = crate::accessibility::focus_in(pid, app).and_then(|focused| read_field(&focused));
     let text = app
         .element("AXFocusedWindow")
         .map(|window| window_text(window, started))
         .unwrap_or_default();
-    window_context(&bundle_id, &text, field)
+    window_context(bundle_id, &text, field)
 }
 
 impl FocusedText for Element {
@@ -643,6 +644,145 @@ mod tests {
             window_context("com.apple.Notes", "", clean.clone()).field,
             clean
         );
+    }
+
+    /// Measures every read on each regular app running, without bringing
+    /// any to the front, and writes a markdown table. Only lengths, counts,
+    /// roles and attribute names are recorded, never text.
+    #[test]
+    #[ignore]
+    fn coverage_of_running_apps() {
+        use crate::accessibility::{is_password_app, is_trusted};
+        use crate::field_excerpt::{MAX_AFTER_CHARS, MAX_BEFORE_CHARS};
+        use objc2_app_kit::{NSApplicationActivationPolicy, NSWorkspace};
+        use std::fmt::Write as _;
+
+        let out = std::env::var("MURMUR_COVERAGE_OUT")
+            .unwrap_or_else(|_| "/tmp/murmur-i153-coverage.md".to_string());
+        let chars = |text: Option<String>| {
+            text.map_or("-".to_string(), |text| text.chars().count().to_string())
+        };
+        let mut report = format!(
+            "# Window context coverage\n\n{} UTC, Accessibility trusted: {}\n\n\
+             (a) selection + AXStringForRange of the reader's window, (b) selection + AXValue, \
+             (c) AXSelectedText, (d) AXVisibleCharacterRange length, (e) BFS text of the nearest \
+             AXWebArea above the focus. Lengths in chars; `-` is a failed read. Before is the \
+             window read at 71afa240 (BFS of the focused window, names), after the new reader.\n\n\
+             | app | focus role/subrole | secure | selection | (a) | (b) | (c) | (d) | (e) chars, ms \
+             | before: window chars, names, ms | after: excerpt chars, names, ms |\n\
+             |---|---|---|---|---|---|---|---|---|---|---|\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M"),
+            is_trusted()
+        );
+        let mut attributes = String::from("\n## Attributes of the focused element\n");
+        let workspace = NSWorkspace::sharedWorkspace();
+        for running in workspace.runningApplications().iter() {
+            let pid = running.processIdentifier();
+            let bundle_id = running
+                .bundleIdentifier()
+                .map(|id| id.to_string())
+                .unwrap_or_default();
+            if running.activationPolicy() != NSApplicationActivationPolicy::Regular
+                || pid <= 0
+                || bundle_id.to_lowercase().contains("murmur")
+                || is_password_app(&bundle_id)
+            {
+                continue;
+            }
+            let Some(app) = Element::application(pid) else {
+                continue;
+            };
+            let focused = app.element("AXFocusedUIElement");
+            let role = focused.as_ref().map_or("no focus".to_string(), |focused| {
+                format!(
+                    "{}/{}",
+                    focused.string("AXRole").unwrap_or_default(),
+                    focused.string("AXSubrole").unwrap_or_default()
+                )
+            });
+            let secure = focused.as_ref().is_some_and(Element::is_secure);
+            let readable = focused.as_ref().filter(|_| !secure);
+            let selection = readable.and_then(|focused| focused.range("AXSelectedTextRange"));
+            let ranged = readable.zip(selection).and_then(|(focused, selection)| {
+                let count = FocusedText::char_count(focused)?;
+                let end = (selection.start + selection.len + 2 * MAX_AFTER_CHARS + 2).min(count);
+                let start = selection
+                    .start
+                    .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
+                    .min(end);
+                focused.string_for_range(Utf16Range {
+                    start,
+                    len: end - start,
+                })
+            });
+            let value = readable
+                .filter(|_| selection.is_some())
+                .and_then(|focused| focused.string("AXValue"));
+            let selected = readable.and_then(|focused| focused.string("AXSelectedText"));
+            let visible = readable
+                .and_then(|focused| focused.range("AXVisibleCharacterRange"))
+                .map(|range| range.len.to_string());
+            let web_area = readable.and_then(|focused| {
+                let mut element = focused.clone();
+                for _ in 0..30 {
+                    if element.string("AXRole").as_deref() == Some("AXWebArea") {
+                        return Some(element);
+                    }
+                    element = element.element("AXParent")?;
+                }
+                None
+            });
+            let web_area = web_area.map_or("-".to_string(), |web_area| {
+                let started = Instant::now();
+                let text = window_text(web_area, started);
+                format!(
+                    "{}, {}",
+                    text.chars().count(),
+                    started.elapsed().as_millis()
+                )
+            });
+
+            let started = Instant::now();
+            let window = app
+                .element("AXFocusedWindow")
+                .map(|window| window_text(window, started));
+            let before = window.map_or("no window".to_string(), |text| {
+                let elapsed = started.elapsed().as_millis();
+                let names = window_context(&bundle_id, &text, None).names.len();
+                format!("{}, {names}, {elapsed}", text.chars().count())
+            });
+
+            let started = Instant::now();
+            let context = read_app(pid, &bundle_id, &app, started);
+            let elapsed = started.elapsed().as_millis();
+            let excerpt = context.field.as_ref().map_or(0, |field| {
+                field.before.chars().count() + field.after.chars().count()
+            });
+            let after = format!("{excerpt}, {}, {elapsed}", context.names.len());
+
+            writeln!(
+                report,
+                "| {bundle_id} | {role} | {secure} | {} | {} | {} | {} | {} | {web_area} | {before} | {after} |",
+                selection.map_or("-".to_string(), |selection| format!("len {}", selection.len)),
+                chars(ranged),
+                chars(value),
+                chars(selected),
+                visible.unwrap_or_else(|| "-".to_string()),
+            )
+            .unwrap();
+            if let Some(focused) = &focused {
+                writeln!(
+                    attributes,
+                    "\n- {bundle_id}: {}; parameterized: {}",
+                    focused.attribute_names(false).join(", "),
+                    focused.attribute_names(true).join(", ")
+                )
+                .unwrap();
+            }
+        }
+        report.push_str(&attributes);
+        std::fs::write(&out, &report).unwrap();
+        println!("{report}");
     }
 
     #[test]
