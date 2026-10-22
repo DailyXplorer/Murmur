@@ -1161,7 +1161,7 @@ export type LocalModelStatus = { state: LocalModelState;
 /**
  * What the download takes on this Mac.
  */
-size_bytes: number;
+size_bytes: number; 
 /**
  * What a download that stopped, missing or failed, left on this Mac.
  * Deleting the models frees it.
