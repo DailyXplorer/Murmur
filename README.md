@@ -103,8 +103,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   downloaded yet, failure, another language), Murmur uses the cloud if
   ChatGPT is connected; when ChatGPT refuses in cloud mode, a downloaded model
   takes over. History marks each such dictation.
-- When no text field is focused, the text is copied instead and the overlay
-  offers a Copy button
+- When no text field is focused, nothing is pasted or copied; the overlay
+  offers a Copy button that puts the text on the clipboard
 - Automatic language detection, or an explicit dictation language
 - Microphone and output-device selection
 - AI cleanup through the Codex session, on by default: removes fillers,

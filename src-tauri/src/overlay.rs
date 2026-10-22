@@ -7,7 +7,7 @@ use objc2_app_kit::NSEventMask;
 use std::cell::RefCell;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
@@ -45,7 +45,8 @@ const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
 // then the window opens at the widest capsule with three lines of note.
 const COPY_OVERLAY_WIDTH: f64 = 560.0 + 2.0 * CARD_MARGIN;
 const COPY_OVERLAY_HEIGHT: f64 = 62.0 + 2.0 * CARD_MARGIN;
-const COPY_DISPLAY_TIME: Duration = Duration::from_secs(4);
+const COPY_DISPLAY_TIME: Duration = Duration::from_secs(8);
+const COPY_HOVER_RECHECK: Duration = Duration::from_secs(1);
 const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
 const ESCAPE_KEY_CODE: u16 = 53;
 
@@ -58,11 +59,16 @@ static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// or a new recording replaces it, and the meeting pill returns after it.
 enum Notice {
     Error,
-    /// No text field had the focus; the text is on the clipboard.
+    /// No text field had the focus; `write` puts the text on the clipboard
+    /// only if the user clicks Copy.
     Copy {
         text: String,
+        write: ClipboardWriter,
     },
 }
+
+/// Puts a copy notice's text on the clipboard.
+pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 static NOTICE: Mutex<Option<Notice>> = Mutex::new(None);
 
 fn notice() -> MutexGuard<'static, Option<Notice>> {
@@ -88,7 +94,7 @@ thread_local! {
 struct CopyNoticeLabels {
     copy: String,
     copied: String,
-    /// Says nothing was pasted and the text is on the clipboard.
+    /// Says there was no text field to paste into.
     note: String,
 }
 
@@ -130,7 +136,7 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
                     (monitor.size().width as f64 / scale) as u32,
                     (monitor.size().height as f64 / scale) as u32,
                 );
-                if is_mouse_within_monitor(mouse_location, &pos, &size) {
+                if is_point_within(mouse_location, &pos, &size) {
                     return Some(monitor);
                 }
             }
@@ -140,25 +146,46 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     app_handle.primary_monitor().ok().flatten()
 }
 
-fn is_mouse_within_monitor(
-    mouse_pos: (i32, i32),
-    monitor_pos: &PhysicalPosition<i32>,
-    monitor_size: &PhysicalSize<u32>,
+fn is_point_within(
+    point: (i32, i32),
+    origin: &PhysicalPosition<i32>,
+    size: &PhysicalSize<u32>,
 ) -> bool {
-    let (mouse_x, mouse_y) = mouse_pos;
-    let PhysicalPosition {
-        x: monitor_x,
-        y: monitor_y,
-    } = *monitor_pos;
-    let PhysicalSize {
-        width: monitor_width,
-        height: monitor_height,
-    } = *monitor_size;
+    let (x, y) = point;
+    x >= origin.x
+        && x < origin.x + size.width as i32
+        && y >= origin.y
+        && y < origin.y + size.height as i32
+}
 
-    mouse_x >= monitor_x
-        && mouse_x < (monitor_x + monitor_width as i32)
-        && mouse_y >= monitor_y
-        && mouse_y < (monitor_y + monitor_height as i32)
+/// The panel never becomes key, so its webview gets no hover events; the
+/// pointer is read from the window server instead. Compared in points: tao
+/// scales the cursor by the primary display and the window by its own.
+fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
+    let Some(window) = app_handle.get_webview_window("recording_overlay") else {
+        return false;
+    };
+    let Some(pointer) = input::get_cursor_position(app_handle) else {
+        return false;
+    };
+    match (
+        window.outer_position(),
+        window.outer_size(),
+        window.scale_factor(),
+    ) {
+        (Ok(origin), Ok(size), Ok(scale)) => is_point_within(
+            pointer,
+            &PhysicalPosition::new(
+                (origin.x as f64 / scale) as i32,
+                (origin.y as f64 / scale) as i32,
+            ),
+            &PhysicalSize::new(
+                (size.width as f64 / scale) as u32,
+                (size.height as f64 / scale) as u32,
+            ),
+        ),
+        _ => false,
+    }
 }
 
 /// Returns overlay position in logical coordinates (points on macOS).
@@ -287,17 +314,23 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
             let _ = window.emit("show-overlay-error", message);
         }
     });
-    dismiss_notice_after(app_handle, generation, ERROR_DISPLAY_TIME);
+    dismiss_notice_after(app_handle, generation, ERROR_DISPLAY_TIME, false);
     true
 }
 
-/// Shows the copy pill, a short note and a "Copy" action, after the text went
-/// on the clipboard because no text field had the focus. A click copies the
-/// text again, Escape dismisses it.
-pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
+/// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter) {
+    *notice() = Some(Notice::Copy { text, write });
+}
+
+/// Shows the copy pill, a short note and a "Copy" action, because no text
+/// field had the focus. A click hands the text to `write`, Escape dismisses
+/// it. Returns false when the overlay is disabled, so there is no pill to
+/// click.
+pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWriter) -> bool {
     let settings = settings::get_settings(app_handle);
     if settings.overlay_style == OverlayStyle::None {
-        return;
+        return false;
     }
     let strings = get_tray_translations(Some(settings.app_language));
     let labels = CopyNoticeLabels {
@@ -305,7 +338,7 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
         copied: strings.overlay_copied,
         note: strings.overlay_not_pasted,
     };
-    *notice() = Some(Notice::Copy { text });
+    hold_copy_notice(text, write);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -319,7 +352,8 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
             let _ = window.emit("show-overlay-copy", labels);
         }
     });
-    dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME);
+    dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME, true);
+    true
 }
 
 /// Fits the copy notice's window to the capsule the webview measured, so a
@@ -371,39 +405,50 @@ fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
     )
 }
 
-fn copy_notice_text() -> Option<String> {
-    match &*notice() {
-        Some(Notice::Copy { text }) => Some(text.clone()),
-        _ => None,
-    }
+/// Hands the copy notice's text to its writer, outside the notice lock.
+pub(crate) fn copy_held_notice() -> Result<(), String> {
+    let (text, write) = match &*notice() {
+        Some(Notice::Copy { text, write }) => (text.clone(), Arc::clone(write)),
+        _ => return Err("The copy notice is no longer showing".to_string()),
+    };
+    write(&text)
 }
 
-/// The copy pill's click: puts its text on the clipboard again, then lets
-/// the pill read "Copied" for a moment before it hides.
+/// The copy pill's click: puts its text on the clipboard, then lets the pill
+/// read "Copied" for a moment before it hides.
 #[tauri::command]
 #[specta::specta]
 pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
-    let text = copy_notice_text().ok_or("The copy notice is no longer showing")?;
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    let clipboard_app = app.clone();
     app.run_on_main_thread(move || {
-        let _ = sender.send(crate::clipboard::copy_to_keep(&clipboard_app, &text));
+        let _ = sender.send(copy_held_notice());
     })
     .map_err(|error| format!("Cannot reach the clipboard: {error}"))?;
     receiver
         .await
         .map_err(|_| "The clipboard write did not run".to_string())??;
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME);
+    dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME, false);
     Ok(())
 }
 
-fn dismiss_notice_after(app_handle: &AppHandle, generation: u64, delay: Duration) {
+/// With `hover_holds`, the notice outlasts `delay` while the pointer is over
+/// it, so it does not vanish under a click on its way.
+fn dismiss_notice_after(
+    app_handle: &AppHandle,
+    generation: u64,
+    delay: Duration,
+    hover_holds: bool,
+) {
     let handle = app_handle.clone();
     std::thread::spawn(move || {
         std::thread::sleep(delay);
-        if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
-            dismiss_notice(&handle);
+        while OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
+            if !(hover_holds && pointer_over_overlay(&handle)) {
+                dismiss_notice(&handle);
+                return;
+            }
+            std::thread::sleep(COPY_HOVER_RECHECK);
         }
     });
 }
@@ -645,10 +690,10 @@ mod tests {
         let position = PhysicalPosition::new(-2560, -200);
         let size = PhysicalSize::new(2560, 1440);
 
-        assert!(is_mouse_within_monitor((-2560, -200), &position, &size));
-        assert!(is_mouse_within_monitor((-1, 1239), &position, &size));
-        assert!(!is_mouse_within_monitor((0, 0), &position, &size));
-        assert!(!is_mouse_within_monitor((-1, 1240), &position, &size));
+        assert!(is_point_within((-2560, -200), &position, &size));
+        assert!(is_point_within((-1, 1239), &position, &size));
+        assert!(!is_point_within((0, 0), &position, &size));
+        assert!(!is_point_within((-1, 1240), &position, &size));
     }
 
     #[test]

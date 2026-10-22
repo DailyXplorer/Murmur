@@ -56,7 +56,7 @@ pub(crate) fn spawn(app: &AppHandle, operation: ProcessingOperation) {
         match crate::clipboard::paste(text.clone(), app.clone(), operation).await {
             Ok(
                 PasteOutcome::Injected
-                | PasteOutcome::Copied
+                | PasteOutcome::CopyOffered
                 | PasteOutcome::IntentionalNone
                 | PasteOutcome::Cancelled,
             ) => {}
