@@ -401,7 +401,7 @@ impl HistoryManager {
                 .get::<_, Option<String>>("cleanup")?
                 .as_deref()
                 .and_then(CleanupOutcome::parse),
-            engine: Engine::parse(&row.get::<_, String>("engine")?).unwrap_or_default(),
+            engine: Engine::parse(&row.get::<_, String>("engine")?).unwrap_or(Engine::Cloud),
             fallback_reason: row
                 .get::<_, Option<String>>("fallback_reason")?
                 .as_deref()
