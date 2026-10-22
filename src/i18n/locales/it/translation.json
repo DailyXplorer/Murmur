@@ -46,7 +46,9 @@
     "meetingMicrophoneDenied": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
     "meetingSystemAudioDenied": "La registrazione dell'audio di sistema è disattivata, quindi la riunione non registra gli altri partecipanti. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Registrazione schermo e audio di sistema.",
     "meetingRecovered": "Una riunione è stata interrotta perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
-    "meetingsRecovered": "{{count}} riunioni sono state interrotte perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione."
+    "meetingsRecovered": "{{count}} riunioni sono state interrotte perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
+    "meetingPausedWhileAsleep": "Il tuo Mac è andato in stop durante la riunione. Non è stato registrato nulla dalle {{from}} alle {{to}}.",
+    "meetingAudioDropped": "Parte dell'audio della riunione è andata persa perché il Mac era troppo occupato."
   },
   "sidebar": {
     "general": "Generale",

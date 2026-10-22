@@ -405,6 +405,11 @@ impl CaptureBackend for DeviceCapture {
     fn system_audio_denied(&self) -> bool {
         system::permission() == system::SystemAudioPermission::Denied
     }
+
+    fn keep_awake(&self) -> Option<Box<dyn Send>> {
+        let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
+        Some(Box::new(guard))
+    }
 }
 
 /// The space an unprivileged process may still write on the volume of

@@ -46,7 +46,9 @@
     "meetingMicrophoneDenied": "Microphone access is off, so this meeting isn't recording your voice. Allow Murmur in System Settings → Privacy & Security → Microphone.",
     "meetingSystemAudioDenied": "System audio recording is off, so this meeting isn’t recording the other side of the call. Allow Murmur in System Settings → Privacy & Security → Screen & System Audio Recording.",
     "meetingRecovered": "A meeting was cut off when Murmur closed unexpectedly. What was recorded is being transcribed.",
-    "meetingsRecovered": "{{count}} meetings were cut off when Murmur closed unexpectedly. What was recorded is being transcribed."
+    "meetingsRecovered": "{{count}} meetings were cut off when Murmur closed unexpectedly. What was recorded is being transcribed.",
+    "meetingPausedWhileAsleep": "Your Mac slept during the meeting. Nothing was recorded from {{from}} to {{to}}.",
+    "meetingAudioDropped": "Some meeting audio was lost because the Mac was too busy."
   },
   "sidebar": {
     "general": "General",
