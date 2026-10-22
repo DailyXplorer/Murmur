@@ -134,23 +134,21 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
     }
     match failed.engine {
         Engine::Local => Some(to_cloud(FallbackReason::LocalFailed, conditions)),
-        Engine::Cloud => local_can_serve(conditions.model_ready, conditions.language).then(|| {
-            Route::Run(EngineUsed {
-                engine: Engine::Local,
-                fallback: Some(if kind == FailureKind::RateLimited {
-                    FallbackReason::CloudLimitReached
-                } else {
-                    FallbackReason::CloudFailed
-                }),
+        Engine::Cloud => {
+            let local_can_serve =
+                conditions.model_ready && parakeet_languages::supports(conditions.language);
+            local_can_serve.then(|| {
+                Route::Run(EngineUsed {
+                    engine: Engine::Local,
+                    fallback: Some(if kind == FailureKind::RateLimited {
+                        FallbackReason::CloudLimitReached
+                    } else {
+                        FallbackReason::CloudFailed
+                    }),
+                })
             })
-        }),
+        }
     }
-}
-
-/// Whether the local model can take a dictation in `language`, chosen or as
-/// the fallback of a failed cloud request.
-pub fn local_can_serve(model_ready: bool, language: &str) -> bool {
-    model_ready && parakeet_languages::supports(language)
 }
 
 /// Local cannot serve and no account can: the message says why, since a

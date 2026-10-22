@@ -89,16 +89,12 @@ pub fn parse_line(line: &str) -> serde_json::Result<Message> {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 pub enum Request<'a> {
-    /// Transcribe a 16 kHz mono WAV of at most 15 s, listening for the
-    /// custom words in `terms` and, held to a closer match, the window
-    /// `names`. A helper that knows no `names` reads the request without.
+    /// Transcribe a 16 kHz mono WAV of at most 15 s, listening for `terms`.
     Transcribe {
         id: u64,
         wav: &'a std::path::Path,
         #[serde(skip_serializing_if = "<[String]>::is_empty")]
         terms: &'a [String],
-        #[serde(skip_serializing_if = "<[String]>::is_empty")]
-        names: &'a [String],
     },
 }
 
@@ -258,7 +254,6 @@ mod tests {
                 id: 7,
                 wav: std::path::Path::new("/tmp/piece 7.wav"),
                 terms: &[],
-                names: &[],
             })
             .unwrap(),
             r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
@@ -268,20 +263,9 @@ mod tests {
                 id: 8,
                 wav: std::path::Path::new("/tmp/piece 8.wav"),
                 terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
-                names: &[],
             })
             .unwrap(),
             r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"]}"#
-        );
-        assert_eq!(
-            serde_json::to_string(&Request::Transcribe {
-                id: 9,
-                wav: std::path::Path::new("/tmp/piece 9.wav"),
-                terms: &["Siobhán".to_string()],
-                names: &["Ingrid".to_string()],
-            })
-            .unwrap(),
-            r#"{"type":"transcribe","id":9,"wav":"/tmp/piece 9.wav","terms":["Siobhán"],"names":["Ingrid"]}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(

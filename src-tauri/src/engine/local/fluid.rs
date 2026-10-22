@@ -11,7 +11,6 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
-use super::boost::BoostTerms;
 use super::session::{BoxFuture, Loaded, Runtime};
 use crate::meetings::protocol::{parse_reply, Reply, Request};
 
@@ -140,7 +139,7 @@ impl Loaded for Serve {
     fn transcribe<'a>(
         &'a mut self,
         samples: &'a [f32],
-        terms: &'a BoostTerms,
+        terms: &'a [String],
     ) -> BoxFuture<'a, anyhow::Result<String>> {
         Box::pin(async move {
             let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
@@ -149,8 +148,7 @@ impl Loaded for Serve {
             let mut line = serde_json::to_string(&Request::Transcribe {
                 id,
                 wav: &wav.0,
-                terms: &terms.words,
-                names: &terms.names,
+                terms,
             })?;
             line.push('\n');
             self.stdin.write_all(line.as_bytes()).await?;
@@ -180,11 +178,6 @@ impl Loaded for Serve {
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
-
-    static NONE: BoostTerms = BoostTerms {
-        words: Vec::new(),
-        names: Vec::new(),
-    };
 
     /// A stand-in helper: a shell script with the given body. `$wav` and
     /// `$id` hold the fields of each request it reads.
@@ -222,8 +215,8 @@ done"#
         let mut model = runtime.load().await.unwrap();
         // 44 bytes of header, then 16-bit samples.
         let expected = format!("Bonjour {}", 44 + 2 * samples().len());
-        assert_eq!(model.transcribe(&samples(), &NONE).await.unwrap(), expected);
-        assert_eq!(model.transcribe(&samples(), &NONE).await.unwrap(), expected);
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
         let left: Vec<_> = std::fs::read_dir(dir.path().join("scratch"))
             .unwrap()
             .collect();
@@ -239,8 +232,8 @@ done"#
                 r#"echo '{{"type":"ready"}}'
 {READ_REQUESTS}
 case "$line" in
-*'"terms":["Siobhán"],"names":["Nguyen"]'*) heard=boosted ;;
-*terms*|*names*) heard=garbled ;;
+*'"terms":["Siobhán","Nguyen"]'*) heard=boosted ;;
+*terms*) heard=garbled ;;
 *) heard=plain ;;
 esac
 echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"$heard\"}}"
@@ -248,15 +241,12 @@ done"#
             ),
         );
         let mut model = runtime.load().await.unwrap();
-        let terms = BoostTerms {
-            words: vec!["Siobhán".to_string()],
-            names: vec!["Nguyen".to_string()],
-        };
+        let terms = ["Siobhán".to_string(), "Nguyen".to_string()];
         assert_eq!(
             model.transcribe(&samples(), &terms).await.unwrap(),
             "boosted"
         );
-        assert_eq!(model.transcribe(&samples(), &NONE).await.unwrap(), "plain");
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "plain");
     }
 
     #[tokio::test]
@@ -278,9 +268,9 @@ done"#
             ),
         );
         let mut model = runtime.load().await.unwrap();
-        let error = model.transcribe(&samples(), &NONE).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
         assert!(error.to_string().contains("bad audio"), "{error}");
-        assert_eq!(model.transcribe(&samples(), &NONE).await.unwrap(), "ok");
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "ok");
     }
 
     #[tokio::test]
@@ -304,7 +294,7 @@ done"#
             ),
         );
         let mut model = crashes.load().await.unwrap();
-        let error = model.transcribe(&samples(), &NONE).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
         assert!(error.to_string().contains("stopped"), "{error}");
     }
 }

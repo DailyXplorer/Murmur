@@ -10,7 +10,6 @@
 //! instead of a fresh one, and `MURMUR_REAL_REPORT` names a Markdown file
 //! for the results. Intel Macs run it with `--target x86_64-apple-darwin`.
 
-use super::boost::BoostTerms;
 use super::session::{Runtime, Session};
 use super::{LocalEngine, MAX_PIECE, SAMPLES_PER_SECOND};
 use crate::local_models::{
@@ -239,10 +238,7 @@ async fn the_downloaded_model_transcribes_speech_and_is_released_when_idle() {
         let expected = std::fs::read_to_string(wav.with_extension("txt")).unwrap();
         let pieces = crate::audio_toolkit::pauses::split_at_pauses(&samples, MAX_PIECE).len();
         let started = Instant::now();
-        let heard = engine
-            .transcribe(&samples, &BoostTerms::default(), &operation)
-            .await
-            .unwrap();
+        let heard = engine.transcribe(&samples, &[], &operation).await.unwrap();
         let latency = started.elapsed();
         let rate = word_error_rate(&words(&expected), &words(&heard));
         let name = wav.file_stem().unwrap().to_string_lossy();
@@ -319,16 +315,13 @@ const BOOST_RUNS: usize = 5;
 /// `MURMUR_REAL_BOOST_CLIPS=<dir> MURMUR_REAL_MODELS=<dir> cargo test --lib
 /// engine::local::real_engine::boosting -- --ignored --nocapture`
 ///
-/// The folder holds `target-*.wav`, speech with custom words, `name-*.wav`,
-/// speech with a name that is only in the window, `control-*.wav`, speech
-/// with neither, each with its exact text in `<name>.txt`, and the custom
-/// words and window names in `custom.txt` and `names.txt`, one per line.
-/// The words of `name-only.txt` are custom words for the other clips and
-/// window names for the `name-*` clips. The models folder gets the optional
-/// CTC model as the app does. Each clip runs on Parakeet alone, then with the
-/// CTC model and no terms, the custom words, and the custom words with the
-/// window names. A word of a control clip that the terms change is a false
-/// replacement.
+/// The folder holds `target-*.wav`, speech with custom words, `control-*.wav`,
+/// speech without them, each with its exact text in `<name>.txt`, and the
+/// custom words and window names in `custom.txt` and `names.txt`, one per
+/// line. The models folder gets the optional CTC model as the app does. Each
+/// clip runs on Parakeet alone, then with the CTC model and no terms, the
+/// custom words, and the custom words with the window names. A word of a
+/// control clip that the terms change is a false replacement.
 #[cfg(target_arch = "aarch64")]
 #[tokio::test]
 #[ignore = "downloads the models and needs recorded speech"]
@@ -369,38 +362,20 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
     let asr = manifest::this_mac()[0].folder;
     std::os::unix::fs::symlink(models_dir.join(asr), plain_dir.join(asr)).unwrap();
 
-    let (custom, names) = (
-        lines(&clips.join("custom.txt")),
-        lines(&clips.join("names.txt")),
-    );
-    let name_only = lines(&clips.join("name-only.txt"));
-    // The custom words and window names a clip is dictated with.
-    let lists = |clip: &str| -> (Vec<String>, Vec<String>) {
-        if !clip.starts_with("name-") {
-            return (custom.clone(), names.clone());
-        }
-        let custom = custom
-            .iter()
-            .filter(|word| !name_only.contains(word))
-            .cloned()
-            .collect();
-        (custom, [name_only.clone(), names.clone()].concat())
-    };
-    for clip in ["target", "name-"] {
-        let (custom, names) = lists(clip);
-        let terms = boost_terms(&custom, &names);
-        writeln!(
-            report,
-            "{clip} clips: custom words ({}): {}. Window names ({}, capped at {} terms in \
-             all): {}.\n",
-            terms.words.len(),
-            terms.words.join(", "),
-            terms.names.len(),
-            super::boost::MAX_BOOST_TERMS,
-            terms.names.join(", ")
-        )
-        .unwrap();
-    }
+    let custom = boost_terms(&lines(&clips.join("custom.txt")));
+    // Window names, which dictation does not boost, to show why.
+    let with_names = boost_terms(&[custom.clone(), lines(&clips.join("names.txt"))].concat());
+    writeln!(
+        report,
+        "Custom words ({}): {}.\n\nWith window names: {} terms ({} names after the custom \
+         words, capped at {}).\n",
+        custom.len(),
+        custom.join(", "),
+        with_names.len(),
+        with_names.len() - custom.len(),
+        super::boost::MAX_BOOST_TERMS
+    )
+    .unwrap();
 
     let engine = |dir: &Path| LocalEngine {
         session: Session::with_idle_release(
@@ -429,11 +404,11 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
     )
     .unwrap();
 
-    let modes: [(&str, &LocalEngine); 4] = [
-        ("Parakeet alone", &plain),
-        ("CTC, no terms", &boosting),
-        ("custom words", &boosting),
-        ("with window names", &boosting),
+    let modes: [(&str, &LocalEngine, &[String]); 4] = [
+        ("Parakeet alone", &plain, &[]),
+        ("CTC, no terms", &boosting, &[]),
+        ("custom words", &boosting, &custom),
+        ("with window names", &boosting, &with_names),
     ];
     let mut wavs: Vec<PathBuf> = std::fs::read_dir(&clips)
         .unwrap()
@@ -452,20 +427,12 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
     let mut medians = vec![Vec::new(); modes.len()];
     let mut false_replacements = Vec::new();
     let (mut fixed, mut worse) = (Vec::new(), Vec::new());
-    let (mut fixed_by_names, mut worse_by_names) = (Vec::new(), Vec::new());
     for wav in &wavs {
         let name = wav.file_stem().unwrap().to_string_lossy().to_string();
         let samples = crate::audio_toolkit::read_wav_samples(wav).unwrap();
         let expected = std::fs::read_to_string(wav.with_extension("txt")).unwrap();
-        let (custom, names) = lists(&name);
-        let terms_by_mode = [
-            BoostTerms::default(),
-            BoostTerms::default(),
-            boost_terms(&custom, &[]),
-            boost_terms(&custom, &names),
-        ];
         let mut heard_by_mode = Vec::new();
-        for (index, ((mode, engine), terms)) in modes.iter().zip(&terms_by_mode).enumerate() {
+        for (index, (mode, engine, terms)) in modes.iter().enumerate() {
             // The terms changed since the last run: the helper builds its
             // rescorer again.
             let started = Instant::now();
@@ -515,21 +482,13 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
                 }
             }
         }
+        // What dictation ships: the custom words.
         let rate = |heard: &[String]| word_error_rate(&words(&expected), heard);
-        let (no_terms, custom_words, with_names) = (
-            rate(&heard_by_mode[1]),
-            rate(&heard_by_mode[2]),
-            rate(&heard_by_mode[3]),
-        );
-        if custom_words < no_terms {
+        let (before, after) = (rate(&heard_by_mode[1]), rate(&heard_by_mode[2]));
+        if after < before {
             fixed.push(name.clone());
-        } else if custom_words > no_terms {
+        } else if after > before {
             worse.push(name.clone());
-        }
-        if with_names < custom_words {
-            fixed_by_names.push(name.clone());
-        } else if with_names > custom_words {
-            worse_by_names.push(name.clone());
         }
     }
     report.push_str(&texts);
@@ -564,16 +523,6 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
         worse.join(", ")
     )
     .unwrap();
-    writeln!(
-        report,
-        "\nAdding the window names, {} clip(s) heard better than with the custom words \
-         alone ({}), {} worse ({}).",
-        fixed_by_names.len(),
-        fixed_by_names.join(", "),
-        worse_by_names.len(),
-        worse_by_names.join(", ")
-    )
-    .unwrap();
     if let Some(path) = std::env::var_os("MURMUR_REAL_REPORT") {
         std::fs::write(path, &report).unwrap();
     }
@@ -581,16 +530,10 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
     assert!(!fixed.is_empty(), "the custom words fixed no clip");
     assert!(worse.is_empty(), "the custom words made {worse:?} worse");
     assert!(
-        false_replacements.is_empty(),
-        "the terms replaced words of a control clip: {false_replacements:?}"
-    );
-    assert!(
-        fixed_by_names.iter().any(|clip| clip.starts_with("name-")),
-        "the window names fixed no name-only clip"
-    );
-    assert!(
-        worse_by_names.is_empty(),
-        "the window names made {worse_by_names:?} worse"
+        !false_replacements
+            .iter()
+            .any(|replacement| replacement.contains("(custom words)")),
+        "the custom words replaced words of a control clip"
     );
 }
 

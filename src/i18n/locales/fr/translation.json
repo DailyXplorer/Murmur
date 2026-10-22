@@ -501,7 +501,7 @@
       },
       "windowNames": {
         "title": "Contexte de la fenêtre active",
-        "description": "Au début de la dictée, Murmur lit le texte de la fenêtre au premier plan via l’Accessibilité et envoie au nettoyage IA les noms qu’il y trouve, pour bien les orthographier. Il envoie aussi un court extrait du texte autour du curseur. Avec la transcription locale sur un Mac avec puce Apple, le modèle de ce Mac guette aussi ces noms. Rien n’est conservé. Les champs de mot de passe et les gestionnaires de mots de passe ne sont jamais lus."
+        "description": "Au début de la dictée, Murmur lit le texte de la fenêtre au premier plan via l’Accessibilité et envoie au nettoyage IA les noms qu’il y trouve, pour bien les orthographier. Il envoie aussi un court extrait du texte autour du curseur. Rien n’est conservé. Les champs de mot de passe et les gestionnaires de mots de passe ne sont jamais lus."
       },
       "whisperMode": {
         "title": "Mode chuchotement",

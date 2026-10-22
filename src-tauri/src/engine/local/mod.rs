@@ -15,7 +15,6 @@ use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::audio_toolkit::pauses::{is_silent, split_at_pauses};
 use crate::local_models::LocalModels;
 use crate::ProcessingOperation;
-use boost::BoostTerms;
 use session::{Runtime, Session};
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,7 +70,7 @@ impl LocalEngine {
     pub async fn transcribe(
         &self,
         samples: &[f32],
-        terms: &BoostTerms,
+        terms: &[String],
         operation: &ProcessingOperation,
     ) -> anyhow::Result<String> {
         #[cfg(debug_assertions)]
@@ -177,7 +176,7 @@ mod tests {
     /// and keeps the terms each piece was given.
     struct Lengths {
         pieces: Arc<Mutex<Vec<usize>>>,
-        terms: Arc<Mutex<Vec<BoostTerms>>>,
+        terms: Arc<Mutex<Vec<Vec<String>>>>,
         answer: Option<&'static str>,
     }
 
@@ -196,10 +195,10 @@ mod tests {
         fn transcribe<'a>(
             &'a mut self,
             samples: &'a [f32],
-            terms: &'a BoostTerms,
+            terms: &'a [String],
         ) -> BoxFuture<'a, anyhow::Result<String>> {
             self.pieces.lock().unwrap().push(samples.len());
-            self.terms.lock().unwrap().push(terms.clone());
+            self.terms.lock().unwrap().push(terms.to_vec());
             let text = self
                 .answer
                 .map_or_else(|| format!(" {} ", samples.len()), str::to_string);
@@ -216,7 +215,7 @@ mod tests {
 
     fn engine_with_terms(
         answer: Option<&'static str>,
-    ) -> (LocalEngine, Seen<usize>, Seen<BoostTerms>) {
+    ) -> (LocalEngine, Seen<usize>, Seen<Vec<String>>) {
         let pieces = Arc::new(Mutex::new(Vec::new()));
         let terms = Arc::new(Mutex::new(Vec::new()));
         let runtime = Lengths {
@@ -262,10 +261,7 @@ mod tests {
     async fn a_long_dictation_is_cut_at_its_pause_and_the_texts_joined() {
         let (engine, pieces) = engine(None);
         let audio = speech(16.0, 1.0);
-        let text = engine
-            .transcribe(&audio, &BoostTerms::default(), &operation())
-            .await
-            .unwrap();
+        let text = engine.transcribe(&audio, &[], &operation()).await.unwrap();
         let pieces = pieces.lock().unwrap().clone();
         assert_eq!(pieces.len(), 2, "{pieces:?}");
         assert_eq!(pieces.iter().sum::<usize>(), audio.len());
@@ -281,11 +277,11 @@ mod tests {
     async fn a_short_dictation_is_one_piece_and_a_very_short_one_is_padded() {
         let (engine, pieces) = engine(None);
         engine
-            .transcribe(&speech(4.0, 0.0), &BoostTerms::default(), &operation())
+            .transcribe(&speech(4.0, 0.0), &[], &operation())
             .await
             .unwrap();
         engine
-            .transcribe(&speech(0.25, 0.0), &BoostTerms::default(), &operation())
+            .transcribe(&speech(0.25, 0.0), &[], &operation())
             .await
             .unwrap();
         assert_eq!(*pieces.lock().unwrap(), [4 * SAMPLES_PER_SECOND, MIN_PIECE]);
@@ -295,11 +291,7 @@ mod tests {
     async fn silence_never_reaches_the_model() {
         let (engine, pieces) = engine(Some("Thank you."));
         let text = engine
-            .transcribe(
-                &vec![0.0; 5 * SAMPLES_PER_SECOND],
-                &BoostTerms::default(),
-                &operation(),
-            )
+            .transcribe(&vec![0.0; 5 * SAMPLES_PER_SECOND], &[], &operation())
             .await
             .unwrap();
         assert_eq!(text, "");
@@ -312,7 +304,7 @@ mod tests {
         let cancelled = operation();
         cancelled.cancel();
         assert!(engine
-            .transcribe(&speech(4.0, 0.0), &BoostTerms::default(), &cancelled)
+            .transcribe(&speech(4.0, 0.0), &[], &cancelled)
             .await
             .is_err());
     }
@@ -320,10 +312,7 @@ mod tests {
     #[tokio::test]
     async fn every_piece_of_a_dictation_listens_for_its_terms() {
         let (engine, _, seen) = engine_with_terms(None);
-        let terms = BoostTerms {
-            words: vec!["Siobhán".to_string()],
-            names: vec!["Kubernetes".to_string()],
-        };
+        let terms = vec!["Siobhán".to_string(), "Kubernetes".to_string()];
         engine
             .transcribe(&speech(16.0, 1.0), &terms, &operation())
             .await
