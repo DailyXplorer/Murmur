@@ -1,6 +1,6 @@
-use crate::settings::AccentColor;
+use crate::settings::{self, AccentColor};
 use tauri::image::Image;
-use tauri::AppHandle;
+use tauri::{ActivationPolicy, AppHandle};
 
 const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../resources/tray.png");
@@ -37,6 +37,39 @@ pub fn apply_native_accent(app: &AppHandle, accent_color: AccentColor) -> Result
     set_macos_application_icon(app, icon)?;
 
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockPresence {
+    Shown,
+    Hidden,
+}
+
+/// The only place Murmur changes its activation policy.
+pub fn set_dock_presence(app: &AppHandle, presence: DockPresence) {
+    #[allow(clippy::disallowed_methods)]
+    update_dock(
+        presence,
+        |policy| {
+            app.set_activation_policy(policy)
+                .map_err(|error| error.to_string())
+        },
+        || apply_native_accent(app, settings::get_settings(app).accent_color),
+    );
+}
+
+fn update_dock(
+    presence: DockPresence,
+    set_activation_policy: impl FnOnce(ActivationPolicy) -> Result<(), String>,
+    _apply_accent: impl FnOnce() -> Result<(), String>,
+) {
+    let policy = match presence {
+        DockPresence::Shown => ActivationPolicy::Regular,
+        DockPresence::Hidden => ActivationPolicy::Accessory,
+    };
+    if let Err(error) = set_activation_policy(policy) {
+        log::error!("Failed to set the activation policy for {presence:?}: {error}");
+    }
 }
 
 fn recolor_brand_image(source: Image<'_>, accent_color: AccentColor) -> Image<'static> {
@@ -226,6 +259,40 @@ mod tests {
                 "expected hue {expected_hue}, got {hue} for {accent:?}"
             );
         }
+    }
+
+    fn dock_calls(presence: DockPresence) -> Vec<String> {
+        let calls = std::cell::RefCell::new(Vec::new());
+        update_dock(
+            presence,
+            |policy| {
+                let name = match policy {
+                    ActivationPolicy::Regular => "policy Regular",
+                    ActivationPolicy::Accessory => "policy Accessory",
+                    _ => "policy other",
+                };
+                calls.borrow_mut().push(name.to_string());
+                Ok(())
+            },
+            || {
+                calls.borrow_mut().push("accent icon".to_string());
+                Ok(())
+            },
+        );
+        calls.into_inner()
+    }
+
+    #[test]
+    fn showing_the_dock_tile_applies_the_accent_icon_last() {
+        assert_eq!(
+            dock_calls(DockPresence::Shown),
+            ["policy Regular", "accent icon"]
+        );
+    }
+
+    #[test]
+    fn hiding_the_dock_tile_only_changes_the_policy() {
+        assert_eq!(dock_calls(DockPresence::Hidden), ["policy Accessory"]);
     }
 
     #[test]

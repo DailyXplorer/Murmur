@@ -1,0 +1,4 @@
+disallowed-methods = [
+    { path = "tauri::AppHandle::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile" },
+    { path = "tauri::App::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile" },
+]
