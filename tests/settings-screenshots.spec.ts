@@ -162,6 +162,34 @@ test.describe("settings screenshots", () => {
     });
   }
 
+  for (const theme of ["light", "dark"] as const) {
+    test(`meeting waiting for a connection (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(DEFAULT_WINDOW);
+      for (const [name, query] of [
+        ["meeting-offline", "meetingFailed=1&meetingError=offline&offline=1"],
+        ["meeting-summary-offline", "summary=pending&offline=1"],
+      ] as const) {
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?meetings=1&${query}&theme=${theme}`,
+        );
+        await page
+          .getByRole("navigation")
+          .getByRole("button", { name: "Meetings", exact: true })
+          .click();
+        await page.getByRole("button", { name: /Point hebdo produit/ }).click();
+        await expect(
+          page.getByRole("button", { name: "Retry now" }),
+        ).toBeVisible();
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: `${outputDir}/${name}-${theme}.png` });
+      }
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    });
+  }
+
   for (const values of ["normal", "huge"] as const) {
     for (const theme of ["light", "dark"] as const) {
       test(`insights at the default window size (${values}, ${theme})`, async ({

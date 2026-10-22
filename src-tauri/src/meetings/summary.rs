@@ -16,7 +16,7 @@ use super::export::clock;
 use super::merge::PLACEHOLDER;
 use super::rename::MAX_TITLE_CHARS;
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
-use super::transcribe::{CodexVerdict, RetryPolicy};
+use super::transcribe::{unreachable, CodexVerdict, RetryPolicy};
 use crate::chinese_script::in_chosen_script;
 use crate::cleanup::responses::{self, CompletionError, Request};
 use crate::codex_auth;
@@ -351,12 +351,14 @@ fn summary_request<'a>(model: &'a str, instructions: &'a str, input: &'a str) ->
 pub enum SummaryEnd {
     Written(Summary),
     Failed(SummaryError),
+    /// Codex could not be reached once the retries were spent.
+    Unreachable,
     Cancelled,
 }
 
 /// One request, retried like a transcription piece: rate limits back off
 /// within the policy's budget, and network, timeout and server failures
-/// retry a few times. Each attempt has its own deadline.
+/// retry for a few minutes. Each attempt has its own deadline.
 async fn ask(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
@@ -399,6 +401,9 @@ async fn ask(
             _ => None,
         };
         let Some(delay) = delay else {
+            if unreachable(kind) {
+                return Err(SummaryEnd::Unreachable);
+            }
             return Err(SummaryEnd::Failed(SummaryError::of(kind)));
         };
         tokio::select! {
@@ -532,6 +537,15 @@ pub async fn write(
             Ok(Summarized {
                 settled: store.summary_failed(id, error)?,
                 codex: error.verdict(),
+            })
+        }
+        // Still pending: the queue writes it once the connection is back,
+        // and at the next launch.
+        SummaryEnd::Unreachable => {
+            log::warn!("Meeting {id}: no summary yet, Codex is out of reach");
+            Ok(Summarized {
+                settled: false,
+                codex: CodexVerdict::Unreachable,
             })
         }
         SummaryEnd::Cancelled => Ok(Summarized {
@@ -778,13 +792,22 @@ mod tests {
     }
 
     #[test]
-    fn a_lasting_network_failure_fails_the_summary_after_three_retries() {
+    fn a_lasting_network_failure_leaves_codex_out_of_reach_after_three_retries() {
         let script = Script::new((0..4).map(|_| failed(FailureKind::Network)).collect());
+        assert_eq!(
+            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+            SummaryEnd::Unreachable
+        );
+        assert_eq!(script.requests.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn a_lasting_server_failure_still_fails_the_summary() {
+        let script = Script::new((0..4).map(|_| failed(FailureKind::ServerError)).collect());
         assert_eq!(
             run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
             SummaryEnd::Failed(SummaryError::Network)
         );
-        assert_eq!(script.requests.lock().unwrap().len(), 4);
     }
 
     #[test]
@@ -909,12 +932,13 @@ mod tests {
             ),
             (Err(CompletionError::Cancelled), SummaryEnd::Cancelled),
             (Ok("\n".into()), SummaryEnd::Failed(SummaryError::Empty)),
+            (failed(FailureKind::Network), SummaryEnd::Unreachable),
         ] {
             assert_eq!(run(&Script::new(vec![answer]), MAX_SUMMARY_CHARS), end);
         }
         // A failed section stops before the merge.
         let script = Script::new(vec![failed(FailureKind::Timeout)]);
-        assert_eq!(run(&script, 100), SummaryEnd::Failed(SummaryError::Timeout));
+        assert_eq!(run(&script, 100), SummaryEnd::Unreachable);
         assert_eq!(script.requests.lock().unwrap().len(), 1);
     }
 

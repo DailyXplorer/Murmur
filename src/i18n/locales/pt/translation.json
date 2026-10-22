@@ -44,7 +44,9 @@
     "meetingSystemAudioInterrupted": "O áudio do sistema parou após a mudança da saída de som. O Murmur continua tentando recuperá-lo; seu microfone continua sendo gravado.",
     "meetingMicrophoneInterrupted": "O microfone parou de gravar. O Murmur continua tentando recuperá-lo; verifique se ele ainda está conectado.",
     "meetingMicrophoneDenied": "O acesso ao microfone está desativado, então a reunião não grava sua voz. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Microfone.",
-    "meetingSystemAudioDenied": "A gravação de áudio do sistema está desativada, então a reunião não grava os outros participantes. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema."
+    "meetingSystemAudioDenied": "A gravação de áudio do sistema está desativada, então a reunião não grava os outros participantes. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema.",
+    "meetingRecovered": "Uma reunião foi interrompida porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito.",
+    "meetingsRecovered": "{{count}} reuniões foram interrompidas porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito."
   },
   "sidebar": {
     "general": "Geral",
@@ -674,12 +676,14 @@
       "interrupted": "A gravação foi interrompida. O que foi gravado ainda pode ser transcrito.",
       "process": "Transcrever",
       "retry": "Tentar novamente",
+      "retryNow": "Tentar novamente agora",
       "retryError": "Não foi possível tentar o processamento novamente.",
       "errors": {
         "signed_out": "Entre com o ChatGPT e tente novamente.",
         "rate_limited": "O Codex está limitando as solicitações agora. Tente mais tarde.",
         "parts_failed": "Algumas partes não puderam ser transcritas.",
         "no_audio": "Não foi possível ler a gravação.",
+        "offline": "Aguardando conexão. O Murmur continua sozinho assim que você voltar a ficar online.",
         "other": "O processamento parou inesperadamente."
       }
     },

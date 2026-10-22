@@ -14,6 +14,7 @@ pub mod export;
 pub mod helper;
 pub mod merge;
 pub mod models;
+pub mod offline;
 pub mod paths;
 pub mod processor;
 pub mod protocol;
@@ -50,6 +51,7 @@ use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
 use helper::AnalysisSupport;
 use models::Models;
+use offline::{CodexHost, OfflineHold, Reachability};
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
@@ -86,11 +88,13 @@ pub struct MeetingCapabilities {
 }
 
 /// Recorded meetings wait here and are processed one at a time, in order.
-/// After a rate-limited meeting the queue holds: only meetings the user
-/// asked for go through, ahead of the others.
+/// After a rate-limited meeting, or one that could not reach Codex, the
+/// queue holds: only meetings the user asked for go through, ahead of the
+/// others.
 struct ProcessingQueue {
     state: Mutex<QueueState>,
     changed: tokio::sync::Notify,
+    reachability: Box<dyn Reachability>,
 }
 
 struct QueueState {
@@ -101,6 +105,19 @@ struct QueueState {
     /// time, as Codex counts its cap: `Instant` stops while the Mac sleeps.
     held_until: Option<SystemTime>,
     rate_limit: RateLimitHold,
+    /// Holds the queue, as the rate-limit hold does, until the connection
+    /// is back.
+    offline: OfflineHold,
+}
+
+/// What the worker does next.
+#[derive(Debug, PartialEq, Eq)]
+enum Next {
+    Process(i64),
+    /// See whether the connection is back.
+    CheckConnection,
+    /// Until a hold ends (`None`: nothing to wait for but a new meeting).
+    Wait(Option<SystemTime>),
 }
 
 struct Queued {
@@ -112,18 +129,26 @@ struct Queued {
 }
 
 impl QueueState {
-    /// The meeting to process now or, when none may go, the end of the hold
-    /// (`None`: nothing to wait for but a new meeting).
-    fn take_next(&mut self, now: SystemTime) -> Result<i64, Option<SystemTime>> {
+    fn held(&self) -> bool {
+        self.held_until.is_some() || self.offline.holds()
+    }
+
+    /// The meeting to process now or, when none may go, what to wait for.
+    fn take_next(&mut self, now: SystemTime) -> Next {
         self.held_until = self.held_until.filter(|until| now < *until);
-        let index = match self.held_until {
-            Some(_) => self.queued.iter().position(|queued| queued.asked),
-            None => (!self.queued.is_empty()).then_some(0),
+        let index = if self.held() {
+            self.queued.iter().position(|queued| queued.asked)
+        } else {
+            (!self.queued.is_empty()).then_some(0)
         };
-        match index.and_then(|index| self.queued.remove(index)) {
-            Some(queued) => Ok(queued.id),
-            None => Err(self.held_until),
+        if let Some(queued) = index.and_then(|index| self.queued.remove(index)) {
+            return Next::Process(queued.id);
         }
+        if self.offline.due(now) {
+            return Next::CheckConnection;
+        }
+        let ends = [self.held_until, self.offline.retry_at()];
+        Next::Wait(ends.into_iter().flatten().min())
     }
 }
 
@@ -135,10 +160,12 @@ impl ProcessingQueue {
             paused,
             held_until: None,
             rate_limit: RateLimitHold::default(),
+            offline: OfflineHold::default(),
         };
         Self {
             state: Mutex::new(state),
             changed: tokio::sync::Notify::new(),
+            reachability: Box::new(CodexHost::new()),
         }
     }
 
@@ -176,24 +203,30 @@ impl ProcessingQueue {
     /// so after a sleep only a fresh look sees that the hold has ended.
     const RECHECK: Duration = Duration::from_secs(60);
 
-    /// Waits for the next meeting to process, past any rate-limit hold.
+    /// Waits for the next meeting to process, past any rate-limit hold and
+    /// until the connection is back after Codex could not be reached.
     async fn next(&self) -> i64 {
         loop {
             let changed = self.changed.notified();
             let now = SystemTime::now();
-            let held_until = match self.state().take_next(now) {
-                Ok(id) => return id,
-                Err(held_until) => held_until,
-            };
-            match held_until {
-                Some(until) => {
+            let next = self.state().take_next(now);
+            match next {
+                Next::Process(id) => return id,
+                Next::CheckConnection => {
+                    let online = self.reachability.online().await;
+                    if online {
+                        info!("The connection is back; meetings waiting for it go on");
+                    }
+                    self.state().offline.checked(online, SystemTime::now());
+                }
+                Next::Wait(Some(until)) => {
                     let left = until.duration_since(now).unwrap_or_default();
                     tokio::select! {
                         () = tokio::time::sleep(left.min(Self::RECHECK)) => {}
                         () = changed => {}
                     }
                 }
-                None => changed.await,
+                Next::Wait(None) => changed.await,
             }
         }
     }
@@ -212,11 +245,15 @@ impl ProcessingQueue {
         let mut state = self.state();
         match verdict {
             CodexVerdict::RateLimited => {
+                // A refusal is an answer: the connection works.
+                state.offline.reset();
                 let wait = state.rate_limit.rate_limited();
                 state.held_until = Some(SystemTime::now() + wait);
                 Some(wait)
             }
+            CodexVerdict::Unreachable => Some(state.offline.unreachable(SystemTime::now())),
             CodexVerdict::Answered => {
+                state.offline.reset();
                 state.rate_limit.reset();
                 state.held_until = None;
                 None
@@ -252,6 +289,16 @@ impl ProcessingQueue {
             .iter()
             .any(|queued| queued.id == id && !queued.asked)
             .then_some(left)
+    }
+
+    /// Whether queued meeting `id` waits for the connection to come back.
+    fn offline_for(&self, id: i64) -> bool {
+        let state = self.state();
+        state.offline.holds()
+            && state
+                .queued
+                .iter()
+                .any(|queued| queued.id == id && !queued.asked)
     }
 
     fn queued(&self) -> Vec<i64> {
@@ -347,6 +394,8 @@ fn spawn_processing(
             if !worker.begin(id, &operation) {
                 continue;
             }
+            // Its view stops saying it waits for a hold or the connection.
+            AppEvents(app.clone()).updated(id);
             let language = get_settings(&app).selected_language;
             let processor = Processor {
                 store: Arc::clone(&store),
@@ -390,8 +439,18 @@ fn spawn_processing(
             worker.end();
             // While held, the meetings still queued wait as they are,
             // unfailed.
-            if let Some(wait) = worker.codex_said(codex) {
-                info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+            match (codex, worker.codex_said(codex)) {
+                (CodexVerdict::Unreachable, Some(wait)) => {
+                    info!(
+                        "Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}"
+                    );
+                    // It goes on with the others once the connection is back.
+                    worker.enqueue(id);
+                }
+                (_, Some(wait)) => {
+                    info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+                }
+                (_, None) => {}
             }
             // A hold that starts or lifts changes what their views say.
             if codex != CodexVerdict::Unknown {
@@ -465,11 +524,12 @@ pub struct MeetingsManager {
     queue: Arc<ProcessingQueue>,
     root: PathBuf,
     models: Arc<Models>,
+    /// Meetings a crash cut off before this launch, left to process.
+    recovered: Vec<i64>,
 }
 
 impl MeetingsManager {
-    /// Opens the library, marks meetings a crash cut off as interrupted and
-    /// resumes processing the ones a quit left mid-way.
+    /// Opens the library and marks meetings a crash cut off as interrupted.
     pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
         let app_data = app.path().app_data_dir()?;
         let root: PathBuf = app_data.join("meetings");
@@ -505,10 +565,12 @@ impl MeetingsManager {
             }
             DatabaseStartup::Unavailable => {}
         }
-        match store.recover_interrupted(&root) {
-            Ok(0) => {}
-            Ok(count) => info!("Recovered {count} interrupted meeting(s)"),
-            Err(error) => error!("Failed to recover interrupted meetings: {error}"),
+        let recovered = store
+            .recover_interrupted(&root)
+            .inspect_err(|error| error!("Failed to recover interrupted meetings: {error}"))
+            .unwrap_or_default();
+        if !recovered.is_empty() {
+            info!("Recovered interrupted meeting(s) {recovered:?}");
         }
         let store = Arc::new(store);
         let models = app
@@ -536,6 +598,7 @@ impl MeetingsManager {
             queue,
             root,
             models,
+            recovered,
         })
     }
 
@@ -634,6 +697,7 @@ impl MeetingsManager {
         meeting.held_until_ms = self.queue.held_for(id).map(|left| {
             chrono::Utc::now().timestamp_millis() + i64::try_from(left.as_millis()).unwrap_or(0)
         });
+        meeting.waiting_for_connection = self.queue.offline_for(id);
         Ok(meeting)
     }
 
@@ -835,8 +899,15 @@ pub fn init(app: &AppHandle, at_startup: bool) {
     }
     match MeetingsManager::new(app) {
         Ok(manager) => {
+            // Meetings turned off keep the interrupted ones until the user
+            // processes them, or turns meetings back on.
             if at_startup && get_settings(app).meetings_enabled {
                 manager.resume_processing();
+                // One notification, however many a crash cut off.
+                let count = manager.recovered.len();
+                if count > 0 {
+                    user_alert::show(app, Alert::MeetingsRecovered { count });
+                }
             }
             app.manage(Arc::new(manager));
         }
@@ -1130,6 +1201,104 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(1));
         queue.enqueue(1);
         assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    /// A connection check that answers what `online` says.
+    #[derive(Clone, Default)]
+    struct FakeConnection {
+        online: Arc<std::sync::atomic::AtomicBool>,
+        checks: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Reachability for FakeConnection {
+        fn online(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
+            use std::sync::atomic::Ordering;
+            self.checks.fetch_add(1, Ordering::SeqCst);
+            let online = self.online.load(Ordering::SeqCst);
+            Box::pin(async move { online })
+        }
+    }
+
+    impl FakeConnection {
+        fn set_online(&self, online: bool) {
+            self.online
+                .store(online, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn checks(&self) -> usize {
+            self.checks.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    fn queue_with(connection: &FakeConnection) -> ProcessingQueue {
+        let mut queue = ProcessingQueue::new(false);
+        queue.reachability = Box::new(connection.clone());
+        queue
+    }
+
+    /// The offline hold's wait is over, as if the run ended long ago.
+    fn connection_due(queue: &ProcessingQueue) {
+        queue
+            .state()
+            .offline
+            .checked(false, SystemTime::now() - AN_HOUR);
+    }
+
+    #[test]
+    fn while_codex_is_out_of_reach_only_meetings_asked_for_go_through() {
+        let connection = FakeConnection::default();
+        let queue = queue_with(&connection);
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(60))
+        );
+        queue.enqueue(1);
+        queue.enqueue_asked(2);
+        assert!(queue.offline_for(1));
+        assert!(!queue.offline_for(2), "goes through the hold");
+        assert_eq!(next_within(&queue, NOW), Some(2));
+        assert_eq!(next_within(&queue, A_MOMENT), None, "1 still waits");
+        // The wait is not over: the connection is not checked yet.
+        assert_eq!(connection.checks(), 0);
+    }
+
+    #[test]
+    fn the_queue_goes_on_once_a_check_finds_the_connection_back() {
+        let connection = FakeConnection::default();
+        let queue = queue_with(&connection);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        connection_due(&queue);
+        assert_eq!(next_within(&queue, A_MOMENT), None, "still offline");
+        assert_eq!(connection.checks(), 1);
+        assert!(queue.offline_for(1));
+
+        connection.set_online(true);
+        connection_due(&queue);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        assert_eq!(connection.checks(), 2);
+        assert!(!queue.state().offline.holds());
+    }
+
+    #[test]
+    fn each_unreachable_meeting_in_a_row_doubles_the_wait_until_codex_answers() {
+        let queue = queue_with(&FakeConnection::default());
+        let minutes = || {
+            queue
+                .codex_said(CodexVerdict::Unreachable)
+                .map(|wait| wait.as_secs() / 60)
+        };
+        let waits: Vec<_> = (0..6).map(|_| minutes()).collect();
+        assert_eq!(waits, [1, 2, 4, 8, 15, 15].map(Some));
+        assert_eq!(queue.codex_said(CodexVerdict::Answered), None);
+        assert!(!queue.state().offline.holds());
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(60))
+        );
+        // A rate limit is an answer too: the connection works.
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert!(!queue.state().offline.holds());
     }
 
     #[test]
