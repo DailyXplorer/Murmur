@@ -22,10 +22,7 @@ const SettingsControlWidthsFixture: React.FC = () => {
 
   return (
     <main className="min-h-screen bg-background px-8 py-10 text-text">
-      <section
-        data-testid="settings-control-widths"
-        className="mx-auto flex w-[768px] flex-col gap-2"
-      >
+      <section className="mx-auto flex w-[768px] flex-col gap-2">
         <SettingContainer
           title="Direct dropdown"
           description="A direct full-rail dropdown"

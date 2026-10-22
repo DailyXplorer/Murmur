@@ -4,7 +4,6 @@ import type { AppSettings } from "../../src/bindings";
 import "../../src/App.css";
 
 const params = new URLSearchParams(window.location.search);
-/** The interface language saved in the settings; empty means none was saved. */
 const saved = params.get("saved") ?? "";
 const system = params.get("system") ?? "en-US";
 

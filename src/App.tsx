@@ -36,7 +36,6 @@ import {
 } from "@/bindings";
 import { LocalSttCard } from "./components/LocalSttCard";
 import { LocalModelPill } from "./components/LocalModelPill";
-import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 /** A new install goes model → permissions → account → finish (on this Mac
  * only) → done. `returning`: setup was finished before, and a permission
@@ -115,13 +114,12 @@ const renderSettingsContent = (section: SidebarSection) => {
 
 /** Settings window shell, including first-run onboarding. */
 function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [onboardingState, setOnboardingState] =
     useState<OnboardingState | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
   const { settings, updateSetting, refreshSettings } = useSettings();
-  const direction = getLanguageDirection(i18n.language);
   const refreshAudioDevices = useSettingsStore(
     (state) => state.refreshAudioDevices,
   );
@@ -134,10 +132,6 @@ function App() {
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
-
-  useEffect(() => {
-    initializeRTL(i18n.language);
-  }, [i18n.language]);
 
   // The finish step tells the user to hold the shortcut, so it must work.
   useEffect(() => {
@@ -452,10 +446,7 @@ function App() {
     );
   } else {
     content = (
-      <div
-        dir={direction}
-        className="h-screen flex flex-col select-none cursor-default"
-      >
+      <div className="h-screen flex flex-col select-none cursor-default">
         <ErrorBoundary context="What's New">
           <WhatsNewGate />
         </ErrorBoundary>

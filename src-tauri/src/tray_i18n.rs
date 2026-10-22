@@ -19,34 +19,21 @@ include!(concat!(env!("OUT_DIR"), "/tray_translations.rs"));
 
 /// Get localized tray menu strings for `locale`, the app language setting.
 ///
-/// Lookup order: exact locale → Chinese script/region fallback → language code → English.
+/// Lookup order: exact locale → language code → English.
 pub fn get_tray_translations(locale: Option<String>) -> TrayStrings {
     let normalized = locale
         .as_deref()
         .unwrap_or("en")
         .to_lowercase()
         .replace('_', "-");
-    let subtags: Vec<_> = normalized.split('-').collect();
-    let language = subtags.first().copied().unwrap_or("en");
-    let is_hant = subtags.contains(&"hant");
-    let is_hans = subtags.contains(&"hans");
-    let is_traditional_region = ["tw", "hk", "mo"]
-        .iter()
-        .any(|region| subtags.contains(region));
+    let language = normalized.split('-').next().unwrap_or("en");
 
     let exact_match = TRANSLATIONS
         .iter()
         .find_map(|(code, strings)| code.eq_ignore_ascii_case(&normalized).then_some(strings));
-    let fallback = match language {
-        "zh" if is_hant || (!is_hans && is_traditional_region) => "zh-TW",
-        // Cantonese uses Traditional Chinese unless explicitly tagged as Hans.
-        "yue" if is_hans => "zh",
-        "yue" => "zh-TW",
-        _ => language,
-    };
 
     exact_match
-        .or_else(|| TRANSLATIONS.get(fallback))
+        .or_else(|| TRANSLATIONS.get(language))
         .or_else(|| TRANSLATIONS.get("en"))
         .cloned()
         .expect("English translations must exist")
