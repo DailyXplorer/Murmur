@@ -549,7 +549,7 @@
         "signIn": "Sign in",
         "signOut": "Sign out",
         "signOutFailed": "Couldn't sign out of ChatGPT.",
-        "waiting": "Finish signing in in your browser.",
+        "waiting": "Finish in your browser.",
         "signOutDialog": {
           "title": "Sign out of ChatGPT?",
           "body": "Murmur and the Codex app share one ChatGPT session on this Mac, so signing out here also signs out Codex."

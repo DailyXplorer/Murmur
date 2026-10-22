@@ -92,7 +92,7 @@ test("Sign in waits for the browser, then shows the session", async ({
   ).toBeVisible();
   await row(page).getByRole("button", { name: "Sign in" }).click();
   await expect(
-    row(page).getByText("Finish signing in in your browser.", {
+    row(page).getByText("Finish in your browser.", {
       exact: true,
     }),
   ).toBeVisible();

@@ -31,7 +31,7 @@ test("Start signs in in the browser, and Continue appears once the session is sa
 
   await step.getByRole("button", { name: "Start" }).click();
   await expect(buttons).toHaveText(["Cancel", "Retry"]);
-  await expect(line).toHaveText("Finish signing in in your browser.");
+  await expect(line).toHaveText("Finish in your browser.");
   expect(await calls(page)).toContain("sign_in_with_chatgpt");
   expect(await calls(page)).not.toContain("plugin:opener|open_url");
 

@@ -32,7 +32,7 @@ test.describe("ChatGPT sign-in screenshots", () => {
       await shot(page, "onboarding-idle");
 
       await step.getByRole("button", { name: "Start" }).click();
-      await expect(line).toHaveText("Finish signing in in your browser.");
+      await expect(line).toHaveText("Finish in your browser.");
       await shot(page, "onboarding-waiting");
 
       await page.evaluate(() =>
