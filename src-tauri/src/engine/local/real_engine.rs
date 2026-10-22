@@ -291,6 +291,252 @@ async fn the_downloaded_model_transcribes_speech_and_is_released_when_idle() {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+fn lines(path: &Path) -> Vec<String> {
+    std::fs::read_to_string(path)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+#[cfg(target_arch = "aarch64")]
+fn median_and_max(mut values: Vec<Duration>) -> (Duration, Duration) {
+    values.sort();
+    (values[values.len() / 2], values[values.len() - 1])
+}
+
+#[cfg(target_arch = "aarch64")]
+const BOOST_RUNS: usize = 5;
+
+/// Custom-word boosting on the real model, Apple silicon only:
+///
+/// `MURMUR_REAL_BOOST_CLIPS=<dir> MURMUR_REAL_MODELS=<dir> cargo test --lib
+/// engine::local::real_engine::boosting -- --ignored --nocapture`
+///
+/// The folder holds `target-*.wav`, speech with custom words, `control-*.wav`,
+/// speech without them, each with its exact text in `<name>.txt`, and the
+/// custom words and window names in `custom.txt` and `names.txt`, one per
+/// line. The models folder gets the optional CTC model as the app does. Each
+/// clip runs on Parakeet alone, then with the CTC model and no terms, the
+/// custom words, and the custom words with the window names. A word of a
+/// control clip that the terms change is a false replacement.
+#[cfg(target_arch = "aarch64")]
+#[tokio::test]
+#[ignore = "downloads the models and needs recorded speech"]
+async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
+    use super::boost::boost_terms;
+
+    let clips = PathBuf::from(std::env::var("MURMUR_REAL_BOOST_CLIPS").expect("clips"));
+    let fresh = tempfile::tempdir().unwrap();
+    let models_dir = std::env::var_os("MURMUR_REAL_MODELS")
+        .map_or_else(|| fresh.path().join("models"), PathBuf::from);
+    let scratch = fresh.path().join("scratch");
+    let mut report = String::new();
+
+    let models = LocalModels::new(
+        models_dir.clone(),
+        manifest::this_mac(),
+        AnalysisSupport::Available,
+        manifest::HUGGING_FACE.to_string(),
+        Arc::new(TestHost {
+            printed_tenth: Mutex::new(0),
+        }),
+    );
+    models.resume_on_launch(true);
+    assert_eq!(models.settled().await, LocalModelState::Ready);
+    models.fetched().await;
+    let ctc = manifest::this_mac()
+        .iter()
+        .find(|source| source.optional)
+        .unwrap();
+    assert!(
+        models_dir.join(ctc.folder).join("vocab.json").exists(),
+        "the CTC model was not fetched"
+    );
+
+    // Parakeet without the CTC model next to it, so the helper boosts nothing.
+    let plain_dir = fresh.path().join("plain");
+    std::fs::create_dir_all(&plain_dir).unwrap();
+    let asr = manifest::this_mac()[0].folder;
+    std::os::unix::fs::symlink(models_dir.join(asr), plain_dir.join(asr)).unwrap();
+
+    let custom = boost_terms(&lines(&clips.join("custom.txt")));
+    // Window names, which dictation does not boost, to show why.
+    let with_names = boost_terms(&[custom.clone(), lines(&clips.join("names.txt"))].concat());
+    writeln!(
+        report,
+        "Custom words ({}): {}.\n\nWith window names: {} terms ({} names after the custom \
+         words, capped at {}).\n",
+        custom.len(),
+        custom.join(", "),
+        with_names.len(),
+        with_names.len() - custom.len(),
+        super::boost::MAX_BOOST_TERMS
+    )
+    .unwrap();
+
+    let engine = |dir: &Path| LocalEngine {
+        session: Session::with_idle_release(
+            runtime(dir, &scratch),
+            Box::new(|| false),
+            Duration::from_secs(30 * 60),
+        ),
+        max_piece: MAX_PIECE,
+    };
+    let (plain, boosting) = (engine(&plain_dir), engine(&models_dir));
+    for (label, engine) in [("Parakeet alone", &plain), ("with CTC", &boosting)] {
+        let started = Instant::now();
+        engine.session.warm().await.unwrap();
+        writeln!(
+            report,
+            "Load {label}: {:.2} s.",
+            started.elapsed().as_secs_f64()
+        )
+        .unwrap();
+    }
+    writeln!(
+        report,
+        "\nHelper resident memory: Parakeet alone {} MB, with the CTC model {} MB.\n",
+        helper_memory_mb(&plain_dir).unwrap_or(0),
+        helper_memory_mb(&models_dir).unwrap_or(0)
+    )
+    .unwrap();
+
+    let modes: [(&str, &LocalEngine, &[String]); 4] = [
+        ("Parakeet alone", &plain, &[]),
+        ("CTC, no terms", &boosting, &[]),
+        ("custom words", &boosting, &custom),
+        ("with window names", &boosting, &with_names),
+    ];
+    let mut wavs: Vec<PathBuf> = std::fs::read_dir(&clips)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "wav"))
+        .collect();
+    wavs.sort();
+    assert!(!wavs.is_empty(), "no clips in {}", clips.display());
+
+    let operation = ProcessingOperation::new(OperationId(1));
+    let mut texts =
+        String::from("| Clip | Expected | Mode | Heard | WER |\n|---|---|---|---|---|\n");
+    let mut timings = format!(
+        "| Clip | Mode | First run | Median of the next {BOOST_RUNS} | Max |\n|---|---|---|---|---|\n"
+    );
+    let mut medians = vec![Vec::new(); modes.len()];
+    let mut false_replacements = Vec::new();
+    let (mut fixed, mut worse) = (Vec::new(), Vec::new());
+    for wav in &wavs {
+        let name = wav.file_stem().unwrap().to_string_lossy().to_string();
+        let samples = crate::audio_toolkit::read_wav_samples(wav).unwrap();
+        let expected = std::fs::read_to_string(wav.with_extension("txt")).unwrap();
+        let mut heard_by_mode = Vec::new();
+        for (index, (mode, engine, terms)) in modes.iter().enumerate() {
+            // The terms changed since the last run: the helper builds its
+            // rescorer again.
+            let started = Instant::now();
+            engine
+                .transcribe(&samples, terms, &operation)
+                .await
+                .unwrap();
+            let first = started.elapsed();
+            let mut runs = Vec::new();
+            let mut heard = String::new();
+            for _ in 0..BOOST_RUNS {
+                let started = Instant::now();
+                heard = engine
+                    .transcribe(&samples, terms, &operation)
+                    .await
+                    .unwrap();
+                runs.push(started.elapsed());
+            }
+            let (median, max) = median_and_max(runs);
+            medians[index].push(median);
+            let rate = word_error_rate(&words(&expected), &words(&heard));
+            println!("{name} / {mode}: {rate:.3} in {median:?}: {heard}");
+            writeln!(
+                texts,
+                "| {name} | {} | {mode} | {} | {:.1} % |",
+                expected.trim(),
+                heard.trim(),
+                rate * 100.0
+            )
+            .unwrap();
+            writeln!(
+                timings,
+                "| {name} | {mode} | {:.0} ms | {:.0} ms | {:.0} ms |",
+                first.as_secs_f64() * 1_000.0,
+                median.as_secs_f64() * 1_000.0,
+                max.as_secs_f64() * 1_000.0
+            )
+            .unwrap();
+            heard_by_mode.push(words(&heard));
+        }
+        if name.starts_with("control") {
+            for (mode, heard) in modes.iter().zip(&heard_by_mode).skip(2) {
+                let changed =
+                    word_error_rate(&heard_by_mode[1], heard) * heard_by_mode[1].len() as f64;
+                if changed > 0.0 {
+                    false_replacements.push(format!("{name} ({}): {changed:.0} word(s)", mode.0));
+                }
+            }
+        }
+        // What dictation ships: the custom words.
+        let rate = |heard: &[String]| word_error_rate(&words(&expected), heard);
+        let (before, after) = (rate(&heard_by_mode[1]), rate(&heard_by_mode[2]));
+        if after < before {
+            fixed.push(name.clone());
+        } else if after > before {
+            worse.push(name.clone());
+        }
+    }
+    report.push_str(&texts);
+    report.push('\n');
+    report.push_str(&timings);
+    report.push_str("\nMedian over the clips of each clip's median:\n\n");
+    for ((mode, ..), mut values) in modes.iter().zip(medians) {
+        values.sort();
+        writeln!(
+            report,
+            "- {mode}: {:.0} ms",
+            values[values.len() / 2].as_secs_f64() * 1_000.0
+        )
+        .unwrap();
+    }
+    writeln!(
+        report,
+        "\nFalse replacements in the control clips: {}.",
+        if false_replacements.is_empty() {
+            "none".to_string()
+        } else {
+            false_replacements.join("; ")
+        }
+    )
+    .unwrap();
+    writeln!(
+        report,
+        "\nWith the custom words, {} clip(s) heard better ({}), {} worse ({}).",
+        fixed.len(),
+        fixed.join(", "),
+        worse.len(),
+        worse.join(", ")
+    )
+    .unwrap();
+    if let Some(path) = std::env::var_os("MURMUR_REAL_REPORT") {
+        std::fs::write(path, &report).unwrap();
+    }
+    println!("{report}");
+    assert!(!fixed.is_empty(), "the custom words fixed no clip");
+    assert!(worse.is_empty(), "the custom words made {worse:?} worse");
+    assert!(
+        !false_replacements
+            .iter()
+            .any(|replacement| replacement.contains("(custom words)")),
+        "the custom words replaced words of a control clip"
+    );
+}
+
 #[test]
 fn the_word_error_rate_counts_each_edit_once() {
     let reference = words("Bonjour, l'équipe de Marseille.");
