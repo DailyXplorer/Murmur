@@ -46,7 +46,9 @@
     "meetingMicrophoneDenied": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
     "meetingSystemAudioDenied": "La grabación de audio del sistema está desactivada, así que la reunión no graba a los demás participantes. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema.",
     "meetingRecovered": "Una reunión se interrumpió porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo.",
-    "meetingsRecovered": "{{count}} reuniones se interrumpieron porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo."
+    "meetingsRecovered": "{{count}} reuniones se interrumpieron porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo.",
+    "meetingPausedWhileAsleep": "Su Mac entró en reposo durante la reunión. No se grabó nada entre las {{from}} y las {{to}}.",
+    "meetingAudioDropped": "Se perdió parte del audio de la reunión porque el Mac estaba demasiado ocupado."
   },
   "sidebar": {
     "general": "General",

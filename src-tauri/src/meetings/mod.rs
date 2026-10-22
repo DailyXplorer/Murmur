@@ -16,6 +16,7 @@ pub mod merge;
 pub mod models;
 pub mod offline;
 pub mod paths;
+pub mod power;
 pub mod processor;
 pub mod protocol;
 pub mod rename;

@@ -106,6 +106,8 @@ fn migrations() -> Migrations<'static> {
         M::up("ALTER TABLE meetings ADD COLUMN dropped_ms INTEGER NOT NULL DEFAULT 0;"),
         // Failed attempts to compress the tracks; past a few, they stay.
         M::up("ALTER TABLE meetings ADD COLUMN compress_failures INTEGER NOT NULL DEFAULT 0;"),
+        // Time the Mac slept while the meeting recorded, which holds no audio.
+        M::up("ALTER TABLE meetings ADD COLUMN slept_ms INTEGER NOT NULL DEFAULT 0;"),
     ])
 }
 
@@ -700,6 +702,24 @@ impl MeetingsStore {
     pub fn dropped_ms(&self, id: i64) -> Result<i64> {
         Ok(self.connection()?.query_row(
             "SELECT dropped_ms FROM meetings WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?)
+    }
+
+    /// Notes that the Mac slept `slept_ms` more while meeting `id` recorded.
+    pub fn add_slept_ms(&self, id: i64, slept_ms: u64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET slept_ms = slept_ms + ?2 WHERE id = ?1",
+            params![id, i64::try_from(slept_ms).unwrap_or(i64::MAX)],
+        )?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn slept_ms(&self, id: i64) -> Result<i64> {
+        Ok(self.connection()?.query_row(
+            "SELECT slept_ms FROM meetings WHERE id = ?1",
             params![id],
             |row| row.get(0),
         )?)
@@ -1907,6 +1927,16 @@ mod tests {
     }
 
     #[test]
+    fn each_sleep_during_a_recording_adds_to_the_time_asleep() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.slept_ms(id).unwrap(), 0);
+        store.add_slept_ms(id, 1_200_000).unwrap();
+        store.add_slept_ms(id, 30_000).unwrap();
+        assert_eq!(store.slept_ms(id).unwrap(), 1_230_000);
+    }
+
+    #[test]
     fn transcribing_again_forgets_the_pieces_and_the_summary_goes_with_the_words() {
         let (_dir, store) = store();
         let id = recorded(&store);
@@ -2070,6 +2100,7 @@ mod tests {
             "DROP TABLE meeting_last_id;
              ALTER TABLE meetings DROP COLUMN dropped_ms;
              ALTER TABLE meetings DROP COLUMN compress_failures;
+             ALTER TABLE meetings DROP COLUMN slept_ms;
              PRAGMA user_version = 6;",
         )
         .unwrap();
