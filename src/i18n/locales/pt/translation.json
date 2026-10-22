@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Escolha um estilo",
-      "description": "A limpeza com IA vai escrever os seus ditados neste estilo, que pode mudar quando quiser."
+      "description": "A limpeza vai escrever os seus ditados neste estilo, que pode mudar quando quiser."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Estilo de ditado",
         "description": "Formal: pontuação completa e linguagem escrita. Normal: pontuação mais leve, mantém as suas palavras. Descontraído: mais solto, como uma mensagem de chat.",
-        "cleanupOff": "Os estilos só se aplicam com a limpeza com IA ativada.",
+        "cleanupOff": "Os estilos só se aplicam com a limpeza ativada.",
         "error": "Não foi possível mudar o estilo de ditado.",
         "options": {
           "formal": "Formal",

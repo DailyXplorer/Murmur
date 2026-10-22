@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Scegli uno stile",
-      "description": "La pulizia con IA scriverà le tue dettature in questo stile, che puoi cambiare quando vuoi."
+      "description": "La pulizia scriverà le tue dettature in questo stile, che puoi cambiare quando vuoi."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Stile di dettatura",
         "description": "Formale: punteggiatura completa e forma scritta. Normale: punteggiatura più leggera, mantiene le tue parole. Informale: rilassato, come un messaggio in chat.",
-        "cleanupOff": "Gli stili si applicano solo con la pulizia con IA attiva.",
+        "cleanupOff": "Gli stili si applicano solo con la pulizia attiva.",
         "error": "Impossibile cambiare lo stile di dettatura.",
         "options": {
           "formal": "Formale",

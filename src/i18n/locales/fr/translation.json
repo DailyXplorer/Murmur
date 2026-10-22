@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Choisissez un style",
-      "description": "Le nettoyage par IA écrira vos dictées dans ce style, modifiable à tout moment."
+      "description": "Le nettoyage écrira vos dictées dans ce style, modifiable à tout moment."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Style de dictée",
         "description": "Formel : ponctuation complète et tournures écrites. Normal : un peu moins de ponctuation, vos mots restent les vôtres. Détendu : plus relâché, comme un message à un ami.",
-        "cleanupOff": "Les styles s’appliquent seulement quand le nettoyage par IA est activé.",
+        "cleanupOff": "Les styles s’appliquent seulement quand le nettoyage est activé.",
         "error": "Impossible de changer le style de dictée.",
         "options": {
           "formal": "Formel",

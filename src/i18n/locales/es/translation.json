@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Elige un estilo",
-      "description": "La limpieza con IA escribirá tus dictados en este estilo, que puedes cambiar cuando quieras."
+      "description": "La limpieza escribirá tus dictados en este estilo, que puedes cambiar cuando quieras."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Estilo de dictado",
         "description": "Formal: puntuación completa y redacción escrita. Normal: puntuación más ligera, conserva tus palabras. Informal: relajado, como un mensaje de chat.",
-        "cleanupOff": "Los estilos solo se aplican con la limpieza con IA activada.",
+        "cleanupOff": "Los estilos solo se aplican con la limpieza activada.",
         "error": "No se pudo cambiar el estilo de dictado.",
         "options": {
           "formal": "Formal",

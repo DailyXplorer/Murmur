@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Wähle einen Stil",
-      "description": "Die KI-Bereinigung schreibt deine Diktate in diesem Stil, den du jederzeit ändern kannst."
+      "description": "Die Bereinigung schreibt deine Diktate in diesem Stil, den du jederzeit ändern kannst."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Diktierstil",
         "description": "Förmlich: vollständige Zeichensetzung und schriftliche Formulierungen. Normal: etwas weniger Zeichensetzung, deine Worte bleiben. Locker: entspannt, wie eine Chatnachricht.",
-        "cleanupOff": "Stile wirken nur, wenn die KI-Bereinigung an ist.",
+        "cleanupOff": "Stile wirken nur, wenn die Bereinigung an ist.",
         "error": "Der Diktierstil konnte nicht geändert werden.",
         "options": {
           "formal": "Förmlich",

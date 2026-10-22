@@ -160,7 +160,7 @@
     },
     "style": {
       "title": "Choose a style",
-      "description": "AI cleanup will write your dictations in this style, which you can change anytime."
+      "description": "Cleanup will write your dictations in this style, which you can change anytime."
     }
   },
   "settings": {
@@ -491,7 +491,7 @@
       "style": {
         "title": "Dictation style",
         "description": "Formal: full punctuation and written wording. Normal: lighter punctuation, keeps your words. Casual: relaxed, like a chat message.",
-        "cleanupOff": "Styles apply only when AI cleanup is on.",
+        "cleanupOff": "Styles apply only when cleanup is on.",
         "error": "Couldn't change the dictation style.",
         "options": {
           "formal": "Formal",
