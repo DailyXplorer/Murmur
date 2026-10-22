@@ -167,6 +167,7 @@
   line-height: 16px;
   color: var(--ov-ink);
   text-align: center;
+  text-wrap: balance;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;

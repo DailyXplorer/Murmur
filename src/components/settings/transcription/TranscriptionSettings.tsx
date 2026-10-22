@@ -42,7 +42,7 @@ const EngineOption: React.FC<{
         checked={checked}
         disabled={disabled}
         onChange={() => onSelect(engine)}
-        className="mt-0.5 size-4 shrink-0 accent-logo-primary disabled:opacity-50"
+        className="mt-0.5 size-4 shrink-0 accent-logo-primary disabled:opacity-50 dark:[color-scheme:dark]"
       />
       <span className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>
         <span className="block text-sm font-medium">
