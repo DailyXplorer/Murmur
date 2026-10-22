@@ -525,6 +525,20 @@ test.describe("settings screenshots", () => {
           path: `${outputDir}/footer-installing-${theme}.png`,
         });
       });
+
+      test(`about (${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?theme=${theme}&accent=green`,
+        );
+        await page
+          .getByRole("navigation")
+          .getByRole("button", { name: "About", exact: true })
+          .click();
+        await expect(page.getByText("View licences")).toBeVisible();
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: `${outputDir}/about-${theme}.png` });
+      });
     }
   });
 

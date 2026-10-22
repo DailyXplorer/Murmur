@@ -84,9 +84,6 @@ export const AboutSettings: React.FC = () => {
             {t("settings.about.modelLicences.button")}
           </Button>
         </SettingContainer>
-        <p className="px-4 py-3 text-sm text-text/70">
-          {t("settings.about.parakeet")}
-        </p>
       </SettingsGroup>
       <ModelLicencesDialog open={licences} onOpenChange={setLicences} />
     </SettingsPage>

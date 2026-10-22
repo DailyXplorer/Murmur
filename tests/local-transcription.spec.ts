@@ -495,11 +495,12 @@ test.describe("lines about the engine used", () => {
     });
   }
 
-  test("About credits NVIDIA Parakeet", async ({ page }) => {
+  test("About credits NVIDIA Parakeet in the licences dialog only", async ({
+    page,
+  }) => {
     await open(page, "", "About");
-    await expect(
-      page.getByText("Local transcription uses NVIDIA Parakeet (CC BY 4.0)."),
-    ).toBeVisible();
+    await expect(page.getByText("View licences")).toBeVisible();
+    await expect(page.getByText(/Parakeet/)).toHaveCount(0);
     await page.getByRole("button", { name: "View licences" }).click();
     const dialog = page.getByRole("dialog", { name: "Model licences" });
     await expect(
