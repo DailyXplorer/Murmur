@@ -89,8 +89,13 @@ pub fn parse_line(line: &str) -> serde_json::Result<Message> {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 pub enum Request<'a> {
-    /// Transcribe a 16 kHz mono WAV of at most 15 s.
-    Transcribe { id: u64, wav: &'a std::path::Path },
+    /// Transcribe a 16 kHz mono WAV of at most 15 s, listening for `terms`.
+    Transcribe {
+        id: u64,
+        wav: &'a std::path::Path,
+        #[serde(skip_serializing_if = "<[String]>::is_empty")]
+        terms: &'a [String],
+    },
 }
 
 /// What `serve` prints, one JSON object per line on its stdout.
@@ -247,10 +252,20 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&Request::Transcribe {
                 id: 7,
-                wav: std::path::Path::new("/tmp/piece 7.wav")
+                wav: std::path::Path::new("/tmp/piece 7.wav"),
+                terms: &[],
             })
             .unwrap(),
             r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Request::Transcribe {
+                id: 8,
+                wav: std::path::Path::new("/tmp/piece 8.wav"),
+                terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
+            })
+            .unwrap(),
+            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"]}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(

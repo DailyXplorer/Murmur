@@ -238,7 +238,7 @@ async fn the_downloaded_model_transcribes_speech_and_is_released_when_idle() {
         let expected = std::fs::read_to_string(wav.with_extension("txt")).unwrap();
         let pieces = crate::audio_toolkit::pauses::split_at_pauses(&samples, MAX_PIECE).len();
         let started = Instant::now();
-        let heard = engine.transcribe(&samples, &operation).await.unwrap();
+        let heard = engine.transcribe(&samples, &[], &operation).await.unwrap();
         let latency = started.elapsed();
         let rate = word_error_rate(&words(&expected), &words(&heard));
         let name = wav.file_stem().unwrap().to_string_lossy();

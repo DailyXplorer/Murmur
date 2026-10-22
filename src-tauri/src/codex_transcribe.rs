@@ -11,6 +11,10 @@
 //! the process skips the Codex identity for `CODEX_QUOTA_BACKOFF`. When
 //! ChatGPT's quota is spent during that window, the window closes and the
 //! audio is resent as Codex. Each request switches identity at most once.
+//!
+//! The endpoint takes no vocabulary: for a ChatGPT session, Codex sends only
+//! the `file` part, and its `prompt` goes to the API-key endpoint alone
+//! (<https://github.com/openai/codex/blob/4e119a3b38e4a4decfccb003acecabc4614142b6/codex-rs/tui/src/voice.rs#L787-L834>).
 
 use anyhow::{anyhow, Context, Result};
 use hound::WavSpec;

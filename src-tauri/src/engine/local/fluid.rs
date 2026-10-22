@@ -134,12 +134,22 @@ impl Serve {
 }
 
 impl Loaded for Serve {
-    fn transcribe<'a>(&'a mut self, samples: &'a [f32]) -> BoxFuture<'a, anyhow::Result<String>> {
+    /// The helper boosts `terms` with FluidAudio's CTC keyword spotting when
+    /// the optional CTC model is downloaded, and otherwise ignores them.
+    fn transcribe<'a>(
+        &'a mut self,
+        samples: &'a [f32],
+        terms: &'a [String],
+    ) -> BoxFuture<'a, anyhow::Result<String>> {
         Box::pin(async move {
             let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
             let wav = Scratch(self.scratch.join(format!("piece-{id}.wav")));
             crate::audio_toolkit::save_wav_file(&wav.0, samples)?;
-            let mut line = serde_json::to_string(&Request::Transcribe { id, wav: &wav.0 })?;
+            let mut line = serde_json::to_string(&Request::Transcribe {
+                id,
+                wav: &wav.0,
+                terms,
+            })?;
             line.push('\n');
             self.stdin.write_all(line.as_bytes()).await?;
             self.stdin.flush().await?;
@@ -205,12 +215,38 @@ done"#
         let mut model = runtime.load().await.unwrap();
         // 44 bytes of header, then 16-bit samples.
         let expected = format!("Bonjour {}", 44 + 2 * samples().len());
-        assert_eq!(model.transcribe(&samples()).await.unwrap(), expected);
-        assert_eq!(model.transcribe(&samples()).await.unwrap(), expected);
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
         let left: Vec<_> = std::fs::read_dir(dir.path().join("scratch"))
             .unwrap()
             .collect();
         assert!(left.is_empty(), "{left:?}");
+    }
+
+    #[tokio::test]
+    async fn the_terms_reach_the_helper_only_when_there_are_some() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = runtime(
+            dir.path(),
+            &format!(
+                r#"echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+case "$line" in
+*'"terms":["Siobhán","Nguyen"]'*) heard=boosted ;;
+*terms*) heard=garbled ;;
+*) heard=plain ;;
+esac
+echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"$heard\"}}"
+done"#
+            ),
+        );
+        let mut model = runtime.load().await.unwrap();
+        let terms = ["Siobhán".to_string(), "Nguyen".to_string()];
+        assert_eq!(
+            model.transcribe(&samples(), &terms).await.unwrap(),
+            "boosted"
+        );
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "plain");
     }
 
     #[tokio::test]
@@ -232,9 +268,9 @@ done"#
             ),
         );
         let mut model = runtime.load().await.unwrap();
-        let error = model.transcribe(&samples()).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
         assert!(error.to_string().contains("bad audio"), "{error}");
-        assert_eq!(model.transcribe(&samples()).await.unwrap(), "ok");
+        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "ok");
     }
 
     #[tokio::test]
@@ -258,7 +294,7 @@ done"#
             ),
         );
         let mut model = crashes.load().await.unwrap();
-        let error = model.transcribe(&samples()).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
         assert!(error.to_string().contains("stopped"), "{error}");
     }
 }

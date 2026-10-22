@@ -2,6 +2,7 @@
 //! in the meetings helper (`fluid`), other Macs the GGUF model on the CPU in
 //! the app (`cpu`). Both get pieces short enough for one pass, cut at pauses.
 
+pub mod boost;
 #[cfg(target_arch = "x86_64")]
 mod cpu;
 #[cfg(target_arch = "aarch64")]
@@ -63,11 +64,13 @@ impl LocalEngine {
         });
     }
 
-    /// Transcribes 16 kHz mono audio of any length. Silence gives no text
-    /// and never reaches the model, which would invent words.
+    /// Transcribes 16 kHz mono audio of any length, listening for `terms`
+    /// (see `boost`). Silence gives no text and never reaches the model,
+    /// which would invent words.
     pub async fn transcribe(
         &self,
         samples: &[f32],
+        terms: &[String],
         operation: &ProcessingOperation,
     ) -> anyhow::Result<String> {
         #[cfg(debug_assertions)]
@@ -84,7 +87,7 @@ impl LocalEngine {
             let text = tokio::select! {
                 biased;
                 () = operation.cancelled() => anyhow::bail!("Local transcription cancelled"),
-                text = self.session.transcribe(&piece, limit) => text?,
+                text = self.session.transcribe(&piece, terms, limit) => text?,
             };
             texts.push(text.trim().to_string());
         }
@@ -169,9 +172,11 @@ mod tests {
     use crate::OperationId;
     use std::sync::Mutex;
 
-    /// Answers each piece with its length in samples, or the given text.
+    /// Answers each piece with its length in samples, or the given text,
+    /// and keeps the terms each piece was given.
     struct Lengths {
         pieces: Arc<Mutex<Vec<usize>>>,
+        terms: Arc<Mutex<Vec<Vec<String>>>>,
         answer: Option<&'static str>,
     }
 
@@ -179,6 +184,7 @@ mod tests {
         fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
             let model = Lengths {
                 pieces: Arc::clone(&self.pieces),
+                terms: Arc::clone(&self.terms),
                 answer: self.answer,
             };
             Box::pin(async move { Ok(Box::new(model) as Box<dyn Loaded>) })
@@ -189,8 +195,10 @@ mod tests {
         fn transcribe<'a>(
             &'a mut self,
             samples: &'a [f32],
+            terms: &'a [String],
         ) -> BoxFuture<'a, anyhow::Result<String>> {
             self.pieces.lock().unwrap().push(samples.len());
+            self.terms.lock().unwrap().push(terms.to_vec());
             let text = self
                 .answer
                 .map_or_else(|| format!(" {} ", samples.len()), str::to_string);
@@ -198,10 +206,21 @@ mod tests {
         }
     }
 
-    fn engine(answer: Option<&'static str>) -> (LocalEngine, Arc<Mutex<Vec<usize>>>) {
+    type Seen<T> = Arc<Mutex<Vec<T>>>;
+
+    fn engine(answer: Option<&'static str>) -> (LocalEngine, Seen<usize>) {
+        let (engine, pieces, _) = engine_with_terms(answer);
+        (engine, pieces)
+    }
+
+    fn engine_with_terms(
+        answer: Option<&'static str>,
+    ) -> (LocalEngine, Seen<usize>, Seen<Vec<String>>) {
         let pieces = Arc::new(Mutex::new(Vec::new()));
+        let terms = Arc::new(Mutex::new(Vec::new()));
         let runtime = Lengths {
             pieces: Arc::clone(&pieces),
+            terms: Arc::clone(&terms),
             answer,
         };
         let engine = LocalEngine::new(
@@ -209,7 +228,7 @@ mod tests {
             10 * SAMPLES_PER_SECOND,
             Box::new(|| false),
         );
-        (engine, pieces)
+        (engine, pieces, terms)
     }
 
     /// Speech at syllable rhythm (40 ms loud, 20 ms 10 dB softer), `seconds`
@@ -242,7 +261,7 @@ mod tests {
     async fn a_long_dictation_is_cut_at_its_pause_and_the_texts_joined() {
         let (engine, pieces) = engine(None);
         let audio = speech(16.0, 1.0);
-        let text = engine.transcribe(&audio, &operation()).await.unwrap();
+        let text = engine.transcribe(&audio, &[], &operation()).await.unwrap();
         let pieces = pieces.lock().unwrap().clone();
         assert_eq!(pieces.len(), 2, "{pieces:?}");
         assert_eq!(pieces.iter().sum::<usize>(), audio.len());
@@ -258,11 +277,11 @@ mod tests {
     async fn a_short_dictation_is_one_piece_and_a_very_short_one_is_padded() {
         let (engine, pieces) = engine(None);
         engine
-            .transcribe(&speech(4.0, 0.0), &operation())
+            .transcribe(&speech(4.0, 0.0), &[], &operation())
             .await
             .unwrap();
         engine
-            .transcribe(&speech(0.25, 0.0), &operation())
+            .transcribe(&speech(0.25, 0.0), &[], &operation())
             .await
             .unwrap();
         assert_eq!(*pieces.lock().unwrap(), [4 * SAMPLES_PER_SECOND, MIN_PIECE]);
@@ -272,7 +291,7 @@ mod tests {
     async fn silence_never_reaches_the_model() {
         let (engine, pieces) = engine(Some("Thank you."));
         let text = engine
-            .transcribe(&vec![0.0; 5 * SAMPLES_PER_SECOND], &operation())
+            .transcribe(&vec![0.0; 5 * SAMPLES_PER_SECOND], &[], &operation())
             .await
             .unwrap();
         assert_eq!(text, "");
@@ -285,8 +304,19 @@ mod tests {
         let cancelled = operation();
         cancelled.cancel();
         assert!(engine
-            .transcribe(&speech(4.0, 0.0), &cancelled)
+            .transcribe(&speech(4.0, 0.0), &[], &cancelled)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn every_piece_of_a_dictation_listens_for_its_terms() {
+        let (engine, _, seen) = engine_with_terms(None);
+        let terms = vec!["Siobhán".to_string(), "Kubernetes".to_string()];
+        engine
+            .transcribe(&speech(16.0, 1.0), &terms, &operation())
+            .await
+            .unwrap();
+        assert_eq!(*seen.lock().unwrap(), [terms.clone(), terms]);
     }
 }

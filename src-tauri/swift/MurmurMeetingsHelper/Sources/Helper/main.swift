@@ -9,7 +9,8 @@
 // once, so Core ML compiles them for this Mac; `analyze` prints the words
 // heard on each track, `diarize` who spoke when on one track: Murmur picks
 // it from those words. `serve` keeps Parakeet loaded for dictation and
-// transcribes each WAV named on stdin. Prints one JSON object per line on
+// transcribes each WAV named on stdin, boosting the terms named with it when
+// the optional CTC model is downloaded. Prints one JSON object per line on
 // stdout (see `meetings/protocol.rs`). None of them downloads: missing
 // models are reported as an error.
 
@@ -80,6 +81,8 @@ struct ServeRequest: Decodable {
     let type: String
     let id: UInt64
     let wav: String
+    /// Words to listen for. Absent when there are none.
+    let terms: [String]?
 }
 
 let output = FileHandle.standardOutput
@@ -134,6 +137,8 @@ func prepare(models: URL) async -> Int32 {
             progressHandler: compileProgress(from: 0, to: 0.8))
         _ = try await OfflineDiarizerModels.load(
             from: models, progressHandler: compileProgress(from: 0.8, to: 1))
+        // Optional: without it, dictation is not boosted.
+        _ = await Booster.load(models: models)
         emit(Done())
         return 0
     } catch {
@@ -212,6 +217,83 @@ func diarize(models: URL, arguments: [String]) async -> Int32 {
     return 0
 }
 
+/// The terms of one request, ready to rescore a transcript with.
+struct Boost: Sendable {
+    let terms: [String]
+    let spotter: CtcKeywordSpotter
+    let vocabulary: CustomVocabularyContext
+    let rescorer: VocabularyRescorer
+
+    /// The transcript with the terms boosted, or `nil` when nothing changed.
+    func rescored(_ result: ASRResult, spotted: CtcKeywordSpotter.SpotKeywordsResult) -> String? {
+        guard let timings = result.tokenTimings, !timings.isEmpty, !spotted.logProbs.isEmpty
+        else { return nil }
+        let tuned = ContextBiasingConstants.rescorerConfig(forVocabSize: vocabulary.terms.count)
+        let output = rescorer.ctcTokenRescore(
+            transcript: result.text, tokenTimings: timings, logProbs: spotted.logProbs,
+            frameDuration: spotted.frameDuration, cbw: tuned.cbw,
+            marginSeconds: ContextBiasingConstants.defaultMarginSeconds,
+            minSimilarity: tuned.minSimilarity)
+        return output.wasModified ? output.text : nil
+    }
+}
+
+/// Custom-word boosting: FluidAudio's CTC keyword spotting rescores the
+/// Parakeet transcript (FluidAudio's `Documentation/ASR/CustomVocabulary.md`).
+/// The CTC model is an optional download, loaded from Murmur's folder rather
+/// than FluidAudio's own cache.
+final class Booster {
+    let spotter: CtcKeywordSpotter
+    let tokenizer: CtcTokenizer
+    let directory: URL
+    /// Building a rescorer reads the tokenizer again, so the last one is kept.
+    var last: Boost?
+
+    init(spotter: CtcKeywordSpotter, tokenizer: CtcTokenizer, directory: URL) {
+        self.spotter = spotter
+        self.tokenizer = tokenizer
+        self.directory = directory
+    }
+
+    /// `nil` when the model is not downloaded or does not load: boosting is
+    /// then off and dictation unchanged.
+    static func load(models: URL) async -> Booster? {
+        let directory = models.appendingPathComponent(
+            Repo.parakeetCtc110m.folderName, isDirectory: true)
+        guard CtcModels.modelsExist(at: directory) else { return nil }
+        do {
+            let ctc = try await CtcModels.loadDirect(from: directory)
+            return Booster(
+                spotter: CtcKeywordSpotter(models: ctc, blankId: ctc.vocabulary.count),
+                tokenizer: try await CtcTokenizer.load(from: directory),
+                directory: directory)
+        } catch {
+            FileHandle.standardError.write(Data("Custom-word boosting is off: \(error)\n".utf8))
+            return nil
+        }
+    }
+
+    /// `nil` when no term can be spotted or the rescorer cannot be built.
+    func boost(_ terms: [String]) async -> Boost? {
+        if let last, last.terms == terms { return last }
+        let vocabulary = CustomVocabularyContext(
+            terms: terms.compactMap { text in
+                let ids = tokenizer.encode(text)
+                return ids.isEmpty ? nil : CustomVocabularyTerm(text: text, ctcTokenIds: ids)
+            })
+        guard !vocabulary.terms.isEmpty else { return nil }
+        // The acoustic rescue replaces far more words that were right.
+        guard
+            let rescorer = try? await VocabularyRescorer.create(
+                spotter: spotter, vocabulary: vocabulary,
+                config: VocabularyRescorer.Config(spotterRescueEnabled: false),
+                ctcModelDirectory: directory)
+        else { return nil }
+        last = Boost(terms: terms, spotter: spotter, vocabulary: vocabulary, rescorer: rescorer)
+        return last
+    }
+}
+
 /// Loads Parakeet once, then answers each request read on stdin until
 /// Murmur closes it. Pieces are at most 15 s, one pass of the encoder.
 func serve(models: URL) async -> Int32 {
@@ -224,6 +306,7 @@ func serve(models: URL) async -> Int32 {
         fail("load", error)
         return 1
     }
+    let booster = await Booster.load(models: models)
     emit(ServeReady())
     let decoder = JSONDecoder()
     while let line = readLine() {
@@ -231,10 +314,20 @@ func serve(models: URL) async -> Int32 {
             request.type == "transcribe"
         else { continue }
         do {
+            let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: request.wav))
             var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
-            let result = try await manager.transcribe(
-                URL(fileURLWithPath: request.wav), decoderState: &state)
-            emit(ServeText(id: request.id, text: result.text))
+            let terms = request.terms ?? []
+            guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
+                let result = try await manager.transcribe(samples, decoderState: &state)
+                emit(ServeText(id: request.id, text: result.text))
+                continue
+            }
+            // The CTC pass needs only the audio, so it runs beside Parakeet.
+            async let spotting = boost.spotter.spotKeywordsWithLogProbs(
+                audioSamples: samples, customVocabulary: boost.vocabulary)
+            let result = try await manager.transcribe(samples, decoderState: &state)
+            let boosted = (try? await spotting).flatMap { boost.rescored(result, spotted: $0) }
+            emit(ServeText(id: request.id, text: boosted ?? result.text))
         } catch {
             emit(
                 ServeFailure(
