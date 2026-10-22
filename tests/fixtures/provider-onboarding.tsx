@@ -86,6 +86,9 @@ const deferStatusRefresh = (): number => {
   return deferredStatusRefreshes.length - 1;
 };
 
+/** `slowStatus=1`: the first status check waits for `resolveStatusRefresh(0)`. */
+if (query.get("slowStatus") === "1") deferStatusRefresh();
+
 const deferredStatusResponse = () => {
   const deferred = deferredStatusRefreshes[activeDeferredStatusRefresh];
   if (!deferred || deferred.requested) return null;

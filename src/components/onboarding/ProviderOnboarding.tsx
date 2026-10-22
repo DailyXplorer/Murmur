@@ -55,12 +55,14 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   const canSkip = optional && !isCompleting && !connected;
   // "Not signed in" is what the description already says, so it shows only
   // once the user asked to check again.
-  const problem =
-    checked?.kind === "error" ||
-    (checked?.kind === "unavailable" &&
-      (retried || checked.reason === "sessionExpired"))
-      ? checked
-      : null;
+  const line =
+    retried && status.kind === "checking"
+      ? status
+      : checked?.kind === "error" ||
+          (checked?.kind === "unavailable" &&
+            (retried || checked.reason === "sessionExpired"))
+        ? checked
+        : null;
 
   const finish = useCallback(async () => {
     setIsCompleting(true);
@@ -103,7 +105,11 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             </p>
           </div>
           <div className="mt-3 flex justify-center">
-            <div className="inline-grid grid-flow-col auto-cols-fr gap-2">
+            {/* Hidden until the first check answers, so a connected user
+                never sees Start. */}
+            <div
+              className={`inline-grid grid-flow-col auto-cols-fr gap-2 ${checked ? "" : "invisible"}`}
+            >
               {connected ? (
                 <Button onClick={() => void complete()}>
                   {t("onboarding.provider.continue")}
@@ -133,7 +139,7 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             role="status"
             className="mt-2 min-h-5 text-center text-sm text-text/70"
           >
-            {problem && t(statusTranslationKey(problem))}
+            {line && t(statusTranslationKey(line))}
           </p>
         </div>
       </div>

@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { MIN_WINDOW } from "./windowSizes";
 
 const fixturePath = "/tests/fixtures/provider-onboarding.html";
-const LOCALES = readdirSync(
-  fileURLToPath(new URL("../src/i18n/locales/", import.meta.url)),
+const localesDir = fileURLToPath(
+  new URL("../src/i18n/locales/", import.meta.url),
 );
+const LOCALES = readdirSync(localesDir);
 
 const waitForProviderStep = async (page: import("@playwright/test").Page) => {
   await expect(
@@ -189,6 +190,42 @@ test("keeps Continue through a refresh, ignores stale statuses, and recovers aft
   ).toHaveCount(0);
 });
 
+test("a connected user never sees Start while the first check runs", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?codex=configured&slowStatus=1`);
+  await waitForProviderStep(page);
+  const buttons = page.getByTestId("provider-onboarding").getByRole("button");
+  await expect(buttons).toHaveCount(0);
+
+  await page.evaluate(() =>
+    window.providerOnboardingFixture.resolveStatusRefresh(0),
+  );
+  await expect(buttons).toHaveText(["Continue", "Retry"]);
+});
+
+test("Retry says it is checking until the answer comes back", async ({
+  page,
+}) => {
+  await page.goto(fixturePath);
+  await waitForProviderStep(page);
+  const step = page.getByTestId("provider-onboarding");
+  await step.getByRole("button", { name: "Retry" }).click();
+  const line = step.getByRole("status");
+  await expect(line).toHaveText("Configuration not detected");
+
+  const refresh = await page.evaluate(() =>
+    window.providerOnboardingFixture.deferStatusRefresh(),
+  );
+  await step.getByRole("button", { name: "Retry" }).click();
+  await expect(line).toHaveText("Checking configuration…");
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    refresh,
+  );
+  await expect(line).toHaveText("Configuration not detected");
+});
+
 for (const mode of [
   {
     name: "optional",
@@ -323,11 +360,20 @@ test("every locale keeps the ChatGPT buttons equal, on one row, at the minimum s
       .getByRole("button")
       .first()
       .click();
+    const { onboarding } = JSON.parse(
+      readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
+    );
     const step = page.getByTestId("provider-onboarding");
     const buttons = step.getByRole("button");
-    await expect(buttons, locale).toHaveCount(3);
+    await expect(buttons, locale).toHaveText([
+      onboarding.provider.start,
+      onboarding.provider.retry,
+      onboarding.provider.skip,
+    ]);
     await buttons.nth(1).click();
-    await expect(step.getByRole("status"), locale).not.toBeEmpty();
+    await expect(step.getByRole("status"), locale).toHaveText(
+      onboarding.providerLabels.unavailable,
+    );
 
     const layout = await step.evaluate((element) => ({
       fits: element.scrollHeight <= element.clientHeight,
