@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const CLEANUP_OFF = "Styles apply only when AI cleanup is on.";
+const CLEANUP_OFF = "Styles apply only when cleanup is on.";
 
 /** The setting's row: its title, the (i) tooltip and the dropdown. */
 const styleRow = (page: Page, title = "Dictation style") =>
@@ -41,7 +41,7 @@ test.describe("the dictation style in Settings", () => {
     await expect(picker(page)).toBeEnabled();
 
     const cleanup = await page
-      .getByRole("checkbox", { name: "AI cleanup and formatting" })
+      .getByRole("checkbox", { name: "Cleanup and formatting" })
       .boundingBox();
     const row = await styleRow(page).boundingBox();
     expect(row!.y, "below AI cleanup").toBeGreaterThan(cleanup!.y);

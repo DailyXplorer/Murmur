@@ -484,7 +484,7 @@
       },
       "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex",
       "aiCleanup": {
-        "title": "Pulizia e formattazione con IA",
+        "title": "Pulizia e formattazione",
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },

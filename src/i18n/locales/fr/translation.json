@@ -484,7 +484,7 @@
       },
       "sessionExpired": "Session expirée, reconnectez-vous dans Codex",
       "aiCleanup": {
-        "title": "Nettoyage et mise en forme par IA",
+        "title": "Nettoyage et mise en forme",
         "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
       },

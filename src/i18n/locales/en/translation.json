@@ -484,7 +484,7 @@
       },
       "sessionExpired": "Session expired, sign in again in Codex",
       "aiCleanup": {
-        "title": "AI cleanup and formatting",
+        "title": "Cleanup and formatting",
         "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or changes the meaning. If it fails or takes too long, the raw transcript is pasted.",
         "needsAccount": "Connect ChatGPT to use AI cleanup."
       },

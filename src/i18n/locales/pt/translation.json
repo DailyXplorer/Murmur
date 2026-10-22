@@ -484,7 +484,7 @@
       },
       "sessionExpired": "Sessão expirada, entre novamente no Codex",
       "aiCleanup": {
-        "title": "Limpeza e formatação com IA",
+        "title": "Limpeza e formatação",
         "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem muda o sentido. Se falhar ou demorar demasiado, a transcrição bruta é colada.",
         "needsAccount": "Conecte o ChatGPT para usar a limpeza com IA."
       },
