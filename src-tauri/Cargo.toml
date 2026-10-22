@@ -54,7 +54,7 @@ tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macr
 enigo = "0.6.1"
 core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 rodio = "0.21.1"
-reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
+reqwest = { version = "0.13", features = ["json", "query", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
 strsim = "0.11.0"
 # Accent-insensitive word keys for meeting transcripts.
