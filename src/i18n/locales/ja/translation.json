@@ -124,6 +124,7 @@
       "title": "Codex に接続",
       "description": "セットアップを完了するには、この Mac で Codex にサインインしてください。Murmur はローカル設定を検出しますが、接続が有効かどうかは確認しません。",
       "configured": "設定を検出しました",
+      "start": "開始",
       "retry": "再試行",
       "continue": "続ける",
       "completionFailed": "セットアップを完了できませんでした。状態を更新してもう一度お試しください。",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Codex の設定を開けませんでした。",
       "optionalTitle": "ChatGPT に接続（任意）",
       "optionalDescription": "AI クリーンアップ（つなぎ言葉の削除や文法の修正）と、ローカルモデルが対応していない言語のために、ChatGPT アカウントを接続します。",
-      "optionalSession": "ChatGPT アカウントで Codex アプリにサインインしてください。Murmur はそのセッションを使います。",
       "skip": "スキップ"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "デバイス上で動く音声モデルのライセンス",
         "button": "ライセンスを表示"
-      },
-      "parakeet": "ローカルの文字起こしにはNVIDIA Parakeet（CC BY 4.0）を使用しています。"
+      }
     },
     "transcription": {
       "title": "文字起こし",

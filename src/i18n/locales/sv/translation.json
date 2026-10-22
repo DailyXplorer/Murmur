@@ -124,6 +124,7 @@
       "title": "Anslut Codex",
       "description": "Logga in i Codex på den här Macen för att slutföra inställningen. Murmur upptäcker lokal konfiguration men verifierar inte en aktiv anslutning.",
       "configured": "Konfiguration hittad",
+      "start": "Starta",
       "retry": "Försök igen",
       "continue": "Fortsätt",
       "completionFailed": "Inställningen kunde inte slutföras. Uppdatera statusen och försök igen.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen.",
       "optionalTitle": "Anslut ChatGPT (valfritt)",
       "optionalDescription": "Anslut ditt ChatGPT-konto för AI-städning (tar bort utfyllnadsord och rättar grammatiken) och för språk som den lokala modellen inte täcker.",
-      "optionalSession": "Logga in i Codex-appen med ditt ChatGPT-konto. Murmur använder den sessionen.",
       "skip": "Hoppa över"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licenser för talmodellerna på enheten",
         "button": "Visa licenser"
-      },
-      "parakeet": "Lokal transkribering använder NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transkribering",

@@ -124,6 +124,7 @@
       "title": "Kết nối Codex",
       "description": "Đăng nhập Codex trên máy Mac này để hoàn tất thiết lập. Murmur phát hiện cấu hình cục bộ nhưng không xác minh kết nối đang hoạt động.",
       "configured": "Đã phát hiện cấu hình",
+      "start": "Bắt đầu",
       "retry": "Thử lại",
       "continue": "Tiếp tục",
       "completionFailed": "Không thể hoàn tất thiết lập. Hãy làm mới trạng thái và thử lại.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Không thể mở thiết lập Codex.",
       "optionalTitle": "Kết nối ChatGPT (không bắt buộc)",
       "optionalDescription": "Kết nối tài khoản ChatGPT để dùng tính năng dọn dẹp bằng AI (bỏ từ đệm và sửa ngữ pháp) và các ngôn ngữ mà mô hình cục bộ không hỗ trợ.",
-      "optionalSession": "Đăng nhập ứng dụng Codex bằng tài khoản ChatGPT của bạn. Murmur dùng phiên đó.",
       "skip": "Bỏ qua"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Giấy phép của các mô hình giọng nói chạy trên thiết bị",
         "button": "Xem giấy phép"
-      },
-      "parakeet": "Chép lời trên máy dùng NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Phiên âm",

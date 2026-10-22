@@ -124,6 +124,7 @@
       "title": "Ligue o Codex",
       "description": "Inicie sessão no Codex neste Mac para concluir a configuração. O Murmur detecta a configuração local, mas não verifica uma ligação ativa.",
       "configured": "Configuração detetada",
+      "start": "Começar",
       "retry": "Tentar novamente",
       "continue": "Continuar",
       "completionFailed": "Não foi possível concluir a configuração. Atualize o estado e tente novamente.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Não foi possível abrir a configuração do Codex.",
       "optionalTitle": "Conectar o ChatGPT (opcional)",
       "optionalDescription": "Conecte sua conta do ChatGPT para a limpeza com IA (remove hesitações e corrige a gramática) e para os idiomas que o modelo local não cobre.",
-      "optionalSession": "Entre no app Codex com sua conta do ChatGPT. O Murmur usa essa sessão.",
       "skip": "Pular"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licenças dos modelos de fala que rodam no dispositivo",
         "button": "Ver licenças"
-      },
-      "parakeet": "A transcrição local usa o NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transcrição",

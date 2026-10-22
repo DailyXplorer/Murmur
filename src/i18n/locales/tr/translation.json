@@ -124,6 +124,7 @@
       "title": "Codex'i bağlayın",
       "description": "Kurulumu tamamlamak için bu Mac'te Codex'e giriş yapın. Murmur yerel yapılandırmayı algılar, ancak etkin bir bağlantıyı doğrulamaz.",
       "configured": "Yapılandırma algılandı",
+      "start": "Başla",
       "retry": "Yeniden dene",
       "continue": "Devam et",
       "completionFailed": "Kurulum tamamlanamadı. Durumu yenileyip yeniden deneyin.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Codex kurulumu açılamadı.",
       "optionalTitle": "ChatGPT'yi bağla (isteğe bağlı)",
       "optionalDescription": "Yapay zekâ temizliği (dolgu sözcüklerini kaldırır ve dil bilgisini düzeltir) ve yerel modelin desteklemediği diller için ChatGPT hesabınızı bağlayın.",
-      "optionalSession": "Codex uygulamasında ChatGPT hesabınızla oturum açın. Murmur bu oturumu kullanır.",
       "skip": "Atla"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Cihazda çalışan konuşma modellerinin lisansları",
         "button": "Lisansları göster"
-      },
-      "parakeet": "Yerel yazıya dökme NVIDIA Parakeet kullanır (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transkripsiyon",

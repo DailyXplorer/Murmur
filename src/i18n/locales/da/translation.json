@@ -124,6 +124,7 @@
       "title": "Forbind Codex",
       "description": "Log ind på Codex på denne Mac for at afslutte opsætningen. Murmur registrerer lokal konfiguration, men bekræfter ikke en aktiv forbindelse.",
       "configured": "Konfiguration fundet",
+      "start": "Start",
       "retry": "Prøv igen",
       "continue": "Fortsæt",
       "completionFailed": "Opsætningen kunne ikke fuldføres. Opdater status, og prøv igen.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Codex-opsætningen kunne ikke åbnes.",
       "optionalTitle": "Forbind ChatGPT (valgfrit)",
       "optionalDescription": "Forbind din ChatGPT-konto for AI-oprydning (fjerner fyldord og retter grammatikken) og for sprog, som den lokale model ikke dækker.",
-      "optionalSession": "Log ind i Codex-appen med din ChatGPT-konto. Murmur bruger den session.",
       "skip": "Spring over"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licenser for talemodellerne på enheden",
         "button": "Vis licenser"
-      },
-      "parakeet": "Lokal transskription bruger NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transskription",

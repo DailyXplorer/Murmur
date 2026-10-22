@@ -22,7 +22,7 @@ const createDeferred = <T,>(): Deferred<T> => {
 };
 
 const query = new URLSearchParams(window.location.search);
-const appLanguage = query.get("lang") === "fr" ? "fr" : "en";
+const appLanguage = query.get("lang") ?? "en";
 let codexConfigured = query.get("codex") === "configured";
 /** A user who finished setup long ago and lost Accessibility since: the
  * first check finds it missing, the next one finds it granted again. */

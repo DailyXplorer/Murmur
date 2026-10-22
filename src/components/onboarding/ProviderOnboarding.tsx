@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  type ProviderStatus,
   statusTranslationKey,
   useCodexStatus,
 } from "@/components/transcription/providerStatus";
@@ -24,6 +25,11 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   const { invalidatePendingRefreshes, refreshStatus, status } =
     useCodexStatus();
   const [isCompleting, setIsCompleting] = useState(false);
+  const [retried, setRetried] = useState(false);
+  // The last finished check, so a refresh on focus does not swap Continue
+  // for Start while it runs.
+  const [checked, setChecked] = useState<ProviderStatus | null>(null);
+  if (status.kind !== "checking" && status !== checked) setChecked(status);
 
   useEffect(() => {
     void refreshStatus();
@@ -44,8 +50,17 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     }
   }, [t]);
 
-  const canComplete = !isCompleting && status.kind === "configured";
-  const canSkip = optional && !isCompleting && status.kind !== "configured";
+  const connected = checked?.kind === "configured";
+  const canComplete = !isCompleting && connected;
+  const canSkip = optional && !isCompleting && !connected;
+  // "Not signed in" is what the description already says, so it shows only
+  // once the user asked to check again.
+  const problem =
+    checked?.kind === "error" ||
+    (checked?.kind === "unavailable" &&
+      (retried || checked.reason === "sessionExpired"))
+      ? checked
+      : null;
 
   const finish = useCallback(async () => {
     setIsCompleting(true);
@@ -87,45 +102,39 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
                 : t("onboarding.provider.description")}
             </p>
           </div>
-          <div className="rounded-lg border border-mid-gray/20 bg-white/5 p-2">
-            <span className="block font-medium text-text">
-              {t("onboarding.providerLabels.codex")}
-            </span>
-            <span className="mt-0.5 block text-sm text-text/65">
-              {optional
-                ? t("onboarding.provider.optionalSession")
-                : t("settings.transcription.sessionDescription")}
-            </span>
-            <span
-              className="mt-1 block text-sm text-text/80"
-              aria-live="polite"
-            >
-              {t(statusTranslationKey(status))}
-            </span>
-            {status.kind === "unavailable" && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button onClick={() => void openCodexSetup()}>
-                  {t("onboarding.provider.setupCodex")}
+          <div className="mt-3 flex justify-center">
+            <div className="inline-grid grid-flow-col auto-cols-fr gap-2">
+              {connected ? (
+                <Button onClick={() => void complete()}>
+                  {t("onboarding.provider.continue")}
                 </Button>
-              </div>
-            )}
-          </div>
-          <div className="mt-2 flex justify-end gap-2">
-            {optional && status.kind !== "configured" && (
-              <Button onClick={() => void skip()} disabled={!canSkip}>
-                {t("onboarding.provider.skip")}
+              ) : (
+                <Button onClick={() => void openCodexSetup()}>
+                  {t("onboarding.provider.start")}
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  setRetried(true);
+                  void refreshStatus();
+                }}
+                disabled={isCompleting}
+              >
+                {t("onboarding.provider.retry")}
               </Button>
-            )}
-            <Button
-              onClick={() => void refreshStatus()}
-              disabled={isCompleting}
-            >
-              {t("onboarding.provider.retry")}
-            </Button>
-            <Button onClick={() => void complete()} disabled={!canComplete}>
-              {t("onboarding.provider.continue")}
-            </Button>
+              {optional && !connected && (
+                <Button onClick={() => void skip()} disabled={!canSkip}>
+                  {t("onboarding.provider.skip")}
+                </Button>
+              )}
+            </div>
           </div>
+          <p
+            role="status"
+            className="mt-2 min-h-5 text-center text-sm text-text/70"
+          >
+            {problem && t(statusTranslationKey(problem))}
+          </p>
         </div>
       </div>
     </div>

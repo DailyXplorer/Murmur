@@ -124,6 +124,7 @@
       "title": "Verbind Codex",
       "description": "Log op deze Mac in bij Codex om de installatie te voltooien. Murmur detecteert lokale configuratie, maar verifieert geen actieve verbinding.",
       "configured": "Configuratie gedetecteerd",
+      "start": "Starten",
       "retry": "Opnieuw proberen",
       "continue": "Doorgaan",
       "completionFailed": "De installatie kon niet worden voltooid. Vernieuw de status en probeer het opnieuw.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "De Codex-configuratie kon niet worden geopend.",
       "optionalTitle": "ChatGPT koppelen (optioneel)",
       "optionalDescription": "Koppel je ChatGPT-account voor AI-opschoning (haalt stopwoordjes weg en verbetert de grammatica) en voor talen die het lokale model niet dekt.",
-      "optionalSession": "Log in bij de Codex-app met je ChatGPT-account. Murmur gebruikt die sessie.",
       "skip": "Overslaan"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licenties van de spraakmodellen op het apparaat",
         "button": "Licenties bekijken"
-      },
-      "parakeet": "Lokale transcriptie gebruikt NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transcriptie",

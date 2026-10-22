@@ -124,6 +124,7 @@
       "title": "連接 Codex",
       "description": "在這台 Mac 上登入 Codex 以完成設定。Murmur 會偵測本機設定，但不會驗證即時連線。",
       "configured": "已偵測到設定",
+      "start": "開始",
       "retry": "重試",
       "continue": "繼續",
       "completionFailed": "無法完成設定。請重新整理狀態後再試一次。",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "無法開啟 Codex 設定。",
       "optionalTitle": "連接 ChatGPT（選用）",
       "optionalDescription": "連接你的 ChatGPT 帳號，以使用 AI 清理（去除贅詞並修正文法），以及本機模型不支援的語言。",
-      "optionalSession": "用你的 ChatGPT 帳號登入 Codex App。Murmur 會使用該工作階段。",
       "skip": "略過"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "在裝置上執行的語音模型授權",
         "button": "查看授權"
-      },
-      "parakeet": "本機轉錄使用 NVIDIA Parakeet（CC BY 4.0）。"
+      }
     },
     "transcription": {
       "title": "轉錄",

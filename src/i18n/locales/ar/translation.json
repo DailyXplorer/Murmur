@@ -124,6 +124,7 @@
       "title": "ربط Codex",
       "description": "سجّل الدخول إلى Codex على هذا الـ Mac لإكمال الإعداد. يكتشف Murmur التهيئة المحلية ولا يتحقق من اتصال مباشر.",
       "configured": "تم اكتشاف التهيئة",
+      "start": "ابدأ",
       "retry": "إعادة المحاولة",
       "continue": "متابعة",
       "completionFailed": "تعذر إكمال الإعداد. حدّث الحالة وحاول مرة أخرى.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "تعذر فتح إعداد Codex.",
       "optionalTitle": "ربط ChatGPT (اختياري)",
       "optionalDescription": "اربط حسابك في ChatGPT من أجل التنظيف بالذكاء الاصطناعي (يحذف كلمات الحشو ويصحح القواعد) ومن أجل اللغات التي لا يغطيها النموذج المحلي.",
-      "optionalSession": "سجّل الدخول إلى تطبيق Codex بحسابك في ChatGPT. يستخدم Murmur تلك الجلسة.",
       "skip": "تخطٍّ"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "تراخيص نماذج الكلام التي تعمل على الجهاز",
         "button": "عرض التراخيص"
-      },
-      "parakeet": "يستخدم النسخ المحلي NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "النسخ",

@@ -44,7 +44,7 @@ test("a new install downloads in the background, skips ChatGPT and waits for the
     page.getByRole("heading", { name: "Connect ChatGPT (optional)" }),
   ).toBeVisible();
   await expect(pill(page)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
   await page.getByRole("button", { name: "Skip" }).click();
 
   await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
@@ -95,7 +95,7 @@ test("using the cloud instead makes the ChatGPT step required", async ({
     page.getByRole("heading", { name: "Connect Codex" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
   await expect(page.getByText("Downloading the model")).toHaveCount(0);
 
   await app.connect();
@@ -307,5 +307,56 @@ test.describe("onboarding screenshots", () => {
       ).toBeVisible();
       await shot(page, "chatgpt-required");
     });
+  }
+
+  for (const [size, viewport] of [
+    ["default", DEFAULT_WINDOW],
+    ["min", MIN_WINDOW],
+  ] as const) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`the ChatGPT step (${size}, ${theme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize(viewport);
+        const shot = (name: string) =>
+          page.screenshot({
+            path: `${outputDir}/chatgpt-${name}-${size}-${theme}.png`,
+          });
+        const retry = () =>
+          page
+            .getByTestId("provider-onboarding")
+            .getByRole("button", { name: "Retry" })
+            .click();
+
+        await page.goto(`${fixturePath}?model=missing`);
+        await page
+          .getByRole("button", { name: "Download and continue" })
+          .click();
+        await expect(
+          page.getByRole("heading", { name: "Connect ChatGPT (optional)" }),
+        ).toBeVisible();
+        await page.waitForTimeout(300);
+        await shot("optional");
+        await retry();
+        await page.waitForTimeout(300);
+        await shot("optional-retried");
+
+        await page.goto(`${fixturePath}?model=unsupported`);
+        await expect(
+          page.getByRole("heading", { name: "Connect Codex" }),
+        ).toBeVisible();
+        await page.waitForTimeout(300);
+        await shot("required");
+        await retry();
+        await page.waitForTimeout(300);
+        await shot("required-retried");
+
+        await page.goto(`${fixturePath}?model=unsupported&codex=configured`);
+        await expect(
+          page.getByRole("heading", { name: "Connect Codex" }),
+        ).toBeVisible();
+        await page.waitForTimeout(300);
+        await shot("connected");
+      });
+    }
   }
 });

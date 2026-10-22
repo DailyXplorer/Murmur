@@ -124,6 +124,7 @@
       "title": "חיבור Codex",
       "description": "התחבר ל-Codex ב-Mac הזה כדי להשלים את ההגדרה. Murmur מזהה תצורה מקומית ואינו מאמת חיבור פעיל.",
       "configured": "זוהתה תצורה",
+      "start": "התחלה",
       "retry": "נסה שוב",
       "continue": "המשך",
       "completionFailed": "לא ניתן להשלים את ההגדרה. רענן את המצב ונסה שוב.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex.",
       "optionalTitle": "חיבור ChatGPT (רשות)",
       "optionalDescription": "אפשר לחבר את חשבון ה-ChatGPT לניקוי בבינה מלאכותית (מסיר מילות מילוי ומתקן דקדוק) ולשפות שהמודל המקומי לא מכסה.",
-      "optionalSession": "יש להתחבר לאפליקציית Codex עם חשבון ה-ChatGPT שלך. Murmur משתמש בהתחברות הזו.",
       "skip": "דילוג"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "הרישיונות של מודלי הדיבור שפועלים במכשיר",
         "button": "הצגת הרישיונות"
-      },
-      "parakeet": "התמלול המקומי משתמש ב-NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "תמלול",

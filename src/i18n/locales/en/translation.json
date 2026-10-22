@@ -124,6 +124,7 @@
       "title": "Connect Codex",
       "description": "Sign in to Codex on this Mac to finish setup. Murmur does not test cloud service access.",
       "configured": "Configuration detected",
+      "start": "Start",
       "retry": "Retry",
       "continue": "Continue",
       "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
@@ -131,7 +132,6 @@
       "codexSetupFailed": "Couldn't open Codex setup.",
       "optionalTitle": "Connect ChatGPT (optional)",
       "optionalDescription": "Connect your ChatGPT account for AI cleanup (removes ums and fixes grammar) and for languages the local model doesn't cover.",
-      "optionalSession": "Sign in to the Codex app with your ChatGPT account. Murmur uses that session.",
       "skip": "Skip"
     },
     "providerLabels": {
@@ -464,8 +464,7 @@
       "modelLicences": {
         "description": "Licences of the on-device speech models",
         "button": "View licences"
-      },
-      "parakeet": "Local transcription uses NVIDIA Parakeet (CC BY 4.0)."
+      }
     },
     "transcription": {
       "title": "Transcription",
