@@ -512,6 +512,10 @@ impl Notifier for AppNotifier {
     fn recorded(&self, id: i64) {
         self.queue.enqueue(id);
     }
+
+    fn discarded(&self, id: i64) {
+        self.queue.cancel(id);
+    }
 }
 
 type AppCoordinator = Coordinator<DeviceCapture, AppNotifier, SystemClock>;

@@ -766,6 +766,7 @@
     "discardDialog": {
       "title": "Descartar esta reunião?",
       "description": "A gravação até agora é excluída e não pode ser recuperada.",
+      "descriptionParts": "Toda a gravação até agora, incluindo as partes anteriores, é excluída e não pode ser recuperada.",
       "keep": "Continuar gravando"
     },
     "deleteDialog": {

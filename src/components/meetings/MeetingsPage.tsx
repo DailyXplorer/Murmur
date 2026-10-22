@@ -386,7 +386,12 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         }
       >
         <p className="text-sm text-text/80">
-          {t("meetings.discardDialog.description")}
+          {t(
+            runtime.state === "recording" &&
+              runtime.started_at_ms !== runtime.meeting_started_at_ms
+              ? "meetings.discardDialog.descriptionParts"
+              : "meetings.discardDialog.description",
+          )}
         </p>
       </Dialog>
 

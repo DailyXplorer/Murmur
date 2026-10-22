@@ -766,6 +766,7 @@
     "discardDialog": {
       "title": "Supprimer cette réunion ?",
       "description": "L’enregistrement en cours est supprimé et ne pourra pas être récupéré.",
+      "descriptionParts": "Tout l’enregistrement en cours, parties précédentes comprises, est supprimé et ne pourra pas être récupéré.",
       "keep": "Continuer l’enregistrement"
     },
     "deleteDialog": {

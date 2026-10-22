@@ -129,6 +129,9 @@ pub trait Notifier: Send {
     fn alert(&self, alert: MeetingAlert);
     /// Meeting `id` was recorded and waits for processing.
     fn recorded(&self, id: i64);
+    /// Part `id`, recorded already, is about to be deleted with the meeting
+    /// it belongs to: its processing stops first.
+    fn discarded(&self, id: i64);
 }
 
 pub trait Clock: Send {
@@ -183,6 +186,8 @@ struct Active {
     started_as: i64,
     /// The part recording now.
     id: i64,
+    /// The parts recorded before it, oldest first.
+    earlier: Vec<i64>,
     started_at_ms: i64,
     origin: Instant,
     meeting_started_at_ms: i64,
@@ -333,6 +338,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         self.active = Some(Active {
             started_as: id,
             id,
+            earlier: Vec::new(),
             started_at_ms,
             origin,
             meeting_started_at_ms: started_at_ms,
@@ -479,6 +485,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let duration = origin.saturating_duration_since(active.origin);
         let dropped: u64 = active.tracks.iter().map(|(_, t)| t.dropped_ms()).sum();
         let dropped_ms = dropped.saturating_sub(active.dropped_before);
+        active.earlier.push(previous);
         active.id = next;
         active.started_at_ms = started_at_ms;
         active.origin = origin;
@@ -496,9 +503,10 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         true
     }
 
-    /// Ends recording `id` and deletes it. Any other meeting, recording or
-    /// not, is left alone: the request may come from a dialog opened for a
-    /// meeting that has ended since.
+    /// Ends recording `id` and deletes it with the parts before it: the user
+    /// sees one meeting, counted from its first part. Any other meeting,
+    /// recording or not, is left alone: the request may come from a dialog
+    /// opened for a meeting that has ended since.
     pub fn discard(&mut self, id: i64) -> Result<(), MeetingError> {
         let active = self
             .active
@@ -508,6 +516,10 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             let _ = track.finish(Duration::ZERO);
         }
         self.forget(active.id);
+        for part in active.earlier {
+            self.notifier.discarded(part);
+            self.forget(part);
+        }
         self.notifier.runtime_changed(&self.runtime());
         Ok(())
     }
@@ -606,7 +618,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         self.store.delete(id).map_err(storage)
     }
 
-    /// Removes a meeting that never got going.
+    /// Removes a meeting that never got going or was discarded.
     fn forget(&self, id: i64) {
         if let Err(error) = paths::remove_meeting_dir(&self.root, id) {
             error!("Meeting {id}: cannot delete its folder: {error}");
@@ -761,6 +773,9 @@ mod tests {
         }
         fn recorded(&self, _: i64) {
             self.0.push("recorded");
+        }
+        fn discarded(&self, id: i64) {
+            self.0.push(format!("discarded {id}"));
         }
     }
 
@@ -1178,18 +1193,39 @@ mod tests {
     }
 
     #[test]
-    fn discarding_a_later_part_keeps_the_parts_before() {
+    fn discarding_during_a_later_part_deletes_every_part_of_the_meeting() {
         let mut h = working();
+        let other = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
         let first = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
         h.clock.advance(3 * HOUR);
         assert!(h.coordinator.tick(first));
         let second = recording_id(&h);
+        h.clock.advance(3 * HOUR);
+        assert!(h.coordinator.tick(first));
+        let third = recording_id(&h);
+        h.log.take();
 
-        h.coordinator.discard(second).unwrap();
+        h.coordinator.discard(third).unwrap();
 
+        // Processing of the parts already recorded is cancelled.
+        let discarded: Vec<String> = h
+            .log
+            .take()
+            .into_iter()
+            .filter(|entry| entry.starts_with("discarded"))
+            .collect();
+        assert_eq!(
+            discarded,
+            [format!("discarded {first}"), format!("discarded {second}")]
+        );
         assert_eq!(h.coordinator.runtime(), MeetingRuntime::Idle);
-        assert!(h.store.get(second).unwrap().is_none());
-        assert_eq!(statuses(&h.store)[0].0, MeetingStatus::Processing);
+        for part in [first, second, third] {
+            assert!(h.store.get(part).unwrap().is_none(), "part {part} stays");
+            assert!(!paths::meeting_dir(&h.root, part).exists());
+        }
+        assert!(h.store.get(other).unwrap().is_some(), "another meeting");
+        assert!(paths::meeting_dir(&h.root, other).exists());
         assert!(!h.coordinator.tick(first));
     }
 

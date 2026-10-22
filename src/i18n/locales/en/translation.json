@@ -766,6 +766,7 @@
     "discardDialog": {
       "title": "Discard this meeting?",
       "description": "The recording so far is deleted and can't be recovered.",
+      "descriptionParts": "The whole recording so far, its earlier parts included, is deleted and can't be recovered.",
       "keep": "Keep recording"
     },
     "deleteDialog": {

@@ -766,6 +766,7 @@
     "discardDialog": {
       "title": "Eliminare questa riunione?",
       "description": "La registrazione fin qui viene eliminata e non può essere recuperata.",
+      "descriptionParts": "Tutta la registrazione fin qui, comprese le parti precedenti, viene eliminata e non può essere recuperata.",
       "keep": "Continua a registrare"
     },
     "deleteDialog": {

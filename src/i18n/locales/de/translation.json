@@ -766,6 +766,7 @@
     "discardDialog": {
       "title": "Dieses Meeting verwerfen?",
       "description": "Die bisherige Aufnahme wird gelöscht und kann nicht wiederhergestellt werden.",
+      "descriptionParts": "Die gesamte bisherige Aufnahme wird samt ihrer früheren Teile gelöscht und kann nicht wiederhergestellt werden.",
       "keep": "Weiter aufnehmen"
     },
     "deleteDialog": {
