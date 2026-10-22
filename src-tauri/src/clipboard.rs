@@ -1,6 +1,7 @@
 use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
 use crate::operation::ProcessingOperation;
+use crate::overlay::ClipboardWriter;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
@@ -69,17 +70,20 @@ fn complete_clipboard_only_output(
 }
 
 /// Where no text field takes the paste, the overlay offers the text instead
-/// of a keystroke going nowhere. With no pill to show, the offer is
-/// `Skipped`, so the caller's recovery keeps the text.
+/// of a keystroke going nowhere. `show` gets the text and `write` for the
+/// pill's Copy click; nothing writes the clipboard before that click. With no
+/// pill to show, the offer is `Skipped`, so the caller's recovery keeps the
+/// text.
 fn offer_copy(
     operation: &ProcessingOperation,
     text: String,
-    show: impl FnOnce(String) -> bool,
+    write: ClipboardWriter,
+    show: impl FnOnce(String, ClipboardWriter) -> bool,
 ) -> PasteOutcome {
     let Some(_permit) = operation.try_enter_paste() else {
         return PasteOutcome::Cancelled;
     };
-    if show(text) {
+    if show(text, write) {
         PasteOutcome::CopyOffered
     } else {
         PasteOutcome::Skipped
@@ -401,9 +405,13 @@ pub(crate) async fn paste(
         && keyboard_focus().await == FocusedField::NoTextField
     {
         info!("No text field has the keyboard focus; offering a copy instead of pasting");
-        return Ok(offer_copy(&operation, text, |text| {
-            crate::overlay::show_copy_notice(&app_handle, text)
-        }));
+        let app_for_copy = app_handle.clone();
+        return Ok(offer_copy(
+            &operation,
+            text,
+            Arc::new(move |text| copy_to_keep(&app_for_copy, text)),
+            |text, write| crate::overlay::show_copy_notice(&app_handle, text, write),
+        ));
     }
     let text = if settings.append_trailing_space {
         format!("{text} ")
@@ -622,26 +630,31 @@ mod tests {
 
     #[test]
     fn without_a_text_field_the_clipboard_is_written_only_when_copy_is_clicked() {
-        let clipboard = std::cell::RefCell::new(Vec::<String>::new());
+        let clipboard = Arc::new(Mutex::new(Vec::<String>::new()));
+        let pasteboard = Arc::clone(&clipboard);
+        let write: ClipboardWriter = Arc::new(move |text| {
+            pasteboard.lock().unwrap().push(text.to_string());
+            Ok(())
+        });
         let operation = ProcessingOperation::new(OperationId(14));
 
-        let outcome = offer_copy(&operation, "hello".into(), |text| {
-            crate::overlay::hold_copy_notice(text);
+        let outcome = offer_copy(&operation, "hello".into(), write, |text, write| {
+            crate::overlay::hold_copy_notice(text, write);
             true
         });
         assert_eq!(outcome, PasteOutcome::CopyOffered);
         assert!(!operation.cancel(), "the offer claimed the output");
         assert!(
-            clipboard.borrow().is_empty(),
+            clipboard.lock().unwrap().is_empty(),
             "nothing copied before the click"
         );
 
-        crate::overlay::copy_held_notice(|text| {
-            clipboard.borrow_mut().push(text.to_string());
-            Ok(())
-        })
-        .unwrap();
-        assert_eq!(clipboard.borrow().as_slice(), ["hello"]);
+        crate::overlay::copy_held_notice().unwrap();
+        assert_eq!(clipboard.lock().unwrap().as_slice(), ["hello"]);
+    }
+
+    fn untouchable_clipboard() -> ClipboardWriter {
+        Arc::new(|_| panic!("the clipboard must not be written"))
     }
 
     #[test]
@@ -649,7 +662,8 @@ mod tests {
         let outcome = offer_copy(
             &ProcessingOperation::new(OperationId(15)),
             "hello".into(),
-            |_| false,
+            untouchable_clipboard(),
+            |_, _| false,
         );
 
         assert_eq!(outcome, PasteOutcome::Skipped);
@@ -661,9 +675,12 @@ mod tests {
         assert!(cancelled.cancel());
 
         assert_eq!(
-            offer_copy(&cancelled, "hello".into(), |_| panic!(
-                "cancelled output must not show the copy pill"
-            )),
+            offer_copy(
+                &cancelled,
+                "hello".into(),
+                untouchable_clipboard(),
+                |_, _| panic!("cancelled output must not show the copy pill")
+            ),
             PasteOutcome::Cancelled
         );
     }

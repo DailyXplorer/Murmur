@@ -7,7 +7,7 @@ use objc2_app_kit::NSEventMask;
 use std::cell::RefCell;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
@@ -59,12 +59,16 @@ static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// or a new recording replaces it, and the meeting pill returns after it.
 enum Notice {
     Error,
-    /// No text field had the focus; the text goes on the clipboard only if
-    /// the user clicks Copy.
+    /// No text field had the focus; `write` puts the text on the clipboard
+    /// only if the user clicks Copy.
     Copy {
         text: String,
+        write: ClipboardWriter,
     },
 }
+
+/// Puts a copy notice's text on the clipboard.
+pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 static NOTICE: Mutex<Option<Notice>> = Mutex::new(None);
 
 fn notice() -> MutexGuard<'static, Option<Notice>> {
@@ -314,17 +318,16 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
     true
 }
 
-/// Keeps `text` as the copy notice's, for its Copy click to put on the
-/// clipboard.
-pub(crate) fn hold_copy_notice(text: String) {
-    *notice() = Some(Notice::Copy { text });
+/// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter) {
+    *notice() = Some(Notice::Copy { text, write });
 }
 
 /// Shows the copy pill, a short note and a "Copy" action, because no text
-/// field had the focus. A click puts the text on the clipboard, Escape
-/// dismisses it. Returns false when the overlay is disabled, so there is no
-/// pill to click.
-pub fn show_copy_notice(app_handle: &AppHandle, text: String) -> bool {
+/// field had the focus. A click hands the text to `write`, Escape dismisses
+/// it. Returns false when the overlay is disabled, so there is no pill to
+/// click.
+pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWriter) -> bool {
     let settings = settings::get_settings(app_handle);
     if settings.overlay_style == OverlayStyle::None {
         return false;
@@ -335,7 +338,7 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String) -> bool {
         copied: strings.overlay_copied,
         note: strings.overlay_not_pasted,
     };
-    hold_copy_notice(text);
+    hold_copy_notice(text, write);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -402,12 +405,10 @@ fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
     )
 }
 
-/// Hands the copy notice's text to `write`.
-pub(crate) fn copy_held_notice(
-    write: impl FnOnce(&str) -> Result<(), String>,
-) -> Result<(), String> {
-    let text = match &*notice() {
-        Some(Notice::Copy { text }) => text.clone(),
+/// Hands the copy notice's text to its writer, outside the notice lock.
+pub(crate) fn copy_held_notice() -> Result<(), String> {
+    let (text, write) = match &*notice() {
+        Some(Notice::Copy { text, write }) => (text.clone(), Arc::clone(write)),
         _ => return Err("The copy notice is no longer showing".to_string()),
     };
     write(&text)
@@ -419,11 +420,8 @@ pub(crate) fn copy_held_notice(
 #[specta::specta]
 pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    let clipboard_app = app.clone();
     app.run_on_main_thread(move || {
-        let _ = sender.send(copy_held_notice(|text| {
-            crate::clipboard::copy_to_keep(&clipboard_app, text)
-        }));
+        let _ = sender.send(copy_held_notice());
     })
     .map_err(|error| format!("Cannot reach the clipboard: {error}"))?;
     receiver

@@ -276,7 +276,7 @@ test("without a text field the pill says so and is one Copy button that confirms
   await expect(page.locator(".ov-wave")).toHaveCount(0);
   const copyCalls = () =>
     page.evaluate(() => window.overlayHarness.copyCalls());
-  expect(await copyCalls(), "nothing copied before the click").toBe(0);
+  expect(await copyCalls(), "the pill asks for no copy on its own").toBe(0);
 
   await button.click();
   const copied = page.getByRole("button", { name: "Copied", exact: true });
