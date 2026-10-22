@@ -33,6 +33,8 @@ declare global {
       dispatch(event: string, payload?: unknown): number;
       releaseSettings(): void;
       copyCalls(): number;
+      /** Capsule sizes the copy pill asked its window to fit, oldest first. */
+      copyFits(): Array<{ width: number; height: number }>;
     };
   }
 }

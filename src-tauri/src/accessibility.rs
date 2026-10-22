@@ -217,6 +217,10 @@ const NON_TEXT_ROLES: [&str; 15] = [
     "AXToolbar",
 ];
 
+/// Finder's desktop answers AXSelectedTextRange and AXInsertionPointLineNumber
+/// without listing them, though nothing on it takes text.
+const NON_TEXT_SUBROLES: [&str; 1] = ["AXDesktop"];
+
 /// Only a role known to take no text is `NoTextField`; containers such as
 /// AXGroup, AXWebArea or AXWindow may hold an editor and stay `Unknown`.
 pub fn classify_focus(focused: Option<FocusedElement>) -> FocusedField {
@@ -226,7 +230,10 @@ pub fn classify_focus(focused: Option<FocusedElement>) -> FocusedField {
     let role = focused.role.as_deref();
     let subrole = focused.subrole.as_deref();
     let in_table = |table: &[&str], name: Option<&str>| name.is_some_and(|n| table.contains(&n));
-    if focused.accepts_text || in_table(&TEXT_ROLES, role) || in_table(&TEXT_ROLES, subrole) {
+    if in_table(&NON_TEXT_SUBROLES, subrole) {
+        FocusedField::NoTextField
+    } else if focused.accepts_text || in_table(&TEXT_ROLES, role) || in_table(&TEXT_ROLES, subrole)
+    {
         FocusedField::TextField
     } else if in_table(&NON_TEXT_ROLES, role) {
         FocusedField::NoTextField
@@ -239,7 +246,10 @@ pub fn classify_focus(focused: Option<FocusedElement>) -> FocusedField {
 /// presence of text attributes are read, never the text, and password
 /// managers are left alone.
 pub fn keyboard_focus() -> FocusedField {
-    classify_focus(focused_element())
+    let focused = focused_element();
+    let field = classify_focus(focused.clone());
+    log::debug!("Keyboard focus {focused:?} reads as {field:?}");
+    field
 }
 
 fn focused_element() -> Option<FocusedElement> {
@@ -304,6 +314,37 @@ mod tests {
                 classify_focus(element(role, false)),
                 FocusedField::NoTextField,
                 "{role}"
+            );
+        }
+    }
+
+    /// Roles the probe in #197 read from Finder and System Settings.
+    #[test]
+    fn finder_and_settings_focus_is_no_text_field() {
+        for (role, subrole, accepts_text, why) in [
+            ("AXGroup", Some("AXDesktop"), true, "Finder desktop"),
+            (
+                "AXScrollArea",
+                Some("AXDesktop"),
+                false,
+                "Finder desktop area",
+            ),
+            (
+                "AXOutline",
+                None,
+                false,
+                "Finder window or Settings sidebar",
+            ),
+        ] {
+            let focused = FocusedElement {
+                role: Some(role.to_string()),
+                subrole: subrole.map(str::to_string),
+                accepts_text,
+            };
+            assert_eq!(
+                classify_focus(Some(focused)),
+                FocusedField::NoTextField,
+                "{why}"
             );
         }
     }

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import {
-  COPY_WINDOW,
   dispatch,
   entranceFinished,
   ERROR_WINDOW,
+  fitCopyWindow,
   openOverlay,
 } from "./overlayHarness";
 
@@ -28,7 +28,11 @@ const trayStrings = (locale: string) =>
 
 const trayLabels = (locale: string) => {
   const tray = trayStrings(locale);
-  return { copy: tray.overlayCopy, copied: tray.overlayCopied };
+  return {
+    copy: tray.overlayCopy,
+    copied: tray.overlayCopied,
+    note: tray.overlayNotPasted,
+  };
 };
 
 const LOCAL_ERRORS = [
@@ -68,9 +72,9 @@ test.describe("local engine error screenshots", () => {
 
 test.describe("copy pill screenshots", () => {
   test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
-  test.use({ viewport: COPY_WINDOW, deviceScaleFactor: 2 });
+  test.use({ deviceScaleFactor: 2 });
 
-  for (const locale of ["en", "fr"]) {
+  for (const locale of ["en", "fr", "de"]) {
     for (const theme of ["light", "dark"] as const) {
       test(`${locale} ${theme}`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: theme });
@@ -83,9 +87,14 @@ test.describe("copy pill screenshots", () => {
         const labels = trayLabels(locale);
 
         await dispatch(page, "show-overlay-copy", labels);
-        const button = page.getByRole("button", { name: labels.copy });
+        const button = page.getByRole("button", {
+          name: labels.copy,
+          exact: true,
+        });
         await expect(button).toBeVisible();
+        await expect(button.getByText(labels.note)).toBeVisible();
         await entranceFinished(page);
+        await fitCopyWindow(page);
         await page.mouse.move(0, 0);
         await page.screenshot({
           path: `${outputDir}/overlay-copy-${locale}-${theme}-copy.png`,
@@ -93,8 +102,9 @@ test.describe("copy pill screenshots", () => {
 
         await button.click();
         await expect(
-          page.getByRole("button", { name: labels.copied }),
+          page.getByRole("button", { name: labels.copied, exact: true }),
         ).toBeVisible();
+        await fitCopyWindow(page);
         await page.mouse.move(0, 0);
         await page.screenshot({
           path: `${outputDir}/overlay-copy-${locale}-${theme}-copied.png`,

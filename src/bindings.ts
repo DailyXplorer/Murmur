@@ -349,6 +349,14 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Fits the copy notice's window to the capsule the webview measured, so a
+ * note that wraps further in a wider fallback font still shows whole, and
+ * the window, which takes clicks while the notice shows, stays close to it.
+ */
+async fitCopyNotice(width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("fit_copy_notice", { width, height });
+},
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_app_dir_path") };

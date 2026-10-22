@@ -3,6 +3,8 @@ import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -41,6 +43,7 @@ interface MeetingPill {
 interface CopyLabels {
   copy: string;
   copied: string;
+  note: string;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -68,6 +71,12 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
 
 const CENTER = (BAR_COUNT - 1) / 2;
 
+// The window renders no text until its first message, so without this the
+// font would still be loading when the copy pill measures its fitted size.
+void document.fonts
+  .load('1em "Instrument Sans Variable"')
+  .catch(() => undefined);
+
 const reducedMotionQuery = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 );
@@ -87,6 +96,10 @@ const RecordingOverlay: React.FC = () => {
   const levelsRef = useRef<number[]>([]);
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const copyBodyRef = useRef<HTMLSpanElement>(null);
+  const copyNoteRef = useRef<HTMLSpanElement>(null);
+  const copyId = useId();
 
   useEffect(() => {
     let isUnmounted = false;
@@ -201,6 +214,77 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
+  // The note takes two lines, at the narrowest width that holds them, so the
+  // pill widens with a longer translation or a wider font up to its widest
+  // body. A note that needs more lines there keeps them, again as narrow as
+  // they fit. A note only loses lines as it widens, so the narrowest width
+  // is bisected. Layout sizes ignore the pop-in scale.
+  const copyShowing = view.kind === "copy";
+  const copyNote = view.kind === "copy" ? view.labels.note : null;
+  useLayoutEffect(() => {
+    const note = copyNoteRef.current;
+    if (copyNote === null || !note) return;
+    note.style.width = "";
+    const style = getComputedStyle(note);
+    const lines = () =>
+      Math.round(
+        (note.clientHeight -
+          parseFloat(style.paddingTop) -
+          parseFloat(style.paddingBottom)) /
+          parseFloat(style.lineHeight),
+      );
+    const target = Math.max(2, lines());
+    let [tooNarrow, wideEnough] = [0, Math.ceil(parseFloat(style.width))];
+    while (wideEnough - tooNarrow > 1) {
+      const width = Math.floor((tooNarrow + wideEnough) / 2);
+      note.style.width = `${width}px`;
+      if (lines() <= target) wideEnough = width;
+      else tooNarrow = width;
+    }
+    note.style.width = `${wideEnough}px`;
+  }, [copyNote]);
+
+  // The copy pill's body sizes itself from its text, whatever font renders
+  // it, and the window is fitted to it: only the webview can measure it.
+  // The backend opens each notice at a default size, so every copy view,
+  // even one replacing a showing pill, observes and reports again.
+  const copyView = view.kind === "copy" ? view : null;
+  useLayoutEffect(() => {
+    const body = copyBodyRef.current;
+    if (!copyView || !body) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const [box] = entry.borderBoxSize;
+      commands
+        .fitCopyNotice(box.inlineSize, box.blockSize)
+        .catch((error: unknown) => {
+          console.warn("Fitting the copy pill's window failed:", error);
+        });
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [copyView]);
+
+  // The pill opens as the rest capsule and grows to fit its body. CSS cannot
+  // transition to an auto size, so the fitted size is measured before the
+  // first paint and the growth runs towards it. The body keeps its own size
+  // and is clipped meanwhile, so the note never rewraps as the pill grows.
+  useLayoutEffect(() => {
+    const pill = copyRef.current;
+    if (!copyShowing || !pill || reducedMotion) return;
+    const style = getComputedStyle(pill);
+    const growth = pill.animate(
+      [
+        {
+          width: style.getPropertyValue("--ov-rest-w"),
+          height: style.getPropertyValue("--ov-h"),
+        },
+        { width: `${pill.offsetWidth}px`, height: `${pill.offsetHeight}px` },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => growth.cancel();
+  }, [copyShowing, reducedMotion]);
+
   if (view.kind === "hidden") return null;
 
   if (view.kind === "meeting") {
@@ -232,13 +316,33 @@ const RecordingOverlay: React.FC = () => {
     return (
       <div className={`ov-stage ${position}`}>
         <button
+          ref={copyRef}
           type="button"
+          dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
+          aria-labelledby={`${copyId}-action`}
+          aria-describedby={`${copyId}-note`}
           onClick={copyAgain}
         >
-          <Icon size={15} weight="bold" aria-hidden="true" />
-          <span dir="auto" aria-live="polite">
-            {view.copied ? view.labels.copied : view.labels.copy}
+          <span ref={copyBodyRef} className="ov-copy-body">
+            <span
+              ref={copyNoteRef}
+              id={`${copyId}-note`}
+              className="ov-copy-note"
+            >
+              {view.labels.note}
+            </span>
+            <span className="ov-copy-action">
+              <Icon size={14} weight="bold" aria-hidden="true" />
+              <span className="ov-copy-label">
+                <span id={`${copyId}-action`} aria-live="polite">
+                  {view.copied ? view.labels.copied : view.labels.copy}
+                </span>
+                <span className="ov-copy-label-spare" aria-hidden="true">
+                  {view.copied ? view.labels.copy : view.labels.copied}
+                </span>
+              </span>
+            </span>
           </span>
         </button>
       </div>

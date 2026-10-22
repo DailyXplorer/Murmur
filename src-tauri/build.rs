@@ -42,6 +42,7 @@ const APP_COMMANDS: &[&str] = &[
     "relaunch_after_update",
     "cancel_operation",
     "copy_notice_again",
+    "fit_copy_notice",
     "get_app_dir_path",
     "get_app_settings",
     "get_default_settings",
