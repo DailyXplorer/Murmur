@@ -1,9 +1,12 @@
-//! Proper names visible in the window the user dictates into, offered to the
-//! cleanup step as spelling hints. The window text is read through
-//! Accessibility on a background thread when dictation starts, reduced to
-//! candidate names locally, and dropped after use: only the names leave
+//! What the window the user dictates into offers the cleanup step: proper
+//! names visible in it, as spelling hints, and a short excerpt of the
+//! focused field around the insertion point. Both are read through
+//! Accessibility on a background thread when dictation starts, reduced
+//! locally, and dropped after use: only the names and the excerpt leave
 //! this module, and nothing is stored or logged.
 
+use crate::accessibility::Element;
+use crate::field_excerpt::{read_field, FieldExcerpt, FocusedText, Utf16Range};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
@@ -19,12 +22,23 @@ const READ_BUDGET: Duration = Duration::from_millis(400);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
 
-static PENDING: Mutex<Option<Receiver<Vec<String>>>> = Mutex::new(None);
+/// What one dictation learned from the window it was started in.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct WindowContext {
+    pub names: Vec<String>,
+    pub field: Option<FieldExcerpt>,
+}
+
+static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
 
 /// Starts a dictation: reads the frontmost window when `enabled`, and
-/// always drops the names of an earlier dictation nobody claimed, such as
+/// always drops the context of an earlier dictation nobody claimed, such as
 /// one cancelled with Escape.
 pub fn capture(enabled: bool) {
+    capture_with(enabled, read_frontmost_window);
+}
+
+fn capture_with(enabled: bool, read: impl FnOnce() -> WindowContext + Send + 'static) {
     let (sender, receiver) = mpsc::channel();
     if let Ok(mut pending) = PENDING.lock() {
         *pending = enabled.then_some(receiver);
@@ -33,28 +47,60 @@ pub fn capture(enabled: bool) {
         return;
     }
     std::thread::spawn(move || {
-        let names = read_frontmost_window()
-            .map(|(bundle_id, text)| names_in_window(&bundle_id, &text))
-            .unwrap_or_default();
-        let _ = sender.send(names);
+        let _ = sender.send(read());
     });
 }
 
-/// The names captured for the dictation that is ending, if ready.
-pub fn collect() -> Vec<String> {
+/// The context captured for the dictation that is ending, if ready.
+pub fn collect() -> WindowContext {
     let receiver = PENDING.lock().ok().and_then(|mut pending| pending.take());
     receiver
         .and_then(|receiver| receiver.recv_timeout(COLLECT_WAIT).ok())
         .unwrap_or_default()
 }
 
-/// The frontmost app's bundle identifier and the text of its focused window.
-fn read_frontmost_window() -> Option<(String, String)> {
-    use crate::accessibility::frontmost_app;
+/// The focused field first, then the focused window with what is left of
+/// the same budget.
+fn read_frontmost_window() -> WindowContext {
+    use crate::accessibility::{focus_in, frontmost_app};
 
     let started = Instant::now();
-    let (_, bundle_id, app) = frontmost_app()?;
-    let window = app.element("AXFocusedWindow")?;
+    let Some((pid, bundle_id, app)) = frontmost_app() else {
+        return WindowContext::default();
+    };
+    let field = focus_in(pid, &app).and_then(|focused| read_field(&focused));
+    let text = app
+        .element("AXFocusedWindow")
+        .map(|window| window_text(window, started))
+        .unwrap_or_default();
+    window_context(&bundle_id, &text, field)
+}
+
+impl FocusedText for Element {
+    fn is_secure(&self) -> bool {
+        Element::is_secure(self)
+    }
+
+    fn selection(&self) -> Option<Utf16Range> {
+        self.range("AXSelectedTextRange")
+    }
+
+    fn char_count(&self) -> Option<usize> {
+        usize::try_from(self.number("AXNumberOfCharacters")?).ok()
+    }
+
+    fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        Element::string_for_range(self, range)
+    }
+
+    fn value(&self) -> Option<String> {
+        self.string("AXValue")
+    }
+}
+
+/// The text of `window` and its descendants, breadth first, until the read
+/// budget that started at `started` runs out.
+fn window_text(window: Element, started: Instant) -> String {
     let mut text = String::new();
     let mut queue = std::collections::VecDeque::from([window]);
     let mut visited = 0;
@@ -76,7 +122,7 @@ fn read_frontmost_window() -> Option<(String, String)> {
         }
         queue.extend(element.children());
     }
-    Some((bundle_id, text))
+    text
 }
 
 /// Terminals and code editors, where a `.env` file or a shell `export` may
@@ -113,12 +159,40 @@ fn is_code_app(bundle_id: &str) -> bool {
 }
 
 /// A terminal or editor with any `KEY=value` line may be showing a `.env`
-/// file or a shell session, so it gives no names at all.
-fn names_in_window(bundle_id: &str, text: &str) -> Vec<String> {
-    if is_code_app(bundle_id) && text.lines().any(is_assignment) {
-        return Vec::new();
+/// file or a shell session, so it gives no names and no excerpt at all.
+/// Elsewhere an excerpt with a line that assigns a value or mentions a
+/// password, token, secret or API key is dropped. Names in the excerpt come
+/// first: they are next to what the user is writing.
+fn window_context(
+    bundle_id: &str,
+    window_text: &str,
+    field: Option<FieldExcerpt>,
+) -> WindowContext {
+    let excerpt = field
+        .as_ref()
+        .map(|field| format!("{}\n{}", field.before, field.after))
+        .unwrap_or_default();
+    let assigns = excerpt
+        .lines()
+        .chain(window_text.lines())
+        .any(is_assignment);
+    if is_code_app(bundle_id) && assigns {
+        return WindowContext::default();
     }
-    candidate_names(text)
+    let mut names = candidate_names(&excerpt);
+    for name in candidate_names(window_text) {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names.truncate(MAX_NAMES);
+    let secret = excerpt
+        .lines()
+        .any(|line| is_assignment(line) || mentions_secret(line));
+    WindowContext {
+        names,
+        field: field.filter(|_| !secret),
+    }
 }
 
 /// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
@@ -466,24 +540,121 @@ mod tests {
         );
     }
 
+    /// `PENDING` is shared by every dictation, so its tests take turns.
+    static PENDING_TESTS: Mutex<()> = Mutex::new(());
+
+    fn names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    fn field(before: &str, after: &str) -> Option<FieldExcerpt> {
+        Some(FieldExcerpt {
+            before: before.to_string(),
+            after: after.to_string(),
+        })
+    }
+
     #[test]
     fn a_dictation_started_with_names_off_drops_an_unclaimed_capture() {
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         let (sender, receiver) = mpsc::channel();
-        sender.send(vec!["Ingrid".to_string()]).unwrap();
+        sender
+            .send(WindowContext {
+                names: names(&["Ingrid"]),
+                field: field("Hi Ingrid, ", ""),
+            })
+            .unwrap();
         *PENDING.lock().unwrap() = Some(receiver);
         capture(false);
-        assert_eq!(collect(), Vec::<String>::new());
+        assert_eq!(collect(), WindowContext::default());
+    }
+
+    #[test]
+    fn with_the_setting_off_the_window_is_never_read() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        let read = Arc::new(AtomicBool::new(false));
+        let reader = |read: Arc<AtomicBool>| {
+            move || {
+                read.store(true, Ordering::SeqCst);
+                WindowContext {
+                    names: names(&["Ingrid"]),
+                    field: None,
+                }
+            }
+        };
+        capture_with(false, reader(Arc::clone(&read)));
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!read.load(Ordering::SeqCst), "read with the setting off");
+        assert_eq!(collect(), WindowContext::default());
+
+        capture_with(true, reader(Arc::clone(&read)));
+        let started = Instant::now();
+        while !read.load(Ordering::SeqCst) && started.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(read.load(Ordering::SeqCst), "not read with the setting on");
+        assert_eq!(collect().names, names(&["Ingrid"]));
     }
 
     #[test]
     fn terminals_and_editors_showing_assignments_give_no_names() {
         let text = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        assert!(names_in_window("com.apple.Terminal", text).is_empty());
-        assert!(names_in_window("com.jetbrains.intellij", text).is_empty());
-        assert_eq!(names_in_window("com.apple.Notes", text), vec!["Ingrid"]);
+        let context = |bundle_id, text| window_context(bundle_id, text, None).names;
+        assert!(context("com.apple.Terminal", text).is_empty());
+        assert!(context("com.jetbrains.intellij", text).is_empty());
+        assert_eq!(context("com.apple.Notes", text), names(&["Ingrid"]));
         assert_eq!(
-            names_in_window("com.microsoft.VSCode", "written by Ingrid"),
-            vec!["Ingrid"]
+            context("com.microsoft.VSCode", "written by Ingrid"),
+            names(&["Ingrid"])
+        );
+    }
+
+    #[test]
+    fn a_code_app_showing_assignments_gives_no_excerpt_either() {
+        let window = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
+        let excerpt = field("thanks to Ingrid for ", "");
+        assert_eq!(
+            window_context("com.apple.Terminal", window, excerpt.clone()),
+            WindowContext::default()
+        );
+        assert_eq!(
+            window_context("com.apple.Notes", window, excerpt.clone()).field,
+            excerpt
+        );
+    }
+
+    #[test]
+    fn an_excerpt_with_a_secret_line_is_dropped() {
+        for (before, after) in [
+            ("Wi-Fi password: Bluebird\nsee you ", ""),
+            ("Hi Ingrid, ", " here is my API key for staging"),
+            ("STRIPE_KEY=Moonlight\n", ""),
+            ("export ADMIN = Corvina\nthen ", "run it"),
+            ("the token is ", ""),
+        ] {
+            let context = window_context("com.apple.Notes", "", field(before, after));
+            assert_eq!(context.field, None, "{before:?} {after:?}");
+        }
+        let clean = field("Thanks for the draft, Priya. ", "");
+        assert_eq!(
+            window_context("com.apple.Notes", "", clean.clone()).field,
+            clean
+        );
+    }
+
+    #[test]
+    fn names_in_the_excerpt_come_before_the_window_names() {
+        let context = window_context(
+            "com.apple.Mail",
+            "meet Tobias and Siobhán today",
+            field("Dear Siobhán and Priya, ", "with Ingrid"),
+        );
+        assert_eq!(
+            context.names,
+            names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
     }
 }

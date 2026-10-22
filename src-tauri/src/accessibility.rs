@@ -3,13 +3,24 @@
 //! Murmur already holds for pasting; no screenshots, no Screen Recording.
 //! Secure text fields and password managers are never read.
 
+use crate::field_excerpt::Utf16Range;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
+use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use std::ffi::c_void;
 
 type AXUIElementRef = CFTypeRef;
 const AX_SUCCESS: i32 = 0;
+/// kAXValueCFRangeType.
+const AX_VALUE_CF_RANGE: u32 = 4;
+
+#[repr(C)]
+#[derive(Default)]
+struct CFRange {
+    location: isize,
+    length: isize,
+}
 /// A hung app must not stall a reader for the system default of seconds.
 const AX_TIMEOUT_SECONDS: f32 = 0.25;
 const SECURE_TEXT_FIELD: &str = "AXSecureTextField";
@@ -25,7 +36,16 @@ extern "C" {
         attribute: CFStringRef,
         value: *mut CFTypeRef,
     ) -> i32;
+    fn AXUIElementCopyParameterizedAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        parameter: CFTypeRef,
+        value: *mut CFTypeRef,
+    ) -> i32;
     fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
+    fn AXValueCreate(kind: u32, value: *const c_void) -> CFTypeRef;
+    fn AXValueGetTypeID() -> CFTypeID;
+    fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
 }
 
 /// Bundle identifiers whose windows are never read.
@@ -107,6 +127,63 @@ impl Element {
             .map(|value| value.to_string())
     }
 
+    pub fn number(&self, name: &str) -> Option<i64> {
+        self.attribute(name)?.downcast::<CFNumber>()?.to_i64()
+    }
+
+    /// A range attribute such as AXSelectedTextRange.
+    pub fn range(&self, name: &str) -> Option<Utf16Range> {
+        let value = self.attribute(name)?;
+        if value.type_of() != unsafe { AXValueGetTypeID() } {
+            return None;
+        }
+        let mut range = CFRange::default();
+        let read = unsafe {
+            AXValueGetValue(
+                value.as_CFTypeRef(),
+                AX_VALUE_CF_RANGE,
+                (&mut range as *mut CFRange).cast(),
+            )
+        };
+        if !read {
+            return None;
+        }
+        Some(Utf16Range {
+            start: usize::try_from(range.location).ok()?,
+            len: usize::try_from(range.length).ok()?,
+        })
+    }
+
+    /// AXStringForRange: part of a text element's value.
+    pub fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        let range = CFRange {
+            location: isize::try_from(range.start).ok()?,
+            length: isize::try_from(range.len).ok()?,
+        };
+        let parameter =
+            unsafe { AXValueCreate(AX_VALUE_CF_RANGE, (&range as *const CFRange).cast()) };
+        if parameter.is_null() {
+            return None;
+        }
+        let parameter = unsafe { CFType::wrap_under_create_rule(parameter) };
+        let name = CFString::new("AXStringForRange");
+        let mut value: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            AXUIElementCopyParameterizedAttributeValue(
+                self.raw(),
+                name.as_concrete_TypeRef(),
+                parameter.as_CFTypeRef(),
+                &mut value,
+            )
+        };
+        if status != AX_SUCCESS || value.is_null() {
+            return None;
+        }
+        unsafe { CFType::wrap_under_create_rule(value) }
+            .downcast::<CFString>()
+            .map(|text| text.to_string())
+    }
+
     pub fn children(&self) -> Vec<Element> {
         let Some(array) = self
             .attribute("AXChildren")
@@ -160,6 +237,16 @@ pub fn focused_text_element() -> Option<Element> {
     let (pid, _, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
+}
+
+/// The keyboard focus inside the app `pid`: the system-wide focus when it
+/// belongs to that app, else the app's own, which some apps answer only
+/// there. A secure field is returned as well; its reader must check.
+pub fn focus_in(pid: i32, app: &Element) -> Option<Element> {
+    Element::system_wide()
+        .and_then(|system| system.element("AXFocusedUIElement"))
+        .filter(|focused| focused.pid() == Some(pid))
+        .or_else(|| app.element("AXFocusedUIElement"))
 }
 
 /// What holds the keyboard when a dictation ends.

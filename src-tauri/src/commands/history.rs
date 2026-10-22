@@ -5,6 +5,7 @@ use crate::managers::{
     history::{HistoryEntry, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
     transcription::TranscriptionManager,
 };
+use crate::window_names::WindowContext;
 use crate::{OperationId, ProcessingOperation};
 use std::future::Future;
 use std::sync::Arc;
@@ -123,9 +124,14 @@ pub async fn retry_history_entry_transcription(
             }
             // A retry gets the same cleanup as the dictation it replaces; the
             // raw transcript stays in the entry. The window the user dictated
-            // into is gone, so there are no window names to pass.
-            let text =
-                process_transcription_output(&app, &transcription, Vec::new(), &operation).await;
+            // into is gone, so there is no window context to pass.
+            let text = process_transcription_output(
+                &app,
+                &transcription,
+                WindowContext::default(),
+                &operation,
+            )
+            .await;
             Ok((text, source))
         },
         |text, source| {

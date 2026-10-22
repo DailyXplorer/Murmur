@@ -11,6 +11,7 @@ use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::user_alert::{self, Alert};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
+use crate::window_names::WindowContext;
 use crate::{ProcessingOperation, TranscriptionCoordinator};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -186,11 +187,11 @@ fn save_history(
 }
 
 /// Converts the Chinese variant, then runs AI cleanup when it is on and a
-/// Codex session exists. `names` come from the window the user dictated into.
+/// Codex session exists. `window` comes from the window the user dictated into.
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
-    names: Vec<String>,
+    window: WindowContext,
     operation: &ProcessingOperation,
 ) -> ProcessedText {
     let settings = get_settings(app);
@@ -200,18 +201,26 @@ pub(crate) async fn process_transcription_output(
     if !settings.ai_cleanup_enabled || !crate::cleanup::available() {
         return ProcessedText::unprocessed(final_text);
     }
-    crate::cleanup::clean(final_text, &cleanup_context(&settings, names), operation).await
+    crate::cleanup::clean(final_text, &cleanup_context(&settings, window), operation).await
 }
 
-fn cleanup_context(settings: &AppSettings, names: Vec<String>) -> PromptContext {
+/// Whether a dictation starting now reads the frontmost window: only
+/// cleanup uses what it finds.
+fn reads_window_context(settings: &AppSettings) -> bool {
+    settings.window_names_enabled && settings.ai_cleanup_enabled
+}
+
+fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptContext {
+    // The setting may have been turned off while the user was dictating.
+    let window = if settings.window_names_enabled {
+        window
+    } else {
+        WindowContext::default()
+    };
     PromptContext {
         vocabulary: settings.custom_words.clone(),
-        // The setting may have been turned off while the user was dictating.
-        names: if settings.window_names_enabled {
-            names
-        } else {
-            Vec::new()
-        },
+        names: window.names,
+        field: window.field,
         language: (settings.selected_language != "auto")
             .then(|| settings.selected_language.clone()),
         faint_speech: settings.whisper_mode,
@@ -276,9 +285,7 @@ impl ShortcutAction for TranscribeAction {
                     recording_start_time.elapsed()
                 );
                 crate::dictionary::stop_observing();
-                crate::window_names::capture(
-                    settings.window_names_enabled && settings.ai_cleanup_enabled,
-                );
+                crate::window_names::capture(reads_window_context(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
                 std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
@@ -412,7 +419,7 @@ impl ShortcutAction for TranscribeAction {
             );
 
             let stop_recording_time = Instant::now();
-            let window_names = crate::window_names::collect();
+            let window = crate::window_names::collect();
             if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
@@ -507,7 +514,7 @@ impl ShortcutAction for TranscribeAction {
                                 process_transcription_output(
                                     &ah,
                                     &transcription,
-                                    window_names,
+                                    window,
                                     &operation,
                                 ),
                                 || operation_was_cancelled(&operation, &rm, cancel_generation),
@@ -687,10 +694,13 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        cleanup_context, complete_unless_cancelled, paste_outcome_commits_history, PendingWav,
+        cleanup_context, complete_unless_cancelled, paste_outcome_commits_history,
+        reads_window_context, PendingWav,
     };
     use crate::clipboard::PasteOutcome;
+    use crate::field_excerpt::FieldExcerpt;
     use crate::settings::{get_default_settings, DictationStyle};
+    use crate::window_names::WindowContext;
     use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -707,8 +717,51 @@ mod tests {
         ] {
             let mut settings = get_default_settings();
             settings.dictation_style = style;
-            assert_eq!(cleanup_context(&settings, Vec::new()).style, style);
+            assert_eq!(
+                cleanup_context(&settings, WindowContext::default()).style,
+                style
+            );
         }
+    }
+
+    #[test]
+    fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
+        for (setting, cleanup, read) in [
+            (true, true, true),
+            (false, true, false),
+            (true, false, false),
+            (false, false, false),
+        ] {
+            let mut settings = get_default_settings();
+            settings.window_names_enabled = setting;
+            settings.ai_cleanup_enabled = cleanup;
+            assert_eq!(
+                reads_window_context(&settings),
+                read,
+                "setting {setting}, cleanup {cleanup}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_setting_turned_off_while_dictating_drops_names_and_excerpt() {
+        let window = || WindowContext {
+            names: vec!["Ingrid".to_string()],
+            field: Some(FieldExcerpt {
+                before: "Hi Ingrid, ".to_string(),
+                after: String::new(),
+            }),
+        };
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        let context = cleanup_context(&settings, window());
+        assert_eq!(context.names, vec!["Ingrid"]);
+        assert_eq!(context.field, window().field);
+
+        settings.window_names_enabled = false;
+        let context = cleanup_context(&settings, window());
+        assert!(context.names.is_empty());
+        assert_eq!(context.field, None);
     }
 
     #[test]
