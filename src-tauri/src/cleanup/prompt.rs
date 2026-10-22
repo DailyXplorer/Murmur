@@ -13,7 +13,7 @@ Edit only:
 - Apply self-corrections: when the speaker corrects themselves (\"actually\", \"no wait\", \"I mean\", \"sorry\", \"scratch that\", or the same in their language), keep only the final version. \"at 2 pm, actually 3 pm\" becomes \"at 3 pm\".
 - Fix punctuation, capitalisation and obvious transcription spelling errors.
 - Turn spoken formatting commands into formatting: \"new line\", \"new paragraph\", \"comma\", \"period\", \"question mark\", \"bullet point\" and their equivalents in the speaker's language.
-- Format a spoken enumeration of three or more items as a list, one item per line starting with \"- \", or \"1. \" for ordered steps.
+- Format a spoken enumeration of three or more items as a list, even when it ends a sentence: the words before it, then one item per line starting with \"- \", or \"1. \" for ordered steps.
 - Spell names and terms as written in <vocabulary> when the speech plausibly refers to them.
 
 Never:
@@ -24,18 +24,16 @@ Never:
 Output only the cleaned text, without quotes, tags or notes. If nothing needs editing, output the text unchanged.";
 
 const FORMAL: &str = "\
-Style: formal. These edits are also allowed:
-- Write casual spoken forms in full written register: \"on peut\" becomes \"nous pouvons\", \"t'es dispo\" becomes \"tu es disponible\", \"ça marche\" meaning \"OK\" becomes \"cela me convient\", \"hey\" becomes \"hello\", \"gonna\" becomes \"going to\". Drop \"donc\", \"enfin\" or \"so\" only as hesitations, never when they mean \"therefore\" or \"finally\".
-- Use complete sentences and full written punctuation, with commas after an opening word and around a clause such as \"si\" or \"if\" (\"Sinon, nous partirons demain, si tu es d'accord.\").
-The edits above still apply: an enumeration of three or more items is always a list, one item per line.
+Style: formal. It changes wording and punctuation, never the layout: an enumeration of three or more items stays a list after \":\", one item per line. These edits are also allowed:
+- Write casual spoken forms in full written register: \"on peut\" becomes \"nous pouvons\", \"faut qu'on\" becomes \"il faut que nous\", \"t'es dispo\" becomes \"tu es disponible\", \"ça marche\" meaning \"OK\" becomes \"cela me convient\", \"hey\" becomes \"hello\", \"gonna\" becomes \"going to\". Drop \"donc\", \"enfin\" or \"so\" only as hesitations, never when they mean \"therefore\" or \"finally\".
+- Use full written punctuation, with commas after an opening word and around a clause such as \"si\" or \"if\" (\"Sinon, nous partirons demain, si tu es d'accord.\").
 Keep \"tu\" or \"vous\" exactly as spoken. The meaning never changes.";
 
 const CASUAL: &str = "\
-Style: casual. These edits are also allowed:
+Style: casual. It changes wording and punctuation, never the layout: an enumeration of three or more items stays a list after \":\", one item per line. These edits are also allowed:
 - Keep the spoken register and contractions as said (\"on\", \"t'es dispo\", \"you're\", \"gonna\").
 - Use as few commas as a chat message: only where two clauses meet (\"On peut se voir lundi si t'es libre, sinon mardi ça me va\"). Never a comma after \"hey\", \"alors\", \"donc\", \"sinon\", \"so\" or an opening phrase, nor before \"si\" or \"if\" (\"Hey did you see it?\", \"Alors pour la suite on verra\").
 - Start with a capital. A short one-line message may end without a final period; keep it when there are several sentences. Keep ? and !.
-The edits above still apply: an enumeration of three or more items is always a list, one item per line.
 Keep every word the edits above keep. Never add slang, emoji or words that were not said.";
 
 /// The developer instructions for `style`. The style is the user's setting,
@@ -221,11 +219,11 @@ mod tests {
     }
 
     #[test]
-    fn normal_style_sends_the_instructions_from_before_styles() {
+    fn normal_style_sends_only_the_base_instructions() {
         let normal = instructions(DictationStyle::Normal);
         assert_eq!(
             format!("{:x}", Sha256::digest(normal.as_bytes())),
-            "0154175809e67dbe9ccd8c7c55e1688f5f3400e1d0d163294fe48f3c7d8fe95c"
+            "4b5008826df2c7737e8ffaa7e343bab971c6ec7ac06304c8fc1e8f9cf8476874"
         );
         assert!(!normal.contains(FORMAL) && !normal.contains(CASUAL));
     }

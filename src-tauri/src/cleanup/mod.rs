@@ -478,16 +478,17 @@ mod tests {
         const SAMPLES: &str = "/tmp/murmur-styles-samples.md";
         // Each reply must keep one of the listed words: there, "ça marche"
         // means "it works", "enfin" means "finally" and "so" a consequence.
-        let dictations: [(&str, &str, &[&str]); 9] = [
-            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi", &[]),
-            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités", &[]),
-            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore", &[]),
-            ("fr", "le micro ça marche plus depuis hier", &["marche", "fonctionne"]),
-            ("fr", "j'ai enfin fini le rapport", &["enfin", "finalement"]),
-            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before", &[]),
-            ("en", "for the trip we need to book the flights the hotel and the rental car", &[]),
-            ("en", "hey did you get a chance to look at the draft I sent you yesterday", &[]),
-            ("en", "it's raining so I'll stay home", &["so", "therefore"]),
+        // The last field marks an enumeration, which every style lists.
+        let dictations: [(&str, &str, &[&str], bool); 9] = [
+            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi", &[], false),
+            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités", &[], true),
+            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore", &[], false),
+            ("fr", "le micro ça marche plus depuis hier", &["marche", "fonctionne"], false),
+            ("fr", "j'ai enfin fini le rapport", &["enfin", "finalement"], false),
+            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before", &[], false),
+            ("en", "for the trip we need to book the flights the hotel and the rental car", &[], true),
+            ("en", "hey did you get a chance to look at the draft I sent you yesterday", &[], false),
+            ("en", "it's raining so I'll stay home", &["so", "therefore"], false),
         ];
         let styles = [
             DictationStyle::Formal,
@@ -509,7 +510,7 @@ mod tests {
             writeln!(report, "\n{style:?} block:\n\n```\n{}\n```", block.trim()).unwrap();
         }
         let mut failures = Vec::new();
-        for (language, dictation, kept) in dictations {
+        for (language, dictation, kept, list) in dictations {
             writeln!(report, "\n## {language}: {dictation}\n").unwrap();
             let deadline = deadline_for(dictation.chars().count());
             for style in styles {
@@ -559,6 +560,18 @@ mod tests {
                             && !text.chars().next().is_some_and(char::is_uppercase)
                         {
                             failures.push(format!("{style:?} lost the capital: {text}"));
+                        }
+                        let items = text
+                            .lines()
+                            .filter(|line| {
+                                line.starts_with("- ")
+                                    || line
+                                        .split_once(". ")
+                                        .is_some_and(|(number, _)| number.parse::<u8>().is_ok())
+                            })
+                            .count();
+                        if list && items < 3 {
+                            failures.push(format!("{style:?} lost the list: {text}"));
                         }
                         "cleaned"
                     }
