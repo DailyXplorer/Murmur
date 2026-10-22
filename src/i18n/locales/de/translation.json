@@ -9,8 +9,8 @@
     "errorTimeout": "Der Transkriptionsdienst hat zu lange gebraucht. Versuche es im Verlauf erneut.",
     "errorRateLimited": "Zu viele Anfragen oder das Diktierlimit ist erreicht. Versuche es später im Verlauf erneut.",
     "errorServer": "Der Transkriptionsdienst hat Probleme. Versuche es im Verlauf erneut.",
-    "errorSessionExpired": "Deine Codex-Sitzung ist abgelaufen. Öffne Codex und melde dich erneut an.",
-    "errorSignedOut": "Nicht bei Codex angemeldet. Öffne Codex und melde dich an.",
+    "errorSessionExpired": "Deine ChatGPT-Sitzung ist abgelaufen. Melde dich in den Murmur-Einstellungen erneut an.",
+    "errorSignedOut": "Nicht bei ChatGPT angemeldet. Melde dich in den Murmur-Einstellungen an.",
     "errorTooLarge": "Diese Aufnahme ist zu lang für den Dienst. Versuche eine kürzere.",
     "errorTranscription": "Transkription fehlgeschlagen. Versuche es im Verlauf erneut.",
     "errorLocalNotReady": "Das lokale Modell ist noch nicht bereit. Prüfe es in den Murmur-Einstellungen.",
@@ -122,22 +122,15 @@
       }
     },
     "provider": {
-      "title": "Codex verbinden",
-      "description": "Melde dich auf diesem Mac bei Codex an, um die Einrichtung abzuschließen. Murmur erkennt eine lokale Konfiguration, prüft aber keine aktive Verbindung.",
-      "configured": "Konfiguration erkannt",
+      "title": "ChatGPT verbinden",
+      "description": "Melde dich im Browser mit deinem ChatGPT-Konto an, um die Einrichtung abzuschließen.",
       "start": "Starten",
       "retry": "Erneut versuchen",
       "continue": "Weiter",
       "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
-      "setupCodex": "Codex-Einrichtung öffnen",
-      "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden.",
       "optionalTitle": "ChatGPT verbinden (optional)",
       "optionalDescription": "Verbinden Sie Ihr ChatGPT-Konto für die KI-Bereinigung (entfernt Füllwörter und korrigiert die Grammatik) und für Sprachen, die das lokale Modell nicht abdeckt.",
       "skip": "Überspringen"
-    },
-    "providerLabels": {
-      "codex": "Codex",
-      "unavailable": "Keine Konfiguration erkannt"
     },
     "model": {
       "title": "Auf diesem Mac transkribieren",
@@ -468,8 +461,6 @@
     },
     "transcription": {
       "title": "Transkription",
-      "sessionTitle": "Codex",
-      "sessionDescription": "Audio wird an dieselbe Cloud-Transkription gesendet, die Codex verwendet. Melde dich in der Codex-App an, wenn hier „Nicht verbunden“ angezeigt wird.",
       "checking": "Konfiguration wird geprüft…",
       "statusUnavailable": "Status nicht verfügbar",
       "missing": "Nicht angemeldet",
@@ -478,7 +469,7 @@
         "output": "Ausgabe",
         "engine": "So transkribiert Murmur"
       },
-      "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an",
+      "sessionExpired": "Sitzung abgelaufen, melde dich erneut an",
       "aiCleanup": {
         "title": "Bereinigung und Formatierung",
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
@@ -553,7 +544,27 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Optional: verbinden für KI-Bereinigung und mehr Sprachen."
+        "optional": "Optional: verbinden für KI-Bereinigung und mehr Sprachen.",
+        "signedIn": "Angemeldet",
+        "signIn": "Anmelden",
+        "signOut": "Abmelden",
+        "signOutFailed": "Abmelden von ChatGPT fehlgeschlagen.",
+        "waiting": "Schließe die Anmeldung im Browser ab.",
+        "signOutDialog": {
+          "title": "Von ChatGPT abmelden?",
+          "body": "Murmur und die Codex-App teilen sich auf diesem Mac eine ChatGPT-Sitzung. Wenn du dich hier abmeldest, wird auch Codex abgemeldet."
+        },
+        "errors": {
+          "portBusy": "Eine andere Anmeldung ist bereits offen, vielleicht in Codex. Beende oder schließe sie und versuche es dann erneut.",
+          "timedOut": "Die Anmeldung hat zu lange gedauert. Versuche es erneut.",
+          "denied": "Die Anmeldung wurde im Browser abgebrochen.",
+          "notEntitled": "Codex ist für diesen ChatGPT-Workspace nicht aktiviert. Frag die Workspace-Verwaltung.",
+          "network": "OpenAI ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+          "rejected": "OpenAI hat die Anmeldung nicht angenommen. Versuche es erneut.",
+          "saveFailed": "Angemeldet, aber die Sitzung konnte auf diesem Mac nicht gespeichert werden.",
+          "browserFailed": "Dein Browser konnte nicht geöffnet werden.",
+          "generic": "Die Anmeldung ist fehlgeschlagen. Versuche es erneut."
+        }
       }
     }
   },
@@ -650,7 +661,7 @@
       "retry": "Erneut versuchen",
       "retryError": "Die Verarbeitung konnte nicht neu gestartet werden.",
       "errors": {
-        "signed_out": "Melde dich bei Codex an und versuche es erneut.",
+        "signed_out": "Melde dich mit ChatGPT an und versuche es erneut.",
         "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
         "parts_failed": "Einige Teile konnten nicht transkribiert werden.",
         "no_audio": "Die Aufnahme konnte nicht gelesen werden.",
@@ -781,7 +792,7 @@
       "pending": "Die Zusammenfassung wird geschrieben, sobald das ganze Meeting transkribiert ist.",
       "retryError": "Die Zusammenfassung konnte nicht erneut angefordert werden.",
       "errors": {
-        "signed_out": "Melde dich bei Codex an und versuche es erneut.",
+        "signed_out": "Melde dich mit ChatGPT an und versuche es erneut.",
         "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
         "network": "Codex ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
         "timeout": "Codex hat zu lange für die Antwort gebraucht.",

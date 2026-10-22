@@ -9,8 +9,8 @@
     "errorTimeout": "The transcription service took too long. Retry from History.",
     "errorRateLimited": "Too many requests, or the dictation usage limit is reached. Retry later from History.",
     "errorServer": "The transcription service is having problems. Retry from History.",
-    "errorSessionExpired": "Your Codex session expired. Open Codex and sign in again.",
-    "errorSignedOut": "Not signed in to Codex. Open Codex and sign in.",
+    "errorSessionExpired": "Your ChatGPT session expired. Sign in again in Murmur settings.",
+    "errorSignedOut": "Not signed in to ChatGPT. Sign in in Murmur settings.",
     "errorTooLarge": "This recording is too long for the service. Try a shorter one.",
     "errorTranscription": "Transcription failed. Retry from History.",
     "errorLocalNotReady": "The local model isn't ready yet. Check it in Murmur settings.",
@@ -122,22 +122,15 @@
       }
     },
     "provider": {
-      "title": "Connect Codex",
-      "description": "Sign in to Codex on this Mac to finish setup. Murmur does not test cloud service access.",
-      "configured": "Configuration detected",
+      "title": "Connect ChatGPT",
+      "description": "Sign in with your ChatGPT account in your browser to finish setup.",
       "start": "Start",
       "retry": "Retry",
       "continue": "Continue",
       "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
-      "setupCodex": "Open Codex setup",
-      "codexSetupFailed": "Couldn't open Codex setup.",
       "optionalTitle": "Connect ChatGPT (optional)",
       "optionalDescription": "Connect your ChatGPT account for AI cleanup (removes ums and fixes grammar) and for languages the local model doesn't cover.",
       "skip": "Skip"
-    },
-    "providerLabels": {
-      "codex": "Codex",
-      "unavailable": "Configuration not detected"
     },
     "model": {
       "title": "Transcribe on this Mac",
@@ -468,8 +461,6 @@
     },
     "transcription": {
       "title": "Transcription",
-      "sessionTitle": "Codex",
-      "sessionDescription": "Audio is sent to Codex's cloud transcription. Sign in to the Codex app to configure it.",
       "checking": "Checking configuration…",
       "statusUnavailable": "Status unavailable",
       "missing": "Not signed in",
@@ -478,7 +469,7 @@
         "output": "Output",
         "engine": "How Murmur transcribes"
       },
-      "sessionExpired": "Session expired, sign in again in Codex",
+      "sessionExpired": "Session expired, sign in again",
       "aiCleanup": {
         "title": "Cleanup and formatting",
         "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or rewrites. If it fails or takes too long, the raw transcript is pasted.",
@@ -553,7 +544,27 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Optional: connect for AI cleanup and more languages."
+        "optional": "Optional: connect for AI cleanup and more languages.",
+        "signedIn": "Signed in",
+        "signIn": "Sign in",
+        "signOut": "Sign out",
+        "signOutFailed": "Couldn't sign out of ChatGPT.",
+        "waiting": "Finish signing in in your browser.",
+        "signOutDialog": {
+          "title": "Sign out of ChatGPT?",
+          "body": "Murmur and the Codex app share one ChatGPT session on this Mac, so signing out here also signs out Codex."
+        },
+        "errors": {
+          "portBusy": "Another sign-in is already open, maybe in Codex. Finish or close it, then try again.",
+          "timedOut": "Sign-in timed out. Try again.",
+          "denied": "Sign-in was cancelled in the browser.",
+          "notEntitled": "Codex isn't enabled for this ChatGPT workspace. Ask your workspace admin.",
+          "network": "Couldn't reach OpenAI. Check your connection and try again.",
+          "rejected": "OpenAI didn't accept the sign-in. Try again.",
+          "saveFailed": "Signed in, but the session couldn't be saved on this Mac.",
+          "browserFailed": "Couldn't open your browser.",
+          "generic": "Sign-in failed. Try again."
+        }
       }
     }
   },
@@ -650,7 +661,7 @@
       "retry": "Retry",
       "retryError": "Couldn't retry processing.",
       "errors": {
-        "signed_out": "Sign in to Codex, then retry.",
+        "signed_out": "Sign in with ChatGPT, then retry.",
         "rate_limited": "Codex is limiting requests right now. Retry later.",
         "parts_failed": "Some parts couldn't be transcribed.",
         "no_audio": "The recording couldn't be read.",
@@ -781,7 +792,7 @@
       "pending": "The summary is written once the whole meeting is transcribed.",
       "retryError": "Couldn't retry the summary.",
       "errors": {
-        "signed_out": "Sign in to Codex, then retry.",
+        "signed_out": "Sign in with ChatGPT, then retry.",
         "rate_limited": "Codex is limiting requests right now. Retry later.",
         "network": "Couldn't reach Codex. Check the connection, then retry.",
         "timeout": "Codex took too long to answer.",

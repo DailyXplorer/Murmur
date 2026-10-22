@@ -34,6 +34,8 @@ declare global {
       releaseMeetingLoads: () => void;
       /** The local model finished downloading, as the backend reports it. */
       finishModelDownload: () => void;
+      /** The browser sign-in saved a session. */
+      resolveSignIn: () => void;
     };
   }
 }
@@ -68,8 +70,16 @@ const speakerAnalysis = (params.get("speakers") ??
 const engine = (params.get("engine") ?? "cloud") as Engine;
 /** `engineRefused=1`: the backend refuses every engine change. */
 const engineRefused = params.get("engineRefused") === "1";
-/** `account=none`: no ChatGPT session on this Mac. */
-const signedIn = params.get("account") !== "none";
+/** `account=none`: no ChatGPT session on this Mac; `account=expired`: one
+ * that can no longer be refreshed. */
+let account = params.get("account") ?? "signedIn";
+/** `signOut=fails`: the backend cannot remove the session. */
+const signOutFails = params.get("signOut") === "fails";
+/** The browser sign-in under way, as the backend runs it. */
+let signIn: {
+  resolve: (value: null) => void;
+  reject: (error: string) => void;
+} | null = null;
 /** `card=1` shows the one-time local transcription card. */
 const cardShown = params.get("card") === "1";
 /** `history=fallback`: entries transcribed by the engine not chosen. */
@@ -595,6 +605,45 @@ const handleEngineCommand = (
   }
 };
 
+/** The ChatGPT session commands, which change the account. */
+const handleAccountCommand = (
+  command: string,
+): { handled: boolean; value?: unknown } => {
+  switch (command) {
+    case "get_codex_auth_status":
+      return {
+        handled: true,
+        value: {
+          expired: account === "expired",
+          signed_in: account === "signedIn",
+        },
+      };
+    case "sign_in_with_chatgpt":
+      signIn?.reject("cancelled");
+      return {
+        handled: true,
+        value: new Promise((resolve, reject) => {
+          signIn = { resolve, reject };
+        }),
+      };
+    case "cancel_chatgpt_sign_in":
+      signIn?.reject("cancelled");
+      signIn = null;
+      return { handled: true, value: null };
+    case "sign_out_of_chatgpt":
+      if (signOutFails) {
+        return {
+          handled: true,
+          value: Promise.reject("Couldn't remove auth.json"),
+        };
+      }
+      account = "none";
+      return { handled: true, value: null };
+    default:
+      return { handled: false };
+  }
+};
+
 const RESPONSES: Record<string, unknown> = {
   change_meeting_capture_mode_setting: null,
   change_meetings_enabled_setting: null,
@@ -618,7 +667,6 @@ const RESPONSES: Record<string, unknown> = {
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
   get_available_output_devices: OUTPUTS,
-  get_codex_auth_status: { expired: false, signed_in: signedIn },
   get_default_settings: SETTINGS,
   get_history_entries: {
     entries: historyFallback ? FALLBACK_HISTORY : HISTORY,
@@ -676,6 +724,11 @@ window.settingsPages = {
     setModel(MODELS.ready);
     switchIfAsked();
   },
+  resolveSignIn: () => {
+    account = "signedIn";
+    signIn?.resolve(null);
+    signIn = null;
+  },
 };
 
 mockIPC(
@@ -691,6 +744,8 @@ mockIPC(
       (args ?? {}) as Record<string, unknown>,
     );
     if (engineCommand.handled) return engineCommand.value;
+    const accountCommand = handleAccountCommand(command);
+    if (accountCommand.handled) return accountCommand.value;
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
     if (models) setModel(models);

@@ -2,7 +2,12 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import type { AppSettings, Engine, LocalModelStatus } from "../../src/bindings";
+import type {
+  AppSettings,
+  Engine,
+  LocalModelStatus,
+  SignInError,
+} from "../../src/bindings";
 import "../../src/App.css";
 
 type Deferred<T> = {
@@ -63,8 +68,9 @@ const setModel = (name: ModelName) => {
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
-let nextSetupActionFailure: CompletionFailureMode | null = null;
 let failNextInitialization = false;
+/** The browser sign-in under way, as the backend runs it. */
+let signIn: Deferred<null> | null = null;
 const writes: string[] = [];
 const calls: string[] = [];
 
@@ -117,6 +123,7 @@ let backendSettings: AppSettings = {
   app_language: appLanguage,
   onboarding_completed: returning,
   selected_language: "fr",
+  theme: (query.get("theme") ?? "light") as AppSettings["theme"],
   transcription_engine: returning ? "cloud" : "local",
 };
 
@@ -126,19 +133,15 @@ mockIPC(
   (command, args) => {
     calls.push(command);
     switch (command) {
-      case "plugin:opener|open_url": {
-        const failure = nextSetupActionFailure;
-        nextSetupActionFailure = null;
-        if (failure === "result") {
-          return Promise.reject(
-            "The operating system refused to open this resource",
-          );
-        }
-        if (failure === "exception") {
-          throw new Error("The operating system refused to open this resource");
-        }
+      case "sign_in_with_chatgpt":
+        // As the backend: a new sign-in cancels the one under way.
+        signIn?.reject("cancelled");
+        signIn = createDeferred();
+        return signIn.promise;
+      case "cancel_chatgpt_sign_in":
+        signIn?.reject("cancelled");
+        signIn = null;
         return null;
-      }
       case "get_app_settings":
       case "get_default_settings":
         return { ...backendSettings };
@@ -228,8 +231,12 @@ declare global {
       emitTranscriptionFailure: () => Promise<void>;
       deferStatusRefresh: () => number;
       failNextCompletion: (mode?: CompletionFailureMode) => void;
-      failNextSetupAction: (mode: CompletionFailureMode) => void;
       failNextInitialization: () => void;
+      /** The browser sign-in saved a session. */
+      resolveSignIn: () => void;
+      /** The sign-in ended with this `SignInError`, or `exception`: the
+       * IPC call itself threw. */
+      failSignIn: (error: SignInError | "exception") => void;
       calls: () => string[];
       engine: () => Engine | undefined;
       engines: () => Engine[];
@@ -256,11 +263,19 @@ window.providerOnboardingFixture = {
   failNextCompletion: (mode = "exception") => {
     nextCompletionFailure = mode;
   },
-  failNextSetupAction: (mode) => {
-    nextSetupActionFailure = mode;
-  },
   failNextInitialization: () => {
     failNextInitialization = true;
+  },
+  resolveSignIn: () => {
+    codexConfigured = true;
+    signIn?.resolve(null);
+    signIn = null;
+  },
+  failSignIn: (error) => {
+    signIn?.reject(
+      error === "exception" ? new Error("IPC channel closed") : error,
+    );
+    signIn = null;
   },
   calls: () => [...calls],
   engine: () => backendSettings.transcription_engine,

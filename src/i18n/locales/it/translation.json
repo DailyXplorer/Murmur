@@ -9,8 +9,8 @@
     "errorTimeout": "Il servizio di trascrizione ha impiegato troppo tempo. Riprova dalla cronologia.",
     "errorRateLimited": "Troppe richieste o limite di dettatura raggiunto. Riprova più tardi dalla cronologia.",
     "errorServer": "Il servizio di trascrizione ha dei problemi. Riprova dalla cronologia.",
-    "errorSessionExpired": "La sessione di Codex è scaduta. Apri Codex e accedi di nuovo.",
-    "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",
+    "errorSessionExpired": "La sessione di ChatGPT è scaduta. Accedi di nuovo nelle impostazioni di Murmur.",
+    "errorSignedOut": "Non hai effettuato l'accesso a ChatGPT. Accedi nelle impostazioni di Murmur.",
     "errorTooLarge": "Questa registrazione è troppo lunga per il servizio. Provane una più breve.",
     "errorTranscription": "Trascrizione non riuscita. Riprova dalla cronologia.",
     "errorLocalNotReady": "Il modello locale non è ancora pronto. Controllalo nelle impostazioni di Murmur.",
@@ -122,22 +122,15 @@
       }
     },
     "provider": {
-      "title": "Collega Codex",
-      "description": "Accedi a Codex su questo Mac per completare la configurazione. Murmur rileva una configurazione locale, ma non verifica una connessione attiva.",
-      "configured": "Configurazione rilevata",
+      "title": "Collega ChatGPT",
+      "description": "Accedi con il tuo account ChatGPT nel browser per completare la configurazione.",
       "start": "Inizia",
       "retry": "Riprova",
       "continue": "Continua",
       "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
-      "setupCodex": "Apri la configurazione di Codex",
-      "codexSetupFailed": "Impossibile aprire la configurazione di Codex.",
       "optionalTitle": "Collega ChatGPT (facoltativo)",
       "optionalDescription": "Collega il tuo account ChatGPT per la pulizia con IA (toglie le esitazioni e corregge la grammatica) e per le lingue che il modello locale non copre.",
       "skip": "Salta"
-    },
-    "providerLabels": {
-      "codex": "Codex",
-      "unavailable": "Configurazione non rilevata"
     },
     "model": {
       "title": "Trascrivi su questo Mac",
@@ -468,8 +461,6 @@
     },
     "transcription": {
       "title": "Trascrizione",
-      "sessionTitle": "Codex",
-      "sessionDescription": "L'audio viene inviato allo stesso servizio di trascrizione cloud usato da Codex. Accedi all'app Codex se qui risulta disconnesso.",
       "checking": "Verifica della configurazione…",
       "statusUnavailable": "Stato non disponibile",
       "missing": "Non hai effettuato l'accesso",
@@ -478,7 +469,7 @@
         "output": "Output",
         "engine": "Come trascrive Murmur"
       },
-      "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex",
+      "sessionExpired": "Sessione scaduta, accedi di nuovo",
       "aiCleanup": {
         "title": "Pulizia e formattazione",
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce né riscrive mai. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
@@ -553,7 +544,27 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Facoltativo: collegalo per la pulizia con IA e più lingue."
+        "optional": "Facoltativo: collegalo per la pulizia con IA e più lingue.",
+        "signedIn": "Accesso effettuato",
+        "signIn": "Accedi",
+        "signOut": "Esci",
+        "signOutFailed": "Impossibile uscire da ChatGPT.",
+        "waiting": "Completa l'accesso nel browser.",
+        "signOutDialog": {
+          "title": "Uscire da ChatGPT?",
+          "body": "Murmur e l'app Codex condividono una sola sessione ChatGPT su questo Mac, quindi uscire qui fa uscire anche da Codex."
+        },
+        "errors": {
+          "portBusy": "C'è già un altro accesso aperto, forse in Codex. Completalo o chiudilo, poi riprova.",
+          "timedOut": "Tempo scaduto per l'accesso. Riprova.",
+          "denied": "L'accesso è stato annullato nel browser.",
+          "notEntitled": "Codex non è attivo per questo spazio di lavoro ChatGPT. Chiedi al suo amministratore.",
+          "network": "Impossibile raggiungere OpenAI. Controlla la connessione e riprova.",
+          "rejected": "OpenAI non ha accettato l'accesso. Riprova.",
+          "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo Mac.",
+          "browserFailed": "Impossibile aprire il browser.",
+          "generic": "Accesso non riuscito. Riprova."
+        }
       }
     }
   },
@@ -650,7 +661,7 @@
       "retry": "Riprova",
       "retryError": "Impossibile riavviare l’elaborazione.",
       "errors": {
-        "signed_out": "Accedi a Codex, poi riprova.",
+        "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste in questo momento. Riprova più tardi.",
         "parts_failed": "Alcune parti non sono state trascritte.",
         "no_audio": "Impossibile leggere la registrazione.",
@@ -781,7 +792,7 @@
       "pending": "Il riepilogo viene scritto quando l'intera riunione è trascritta.",
       "retryError": "Impossibile riprovare il riepilogo.",
       "errors": {
-        "signed_out": "Accedi a Codex, poi riprova.",
+        "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste. Riprova più tardi.",
         "network": "Impossibile raggiungere Codex. Controlla la connessione, poi riprova.",
         "timeout": "Codex ha impiegato troppo tempo a rispondere.",

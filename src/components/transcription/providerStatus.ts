@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { commands } from "@/bindings";
+import { commands, type SignInError } from "@/bindings";
 
 export type ProviderStatus =
   | { kind: "checking" }
@@ -47,13 +47,13 @@ export const statusTranslationKey = (status: ProviderStatus): string => {
     case "checking":
       return "settings.transcription.checking";
     case "configured":
-      return "onboarding.provider.configured";
+      return "settings.transcription.chatgpt.signedIn";
     case "unavailable":
       switch (status.reason) {
         case "sessionExpired":
           return "settings.transcription.sessionExpired";
         case "notSignedIn":
-          return "onboarding.providerLabels.unavailable";
+          return "settings.transcription.missing";
         default: {
           const _exhaustive: never = status.reason;
           return _exhaustive;
@@ -63,6 +63,81 @@ export const statusTranslationKey = (status: ProviderStatus): string => {
       return "settings.transcription.statusUnavailable";
     default: {
       const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+};
+
+/** Why a sign-in failed, or `unknown` when the call itself threw. A cancel
+ * is not a failure. */
+export type SignInFailure = Exclude<SignInError, "cancelled"> | "unknown";
+
+export type SignInState =
+  | { phase: "idle" }
+  | { phase: "waiting" }
+  | { phase: "failed"; error: SignInFailure };
+
+/**
+ * Murmur's own ChatGPT sign-in in the browser. `onSignedIn` runs once the
+ * session is saved. Leaving the screen does not cancel it: the backend gives
+ * up on its own, and a new sign-in replaces the one under way.
+ */
+export const useChatGptSignIn = (onSignedIn: () => void) => {
+  const [state, setState] = useState<SignInState>({ phase: "idle" });
+  const attempt = useRef(0);
+
+  const start = useCallback(async () => {
+    const current = ++attempt.current;
+    setState({ phase: "waiting" });
+    let next: SignInState = { phase: "idle" };
+    try {
+      const result = await commands.signInWithChatgpt();
+      if (result.status === "ok") {
+        onSignedIn();
+      } else if (result.error !== "cancelled") {
+        next = { phase: "failed", error: result.error };
+      }
+    } catch {
+      next = { phase: "failed", error: "unknown" };
+    }
+    if (current === attempt.current) setState(next);
+  }, [onSignedIn]);
+
+  const cancel = useCallback(() => {
+    attempt.current += 1;
+    setState({ phase: "idle" });
+    void commands
+      .cancelChatgptSignIn()
+      .catch((error: unknown) =>
+        console.warn("Failed to cancel the ChatGPT sign-in:", error),
+      );
+  }, []);
+
+  return { cancel, signIn: state, start };
+};
+
+export const signInErrorKey = (error: SignInFailure): string => {
+  switch (error) {
+    case "port_busy":
+      return "settings.transcription.chatgpt.errors.portBusy";
+    case "timed_out":
+      return "settings.transcription.chatgpt.errors.timedOut";
+    case "denied":
+      return "settings.transcription.chatgpt.errors.denied";
+    case "not_entitled":
+      return "settings.transcription.chatgpt.errors.notEntitled";
+    case "network":
+      return "settings.transcription.chatgpt.errors.network";
+    case "rejected":
+      return "settings.transcription.chatgpt.errors.rejected";
+    case "save_failed":
+      return "settings.transcription.chatgpt.errors.saveFailed";
+    case "browser_failed":
+      return "settings.transcription.chatgpt.errors.browserFailed";
+    case "unknown":
+      return "settings.transcription.chatgpt.errors.generic";
+    default: {
+      const _exhaustive: never = error;
       return _exhaustive;
     }
   }
