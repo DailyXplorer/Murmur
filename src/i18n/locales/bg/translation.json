@@ -30,7 +30,7 @@
     "pasteLastTranscript": "Поставяне на последната транскрипция",
     "overlayCopy": "Копиране",
     "overlayCopied": "Копирано",
-    "overlayNotPasted": "Не е поставено, копирано",
+    "overlayNotPasted": "Нямаше текстово поле за поставяне. Текстът ви е в клипборда.",
     "noticeNothingToPaste": "Все още няма транскрипция за поставяне.",
     "startMeeting": "Започване на среща",
     "stopMeeting": "Спиране на срещата",

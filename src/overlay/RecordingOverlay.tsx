@@ -72,7 +72,7 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
 const CENTER = (BAR_COUNT - 1) / 2;
 
 // The window renders no text until its first message, so without this the
-// font would still be loading when the copy pill measures its fitted width.
+// font would still be loading when the copy pill measures its fitted size.
 // "aą" pulls in both the Latin and the Latin Extended subsets.
 void document.fonts
   .load('1em "Instrument Sans Variable"', "aą")
@@ -98,6 +98,8 @@ const RecordingOverlay: React.FC = () => {
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
+  const copyBodyRef = useRef<HTMLSpanElement>(null);
+  const copyNoteRef = useRef<HTMLSpanElement>(null);
   const copyId = useId();
 
   useEffect(() => {
@@ -213,16 +215,60 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  // The copy pill opens at the rest width and grows to fit its note. CSS
-  // cannot transition to an auto width, so the fitted width is measured
-  // before the first paint and the growth runs towards it.
+  // A wrapped note keeps the full width it wrapped in, leaving a gap before
+  // the action, so it is narrowed to its widest line. Wrapping again at that
+  // width breaks at the same words. Line boxes are drawn through the pop-in
+  // scale, so they are converted back to layout pixels.
   const copyShowing = view.kind === "copy";
+  const copyNote = view.kind === "copy" ? view.labels.note : null;
+  useLayoutEffect(() => {
+    const note = copyNoteRef.current;
+    if (copyNote === null || !note) return;
+    note.style.width = "";
+    const lines = document.createRange();
+    lines.selectNodeContents(note);
+    const widest = Math.max(
+      ...Array.from(lines.getClientRects(), (line) => line.width),
+    );
+    const scale =
+      parseFloat(getComputedStyle(note).width) /
+      note.getBoundingClientRect().width;
+    note.style.width = `${Math.ceil(widest * scale + 0.5)}px`;
+  }, [copyNote]);
+
+  // The copy pill's body sizes itself from its text, whatever font renders
+  // it, and the window is fitted to it: only the webview can measure it.
+  useLayoutEffect(() => {
+    const body = copyBodyRef.current;
+    if (!copyShowing || !body) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const [box] = entry.borderBoxSize;
+      commands
+        .fitCopyNotice(box.inlineSize, box.blockSize)
+        .catch((error: unknown) => {
+          console.warn("Fitting the copy pill's window failed:", error);
+        });
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [copyShowing]);
+
+  // The pill opens as the rest capsule and grows to fit its body. CSS cannot
+  // transition to an auto size, so the fitted size is measured before the
+  // first paint and the growth runs towards it. The body keeps its own size
+  // and is clipped meanwhile, so the note never rewraps as the pill grows.
   useLayoutEffect(() => {
     const pill = copyRef.current;
     if (!copyShowing || !pill || reducedMotion) return;
-    const rest = getComputedStyle(pill).getPropertyValue("--ov-rest-w");
+    const style = getComputedStyle(pill);
     const growth = pill.animate(
-      [{ width: rest }, { width: `${pill.offsetWidth}px` }],
+      [
+        {
+          width: style.getPropertyValue("--ov-rest-w"),
+          height: style.getPropertyValue("--ov-h"),
+        },
+        { width: `${pill.offsetWidth}px`, height: `${pill.offsetHeight}px` },
+      ],
       { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     return () => growth.cancel();
@@ -267,13 +313,24 @@ const RecordingOverlay: React.FC = () => {
           aria-describedby={`${copyId}-note`}
           onClick={copyAgain}
         >
-          <span id={`${copyId}-note`} className="ov-copy-note">
-            {view.labels.note}
-          </span>
-          <span className="ov-copy-action">
-            <Icon size={14} weight="bold" aria-hidden="true" />
-            <span id={`${copyId}-action`} aria-live="polite">
-              {view.copied ? view.labels.copied : view.labels.copy}
+          <span ref={copyBodyRef} className="ov-copy-body">
+            <span
+              ref={copyNoteRef}
+              id={`${copyId}-note`}
+              className="ov-copy-note"
+            >
+              {view.labels.note}
+            </span>
+            <span className="ov-copy-action">
+              <Icon size={14} weight="bold" aria-hidden="true" />
+              <span className="ov-copy-label">
+                <span id={`${copyId}-action`} aria-live="polite">
+                  {view.copied ? view.labels.copied : view.labels.copy}
+                </span>
+                <span className="ov-copy-label-spare" aria-hidden="true">
+                  {view.copied ? view.labels.copy : view.labels.copied}
+                </span>
+              </span>
             </span>
           </span>
         </button>

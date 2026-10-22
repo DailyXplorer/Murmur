@@ -30,7 +30,7 @@
     "pasteLastTranscript": "Paste last transcript",
     "overlayCopy": "Copy",
     "overlayCopied": "Copied",
-    "overlayNotPasted": "No text field, copied",
+    "overlayNotPasted": "There was no text field to paste into. Your text is on the clipboard.",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",

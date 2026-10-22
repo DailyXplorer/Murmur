@@ -40,10 +40,11 @@ const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
-// Copy capsule: 30 high, growing from 108 to at most 324 wide to fit its note
-// and Copy action on one line. The widest locale (ru, "Copied") needs 316.
-const COPY_OVERLAY_WIDTH: f64 = 324.0 + 2.0 * CARD_MARGIN;
-const COPY_OVERLAY_HEIGHT: f64 = OVERLAY_HEIGHT;
+// Copy capsule: its note wraps, so only the webview knows its size; it
+// measures the capsule and `fit_copy_notice` fits the window to it. Until
+// then the window opens at the widest capsule with three lines of note.
+const COPY_OVERLAY_WIDTH: f64 = 340.0 + 2.0 * CARD_MARGIN;
+const COPY_OVERLAY_HEIGHT: f64 = 62.0 + 2.0 * CARD_MARGIN;
 const COPY_DISPLAY_TIME: Duration = Duration::from_secs(4);
 const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
 const ESCAPE_KEY_CODE: u16 = 53;
@@ -319,6 +320,55 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
         }
     });
     dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME);
+}
+
+/// Fits the copy notice's window to the capsule the webview measured, so a
+/// note that wraps further in a wider fallback font still shows whole, and
+/// the window, which takes clicks while the notice shows, stays close to it.
+#[tauri::command]
+#[specta::specta]
+pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if !matches!(*notice(), Some(Notice::Copy { .. })) {
+            return;
+        }
+        let Some(window) = handle.get_webview_window("recording_overlay") else {
+            return;
+        };
+        let work_area = get_monitor_with_cursor(&handle).map(|monitor| {
+            let scale = monitor.scale_factor();
+            let area = monitor.work_area().size;
+            (area.width as f64 / scale, area.height as f64 / scale)
+        });
+        let (width, height) = copy_window_size(
+            (width, height),
+            work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
+        );
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+        if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
+            let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+        }
+    });
+}
+
+/// The copy notice's window around a measured capsule: CARD_MARGIN on each
+/// side, never smaller than the dictation window, and never taller or wider
+/// than the work area left below the top offset, so the capsule stays on
+/// screen whichever edge it sits at.
+fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
+    let fit = |measured: f64, least: f64, most: f64| {
+        let wanted = if measured.is_finite() {
+            measured.ceil() + 2.0 * CARD_MARGIN
+        } else {
+            least
+        };
+        wanted.min(most).max(least)
+    };
+    (
+        fit(capsule.0, OVERLAY_WIDTH, work_area.0),
+        fit(capsule.1, OVERLAY_HEIGHT, work_area.1 - OVERLAY_TOP_OFFSET),
+    )
 }
 
 fn copy_notice_text() -> Option<String> {
@@ -599,5 +649,25 @@ mod tests {
         assert!(is_mouse_within_monitor((-1, 1239), &position, &size));
         assert!(!is_mouse_within_monitor((0, 0), &position, &size));
         assert!(!is_mouse_within_monitor((-1, 1240), &position, &size));
+    }
+
+    #[test]
+    fn copy_window_wraps_the_measured_capsule_in_its_margins() {
+        let screen = (1440.0, 875.0);
+        assert_eq!(copy_window_size((300.4, 62.0), screen), (333.0, 94.0));
+        assert_eq!(copy_window_size((340.0, 30.0), screen), (372.0, 62.0));
+    }
+
+    #[test]
+    fn copy_window_stays_between_the_dictation_window_and_the_screen() {
+        let screen = (1440.0, 875.0);
+        let least = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
+        assert_eq!(copy_window_size((40.0, 12.0), screen), least);
+        assert_eq!(copy_window_size((-5.0, 0.0), screen), least);
+        assert_eq!(copy_window_size((f64::NAN, f64::INFINITY), screen), least);
+        assert_eq!(
+            copy_window_size((4000.0, 2000.0), screen),
+            (1440.0, 875.0 - OVERLAY_TOP_OFFSET)
+        );
     }
 }

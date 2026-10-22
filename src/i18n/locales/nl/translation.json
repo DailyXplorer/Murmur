@@ -30,7 +30,7 @@
     "pasteLastTranscript": "Laatste transcriptie plakken",
     "overlayCopy": "Kopieer",
     "overlayCopied": "Gekopieerd",
-    "overlayNotPasted": "Geen tekstveld, gekopieerd",
+    "overlayNotPasted": "Er was geen tekstveld om in te plakken. Je tekst staat op het klembord.",
     "noticeNothingToPaste": "Er is nog geen transcriptie om te plakken.",
     "startMeeting": "Vergadering starten",
     "stopMeeting": "Vergadering stoppen",

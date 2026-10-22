@@ -9,6 +9,7 @@
     "os:allow-locale",
     "allow-get-app-settings",
     "allow-cancel-operation",
-    "allow-copy-notice-again"
+    "allow-copy-notice-again",
+    "allow-fit-copy-notice"
   ]
 }

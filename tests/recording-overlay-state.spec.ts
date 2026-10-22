@@ -2,10 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  COPY_WINDOW,
   dispatch,
   entranceFinished,
   ERROR_WINDOW,
+  fitCopyWindow,
   openOverlay,
   RECORDING_WINDOW,
 } from "./overlayHarness";
@@ -31,7 +31,7 @@ const errorStringsByLocale = trayStringsByLocale.map(({ locale, tray }) => {
 const COPY_LABELS = {
   copy: "Copy",
   copied: "Copied",
-  note: "No text field, copied",
+  note: "There was no text field to paste into. Your text is on the clipboard.",
 };
 
 const centerBarHeight = (page: Page) =>
@@ -283,20 +283,20 @@ test("without a text field the pill says so and is one Copy button that confirms
   expect(await page.evaluate(() => window.overlayHarness.copyCalls())).toBe(1);
 });
 
-test("the copy pill grows from the rest width to fit its note", async ({
+test("the copy pill grows from the rest capsule to fit its note", async ({
   page,
 }) => {
   await openOverlay(page);
   await page.evaluate(() => document.fonts.ready);
-  const widths = await page.evaluate(
+  const sizes = await page.evaluate(
     (labels) =>
-      new Promise<number[]>((resolve) => {
+      new Promise<Array<[number, number]>>((resolve) => {
         window.overlayHarness.dispatch("show-overlay-copy", labels);
-        const seen: number[] = [];
+        const seen: Array<[number, number]> = [];
         const start = performance.now();
         requestAnimationFrame(function sample(now) {
           const pill = document.querySelector<HTMLElement>(".ov-copy");
-          if (pill) seen.push(pill.offsetWidth);
+          if (pill) seen.push([pill.offsetWidth, pill.offsetHeight]);
           if (now - start < 900) requestAnimationFrame(sample);
           else resolve(seen);
         });
@@ -304,15 +304,23 @@ test("the copy pill grows from the rest width to fit its note", async ({
     COPY_LABELS,
   );
 
-  expect(widths.length, "the pill showed").toBeGreaterThan(10);
-  expect(widths[0], "starts at the rest width").toBeLessThanOrEqual(112);
-  const final = widths[widths.length - 1];
-  expect(final, "ends wide enough for the note").toBeGreaterThan(180);
-  const steps = widths.slice(1).map((width, i) => width - widths[i]);
-  expect(Math.min(...steps), "never shrinks").toBeGreaterThanOrEqual(0);
-  expect(Math.max(...steps), "grows over several frames").toBeLessThan(
-    (final - widths[0]) / 2,
-  );
+  expect(sizes.length, "the pill showed").toBeGreaterThan(10);
+  for (const [axis, rest, least] of [
+    ["width", 112, 180],
+    ["height", 30, 40],
+  ] as const) {
+    const values = sizes.map((size) => size[axis === "width" ? 0 : 1]);
+    expect(values[0], `${axis} starts at rest`).toBeLessThanOrEqual(rest);
+    const final = values[values.length - 1];
+    expect(final, `${axis} ends fitted to the note`).toBeGreaterThan(least);
+    const steps = values.slice(1).map((value, i) => value - values[i]);
+    expect(Math.min(...steps), `${axis} never shrinks`).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(Math.max(...steps), `${axis} grows over frames`).toBeLessThan(
+      (final - values[0]) / 2,
+    );
+  }
 });
 
 test("a refused copy leaves the pill on Copy and says why in the log", async ({
@@ -352,67 +360,98 @@ test("the copy pill hides on request and gives way to a new recording", async ({
   await expect(page.locator(".ov-wave")).toBeVisible();
 });
 
-for (const { locale, tray } of trayStringsByLocale) {
-  test(`the ${locale} copy pill fits its note and action in the copy window`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(COPY_WINDOW);
-    await openOverlay(page);
-    await page.evaluate(() => document.fonts.ready);
-    const labels = {
-      copy: tray.overlayCopy,
-      copied: tray.overlayCopied,
-      note: tray.overlayNotPasted,
-    };
-    expect(
-      labels.copy && labels.copied && labels.note,
-      "all three labels exist",
-    ).toBeTruthy();
+// Linux and Windows fall back to wider fonts than macOS for scripts Instrument
+// Sans lacks; this face and spacing are wider still, so the pill must size
+// itself from what it measures, not from widths that suit one machine.
+const WIDE_FONT = `.ov-stage {
+  font-family: Verdana, "DejaVu Sans", sans-serif !important;
+  letter-spacing: 0.08em;
+}`;
 
-    await dispatch(page, "show-overlay-copy", labels);
-    for (const label of [labels.copy, labels.copied]) {
-      const button = page.getByRole("button", { name: label, exact: true });
-      await expect(button).toBeVisible();
-      await expect(button.getByText(labels.note)).toBeVisible();
-      await entranceFinished(page);
-      const fit = await button.evaluate(
-        (capsule, texts) => {
-          const box = capsule.getBoundingClientRect();
-          const leaves = capsule.querySelectorAll("span:not(:has(span))");
-          const spans = [...leaves].filter((span) =>
-            texts.includes(span.textContent ?? ""),
-          );
-          const rects = spans.map((span) => span.getBoundingClientRect());
-          return {
-            shown: spans.map((span) => span.textContent),
-            clipped:
-              capsule.scrollWidth > capsule.clientWidth ||
-              rects.some(
-                (rect) =>
-                  rect.right > box.right ||
-                  rect.left < box.left ||
-                  rect.top < box.top ||
-                  rect.bottom > box.bottom,
-              ),
-            insideWindow:
-              box.left >= 0 &&
-              box.right <= window.innerWidth &&
-              box.top >= 0 &&
-              box.bottom <= window.innerHeight,
-            height: box.height,
-          };
-        },
-        [labels.note, label],
-      );
-      expect(fit, label).toEqual({
-        shown: [labels.note, label],
-        clipped: false,
-        insideWindow: true,
-        height: 30,
-      });
-      if (label === labels.copy) await button.click();
-    }
-  });
+for (const { locale, tray } of trayStringsByLocale) {
+  for (const font of ["app font", "wide font"] as const) {
+    test(`the ${locale} copy pill fits its note and action in its window with the ${font}`, async ({
+      page,
+    }) => {
+      await openOverlay(page);
+      if (font === "wide font") await page.addStyleTag({ content: WIDE_FONT });
+      await page.evaluate(() => document.fonts.ready);
+      const labels = {
+        copy: tray.overlayCopy,
+        copied: tray.overlayCopied,
+        note: tray.overlayNotPasted,
+      };
+      expect(
+        labels.copy && labels.copied && labels.note,
+        "all three labels exist",
+      ).toBeTruthy();
+
+      await dispatch(page, "show-overlay-copy", labels);
+      const windows: Array<{ width: number; height: number }> = [];
+      for (const label of [labels.copy, labels.copied]) {
+        const button = page.getByRole("button", { name: label, exact: true });
+        await expect(button).toBeVisible();
+        await entranceFinished(page);
+        windows.push(await fitCopyWindow(page));
+        const fit = await button.evaluate(
+          (capsule, texts) => {
+            const box = capsule.getBoundingClientRect();
+            const leaves = capsule.querySelectorAll("span:not(:has(span))");
+            const spans = [...leaves].filter((span) =>
+              texts.includes(span.textContent ?? ""),
+            );
+            const rects = spans.map((span) => span.getBoundingClientRect());
+            const note = spans[0];
+            const lineHeight = parseFloat(getComputedStyle(note).lineHeight);
+            const text = document.createRange();
+            text.selectNodeContents(note);
+            const lines = [...text.getClientRects()];
+            const action = capsule.querySelector(".ov-copy-action")!;
+            const actionBox = action.getBoundingClientRect();
+            const gapToAction = Math.max(
+              actionBox.left - Math.max(...lines.map((line) => line.right)),
+              Math.min(...lines.map((line) => line.left)) - actionBox.right,
+            );
+            return {
+              shown: spans.map((span) => span.textContent),
+              clipped:
+                capsule.scrollWidth > capsule.clientWidth ||
+                capsule.scrollHeight > capsule.clientHeight ||
+                rects.some(
+                  (rect) =>
+                    rect.right > box.right ||
+                    rect.left < box.left ||
+                    rect.top < box.top ||
+                    rect.bottom > box.bottom,
+                ),
+              insideWindow:
+                box.left >= 0 &&
+                box.right <= window.innerWidth &&
+                box.top >= 0 &&
+                box.bottom <= window.innerHeight,
+              noteLines: Math.round(rects[0].height / lineHeight),
+              gapToAction,
+            };
+          },
+          [labels.note, label],
+        );
+        expect(fit.noteLines, `${label}: note lines`).toBeLessThanOrEqual(3);
+        expect(
+          fit.gapToAction,
+          `${label}: note ends by the action`,
+        ).toBeLessThan(12);
+        expect(fit, label).toEqual({
+          shown: [labels.note, label],
+          clipped: false,
+          insideWindow: true,
+          noteLines: fit.noteLines,
+          gapToAction: fit.gapToAction,
+        });
+        if (label === labels.copy) await button.click();
+      }
+      expect(windows[1], "keeps its size when it confirms").toEqual(windows[0]);
+    });
+  }
 }
 
 test("reduced motion shows the copy pill without any animation", async ({

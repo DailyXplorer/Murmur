@@ -11,7 +11,7 @@
   --ov-grow-step: 2px;
   --ov-error-min-h: 36px;
   --ov-error-max-w: 280px;
-  --ov-copy-max-w: 324px;
+  --ov-copy-max-w: 340px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
      opaque because WebKit's backdrop-filter cannot blur the desktop behind a
@@ -199,33 +199,48 @@
   background: rgb(255 204 0);
 }
 
-/* Copy pill: the whole capsule is one button, a note then the Copy action.
-   The action sits in an inner capsule 4px from the end, concentric with the
-   outer one. Content is clipped while the pill grows from the rest width. */
+/* Copy pill: the whole capsule is one button around a body that sizes itself
+   from its text: the note, wrapping once it reaches the widest body, then the
+   Copy action in an inner capsule 4px from the end. The webview measures the
+   body and overlay.rs fits the window to it. The body is clipped while the
+   pill grows from the rest capsule. */
 .ov-capsule.ov-copy {
   width: auto;
+  height: auto;
   min-width: var(--ov-rest-w);
-  max-width: var(--ov-copy-max-w);
   overflow: hidden;
-  gap: 8px;
-  padding-inline: 13px 4px;
+  padding: 0;
   border: none;
   margin: 0;
   font: inherit;
   font-size: 12.5px;
-  white-space: nowrap;
   color: var(--ov-ink);
   cursor: pointer;
   transition: transform 120ms ease;
 }
-.ov-copy-note {
+.ov-copy-body {
+  box-sizing: border-box;
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: var(--ov-copy-max-w);
+  min-height: var(--ov-h);
+  padding: 4px 4px 4px 14px;
+  text-align: start;
+}
+.ov-copy-note {
+  min-width: 0;
+  padding-block: 3px;
   font-weight: 500;
+  line-height: 16px;
   color: rgb(255 255 255 / 0.7);
   animation: ov-fade-in 260ms ease 140ms both;
 }
 .ov-copy-action {
   flex: none;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -238,6 +253,16 @@
 }
 .ov-copy-action svg {
   flex: none;
+}
+/* Both labels share one cell, so the pill keeps its size when it confirms. */
+.ov-copy-label {
+  display: grid;
+}
+.ov-copy-label > * {
+  grid-area: 1 / 1;
+}
+.ov-copy-label-spare {
+  visibility: hidden;
 }
 .ov-copy:hover .ov-copy-action {
   background: rgb(255 255 255 / 0.2);

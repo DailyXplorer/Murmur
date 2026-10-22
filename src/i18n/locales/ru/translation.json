@@ -30,7 +30,7 @@
     "pasteLastTranscript": "Вставить последнюю расшифровку",
     "overlayCopy": "Копировать",
     "overlayCopied": "Скопировано",
-    "overlayNotPasted": "Не вставлено, скопировано",
+    "overlayNotPasted": "Не было текстового поля для вставки. Ваш текст в буфере обмена.",
     "noticeNothingToPaste": "Пока нет расшифровки для вставки.",
     "startMeeting": "Начать встречу",
     "stopMeeting": "Остановить встречу",

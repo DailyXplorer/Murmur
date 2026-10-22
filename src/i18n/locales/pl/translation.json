@@ -30,7 +30,7 @@
     "pasteLastTranscript": "Wklej ostatnią transkrypcję",
     "overlayCopy": "Kopiuj",
     "overlayCopied": "Skopiowano",
-    "overlayNotPasted": "Nie wklejono, skopiowano",
+    "overlayNotPasted": "Nie było pola tekstowego do wklejenia. Twój tekst jest w schowku.",
     "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia.",
     "startMeeting": "Rozpocznij spotkanie",
     "stopMeeting": "Zakończ spotkanie",

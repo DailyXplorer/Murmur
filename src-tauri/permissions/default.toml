@@ -46,6 +46,7 @@ permissions = [
   "allow-relaunch-after-update",
   "allow-cancel-operation",
   "allow-copy-notice-again",
+  "allow-fit-copy-notice",
   "allow-get-app-dir-path",
   "allow-get-app-settings",
   "allow-get-default-settings",

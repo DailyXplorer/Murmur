@@ -1,9 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 
-// OVERLAY_*, ERROR_OVERLAY_* and COPY_OVERLAY_* in src-tauri/src/overlay.rs.
+// CARD_MARGIN, OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
+const CARD_MARGIN = 16;
 export const RECORDING_WINDOW = { width: 158, height: 62 };
 export const ERROR_WINDOW = { width: 312, height: 116 };
-export const COPY_WINDOW = { width: 356, height: 62 };
 
 /** Opens the overlay page with Tauri's event bridge mocked. */
 export async function openOverlay(
@@ -19,6 +19,7 @@ export async function openOverlay(
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
     let copyCalls = 0;
+    const copyFits: Array<{ width: number; height: number }> = [];
     let nextId = 1;
 
     window.overlayHarness = {
@@ -31,12 +32,18 @@ export async function openOverlay(
         pendingSettings.splice(0).forEach((resolve) => resolve({}));
       },
       copyCalls: () => copyCalls,
+      copyFits: () => copyFits,
     };
 
     window.__TAURI_INTERNALS__ = {
       invoke: (
         command: string,
-        args?: { event?: string; handler?: number },
+        args?: {
+          event?: string;
+          handler?: number;
+          width?: number;
+          height?: number;
+        },
       ) => {
         if (command === "plugin:event|listen") {
           listeners.set(args?.handler ?? 0, args?.event ?? "");
@@ -51,6 +58,10 @@ export async function openOverlay(
           copyCalls += 1;
           // Tauri rejects a command the ACL denies with a plain string.
           if (copyRejection) return Promise.reject(copyRejection);
+          return Promise.resolve(null);
+        }
+        if (command === "fit_copy_notice") {
+          copyFits.push({ width: args?.width ?? 0, height: args?.height ?? 0 });
           return Promise.resolve(null);
         }
         throw new Error(`Unexpected Tauri command: ${command}`);
@@ -83,6 +94,25 @@ export const dispatch = (page: Page, event: string, payload?: unknown) =>
     ([name, value]) => window.overlayHarness.dispatch(name as string, value),
     [event, payload] as const,
   );
+
+/** Resizes the page the way `fit_copy_notice` resizes the overlay window:
+ * the last capsule size the copy pill measured plus CARD_MARGIN around it. */
+export async function fitCopyWindow(page: Page) {
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await expect
+    .poll(() => page.evaluate(() => window.overlayHarness.copyFits().length))
+    .toBeGreaterThan(0);
+  const capsule = await page.evaluate(() => {
+    const fits = window.overlayHarness.copyFits();
+    return fits[fits.length - 1];
+  });
+  const size = {
+    width: Math.ceil(capsule.width) + 2 * CARD_MARGIN,
+    height: Math.ceil(capsule.height) + 2 * CARD_MARGIN,
+  };
+  await page.setViewportSize(size);
+  return size;
+}
 
 // Drawn sizes include the capsule's pop-in scale until it ends.
 export const entranceFinished = (page: Page) =>

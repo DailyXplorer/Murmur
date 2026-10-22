@@ -30,7 +30,7 @@
     "pasteLastTranscript": "貼上上一則轉錄",
     "overlayCopy": "複製",
     "overlayCopied": "已複製",
-    "overlayNotPasted": "沒有文字欄位，已複製",
+    "overlayNotPasted": "沒有可貼上的文字欄位。文字已在剪貼簿中。",
     "noticeNothingToPaste": "目前還沒有可貼上的轉錄。",
     "startMeeting": "開始會議",
     "stopMeeting": "停止會議",

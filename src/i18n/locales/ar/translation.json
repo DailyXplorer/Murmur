@@ -30,7 +30,7 @@
     "pasteLastTranscript": "لصق آخر نص",
     "overlayCopy": "نسخ",
     "overlayCopied": "تم النسخ",
-    "overlayNotPasted": "لا يوجد حقل نص، تم النسخ",
+    "overlayNotPasted": "لم يكن هناك حقل نص للصق فيه. نصك موجود في الحافظة.",
     "noticeNothingToPaste": "لا يوجد نص منسوخ للصق بعد.",
     "startMeeting": "بدء اجتماع",
     "stopMeeting": "إيقاف الاجتماع",

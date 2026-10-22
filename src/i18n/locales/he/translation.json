@@ -30,7 +30,7 @@
     "pasteLastTranscript": "הדבקת התמלול האחרון",
     "overlayCopy": "העתק",
     "overlayCopied": "הועתק",
-    "overlayNotPasted": "אין שדה טקסט, הועתק",
+    "overlayNotPasted": "לא היה שדה טקסט להדביק בו. הטקסט שלך נמצא בלוח.",
     "noticeNothingToPaste": "עדיין אין תמלול להדבקה.",
     "startMeeting": "התחלת פגישה",
     "stopMeeting": "עצירת הפגישה",
