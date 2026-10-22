@@ -377,9 +377,9 @@ test("the copy pill hides on request and gives way to a new recording", async ({
   await expect(page.locator(".ov-wave")).toBeVisible();
 });
 
-// Linux and Windows fall back to wider fonts than macOS for scripts Instrument
-// Sans lacks; this face and spacing are wider still, so the pill must size
-// itself from what it measures, not from widths that suit one machine.
+// A system font standing in for Instrument Sans, should it fail to load, is
+// wider; this face and spacing are wider still, so the pill must size itself
+// from what it measures, not from widths that suit one font.
 const WIDE_FONT = `.ov-stage {
   font-family: Verdana, "DejaVu Sans", sans-serif !important;
   letter-spacing: 0.08em;
@@ -406,6 +406,18 @@ for (const { locale, tray } of trayStringsByLocale) {
         labels.copy && labels.copied && labels.note,
         "all three labels exist",
       ).toBeTruthy();
+      if (font === "app font") {
+        expect(
+          await page.evaluate(() =>
+            [...document.fonts].some(
+              (face) =>
+                face.family.replace(/"/g, "") === "Instrument Sans Variable" &&
+                face.status === "loaded",
+            ),
+          ),
+          "Instrument Sans is loaded",
+        ).toBe(true);
+      }
 
       await dispatch(page, "show-overlay-copy", labels);
       const windows: Array<{ width: number; height: number }> = [];
@@ -433,19 +445,9 @@ for (const { locale, tray } of trayStringsByLocale) {
             const actionBox = action.getBoundingClientRect();
             const linesLeft = Math.min(...lines.map((line) => line.left));
             const linesRight = Math.max(...lines.map((line) => line.right));
-            const gapToAction = Math.max(
-              actionBox.left - linesRight,
-              linesLeft - actionBox.right,
-            );
-            // Right-to-left locales put the note on the right of the action.
-            const noteInset =
-              actionBox.left >= linesRight
-                ? linesLeft - box.left
-                : box.right - linesRight;
-            const actionInset =
-              actionBox.left >= linesRight
-                ? box.right - actionBox.right
-                : actionBox.left - box.left;
+            const gapToAction = actionBox.left - linesRight;
+            const noteInset = linesLeft - box.left;
+            const actionInset = box.right - actionBox.right;
             const words = note.firstChild as Text;
             const glyph = document.createRange();
             const lineTexts: string[] = [];
@@ -510,13 +512,18 @@ for (const { locale, tray } of trayStringsByLocale) {
         expect(fit.pillWidth, `${label}: pill width`).toBeLessThanOrEqual(
           WIDEST_PILL,
         );
-        expect(fit.noteLines, `${label}: note lines`).toBeLessThanOrEqual(
-          ["en", "fr", "de", "es"].includes(locale) ? 2 : 3,
-        );
         expect(
           fit.noteLines,
-          `${label}: the note takes a third line only when the widest pill needs it`,
-        ).toBeLessThanOrEqual(Math.max(2, fit.linesInWidestPill));
+          font === "app font"
+            ? `${label}: the note takes two lines at most`
+            : `${label}: the note takes a third line only when the widest pill needs it`,
+        ).toBeLessThanOrEqual(
+          font === "app font" ? 2 : Math.max(2, fit.linesInWidestPill),
+        );
+        expect(
+          fit.gapToAction,
+          `${label}: note ends by the action`,
+        ).toBeGreaterThanOrEqual(0);
         expect(
           fit.gapToAction,
           `${label}: note ends by the action`,

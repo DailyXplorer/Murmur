@@ -74,7 +74,7 @@ test.describe("copy pill screenshots", () => {
   test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
   test.use({ deviceScaleFactor: 2 });
 
-  for (const locale of ["en", "fr", "ru"]) {
+  for (const locale of ["en", "fr", "de"]) {
     for (const theme of ["light", "dark"] as const) {
       test(`${locale} ${theme}`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: theme });

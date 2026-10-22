@@ -73,9 +73,8 @@ const CENTER = (BAR_COUNT - 1) / 2;
 
 // The window renders no text until its first message, so without this the
 // font would still be loading when the copy pill measures its fitted size.
-// "aą" pulls in both the Latin and the Latin Extended subsets.
 void document.fonts
-  .load('1em "Instrument Sans Variable"', "aą")
+  .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
 const reducedMotionQuery = window.matchMedia(
