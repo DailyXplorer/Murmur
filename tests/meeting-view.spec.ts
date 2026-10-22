@@ -19,6 +19,36 @@ const openTranscript = async (page: Page, query = "") => {
 
 const summary = (page: Page) => page.getByRole("region", { name: "Summary" });
 
+test("a later part says which part it is and links to the parts around it", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit \(part 2\)/, "&linkedParts=1");
+  await expect(page.getByText("Part 2", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "See part 3" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "See part 1" }).click();
+  await expect(page.getByText("Part 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Part 2", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "See part 1" })).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", { name: "Meeting title" }),
+  ).toHaveValue("Point hebdo produit");
+
+  await page.getByRole("button", { name: "See part 2" }).click();
+  await expect(page.getByText("Part 2", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "All meetings" }).click();
+  await expect(
+    page.getByText("Point hebdo produit (part 2)", { exact: true }),
+  ).toBeVisible();
+});
+
+test("a meeting in one part shows no part", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await expect(page.getByRole("tab", { name: "Summary" })).toBeVisible();
+  await expect(page.getByText(/^Part \d+$/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^See part/ })).toHaveCount(0);
+});
+
 const callsTo = (page: Page, command: string) =>
   page.evaluate(
     (name) =>

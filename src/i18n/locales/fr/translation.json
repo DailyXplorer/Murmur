@@ -659,6 +659,8 @@
     "view": {
       "back": "Toutes les réunions",
       "titleLabel": "Titre de la réunion",
+      "part": "Partie {{part}}",
+      "seePart": "Voir la partie {{part}}",
       "loadError": "Impossible de charger cette réunion.",
       "renameError": "Impossible de renommer la réunion.",
       "tabs": {
@@ -791,6 +793,7 @@
       "title": "Enregistrements",
       "empty": "Aucune réunion pour l’instant.",
       "untitled": "Réunion · {{date}}",
+      "part": "{{title}} (partie {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Afficher plus"
     },

@@ -659,6 +659,8 @@
     "view": {
       "back": "All meetings",
       "titleLabel": "Meeting title",
+      "part": "Part {{part}}",
+      "seePart": "See part {{part}}",
       "loadError": "Couldn't load this meeting.",
       "renameError": "Couldn't rename the meeting.",
       "tabs": {
@@ -791,6 +793,7 @@
       "title": "Recordings",
       "empty": "No meetings yet.",
       "untitled": "Meeting · {{date}}",
+      "part": "{{title}} (part {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Show more"
     },

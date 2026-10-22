@@ -659,6 +659,8 @@
     "view": {
       "back": "Todas las reuniones",
       "titleLabel": "Título de la reunión",
+      "part": "Parte {{part}}",
+      "seePart": "Ver la parte {{part}}",
       "loadError": "No se pudo cargar esta reunión.",
       "renameError": "No se pudo cambiar el nombre de la reunión.",
       "tabs": {
@@ -791,6 +793,7 @@
       "title": "Grabaciones",
       "empty": "Todavía no hay reuniones.",
       "untitled": "Reunión · {{date}}",
+      "part": "{{title}} (parte {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mostrar más"
     },

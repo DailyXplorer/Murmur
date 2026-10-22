@@ -659,6 +659,8 @@
     "view": {
       "back": "Alle Meetings",
       "titleLabel": "Meeting-Titel",
+      "part": "Teil {{part}}",
+      "seePart": "Teil {{part}} ansehen",
       "loadError": "Dieses Meeting konnte nicht geladen werden.",
       "renameError": "Das Meeting konnte nicht umbenannt werden.",
       "tabs": {
@@ -791,6 +793,7 @@
       "title": "Aufnahmen",
       "empty": "Noch keine Meetings.",
       "untitled": "Meeting · {{date}}",
+      "part": "{{title}} (Teil {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mehr anzeigen"
     },

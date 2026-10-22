@@ -190,6 +190,49 @@ test.describe("settings screenshots", () => {
     });
   }
 
+  for (const theme of ["light", "dark"] as const) {
+    test(`meeting in two parts (${theme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize(DEFAULT_WINDOW);
+      await page.goto(
+        `/tests/fixtures/settings-pages.html?meetings=1&linkedParts=1&theme=${theme}`,
+      );
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: "Meetings", exact: true })
+        .click();
+      const list = page.getByText("Point hebdo produit (part 2)", {
+        exact: true,
+      });
+      await list.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/meetings-list-parts-${theme}.png`,
+      });
+
+      await list.click();
+      await expect(
+        page.getByRole("button", { name: "See part 1" }),
+      ).toBeVisible();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/meeting-part-2-${theme}.png`,
+      });
+
+      await page.getByRole("button", { name: "See part 1" }).click();
+      await expect(
+        page.getByRole("button", { name: "See part 2" }),
+      ).toBeVisible();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/meeting-part-1-${theme}.png`,
+      });
+      expect(
+        await page.evaluate(() => window.settingsPages.unhandledCommands),
+      ).toEqual([]);
+    });
+  }
+
   for (const values of ["normal", "huge"] as const) {
     for (const theme of ["light", "dark"] as const) {
       test(`insights at the default window size (${values}, ${theme})`, async ({

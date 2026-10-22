@@ -262,6 +262,34 @@ test("a Discard dialog its meeting outlived never opens for the next meeting", a
   expect(await calls(page)).not.toContain("discard_meeting");
 });
 
+test("each later part of a long meeting is listed under the meeting's title", async ({
+  page,
+}) => {
+  await openMeetings(page, "&linkedParts=1");
+  await expect(
+    page.getByText("Point hebdo produit (part 2)", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Point hebdo produit", { exact: true }),
+  ).toBeVisible();
+});
+
+test("the recording time counts from the meeting's first part", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  await page.evaluate(() =>
+    window.settingsPages.emitMeetingState({
+      id: 5,
+      started_at_ms: Date.now() - 20 * 60_000,
+      meeting_started_at_ms: Date.now() - (3 * 3600 + 20 * 60) * 1000,
+      state: "recording",
+      tracks: "both",
+    }),
+  );
+  await expect(page.getByText(/^Recording · 3:20:\d\d$/)).toBeVisible();
+});
+
 test("without system audio support the sources are fixed to the microphone", async ({
   page,
 }) => {

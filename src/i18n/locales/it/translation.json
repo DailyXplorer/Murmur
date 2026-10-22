@@ -659,6 +659,8 @@
     "view": {
       "back": "Tutte le riunioni",
       "titleLabel": "Titolo della riunione",
+      "part": "Parte {{part}}",
+      "seePart": "Vedi la parte {{part}}",
       "loadError": "Impossibile caricare questa riunione.",
       "renameError": "Impossibile rinominare la riunione.",
       "tabs": {
@@ -791,6 +793,7 @@
       "title": "Registrazioni",
       "empty": "Ancora nessuna riunione.",
       "untitled": "Riunione · {{date}}",
+      "part": "{{title}} (parte {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mostra altro"
     },
