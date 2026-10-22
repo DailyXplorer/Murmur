@@ -65,7 +65,7 @@ chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
 ferrous-opencc = "0.4.0"
 clap = { version = "4", features = ["derive"] }
-signal-hook = "0.3"
+signal-hook = "0.4"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
