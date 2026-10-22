@@ -480,7 +480,7 @@
       },
       "sessionExpired": "Sitzung abgelaufen, melde dich in Codex erneut an",
       "aiCleanup": {
-        "title": "KI-Bereinigung und Formatierung",
+        "title": "Bereinigung und Formatierung",
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt oder umformuliert nie. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
       },
