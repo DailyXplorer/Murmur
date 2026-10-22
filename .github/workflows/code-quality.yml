@@ -15,6 +15,13 @@ on:
       - ".prettierrc*"
       - "tsconfig*"
       - "tailwind.config.*"
+      - "eslint-rules/**"
+      - "index.html"
+      - "src/overlay/index.html"
+      - "vite.config.ts"
+      - "playwright.config.*"
+      - "tests/**"
+      - ".githooks/**"
       - ".github/scripts/**"
       - ".github/workflows/**"
   pull_request:
@@ -30,6 +37,13 @@ on:
       - ".prettierrc*"
       - "tsconfig*"
       - "tailwind.config.*"
+      - "eslint-rules/**"
+      - "index.html"
+      - "src/overlay/index.html"
+      - "vite.config.ts"
+      - "playwright.config.*"
+      - "tests/**"
+      - ".githooks/**"
       - ".github/scripts/**"
       - ".github/workflows/**"
 
@@ -67,11 +81,23 @@ jobs:
       - name: Test updater manifest
         run: bun run test:updater-manifest
 
+      - name: Check release versions
+        run: bun run test:versions && bun run check:versions
+
       - name: Run ESLint
         run: bun run lint
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+          components: rustfmt
 
       - name: Run prettier
         run: bun run format:check
 
       - name: Build frontend
         run: bun run build
+
+      - name: Typecheck tests
+        run: bun run check:types

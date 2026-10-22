@@ -3032,10 +3032,11 @@ dependencies = [
 
 [[package]]
 name = "murmur"
-version = "1.7.9"
+version = "1.7.10"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "block2",
  "chrono",
  "chrono-tz",
  "clap",

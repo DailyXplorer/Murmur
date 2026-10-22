@@ -40,7 +40,7 @@ const LocalModelOnboarding: React.FC<LocalModelOnboardingProps> = ({
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-4">
         <MurmurTextLogo width={160} />
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-text text-balance">
+          <h2 className="text-balance font-title text-2xl font-normal text-text">
             {t("onboarding.model.title")}
           </h2>
           <p className="mt-2 text-pretty text-text/70">
@@ -65,7 +65,7 @@ const LocalModelOnboarding: React.FC<LocalModelOnboardingProps> = ({
             type="button"
             disabled={choosing}
             onClick={() => void choose("cloud")}
-            className="min-h-control rounded-md px-2 text-sm font-medium text-text/70 underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+            className="min-h-control rounded-md px-2 text-sm font-medium text-text/70 underline underline-offset-2 hover:text-accent-text disabled:cursor-wait disabled:opacity-50 transition-colors"
           >
             {t("onboarding.model.useCloud")}
           </button>

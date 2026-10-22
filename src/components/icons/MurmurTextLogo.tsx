@@ -1,4 +1,3 @@
-import React from "react";
 import murmurTextLogo from "@/assets/murmur-text-logo.png";
 
 const MurmurTextLogo = ({

@@ -200,5 +200,35 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
 - Pull requests should explain the change, its boundaries, and the exact checks run. Include screenshots or recordings for visible changes.
 - Use [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) for bug reports.
+- Use [`.github/ISSUE_TEMPLATE/feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md) for a feature whose outcome and done-when are already clear.
 - Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) for translation changes and [CONTRIBUTING.md](CONTRIBUTING.md) for the general workflow.
 - Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). Focus the message on why the change is needed.
+
+## Checks before pushing
+
+Run the tests your change adds or modifies, plus a build: `bun run build` for frontend changes, and from `src-tauri` `cargo test <your tests>` for Rust changes. CI runs the full suite (lint, formatting, translations, Clippy, all Rust tests, Playwright) and is the safety net.
+
+`bun install` sets `core.hooksPath` to `.githooks`, whose pre-commit hook runs the fast checks. Let the hook run. If you skip it, say why in the pull request.
+
+## Pull requests
+
+- Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why.
+- Body sections: `## Summary`, `## Changes`, `## Testing`. Visible UI changes include screenshots or recordings.
+- Keep the change focused. Leave lockfiles, generated `src/bindings.ts`, and unrelated refactors alone.
+- `main` is macOS-only. Windows work stays on the `beta` branch. Keep the `compile_error!` guard in `lib.rs`.
+- User-facing JSX text goes through i18next. Add the English key and keep the other locales in sync.
+- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together.
+- Fix a failing check. A `#[allow]`, `eslint-disable`, skipped test, or `--no-verify` needs an explanation in the pull request.
+
+## Review rounds
+
+Review and fix rounds continue until a review comes back clean. There is no round limit. Only real bugs (correctness, security, behavior) block a merge; style never does.
+
+- Fix each real bug with a test that fails before the fix.
+- If the same comment comes back after a fix, do not apply it again: check whether the fix works or the comment is wrong, and reply on the thread.
+- If one file has had bugs in three rounds, simplify that part (reuse a proven approach) instead of patching it again.
+- After 20 rounds, stop and ask a maintainer.
+
+The `review loop` workflow comments and applies the `review-loop` label in those three cases, so a maintainer or the lead agent takes a look. The label is created the first time it is needed. It never means "stop fixing bugs".
+
+Do not ask CodeRabbit to push the fixes. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled so a review cannot commit onto the branch.

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MIN_WINDOW } from "./windowSizes";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 
@@ -170,8 +171,8 @@ const visit = async (
   await page.waitForTimeout(200);
 };
 
-test.describe("at the default window size", () => {
-  test.use({ viewport: { width: 680, height: 570 } });
+test.describe("at the minimum window size", () => {
+  test.use({ viewport: MIN_WINDOW });
 
   test("English text buttons all have the shared width", async ({ page }) => {
     for (const screen of SCREENS) {
@@ -227,7 +228,7 @@ test.describe("at the default window size", () => {
 test("buttons side by side have the same width", async ({ page }) => {
   await openAbout(page);
   const about = await Promise.all(
-    ["Donate", "View on GitHub", "View Licences"].map((name) =>
+    ["Donate", "View on GitHub", "View licences"].map((name) =>
       page.getByRole("button", { name, exact: true }).boundingBox(),
     ),
   );
@@ -239,7 +240,7 @@ test("buttons side by side have the same width", async ({ page }) => {
     SCREENS.find(({ name }) => name === "meeting")!,
   );
   const footer = await Promise.all(
-    ["Transcribe Again", "Delete Audio"].map((name) =>
+    ["Transcribe again", "Delete audio"].map((name) =>
       page.getByRole("button", { name, exact: true }).boundingBox(),
     ),
   );

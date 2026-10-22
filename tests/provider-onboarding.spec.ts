@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { MIN_WINDOW } from "./windowSizes";
 
 const fixturePath = "/tests/fixtures/provider-onboarding.html";
 
@@ -231,7 +232,7 @@ test("a returning user who grants a permission again goes straight back to the a
 test("fits the French provider step at the native minimum window size", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 680, height: 570 });
+  await page.setViewportSize(MIN_WINDOW);
   await page.goto(`${fixturePath}?lang=fr`);
 
   await expect(

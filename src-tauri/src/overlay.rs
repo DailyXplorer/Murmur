@@ -1,9 +1,14 @@
 use crate::input;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
+use crate::tray_i18n::get_tray_translations;
+use block2::RcBlock;
+use objc2_app_kit::NSEventMask;
+use std::cell::RefCell;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use tauri::WebviewUrl;
@@ -23,7 +28,8 @@ tauri_panel! {
 // RecordingOverlay.css. One window is reused for every state and resized in
 // `present_overlay_window`. The capsule sits CARD_MARGIN inside the window edge
 // that faces the screen edge, leaving room for its soft shadow; the window
-// ignores the mouse, so that margin never blocks clicks.
+// ignores the mouse except while the copy notice shows, so that margin never
+// blocks clicks.
 const CARD_MARGIN: f64 = 16.0;
 // Capsule: 30 high, 108 wide at rest, up to 126 at full voice level. The width
 // stays even so the centred capsule's edges sit on whole points.
@@ -33,14 +39,55 @@ const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
 // message fits in every locale whatever the fallback font.
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
-const ERROR_DISPLAY_TIME: std::time::Duration = std::time::Duration::from_secs(4);
+const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
+// Copy capsule: 30 high, 108 to 168 wide with its icon and label.
+const COPY_OVERLAY_WIDTH: f64 = 168.0 + 2.0 * CARD_MARGIN;
+const COPY_OVERLAY_HEIGHT: f64 = OVERLAY_HEIGHT;
+const COPY_DISPLAY_TIME: Duration = Duration::from_secs(4);
+const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
+const ESCAPE_KEY_CODE: u16 = 53;
 
 /// Bumped by every show or hide request, so a delayed hide only applies when
 /// nothing replaced the overlay in the meantime.
 static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
-/// While an error message is on screen, routine hides (pipeline finished,
-/// cancel) leave it up; only its own timer or a new recording replaces it.
-static ERROR_SHOWING: AtomicBool = AtomicBool::new(false);
+
+/// A message that outlives the dictation that raised it. Routine hides
+/// (pipeline finished, cancel) leave it up; only its own timer, its dismissal
+/// or a new recording replaces it, and the meeting pill returns after it.
+enum Notice {
+    Error,
+    /// No text field had the focus; the text is on the clipboard.
+    Copy {
+        text: String,
+    },
+}
+static NOTICE: Mutex<Option<Notice>> = Mutex::new(None);
+
+fn notice() -> MutexGuard<'static, Option<Notice>> {
+    NOTICE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn notice_showing() -> bool {
+    notice().is_some()
+}
+
+// Paths are spelled out because `tauri_panel!` imports these names itself.
+type EscapeMonitor = objc2::rc::Retained<objc2::runtime::AnyObject>;
+
+thread_local! {
+    /// The copy notice's Escape monitor, on the main thread.
+    static ESCAPE_MONITOR: RefCell<Option<EscapeMonitor>> = const { RefCell::new(None) };
+}
+
+/// Payload of `show-overlay-copy`.
+#[derive(Clone, serde::Serialize)]
+struct CopyNoticeLabels {
+    copy: String,
+    copied: String,
+}
+
 /// Whether a dictation owns the overlay (recording or transcribing).
 static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
 /// The meeting pill, while a meeting records. Dictation and error capsules
@@ -168,7 +215,14 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .no_activate(true)
         .corner_radius(0.0)
         .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-        .with_window(|w| w.decorations(false).transparent(true).focusable(false))
+        // The panel never becomes key, so without first-mouse the copy
+        // notice's first click would be swallowed.
+        .with_window(|w| {
+            w.decorations(false)
+                .transparent(true)
+                .focusable(false)
+                .accept_first_mouse(true)
+        })
         .collection_behavior(
             CollectionBehavior::new()
                 .can_join_all_spaces()
@@ -195,12 +249,13 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     }
 
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
-    ERROR_SHOWING.store(false, Ordering::SeqCst);
+    *notice() = None;
     DICTATION_SHOWING.store(true, Ordering::SeqCst);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) = present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        if let Some(window) =
+            present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
         {
             let _ = window.emit("show-overlay", state);
         }
@@ -214,25 +269,136 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
     if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
         return false;
     }
+    *notice() = Some(Notice::Error);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    ERROR_SHOWING.store(true, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) =
-            present_overlay_window(&handle, "error", ERROR_OVERLAY_WIDTH, ERROR_OVERLAY_HEIGHT)
-        {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "error",
+            ERROR_OVERLAY_WIDTH,
+            ERROR_OVERLAY_HEIGHT,
+            false,
+        ) {
             let _ = window.emit("show-overlay-error", message);
         }
     });
+    dismiss_notice_after(app_handle, generation, ERROR_DISPLAY_TIME);
+    true
+}
+
+/// Shows the "Copy" pill after the text went on the clipboard because no text
+/// field had the focus. A click copies the text again, Escape dismisses it.
+pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
+    let settings = settings::get_settings(app_handle);
+    if settings.overlay_style == OverlayStyle::None {
+        return;
+    }
+    let strings = get_tray_translations(Some(settings.app_language));
+    let labels = CopyNoticeLabels {
+        copy: strings.overlay_copy,
+        copied: strings.overlay_copied,
+    };
+    *notice() = Some(Notice::Copy { text });
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(ERROR_DISPLAY_TIME);
-        if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
-            ERROR_SHOWING.store(false, Ordering::SeqCst);
-            hide_recording_overlay(&handle);
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "copy",
+            COPY_OVERLAY_WIDTH,
+            COPY_OVERLAY_HEIGHT,
+            true,
+        ) {
+            let _ = window.emit("show-overlay-copy", labels);
         }
     });
-    true
+    dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME);
+}
+
+fn copy_notice_text() -> Option<String> {
+    match &*notice() {
+        Some(Notice::Copy { text }) => Some(text.clone()),
+        _ => None,
+    }
+}
+
+/// The copy pill's click: puts its text on the clipboard again, then lets
+/// the pill read "Copied" for a moment before it hides.
+#[tauri::command]
+#[specta::specta]
+pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
+    let text = copy_notice_text().ok_or("The copy notice is no longer showing")?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let clipboard_app = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(crate::clipboard::copy_to_keep(&clipboard_app, &text));
+    })
+    .map_err(|error| format!("Cannot reach the clipboard: {error}"))?;
+    receiver
+        .await
+        .map_err(|_| "The clipboard write did not run".to_string())??;
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME);
+    Ok(())
+}
+
+fn dismiss_notice_after(app_handle: &AppHandle, generation: u64, delay: Duration) {
+    let handle = app_handle.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(delay);
+        if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
+            dismiss_notice(&handle);
+        }
+    });
+}
+
+fn dismiss_notice(app_handle: &AppHandle) {
+    *notice() = None;
+    hide_recording_overlay(app_handle);
+}
+
+fn dismiss_copy_notice(app_handle: &AppHandle) {
+    if matches!(*notice(), Some(Notice::Copy { .. })) {
+        dismiss_notice(app_handle);
+    }
+}
+
+/// While the copy notice shows, the overlay takes clicks and Escape; at any
+/// other time the mouse goes through it to the app below. Main thread only.
+fn set_interactive(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    interactive: bool,
+) {
+    let _ = window.set_ignore_cursor_events(!interactive);
+    ESCAPE_MONITOR.with(|slot| {
+        let mut monitor = slot.borrow_mut();
+        if interactive && monitor.is_none() {
+            *monitor = add_escape_monitor(app_handle);
+        } else if !interactive {
+            if let Some(monitor) = monitor.take() {
+                unsafe { objc2_app_kit::NSEvent::removeMonitor(&monitor) };
+            }
+        }
+    });
+}
+
+/// The panel never becomes key, so Escape is watched globally, passively:
+/// the key still reaches the app that has the focus.
+fn add_escape_monitor(app_handle: &AppHandle) -> Option<EscapeMonitor> {
+    let app = app_handle.clone();
+    let handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
+        if unsafe { event.as_ref() }.keyCode() == ESCAPE_KEY_CODE {
+            // Dismissing removes this monitor, so it runs outside the handler.
+            let app = app.clone();
+            std::thread::spawn(move || dismiss_copy_notice(&app));
+        }
+    });
+    objc2_app_kit::NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
+        NSEventMask::KeyDown,
+        &handler,
+    )
 }
 
 fn present_overlay_window(
@@ -240,6 +406,7 @@ fn present_overlay_window(
     state: &str,
     width: f64,
     height: f64,
+    interactive: bool,
 ) -> Option<tauri::webview::WebviewWindow> {
     let overlay_window = app_handle.get_webview_window("recording_overlay")?;
     let size_started = std::time::Instant::now();
@@ -261,6 +428,7 @@ fn present_overlay_window(
     let show_started = std::time::Instant::now();
     let _ = overlay_window.show();
     let show_elapsed = show_started.elapsed();
+    set_interactive(app_handle, &overlay_window, interactive);
 
     log::debug!(
         "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
@@ -317,7 +485,7 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 /// Hides the recording overlay window with fade-out animation, or brings the
 /// meeting pill back while a meeting records.
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
-    if ERROR_SHOWING.load(Ordering::SeqCst) {
+    if notice_showing() {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
@@ -328,7 +496,7 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
     fade_out_overlay(app_handle);
 }
 
-/// Shows the meeting pill unless a dictation or an error is on screen; it
+/// Shows the meeting pill unless a dictation or a notice is on screen; it
 /// appears when they hide.
 pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at_ms: i64) {
     let pill = MeetingPill {
@@ -338,7 +506,7 @@ pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at
     *MEETING_PILL
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
-    if !DICTATION_SHOWING.load(Ordering::SeqCst) && !ERROR_SHOWING.load(Ordering::SeqCst) {
+    if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
         present_meeting_pill(app_handle, pill);
     }
 }
@@ -349,10 +517,7 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
         .is_some();
-    if was_showing
-        && !DICTATION_SHOWING.load(Ordering::SeqCst)
-        && !ERROR_SHOWING.load(Ordering::SeqCst)
-    {
+    if was_showing && !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
         fade_out_overlay(app_handle);
     }
 }
@@ -365,7 +530,7 @@ fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         if let Some(window) =
-            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT)
+            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
         {
             let _ = window.emit("show-overlay-meeting", pill);
         }
@@ -375,6 +540,9 @@ fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
 fn fade_out_overlay(app_handle: &AppHandle) {
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let handle = app_handle.clone();
+        let window = overlay_window.clone();
+        let _ = app_handle.run_on_main_thread(move || set_interactive(&handle, &window, false));
         let _ = overlay_window.emit("hide-overlay", ());
         let window_clone = overlay_window.clone();
         std::thread::spawn(move || {

@@ -13,6 +13,9 @@
     "errorSignedOut": "Non connecté à Codex. Ouvrez Codex et connectez-vous.",
     "errorTooLarge": "Cet enregistrement est trop long pour le service. Essayez plus court.",
     "errorTranscription": "La transcription a échoué. Réessayez depuis l'historique.",
+    "errorLocalNotReady": "Le modèle local n'est pas encore prêt. Vérifiez-le dans les réglages de Murmur.",
+    "errorLocalFailed": "La transcription locale a échoué. Réessayez depuis l'historique.",
+    "errorLanguageNeedsCloud": "Cette langue nécessite le cloud. Connectez ChatGPT ou choisissez une autre langue.",
     "errorPaste": "Collage impossible. Le texte est dans le presse-papiers et dans l'historique.",
     "errorRecording": "Impossible de démarrer l'enregistrement. Vérifiez votre microphone.",
     "errorMicrophoneDenied": "L'accès au microphone est désactivé. Autorisez Murmur dans Réglages du système.",
@@ -25,6 +28,8 @@
     "noticeSettingsReset": "Les paramètres étaient endommagés et ont été réinitialisés. Rien ne sera supprimé de l'historique tant que vous n'aurez pas fixé de nouvelle limite. Le fichier endommagé a été conservé à côté.",
     "warningRecordingLimit": "L’enregistrement s’arrête dans 1 minute (limite de 15 minutes).",
     "pasteLastTranscript": "Coller la dernière transcription",
+    "overlayCopy": "Copier",
+    "overlayCopied": "Copié",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
     "startMeeting": "Démarrer une réunion",
     "stopMeeting": "Arrêter la réunion",
@@ -165,7 +170,7 @@
         "pressKeys": "Appuyez sur les touches...",
         "bindings": {
           "transcribe": {
-            "name": "Raccourci de Transcription",
+            "name": "Raccourci de transcription",
             "description": "Maintenez pour parler et relâchez pour terminer. Appuyez deux fois pour enregistrer en mains libres, puis une fois pour arrêter."
           },
           "cancel": {
@@ -243,7 +248,7 @@
         "storage": "Stockage"
       },
       "experimentalToggle": {
-        "label": "Fonctionnalités Expérimentales",
+        "label": "Fonctionnalités expérimentales",
         "description": "Activer les fonctionnalités expérimentales encore en développement."
       },
       "lazyStreamClose": {

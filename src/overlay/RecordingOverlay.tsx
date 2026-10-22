@@ -1,3 +1,5 @@
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
@@ -26,12 +28,19 @@ type View =
   | { kind: "recording"; live: boolean }
   | { kind: "transcribing" }
   | { kind: "error"; message: string }
+  | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
   started_at_ms: number;
   stops_at_ms: number;
+}
+
+/** Payload of `show-overlay-copy`, from `overlay::CopyNoticeLabels`. */
+interface CopyLabels {
+  copy: string;
+  copied: string;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -130,6 +139,12 @@ const RecordingOverlay: React.FC = () => {
       setView({ kind: "error", message: event.payload });
     }).then(storeUnlistener, () => undefined);
 
+    // No text field had the focus, so the text is already on the clipboard.
+    void listen<CopyLabels>("show-overlay-copy", (event) => {
+      setView({ kind: "copy", labels: event.payload, copied: false });
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
     void listen("hide-overlay", () => {
       setView({ kind: "hidden" });
     }).then(storeUnlistener, () => undefined);
@@ -195,6 +210,37 @@ const RecordingOverlay: React.FC = () => {
           startedAtMs={view.startedAtMs}
           stopsAtMs={view.stopsAtMs}
         />
+      </div>
+    );
+  }
+
+  if (view.kind === "copy") {
+    const copyAgain = () => {
+      void commands
+        .copyNoticeAgain()
+        .then((result) => {
+          if (result.status !== "ok") throw result.error;
+          setView((current) =>
+            current.kind === "copy" ? { ...current, copied: true } : current,
+          );
+        })
+        .catch((error: unknown) => {
+          console.warn("Copying the dictation again failed:", error);
+        });
+    };
+    const Icon = view.copied ? CheckIcon : CopyIcon;
+    return (
+      <div className={`ov-stage ${position}`}>
+        <button
+          type="button"
+          className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
+          onClick={copyAgain}
+        >
+          <Icon size={15} weight="bold" aria-hidden="true" />
+          <span dir="auto" aria-live="polite">
+            {view.copied ? view.labels.copied : view.labels.copy}
+          </span>
+        </button>
       </div>
     );
   }

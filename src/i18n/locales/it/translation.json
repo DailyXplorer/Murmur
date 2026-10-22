@@ -13,6 +13,9 @@
     "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",
     "errorTooLarge": "Questa registrazione è troppo lunga per il servizio. Provane una più breve.",
     "errorTranscription": "Trascrizione non riuscita. Riprova dalla cronologia.",
+    "errorLocalNotReady": "Il modello locale non è ancora pronto. Controllalo nelle impostazioni di Murmur.",
+    "errorLocalFailed": "Trascrizione locale non riuscita. Riprova dalla cronologia.",
+    "errorLanguageNeedsCloud": "Questa lingua richiede il cloud. Collega ChatGPT o scegli un'altra lingua.",
     "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",
     "errorRecording": "Impossibile avviare la registrazione. Controlla il microfono.",
     "errorMicrophoneDenied": "L'accesso al microfono è disattivato. Consenti Murmur in Impostazioni di Sistema.",
@@ -25,6 +28,8 @@
     "noticeSettingsReset": "Le impostazioni erano danneggiate e sono state reimpostate. Nulla verrà eliminato dalla cronologia finché non imposti di nuovo un limite. Il file danneggiato è stato conservato accanto.",
     "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti).",
     "pasteLastTranscript": "Incolla l'ultima trascrizione",
+    "overlayCopy": "Copia",
+    "overlayCopied": "Copiato",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",
@@ -94,10 +99,10 @@
   },
   "onboarding": {
     "permissions": {
-      "title": "Permessi Richiesti",
+      "title": "Permessi richiesti",
       "description": "Murmur ha bisogno di alcuni permessi per funzionare correttamente.",
       "microphone": {
-        "title": "Accesso al Microfono",
+        "title": "Accesso al microfono",
         "description": "Necessario per sentire la tua voce per la trascrizione."
       },
       "accessibility": {
@@ -106,7 +111,7 @@
         "action": "Consenti accesso",
         "waiting": "Attiva Murmur in Impostazioni di Sistema."
       },
-      "grant": "Concedi Permesso",
+      "grant": "Concedi permesso",
       "granted": "Concesso",
       "waiting": "In attesa...",
       "allGranted": "Tutto pronto!",
@@ -165,11 +170,11 @@
         "pressKeys": "Premi i tasti...",
         "bindings": {
           "transcribe": {
-            "name": "Scorciatoia Trascrizione",
+            "name": "Scorciatoia trascrizione",
             "description": "Tieni premuto per parlare e rilascia per terminare. Premi due volte per registrare a mani libere, poi premi una volta per fermare."
           },
           "cancel": {
-            "name": "Scorciatoia Annulla",
+            "name": "Scorciatoia annulla",
             "description": "La scorciatoia da tastiera per annullare la registrazione in corso."
           },
           "paste_last": {
@@ -218,11 +223,11 @@
         "changeFailed": "Impossibile cambiare il canale di ingresso. Interrompi la dettatura in corso e riprova."
       },
       "audioFeedback": {
-        "label": "Feedback Audio",
+        "label": "Feedback audio",
         "description": "Riproduci un suono quando la registrazione inizia e finisce"
       },
       "outputDevice": {
-        "title": "Dispositivo di Output",
+        "title": "Dispositivo di output",
         "description": "Scegli il dispositivo di output per il feedback audio",
         "placeholder": "Scegli dispositivo di output...",
         "loading": "Caricamento..."
@@ -243,7 +248,7 @@
         "storage": "Archiviazione"
       },
       "experimentalToggle": {
-        "label": "Funzionalità Sperimentali",
+        "label": "Funzionalità sperimentali",
         "description": "Abilita le funzionalità sperimentali ancora in fase di sviluppo."
       },
       "lazyStreamClose": {
@@ -251,7 +256,7 @@
         "description": "Mantiene lo stream del microfono aperto per 30 secondi dopo l'arresto della registrazione, riducendo la latenza per trascrizioni consecutive. Potrebbe degradare la qualità audio Bluetooth."
       },
       "startHidden": {
-        "label": "Avvia in Background",
+        "label": "Avvia in background",
         "description": "Avvia l'applicazione in background senza aprire la finestra."
       },
       "autostart": {
@@ -272,7 +277,7 @@
           }
         },
         "position": {
-          "title": "Posizione della Sovrimpressione",
+          "title": "Posizione della sovrimpressione",
           "description": "Dove compare l'overlay sullo schermo durante la registrazione e la trascrizione.",
           "options": {
             "bottom": "In basso",
@@ -281,7 +286,7 @@
         }
       },
       "pasteMethod": {
-        "title": "Metodo di Incollaggio",
+        "title": "Metodo di incollaggio",
         "description": "Scegli come viene inserito il testo. Diretto: simula l'input da tastiera. Nessuno: non incolla, aggiorna solo la cronologia/appunti.",
         "options": {
           "clipboard": "Appunti ({{modifier}}+V)",
@@ -290,7 +295,7 @@
         }
       },
       "clipboardHandling": {
-        "title": "Gestione Appunti",
+        "title": "Gestione appunti",
         "description": "Murmur incolla tramite gli appunti. \"Ripristina appunti precedenti\" rimette ciò che avevi copiato al termine della finestra di incollaggio di 8 secondi, a meno che nel frattempo tu non abbia copiato altro. \"Mantieni la trascrizione\" lascia la trascrizione negli appunti. Se l'incollaggio non riesce, Murmur mantiene la trascrizione negli appunti per recuperarla.",
         "options": {
           "dontModify": "Ripristina appunti precedenti",
@@ -358,18 +363,18 @@
     "debug": {
       "title": "Debug",
       "logDirectory": {
-        "title": "Cartella dei Log",
+        "title": "Cartella dei log",
         "description": "Cartella dove vengono salvati i file di log"
       },
       "logLevel": {
-        "title": "Livello di Log",
+        "title": "Livello di log",
         "description": "Scegli il livello di dettaglio dei log"
       },
       "liveLogs": {
-        "title": "Log in Tempo Reale",
-        "description": "Trasmetti i log dell'applicazione in tempo reale per diagnosticare i problemi senza aprire il file di log. Vengono mostrati solo i log emessi mentre questo pannello è aperto; rispetta l'impostazione Livello di Log qui sopra.",
-        "live": "In Diretta",
-        "paused": "In Pausa",
+        "title": "Log in tempo reale",
+        "description": "Trasmetti i log dell'applicazione in tempo reale per diagnosticare i problemi senza aprire il file di log. Vengono mostrati solo i log emessi mentre questo pannello è aperto; rispetta l'impostazione Livello di log qui sopra.",
+        "live": "In diretta",
+        "paused": "In pausa",
         "pause": "Pausa",
         "resume": "Riprendi",
         "copied": "Copiato",
@@ -381,21 +386,21 @@
         "description": "Controlla automaticamente la disponibilità di nuove versioni di Murmur"
       },
       "soundTheme": {
-        "label": "Tema Sonoro",
+        "label": "Tema sonoro",
         "description": "Scegli un tema sonoro per il feedback di inizio e fine registrazione",
         "preview": "Ascolta il tema sonoro"
       },
       "wordCorrectionThreshold": {
-        "title": "Soglia di Correzione Parole",
+        "title": "Soglia di correzione parole",
         "description": "Sensibilità per la correzione delle parole personalizzate"
       },
       "historyLimit": {
-        "title": "Limite della Cronologia",
+        "title": "Limite della cronologia",
         "description": "Massimo numero di elementi da conservare nella cronologia",
         "entries": "elementi"
       },
       "recordingRetention": {
-        "title": "Eliminazione Automatica Cronologia",
+        "title": "Eliminazione automatica cronologia",
         "description": "Elimina le trascrizioni vecchie e il loro audio. Gli elementi salvati vengono conservati.",
         "never": "Mai",
         "preserveLimit": "Conserva le ultime {{count}}",
@@ -405,7 +410,7 @@
         "placeholder": "Seleziona periodo di conservazione..."
       },
       "alwaysOnMicrophone": {
-        "label": "Microfono Sempre Attivo",
+        "label": "Microfono sempre attivo",
         "description": "Tieni il microfono attivo per una risposta più rapida"
       },
       "clamshellMicrophone": {
@@ -417,7 +422,7 @@
         "description": "Silenzia l'audio di sistema durante la registrazione"
       },
       "appendTrailingSpace": {
-        "label": "Aggiungi Spazio Finale",
+        "label": "Aggiungi spazio finale",
         "description": "Aggiungi uno spazio dopo la trascrizione incollata"
       },
       "recordingBuffer": {
@@ -439,16 +444,16 @@
         "description": "Versione attuale di Murmur"
       },
       "appDataDirectory": {
-        "title": "Cartella Dati App",
+        "title": "Cartella dati app",
         "description": "Cartella in cui Murmur salva i dati"
       },
       "sourceCode": {
-        "title": "Codice Sorgente",
+        "title": "Codice sorgente",
         "description": "Vedi e contribuisci al codice sorgente",
         "button": "Vedi su GitHub"
       },
       "supportDevelopment": {
-        "title": "Supporta lo Sviluppo",
+        "title": "Supporta lo sviluppo",
         "description": "Aiutaci a sviluppare Murmur",
         "button": "Dona"
       },
@@ -539,7 +544,7 @@
     "checkingUpdates": "Controllo aggiornamenti...",
     "updateAvailableShort": "Aggiornamento disponibile",
     "upToDate": "Aggiornato",
-    "updateCheckingDisabled": "Controllo Aggiornamenti Disabilitato",
+    "updateCheckingDisabled": "Controllo aggiornamenti disabilitato",
     "downloading": "Download... {{progress}}%",
     "installing": "Installazione...",
     "preparing": "Preparazione...",
@@ -575,7 +580,7 @@
   },
   "transcriptionFailedAction": "Controlla il servizio di trascrizione",
   "appLanguage": {
-    "title": "Lingua Applicazione",
+    "title": "Lingua applicazione",
     "description": "Cambia la lingua dell'interfaccia di Murmur"
   },
   "theme": {

@@ -1,7 +1,7 @@
 {
   "tray": {
     "settings": "Configurações...",
-    "checkUpdates": "Verificar Atualizações...",
+    "checkUpdates": "Verificar atualizações...",
     "copyLastTranscript": "Copiar última transcrição",
     "quit": "Sair",
     "cancel": "Cancelar",
@@ -13,6 +13,9 @@
     "errorSignedOut": "Sem sessão no Codex. Abra o Codex e entre.",
     "errorTooLarge": "Esta gravação é longa demais para o serviço. Tente uma mais curta.",
     "errorTranscription": "A transcrição falhou. Tente novamente pelo histórico.",
+    "errorLocalNotReady": "O modelo local ainda não está pronto. Verifique-o nas definições do Murmur.",
+    "errorLocalFailed": "A transcrição local falhou. Tente novamente pelo histórico.",
+    "errorLanguageNeedsCloud": "Este idioma precisa da nuvem. Ligue o ChatGPT ou escolha outro idioma.",
     "errorPaste": "Não foi possível colar. O texto está na área de transferência e no histórico.",
     "errorRecording": "Não foi possível iniciar a gravação. Verifique seu microfone.",
     "errorMicrophoneDenied": "O acesso ao microfone está desativado. Permita o Murmur em Ajustes do Sistema.",
@@ -25,6 +28,8 @@
     "noticeSettingsReset": "As configurações estavam danificadas e foram redefinidas. Nada será excluído do histórico até você definir um limite novamente. O arquivo danificado foi mantido ao lado.",
     "warningRecordingLimit": "A gravação para em 1 minuto (limite de 15 minutos).",
     "pasteLastTranscript": "Colar a última transcrição",
+    "overlayCopy": "Copiar",
+    "overlayCopied": "Copiado",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
     "startMeeting": "Iniciar reunião",
     "stopMeeting": "Parar reunião",
@@ -94,10 +99,10 @@
   },
   "onboarding": {
     "permissions": {
-      "title": "Permissões Necessárias",
+      "title": "Permissões necessárias",
       "description": "O Murmur precisa de algumas permissões para funcionar corretamente.",
       "microphone": {
-        "title": "Acesso ao Microfone",
+        "title": "Acesso ao microfone",
         "description": "Necessário para ouvir sua voz para transcrição."
       },
       "accessibility": {
@@ -106,7 +111,7 @@
         "action": "Permitir acesso",
         "waiting": "Ative o Murmur nos Ajustes do Sistema."
       },
-      "grant": "Conceder Permissão",
+      "grant": "Conceder permissão",
       "granted": "Concedido",
       "waiting": "Aguardando...",
       "allGranted": "Tudo pronto!",
@@ -165,11 +170,11 @@
         "pressKeys": "Pressione as teclas...",
         "bindings": {
           "transcribe": {
-            "name": "Atalho de Transcrição",
+            "name": "Atalho de transcrição",
             "description": "Mantenha pressionado para falar e solte para terminar. Toque duas vezes para gravar em mãos-livres e depois pressione uma vez para parar."
           },
           "cancel": {
-            "name": "Atalho de Cancelar",
+            "name": "Atalho de cancelar",
             "description": "O atalho de teclado para cancelar a gravação atual."
           },
           "paste_last": {
@@ -218,11 +223,11 @@
         "changeFailed": "Não foi possível trocar o canal de entrada. Pare o ditado em andamento e tente novamente."
       },
       "audioFeedback": {
-        "label": "Feedback de Áudio",
+        "label": "Feedback de áudio",
         "description": "Reproduzir som quando a gravação iniciar e parar"
       },
       "outputDevice": {
-        "title": "Dispositivo de Saída",
+        "title": "Dispositivo de saída",
         "description": "Selecione seu dispositivo de saída de áudio preferido para sons de feedback",
         "placeholder": "Selecionar dispositivo de saída...",
         "loading": "Carregando..."
@@ -243,7 +248,7 @@
         "storage": "Armazenamento"
       },
       "experimentalToggle": {
-        "label": "Recursos Experimentais",
+        "label": "Recursos experimentais",
         "description": "Ativar recursos experimentais que ainda estão em desenvolvimento."
       },
       "lazyStreamClose": {
@@ -251,11 +256,11 @@
         "description": "Mantém o fluxo do microfone aberto por 30 segundos após parar a gravação, reduzindo a latência em transcrições consecutivas. Pode degradar a qualidade do áudio Bluetooth enquanto ativo."
       },
       "startHidden": {
-        "label": "Iniciar Oculto",
+        "label": "Iniciar oculto",
         "description": "Iniciar na bandeja do sistema sem abrir a janela."
       },
       "autostart": {
-        "label": "Iniciar na Inicialização",
+        "label": "Iniciar na inicialização",
         "description": "Iniciar automaticamente o Murmur quando você fizer login no seu computador."
       },
       "showTrayIcon": {
@@ -272,7 +277,7 @@
           }
         },
         "position": {
-          "title": "Posição da Sobreposição",
+          "title": "Posição da sobreposição",
           "description": "Onde a sobreposição aparece na tela durante a gravação e a transcrição.",
           "options": {
             "bottom": "Inferior",
@@ -281,16 +286,16 @@
         }
       },
       "pasteMethod": {
-        "title": "Método de Colar",
+        "title": "Método de colar",
         "description": "Escolha como o texto é inserido. Direto: simula digitação via entrada do sistema. Nenhum: ignora colar, apenas atualiza histórico/área de transferência.",
         "options": {
-          "clipboard": "Área de Transferência ({{modifier}}+V)",
+          "clipboard": "Área de transferência ({{modifier}}+V)",
           "direct": "Direto",
           "none": "Nenhum"
         }
       },
       "clipboardHandling": {
-        "title": "Manipulação da Área de Transferência",
+        "title": "Manipulação da área de transferência",
         "description": "O Murmur cola pela área de transferência. \"Restaurar área de transferência anterior\" devolve o que você tinha copiado quando termina a janela de colagem de 8 segundos, a menos que você tenha copiado outra coisa nesse meio-tempo. \"Manter transcrição\" deixa a transcrição na área de transferência. Se a colagem falhar, o Murmur mantém a transcrição na área de transferência para recuperação.",
         "options": {
           "dontModify": "Restaurar área de transferência anterior",
@@ -308,7 +313,7 @@
         }
       },
       "customWords": {
-        "title": "Palavras Personalizadas",
+        "title": "Palavras personalizadas",
         "description": "A correção aproximada está atualmente limitada a palavras que usam letras de A–Z e números.",
         "placeholder": "Adicionar uma palavra",
         "add": "Adicionar",
@@ -325,7 +330,7 @@
     },
     "history": {
       "title": "Histórico",
-      "openFolder": "Abrir Pasta",
+      "openFolder": "Abrir pasta",
       "loading": "Carregando histórico...",
       "empty": "Nenhuma transcrição ainda. Comece a gravar para construir seu histórico!",
       "copyToClipboard": "Copiar transcrição para área de transferência",
@@ -358,17 +363,17 @@
     "debug": {
       "title": "Depuração",
       "logDirectory": {
-        "title": "Diretório de Logs",
+        "title": "Diretório de logs",
         "description": "Local onde os arquivos de log são armazenados"
       },
       "logLevel": {
-        "title": "Nível de Log",
+        "title": "Nível de log",
         "description": "Definir a verbosidade do registro"
       },
       "liveLogs": {
-        "title": "Logs ao Vivo",
-        "description": "Transmita os logs do aplicativo em tempo real para diagnosticar problemas sem abrir o arquivo de log. Apenas os logs emitidos enquanto este painel estiver aberto são exibidos; respeita a configuração de Nível de Log acima.",
-        "live": "Ao Vivo",
+        "title": "Logs ao vivo",
+        "description": "Transmita os logs do aplicativo em tempo real para diagnosticar problemas sem abrir o arquivo de log. Apenas os logs emitidos enquanto este painel estiver aberto são exibidos; respeita a configuração de Nível de log acima.",
+        "live": "Ao vivo",
         "paused": "Pausado",
         "pause": "Pausar",
         "resume": "Retomar",
@@ -377,25 +382,25 @@
         "empty": "Aguardando logs… As entradas aparecem aqui à medida que o app as emite."
       },
       "updateChecks": {
-        "label": "Verificar Atualizações",
+        "label": "Verificar atualizações",
         "description": "Verificar automaticamente novas versões do Murmur"
       },
       "soundTheme": {
-        "label": "Tema de Som",
+        "label": "Tema de som",
         "description": "Escolha um tema de som para feedback de início e parada de gravação",
         "preview": "Ouvir o tema de som"
       },
       "wordCorrectionThreshold": {
-        "title": "Limite de Correção de Palavras",
+        "title": "Limite de correção de palavras",
         "description": "Sensibilidade para correções de palavras personalizadas"
       },
       "historyLimit": {
-        "title": "Limite de Histórico",
+        "title": "Limite de histórico",
         "description": "Número máximo de entradas de histórico a manter",
         "entries": "entradas"
       },
       "recordingRetention": {
-        "title": "Excluir Histórico Automaticamente",
+        "title": "Excluir histórico automaticamente",
         "description": "Exclui transcrições antigas e o áudio delas. Entradas salvas são mantidas.",
         "never": "Nunca",
         "preserveLimit": "Manter as últimas {{count}}",
@@ -405,19 +410,19 @@
         "placeholder": "Selecionar período de retenção..."
       },
       "alwaysOnMicrophone": {
-        "label": "Microfone Sempre Ativo",
+        "label": "Microfone sempre ativo",
         "description": "Manter microfone ativo para resposta mais rápida"
       },
       "clamshellMicrophone": {
-        "title": "Microfone em Modo Fechado",
+        "title": "Microfone em modo fechado",
         "description": "Microfone a usar quando a tampa do laptop está fechada"
       },
       "muteWhileRecording": {
-        "label": "Silenciar Durante Gravação",
+        "label": "Silenciar durante gravação",
         "description": "Silenciar áudio do sistema durante a gravação"
       },
       "appendTrailingSpace": {
-        "label": "Adicionar Espaço Final",
+        "label": "Adicionar espaço final",
         "description": "Adicionar um espaço após a transcrição colada"
       },
       "recordingBuffer": {
@@ -439,16 +444,16 @@
         "description": "Versão atual do Murmur"
       },
       "appDataDirectory": {
-        "title": "Diretório de Dados do App",
+        "title": "Diretório de dados do app",
         "description": "Local onde o Murmur armazena seus dados"
       },
       "sourceCode": {
-        "title": "Código Fonte",
+        "title": "Código fonte",
         "description": "Visualizar código fonte e contribuir",
         "button": "Ver no GitHub"
       },
       "supportDevelopment": {
-        "title": "Apoiar o Desenvolvimento",
+        "title": "Apoiar o desenvolvimento",
         "description": "Ajude-nos a continuar construindo o Murmur",
         "button": "Doar"
       },
@@ -539,7 +544,7 @@
     "checkingUpdates": "Verificando atualizações...",
     "updateAvailableShort": "Atualização disponível",
     "upToDate": "Atualizado",
-    "updateCheckingDisabled": "Verificação de Atualização Desabilitada",
+    "updateCheckingDisabled": "Verificação de atualização desabilitada",
     "downloading": "Baixando... {{progress}}%",
     "installing": "Instalando...",
     "preparing": "Preparando...",
@@ -575,7 +580,7 @@
   },
   "transcriptionFailedAction": "Rever serviço de transcrição",
   "appLanguage": {
-    "title": "Idioma da Aplicação",
+    "title": "Idioma da aplicação",
     "description": "Alterar o idioma da interface do Murmur"
   },
   "theme": {
@@ -773,8 +778,8 @@
       "tracks": "Áudio mantido",
       "compressed": "Áudio mantido · {{size}}",
       "deleted": "Áudio apagado. A transcrição e o resumo continuam.",
-      "retranscribe": "Transcrever de Novo",
-      "delete": "Apagar Áudio",
+      "retranscribe": "Transcrever de novo",
+      "delete": "Apagar áudio",
       "deleteError": "Não foi possível apagar o áudio.",
       "retranscribeError": "Não foi possível transcrever a reunião de novo.",
       "deleteDialog": {

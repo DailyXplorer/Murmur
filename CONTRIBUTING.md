@@ -6,6 +6,7 @@ Keep each change focused. Explain why it is needed and test the behavior it affe
 
 - Search existing [issues](https://github.com/DailyXplorer/Murmur/issues) and [pull requests](https://github.com/DailyXplorer/Murmur/pulls).
 - Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) for reproducible bugs.
+- Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md) when the outcome, behaviour, and done-when are already clear.
 - Start a [discussion](https://github.com/DailyXplorer/Murmur/discussions) for feature ideas that would benefit from feedback before implementation.
 
 ## Set up the project
@@ -51,9 +52,13 @@ Run the checks relevant to the files and behavior you changed. Common frontend c
 bun run lint
 bun run format:check
 bun run check:translations
+bun run check:macos-only
+bun run check:versions
 bun run build
 bun run test:playwright
 ```
+
+`bun install` points the clone at `.githooks/pre-commit`. That hook runs the fast checks (lint, Prettier, translations, the macOS-only invariants, and the release-version check). Rust formatting runs only when a Rust file is staged. `cargo test`, Clippy, and Playwright stay on CI.
 
 For Rust changes, run the backend formatter, tests, and Clippy from `src-tauri`:
 
@@ -67,13 +72,24 @@ Use `bun run tauri build` when a production build or native packaging behavior i
 
 ## Open a pull request
 
-The pull request template asks for three things:
+The pull request template asks for:
 
-- A summary of what changed and why.
+- A summary of what changed, why, and the boundaries.
+- The behavior and the files that matter (`## Changes`).
 - The exact checks run and their results.
-- Screenshots or recordings for visible changes.
+- Screenshots or recordings for visible changes, or "Not applicable".
 
-Keep the description specific enough for a reviewer to understand both the implementation and its limits.
+Use a Conventional Commits title. Keep the description specific enough for a reviewer to understand both the implementation and its limits.
+
+## Review rounds
+
+A pull request goes back and forth with reviews until a review finds no more problems. There is no fixed number of rounds. Only real problems (something broken, unsafe, or behaving wrongly) need a fix before merging. Style suggestions are optional.
+
+When you fix a bug, add a test that fails without your fix.
+
+If a review raises the same point again after you fixed it, or keeps finding problems in the same file, reply on the thread instead of pushing another small patch, and a maintainer will help. A workflow adds the `review-loop` label when this happens. It asks for a second look; it is not a reason to stop fixing bugs.
+
+Formatting is checked automatically by rustfmt, Clippy, Prettier, and ESLint. Do not ask CodeRabbit to push commits to your branch.
 
 ## Translations
 

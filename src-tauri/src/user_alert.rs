@@ -52,6 +52,9 @@ impl Alert {
                 FailureKind::SessionExpired => &strings.error_session_expired,
                 FailureKind::SignedOut => &strings.error_signed_out,
                 FailureKind::TooLarge => &strings.error_too_large,
+                FailureKind::LocalNotReady => &strings.error_local_not_ready,
+                FailureKind::LocalFailed => &strings.error_local_failed,
+                FailureKind::LanguageNeedsCloud => &strings.error_language_needs_cloud,
                 FailureKind::Rejected | FailureKind::Other => &strings.error_transcription,
             }
             .clone(),
@@ -138,6 +141,9 @@ mod tests {
             FailureKind::SessionExpired,
             FailureKind::SignedOut,
             FailureKind::TooLarge,
+            FailureKind::LocalNotReady,
+            FailureKind::LocalFailed,
+            FailureKind::LanguageNeedsCloud,
             FailureKind::Other,
         ];
         let messages: std::collections::HashSet<_> = kinds

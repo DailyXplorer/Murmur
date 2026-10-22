@@ -70,7 +70,7 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
     }
   })();
 
-  const useCloud = async () => {
+  const switchToCloud = async () => {
     setLeaving(true);
     try {
       await onUseCloud();
@@ -87,7 +87,7 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-4">
         <MurmurTextLogo width={160} />
         <div className="text-center" aria-live="polite">
-          <h2 className="text-xl font-semibold text-text text-balance">
+          <h2 className="text-balance font-title text-2xl font-normal text-text">
             {stopped
               ? t("onboarding.done.stoppedTitle")
               : t("onboarding.done.title")}
@@ -111,8 +111,8 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
             <button
               type="button"
               disabled={leaving}
-              onClick={() => void useCloud()}
-              className="min-h-control rounded-md px-2 text-sm font-medium text-text/70 underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+              onClick={() => void switchToCloud()}
+              className="min-h-control rounded-md px-2 text-sm font-medium text-text/70 underline underline-offset-2 hover:text-accent-text disabled:cursor-wait disabled:opacity-50 transition-colors"
             >
               {t("onboarding.model.useCloud")}
             </button>

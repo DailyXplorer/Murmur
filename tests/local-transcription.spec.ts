@@ -25,8 +25,8 @@ const expectNoUnhandledCommands = async (page: Page) =>
 test.describe("how Murmur transcribes", () => {
   test("the choice switches the engine", async ({ page }) => {
     await open(page, "engine=cloud", "Transcription");
-    const local = page.getByRole("radio", { name: /On This Mac/ });
-    const cloud = page.getByRole("radio", { name: /In the Cloud/ });
+    const local = page.getByRole("radio", { name: /On this Mac/ });
+    const cloud = page.getByRole("radio", { name: /In the cloud/ });
     await expect(cloud).toBeChecked();
     await expect(page.getByText("Parakeet v3")).toHaveCount(0);
 
@@ -49,7 +49,7 @@ test.describe("how Murmur transcribes", () => {
     page,
   }) => {
     await open(page, "engine=cloud&models=missing", "Transcription");
-    await page.getByRole("radio", { name: /On This Mac/ }).check();
+    await page.getByRole("radio", { name: /On this Mac/ }).check();
     await expect(page.getByText("Downloading… 212 of 505 MB")).toBeVisible();
     await expect(page.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
@@ -65,12 +65,12 @@ test.describe("how Murmur transcribes", () => {
     page,
   }) => {
     await open(page, "engine=cloud&engineRefused=1", "Transcription");
-    await page.getByRole("radio", { name: /On This Mac/ }).click();
+    await page.getByRole("radio", { name: /On this Mac/ }).click();
     await expect(
       page.getByText("Couldn't change how Murmur transcribes."),
     ).toBeVisible();
     await expect(
-      page.getByRole("radio", { name: /In the Cloud/ }),
+      page.getByRole("radio", { name: /In the cloud/ }),
     ).toBeChecked();
     await expectNoUnhandledCommands(page);
   });
@@ -78,7 +78,7 @@ test.describe("how Murmur transcribes", () => {
   test("a Mac that cannot run the model keeps the cloud", async ({ page }) => {
     await open(page, "engine=cloud&analysis=os_too_old", "Transcription");
     await expect(
-      page.getByRole("radio", { name: /On This Mac/ }),
+      page.getByRole("radio", { name: /On this Mac/ }),
     ).toBeDisabled();
     await expect(
       page.getByText("Local transcription needs macOS 15 or later."),
@@ -93,10 +93,10 @@ test.describe("how Murmur transcribes", () => {
     [
       "failed",
       "No internet connection. The download will resume where it stopped.",
-      "Try Again",
+      "Try again",
     ],
-    ["damaged", "The downloaded file is damaged. Try again.", "Try Again"],
-    ["noSpace", "Not enough space: 556 MB needed, 120 MB free.", "Try Again"],
+    ["damaged", "The downloaded file is damaged. Try again.", "Try again"],
+    ["noSpace", "Not enough space: 556 MB needed, 120 MB free.", "Try again"],
     ["ready", "Ready · 505 MB", "Delete"],
   ] as const) {
     test(`the model row when ${models}`, async ({ page }) => {
@@ -104,7 +104,7 @@ test.describe("how Murmur transcribes", () => {
       await expect(page.getByText(text, { exact: false })).toBeVisible();
       const actions = page
         .getByTestId("local-model-row")
-        .getByRole("button", { name: /^(Download|Cancel|Try Again|Delete)/ });
+        .getByRole("button", { name: /^(Download|Cancel|Try again|Delete)/ });
       if (button) await expect(actions).toHaveText([button]);
       else await expect(actions).toHaveCount(0);
       await expectNoUnhandledCommands(page);
@@ -113,7 +113,7 @@ test.describe("how Murmur transcribes", () => {
 
   test("the model row's buttons call their commands", async ({ page }) => {
     await open(page, "engine=local&models=failed", "Transcription");
-    await page.getByRole("button", { name: "Try Again" }).click();
+    await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("Not downloaded")).toBeVisible();
@@ -151,7 +151,7 @@ test.describe("how Murmur transcribes", () => {
       await open(page, `engine=local${query}`, "Transcription");
       await page.getByRole("button", { name: "Delete" }).click();
       const dialog = page.getByRole("dialog", {
-        name: "Delete the Local Model?",
+        name: "Delete the local model?",
       });
       for (const text of expected) {
         await expect(dialog.getByText(text)).toBeVisible();
@@ -159,7 +159,7 @@ test.describe("how Murmur transcribes", () => {
       await expect(dialog.getByText(absent, { exact: false })).toHaveCount(0);
       expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
 
-      await dialog.getByRole("button", { name: "Delete Model" }).click();
+      await dialog.getByRole("button", { name: "Delete model" }).click();
       await expect(dialog).toHaveCount(0);
       await expect(page.getByText("Not downloaded")).toBeVisible();
       expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
@@ -168,7 +168,7 @@ test.describe("how Murmur transcribes", () => {
   }
 
   for (const [models, primary] of [
-    ["prepareFailed", "Try Again"],
+    ["prepareFailed", "Try again"],
     ["cancelled", "Download (505 MB)"],
   ] as const) {
     test(`what a stopped download left can be deleted (${models})`, async ({
@@ -177,18 +177,18 @@ test.describe("how Murmur transcribes", () => {
       await open(page, `engine=local&models=${models}`, "Transcription");
       const row = page.getByTestId("local-model-row");
       const actions = row.getByRole("button", {
-        name: /^(Download|Cancel|Try Again|Delete)/,
+        name: /^(Download|Cancel|Try again|Delete)/,
       });
       await expect(actions).toHaveText([primary, "Delete"]);
 
       await row.getByRole("button", { name: "Delete" }).click();
       const dialog = page.getByRole("dialog", {
-        name: "Delete the Local Model?",
+        name: "Delete the local model?",
       });
       await expect(dialog).toBeVisible();
       expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
 
-      await dialog.getByRole("button", { name: "Delete Model" }).click();
+      await dialog.getByRole("button", { name: "Delete model" }).click();
       await expect(row.getByText("Not downloaded")).toBeVisible();
       await expect(actions).toHaveText(["Download (505 MB)"]);
       expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
@@ -204,7 +204,7 @@ test.describe("how Murmur transcribes", () => {
       page.getByText("Optional: connect for AI cleanup and more languages."),
     ).toBeVisible();
     await expect(
-      page.getByRole("checkbox", { name: "AI Cleanup and Formatting" }),
+      page.getByRole("checkbox", { name: "AI cleanup and formatting" }),
     ).toBeDisabled();
     await expect(
       page.getByText("Connect ChatGPT to use AI cleanup."),
@@ -215,7 +215,7 @@ test.describe("how Murmur transcribes", () => {
   test("with ChatGPT, AI cleanup stays available", async ({ page }) => {
     await open(page, "engine=local", "Transcription");
     await expect(
-      page.getByRole("checkbox", { name: "AI Cleanup and Formatting" }),
+      page.getByRole("checkbox", { name: "AI cleanup and formatting" }),
     ).toBeEnabled();
     await expect(
       page.getByText("Connect ChatGPT to use AI cleanup."),
@@ -230,7 +230,7 @@ test.describe("the model's Delete in Meetings", () => {
   const speakerGroup = (page: Page) =>
     page.locator("section").filter({
       has: page.getByRole("heading", {
-        name: "Speaker Detection",
+        name: "Speaker detection",
         exact: true,
       }),
     });
@@ -251,11 +251,11 @@ test.describe("the model's Delete in Meetings", () => {
     }) => {
       await open(page, `engine=local${query}`, "Meetings");
       const remove = speakerGroup(page).getByRole("button", {
-        name: "Delete Models",
+        name: "Delete models",
       });
       await remove.click();
       const dialog = page.getByRole("dialog", {
-        name: "Delete the Local Model?",
+        name: "Delete the local model?",
       });
       await expect(dialog.getByText(consequence)).toBeVisible();
       await expect(
@@ -269,7 +269,7 @@ test.describe("the model's Delete in Meetings", () => {
       expect(await callsTo(page, "delete_local_model")).toHaveLength(0);
 
       await remove.click();
-      await dialog.getByRole("button", { name: "Delete Model" }).click();
+      await dialog.getByRole("button", { name: "Delete model" }).click();
       await expect(actions(page)).toHaveText(["Download"]);
       expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
       await expectNoUnhandledCommands(page);
@@ -280,9 +280,9 @@ test.describe("the model's Delete in Meetings", () => {
     page,
   }) => {
     await open(page, "models=prepareFailed", "Meetings");
-    await expect(actions(page)).toHaveText(["Retry", "Delete Models"]);
+    await expect(actions(page)).toHaveText(["Retry", "Delete models"]);
     await speakerGroup(page)
-      .getByRole("button", { name: "Delete Models" })
+      .getByRole("button", { name: "Delete models" })
       .click();
     await expect(actions(page)).toHaveText(["Download"]);
     expect(await callsTo(page, "delete_local_model")).toHaveLength(1);
@@ -311,7 +311,7 @@ test.describe("the one-time local transcription card", () => {
       .getByRole("button", { name: "Transcription", exact: true })
       .click();
     await expect(
-      page.getByRole("radio", { name: /On This Mac/ }),
+      page.getByRole("radio", { name: /On this Mac/ }),
     ).toBeChecked();
     await expectNoUnhandledCommands(page);
   });
@@ -319,12 +319,12 @@ test.describe("the one-time local transcription card", () => {
   test("a model already on this Mac switches at once", async ({ page }) => {
     await open(page, "card=1&models=ready", "Transcription");
     await card(page)
-      .getByRole("button", { name: "Use Local Transcription" })
+      .getByRole("button", { name: "Use local transcription" })
       .click();
     await expect(page.getByText("Now transcribing on this Mac.")).toBeVisible();
     await expect(card(page)).toHaveCount(0);
     await expect(
-      page.getByRole("radio", { name: /On This Mac/ }),
+      page.getByRole("radio", { name: /On this Mac/ }),
     ).toBeChecked();
     await expectNoUnhandledCommands(page);
   });
@@ -390,7 +390,7 @@ test.describe("the one-time local transcription card", () => {
       await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
     });
     await expect(
-      card(page).getByRole("button", { name: "Use Local Transcription" }),
+      card(page).getByRole("button", { name: "Use local transcription" }),
     ).toBeVisible();
     await expectNoUnhandledCommands(page);
   });
@@ -403,14 +403,14 @@ test.describe("the one-time local transcription card", () => {
         .getByRole("navigation")
         .getByRole("button", { name: "Transcription", exact: true })
         .click();
-      await page.getByRole("radio", { name: /On This Mac/ }).check();
-      await page.getByRole("radio", { name: /In the Cloud/ }).check();
+      await page.getByRole("radio", { name: /On this Mac/ }).check();
+      await page.getByRole("radio", { name: /In the cloud/ }).check();
       await expect(
-        page.getByRole("radio", { name: /In the Cloud/ }),
+        page.getByRole("radio", { name: /In the cloud/ }),
       ).toBeChecked();
     });
     await expect(
-      card(page).getByRole("button", { name: "Use Local Transcription" }),
+      card(page).getByRole("button", { name: "Use local transcription" }),
     ).toBeVisible();
     await expectNoUnhandledCommands(page);
   });
@@ -475,8 +475,8 @@ test.describe("lines about the engine used", () => {
     await expect(
       page.getByText("Local transcription uses NVIDIA Parakeet (CC BY 4.0)."),
     ).toBeVisible();
-    await page.getByRole("button", { name: "View Licences" }).click();
-    const dialog = page.getByRole("dialog", { name: "Model Licences" });
+    await page.getByRole("button", { name: "View licences" }).click();
+    const dialog = page.getByRole("dialog", { name: "Model licences" });
     await expect(
       dialog.getByText(/NVIDIA Parakeet TDT 0\.6B v3/),
     ).toBeVisible();

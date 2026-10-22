@@ -23,7 +23,7 @@ const fixture = (page: Page) => ({
 });
 
 const modelStep = (page: Page) =>
-  page.getByRole("heading", { name: "Transcribe on This Mac" });
+  page.getByRole("heading", { name: "Transcribe on this Mac" });
 const pill = (page: Page) =>
   page.getByRole("status").filter({ hasText: "Downloading the model… 38%" });
 
@@ -37,17 +37,17 @@ test("a new install downloads in the background, skips ChatGPT and waits for the
   await expect(
     page.getByText("It needs a one-time download of 505 MB.", { exact: false }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Download and Continue" }).click();
+  await page.getByRole("button", { name: "Download and continue" }).click();
   await expect.poll(app.engines).toEqual(["local"]);
 
   await expect(
-    page.getByRole("heading", { name: "Connect ChatGPT (Optional)" }),
+    page.getByRole("heading", { name: "Connect ChatGPT (optional)" }),
   ).toBeVisible();
   await expect(pill(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
   await page.getByRole("button", { name: "Skip" }).click();
 
-  await expect(page.getByRole("heading", { name: "You're Set" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
   await expect(
     page.getByText(
       "The model is still downloading (38%). You can dictate as soon as it's ready.",
@@ -59,7 +59,7 @@ test("a new install downloads in the background, skips ChatGPT and waits for the
   // The step says to hold the shortcut, so the shortcut already works.
   await expect.poll(app.calls).toContain("initialize_shortcuts");
 
-  await page.getByRole("button", { name: "Start Using Murmur" }).click();
+  await page.getByRole("button", { name: "Start using Murmur" }).click();
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
   await expect(pill(page)).toBeVisible();
 
@@ -71,7 +71,7 @@ test("the pill shows the download while permissions are granted", async ({
   page,
 }) => {
   await page.goto(`${fixturePath}?model=missing&permissions=missing`);
-  await page.getByRole("button", { name: "Download and Continue" }).click();
+  await page.getByRole("button", { name: "Download and continue" }).click();
 
   await expect(
     page.getByRole("heading", { name: "Permissions Required" }),
@@ -88,7 +88,7 @@ test("using the cloud instead makes the ChatGPT step required", async ({
   await page.goto(`${fixturePath}?model=missing`);
   const app = fixture(page);
 
-  await page.getByRole("button", { name: "Use the Cloud Instead" }).click();
+  await page.getByRole("button", { name: "Use the cloud instead" }).click();
   await expect.poll(app.engines).toEqual(["cloud"]);
 
   await expect(
@@ -146,7 +146,7 @@ test("a ready model and a connected account finish at once", async ({
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Connect ChatGPT (Optional)" }),
+    page.getByRole("heading", { name: "Connect ChatGPT (optional)" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
   await page.getByRole("button", { name: "Continue" }).click();
@@ -155,7 +155,7 @@ test("a ready model and a connected account finish at once", async ({
     page.getByText("Hold your shortcut and speak.", { exact: true }),
   ).toBeVisible();
   expect(await app.calls()).not.toContain("download_local_model");
-  await page.getByRole("button", { name: "Start Using Murmur" }).click();
+  await page.getByRole("button", { name: "Start using Murmur" }).click();
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
 });
 
@@ -163,7 +163,7 @@ test("with an account, the cloud fills in until the model is ready", async ({
   page,
 }) => {
   await page.goto(`${fixturePath}?model=missing&codex=configured`);
-  await page.getByRole("button", { name: "Download and Continue" }).click();
+  await page.getByRole("button", { name: "Download and continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(
@@ -179,12 +179,12 @@ test("a stopped download can be retried or traded for the cloud", async ({
 }) => {
   await page.goto(`${fixturePath}?model=missing`);
   const app = fixture(page);
-  await page.getByRole("button", { name: "Download and Continue" }).click();
+  await page.getByRole("button", { name: "Download and continue" }).click();
   await page.getByRole("button", { name: "Skip" }).click();
   await app.setModel("failed");
 
   await expect(
-    page.getByRole("heading", { name: "The Download Stopped" }),
+    page.getByRole("heading", { name: "The download stopped" }),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -192,12 +192,12 @@ test("a stopped download can be retried or traded for the cloud", async ({
       { exact: true },
     ),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Try Again" }).click();
-  await expect(page.getByRole("heading", { name: "You're Set" })).toBeVisible();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
   expect(await app.calls()).toContain("download_local_model");
 
   await app.setModel("failed");
-  await page.getByRole("button", { name: "Use the Cloud Instead" }).click();
+  await page.getByRole("button", { name: "Use the cloud instead" }).click();
   // No account: the cloud needs one before dictation can work.
   await expect(
     page.getByRole("heading", { name: "Connect Codex" }),
@@ -251,34 +251,34 @@ test.describe("onboarding screenshots", () => {
     await page.goto(`${fixturePath}?model=missing&permissions=missing`);
     await expect(modelStep(page)).toBeVisible();
     await shot(page, "model");
-    await page.getByRole("button", { name: "Download and Continue" }).click();
+    await page.getByRole("button", { name: "Download and continue" }).click();
     await expect(pill(page)).toBeVisible();
     await shot(page, "permissions-downloading");
 
     await page.goto(`${fixturePath}?model=missing`);
-    await page.getByRole("button", { name: "Download and Continue" }).click();
+    await page.getByRole("button", { name: "Download and continue" }).click();
     await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
     await shot(page, "chatgpt-optional");
     await page.getByRole("button", { name: "Skip" }).click();
     await expect(
-      page.getByRole("heading", { name: "You're Set" }),
+      page.getByRole("heading", { name: "You're set" }),
     ).toBeVisible();
     await shot(page, "done-downloading-no-account");
     await app.setModel("failed");
     await expect(
-      page.getByRole("heading", { name: "The Download Stopped" }),
+      page.getByRole("heading", { name: "The download stopped" }),
     ).toBeVisible();
     await shot(page, "done-failed");
     await app.setModel("downloading");
-    await page.getByRole("button", { name: "Start Using Murmur" }).click();
+    await page.getByRole("button", { name: "Start using Murmur" }).click();
     await expect(pill(page)).toBeVisible();
     await shot(page, "main-window-downloading");
 
     await page.goto(`${fixturePath}?model=missing&codex=configured`);
-    await page.getByRole("button", { name: "Download and Continue" }).click();
+    await page.getByRole("button", { name: "Download and continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(
-      page.getByRole("heading", { name: "You're Set" }),
+      page.getByRole("heading", { name: "You're set" }),
     ).toBeVisible();
     await shot(page, "done-downloading-account");
     await app.setModel("ready");
@@ -288,7 +288,7 @@ test.describe("onboarding screenshots", () => {
     await shot(page, "done-ready");
 
     await page.goto(`${fixturePath}?model=missing`);
-    await page.getByRole("button", { name: "Use the Cloud Instead" }).click();
+    await page.getByRole("button", { name: "Use the cloud instead" }).click();
     await expect(
       page.getByRole("heading", { name: "Connect Codex" }),
     ).toBeVisible();

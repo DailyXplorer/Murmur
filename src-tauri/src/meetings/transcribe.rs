@@ -386,7 +386,11 @@ impl Shared {
                         self.signed_out.store(true, Ordering::SeqCst);
                         return self.refused(samples, error.kind).await;
                     }
-                    FailureKind::Rejected | FailureKind::Other => {
+                    FailureKind::Rejected
+                    | FailureKind::LocalNotReady
+                    | FailureKind::LocalFailed
+                    | FailureKind::LanguageNeedsCloud
+                    | FailureKind::Other => {
                         return self.refused(samples, error.kind).await;
                     }
                 }

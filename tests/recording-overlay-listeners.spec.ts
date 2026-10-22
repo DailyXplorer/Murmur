@@ -4,6 +4,7 @@ const expectedListenerCounts = {
   "show-overlay": 2,
   "show-overlay-meeting": 2,
   "show-overlay-error": 2,
+  "show-overlay-copy": 2,
   "hide-overlay": 2,
   "recording-ready": 2,
   "mic-level": 2,
@@ -149,7 +150,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         window.recordingOverlayListenerHarness.pendingCount(),
       ),
     )
-    .toBe(12);
+    .toBe(14);
 
   const initialSummary = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.summary(),
@@ -236,6 +237,10 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         "show-overlay-meeting",
         { started_at_ms: 0, stops_at_ms: 10_800_000 },
       ),
+      copy: window.recordingOverlayListenerHarness.dispatch(
+        "show-overlay-copy",
+        { copy: "Copy", copied: "Copied" },
+      ),
       ready: window.recordingOverlayListenerHarness.dispatch("recording-ready"),
       level: window.recordingOverlayListenerHarness.dispatch("mic-level", [4]),
       callbacks: listenerIds.map((id) =>
@@ -257,6 +262,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
     hide: 0,
     error: 0,
     meeting: 0,
+    copy: 0,
     ready: 0,
     level: 0,
     callbacks: summary.successfulListenerIds.map(() => false),

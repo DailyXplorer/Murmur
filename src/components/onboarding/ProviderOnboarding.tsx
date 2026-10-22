@@ -76,7 +76,7 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
         <MurmurTextLogo width={160} />
         <div className="w-full max-w-xl">
           <div className="mb-2 text-center">
-            <h2 className="text-xl font-semibold text-text">
+            <h2 className="font-title text-2xl font-normal text-text">
               {optional
                 ? t("onboarding.provider.optionalTitle")
                 : t("onboarding.provider.title")}

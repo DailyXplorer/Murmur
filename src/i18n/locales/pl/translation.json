@@ -13,6 +13,9 @@
     "errorSignedOut": "Nie zalogowano do Codex. Otwórz Codex i zaloguj się.",
     "errorTooLarge": "To nagranie jest za długie dla usługi. Spróbuj krótszego.",
     "errorTranscription": "Transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
+    "errorLocalNotReady": "Model lokalny nie jest jeszcze gotowy. Sprawdź go w ustawieniach Murmura.",
+    "errorLocalFailed": "Lokalna transkrypcja nie powiodła się. Spróbuj ponownie z historii.",
+    "errorLanguageNeedsCloud": "Ten język wymaga chmury. Połącz ChatGPT lub wybierz inny język.",
     "errorPaste": "Nie udało się wkleić. Tekst jest w schowku i w historii.",
     "errorRecording": "Nie udało się rozpocząć nagrywania. Sprawdź mikrofon.",
     "errorMicrophoneDenied": "Dostęp do mikrofonu jest wyłączony. Zezwól Murmur w Ustawieniach systemowych.",
@@ -25,6 +28,8 @@
     "noticeSettingsReset": "Ustawienia były uszkodzone i zostały zresetowane. Nic nie zostanie usunięte z historii, dopóki ponownie nie ustawisz limitu. Uszkodzony plik zachowano obok.",
     "warningRecordingLimit": "Nagrywanie zakończy się za 1 minutę (limit 15 minut).",
     "pasteLastTranscript": "Wklej ostatnią transkrypcję",
+    "overlayCopy": "Kopiuj",
+    "overlayCopied": "Skopiowano",
     "noticeNothingToPaste": "Nie ma jeszcze transkrypcji do wklejenia.",
     "startMeeting": "Rozpocznij spotkanie",
     "stopMeeting": "Zakończ spotkanie",
@@ -243,7 +248,7 @@
         "storage": "Pamięć"
       },
       "experimentalToggle": {
-        "label": "Funkcje Eksperymentalne",
+        "label": "Funkcje eksperymentalne",
         "description": "Włącz funkcje eksperymentalne, które są jeszcze w fazie rozwoju."
       },
       "lazyStreamClose": {

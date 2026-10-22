@@ -136,7 +136,7 @@ const components: Components = {
           event.preventDefault();
           void openSafeUrl(href);
         }}
-        className="text-logo-primary underline decoration-logo-primary/40 underline-offset-2 hover:decoration-logo-primary"
+        className="text-accent-text underline decoration-accent-text/40 underline-offset-2 hover:decoration-accent-text"
       >
         {children}
       </a>

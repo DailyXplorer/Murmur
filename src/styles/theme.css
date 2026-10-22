@@ -21,6 +21,13 @@
   --light-color-logo-stroke: #382731;
   --dark-color-logo-primary: #f28cbb;
   --dark-color-logo-stroke: #fad1ed;
+  /* The accent as text, links and focus rings: the logo color mixed with the
+     theme's text color until it reads at 4.7:1 on the page and on the 20%
+     accent tint of a selected item. Literal, like the fallbacks below, so
+     macOS 10.15 WebKit needs no color-mix(); tests/accent-contrast.spec.ts
+     checks every accent in both themes. */
+  --light-color-accent-text: #895b70;
+  --dark-color-accent-text: #f399c3;
   /* Literal interaction colors are fallbacks for WebKit versions without
      color-mix() (including the macOS 10.15 deployment target). */
   --light-color-background-ui-hover-fallback: #e796bb;
@@ -47,6 +54,7 @@
   --color-background: var(--light-color-background);
   --color-logo-primary: var(--light-color-logo-primary);
   --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-accent-text: var(--light-color-accent-text);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
   --color-background-ui-hover-fallback: var(
@@ -88,6 +96,8 @@
   --light-color-logo-stroke: #27303a;
   --dark-color-logo-primary: #80b4f4;
   --dark-color-logo-stroke: #d1e4fa;
+  --light-color-accent-text: #566b87;
+  --dark-color-accent-text: #8abaf5;
   --light-color-background-ui-hover-fallback: #91b8ec;
   --light-color-background-ui-active-fallback: #8bb1e2;
   --dark-color-background-ui-hover-fallback: #77a7e2;
@@ -96,17 +106,22 @@
     contrast(102.4%);
 }
 
+/* The Murmur website palette: neon #6bff86 on deep green #03201d. The neon is
+   bright enough for both themes, and the deep green replaces the neutral
+   on-accent text, as on the site's buttons. */
 :root[data-accent-color="green"] {
-  --light-color-logo-primary: #99e8b7;
-  --light-color-logo-stroke: #27382e;
-  --dark-color-logo-primary: #78d99c;
-  --dark-color-logo-stroke: #d1fae2;
-  --light-color-background-ui-hover-fallback: #8ed7aa;
-  --light-color-background-ui-active-fallback: #88cea3;
-  --dark-color-background-ui-hover-fallback: #70c991;
-  --dark-color-background-ui-active-fallback: #6bc18b;
-  --accent-image-filter: hue-rotate(172deg) saturate(93%) brightness(111.3%)
-    contrast(95.3%);
+  --light-color-logo-primary: #6bff86;
+  --light-color-logo-stroke: #03201d;
+  --dark-color-logo-primary: #6bff86;
+  --dark-color-logo-stroke: #d9ffe1;
+  --light-color-accent-text: #377943;
+  --dark-color-accent-text: #6bff86;
+  --light-color-background-ui-hover-fallback: #63ed7e;
+  --light-color-background-ui-active-fallback: #5fe479;
+  --dark-color-background-ui-hover-fallback: #63ed7e;
+  --dark-color-background-ui-active-fallback: #5fe479;
+  --color-on-accent: #03201d;
+  --accent-image-filter: hue-rotate(159deg) saturate(200%) brightness(120%);
 }
 
 :root[data-accent-color="yellow"] {
@@ -114,6 +129,8 @@
   --light-color-logo-stroke: #383427;
   --dark-color-logo-primary: #e4c54f;
   --dark-color-logo-stroke: #faf1d1;
+  --light-color-accent-text: #776b39;
+  --dark-color-accent-text: #e4c54f;
   --light-color-background-ui-hover-fallback: #e0c664;
   --light-color-background-ui-active-fallback: #d7be60;
   --dark-color-background-ui-hover-fallback: #d3b64a;
@@ -127,6 +144,8 @@
   --light-color-logo-stroke: #382e27;
   --dark-color-logo-primary: #f4a964;
   --dark-color-logo-stroke: #fae2d1;
+  --light-color-accent-text: #826447;
+  --dark-color-accent-text: #f4a964;
   --light-color-background-ui-hover-fallback: #e6ae79;
   --light-color-background-ui-active-fallback: #dda774;
   --dark-color-background-ui-hover-fallback: #e29d5d;
@@ -140,6 +159,8 @@
   --light-color-logo-stroke: #382827;
   --dark-color-logo-primary: #f28c91;
   --dark-color-logo-stroke: #fad2d1;
+  --light-color-accent-text: #895c5d;
+  --dark-color-accent-text: #f39ca0;
   --light-color-background-ui-hover-fallback: #e49497;
   --light-color-background-ui-active-fallback: #da8f91;
   --dark-color-background-ui-hover-fallback: #e08287;
@@ -154,6 +175,7 @@
     --color-background: var(--dark-color-background);
     --color-logo-primary: var(--dark-color-logo-primary);
     --color-logo-stroke: var(--dark-color-logo-stroke);
+    --color-accent-text: var(--dark-color-accent-text);
     --color-warning: var(--dark-color-warning);
     --color-error: var(--dark-color-error);
     --color-background-ui-hover-fallback: var(
@@ -180,6 +202,7 @@
   --color-background: var(--light-color-background);
   --color-logo-primary: var(--light-color-logo-primary);
   --color-logo-stroke: var(--light-color-logo-stroke);
+  --color-accent-text: var(--light-color-accent-text);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
   --color-background-ui-hover-fallback: var(
@@ -195,6 +218,7 @@
   --color-background: var(--dark-color-background);
   --color-logo-primary: var(--dark-color-logo-primary);
   --color-logo-stroke: var(--dark-color-logo-stroke);
+  --color-accent-text: var(--dark-color-accent-text);
   --color-warning: var(--dark-color-warning);
   --color-error: var(--dark-color-error);
   --color-background-ui-hover-fallback: var(

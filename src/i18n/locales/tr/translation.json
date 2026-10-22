@@ -1,8 +1,8 @@
 {
   "tray": {
     "settings": "Ayarlar...",
-    "checkUpdates": "Güncellemeleri Kontrol Et...",
-    "copyLastTranscript": "Son Transkripti Kopyala",
+    "checkUpdates": "Güncellemeleri kontrol et...",
+    "copyLastTranscript": "Son transkripti kopyala",
     "quit": "Çıkış",
     "cancel": "İptal",
     "errorNetwork": "Transkripsiyon hizmetine ulaşılamıyor. Bağlantınızı kontrol edin.",
@@ -13,6 +13,9 @@
     "errorSignedOut": "Codex'te oturum açılmamış. Codex'i açıp oturum açın.",
     "errorTooLarge": "Bu kayıt hizmet için çok uzun. Daha kısa bir kayıt deneyin.",
     "errorTranscription": "Transkripsiyon başarısız oldu. Geçmiş'ten yeniden deneyin.",
+    "errorLocalNotReady": "Yerel model henüz hazır değil. Murmur ayarlarından kontrol edin.",
+    "errorLocalFailed": "Yerel transkripsiyon başarısız oldu. Geçmiş'ten yeniden deneyin.",
+    "errorLanguageNeedsCloud": "Bu dil için bulut gerekiyor. ChatGPT'yi bağlayın veya başka bir dil seçin.",
     "errorPaste": "Yapıştırılamadı. Metin panoda ve Geçmiş'te.",
     "errorRecording": "Kayıt başlatılamadı. Mikrofonunuzu kontrol edin.",
     "errorMicrophoneDenied": "Mikrofon erişimi kapalı. Sistem Ayarları'nda Murmur'a izin verin.",
@@ -25,6 +28,8 @@
     "noticeSettingsReset": "Ayarlar bozulmuştu ve sıfırlandı. Yeniden bir sınır belirleyene kadar geçmişten hiçbir şey silinmeyecek. Bozuk dosya yanında saklandı.",
     "warningRecordingLimit": "Kayıt 1 dakika içinde duracak (15 dakika sınırı).",
     "pasteLastTranscript": "Son dökümü yapıştır",
+    "overlayCopy": "Kopyala",
+    "overlayCopied": "Kopyalandı",
     "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok.",
     "startMeeting": "Toplantıyı başlat",
     "stopMeeting": "Toplantıyı durdur",
@@ -44,7 +49,7 @@
     "general": "Genel",
     "advanced": "Gelişmiş",
     "history": "Geçmiş",
-    "debug": "Hata Ayıklama",
+    "debug": "Hata ayıklama",
     "about": "Hakkında",
     "transcription": "Transkripsiyon",
     "insights": "İstatistikler",
@@ -94,19 +99,19 @@
   },
   "onboarding": {
     "permissions": {
-      "title": "İzinler Gerekli",
+      "title": "İzinler gerekli",
       "description": "Murmur'nin düzgün çalışabilmesi için birkaç izne ihtiyacı var.",
       "microphone": {
-        "title": "Mikrofon Erişimi",
+        "title": "Mikrofon erişimi",
         "description": "Sesinizi transkripsiyon için alabilmek için gereklidir."
       },
       "accessibility": {
-        "title": "Erişilebilirlik Erişimi",
+        "title": "Erişilebilirlik erişimi",
         "description": "Transkribe edilen metni uygulamalarınıza yazabilmek için gereklidir.",
-        "action": "Erişime İzin Ver",
+        "action": "Erişime izin ver",
         "waiting": "Sistem Ayarları'nda Murmur'u açın."
       },
-      "grant": "İzin Ver",
+      "grant": "İzin ver",
       "granted": "Verildi",
       "waiting": "Bekleniyor...",
       "allGranted": "Her şey hazır!",
@@ -157,7 +162,7 @@
     "general": {
       "title": "Genel",
       "shortcut": {
-        "title": "Murmur Kısayolları",
+        "title": "Murmur kısayolları",
         "description": "Sesle yazma kaydını başlatmak için klavye kısayollarını yapılandırın",
         "loading": "Kısayollar yükleniyor...",
         "none": "Kısayol yapılandırılmadı",
@@ -165,11 +170,11 @@
         "pressKeys": "Tuşlara basın...",
         "bindings": {
           "transcribe": {
-            "name": "Transkripsiyon Kısayolu",
+            "name": "Transkripsiyon kısayolu",
             "description": "Konuşmak için basılı tutun, bitirmek için bırakın. Eller serbest kayıt için iki kez dokunun, durdurmak için bir kez basın."
           },
           "cancel": {
-            "name": "İptal Kısayolu",
+            "name": "İptal kısayolu",
             "description": "Mevcut kaydı iptal etmek için klavye kısayolu."
           },
           "paste_last": {
@@ -211,24 +216,24 @@
         "changeFailed": "Mikrofon değiştirilemedi. Devam eden dikteyi durdurup yeniden deneyin."
       },
       "channel": {
-        "title": "Giriş Kanalı",
+        "title": "Giriş kanalı",
         "description": "Kayıt yapılacak giriş kanalını seçin. Ses arabiriminizde birden fazla giriş varsa bu seçeneği kullanın.",
         "average": "Tüm kanalların ortalaması",
         "channel": "Kanal {{n}}",
         "changeFailed": "Giriş kanalı değiştirilemedi. Devam eden dikteyi durdurup yeniden deneyin."
       },
       "audioFeedback": {
-        "label": "Sesli Geri Bildirim",
+        "label": "Sesli geri bildirim",
         "description": "Kayıt başladığında ve bittiğinde ses çalar"
       },
       "outputDevice": {
-        "title": "Çıkış Cihazı",
+        "title": "Çıkış cihazı",
         "description": "Geri bildirim sesleri için ses çıkış cihazını seçin",
         "placeholder": "Çıkış cihazı seçin...",
         "loading": "Yükleniyor..."
       },
       "volume": {
-        "title": "Ses Seviyesi",
+        "title": "Ses seviyesi",
         "description": "Sesli geri bildirimlerin ses seviyesini ayarlayın"
       }
     },
@@ -243,28 +248,28 @@
         "storage": "Depolama"
       },
       "experimentalToggle": {
-        "label": "Deneysel Özellikler",
+        "label": "Deneysel özellikler",
         "description": "Hala geliştirme aşamasında olan deneysel özellikleri etkinleştir."
       },
       "lazyStreamClose": {
-        "label": "Transkripsiyonlar Arasında Mikrofonu Açık Tut",
+        "label": "Transkripsiyonlar arasında mikrofonu açık tut",
         "description": "Kayıt durdurulduktan sonra mikrofon akışını 30 saniye açık tutar, ardışık transkripsiyonlarda gecikmeyi azaltır. Etkinken Bluetooth ses kalitesini düşürebilir."
       },
       "startHidden": {
-        "label": "Gizli Başlat",
+        "label": "Gizli başlat",
         "description": "Pencereyi açmadan sistem tepsisinde başlatır."
       },
       "autostart": {
-        "label": "Başlangıçta Çalıştır",
+        "label": "Başlangıçta çalıştır",
         "description": "Bilgisayara giriş yaptığınızda Murmur otomatik olarak başlatılır."
       },
       "showTrayIcon": {
-        "label": "Tepsi Simgesini Göster",
+        "label": "Tepsi simgesini göster",
         "description": "Murmur simgesini sistem tepsisinde göster."
       },
       "overlay": {
         "style": {
-          "title": "Ekran Katmanı",
+          "title": "Ekran katmanı",
           "description": "Kayıt katmanını seçin: 'Yok' gizler, 'Minimal' kompakt bir gösterge gösterir.",
           "options": {
             "none": "Yok",
@@ -272,7 +277,7 @@
           }
         },
         "position": {
-          "title": "Ekran Katmanı Konumu",
+          "title": "Ekran katmanı konumu",
           "description": "Ekran katmanının kayıt ve transkripsiyon sırasında nerede görüneceğini belirler.",
           "options": {
             "bottom": "Alt",
@@ -281,7 +286,7 @@
         }
       },
       "pasteMethod": {
-        "title": "Yapıştırma Yöntemi",
+        "title": "Yapıştırma yöntemi",
         "description": "Metnin nasıl ekleneceğini seçin. Doğrudan: sistem girişiyle yazmayı simüle eder. Yok: yapıştırmayı atlar, sadece geçmişi/panoyu günceller.",
         "options": {
           "clipboard": "Pano ({{modifier}}+V)",
@@ -290,7 +295,7 @@
         }
       },
       "clipboardHandling": {
-        "title": "Pano Yönetimi",
+        "title": "Pano yönetimi",
         "description": "Murmur pano üzerinden yapıştırır. \"Önceki panoyu geri yükle\", 8 saniyelik yapıştırma süresi bittiğinde daha önce kopyaladığınızı geri koyar; bu arada başka bir şey kopyaladıysanız dokunmaz. \"Transkripsiyonu koru\" transkripsiyonu panoda bırakır. Yapıştırma başarısız olursa Murmur transkripsiyonu kurtarmak için panoda tutar.",
         "options": {
           "dontModify": "Önceki panoyu geri yükle",
@@ -298,7 +303,7 @@
         }
       },
       "autoSubmit": {
-        "title": "Otomatik Gönder",
+        "title": "Otomatik gönder",
         "description": "Metin eklendikten sonra seçilen tuş kombinasyonunu otomatik olarak gönderir.",
         "options": {
           "off": "Kapalı",
@@ -308,11 +313,11 @@
         }
       },
       "customWords": {
-        "title": "Özel Kelimeler",
+        "title": "Özel kelimeler",
         "description": "Bulanık düzeltme şu anda A–Z harflerini ve rakamları kullanan sözcüklerle sınırlıdır.",
         "placeholder": "Kelime ekle",
         "add": "Ekle",
-        "remove": "{{word}} Kaldır",
+        "remove": "{{word}} kaldır",
         "duplicate": "\"{{word}}\" zaten mevcut",
         "learned": "Öğrenildi",
         "learnedFrom": "{{word}}: “{{heard}}” sözcüğünü düzelttiğinizde öğrenildi",
@@ -325,7 +330,7 @@
     },
     "history": {
       "title": "Geçmiş",
-      "openFolder": "Klasörü Aç",
+      "openFolder": "Klasörü aç",
       "loading": "Geçmiş yükleniyor...",
       "empty": "Henüz transkripsiyon yok. Geçmişinizi oluşturmak için kayda başlayın!",
       "copyToClipboard": "Transkripsiyonu panoya kopyala",
@@ -356,18 +361,18 @@
       }
     },
     "debug": {
-      "title": "Hata Ayıklama",
+      "title": "Hata ayıklama",
       "logDirectory": {
-        "title": "Log Dizini",
+        "title": "Log dizini",
         "description": "Log dosyalarının saklandığı konum"
       },
       "logLevel": {
-        "title": "Log Seviyesi",
+        "title": "Log seviyesi",
         "description": "Loglamanın ayrıntı düzeyini ayarla"
       },
       "liveLogs": {
-        "title": "Canlı Loglar",
-        "description": "Sorunları log dosyasını açmadan teşhis etmek için uygulama loglarını gerçek zamanlı olarak akıtın. Yalnızca bu panel açıkken oluşturulan loglar gösterilir; yukarıdaki Log Seviyesi ayarına uyar.",
+        "title": "Canlı loglar",
+        "description": "Sorunları log dosyasını açmadan teşhis etmek için uygulama loglarını gerçek zamanlı olarak akıtın. Yalnızca bu panel açıkken oluşturulan loglar gösterilir; yukarıdaki Log seviyesi ayarına uyar.",
         "live": "Canlı",
         "paused": "Duraklatıldı",
         "pause": "Duraklat",
@@ -377,25 +382,25 @@
         "empty": "Loglar bekleniyor… Uygulama logları ürettikçe girişler burada görünür."
       },
       "updateChecks": {
-        "label": "Güncellemeleri Kontrol Et",
+        "label": "Güncellemeleri kontrol et",
         "description": "Murmur için yeni sürümleri otomatik olarak kontrol eder"
       },
       "soundTheme": {
-        "label": "Ses Teması",
+        "label": "Ses teması",
         "description": "Kayıt başlangıç ve bitişi için sesli geri bildirim temasını seçin",
         "preview": "Ses temasını dinle"
       },
       "wordCorrectionThreshold": {
-        "title": "Kelime Düzeltme Eşiği",
+        "title": "Kelime düzeltme eşiği",
         "description": "Özel kelime düzeltmeleri için hassasiyet"
       },
       "historyLimit": {
-        "title": "Geçmiş Limiti",
+        "title": "Geçmiş limiti",
         "description": "Saklanacak maksimum geçmiş kaydı sayısı",
         "entries": "kayıt"
       },
       "recordingRetention": {
-        "title": "Geçmişi Otomatik Sil",
+        "title": "Geçmişi otomatik sil",
         "description": "Eski transkripsiyonları ve seslerini siler. Kaydedilenler korunur.",
         "never": "Asla",
         "preserveLimit": "Son {{count}} kaydı tut",
@@ -405,27 +410,27 @@
         "placeholder": "Saklama süresi seçin..."
       },
       "alwaysOnMicrophone": {
-        "label": "Mikrofon Her Zaman Açık",
+        "label": "Mikrofon her zaman açık",
         "description": "Daha hızlı yanıt için mikrofonu aktif tutar"
       },
       "clamshellMicrophone": {
-        "title": "Kapalı Kapak Mikrofonu",
+        "title": "Kapalı kapak mikrofonu",
         "description": "Dizüstü bilgisayar kapağı kapalıyken kullanılacak mikrofon"
       },
       "muteWhileRecording": {
-        "label": "Kayıt Sırasında Sessize Al",
+        "label": "Kayıt sırasında sessize al",
         "description": "Kayıt sırasında sistem sesini kapatır"
       },
       "appendTrailingSpace": {
-        "label": "Sonuna Boşluk Ekle",
+        "label": "Sonuna boşluk ekle",
         "description": "Yapıştırılan transkripsiyondan sonra boşluk ekler"
       },
       "recordingBuffer": {
-        "title": "Ekstra Kayıt Tamponu",
+        "title": "Ekstra kayıt tamponu",
         "description": "Tuşu bıraktıktan sonra arka plandaki sesi yakalamak için kaydı sürdürme süresi (milisaniye). 0 = ekstra tampon yok."
       },
       "whatsNewPreview": {
-        "title": "Yenilikleri Önizle",
+        "title": "Yenilikleri önizle",
         "description": "En son paketlenmiş sürüm notunu görüldü olarak işaretlemeden aç",
         "button": "Önizle",
         "noNotes": "Paketlenmiş sürüm notu bulunamadı",
@@ -439,21 +444,21 @@
         "description": "Murmur'nin mevcut sürümü"
       },
       "appDataDirectory": {
-        "title": "Uygulama Veri Dizini",
+        "title": "Uygulama veri dizini",
         "description": "Murmur'nin verilerini sakladığı konum"
       },
       "sourceCode": {
-        "title": "Kaynak Kodu",
+        "title": "Kaynak kodu",
         "description": "Kaynak kodunu görüntüle ve katkıda bulun",
-        "button": "GitHub'da Görüntüle"
+        "button": "GitHub'da görüntüle"
       },
       "supportDevelopment": {
-        "title": "Geliştirmeyi Destekle",
+        "title": "Geliştirmeyi destekle",
         "description": "Murmur'yi geliştirmeye devam etmemize yardımcı olun",
-        "button": "Bağış Yap"
+        "button": "Bağış yap"
       },
       "whatsNewUpdates": {
-        "label": "Yenilikleri Göster",
+        "label": "Yenilikleri göster",
         "description": "Murmur güncellemelerinden sonra sürüm notlarını göster"
       },
       "modelLicences": {
@@ -539,7 +544,7 @@
     "checkingUpdates": "Güncellemeler kontrol ediliyor...",
     "updateAvailableShort": "Güncelleme mevcut",
     "upToDate": "Güncel",
-    "updateCheckingDisabled": "Güncelleme Kontrolü Devre Dışı",
+    "updateCheckingDisabled": "Güncelleme kontrolü devre dışı",
     "downloading": "İndiriliyor... %{{progress}}",
     "installing": "Yükleniyor...",
     "preparing": "Hazırlanıyor...",
@@ -557,7 +562,7 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur, transkribe edilen metni yazabilmek için erişilebilirlik izinlerine ihtiyaç duyar.",
-    "openSettings": "Sistem Ayarlarını Aç"
+    "openSettings": "Sistem Ayarlarını aç"
   },
   "errors": {
     "loadDirectory": "Dizin yüklenirken hata oluştu: {{error}}",
@@ -575,11 +580,11 @@
   },
   "transcriptionFailedAction": "Transkripsiyon hizmetini incele",
   "appLanguage": {
-    "title": "Uygulama Dili",
+    "title": "Uygulama dili",
     "description": "Murmur arayüzünün dilini değiştirin"
   },
   "theme": {
-    "title": "Uygulama Teması",
+    "title": "Uygulama teması",
     "description": "Murmur'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
     "options": {
       "system": "Sistem",
@@ -620,7 +625,7 @@
       "transcribingStarted": "Metne dökülüyor…",
       "rateLimited": "Codex yavaşlamayı istedi. İşleme kendiliğinden devam edecek…",
       "held": "Codex istekleri sınırlıyor. İşleme saat {{time}} itibarıyla devam edecek.",
-      "processNow": "Şimdi İşle",
+      "processNow": "Şimdi işle",
       "aligning": "Konuşma sıraya konuyor…",
       "analyzing": "Konuşmacılar ayırt ediliyor…",
       "interrupted": "Kayıt yarıda kesildi. Kaydedilen kısım yine de dökülebilir.",
@@ -748,11 +753,11 @@
     },
     "summary": {
       "header": "{{count}} dk okuma",
-      "search": "Özette Ara",
-      "copy": "Özeti Kopyala",
+      "search": "Özette ara",
+      "copy": "Özeti kopyala",
       "copied": "Özet kopyalandı.",
       "copyError": "Özet kopyalanamadı.",
-      "export": "Markdown Olarak Dışa Aktar",
+      "export": "Markdown olarak dışa aktar",
       "exported": "Özet kaydedildi.",
       "exportError": "Özet kaydedilemedi.",
       "writing": "Özet yazılıyor…",
@@ -773,8 +778,8 @@
       "tracks": "Ses saklanıyor",
       "compressed": "Ses saklanıyor · {{size}}",
       "deleted": "Ses silindi. Döküm ve özet korunuyor.",
-      "retranscribe": "Yeniden Yazıya Dök",
-      "delete": "Sesi Sil",
+      "retranscribe": "Yeniden yazıya dök",
+      "delete": "Sesi sil",
       "deleteError": "Ses silinemedi.",
       "retranscribeError": "Toplantı yeniden yazıya dökülemedi.",
       "deleteDialog": {

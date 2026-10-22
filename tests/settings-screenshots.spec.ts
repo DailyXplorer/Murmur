@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEFAULT_WINDOW } from "./windowSizes";
 
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
 const VIEWPORT = { width: 960, height: 720 };
@@ -104,16 +105,16 @@ test.describe("settings screenshots", () => {
         fullPage: true,
       });
 
-      await page.getByRole("button", { name: "Search Transcript" }).click();
+      await page.getByRole("button", { name: "Search transcript" }).click();
       await page
-        .getByRole("textbox", { name: "Search Transcript" })
+        .getByRole("textbox", { name: "Search transcript" })
         .fill("plateforme");
       await page.screenshot({
         path: `${outputDir}/meeting-search-${theme}.png`,
         fullPage: true,
       });
 
-      await page.getByRole("button", { name: "Rename Speakers" }).click();
+      await page.getByRole("button", { name: "Rename speakers" }).click();
       await page.waitForTimeout(300);
       await page.screenshot({
         path: `${outputDir}/meeting-rename-${theme}.png`,
@@ -161,12 +162,33 @@ test.describe("settings screenshots", () => {
     });
   }
 
-  // The settings window opens at 680×570.
+  for (const values of ["normal", "huge"] as const) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`insights at the default window size (${values}, ${theme})`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize(DEFAULT_WINDOW);
+        await page.goto(
+          `/tests/fixtures/settings-pages.html?debug=0&insights=${values}&theme=${theme}`,
+        );
+        await page
+          .getByRole("navigation")
+          .getByRole("button", { name: "Insights", exact: true })
+          .click();
+        await page.waitForTimeout(500);
+        await page.screenshot({
+          path: `${outputDir}/insights-${values}-${theme}.png`,
+        });
+      });
+    }
+  }
+
   for (const models of ["missing", "downloading", "ready"] as const) {
     test(`meetings page at the default window size (models ${models})`, async ({
       page,
     }) => {
-      await page.setViewportSize({ width: 680, height: 570 });
+      await page.setViewportSize(DEFAULT_WINDOW);
       await page.goto(`/tests/fixtures/settings-pages.html?models=${models}`);
       await page
         .getByRole("navigation")
@@ -183,7 +205,7 @@ test.describe("settings screenshots", () => {
 
   test.describe("buttons at the default window size", () => {
     test.use({
-      viewport: { width: 680, height: 570 },
+      viewport: DEFAULT_WINDOW,
       deviceScaleFactor: 2,
       colorScheme: "light",
     });
@@ -224,13 +246,20 @@ test.describe("settings screenshots", () => {
       await page.screenshot({ path: `${outputDir}/meeting-transcript.png` });
 
       await page
-        .getByRole("button", { name: "Delete Audio" })
+        .getByRole("button", { name: "Delete audio" })
         .scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${outputDir}/meeting-footer.png` });
     });
 
-    for (const section of ["Transcription", "Meetings", "Advanced", "About"]) {
+    for (const section of [
+      "General",
+      "Transcription",
+      "Insights",
+      "Meetings",
+      "Advanced",
+      "About",
+    ]) {
       test(`${section} page`, async ({ page }) => {
         await page.goto("/tests/fixtures/settings-pages.html?meetings=1");
         await page
@@ -364,7 +393,7 @@ test.describe("settings screenshots", () => {
           "History",
         );
         await shoot(page, `about-${theme}`, at, "About");
-        await page.getByRole("button", { name: "View Licences" }).click();
+        await page.getByRole("button", { name: "View licences" }).click();
         await page.waitForTimeout(300);
         await page.screenshot({
           path: `${outputDir}/about-licences-${theme}.png`,

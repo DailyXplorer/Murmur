@@ -7,7 +7,7 @@ export const Input = React.forwardRef<
 >(({ className = "", disabled, ...props }, ref) => {
   const interactiveClasses = disabled
     ? "opacity-60 cursor-not-allowed bg-mid-gray/10 border-mid-gray/40"
-    : `${FIELD_SURFACE_CLASSES} hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-logo-primary`;
+    : `${FIELD_SURFACE_CLASSES} hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-accent-text`;
 
   return (
     <input

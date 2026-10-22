@@ -14,7 +14,7 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   return (
     <section className="space-y-2">
       <div className="flex min-h-6 items-center justify-between gap-4 px-4">
-        <h2 className="min-w-0 text-balance text-xs font-medium uppercase tracking-wide text-mid-gray">
+        <h2 className="min-w-0 text-balance font-title text-base font-normal leading-6 text-text">
           {title}
         </h2>
         {action && <div className="shrink-0">{action}</div>}

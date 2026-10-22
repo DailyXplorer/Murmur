@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 
 export interface TabItem<T extends string> {
   id: T;
@@ -67,9 +67,9 @@ export const Tabs = <T extends string>({
               if (event.key === "ArrowRight") move(tab.id, 1);
               if (event.key === "ArrowLeft") move(tab.id, -1);
             }}
-            className={`-mb-px cursor-pointer border-b-2 px-0.5 pb-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`-mb-px cursor-pointer border-b-2 px-0.5 pb-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-not-allowed disabled:opacity-50 ${
               active
-                ? "border-logo-primary text-text"
+                ? "border-accent-text text-text"
                 : "border-transparent text-mid-gray hover:text-text"
             }`}
           >

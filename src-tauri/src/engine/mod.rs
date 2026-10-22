@@ -151,11 +151,17 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
     }
 }
 
-/// Local cannot serve and no account can: the user's way out is to connect
-/// ChatGPT, which is what a signed-out failure tells them.
+/// Local cannot serve and no account can: the message says why, since a
+/// ChatGPT account is optional.
 fn refused(reason: FallbackReason) -> anyhow::Error {
+    let kind = match reason {
+        FallbackReason::ModelNotReady => FailureKind::LocalNotReady,
+        FallbackReason::LocalFailed => FailureKind::LocalFailed,
+        FallbackReason::LanguageNotSupported => FailureKind::LanguageNeedsCloud,
+        FallbackReason::CloudLimitReached | FallbackReason::CloudFailed => FailureKind::Other,
+    };
     TranscriptionError::new(
-        FailureKind::SignedOut,
+        kind,
         format!("Local transcription unavailable ({reason:?}) and no ChatGPT account"),
     )
     .into()
@@ -420,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn a_local_failure_without_an_account_asks_to_connect_chatgpt() {
+    fn a_local_failure_without_an_account_says_local_failed() {
         let (result, asked) = dictate(
             Engine::Local,
             when(READY, NO_ACCOUNT, "fr"),
@@ -428,23 +434,29 @@ mod tests {
             Ok("never"),
         );
         let error = result.unwrap_err();
-        assert_eq!(TranscriptionError::kind_of(&error), FailureKind::SignedOut);
+        assert_eq!(
+            TranscriptionError::kind_of(&error),
+            FailureKind::LocalFailed
+        );
         assert_eq!(asked, [Engine::Local]);
     }
 
     #[test]
-    fn a_refused_route_sends_no_audio() {
-        let (result, asked) = dictate(
-            Engine::Local,
-            when(NOT_READY, NO_ACCOUNT, "fr"),
-            Ok("never"),
-            Ok("never"),
-        );
-        assert_eq!(
-            TranscriptionError::kind_of(&result.unwrap_err()),
-            FailureKind::SignedOut
-        );
-        assert!(asked.is_empty());
+    fn a_refused_route_sends_no_audio_and_says_why() {
+        for (conditions, kind) in [
+            (
+                when(NOT_READY, NO_ACCOUNT, "fr"),
+                FailureKind::LocalNotReady,
+            ),
+            (
+                when(READY, NO_ACCOUNT, "ja"),
+                FailureKind::LanguageNeedsCloud,
+            ),
+        ] {
+            let (result, asked) = dictate(Engine::Local, conditions, Ok("never"), Ok("never"));
+            assert_eq!(TranscriptionError::kind_of(&result.unwrap_err()), kind);
+            assert!(asked.is_empty());
+        }
     }
 
     #[test]

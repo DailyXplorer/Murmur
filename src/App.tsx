@@ -60,6 +60,9 @@ type FailureKind =
   | "signed_out"
   | "too_large"
   | "rejected"
+  | "local_not_ready"
+  | "local_failed"
+  | "language_needs_cloud"
   | "other";
 
 interface TranscriptionErrorEvent {
@@ -77,6 +80,9 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   signed_out: "tray.errorSignedOut",
   too_large: "tray.errorTooLarge",
   rejected: "tray.errorTranscription",
+  local_not_ready: "tray.errorLocalNotReady",
+  local_failed: "tray.errorLocalFailed",
+  language_needs_cloud: "tray.errorLanguageNeedsCloud",
   other: "tray.errorTranscription",
 };
 

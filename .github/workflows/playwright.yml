@@ -1,12 +1,26 @@
 name: "Playwright"
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "package.json"
+      - "bun.lock"
+      - "playwright.config.*"
+      - "vite.config.ts"
+      - "index.html"
+      - "src/overlay/index.html"
+      - "tests/**"
   pull_request:
     paths:
       - "src/**"
       - "package.json"
       - "bun.lock"
       - "playwright.config.*"
+      - "vite.config.ts"
+      - "index.html"
+      - "src/overlay/index.html"
       - "tests/**"
 
 concurrency:
