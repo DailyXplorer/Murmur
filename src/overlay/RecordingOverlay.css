@@ -202,9 +202,9 @@
 }
 
 /* Copy pill: the whole capsule is one button around a body that sizes itself
-   from its text: the note, on two lines as narrow as they fit, then the
-   Copy action in an inner capsule as far from the end as the note is from the
-   start. The action never shrinks; the note wraps. The webview measures the
+   from its text: the note, on one line when it fits and balanced lines
+   otherwise, then the Copy action in an inner capsule as far from the end
+   as the note is from the start. The action never shrinks; the note wraps. The webview measures the
    body and overlay.rs fits the window to it. The body is clipped while the
    pill grows from the rest capsule. */
 .ov-capsule.ov-copy {

@@ -338,8 +338,8 @@ async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
 },
 /**
- * The copy pill's click: puts its text on the clipboard again, then lets
- * the pill read "Copied" for a moment before it hides.
+ * The copy pill's click: puts its text on the clipboard, then lets the pill
+ * read "Copied" for a moment before it hides.
  */
 async copyNoticeAgain() : Promise<Result<null, string>> {
     try {
