@@ -683,7 +683,7 @@
         "rate_limited": "Codex is limiting requests right now. Retry later.",
         "parts_failed": "Some parts couldn't be transcribed.",
         "no_audio": "The recording couldn't be read.",
-        "offline": "Waiting for a connection. Murmur goes on by itself once you're back online.",
+        "offline": "Waiting for a connection. Murmur will continue automatically once you're back online.",
         "other": "Processing stopped unexpectedly."
       }
     },

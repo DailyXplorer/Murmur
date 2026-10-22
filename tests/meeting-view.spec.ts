@@ -679,7 +679,7 @@ test("a meeting that could not reach Codex says it goes on by itself, and Retry 
   );
   const banner = page.locator("article [role=status]").first();
   await expect(banner).toContainText(
-    "Waiting for a connection. Murmur goes on by itself once you're back online.",
+    "Waiting for a connection. Murmur will continue automatically once you're back online.",
   );
   await banner.getByRole("button", { name: "Retry now" }).click();
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
