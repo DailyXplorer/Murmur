@@ -20,6 +20,13 @@
 //! folder, `MURMUR_SOAK_AUDIO` keeps the rendered dialogue in a folder of
 //! its own, and `MURMUR_SOAK_CODEX=1` sends run A's pieces to the real Codex
 //! session instead (about 36 requests of the user's quota).
+//!
+//! `echoes_without_the_models` processes the same dialogue, once through,
+//! as a Mac without the models does, with a Codex that writes every echo
+//! the microphone heard, and counts the echoes left under "Me" and the
+//! user's words lost. It takes about a minute, in a temporary folder:
+//!
+//! `cargo test --locked echoes_without_the_models -- --ignored --nocapture`
 
 use std::collections::{BTreeMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -44,9 +51,11 @@ use super::helper;
 use super::merge::{Track as Source, PLACEHOLDER};
 use super::paths::{self, MIC_TRACK, SYSTEM_TRACK};
 use super::processor::{MeetingProgress, ProcessEvents, Processor};
-use super::store::{ChunkStatus, MeetingStatus, MeetingsStore, SpeakerAnalysis};
+use super::store::{ChunkStatus, MeetingStatus, MeetingTracks, MeetingsStore, SpeakerAnalysis};
 use super::summary::{CompleteFuture, Summarizer};
-use super::transcribe::{CodexTranscriber, RetryPolicy};
+use super::tokens::{join, sentences, tokenize};
+use super::track_audio;
+use super::transcribe::{CodexTranscriber, RetryPolicy, TranscribeFuture, Transcriber};
 use super::Library;
 use crate::local_models::{manifest, Host, LocalModelStatus, LocalModels, PrepareFuture, Prepared};
 use crate::settings::MeetingCaptureMode;
@@ -972,8 +981,9 @@ fn track_ms(data: &Path, id: i64) -> [u64; 2] {
 
 /// The two tracks of a dialogue, written as `mic.wav` and `system.wav`:
 /// voice A on the microphone, voice B on system audio, and B's echo on the
-/// microphone, as built-in speakers give it.
-fn write_dialogue(dir: &Path, turns: &[(bool, Vec<f32>)]) {
+/// microphone, as built-in speakers give it. Returns where each turn starts,
+/// in samples.
+fn write_dialogue(dir: &Path, turns: &[(bool, Vec<f32>)]) -> Vec<usize> {
     let pause = |index: usize| RATE as usize / 1000 * (500 + 250 * (index % 3));
     let length: usize = turns
         .iter()
@@ -983,7 +993,9 @@ fn write_dialogue(dir: &Path, turns: &[(bool, Vec<f32>)]) {
         + ECHO_DELAY_SAMPLES;
     let (mut mic, mut system) = (vec![0f32; length], vec![0f32; length]);
     let mut at = 0;
+    let mut starts = Vec::with_capacity(turns.len());
     for (index, (remote, clip)) in turns.iter().enumerate() {
+        starts.push(at);
         for (offset, sample) in clip.iter().enumerate() {
             if *remote {
                 system[at + offset] += sample;
@@ -1009,6 +1021,7 @@ fn write_dialogue(dir: &Path, turns: &[(bool, Vec<f32>)]) {
         }
         writer.finalize().unwrap();
     }
+    starts
 }
 
 /// Alternating tones that read as speech, for the quick variant.
@@ -1134,23 +1147,33 @@ fn say_dialogue(dir: &Path) {
     if dir.join(MIC_TRACK).is_file() && dir.join(SYSTEM_TRACK).is_file() {
         return;
     }
+    let turns: Vec<(bool, Vec<f32>)> = said_lines()
+        .into_iter()
+        .map(|((remote, _), clip)| (remote, clip))
+        .collect();
+    write_dialogue(dir, &turns);
+}
+
+/// Each line of the dialogue, said three times at different rates, with
+/// its audio.
+fn said_lines() -> Vec<((bool, &'static str), Vec<f32>)> {
     let clips = tempfile::tempdir().unwrap();
-    let mut turns = Vec::new();
+    let mut said = Vec::new();
     for (round, rate) in [175, 195, 215].into_iter().enumerate() {
-        for (index, (remote, line)) in LINES.iter().enumerate() {
+        for (index, &(remote, line)) in LINES.iter().enumerate() {
             let clip = clips.path().join(format!("{round}-{index}.wav"));
             let status = Command::new("say")
-                .args(["-v", if *remote { VOICE_B } else { VOICE_A }])
+                .args(["-v", if remote { VOICE_B } else { VOICE_A }])
                 .args(["-r", &rate.to_string(), "-o"])
                 .arg(&clip)
                 .args(["--file-format=WAVE", "--data-format=LEF32@16000", line])
                 .status()
                 .unwrap();
             assert!(status.success(), "say failed: {status}");
-            turns.push((*remote, read_wav(&clip)));
+            said.push(((remote, line), read_wav(&clip)));
         }
     }
-    write_dialogue(dir, &turns);
+    said
 }
 
 /// The analysis stage's time, read from the timings line.
@@ -1541,6 +1564,194 @@ fn meetings_soak() {
     std::fs::write(&path, &report).unwrap();
     println!("{report}");
     assert!(failed.is_empty(), "soak thresholds failed: {failed:?}");
+}
+
+// ---- Echoes without the on-device models ----
+
+/// Codex as a script: each piece is answered with the lines said in it, the
+/// echoes the microphone heard included, found by where its audio sits in
+/// the track.
+struct ScriptedCodex {
+    tracks: Vec<ScriptedTrack>,
+}
+
+struct ScriptedTrack {
+    samples: Vec<f32>,
+    /// Where each line said on the track starts, in samples.
+    lines: Vec<(usize, &'static str)>,
+}
+
+impl ScriptedCodex {
+    fn answer(&self, piece: &[f32]) -> String {
+        let Some(first) = piece.iter().position(|sample| *sample != 0.0) else {
+            return String::new();
+        };
+        let probe = &piece[first..(first + 256).min(piece.len())];
+        for ScriptedTrack { samples, lines } in &self.tracks {
+            if let Some(at) = samples
+                .windows(probe.len())
+                .position(|window| window == probe)
+            {
+                let start = at - first;
+                return lines
+                    .iter()
+                    .filter(|(line_at, _)| (start..start + piece.len()).contains(line_at))
+                    .map(|(_, line)| *line)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+            }
+        }
+        panic!("a piece is in neither track");
+    }
+}
+
+impl Transcriber for ScriptedCodex {
+    fn transcribe(
+        &self,
+        samples: Vec<f32>,
+        _: Option<String>,
+        _: ProcessingOperation,
+    ) -> TranscribeFuture {
+        let text = self.answer(&samples);
+        Box::pin(async move { Ok(text) })
+    }
+}
+
+/// How often the words of `line` come in a row in `keys`, a run of word
+/// keys with a space on either side.
+fn said_in(keys: &str, line: &str) -> usize {
+    let line: Vec<String> = tokenize(line)
+        .into_iter()
+        .map(|token| token.key)
+        .filter(|key| !key.is_empty())
+        .collect();
+    keys.matches(&format!(" {} ", line.join(" "))).count()
+}
+
+/// The dialogue of the soak, processed as on a Mac without the on-device
+/// models, with Codex writing every echo the microphone heard: the echoes
+/// left under "Me" against the same meeting recorded on headphones, where
+/// nothing is removed, and the user's own words lost, which must be none.
+#[test]
+#[ignore = "renders the dialogue with `say` (nothing plays): about a minute"]
+fn echoes_without_the_models() {
+    let work = tempfile::tempdir().unwrap();
+    let dialogue = work.path().join("dialogue");
+    let said = said_lines();
+    let turns: Vec<(bool, Vec<f32>)> = said
+        .iter()
+        .map(|((remote, _), clip)| (*remote, clip.clone()))
+        .collect();
+    let starts = write_dialogue(&dialogue, &turns);
+    let (mut mic_lines, mut system_lines) = (Vec::new(), Vec::new());
+    for (((remote, line), _), &start) in said.iter().zip(&starts) {
+        if *remote {
+            system_lines.push((start, *line));
+            mic_lines.push((start + ECHO_DELAY_SAMPLES, *line));
+        } else {
+            mic_lines.push((start, *line));
+        }
+    }
+    mic_lines.sort();
+    let scripted = |file: &str, lines| ScriptedTrack {
+        samples: track_audio::read_range(&dialogue.join(file), 0, 3_600_000).unwrap(),
+        lines,
+    };
+    let codex = Arc::new(ScriptedCodex {
+        tracks: vec![
+            scripted(MIC_TRACK, mic_lines),
+            scripted(SYSTEM_TRACK, system_lines),
+        ],
+    });
+
+    let data = work.path().join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    let (store, _) = MeetingsStore::open(data.join("meetings.db"), chrono::Utc::now());
+    let store = Arc::new(store);
+    let root = data.join("meetings");
+    let duration_ms = track_ms_in(&dialogue) as i64;
+    let mut me = Vec::new();
+    for route in [OutputRoute::Speakers, OutputRoute::Headphones] {
+        let id = store.insert_recording(0, MeetingTracks::Both).unwrap();
+        store
+            .finish_recording(id, duration_ms, duration_ms)
+            .unwrap();
+        store.set_output_route(id, route).unwrap();
+        let dir = paths::meeting_dir(&root, id);
+        std::fs::create_dir_all(&dir).unwrap();
+        for file in [MIC_TRACK, SYSTEM_TRACK] {
+            std::fs::copy(dialogue.join(file), dir.join(file)).unwrap();
+        }
+        let processor = Processor {
+            store: Arc::clone(&store),
+            root: root.clone(),
+            transcriber: Arc::clone(&codex) as Arc<dyn Transcriber>,
+            local: None,
+            analyzer: Arc::new(NoModels),
+            summarizer: Arc::new(CannedSummary),
+            policy: RetryPolicy::default(),
+            language: Some("fr".to_string()),
+            events: Arc::new(NoEvents),
+        };
+        let operation = ProcessingOperation::new(OperationId(id as u64));
+        tauri::async_runtime::block_on(processor.process(id, operation)).unwrap();
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        let keys: Vec<String> = meeting
+            .turns
+            .iter()
+            .filter(|turn| turn.speaker_key == "me")
+            .flat_map(|turn| tokenize(&turn.text))
+            .map(|token| token.key)
+            .filter(|key| !key.is_empty())
+            .collect();
+        me.push(format!(" {} ", keys.join(" ")));
+    }
+
+    let rounds = said.len() / LINES.len();
+    let words = |text: &str| {
+        tokenize(text)
+            .iter()
+            .filter(|token| !token.key.is_empty())
+            .count()
+    };
+    // The remote side's sentences of three words or more under "Me": shorter
+    // ones ("Bien.") recur in other lines, so a search cannot count them.
+    let echoes = |keys: &str| -> usize {
+        LINES
+            .iter()
+            .filter(|(remote, _)| *remote)
+            .flat_map(|(_, line)| sentences(line))
+            .map(|sentence| join(&sentence))
+            .filter(|sentence| words(sentence) >= 3)
+            .map(|sentence| said_in(keys, &sentence))
+            .sum()
+    };
+    // The user's words missing under "Me", each of their lines whole.
+    let lost_words: usize = LINES
+        .iter()
+        .filter(|(remote, _)| !remote)
+        .map(|(_, line)| rounds.saturating_sub(said_in(&me[0], line)) * words(line))
+        .sum();
+    let (echoes_left, echoes_on_headphones) = (echoes(&me[0]), echoes(&me[1]));
+    let removed = 1.0 - echoes_left as f64 / echoes_on_headphones.max(1) as f64;
+    println!(
+        "Echoed sentences under Me: {echoes_on_headphones} on headphones (nothing removed), \
+         {echoes_left} on speakers ({:.0} % removed). The user's words lost: {lost_words}.",
+        removed * 100.0,
+    );
+    assert!(echoes_on_headphones > 0, "the script wrote no echo");
+    assert_eq!(lost_words, 0, "the user's words were lost");
+    // Six in ten when this test was written: an echo that the spread lays
+    // over the user's own, louder words stays, as a sentence the user said
+    // back would. Fewer means the filter got worse.
+    assert!(removed >= 0.5, "only {:.0} % removed", removed * 100.0);
+}
+
+/// The length of the dialogue's microphone track.
+fn track_ms_in(dialogue: &Path) -> u64 {
+    let reader = hound::WavReader::open(dialogue.join(MIC_TRACK)).unwrap();
+    u64::from(reader.duration()) * 1000 / u64::from(RATE)
 }
 
 fn dirs_home() -> PathBuf {
