@@ -216,9 +216,10 @@ const RecordingOverlay: React.FC = () => {
   }, [animating]);
 
   // A wrapped note keeps the full width it wrapped in, leaving a gap before
-  // the action, so it is narrowed to its widest line. Wrapping again at that
-  // width breaks at the same words. Line boxes are drawn through the pop-in
-  // scale, so they are converted back to layout pixels.
+  // the action, so it is narrowed to its widest line. Balancing again at the
+  // narrower width can even the lines out further, so it narrows until the
+  // width holds. Line boxes are drawn through the pop-in scale, so they are
+  // converted back to layout pixels.
   const copyShowing = view.kind === "copy";
   const copyNote = view.kind === "copy" ? view.labels.note : null;
   useLayoutEffect(() => {
@@ -227,13 +228,17 @@ const RecordingOverlay: React.FC = () => {
     note.style.width = "";
     const lines = document.createRange();
     lines.selectNodeContents(note);
-    const widest = Math.max(
-      ...Array.from(lines.getClientRects(), (line) => line.width),
-    );
     const scale =
       parseFloat(getComputedStyle(note).width) /
       note.getBoundingClientRect().width;
-    note.style.width = `${Math.ceil(widest * scale + 0.5)}px`;
+    for (let pass = 0; pass < 4; pass++) {
+      const widest = Math.max(
+        ...Array.from(lines.getClientRects(), (line) => line.width),
+      );
+      const width = `${Math.ceil(widest * scale + 0.5)}px`;
+      if (note.style.width === width) break;
+      note.style.width = width;
+    }
   }, [copyNote]);
 
   // The copy pill's body sizes itself from its text, whatever font renders

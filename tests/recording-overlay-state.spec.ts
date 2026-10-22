@@ -436,6 +436,26 @@ for (const { locale, tray } of trayStringsByLocale) {
               actionBox.left >= linesRight
                 ? linesLeft - box.left
                 : box.right - linesRight;
+            const actionInset =
+              actionBox.left >= linesRight
+                ? box.right - actionBox.right
+                : actionBox.left - box.left;
+            const words = note.firstChild as Text;
+            const glyph = document.createRange();
+            const lineTexts: string[] = [];
+            let lineStart = 0;
+            let lineTop: number | null = null;
+            for (let i = 0; i < words.length; i++) {
+              glyph.setStart(words, i);
+              glyph.setEnd(words, i + 1);
+              const [rect] = glyph.getClientRects();
+              if (!rect || !words.data[i].trim()) continue;
+              if (lineTop !== null && rect.top > lineTop + lineHeight / 2) {
+                lineTexts.push(words.data.slice(lineStart, i).trim());
+                lineStart = i;
+              }
+              lineTop = rect.top;
+            }
             return {
               shown: spans.map((span) => span.textContent),
               clipped:
@@ -456,11 +476,17 @@ for (const { locale, tray } of trayStringsByLocale) {
               noteLines: Math.round(rects[0].height / lineHeight),
               gapToAction,
               noteInset,
+              actionInset,
+              linesEndingInHyphen: lineTexts.filter((line) =>
+                /[-\u{2010}\u{2011}]$/u.test(line),
+              ),
             };
           },
           [labels.note, label],
         );
-        expect(fit.noteLines, `${label}: note lines`).toBeLessThanOrEqual(3);
+        expect(fit.noteLines, `${label}: note lines`).toBeLessThanOrEqual(
+          font === "app font" ? 2 : 3,
+        );
         expect(
           fit.gapToAction,
           `${label}: note ends by the action`,
@@ -469,6 +495,10 @@ for (const { locale, tray } of trayStringsByLocale) {
           fit.noteInset,
           `${label}: note clears the rounded edge`,
         ).toBeGreaterThanOrEqual(12);
+        expect(
+          Math.abs(fit.actionInset - fit.noteInset),
+          `${label}: the action is as far from its edge (${fit.actionInset}px) as the note from its edge (${fit.noteInset}px)`,
+        ).toBeLessThanOrEqual(1);
         expect(fit, label).toEqual({
           shown: [labels.note, label],
           clipped: false,
@@ -476,6 +506,8 @@ for (const { locale, tray } of trayStringsByLocale) {
           noteLines: fit.noteLines,
           gapToAction: fit.gapToAction,
           noteInset: fit.noteInset,
+          actionInset: fit.actionInset,
+          linesEndingInHyphen: [],
         });
         if (label === labels.copy) await button.click();
       }

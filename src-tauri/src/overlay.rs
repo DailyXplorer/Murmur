@@ -43,7 +43,7 @@ const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
 // Copy capsule: its note wraps, so only the webview knows its size; it
 // measures the capsule and `fit_copy_notice` fits the window to it. Until
 // then the window opens at the widest capsule with three lines of note.
-const COPY_OVERLAY_WIDTH: f64 = 340.0 + 2.0 * CARD_MARGIN;
+const COPY_OVERLAY_WIDTH: f64 = 400.0 + 2.0 * CARD_MARGIN;
 const COPY_OVERLAY_HEIGHT: f64 = 62.0 + 2.0 * CARD_MARGIN;
 const COPY_DISPLAY_TIME: Duration = Duration::from_secs(4);
 const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);

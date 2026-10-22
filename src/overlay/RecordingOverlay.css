@@ -11,7 +11,8 @@
   --ov-grow-step: 2px;
   --ov-error-min-h: 36px;
   --ov-error-max-w: 280px;
-  --ov-copy-max-w: 340px;
+  /* Wide enough for the note to read on two lines in every locale. */
+  --ov-copy-max-w: 400px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
      opaque because WebKit's backdrop-filter cannot blur the desktop behind a
@@ -201,7 +202,8 @@
 
 /* Copy pill: the whole capsule is one button around a body that sizes itself
    from its text: the note, wrapping once it reaches the widest body, then the
-   Copy action in an inner capsule 4px from the end. The webview measures the
+   Copy action in an inner capsule as far from the end as the note is from the
+   start. The action never shrinks; the note wraps. The webview measures the
    body and overlay.rs fits the window to it. The body is clipped while the
    pill grows from the rest capsule. */
 .ov-capsule.ov-copy {
@@ -228,7 +230,7 @@
   max-width: var(--ov-copy-max-w);
   min-height: var(--ov-h);
   padding-block: 4px;
-  padding-inline: 14px 4px;
+  padding-inline: 14px;
   text-align: start;
 }
 .ov-copy-note {
@@ -236,6 +238,7 @@
   padding-block: 3px;
   font-weight: 500;
   line-height: 16px;
+  text-wrap: balance;
   color: rgb(255 255 255 / 0.7);
   animation: ov-fade-in 260ms ease 140ms both;
 }
