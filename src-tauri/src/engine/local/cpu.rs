@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Session};
 
+use super::boost::BoostTerms;
 use super::session::{BoxFuture, Loaded, Runtime};
 
 pub struct CpuRuntime {
@@ -57,7 +58,7 @@ impl Loaded for CpuModel {
     fn transcribe<'a>(
         &'a mut self,
         samples: &'a [f32],
-        _terms: &'a [String],
+        _terms: &'a BoostTerms,
     ) -> BoxFuture<'a, anyhow::Result<String>> {
         let session = Arc::clone(&self.session);
         let cancel = self.cancel.clone();
@@ -109,7 +110,7 @@ mod tests {
             let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
             let started = std::time::Instant::now();
             let text = loaded
-                .transcribe(&samples, &[])
+                .transcribe(&samples, &BoostTerms::default())
                 .await
                 .unwrap()
                 .to_lowercase();

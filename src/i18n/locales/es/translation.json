@@ -501,7 +501,7 @@
       },
       "windowNames": {
         "title": "Contexto de la ventana activa",
-        "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza con IA los nombres que encuentra, para escribirlos bien. También envía un breve fragmento del texto alrededor del cursor. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."
+        "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza con IA los nombres que encuentra, para escribirlos bien. Con la transcripción local en un Mac con Apple silicon, el modelo de este Mac también presta atención a ellos. También envía un breve fragmento del texto alrededor del cursor. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."
       },
       "whisperMode": {
         "title": "Modo susurro",

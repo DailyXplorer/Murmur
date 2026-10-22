@@ -1,6 +1,7 @@
 //! What the window the user dictates into offers the cleanup step: proper
 //! names visible in it, as spelling hints, and a short excerpt of the
-//! focused field around the insertion point. Both are read through
+//! focused field around the insertion point. The names also go to the local
+//! model on Apple silicon, which listens for them. Both are read through
 //! Accessibility on a background thread when dictation starts, reduced
 //! locally, and dropped after use: only the names and the excerpt leave
 //! this module, and nothing is stored or logged.

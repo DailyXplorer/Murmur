@@ -1,7 +1,7 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
-use crate::engine::local::boost::boost_terms;
+use crate::engine::local::boost::{boost_terms, BoostTerms};
 use crate::engine::local::LocalEngine;
 use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
 use crate::local_models::LocalModels;
@@ -29,7 +29,7 @@ async fn run(
     local: Option<&LocalEngine>,
     audio: &[f32],
     language: &str,
-    terms: &[String],
+    terms: &BoostTerms,
     operation: &ProcessingOperation,
 ) -> Result<String> {
     match engine {
@@ -47,9 +47,10 @@ async fn run(
         Engine::Local => {
             let local = local.ok_or_else(|| anyhow::anyhow!("No local engine in this build"))?;
             debug!(
-                "Transcribing {} samples on this Mac with {} boost term(s)",
+                "Transcribing {} samples on this Mac with {} custom word(s) and {} window name(s)",
                 audio.len(),
-                terms.len()
+                terms.words.len(),
+                terms.names.len()
             );
             local.transcribe(audio, terms, operation).await
         }
@@ -154,16 +155,18 @@ impl TranscriptionManager {
         audio: Vec<f32>,
         operation: ProcessingOperation,
     ) -> Result<String> {
-        self.transcribe_samples(Arc::new(audio), operation)
+        self.transcribe_samples(Arc::new(audio), &[], operation)
             .await
             .map(|transcript| transcript.text)
     }
 
     /// Transcribes shared samples and corrects them with the dictionary.
-    /// The local engine listens for the custom words.
+    /// The local engine listens for the custom words and the `names` read in
+    /// the window the user dictated into.
     pub(crate) async fn transcribe_samples(
         &self,
         audio: Arc<Vec<f32>>,
+        names: &[String],
         operation: ProcessingOperation,
     ) -> Result<Transcript> {
         let _active_operation = self.requests.register(&operation)?;
@@ -192,7 +195,13 @@ impl TranscriptionManager {
 
         let local = self.app_handle.try_state::<Arc<LocalEngine>>();
         let local = local.as_deref().map(Arc::as_ref);
-        let terms = boost_terms(&settings.custom_words);
+        // The setting may have been turned off while the user was dictating.
+        let names = if settings.window_names_enabled {
+            names
+        } else {
+            &[]
+        };
+        let terms = boost_terms(&settings.custom_words, names);
         let (text, source) = engine::transcribe(
             settings.transcription_engine,
             conditions,
@@ -234,16 +243,25 @@ impl TranscriptionManager {
     }
 
     fn conditions<'a>(&self, settings: &'a AppSettings) -> Conditions<'a> {
-        let model_ready = self
-            .app_handle
-            .try_state::<Arc<LocalModels>>()
-            .is_some_and(|models| models.is_ready())
-            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
         Conditions {
-            model_ready,
+            model_ready: self.model_ready(),
             signed_in: crate::codex_auth::auth_status().signed_in,
             language: &settings.selected_language,
         }
+    }
+
+    fn model_ready(&self) -> bool {
+        self.app_handle
+            .try_state::<Arc<LocalModels>>()
+            .is_some_and(|models| models.is_ready())
+            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some()
+    }
+
+    /// Whether a dictation starting now may reach the local model, chosen or
+    /// as the fallback, on a Mac where it boosts window names (Apple silicon).
+    pub fn local_can_boost(&self, settings: &AppSettings) -> bool {
+        cfg!(target_arch = "aarch64")
+            && engine::local_can_serve(self.model_ready(), &settings.selected_language)
     }
 
     /// At the start of a recording: loads the local model when the dictation

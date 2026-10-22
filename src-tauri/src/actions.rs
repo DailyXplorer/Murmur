@@ -205,13 +205,14 @@ pub(crate) async fn process_transcription_output(
     }
 }
 
-/// What a dictation starting now reads from the frontmost window: only
-/// cleanup uses what it finds.
-fn context_reads(settings: &AppSettings) -> ContextReads {
-    let cleanup_reads = settings.window_names_enabled && settings.ai_cleanup_enabled;
+/// What a dictation starting now reads from the frontmost window: the names
+/// for cleanup and for a local model that boosts them (`local_boosts`), the
+/// field for cleanup only.
+fn context_reads(settings: &AppSettings, local_boosts: bool) -> ContextReads {
+    let on = settings.window_names_enabled;
     ContextReads {
-        names: cleanup_reads,
-        field: cleanup_reads,
+        names: on && (settings.ai_cleanup_enabled || local_boosts),
+        field: on && settings.ai_cleanup_enabled,
     }
 }
 
@@ -300,8 +301,11 @@ impl ShortcutAction for TranscribeAction {
                     recording_start_time.elapsed()
                 );
                 crate::dictionary::stop_observing();
-                crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+                crate::window_names::capture(context_reads(
+                    &settings,
+                    tm.local_can_boost(&settings),
+                ));
                 std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
                 let app_clone = app.clone();
@@ -479,8 +483,9 @@ impl ShortcutAction for TranscribeAction {
                         user_alert::show(&ah, Alert::LongRecording);
                     }
                     let transcription_time = Instant::now();
-                    let transcription_result =
-                        tm.transcribe_samples(samples, operation.clone()).await;
+                    let transcription_result = tm
+                        .transcribe_samples(samples, &window.names, operation.clone())
+                        .await;
 
                     let wav_saved = match wav_handle {
                         None => false,
@@ -740,23 +745,24 @@ mod tests {
     }
 
     #[test]
-    fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
-        for (setting, cleanup, read) in [
-            (true, true, true),
-            (false, true, false),
-            (true, false, false),
-            (false, false, false),
+    fn names_are_read_for_cleanup_or_local_boosting_and_the_field_for_cleanup_only() {
+        for (setting, cleanup, local_boosts, names, field) in [
+            (true, true, true, true, true),
+            (true, true, false, true, true),
+            (true, false, true, true, false),
+            (true, false, false, false, false),
+            (false, true, true, false, false),
+            (false, true, false, false, false),
+            (false, false, true, false, false),
+            (false, false, false, false, false),
         ] {
             let mut settings = get_default_settings();
             settings.window_names_enabled = setting;
             settings.ai_cleanup_enabled = cleanup;
             assert_eq!(
-                context_reads(&settings),
-                ContextReads {
-                    names: read,
-                    field: read
-                },
-                "setting {setting}, cleanup {cleanup}"
+                context_reads(&settings, local_boosts),
+                ContextReads { names, field },
+                "setting {setting}, cleanup {cleanup}, local boosting {local_boosts}"
             );
         }
     }

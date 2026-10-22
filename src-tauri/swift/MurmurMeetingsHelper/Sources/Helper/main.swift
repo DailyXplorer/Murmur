@@ -81,8 +81,10 @@ struct ServeRequest: Decodable {
     let type: String
     let id: UInt64
     let wav: String
-    /// Words to listen for. Absent when there are none.
+    /// The custom words to listen for. Absent when there are none.
     let terms: [String]?
+    /// Names read in the window, held to a closer match. Absent when none.
+    let names: [String]?
 }
 
 let output = FileHandle.standardOutput
@@ -217,9 +219,20 @@ func diarize(models: URL, arguments: [String]) async -> Int32 {
     return 0
 }
 
+/// The words of one request: the custom words and the window names.
+struct BoostWords: Equatable, Sendable {
+    let terms: [String]
+    let names: [String]
+}
+
+/// The spelling match a window name needs to replace a heard word. At the
+/// custom words' 0.50 to 0.55, "table" became "Tableau" (0.71) and "lazy dog"
+/// "Datadog"; "Ghilane" to "Ghislaine" is 0.78 (`boost.rs`).
+let nameMinSimilarity: Float = 0.75
+
 /// The terms of one request, ready to rescore a transcript with.
 struct Boost: Sendable {
-    let terms: [String]
+    let words: BoostWords
     let spotter: CtcKeywordSpotter
     let vocabulary: CustomVocabularyContext
     let rescorer: VocabularyRescorer
@@ -228,7 +241,8 @@ struct Boost: Sendable {
     func rescored(_ result: ASRResult, spotted: CtcKeywordSpotter.SpotKeywordsResult) -> String? {
         guard let timings = result.tokenTimings, !timings.isEmpty, !spotted.logProbs.isEmpty
         else { return nil }
-        let tuned = ContextBiasingConstants.rescorerConfig(forVocabSize: vocabulary.terms.count)
+        // Tuned for the custom words alone, so the names leave them as they were.
+        let tuned = ContextBiasingConstants.rescorerConfig(forVocabSize: words.terms.count)
         let output = rescorer.ctcTokenRescore(
             transcript: result.text, tokenTimings: timings, logProbs: spotted.logProbs,
             frameDuration: spotted.frameDuration, cbw: tuned.cbw,
@@ -238,8 +252,9 @@ struct Boost: Sendable {
     }
 }
 
-/// Custom-word boosting: FluidAudio's CTC keyword spotting rescores the
-/// Parakeet transcript (FluidAudio's `Documentation/ASR/CustomVocabulary.md`).
+/// Boosting of custom words and window names: FluidAudio's CTC keyword
+/// spotting rescores the Parakeet transcript (FluidAudio's
+/// `Documentation/ASR/CustomVocabulary.md`).
 /// The CTC model is an optional download, loaded from Murmur's folder rather
 /// than FluidAudio's own cache.
 final class Booster {
@@ -274,13 +289,17 @@ final class Booster {
     }
 
     /// `nil` when no term can be spotted or the rescorer cannot be built.
-    func boost(_ terms: [String]) async -> Boost? {
-        if let last, last.terms == terms { return last }
+    func boost(_ words: BoostWords) async -> Boost? {
+        if let last, last.words == words { return last }
+        func term(_ text: String, minSimilarity: Float?) -> CustomVocabularyTerm? {
+            let ids = tokenizer.encode(text)
+            return ids.isEmpty
+                ? nil
+                : CustomVocabularyTerm(text: text, ctcTokenIds: ids, minSimilarity: minSimilarity)
+        }
         let vocabulary = CustomVocabularyContext(
-            terms: terms.compactMap { text in
-                let ids = tokenizer.encode(text)
-                return ids.isEmpty ? nil : CustomVocabularyTerm(text: text, ctcTokenIds: ids)
-            })
+            terms: words.terms.compactMap { term($0, minSimilarity: nil) }
+                + words.names.compactMap { term($0, minSimilarity: nameMinSimilarity) })
         guard !vocabulary.terms.isEmpty else { return nil }
         // The acoustic rescue replaces far more words that were right.
         guard
@@ -289,7 +308,7 @@ final class Booster {
                 config: VocabularyRescorer.Config(spotterRescueEnabled: false),
                 ctcModelDirectory: directory)
         else { return nil }
-        last = Boost(terms: terms, spotter: spotter, vocabulary: vocabulary, rescorer: rescorer)
+        last = Boost(words: words, spotter: spotter, vocabulary: vocabulary, rescorer: rescorer)
         return last
     }
 }
@@ -316,8 +335,10 @@ func serve(models: URL) async -> Int32 {
         do {
             let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: request.wav))
             var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
-            let terms = request.terms ?? []
-            guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
+            let words = BoostWords(terms: request.terms ?? [], names: request.names ?? [])
+            guard !(words.terms.isEmpty && words.names.isEmpty),
+                let boost = await booster?.boost(words)
+            else {
                 let result = try await manager.transcribe(samples, decoderState: &state)
                 emit(ServeText(id: request.id, text: result.text))
                 continue
