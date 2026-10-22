@@ -45,6 +45,35 @@ test("Start signs in in the browser, and Continue appears once the session is sa
     .toEqual(["complete"]);
 });
 
+test("Start does not come back while the status is checked after a sign-in", async ({
+  page,
+}) => {
+  await page.goto(fixturePath);
+  await waitForProviderStep(page);
+  const step = page.getByTestId("provider-onboarding");
+  const buttons = step.getByRole("button");
+
+  await step.getByRole("button", { name: "Start" }).click();
+  await expect(buttons).toHaveText(["Cancel", "Retry"]);
+  const refresh = await page.evaluate(() => {
+    window.providerOnboardingFixture.setCodexConfigured(true);
+    return window.providerOnboardingFixture.deferStatusRefresh();
+  });
+  const statusChecks = async () =>
+    (await calls(page)).filter((call) => call === "get_codex_auth_status")
+      .length;
+  const checksBefore = await statusChecks();
+  await page.evaluate(() => window.providerOnboardingFixture.resolveSignIn());
+  await expect.poll(statusChecks).toBe(checksBefore + 1);
+  await expect(buttons).toHaveText(["Cancel", "Retry"]);
+
+  await page.evaluate(
+    (index) => window.providerOnboardingFixture.resolveStatusRefresh(index),
+    refresh,
+  );
+  await expect(buttons).toHaveText(["Continue", "Retry"]);
+});
+
 test("a failed sign-in says why and brings Start back", async ({ page }) => {
   await page.goto(fixturePath);
   await waitForProviderStep(page);

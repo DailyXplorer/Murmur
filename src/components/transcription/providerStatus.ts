@@ -79,10 +79,12 @@ export type SignInState =
 
 /**
  * Murmur's own ChatGPT sign-in in the browser. `onSignedIn` runs once the
- * session is saved. Leaving the screen does not cancel it: the backend gives
- * up on its own, and a new sign-in replaces the one under way.
+ * session is saved, and the sign-in stays `waiting` until it ends, so the
+ * sign-in button does not come back while the new status loads. Leaving the
+ * screen does not cancel it: the backend gives up on its own, and a new
+ * sign-in replaces the one under way.
  */
-export const useChatGptSignIn = (onSignedIn: () => void) => {
+export const useChatGptSignIn = (onSignedIn: () => Promise<void>) => {
   const [state, setState] = useState<SignInState>({ phase: "idle" });
   const attempt = useRef(0);
 
@@ -93,7 +95,7 @@ export const useChatGptSignIn = (onSignedIn: () => void) => {
     try {
       const result = await commands.signInWithChatgpt();
       if (result.status === "ok") {
-        onSignedIn();
+        await onSignedIn();
       } else if (result.error !== "cancelled") {
         next = { phase: "failed", error: result.error };
       }

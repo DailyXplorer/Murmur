@@ -41,11 +41,7 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
     };
   }, [invalidatePendingRefreshes, refreshStatus]);
 
-  const refreshAfterSignIn = useCallback(
-    () => void refreshStatus(),
-    [refreshStatus],
-  );
-  const { cancel, signIn, start } = useChatGptSignIn(refreshAfterSignIn);
+  const { cancel, signIn, start } = useChatGptSignIn(refreshStatus);
 
   const connected = checked?.kind === "configured";
   const canComplete = !isCompleting && connected;

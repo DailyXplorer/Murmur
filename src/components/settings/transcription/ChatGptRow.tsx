@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { commands, type Engine } from "@/bindings";
@@ -61,11 +61,7 @@ export const ChatGptRow: React.FC<{
   const [checked, setChecked] = useState<ProviderStatus | null>(null);
   if (status.kind !== "checking" && status !== checked) setChecked(status);
 
-  const refreshAfterSignIn = useCallback(
-    () => void refreshStatus(),
-    [refreshStatus],
-  );
-  const { cancel, signIn, start } = useChatGptSignIn(refreshAfterSignIn);
+  const { cancel, signIn, start } = useChatGptSignIn(refreshStatus);
 
   const signOut = async () => {
     try {
