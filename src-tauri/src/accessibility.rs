@@ -308,6 +308,37 @@ mod tests {
         }
     }
 
+    /// Roles the probe in #197 read from Finder and System Settings.
+    #[test]
+    fn finder_and_settings_focus_is_no_text_field() {
+        for (role, subrole, accepts_text, why) in [
+            ("AXGroup", Some("AXDesktop"), true, "Finder desktop"),
+            (
+                "AXScrollArea",
+                Some("AXDesktop"),
+                false,
+                "Finder desktop area",
+            ),
+            (
+                "AXOutline",
+                None,
+                false,
+                "Finder window or Settings sidebar",
+            ),
+        ] {
+            let focused = FocusedElement {
+                role: Some(role.to_string()),
+                subrole: subrole.map(str::to_string),
+                accepts_text,
+            };
+            assert_eq!(
+                classify_focus(Some(focused)),
+                FocusedField::NoTextField,
+                "{why}"
+            );
+        }
+    }
+
     #[test]
     fn an_unreadable_or_container_focus_is_unknown() {
         assert_eq!(classify_focus(None), FocusedField::Unknown);
