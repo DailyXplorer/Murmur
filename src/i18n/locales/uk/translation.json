@@ -507,13 +507,31 @@
         "error": "Не вдалося змінити спосіб транскрипції."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Модель розпізнавання мовлення від NVIDIA. Завантажується один раз із Hugging Face і працює на цьому Mac.",
-        "meetings": "Також використовується в зустрічах, щоб розрізняти мовців.",
         "missing": "Не завантажено",
-        "downloading": "Завантаження… {{done}} з {{total}}",
         "preparing": "Підготовка для цього Mac… (близько 15 секунд, лише вперше)",
         "ready": "Готово · {{size}}",
+        "row": {
+          "downloading": "Завантаження · {{percent}}%",
+          "preparing": "Підготовка…",
+          "preparingNote": "Близько 15 секунд.",
+          "meetings": "Також для зустрічей.",
+          "unavailable": "Недоступно",
+          "needs": {
+            "os_too_old": "Потрібна мінімум macOS 15.",
+            "unsupported": "Потрібен Apple silicon."
+          },
+          "stopped": "Завантаження зупинено",
+          "noSpace": "Замало місця",
+          "loadFailed": "Не вдалося запустити",
+          "reason": {
+            "no_internet": "Немає інтернету.",
+            "server_unavailable": "Сервер не відповідає.",
+            "damaged": "Файл пошкоджено.",
+            "not_enough_space": "Потрібно {{needed}}, є {{free}}.",
+            "disk": "Не вдалося зберегти.",
+            "prepare_failed": "Завантажено, та не працює."
+          }
+        },
         "download": "Завантажити ({{size}})",
         "retry": "Спробувати ще раз",
         "delete": "Видалити",

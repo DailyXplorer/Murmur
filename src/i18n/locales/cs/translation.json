@@ -507,13 +507,31 @@
         "error": "Způsob přepisu se nepodařilo změnit."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Model rozpoznávání řeči od NVIDIA. Stáhne se jednou z Hugging Face a běží na tomto Macu.",
-        "meetings": "Používají ho také Schůzky k rozlišení mluvčích.",
         "missing": "Nestaženo",
-        "downloading": "Stahování… {{done}} z {{total}}",
         "preparing": "Příprava pro tento Mac… (asi 15 sekund, jen poprvé)",
         "ready": "Připraveno · {{size}}",
+        "row": {
+          "downloading": "Stahování · {{percent}} %",
+          "preparing": "Příprava…",
+          "preparingNote": "Trvá asi 15 sekund.",
+          "meetings": "Používají ho i Schůzky.",
+          "unavailable": "Nedostupné",
+          "needs": {
+            "os_too_old": "Vyžaduje macOS 15 či novější.",
+            "unsupported": "Vyžaduje Apple silicon."
+          },
+          "stopped": "Stahování přerušeno",
+          "noSpace": "Málo místa",
+          "loadFailed": "Nelze načíst",
+          "reason": {
+            "no_internet": "Bez připojení k internetu.",
+            "server_unavailable": "Server neodpovídá.",
+            "damaged": "Soubor dorazil poškozený.",
+            "not_enough_space": "Potřeba {{needed}}, volno {{free}}.",
+            "disk": "Nelze uložit.",
+            "prepare_failed": "Staženo, ale nespustí se."
+          }
+        },
         "download": "Stáhnout ({{size}})",
         "retry": "Zkusit znovu",
         "delete": "Smazat",

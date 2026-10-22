@@ -507,13 +507,31 @@
         "error": "無法變更轉錄方式。"
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA 的語音辨識模型。從 Hugging Face 下載一次，在這台 Mac 上執行。",
-        "meetings": "會議也用它來區分發言者。",
         "missing": "尚未下載",
-        "downloading": "正在下載… {{done}}/{{total}}",
         "preparing": "正在為這台 Mac 準備…（約 15 秒，僅限第一次）",
         "ready": "已就緒 · {{size}}",
+        "row": {
+          "downloading": "正在下載 · {{percent}}%",
+          "preparing": "正在準備…",
+          "preparingNote": "約需 15 秒。",
+          "meetings": "會議也會用到它。",
+          "unavailable": "無法使用",
+          "needs": {
+            "os_too_old": "需要 macOS 15 或更新版本。",
+            "unsupported": "需要 Apple 晶片。"
+          },
+          "stopped": "下載已停止",
+          "noSpace": "空間不足",
+          "loadFailed": "無法載入",
+          "reason": {
+            "no_internet": "沒有網路連線。",
+            "server_unavailable": "伺服器沒有回應。",
+            "damaged": "檔案已損毀。",
+            "not_enough_space": "需要 {{needed}}，可用 {{free}}。",
+            "disk": "無法儲存。",
+            "prepare_failed": "已下載，但無法啟動。"
+          }
+        },
         "download": "下載（{{size}}）",
         "retry": "重試",
         "delete": "刪除",

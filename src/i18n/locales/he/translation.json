@@ -507,13 +507,31 @@
         "error": "לא ניתן היה לשנות את אופן התמלול."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "מודל זיהוי הדיבור של NVIDIA. הוא יורד פעם אחת מ-Hugging Face ופועל ב-Mac הזה.",
-        "meetings": "משמש גם את הפגישות כדי להבחין בין דוברים.",
         "missing": "לא הורד",
-        "downloading": "מוריד… {{done}} מתוך {{total}}",
         "preparing": "מכין עבור ה-Mac הזה… (כ-15 שניות, רק בפעם הראשונה)",
         "ready": "מוכן · {{size}}",
+        "row": {
+          "downloading": "מוריד · {{percent}}%",
+          "preparing": "מכין…",
+          "preparingNote": "לוקח כ-15 שניות.",
+          "meetings": "משמש גם את הפגישות.",
+          "unavailable": "לא זמין",
+          "needs": {
+            "os_too_old": "נדרש macOS 15 ומעלה.",
+            "unsupported": "נדרש שבב Apple."
+          },
+          "stopped": "ההורדה נעצרה",
+          "noSpace": "אין מספיק מקום",
+          "loadFailed": "הטעינה נכשלה",
+          "reason": {
+            "no_internet": "אין חיבור לאינטרנט.",
+            "server_unavailable": "השרת לא מגיב.",
+            "damaged": "הקובץ הגיע פגום.",
+            "not_enough_space": "נדרשים {{needed}}, פנויים {{free}}.",
+            "disk": "לא ניתן לשמור.",
+            "prepare_failed": "הורד, אך לא נטען."
+          }
+        },
         "download": "הורדה ({{size}})",
         "retry": "ניסיון חוזר",
         "delete": "מחיקה",

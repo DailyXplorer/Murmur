@@ -507,13 +507,31 @@
         "error": "Kan niet wijzigen hoe Murmur transcribeert."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Het spraakherkenningsmodel van NVIDIA. Het wordt één keer gedownload van Hugging Face en draait op deze Mac.",
-        "meetings": "Wordt ook door Vergaderingen gebruikt om sprekers te onderscheiden.",
         "missing": "Niet gedownload",
-        "downloading": "Downloaden… {{done}} van {{total}}",
         "preparing": "Voorbereiden voor deze Mac… (ongeveer 15 seconden, alleen de eerste keer)",
         "ready": "Klaar · {{size}}",
+        "row": {
+          "downloading": "Downloaden · {{percent}}%",
+          "preparing": "Voorbereiden…",
+          "preparingNote": "Duurt ongeveer 15 seconden.",
+          "meetings": "Ook voor Vergaderingen.",
+          "unavailable": "Niet beschikbaar",
+          "needs": {
+            "os_too_old": "Vereist macOS 15 of later.",
+            "unsupported": "Vereist Apple silicon."
+          },
+          "stopped": "Download gestopt",
+          "noSpace": "Te weinig ruimte",
+          "loadFailed": "Laden mislukt",
+          "reason": {
+            "no_internet": "Geen internetverbinding.",
+            "server_unavailable": "De server reageert niet.",
+            "damaged": "Het bestand is beschadigd.",
+            "not_enough_space": "{{needed}} nodig, {{free}} vrij.",
+            "disk": "Opslaan is mislukt.",
+            "prepare_failed": "Gedownload, maar start niet."
+          }
+        },
         "download": "Downloaden ({{size}})",
         "retry": "Opnieuw proberen",
         "delete": "Verwijderen",

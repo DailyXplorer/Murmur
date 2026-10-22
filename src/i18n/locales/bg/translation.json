@@ -507,13 +507,31 @@
         "error": "Начинът на транскрибиране не можа да бъде променен."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Моделът за разпознаване на реч на NVIDIA. Изтегля се веднъж от Hugging Face и работи на този Mac.",
-        "meetings": "Използва се и от Срещи, за да различава говорещите.",
         "missing": "Не е изтеглен",
-        "downloading": "Изтегляне… {{done}} от {{total}}",
         "preparing": "Подготовка за този Mac… (около 15 секунди, само първия път)",
         "ready": "Готов · {{size}}",
+        "row": {
+          "downloading": "Изтегляне · {{percent}}%",
+          "preparing": "Подготовка…",
+          "preparingNote": "Около 15 секунди.",
+          "meetings": "Използва се и от Срещи.",
+          "unavailable": "Недостъпно",
+          "needs": {
+            "os_too_old": "Изисква поне macOS 15.",
+            "unsupported": "Изисква Apple silicon."
+          },
+          "stopped": "Изтеглянето спря",
+          "noSpace": "Недостатъчно място",
+          "loadFailed": "Неуспешно зареждане",
+          "reason": {
+            "no_internet": "Няма интернет връзка.",
+            "server_unavailable": "Сървърът не отговаря.",
+            "damaged": "Файлът е повреден.",
+            "not_enough_space": "Нужни {{needed}}, има {{free}}.",
+            "disk": "Неуспешно записване.",
+            "prepare_failed": "Изтеглен, но не стартира."
+          }
+        },
         "download": "Изтегляне ({{size}})",
         "retry": "Опитай отново",
         "delete": "Изтрий",

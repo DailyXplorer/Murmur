@@ -507,13 +507,31 @@
         "error": "받아쓰기 방식을 변경할 수 없습니다."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA의 음성 인식 모델입니다. Hugging Face에서 한 번 다운로드하며 이 Mac에서 실행됩니다.",
-        "meetings": "회의에서도 화자를 구분하는 데 사용됩니다.",
         "missing": "다운로드되지 않음",
-        "downloading": "다운로드 중… {{total}} 중 {{done}}",
         "preparing": "이 Mac에 맞게 준비 중… (약 15초, 처음 한 번만)",
         "ready": "준비됨 · {{size}}",
+        "row": {
+          "downloading": "다운로드 중 · {{percent}}%",
+          "preparing": "준비 중…",
+          "preparingNote": "약 15초 걸립니다.",
+          "meetings": "회의에서도 사용됩니다.",
+          "unavailable": "사용할 수 없음",
+          "needs": {
+            "os_too_old": "macOS 15 이상이 필요합니다.",
+            "unsupported": "Apple 실리콘이 필요합니다."
+          },
+          "stopped": "다운로드 중단됨",
+          "noSpace": "공간 부족",
+          "loadFailed": "불러올 수 없음",
+          "reason": {
+            "no_internet": "인터넷 연결 없음.",
+            "server_unavailable": "서버가 응답하지 않습니다.",
+            "damaged": "파일이 손상되었습니다.",
+            "not_enough_space": "{{needed}} 필요, {{free}} 남음.",
+            "disk": "저장할 수 없습니다.",
+            "prepare_failed": "시작할 수 없습니다."
+          }
+        },
         "download": "다운로드 ({{size}})",
         "retry": "다시 시도",
         "delete": "삭제",

@@ -507,13 +507,31 @@
         "error": "文字起こしの方法を変更できませんでした。"
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIAの音声認識モデルです。Hugging Faceから一度だけダウンロードし、このMacで動作します。",
-        "meetings": "会議でも話者の区別に使われます。",
         "missing": "未ダウンロード",
-        "downloading": "ダウンロード中… {{done}} / {{total}}",
         "preparing": "このMac用に準備中…（約15秒、初回のみ）",
         "ready": "準備完了 · {{size}}",
+        "row": {
+          "downloading": "ダウンロード中 · {{percent}}%",
+          "preparing": "準備中…",
+          "preparingNote": "約15秒かかります。",
+          "meetings": "会議でも使われます。",
+          "unavailable": "利用できません",
+          "needs": {
+            "os_too_old": "macOS 15以降が必要です。",
+            "unsupported": "Appleシリコンが必要です。"
+          },
+          "stopped": "ダウンロード停止",
+          "noSpace": "空き容量が不足",
+          "loadFailed": "読み込めません",
+          "reason": {
+            "no_internet": "インターネット未接続。",
+            "server_unavailable": "サーバーが応答しません。",
+            "damaged": "ファイルが破損しています。",
+            "not_enough_space": "{{needed}}必要、空き{{free}}。",
+            "disk": "保存できませんでした。",
+            "prepare_failed": "起動できませんでした。"
+          }
+        },
         "download": "ダウンロード（{{size}}）",
         "retry": "再試行",
         "delete": "削除",

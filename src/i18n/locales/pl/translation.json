@@ -507,13 +507,31 @@
         "error": "Nie udało się zmienić sposobu transkrypcji."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Model rozpoznawania mowy od NVIDIA. Pobiera się raz z Hugging Face i działa na tym Macu.",
-        "meetings": "Używany też przez Spotkania do rozróżniania mówców.",
         "missing": "Nie pobrano",
-        "downloading": "Pobieranie… {{done}} z {{total}}",
         "preparing": "Przygotowywanie dla tego Maca… (około 15 sekund, tylko za pierwszym razem)",
         "ready": "Gotowy · {{size}}",
+        "row": {
+          "downloading": "Pobieranie · {{percent}}%",
+          "preparing": "Przygotowywanie…",
+          "preparingNote": "Około 15 sekund.",
+          "meetings": "Używany też przez Spotkania.",
+          "unavailable": "Niedostępne",
+          "needs": {
+            "os_too_old": "Wymaga min. macOS 15.",
+            "unsupported": "Wymaga Apple silicon."
+          },
+          "stopped": "Pobieranie przerwane",
+          "noSpace": "Za mało miejsca",
+          "loadFailed": "Nie udało się wczytać",
+          "reason": {
+            "no_internet": "Brak połączenia z internetem.",
+            "server_unavailable": "Serwer nie odpowiada.",
+            "damaged": "Plik dotarł uszkodzony.",
+            "not_enough_space": "Trzeba {{needed}}, jest {{free}}.",
+            "disk": "Nie udało się zapisać.",
+            "prepare_failed": "Pobrany, ale nie startuje."
+          }
+        },
         "download": "Pobierz ({{size}})",
         "retry": "Spróbuj ponownie",
         "delete": "Usuń",

@@ -507,13 +507,31 @@
         "error": "ट्रांसक्रिप्शन का तरीका नहीं बदला जा सका।"
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA का स्पीच रिकग्निशन मॉडल। यह Hugging Face से एक बार डाउनलोड होता है और इसी Mac पर चलता है।",
-        "meetings": "मीटिंग में बोलने वालों को अलग पहचानने के लिए भी इसका उपयोग होता है।",
         "missing": "डाउनलोड नहीं किया गया",
-        "downloading": "डाउनलोड हो रहा है… {{total}} में से {{done}}",
         "preparing": "इस Mac के लिए तैयार किया जा रहा है… (लगभग 15 सेकंड, केवल पहली बार)",
         "ready": "तैयार · {{size}}",
+        "row": {
+          "downloading": "डाउनलोड · {{percent}}%",
+          "preparing": "तैयार हो रहा है…",
+          "preparingNote": "लगभग 15 सेकंड लगेंगे।",
+          "meetings": "मीटिंग में भी उपयोग होता है।",
+          "unavailable": "उपलब्ध नहीं",
+          "needs": {
+            "os_too_old": "macOS 15 या नया चाहिए।",
+            "unsupported": "Apple silicon चाहिए।"
+          },
+          "stopped": "डाउनलोड रुक गया",
+          "noSpace": "पर्याप्त जगह नहीं",
+          "loadFailed": "लोड नहीं हो सका",
+          "reason": {
+            "no_internet": "इंटरनेट कनेक्शन नहीं है।",
+            "server_unavailable": "सर्वर जवाब नहीं दे रहा।",
+            "damaged": "फ़ाइल खराब मिली।",
+            "not_enough_space": "{{needed}} चाहिए, {{free}} खाली है।",
+            "disk": "सेव नहीं हो सका।",
+            "prepare_failed": "डाउनलोड हुआ, पर चलता नहीं।"
+          }
+        },
         "download": "डाउनलोड करें ({{size}})",
         "retry": "फिर से कोशिश करें",
         "delete": "हटाएँ",

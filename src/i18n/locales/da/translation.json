@@ -507,13 +507,31 @@
         "error": "Kunne ikke ændre, hvordan Murmur transskriberer."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIAs model til talegenkendelse. Den hentes én gang fra Hugging Face og kører på denne Mac.",
-        "meetings": "Bruges også af Møder til at skelne mellem talere.",
         "missing": "Ikke hentet",
-        "downloading": "Henter… {{done}} af {{total}}",
         "preparing": "Forbereder til denne Mac… (ca. 15 sekunder, kun første gang)",
         "ready": "Klar · {{size}}",
+        "row": {
+          "downloading": "Henter · {{percent}} %",
+          "preparing": "Forbereder…",
+          "preparingNote": "Tager ca. 15 sekunder.",
+          "meetings": "Bruges også af Møder.",
+          "unavailable": "Ikke tilgængelig",
+          "needs": {
+            "os_too_old": "Kræver macOS 15 eller nyere.",
+            "unsupported": "Kræver Apple silicon."
+          },
+          "stopped": "Hentning stoppet",
+          "noSpace": "Ikke nok plads",
+          "loadFailed": "Kunne ikke indlæses",
+          "reason": {
+            "no_internet": "Ingen internetforbindelse.",
+            "server_unavailable": "Serveren svarer ikke.",
+            "damaged": "Filen kom frem beskadiget.",
+            "not_enough_space": "{{needed}} kræves, {{free}} ledigt.",
+            "disk": "Kunne ikke gemmes.",
+            "prepare_failed": "Hentet, men starter ikke."
+          }
+        },
         "download": "Hent ({{size}})",
         "retry": "Prøv igen",
         "delete": "Slet",

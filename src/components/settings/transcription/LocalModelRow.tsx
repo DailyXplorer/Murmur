@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import {
 import { downloadPercent } from "@/hooks/useLocalModel";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../../ui/Button";
-import { SettingContainer } from "../../ui/SettingContainer";
 import { DeleteModelDialog } from "./DeleteModelDialog";
 
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
@@ -20,13 +19,65 @@ export const failureText = (
   t: TFunction,
   reason: DownloadFailure,
   locale: string,
+  keys = "settings.transcription.localModel.failed",
 ): string =>
   reason.kind === "not_enough_space"
-    ? t("settings.transcription.localModel.failed.not_enough_space", {
+    ? t(`${keys}.not_enough_space`, {
         needed: formatSize(reason.needed_bytes, locale),
         free: formatSize(reason.free_bytes, locale),
       })
-    : t(`settings.transcription.localModel.failed.${reason.kind}`);
+    : t(`${keys}.${reason.kind}`);
+
+const ROW = "settings.transcription.localModel.row";
+
+const FAILURE_TITLES: Record<DownloadFailure["kind"], string> = {
+  no_internet: `${ROW}.stopped`,
+  server_unavailable: `${ROW}.stopped`,
+  damaged: `${ROW}.stopped`,
+  not_enough_space: `${ROW}.noSpace`,
+  disk: `${ROW}.stopped`,
+  prepare_failed: `${ROW}.loadFailed`,
+};
+
+/** The row's two lines: the model's state, then at most one short note. */
+const rowLines = (
+  t: TFunction,
+  status: LocalModelStatus,
+  meetingsUseIt: boolean,
+  locale: string,
+): [string, string | null] => {
+  const meetings = meetingsUseIt ? t(`${ROW}.meetings`) : null;
+  const { state } = status;
+  switch (state.state) {
+    case "unsupported":
+      return [t(`${ROW}.unavailable`), t(`${ROW}.needs.${state.support}`)];
+    case "missing":
+      return [t("settings.transcription.localModel.missing"), meetings];
+    case "downloading":
+      return [
+        t(`${ROW}.downloading`, { percent: downloadPercent(status) }),
+        meetings,
+      ];
+    case "preparing":
+      return [t(`${ROW}.preparing`), t(`${ROW}.preparingNote`)];
+    case "ready":
+      return [
+        t("settings.transcription.localModel.ready", {
+          size: formatSize(status.size_bytes, locale),
+        }),
+        meetings,
+      ];
+    case "failed":
+      return [
+        t(FAILURE_TITLES[state.reason.kind]),
+        failureText(t, state.reason, locale, `${ROW}.reason`),
+      ];
+    default: {
+      const _exhaustive: never = state;
+      return _exhaustive;
+    }
+  }
+};
 
 /** Runs a model command once per click, with a toast if it fails. The
  * state, and with it the button, changes within milliseconds of a click, so
@@ -58,35 +109,10 @@ export const LocalModelRow: React.FC<{
   const { t, i18n } = useTranslation();
   const run = useModelAction("settings.transcription.localModel.error");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const statusId = useId();
   const { state } = status;
   const size = formatSize(status.size_bytes, i18n.language);
-  const percent = downloadPercent(status);
-
-  const label = (() => {
-    switch (state.state) {
-      case "unsupported":
-        return t(`settings.transcription.engine.${state.support}`);
-      case "missing":
-        return t("settings.transcription.localModel.missing");
-      case "downloading":
-        return t("settings.transcription.localModel.downloading", {
-          done: new Intl.NumberFormat(i18n.language, {
-            maximumFractionDigits: 0,
-          }).format(state.done_bytes / 1_000_000),
-          total: formatSize(state.total_bytes, i18n.language),
-        });
-      case "preparing":
-        return t("settings.transcription.localModel.preparing");
-      case "ready":
-        return t("settings.transcription.localModel.ready", { size });
-      case "failed":
-        return failureText(t, state.reason, i18n.language);
-      default: {
-        const _exhaustive: never = state;
-        return _exhaustive;
-      }
-    }
-  })();
+  const [label, note] = rowLines(t, status, meetingsUseIt, i18n.language);
 
   const deleteButton = (
     <Button onClick={() => setConfirmDelete(true)}>
@@ -143,38 +169,32 @@ export const LocalModelRow: React.FC<{
 
   return (
     <div data-testid="local-model-row">
-      <SettingContainer
-        title={t("settings.transcription.localModel.title")}
-        description={t("settings.transcription.localModel.description")}
-        grouped={true}
-        detail={
-          <>
-            <p className="text-pretty text-sm text-text/70">{label}</p>
-            {state.state === "downloading" && (
+      <div className="flex min-h-12 items-center justify-between gap-5 px-4 py-1">
+        <div className="min-w-0 flex-1">
+          <p id={statusId} className="text-pretty text-sm font-medium">
+            {label}
+          </p>
+          {state.state === "downloading" && (
+            <div
+              role="progressbar"
+              aria-labelledby={statusId}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={downloadPercent(status)}
+              className="mt-1 mb-1.5 h-1.5 overflow-hidden rounded-full bg-mid-gray/20"
+            >
               <div
-                role="progressbar"
-                aria-label={t("settings.transcription.localModel.title")}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={percent}
-                className="mt-1 mb-1.5 h-1.5 overflow-hidden rounded-full bg-mid-gray/20"
-              >
-                <div
-                  className="h-full rounded-full bg-logo-primary transition-[width] duration-300"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            )}
-            {meetingsUseIt && (
-              <p className="text-pretty text-xs text-text/50">
-                {t("settings.transcription.localModel.meetings")}
-              </p>
-            )}
-          </>
-        }
-      >
-        <div className="flex justify-end gap-2">{action}</div>
-      </SettingContainer>
+                className="h-full rounded-full bg-logo-primary transition-[width] duration-300"
+                style={{ width: `${downloadPercent(status)}%` }}
+              />
+            </div>
+          )}
+          {note && <p className="text-pretty text-xs text-text/50">{note}</p>}
+        </div>
+        <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">
+          <div className="flex justify-end gap-2">{action}</div>
+        </div>
+      </div>
       <DeleteModelDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

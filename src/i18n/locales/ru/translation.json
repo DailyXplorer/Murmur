@@ -507,13 +507,31 @@
         "error": "Не удалось изменить способ расшифровки."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Модель распознавания речи от NVIDIA. Загружается один раз с Hugging Face и работает на этом Mac.",
-        "meetings": "Также используется во встречах, чтобы различать говорящих.",
         "missing": "Не загружена",
-        "downloading": "Загрузка… {{done}} из {{total}}",
         "preparing": "Подготовка для этого Mac… (около 15 секунд, только в первый раз)",
         "ready": "Готово · {{size}}",
+        "row": {
+          "downloading": "Загрузка · {{percent}} %",
+          "preparing": "Подготовка…",
+          "preparingNote": "Около 15 секунд.",
+          "meetings": "Используется и во встречах.",
+          "unavailable": "Недоступно",
+          "needs": {
+            "os_too_old": "Нужна macOS 15 или новее.",
+            "unsupported": "Нужен Apple silicon."
+          },
+          "stopped": "Загрузка прервана",
+          "noSpace": "Мало места",
+          "loadFailed": "Не удалось запустить",
+          "reason": {
+            "no_internet": "Нет интернета.",
+            "server_unavailable": "Сервер не отвечает.",
+            "damaged": "Файл повреждён.",
+            "not_enough_space": "Нужно {{needed}}, есть {{free}}.",
+            "disk": "Не удалось сохранить.",
+            "prepare_failed": "Загружена, но не работает."
+          }
+        },
         "download": "Загрузить ({{size}})",
         "retry": "Повторить",
         "delete": "Удалить",

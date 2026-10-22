@@ -507,13 +507,31 @@
         "error": "Couldn't change how Murmur transcribes."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA's speech recognition model. It downloads once from Hugging Face and runs on this Mac.",
-        "meetings": "Also used by Meetings to tell speakers apart.",
         "missing": "Not downloaded",
-        "downloading": "Downloading… {{done}} of {{total}}",
         "preparing": "Preparing for this Mac… (about 15 seconds, first time only)",
         "ready": "Ready · {{size}}",
+        "row": {
+          "downloading": "Downloading · {{percent}}%",
+          "preparing": "Preparing…",
+          "preparingNote": "Takes about 15 seconds.",
+          "meetings": "Also used by Meetings.",
+          "unavailable": "Not available",
+          "needs": {
+            "os_too_old": "Needs macOS 15 or later.",
+            "unsupported": "Needs Apple silicon."
+          },
+          "stopped": "Download stopped",
+          "noSpace": "Not enough space",
+          "loadFailed": "Couldn't load",
+          "reason": {
+            "no_internet": "No internet connection.",
+            "server_unavailable": "The server isn't responding.",
+            "damaged": "The file arrived damaged.",
+            "not_enough_space": "{{needed}} needed, {{free}} free.",
+            "disk": "Couldn't save it on this Mac.",
+            "prepare_failed": "Downloaded but won't start."
+          }
+        },
         "download": "Download ({{size}})",
         "retry": "Try again",
         "delete": "Delete",

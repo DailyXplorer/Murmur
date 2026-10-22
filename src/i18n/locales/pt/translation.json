@@ -507,13 +507,31 @@
         "error": "Não foi possível mudar como o Murmur transcreve."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "O modelo de reconhecimento de fala da NVIDIA. É baixado uma vez do Hugging Face e roda neste Mac.",
-        "meetings": "Também usado por Reuniões para distinguir quem fala.",
         "missing": "Não baixado",
-        "downloading": "Baixando… {{done}} de {{total}}",
         "preparing": "Preparando para este Mac… (cerca de 15 segundos, só na primeira vez)",
         "ready": "Pronto · {{size}}",
+        "row": {
+          "downloading": "Baixando · {{percent}}%",
+          "preparing": "Preparando…",
+          "preparingNote": "Leva cerca de 15 segundos.",
+          "meetings": "Também usado por Reuniões.",
+          "unavailable": "Indisponível",
+          "needs": {
+            "os_too_old": "Requer macOS 15 ou superior.",
+            "unsupported": "Requer Apple silicon."
+          },
+          "stopped": "Download interrompido",
+          "noSpace": "Espaço insuficiente",
+          "loadFailed": "Falha ao carregar",
+          "reason": {
+            "no_internet": "Sem conexão com a internet.",
+            "server_unavailable": "O servidor não responde.",
+            "damaged": "O arquivo chegou danificado.",
+            "not_enough_space": "Precisa de {{needed}}, há {{free}}.",
+            "disk": "Não foi possível salvar.",
+            "prepare_failed": "Baixado, mas não inicia."
+          }
+        },
         "download": "Baixar ({{size}})",
         "retry": "Tentar de novo",
         "delete": "Excluir",

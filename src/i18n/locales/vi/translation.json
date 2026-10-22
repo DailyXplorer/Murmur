@@ -507,13 +507,31 @@
         "error": "Không thể thay đổi cách chép lời."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Mô hình nhận dạng giọng nói của NVIDIA. Mô hình được tải một lần từ Hugging Face và chạy trên máy Mac này.",
-        "meetings": "Cũng được Cuộc họp dùng để phân biệt người nói.",
         "missing": "Chưa tải xuống",
-        "downloading": "Đang tải xuống… {{done}} / {{total}}",
         "preparing": "Đang chuẩn bị cho máy Mac này… (khoảng 15 giây, chỉ lần đầu)",
         "ready": "Sẵn sàng · {{size}}",
+        "row": {
+          "downloading": "Đang tải xuống · {{percent}}%",
+          "preparing": "Đang chuẩn bị…",
+          "preparingNote": "Mất khoảng 15 giây.",
+          "meetings": "Cuộc họp cũng dùng nó.",
+          "unavailable": "Không khả dụng",
+          "needs": {
+            "os_too_old": "Cần macOS 15 trở lên.",
+            "unsupported": "Cần chip Apple."
+          },
+          "stopped": "Đã dừng tải xuống",
+          "noSpace": "Không đủ dung lượng",
+          "loadFailed": "Không khởi động được",
+          "reason": {
+            "no_internet": "Không có kết nối Internet.",
+            "server_unavailable": "Máy chủ không phản hồi.",
+            "damaged": "Tệp tải về bị hỏng.",
+            "not_enough_space": "Cần {{needed}}, còn trống {{free}}.",
+            "disk": "Không lưu được.",
+            "prepare_failed": "Đã tải xong nhưng không chạy."
+          }
+        },
         "download": "Tải xuống ({{size}})",
         "retry": "Thử lại",
         "delete": "Xóa",

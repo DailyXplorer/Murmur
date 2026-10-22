@@ -507,13 +507,31 @@
         "error": "Murmur'un yazıya dökme yöntemi değiştirilemedi."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA'nın konuşma tanıma modeli. Hugging Face'ten bir kez indirilir ve bu Mac'te çalışır.",
-        "meetings": "Toplantılar da konuşanları ayırt etmek için kullanır.",
         "missing": "İndirilmedi",
-        "downloading": "İndiriliyor… {{done}} / {{total}}",
         "preparing": "Bu Mac için hazırlanıyor… (yaklaşık 15 saniye, yalnızca ilk seferde)",
         "ready": "Hazır · {{size}}",
+        "row": {
+          "downloading": "İndiriliyor · %{{percent}}",
+          "preparing": "Hazırlanıyor…",
+          "preparingNote": "Yaklaşık 15 saniye sürer.",
+          "meetings": "Toplantılar da kullanır.",
+          "unavailable": "Kullanılamıyor",
+          "needs": {
+            "os_too_old": "macOS 15 veya üstü gerekir.",
+            "unsupported": "Apple silicon gerekir."
+          },
+          "stopped": "İndirme durdu",
+          "noSpace": "Yeterli alan yok",
+          "loadFailed": "Yüklenemedi",
+          "reason": {
+            "no_internet": "İnternet bağlantısı yok.",
+            "server_unavailable": "Sunucu yanıt vermiyor.",
+            "damaged": "Dosya hasarlı geldi.",
+            "not_enough_space": "{{needed}} gerekli, {{free}} boş.",
+            "disk": "Kaydedilemedi.",
+            "prepare_failed": "İndirildi ama başlamıyor."
+          }
+        },
         "download": "İndir ({{size}})",
         "retry": "Tekrar dene",
         "delete": "Sil",

@@ -28,16 +28,15 @@ test.describe("how Murmur transcribes", () => {
     const local = page.getByRole("radio", { name: /On this Mac/ });
     const cloud = page.getByRole("radio", { name: /In the cloud/ });
     await expect(cloud).toBeChecked();
-    await expect(page.getByText("Parakeet v3")).toHaveCount(0);
+    await expect(page.getByTestId("local-model-row")).toHaveCount(0);
 
     await local.check();
     await expect(local).toBeChecked();
-    await expect(page.getByText("Parakeet v3")).toBeVisible();
     await expect(page.getByText("Ready · 505 MB")).toBeVisible();
 
     await cloud.check();
     await expect(cloud).toBeChecked();
-    await expect(page.getByText("Parakeet v3")).toHaveCount(0);
+    await expect(page.getByTestId("local-model-row")).toHaveCount(0);
     expect(await callsTo(page, "change_transcription_engine_setting")).toEqual([
       { engine: "local" },
       { engine: "cloud" },
@@ -50,11 +49,10 @@ test.describe("how Murmur transcribes", () => {
   }) => {
     await open(page, "engine=cloud&models=missing", "Transcription");
     await page.getByRole("radio", { name: /On this Mac/ }).check();
-    await expect(page.getByText("Downloading… 212 of 505 MB")).toBeVisible();
-    await expect(page.getByRole("progressbar")).toHaveAttribute(
-      "aria-valuenow",
-      "42",
-    );
+    await expect(page.getByText("Downloading · 42%")).toBeVisible();
+    await expect(
+      page.getByRole("progressbar", { name: "Downloading · 42%" }),
+    ).toHaveAttribute("aria-valuenow", "42");
     expect(await callsTo(page, "change_transcription_engine_setting")).toEqual([
       { engine: "local" },
     ]);
@@ -86,27 +84,54 @@ test.describe("how Murmur transcribes", () => {
     await expectNoUnhandledCommands(page);
   });
 
-  for (const [models, text, button] of [
-    ["missing", "Not downloaded", "Download (505 MB)"],
-    ["downloading", "Downloading… 212 of 505 MB", "Cancel"],
-    ["preparing", "Preparing for this Mac…", null],
+  const meetings = "Also used by Meetings.";
+  for (const [query, lines, buttons] of [
+    ["models=missing", ["Not downloaded", meetings], ["Download (505 MB)"]],
+    ["models=downloading", ["Downloading · 42%", meetings], ["Cancel"]],
+    ["models=preparing", ["Preparing…", "Takes about 15 seconds."], []],
+    ["models=ready", ["Ready · 505 MB", meetings], ["Delete"]],
     [
-      "failed",
-      "No internet connection. The download will resume where it stopped.",
-      "Try again",
+      "models=failed",
+      ["Download stopped", "No internet connection."],
+      ["Try again"],
     ],
-    ["damaged", "The downloaded file is damaged. Try again.", "Try again"],
-    ["noSpace", "Not enough space: 556 MB needed, 120 MB free.", "Try again"],
-    ["ready", "Ready · 505 MB", "Delete"],
+    [
+      "models=serverDown",
+      ["Download stopped", "The server isn't responding."],
+      ["Try again"],
+    ],
+    [
+      "models=damaged",
+      ["Download stopped", "The file arrived damaged."],
+      ["Try again"],
+    ],
+    [
+      "models=noSpace",
+      ["Not enough space", "556 MB needed, 120 MB free."],
+      ["Try again"],
+    ],
+    [
+      "models=disk",
+      ["Download stopped", "Couldn't save it on this Mac."],
+      ["Try again"],
+    ],
+    [
+      "models=prepareFailed",
+      ["Couldn't load", "Downloaded but won't start."],
+      ["Try again", "Delete"],
+    ],
+    ["analysis=unsupported", ["Ready · 740 MB"], ["Delete"]],
+    ["analysis=os_too_old", ["Not available", "Needs macOS 15 or later."], []],
   ] as const) {
-    test(`the model row when ${models}`, async ({ page }) => {
-      await open(page, `engine=local&models=${models}`, "Transcription");
-      await expect(page.getByText(text, { exact: false })).toBeVisible();
-      const actions = page
-        .getByTestId("local-model-row")
-        .getByRole("button", { name: /^(Download|Cancel|Try again|Delete)/ });
-      if (button) await expect(actions).toHaveText([button]);
-      else await expect(actions).toHaveCount(0);
+    test(`the model row when ${query}`, async ({ page }) => {
+      await open(page, `engine=local&${query}`, "Transcription");
+      const row = page.getByTestId("local-model-row");
+      await expect(row.locator("p")).toHaveText([...lines]);
+      await expect(
+        row.getByRole("button", {
+          name: /^(Download|Cancel|Try again|Delete)/,
+        }),
+      ).toHaveText([...buttons]);
       await expectNoUnhandledCommands(page);
     });
   }

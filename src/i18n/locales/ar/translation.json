@@ -507,13 +507,31 @@
         "error": "تعذّر تغيير طريقة النسخ."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "نموذج التعرّف على الكلام من NVIDIA. يُنزَّل مرة واحدة من Hugging Face ويعمل على جهاز Mac هذا.",
-        "meetings": "تستخدمه الاجتماعات أيضًا للتمييز بين المتحدثين.",
         "missing": "غير مُنزَّل",
-        "downloading": "جارٍ التنزيل… {{done}} من {{total}}",
         "preparing": "جارٍ التحضير لجهاز Mac هذا… (نحو 15 ثانية، في المرة الأولى فقط)",
         "ready": "جاهز · {{size}}",
+        "row": {
+          "downloading": "جارٍ التنزيل · {{percent}}%",
+          "preparing": "جارٍ التحضير…",
+          "preparingNote": "يستغرق نحو 15 ثانية.",
+          "meetings": "تستخدمه الاجتماعات أيضًا.",
+          "unavailable": "غير متاح",
+          "needs": {
+            "os_too_old": "يتطلب macOS 15 أو أحدث.",
+            "unsupported": "يتطلب شريحة Apple."
+          },
+          "stopped": "توقف التنزيل",
+          "noSpace": "المساحة غير كافية",
+          "loadFailed": "تعذّر التشغيل",
+          "reason": {
+            "no_internet": "لا يوجد اتصال بالإنترنت.",
+            "server_unavailable": "الخادم لا يستجيب.",
+            "damaged": "وصل الملف تالفًا.",
+            "not_enough_space": "المطلوب {{needed}}، والمتاح {{free}}.",
+            "disk": "تعذّر حفظه.",
+            "prepare_failed": "نُزّل لكنه لا يعمل."
+          }
+        },
         "download": "تنزيل ({{size}})",
         "retry": "إعادة المحاولة",
         "delete": "حذف",

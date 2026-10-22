@@ -507,13 +507,31 @@
         "error": "ट्रान्सक्राइब गर्ने तरिका परिवर्तन गर्न सकिएन।"
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA को वाक् पहिचान मोडेल। यो Hugging Face बाट एक पटक डाउनलोड हुन्छ र यही Mac मा चल्छ।",
-        "meetings": "बैठकहरूले वक्ता छुट्याउन पनि यसलाई प्रयोग गर्छन्।",
         "missing": "डाउनलोड गरिएको छैन",
-        "downloading": "डाउनलोड हुँदैछ… {{total}} मध्ये {{done}}",
         "preparing": "यो Mac का लागि तयार गर्दै… (करिब १५ सेकेन्ड, पहिलो पटक मात्र)",
         "ready": "तयार · {{size}}",
+        "row": {
+          "downloading": "डाउनलोड · {{percent}}%",
+          "preparing": "तयार गर्दै…",
+          "preparingNote": "करिब १५ सेकेन्ड लाग्छ।",
+          "meetings": "बैठकहरूमा पनि प्रयोग हुन्छ।",
+          "unavailable": "उपलब्ध छैन",
+          "needs": {
+            "os_too_old": "macOS 15 वा नयाँ चाहिन्छ।",
+            "unsupported": "Apple silicon चाहिन्छ।"
+          },
+          "stopped": "डाउनलोड रोकियो",
+          "noSpace": "पर्याप्त ठाउँ छैन",
+          "loadFailed": "लोड हुन सकेन",
+          "reason": {
+            "no_internet": "इन्टरनेट जडान छैन।",
+            "server_unavailable": "सर्भरले जवाफ दिँदैन।",
+            "damaged": "फाइल बिग्रिएको आयो।",
+            "not_enough_space": "{{needed}} चाहिन्छ, {{free}} खाली।",
+            "disk": "सेभ गर्न सकिएन।",
+            "prepare_failed": "डाउनलोड भयो, तर चल्दैन।"
+          }
+        },
         "download": "डाउनलोड गर्नुहोस् ({{size}})",
         "retry": "फेरि प्रयास गर्नुहोस्",
         "delete": "मेटाउनुहोस्",

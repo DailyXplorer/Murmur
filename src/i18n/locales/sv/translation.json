@@ -507,13 +507,31 @@
         "error": "Det gick inte att ändra hur Murmur transkriberar."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "NVIDIA:s modell för taligenkänning. Den laddas ned en gång från Hugging Face och körs på den här Macen.",
-        "meetings": "Används även av Möten för att skilja talare åt.",
         "missing": "Inte nedladdad",
-        "downloading": "Laddar ned… {{done}} av {{total}}",
         "preparing": "Förbereder för den här Macen… (cirka 15 sekunder, bara första gången)",
         "ready": "Klar · {{size}}",
+        "row": {
+          "downloading": "Hämtar · {{percent}} %",
+          "preparing": "Förbereder…",
+          "preparingNote": "Tar cirka 15 sekunder.",
+          "meetings": "Används även av Möten.",
+          "unavailable": "Inte tillgänglig",
+          "needs": {
+            "os_too_old": "Kräver macOS 15 eller senare.",
+            "unsupported": "Kräver Apple silicon."
+          },
+          "stopped": "Hämtningen stoppades",
+          "noSpace": "För lite utrymme",
+          "loadFailed": "Kunde inte läsas in",
+          "reason": {
+            "no_internet": "Ingen internetanslutning.",
+            "server_unavailable": "Servern svarar inte.",
+            "damaged": "Filen kom fram skadad.",
+            "not_enough_space": "{{needed}} krävs, {{free}} ledigt.",
+            "disk": "Kunde inte sparas.",
+            "prepare_failed": "Hämtad, men startar inte."
+          }
+        },
         "download": "Ladda ned ({{size}})",
         "retry": "Försök igen",
         "delete": "Radera",

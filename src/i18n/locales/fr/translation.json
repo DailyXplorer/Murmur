@@ -507,13 +507,31 @@
         "error": "Impossible de changer le mode de transcription."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Le modèle de reconnaissance vocale de NVIDIA. Il se télécharge une fois depuis Hugging Face et fonctionne sur ce Mac.",
-        "meetings": "Sert aussi aux réunions pour distinguer les intervenants.",
         "missing": "Non téléchargé",
-        "downloading": "Téléchargement… {{done}} sur {{total}}",
         "preparing": "Préparation pour ce Mac… (environ 15 secondes, la première fois seulement)",
         "ready": "Prêt · {{size}}",
+        "row": {
+          "downloading": "Téléchargement · {{percent}} %",
+          "preparing": "Préparation…",
+          "preparingNote": "Environ 15 secondes.",
+          "meetings": "Sert aussi aux réunions.",
+          "unavailable": "Non disponible",
+          "needs": {
+            "os_too_old": "Nécessite macOS 15 ou plus.",
+            "unsupported": "Nécessite une puce Apple."
+          },
+          "stopped": "Téléchargement arrêté",
+          "noSpace": "Espace insuffisant",
+          "loadFailed": "Chargement impossible",
+          "reason": {
+            "no_internet": "Pas de connexion Internet.",
+            "server_unavailable": "Le serveur ne répond pas.",
+            "damaged": "Fichier reçu endommagé.",
+            "not_enough_space": "{{needed}} requis, {{free}} libres.",
+            "disk": "Enregistrement impossible.",
+            "prepare_failed": "Téléchargé, ne démarre pas."
+          }
+        },
         "download": "Télécharger ({{size}})",
         "retry": "Réessayer",
         "delete": "Supprimer",

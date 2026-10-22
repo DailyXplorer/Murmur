@@ -507,13 +507,31 @@
         "error": "Die Transkriptionsart konnte nicht geändert werden."
       },
       "localModel": {
-        "title": "Parakeet v3",
-        "description": "Das Spracherkennungsmodell von NVIDIA. Es wird einmal von Hugging Face geladen und läuft auf diesem Mac.",
-        "meetings": "Wird auch von Meetings genutzt, um Sprecher zu unterscheiden.",
         "missing": "Nicht heruntergeladen",
-        "downloading": "Wird geladen… {{done}} von {{total}}",
         "preparing": "Wird für diesen Mac vorbereitet… (etwa 15 Sekunden, nur beim ersten Mal)",
         "ready": "Bereit · {{size}}",
+        "row": {
+          "downloading": "Wird geladen · {{percent}} %",
+          "preparing": "Wird vorbereitet…",
+          "preparingNote": "Dauert etwa 15 Sekunden.",
+          "meetings": "Auch für Meetings genutzt.",
+          "unavailable": "Nicht verfügbar",
+          "needs": {
+            "os_too_old": "Braucht macOS 15 oder neuer.",
+            "unsupported": "Braucht Apple Silicon."
+          },
+          "stopped": "Download gestoppt",
+          "noSpace": "Zu wenig Speicher",
+          "loadFailed": "Start fehlgeschlagen",
+          "reason": {
+            "no_internet": "Keine Internetverbindung.",
+            "server_unavailable": "Der Server antwortet nicht.",
+            "damaged": "Die Datei ist beschädigt.",
+            "not_enough_space": "{{needed}} nötig, {{free}} frei.",
+            "disk": "Speichern fehlgeschlagen.",
+            "prepare_failed": "Geladen, startet aber nicht."
+          }
+        },
         "download": "Herunterladen ({{size}})",
         "retry": "Erneut versuchen",
         "delete": "Löschen",
