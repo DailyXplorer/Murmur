@@ -37,6 +37,7 @@ pub struct Session {
     slot: tokio::sync::Mutex<Slot>,
     last_used: Mutex<Instant>,
     recording: Box<dyn Fn() -> bool + Send + Sync>,
+    idle_release: Duration,
 }
 
 impl Session {
@@ -46,11 +47,21 @@ impl Session {
         runtime: Box<dyn Runtime>,
         recording: Box<dyn Fn() -> bool + Send + Sync>,
     ) -> Arc<Self> {
+        Self::with_idle_release(runtime, recording, IDLE_RELEASE)
+    }
+
+    /// A session that releases its model after `idle_release` instead.
+    pub(super) fn with_idle_release(
+        runtime: Box<dyn Runtime>,
+        recording: Box<dyn Fn() -> bool + Send + Sync>,
+        idle_release: Duration,
+    ) -> Arc<Self> {
         Arc::new(Self {
             runtime,
             slot: tokio::sync::Mutex::new(Slot::default()),
             last_used: Mutex::new(Instant::now()),
             recording,
+            idle_release,
         })
     }
 
@@ -66,7 +77,7 @@ impl Session {
             .last_used
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            + IDLE_RELEASE
+            + self.idle_release
     }
 
     /// Loads the model unless it is loaded, and puts its release back.
@@ -115,7 +126,7 @@ impl Session {
     }
 
     #[cfg(test)]
-    async fn is_loaded(&self) -> bool {
+    pub(super) async fn is_loaded(&self) -> bool {
         self.slot.lock().await.loaded.is_some()
     }
 }
@@ -140,7 +151,10 @@ async fn release_when_idle(session: Weak<Session>) {
             continue;
         }
         if slot.loaded.take().is_some() {
-            log::info!("Local model released after {IDLE_RELEASE:?} without a dictation");
+            log::info!(
+                "Local model released after {:?} without a dictation",
+                session.idle_release
+            );
         }
         slot.releaser = false;
         return;

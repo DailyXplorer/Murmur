@@ -6,6 +6,8 @@
 mod cpu;
 #[cfg(target_arch = "aarch64")]
 mod fluid;
+#[cfg(test)]
+mod real_engine;
 pub mod session;
 
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
