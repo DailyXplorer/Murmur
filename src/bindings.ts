@@ -259,6 +259,14 @@ async changeAiCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async changeDictationStyleSetting(style: DictationStyle) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_dictation_style_setting", { style }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_window_names_setting", { enabled }) };
@@ -984,7 +992,7 @@ reliable_paste?: boolean;
 /**
  * AI cleanup and formatting of each transcript by the Codex session.
  */
-ai_cleanup_enabled?: boolean; 
+ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle; 
 /**
  * Dictionary words learned from corrections; each is also in `custom_words`.
  */
@@ -1068,6 +1076,11 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
+/**
+ * How much AI cleanup reshapes the dictation. It applies only when cleanup
+ * runs; `Normal` is the cleanup Murmur had before styles existed.
+ */
+export type DictationStyle = "formal" | "normal" | "casual"
 /**
  * Why a download stopped, as the user is told.
  */
