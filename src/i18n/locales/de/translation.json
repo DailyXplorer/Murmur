@@ -321,8 +321,7 @@
         "remove": "{{word}} entfernen",
         "duplicate": "\"{{word}}\" existiert bereits",
         "learned": "Gelernt",
-        "learnedFrom": "{{word}}: gelernt, als du „{{heard}}“ korrigiert hast",
-        "learnedHint": "Wenn du direkt nach dem Diktieren einen falsch geschriebenen Namen korrigierst, fügt Murmur ihn hier hinzu und markiert ihn als Gelernt. Klicke auf ein Wort, um es zu entfernen."
+        "learnedFrom": "{{word}}: gelernt, als du „{{heard}}“ korrigiert hast"
       },
       "meetingsToggle": {
         "label": "Meetings",

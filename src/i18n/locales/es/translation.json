@@ -321,8 +321,7 @@
         "remove": "Eliminar {{word}}",
         "duplicate": "\"{{word}}\" ya existe",
         "learned": "Aprendida",
-        "learnedFrom": "{{word}}: aprendida cuando corregiste «{{heard}}»",
-        "learnedHint": "Cuando corriges un nombre mal escrito justo después de dictar, Murmur lo añade aquí marcado como Aprendida. Haz clic en una palabra para quitarla."
+        "learnedFrom": "{{word}}: aprendida cuando corregiste «{{heard}}»"
       },
       "meetingsToggle": {
         "label": "Reuniones",
