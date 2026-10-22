@@ -63,7 +63,7 @@ natural = "0.5.0"
 regex = "1"
 chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
-ferrous-opencc = "0.2.3"
+ferrous-opencc = "0.4.0"
 clap = { version = "4", features = ["derive"] }
 signal-hook = "0.3"
 specta = "=2.0.0-rc.22"

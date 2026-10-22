@@ -2055,7 +2055,7 @@ mod tests {
             .filter(|(_, text)| *text != "Ding.")
             .map(|(key, _)| *key)
             .collect();
-        assert_eq!(room, ["s1", "s2"].into());
+        assert_eq!(room, std::collections::HashSet::from(["s1", "s2"]));
         let mac = turns.iter().find(|(_, text)| *text == "Ding.");
         assert_eq!(mac.map(|(key, _)| *key), Some("s3"));
         let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
