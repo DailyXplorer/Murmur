@@ -28,16 +28,19 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   const downloadedBytesRef = useRef(0);
   const contentLengthRef = useRef(0);
 
-  // The backend checks on its own schedule and owns the result.
+  // The backend checks on its own schedule and owns the result. Reading it
+  // once the listener is in place means no status falls in between.
   useEffect(() => {
     let heard = false;
     const unlisten = events.updateStatus.listen(({ payload }) => {
       heard = true;
       setUpdateAvailable(payload.available !== null);
     });
-    void commands.getUpdateStatus().then(({ available }) => {
-      if (!heard) setUpdateAvailable(available !== null);
-    });
+    void unlisten
+      .then(() => commands.getUpdateStatus())
+      .then(({ available }) => {
+        if (!heard) setUpdateAvailable(available !== null);
+      });
     return () => {
       void unlisten.then((fn) => fn());
     };
@@ -55,6 +58,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       toast.error(t("footer.checkForUpdates"), { description: result.error });
       return;
     }
+    setUpdateAvailable(result.data.available !== null);
     if (result.data.available === null) {
       setShowUpToDate(true);
       if (upToDateTimeoutRef.current) {

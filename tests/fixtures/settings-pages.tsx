@@ -96,6 +96,8 @@ const historyFallback = params.get("history") === "fallback";
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The updater finds a new version, which the footer offers. */
 const updateAvailable = params.get("update") === "1";
+/** `missedUpdate=1`: a check finds a new version the footer never heard of. */
+const missedUpdate = params.get("missedUpdate") === "1";
 /** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
 const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
 const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
@@ -676,7 +678,9 @@ const RESPONSES: Record<string, unknown> = {
   start_meeting: null,
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },
-  check_for_updates: { available: updateAvailable ? "1.9.0" : null },
+  check_for_updates: {
+    available: updateAvailable || missedUpdate ? "1.9.0" : null,
+  },
   get_update_status: { available: updateAvailable ? "1.9.0" : null },
   get_app_dir_path: APP_DATA_DIR,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,

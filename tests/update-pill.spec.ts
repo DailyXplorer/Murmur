@@ -59,6 +59,16 @@ test("a check the user asks for says when Murmur is up to date", async ({
   expect(await commands(page)).toContain("check_for_updates");
 });
 
+test("a check the user asks for shows an update the footer missed", async ({
+  page,
+}) => {
+  await open(page, "missedUpdate=1", "light");
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  await expect(
+    page.getByRole("button", { name: "Update available" }),
+  ).toBeVisible();
+});
+
 for (const theme of THEMES) {
   for (const accent of ACCENTS) {
     test(`the update shows as an accent pill (${accent}, ${theme})`, async ({
