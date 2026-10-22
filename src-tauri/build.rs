@@ -109,6 +109,8 @@ const APP_COMMANDS: &[&str] = &[
     "open_system_audio_privacy_settings",
     "change_meetings_enabled_setting",
     "change_meeting_capture_mode_setting",
+    "change_meeting_audio_retention_setting",
+    "get_meetings_storage",
 ];
 
 fn main() {

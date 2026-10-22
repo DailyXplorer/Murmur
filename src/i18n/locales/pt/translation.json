@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Reuniões",
         "description": "Grave reuniões pelo microfone e pelo áudio do sistema. Adiciona uma página de reuniões, um atalho e um item na barra de menus."
+      },
+      "meetingsAudio": {
+        "title": "Apagar o áudio das reuniões",
+        "description": "Apaga o áudio das reuniões processadas após o prazo escolhido, para poupar espaço. As transcrições e os resumos são mantidos.",
+        "textKept": "As transcrições e os resumos são mantidos.",
+        "used": "O áudio das reuniões ocupa {{size}}.",
+        "usedWithSetAside": "O áudio das reuniões ocupa {{size}}, mais {{setAside}} de gravações não listadas, apagadas após 30 dias.",
+        "options": {
+          "keep": "Nunca",
+          "days7": "Após 7 dias",
+          "days30": "Após 30 dias",
+          "days90": "Após 90 dias"
+        }
       }
     },
     "history": {

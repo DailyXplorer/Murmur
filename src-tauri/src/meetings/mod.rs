@@ -20,6 +20,7 @@ pub mod power;
 pub mod processor;
 pub mod protocol;
 pub mod rename;
+pub mod retention;
 pub mod save_panel;
 pub mod speakers;
 pub mod spread;
@@ -30,8 +31,8 @@ pub mod track_audio;
 pub mod transcribe;
 pub mod wav_recovery;
 
-use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -43,7 +44,7 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::managers::history::DatabaseStartup;
-use crate::settings::get_settings;
+use crate::settings::{get_settings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
 use analysis::HelperAnalyzer;
@@ -306,6 +307,17 @@ impl ProcessingQueue {
         self.state().queued.iter().map(|queued| queued.id).collect()
     }
 
+    /// The meetings queued or in progress, which may still read their audio.
+    fn busy(&self) -> HashSet<i64> {
+        let state = self.state();
+        state
+            .queued
+            .iter()
+            .map(|queued| queued.id)
+            .chain(state.current.as_ref().map(|(id, _)| *id))
+            .collect()
+    }
+
     /// Stops processing meeting `id`. What was saved stays, and processing
     /// resumes from there next time.
     fn cancel(&self, id: i64) {
@@ -520,6 +532,76 @@ impl Notifier for AppNotifier {
 
 type AppCoordinator = Coordinator<DeviceCapture, AppNotifier, SystemClock>;
 
+/// Deletes finished meeting `id`'s audio and the analysis made from it.
+fn delete_audio(store: &MeetingsStore, root: &Path, id: i64) -> Result<(), String> {
+    if !store.delete_audio(id).map_err(|error| error.to_string())? {
+        return Err(format!("Meeting {id} is not finished"));
+    }
+    paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
+        .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
+        .map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+}
+
+/// Deletes the audio `retention` has kept long enough at `now_ms`, except
+/// that of the `busy` meetings, and returns whose went.
+fn sweep_audio(
+    store: &MeetingsStore,
+    root: &Path,
+    retention: MeetingAudioRetention,
+    now_ms: i64,
+    busy: &HashSet<i64>,
+) -> Vec<i64> {
+    let meetings = match store.with_audio() {
+        Ok(meetings) => meetings,
+        Err(error) => {
+            error!("Failed to list the meetings that have audio: {error}");
+            return Vec::new();
+        }
+    };
+    retention::audio_to_delete(&meetings, now_ms, retention)
+        .into_iter()
+        .filter(|id| !busy.contains(id))
+        .filter(|id| match delete_audio(store, root, *id) {
+            Ok(()) => true,
+            Err(error) => {
+                error!("Meeting {id}: {error}");
+                false
+            }
+        })
+        .collect()
+}
+
+/// Applies the audio retention at launch, then once a day. The hourly look
+/// reads the wall clock, which goes on while the Mac sleeps.
+fn spawn_audio_retention(app: &AppHandle) {
+    const DAY: Duration = Duration::from_secs(24 * 3600);
+    const LOOK: Duration = Duration::from_secs(3600);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut last: Option<SystemTime> = None;
+        loop {
+            let due = last.is_none_or(|last| {
+                SystemTime::now()
+                    .duration_since(last)
+                    .map_or(true, |since| since >= DAY)
+            });
+            if due && get_settings(&app).meetings_enabled {
+                if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+                    let manager = Arc::clone(&manager);
+                    let swept = tauri::async_runtime::spawn_blocking(move || {
+                        manager.apply_audio_retention()
+                    });
+                    if let Err(error) = swept.await {
+                        error!("Meeting audio retention failed: {error}");
+                    }
+                    last = Some(SystemTime::now());
+                }
+            }
+            tokio::time::sleep(LOOK).await;
+        }
+    });
+}
+
 pub struct MeetingsManager {
     app: AppHandle,
     coordinator: Mutex<AppCoordinator>,
@@ -568,6 +650,12 @@ impl MeetingsManager {
                 }
             }
             DatabaseStartup::Unavailable => {}
+        }
+        match paths::purge_set_asides(&app_data, now) {
+            0 => {}
+            count => {
+                info!("Deleted {count} meeting folder(s) or file(s) set aside over 30 days ago")
+            }
         }
         let recovered = store
             .recover_interrupted(&root)
@@ -780,17 +868,27 @@ impl MeetingsManager {
     /// Deletes a finished meeting's audio and the analysis made from it; the
     /// transcript and the summary stay.
     pub fn delete_audio(&self, id: i64) -> Result<(), String> {
-        if !self
-            .store
-            .delete_audio(id)
-            .map_err(|error| error.to_string())?
-        {
-            return Err(format!("Meeting {id} is not finished"));
-        }
-        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES)
-            .and_then(|()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]));
+        let result = delete_audio(&self.store, &self.root, id);
         self.updated(id);
-        result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+        result
+    }
+
+    /// Deletes the audio the retention the user chose has kept long enough.
+    /// A meeting queued or processing keeps it until it is done.
+    fn apply_audio_retention(&self) {
+        let retention = get_settings(&self.app).meeting_audio_retention;
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let deleted = sweep_audio(
+            &self.store,
+            &self.root,
+            retention,
+            now_ms,
+            &self.queue.busy(),
+        );
+        if !deleted.is_empty() {
+            info!("Deleted the audio of meeting(s) {deleted:?}, kept as long as chosen");
+        }
+        deleted.into_iter().for_each(|id| self.updated(id));
     }
 
     /// Transcribes a finished meeting again from its audio, and writes its
@@ -915,6 +1013,7 @@ pub fn init(app: &AppHandle, at_startup: bool) {
                 }
             }
             app.manage(Arc::new(manager));
+            spawn_audio_retention(app);
         }
         Err(error) => error!("Failed to initialize meetings: {error}"),
     }
@@ -988,6 +1087,93 @@ mod tests {
             let taken = crate::shortcut::tauri_impl::parse_shortcut(taken).unwrap();
             assert_ne!(default, taken);
         }
+    }
+
+    /// A processed meeting with a transcript, a summary and compressed audio,
+    /// started `days_ago` days before `now_ms`.
+    fn processed(store: &MeetingsStore, root: &Path, now_ms: i64, days_ago: i64) -> i64 {
+        let started = now_ms - days_ago * 24 * 3600 * 1000;
+        let id = store
+            .insert_recording(started, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(id, started + 60_000, 60_000)
+            .unwrap();
+        let me = store::MeetingSpeaker {
+            key: "me".into(),
+            name: "Me".into(),
+            default_name: "Me".into(),
+            color_index: 0,
+        };
+        let turn = store::MeetingTurn {
+            speaker_key: "me".into(),
+            start_ms: 0,
+            end_ms: 1_000,
+            text: "Kept.".into(),
+            low_confidence: false,
+        };
+        store
+            .save_transcript(
+                id,
+                &[me],
+                &[turn],
+                store::SpeakerAnalysis::NoModels,
+                None,
+                None,
+            )
+            .unwrap();
+        store.finish_processing(id, None).unwrap();
+        assert!(store.save_summary(id, None, "Notes.").unwrap());
+        assert!(store.audio_compressed(id, 10).unwrap());
+        let dir = paths::fresh_meeting_dir(root, id, now_ms).unwrap();
+        std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
+        std::fs::write(dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
+        id
+    }
+
+    #[test]
+    fn retention_deletes_old_audio_and_keeps_the_text_and_busy_meetings() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("meetings");
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let old = processed(&store, &root, now_ms, 8);
+        let recent = processed(&store, &root, now_ms, 6);
+        let queued = processed(&store, &root, now_ms, 8);
+
+        let swept =
+            |retention| sweep_audio(&store, &root, retention, now_ms, &HashSet::from([queued]));
+        assert!(swept(MeetingAudioRetention::Keep).is_empty());
+        assert_eq!(swept(MeetingAudioRetention::Days7), [old]);
+        assert!(swept(MeetingAudioRetention::Days7).is_empty());
+
+        let meeting = store.get(old).unwrap().unwrap();
+        assert_eq!(meeting.audio, store::AudioState::Deleted);
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+        assert_eq!(meeting.turns.len(), 1);
+        let files = paths::meeting_dir(&root, old);
+        assert!(!files.join(paths::AUDIO_FILE).exists());
+        assert!(!files.join(analysis::ANALYSIS_FILE).exists());
+        for kept in [recent, queued] {
+            let meeting = store.get(kept).unwrap().unwrap();
+            assert_eq!(meeting.audio, store::AudioState::Compressed);
+            let files = paths::meeting_dir(&root, kept);
+            assert!(files.join(paths::AUDIO_FILE).exists());
+        }
+    }
+
+    #[test]
+    fn the_meetings_queued_or_processing_are_busy() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(3);
+        queue.enqueue(4);
+        let id = queue.state().take_next(SystemTime::now());
+        assert_eq!(id, Next::Process(3));
+        assert!(queue.begin(3, &operation(1)));
+
+        assert_eq!(queue.busy(), HashSet::from([3, 4]));
+        queue.end();
+        assert_eq!(queue.busy(), HashSet::from([4]));
     }
 
     fn operation(id: u64) -> ProcessingOperation {

@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Reuniones",
         "description": "Grabe reuniones desde su micrófono y el audio del sistema. Añade una página de reuniones, un atajo y un elemento en la barra de menús."
+      },
+      "meetingsAudio": {
+        "title": "Eliminar el audio de las reuniones",
+        "description": "Elimina el audio de las reuniones procesadas tras el plazo elegido, para ahorrar espacio. Las transcripciones y los resúmenes se conservan.",
+        "textKept": "Las transcripciones y los resúmenes se conservan.",
+        "used": "El audio de las reuniones ocupa {{size}}.",
+        "usedWithSetAside": "El audio de las reuniones ocupa {{size}}, más {{setAside}} de grabaciones no listadas, que se eliminan a los 30 días.",
+        "options": {
+          "keep": "Nunca",
+          "days7": "A los 7 días",
+          "days30": "A los 30 días",
+          "days90": "A los 90 días"
+        }
       }
     },
     "history": {

@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Riunioni",
         "description": "Registra le riunioni dal microfono e dall'audio di sistema. Aggiunge una pagina Riunioni, una scorciatoia e una voce nella barra dei menu."
+      },
+      "meetingsAudio": {
+        "title": "Elimina l'audio delle riunioni",
+        "description": "Elimina l'audio delle riunioni elaborate dopo il periodo scelto, per risparmiare spazio. Trascrizioni e riepiloghi vengono conservati.",
+        "textKept": "Trascrizioni e riepiloghi vengono conservati.",
+        "used": "L'audio delle riunioni occupa {{size}}.",
+        "usedWithSetAside": "L'audio delle riunioni occupa {{size}}, più {{setAside}} di registrazioni non elencate, eliminate dopo 30 giorni.",
+        "options": {
+          "keep": "Mai",
+          "days7": "Dopo 7 giorni",
+          "days30": "Dopo 30 giorni",
+          "days90": "Dopo 90 giorni"
+        }
       }
     },
     "history": {

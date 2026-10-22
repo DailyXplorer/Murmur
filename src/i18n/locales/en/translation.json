@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Meetings",
         "description": "Record meetings from your microphone and system audio. Adds a Meetings page, a shortcut and a menu bar item."
+      },
+      "meetingsAudio": {
+        "title": "Delete meeting audio",
+        "description": "Deletes the audio of processed meetings after the chosen time, to save space. Transcripts and summaries are kept.",
+        "textKept": "Transcripts and summaries are kept.",
+        "used": "Meeting audio uses {{size}}.",
+        "usedWithSetAside": "Meeting audio uses {{size}}, plus {{setAside}} of unlisted recordings, deleted after 30 days.",
+        "options": {
+          "keep": "Never",
+          "days7": "After 7 days",
+          "days30": "After 30 days",
+          "days90": "After 90 days"
+        }
       }
     },
     "history": {
