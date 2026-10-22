@@ -20,6 +20,8 @@ type Source = {
   folder: string;
   /** FluidAudio pins this repository to `commit` and checks a marker. */
   fluidRevisionMarker: boolean;
+  /** Not needed to dictate: fetched once the others are ready. */
+  optional: boolean;
   /** Bundles (directories) or single files to take. */
   take: string[];
   /** Also take the `.json` and `.txt` files at the repository root. */
@@ -33,6 +35,7 @@ const SOURCES: Source[] = [
     commit: "7dd20fe6b1797d35f5e3307e8b1732d9a178edfe",
     folder: "parakeet-tdt-0.6b-v3",
     fluidRevisionMarker: false,
+    optional: false,
     take: [
       "Preprocessor.mlmodelc",
       "Encoder.mlmodelc",
@@ -48,6 +51,7 @@ const SOURCES: Source[] = [
     commit: "df2625ac79a7ac6b65ad868fee6d80f320da4232",
     folder: "speaker-diarization",
     fluidRevisionMarker: true,
+    optional: false,
     take: [
       "Segmentation.mlmodelc",
       "FBank.mlmodelc",
@@ -57,11 +61,29 @@ const SOURCES: Source[] = [
     rootMetadata: true,
   },
   {
+    set: "APPLE_SILICON",
+    // Custom-word boosting in dictation (FluidAudio's CTC keyword
+    // spotting). English only; the CTC head is not used.
+    repo: "FluidInference/parakeet-ctc-110m-coreml",
+    commit: "accdafd8cf8a2ff1cabe3c11e54416b405d409aa",
+    folder: "parakeet-ctc-110m-coreml",
+    fluidRevisionMarker: false,
+    optional: true,
+    take: [
+      "AudioEncoder.mlmodelc",
+      "MelSpectrogram.mlmodelc",
+      "tokenizer.json",
+      "vocab.json",
+    ],
+    rootMetadata: false,
+  },
+  {
     set: "X86_64",
     repo: "handy-computer/parakeet-tdt-0.6b-v3-gguf",
     commit: "d8d8c32cb2017c57e5307767343e97870f8a7f53",
     folder: "parakeet-tdt-0.6b-v3",
     fluidRevisionMarker: false,
+    optional: false,
     take: ["parakeet-tdt-0.6b-v3-Q8_0.gguf"],
     rootMetadata: false,
   },
@@ -149,6 +171,7 @@ function rustSource(source: Source, list: ManifestFile[]): string {
     `        commit: "${source.commit}",`,
     `        folder: ${JSON.stringify(source.folder)},`,
     `        fluid_revision_marker: ${source.fluidRevisionMarker},`,
+    `        optional: ${source.optional},`,
     "        files: &[",
     ...lines,
     "        ],",

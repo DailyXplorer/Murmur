@@ -48,6 +48,7 @@ mod tests {
         commit: "1111111111111111111111111111111111111111",
         folder: "models",
         fluid_revision_marker: false,
+        optional: false,
         files: FILES,
     }];
 

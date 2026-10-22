@@ -1,5 +1,7 @@
 //! Intel Macs: the GGUF model (8-bit) through transcribe.cpp, on the CPU in
 //! the app. Forced to the CPU: Intel Macs have no GPU it can use.
+//! Boost terms are not passed: transcribe-cpp 0.4.0's Parakeet does not set
+//! `TRANSCRIBE_FEATURE_VOCABULARY`, so its `RunOptions.vocabulary` is dropped.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -52,7 +54,11 @@ impl Drop for AbortOnDrop {
 }
 
 impl Loaded for CpuModel {
-    fn transcribe<'a>(&'a mut self, samples: &'a [f32]) -> BoxFuture<'a, anyhow::Result<String>> {
+    fn transcribe<'a>(
+        &'a mut self,
+        samples: &'a [f32],
+        _terms: &'a [String],
+    ) -> BoxFuture<'a, anyhow::Result<String>> {
         let session = Arc::clone(&self.session);
         let cancel = self.cancel.clone();
         let samples = samples.to_vec();
@@ -102,7 +108,11 @@ mod tests {
             }
             let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
             let started = std::time::Instant::now();
-            let text = loaded.transcribe(&samples).await.unwrap().to_lowercase();
+            let text = loaded
+                .transcribe(&samples, &[])
+                .await
+                .unwrap()
+                .to_lowercase();
             println!(
                 "{}: {:.1} s of audio in {:?}: {text}",
                 wav.display(),

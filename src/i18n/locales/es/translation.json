@@ -491,8 +491,8 @@
         }
       },
       "windowNames": {
-        "title": "Nombres de la ventana activa",
-        "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza con IA solo los nombres que encuentra, para escribirlos bien. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."
+        "title": "Contexto de la ventana activa",
+        "description": "Al empezar a dictar, Murmur lee el texto de la ventana en primer plano mediante Accesibilidad y envía a la limpieza los nombres que encuentra, para escribirlos bien. También envía un breve fragmento del texto alrededor del cursor. No se guarda nada. Nunca se leen campos de contraseña ni gestores de contraseñas."
       },
       "whisperMode": {
         "title": "Modo susurro",

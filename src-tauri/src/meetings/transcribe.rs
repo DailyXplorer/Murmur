@@ -116,7 +116,7 @@ impl Transcriber for LocalTranscriber {
         let engine = Arc::clone(&self.0);
         Box::pin(async move {
             engine
-                .transcribe(&samples, &operation)
+                .transcribe(&samples, &[], &operation)
                 .await
                 .map_err(|error| TranscriptionError::new(FailureKind::Other, format!("{error:#}")))
         })

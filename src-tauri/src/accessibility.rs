@@ -3,13 +3,24 @@
 //! Murmur already holds for pasting; no screenshots, no Screen Recording.
 //! Secure text fields and password managers are never read.
 
+use crate::field_excerpt::Utf16Range;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
-use core_foundation::string::{CFString, CFStringRef};
+use core_foundation::number::CFNumber;
+use core_foundation::string::{CFString, CFStringGetCharacters, CFStringRef};
 use std::ffi::c_void;
 
 type AXUIElementRef = CFTypeRef;
 const AX_SUCCESS: i32 = 0;
+/// kAXValueCFRangeType.
+const AX_VALUE_CF_RANGE: u32 = 4;
+
+#[repr(C)]
+#[derive(Default)]
+struct CFRange {
+    location: isize,
+    length: isize,
+}
 /// A hung app must not stall a reader for the system default of seconds.
 const AX_TIMEOUT_SECONDS: f32 = 0.25;
 const SECURE_TEXT_FIELD: &str = "AXSecureTextField";
@@ -25,7 +36,33 @@ extern "C" {
         attribute: CFStringRef,
         value: *mut CFTypeRef,
     ) -> i32;
+    fn AXUIElementCopyParameterizedAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        parameter: CFTypeRef,
+        value: *mut CFTypeRef,
+    ) -> i32;
     fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
+    fn AXValueCreate(kind: u32, value: *const c_void) -> CFTypeRef;
+    fn AXValueGetTypeID() -> CFTypeID;
+    fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
+}
+
+#[cfg(test)]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXUIElementCopyAttributeNames(element: AXUIElementRef, names: *mut CFTypeRef) -> i32;
+    fn AXUIElementCopyParameterizedAttributeNames(
+        element: AXUIElementRef,
+        names: *mut CFTypeRef,
+    ) -> i32;
+}
+
+/// Whether this process may use Accessibility at all.
+#[cfg(test)]
+pub fn is_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
 }
 
 /// Bundle identifiers whose windows are never read.
@@ -104,7 +141,64 @@ impl Element {
     pub fn string(&self, name: &str) -> Option<String> {
         self.attribute(name)?
             .downcast::<CFString>()
-            .map(|value| value.to_string())
+            .map(|value| utf16_string(&value))
+    }
+
+    pub fn number(&self, name: &str) -> Option<i64> {
+        self.attribute(name)?.downcast::<CFNumber>()?.to_i64()
+    }
+
+    /// A range attribute such as AXSelectedTextRange.
+    pub fn range(&self, name: &str) -> Option<Utf16Range> {
+        let value = self.attribute(name)?;
+        if value.type_of() != unsafe { AXValueGetTypeID() } {
+            return None;
+        }
+        let mut range = CFRange::default();
+        let read = unsafe {
+            AXValueGetValue(
+                value.as_CFTypeRef(),
+                AX_VALUE_CF_RANGE,
+                (&mut range as *mut CFRange).cast(),
+            )
+        };
+        if !read {
+            return None;
+        }
+        Some(Utf16Range {
+            start: usize::try_from(range.location).ok()?,
+            len: usize::try_from(range.length).ok()?,
+        })
+    }
+
+    /// AXStringForRange: part of a text element's value.
+    pub fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        let range = CFRange {
+            location: isize::try_from(range.start).ok()?,
+            length: isize::try_from(range.len).ok()?,
+        };
+        let parameter =
+            unsafe { AXValueCreate(AX_VALUE_CF_RANGE, (&range as *const CFRange).cast()) };
+        if parameter.is_null() {
+            return None;
+        }
+        let parameter = unsafe { CFType::wrap_under_create_rule(parameter) };
+        let name = CFString::new("AXStringForRange");
+        let mut value: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            AXUIElementCopyParameterizedAttributeValue(
+                self.raw(),
+                name.as_concrete_TypeRef(),
+                parameter.as_CFTypeRef(),
+                &mut value,
+            )
+        };
+        if status != AX_SUCCESS || value.is_null() {
+            return None;
+        }
+        unsafe { CFType::wrap_under_create_rule(value) }
+            .downcast::<CFString>()
+            .map(|text| utf16_string(&text))
     }
 
     pub fn children(&self) -> Vec<Element> {
@@ -124,6 +218,37 @@ impl Element {
             .collect()
     }
 
+    /// The names of the attributes the element answers, or of its
+    /// parameterized attributes.
+    #[cfg(test)]
+    pub fn attribute_names(&self, parameterized: bool) -> Vec<String> {
+        let mut names: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            if parameterized {
+                AXUIElementCopyParameterizedAttributeNames(self.raw(), &mut names)
+            } else {
+                AXUIElementCopyAttributeNames(self.raw(), &mut names)
+            }
+        };
+        if status != AX_SUCCESS || names.is_null() {
+            return Vec::new();
+        }
+        let Some(array) =
+            unsafe { CFType::wrap_under_create_rule(names) }.downcast::<CFArray<*const c_void>>()
+        else {
+            return Vec::new();
+        };
+        array
+            .get_all_values()
+            .into_iter()
+            .filter_map(|raw| {
+                unsafe { CFType::wrap_under_get_rule(raw as CFTypeRef) }
+                    .downcast::<CFString>()
+                    .map(|name| name.to_string())
+            })
+            .collect()
+    }
+
     pub fn pid(&self) -> Option<i32> {
         let mut pid = 0;
         (unsafe { AXUIElementGetPid(self.raw(), &mut pid) } == AX_SUCCESS && pid > 0).then_some(pid)
@@ -134,6 +259,22 @@ impl Element {
             .iter()
             .any(|name| self.string(name).as_deref() == Some(SECURE_TEXT_FIELD))
     }
+}
+
+/// A range can cut an emoji in half, and `CFString::to_string` panics on the
+/// lone surrogate left over. Here it becomes U+FFFD, still one UTF-16 unit,
+/// so offsets into the field stay right.
+fn utf16_string(text: &CFString) -> String {
+    let len = text.char_len();
+    let mut units = vec![0u16; usize::try_from(len).unwrap_or(0)];
+    unsafe {
+        CFStringGetCharacters(
+            text.as_concrete_TypeRef(),
+            core_foundation::base::CFRange::init(0, len),
+            units.as_mut_ptr(),
+        );
+    }
+    String::from_utf16_lossy(&units)
 }
 
 /// The frontmost app other than Murmur, unless it is a password manager:
@@ -160,6 +301,16 @@ pub fn focused_text_element() -> Option<Element> {
     let (pid, _, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
+}
+
+/// The keyboard focus inside the app `pid`: the system-wide focus when it
+/// belongs to that app, else the app's own, which some apps answer only
+/// there. A secure field is returned as well; its reader must check.
+pub fn focus_in(pid: i32, app: &Element) -> Option<Element> {
+    Element::system_wide()
+        .and_then(|system| system.element("AXFocusedUIElement"))
+        .filter(|focused| focused.pid() == Some(pid))
+        .or_else(|| app.element("AXFocusedUIElement"))
 }
 
 /// What holds the keyboard when a dictation ends.
@@ -267,6 +418,21 @@ fn focused_element() -> Option<FocusedElement> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core_foundation::base::kCFAllocatorDefault;
+    use core_foundation::string::CFStringCreateWithCharacters;
+
+    #[test]
+    fn a_range_that_cuts_an_emoji_in_half_reads_as_a_replacement_character() {
+        let units = [0xDE00, u16::from(b'a')];
+        let text = unsafe {
+            CFString::wrap_under_create_rule(CFStringCreateWithCharacters(
+                kCFAllocatorDefault,
+                units.as_ptr(),
+                2,
+            ))
+        };
+        assert_eq!(utf16_string(&text), "\u{FFFD}a");
+    }
 
     fn element(role: &str, accepts_text: bool) -> Option<FocusedElement> {
         Some(FocusedElement {

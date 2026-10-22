@@ -1,6 +1,7 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
+use crate::engine::local::boost::boost_terms;
 use crate::engine::local::LocalEngine;
 use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
 use crate::local_models::LocalModels;
@@ -22,11 +23,13 @@ pub struct Transcript {
 }
 
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
+/// Only the local engine listens for `terms`: the Codex endpoint takes none.
 async fn run(
     engine: Engine,
     local: Option<&LocalEngine>,
     audio: &[f32],
     language: &str,
+    terms: &[String],
     operation: &ProcessingOperation,
 ) -> Result<String> {
     match engine {
@@ -43,8 +46,12 @@ async fn run(
         }
         Engine::Local => {
             let local = local.ok_or_else(|| anyhow::anyhow!("No local engine in this build"))?;
-            debug!("Transcribing {} samples on this Mac", audio.len());
-            local.transcribe(audio, operation).await
+            debug!(
+                "Transcribing {} samples on this Mac with {} boost term(s)",
+                audio.len(),
+                terms.len()
+            );
+            local.transcribe(audio, terms, operation).await
         }
     }
 }
@@ -153,6 +160,7 @@ impl TranscriptionManager {
     }
 
     /// Transcribes shared samples and corrects them with the dictionary.
+    /// The local engine listens for the custom words.
     pub(crate) async fn transcribe_samples(
         &self,
         audio: Arc<Vec<f32>>,
@@ -184,11 +192,21 @@ impl TranscriptionManager {
 
         let local = self.app_handle.try_state::<Arc<LocalEngine>>();
         let local = local.as_deref().map(Arc::as_ref);
+        let terms = boost_terms(&settings.custom_words);
         let (text, source) = engine::transcribe(
             settings.transcription_engine,
             conditions,
             || operation.is_cancelled(),
-            |engine| run(engine, local, &audio, conditions.language, &operation),
+            |engine| {
+                run(
+                    engine,
+                    local,
+                    &audio,
+                    conditions.language,
+                    &terms,
+                    &operation,
+                )
+            },
         )
         .await?;
 

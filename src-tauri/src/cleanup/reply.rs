@@ -65,7 +65,10 @@ pub fn accept_output(dictation: &str, output: &str, context: &PromptContext) -> 
         return None;
     }
     let lower = cleaned.to_lowercase();
-    if lower.contains("<dictation") || lower.contains("</dictation") {
+    if ["<dictation", "</dictation", "<field", "</field", "<cursor"]
+        .iter()
+        .any(|tag| lower.contains(tag))
+    {
         return None;
     }
     if cleaned.chars().count() > max_output_chars(dictation.chars().count()) {
@@ -798,6 +801,32 @@ mod tests {
                 " So the meeting is at 3 pm.\n"
             ),
             Some("So the meeting is at 3 pm.".to_string())
+        );
+    }
+
+    #[test]
+    fn a_reply_that_repeats_the_field_or_its_tags_is_rejected() {
+        use crate::field_excerpt::FieldExcerpt;
+
+        let context = PromptContext {
+            field: Some(FieldExcerpt {
+                before: "Hi Priya,\n\nThanks for the draft. ".into(),
+                after: String::new(),
+            }),
+            ..PromptContext::default()
+        };
+        let dictation = "i will send my comments on the second chapter tomorrow morning and then we can talk about the budget and the schedule for the launch next week";
+        let cleaned = "I will send my comments on the second chapter tomorrow morning, and then we can talk about the budget and the schedule for the launch next week.";
+        let accept = |reply: &str| accept_output(dictation, reply, &context);
+        assert_eq!(accept(cleaned), Some(cleaned.to_string()));
+        assert_eq!(
+            accept(&format!("Hi Priya,\n\nThanks for the draft. {cleaned}")),
+            None
+        );
+        assert_eq!(accept(&format!("<field>{cleaned}</field>")), None);
+        assert_eq!(
+            accept(&cleaned.replace("tomorrow", "<cursor/> tomorrow")),
+            None
         );
     }
 

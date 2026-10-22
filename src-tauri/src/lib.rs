@@ -18,6 +18,7 @@ mod commands;
 mod dictation_gesture;
 mod dictionary;
 mod engine;
+mod field_excerpt;
 mod helpers;
 mod input;
 mod insights;

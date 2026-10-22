@@ -1,9 +1,12 @@
-//! Proper names visible in the window the user dictates into, offered to the
-//! cleanup step as spelling hints. The window text is read through
-//! Accessibility on a background thread when dictation starts, reduced to
-//! candidate names locally, and dropped after use: only the names leave
+//! What the window the user dictates into offers the cleanup step: proper
+//! names visible in it, as spelling hints, and a short excerpt of the
+//! focused field around the insertion point. Both are read through
+//! Accessibility on a background thread when dictation starts, reduced
+//! locally, and dropped after use: only the names and the excerpt leave
 //! this module, and nothing is stored or logged.
 
+use crate::accessibility::Element;
+use crate::field_excerpt::{read_field, FieldExcerpt, FocusedText, Utf16Range};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
@@ -16,45 +19,142 @@ const LONG_TOKEN_CHARS: usize = 20;
 const MAX_NODES: usize = 1_500;
 const MAX_TEXT_CHARS: usize = 40_000;
 const READ_BUDGET: Duration = Duration::from_millis(400);
+/// The field is read first, and a slow one must leave the window time.
+const FIELD_BUDGET: Duration = Duration::from_millis(200);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
 
-static PENDING: Mutex<Option<Receiver<Vec<String>>>> = Mutex::new(None);
+/// What one dictation learned from the window it was started in.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct WindowContext {
+    pub names: Vec<String>,
+    pub field: Option<FieldExcerpt>,
+}
 
-/// Starts a dictation: reads the frontmost window when `enabled`, and
-/// always drops the names of an earlier dictation nobody claimed, such as
-/// one cancelled with Escape.
-pub fn capture(enabled: bool) {
+/// Which parts of the frontmost window a dictation reads.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ContextReads {
+    /// Names visible anywhere in the focused window.
+    pub names: bool,
+    /// The excerpt of the focused field around the insertion point.
+    pub field: bool,
+}
+
+static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
+
+/// Starts a dictation: reads what `reads` asks for from the frontmost
+/// window, and always drops the context of an earlier dictation nobody
+/// claimed, such as one cancelled with Escape.
+pub fn capture(reads: ContextReads) {
+    capture_with(reads, read_frontmost_window);
+}
+
+fn capture_with(
+    reads: ContextReads,
+    read: impl FnOnce(ContextReads) -> WindowContext + Send + 'static,
+) {
     let (sender, receiver) = mpsc::channel();
+    let reads_any = reads.names || reads.field;
     if let Ok(mut pending) = PENDING.lock() {
-        *pending = enabled.then_some(receiver);
+        *pending = reads_any.then_some(receiver);
     }
-    if !enabled {
+    if !reads_any {
         return;
     }
     std::thread::spawn(move || {
-        let names = read_frontmost_window()
-            .map(|(bundle_id, text)| names_in_window(&bundle_id, &text))
-            .unwrap_or_default();
-        let _ = sender.send(names);
+        let _ = sender.send(read(reads));
     });
 }
 
-/// The names captured for the dictation that is ending, if ready.
-pub fn collect() -> Vec<String> {
+/// The context captured for the dictation that is ending, if ready.
+pub fn collect() -> WindowContext {
     let receiver = PENDING.lock().ok().and_then(|mut pending| pending.take());
     receiver
         .and_then(|receiver| receiver.recv_timeout(COLLECT_WAIT).ok())
         .unwrap_or_default()
 }
 
-/// The frontmost app's bundle identifier and the text of its focused window.
-fn read_frontmost_window() -> Option<(String, String)> {
-    use crate::accessibility::frontmost_app;
-
+fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    let (_, bundle_id, app) = frontmost_app()?;
-    let window = app.element("AXFocusedWindow")?;
+    crate::accessibility::frontmost_app()
+        .map(|(pid, bundle_id, app)| read_app(reads, pid, &bundle_id, &app, started))
+        .unwrap_or_default()
+}
+
+/// The focused field first, then the focused window with what is left of
+/// the budget that began at `started`.
+fn read_app(
+    reads: ContextReads,
+    pid: i32,
+    bundle_id: &str,
+    app: &Element,
+    started: Instant,
+) -> WindowContext {
+    read_window(
+        reads,
+        bundle_id,
+        || {
+            crate::accessibility::focus_in(pid, app)
+                .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
+        },
+        || {
+            app.element("AXFocusedWindow")
+                .map(|window| window_text(window, started))
+                .unwrap_or_default()
+        },
+    )
+}
+
+/// Runs only the reads `reads` asks for. Without the window text, a code
+/// app's other panes are not checked for assignments; the excerpt still is.
+fn read_window(
+    reads: ContextReads,
+    bundle_id: &str,
+    field: impl FnOnce() -> Option<FieldExcerpt>,
+    window_text: impl FnOnce() -> String,
+) -> WindowContext {
+    let field = if reads.field { field() } else { None };
+    let text = if reads.names {
+        window_text()
+    } else {
+        String::new()
+    };
+    let context = window_context(bundle_id, &text, field);
+    WindowContext {
+        names: if reads.names {
+            context.names
+        } else {
+            Vec::new()
+        },
+        field: context.field,
+    }
+}
+
+impl FocusedText for Element {
+    fn is_secure(&self) -> bool {
+        Element::is_secure(self)
+    }
+
+    fn selection(&self) -> Option<Utf16Range> {
+        self.range("AXSelectedTextRange")
+    }
+
+    fn char_count(&self) -> Option<usize> {
+        usize::try_from(self.number("AXNumberOfCharacters")?).ok()
+    }
+
+    fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        Element::string_for_range(self, range)
+    }
+
+    fn value(&self) -> Option<String> {
+        self.string("AXValue")
+    }
+}
+
+/// The text of `window` and its descendants, breadth first, until the read
+/// budget that started at `started` runs out.
+fn window_text(window: Element, started: Instant) -> String {
     let mut text = String::new();
     let mut queue = std::collections::VecDeque::from([window]);
     let mut visited = 0;
@@ -76,7 +176,7 @@ fn read_frontmost_window() -> Option<(String, String)> {
         }
         queue.extend(element.children());
     }
-    Some((bundle_id, text))
+    text
 }
 
 /// Terminals and code editors, where a `.env` file or a shell `export` may
@@ -113,12 +213,40 @@ fn is_code_app(bundle_id: &str) -> bool {
 }
 
 /// A terminal or editor with any `KEY=value` line may be showing a `.env`
-/// file or a shell session, so it gives no names at all.
-fn names_in_window(bundle_id: &str, text: &str) -> Vec<String> {
-    if is_code_app(bundle_id) && text.lines().any(is_assignment) {
-        return Vec::new();
+/// file or a shell session, so it gives no names and no excerpt at all.
+/// Elsewhere an excerpt with a line that assigns a value or mentions a
+/// password, token, secret or API key is dropped. Names in the excerpt come
+/// first: they are next to what the user is writing.
+fn window_context(
+    bundle_id: &str,
+    window_text: &str,
+    field: Option<FieldExcerpt>,
+) -> WindowContext {
+    let excerpt = field
+        .as_ref()
+        .map(|field| format!("{}\n{}", field.before, field.after))
+        .unwrap_or_default();
+    let assigns = excerpt
+        .lines()
+        .chain(window_text.lines())
+        .any(is_assignment);
+    if is_code_app(bundle_id) && assigns {
+        return WindowContext::default();
     }
-    candidate_names(text)
+    let mut names = candidate_names(&excerpt);
+    for name in candidate_names(window_text) {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names.truncate(MAX_NAMES);
+    let secret = excerpt
+        .lines()
+        .any(|line| is_assignment(line) || mentions_secret(line));
+    WindowContext {
+        names,
+        field: field.filter(|_| !secret),
+    }
 }
 
 /// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
@@ -466,24 +594,353 @@ mod tests {
         );
     }
 
+    /// `PENDING` is shared by every dictation, so its tests take turns.
+    static PENDING_TESTS: Mutex<()> = Mutex::new(());
+
+    fn names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    fn field(before: &str, after: &str) -> Option<FieldExcerpt> {
+        Some(FieldExcerpt {
+            before: before.to_string(),
+            after: after.to_string(),
+        })
+    }
+
     #[test]
     fn a_dictation_started_with_names_off_drops_an_unclaimed_capture() {
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         let (sender, receiver) = mpsc::channel();
-        sender.send(vec!["Ingrid".to_string()]).unwrap();
+        sender
+            .send(WindowContext {
+                names: names(&["Ingrid"]),
+                field: field("Hi Ingrid, ", ""),
+            })
+            .unwrap();
         *PENDING.lock().unwrap() = Some(receiver);
-        capture(false);
-        assert_eq!(collect(), Vec::<String>::new());
+        capture(ContextReads::default());
+        assert_eq!(collect(), WindowContext::default());
+    }
+
+    #[test]
+    fn each_read_runs_only_when_asked_for() {
+        use std::sync::Arc;
+
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        let excerpt = || field("Hi Priya, ", "");
+        for (reads, expected_reads, expected) in [
+            (ContextReads::default(), vec![], WindowContext::default()),
+            (
+                ContextReads {
+                    names: true,
+                    field: false,
+                },
+                vec!["window"],
+                WindowContext {
+                    names: names(&["Ingrid"]),
+                    field: None,
+                },
+            ),
+            (
+                ContextReads {
+                    names: false,
+                    field: true,
+                },
+                vec!["field"],
+                WindowContext {
+                    names: Vec::new(),
+                    field: excerpt(),
+                },
+            ),
+            (
+                ContextReads {
+                    names: true,
+                    field: true,
+                },
+                vec!["field", "window"],
+                WindowContext {
+                    names: names(&["Priya", "Ingrid"]),
+                    field: excerpt(),
+                },
+            ),
+        ] {
+            let asked = Arc::new(Mutex::new(Vec::new()));
+            let log = Arc::clone(&asked);
+            capture_with(reads, move |reads| {
+                let field_log = Arc::clone(&log);
+                let context = read_window(
+                    reads,
+                    "com.apple.Notes",
+                    move || {
+                        field_log.lock().unwrap().push("field");
+                        excerpt()
+                    },
+                    || {
+                        log.lock().unwrap().push("window");
+                        "meet Ingrid today".to_string()
+                    },
+                );
+                log.lock().unwrap().push("done");
+                context
+            });
+            let started = Instant::now();
+            while !asked.lock().unwrap().contains(&"done")
+                && started.elapsed() < Duration::from_millis(200)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(collect(), expected, "{reads:?}");
+            let asked: Vec<_> = asked
+                .lock()
+                .unwrap()
+                .iter()
+                .copied()
+                .filter(|read| *read != "done")
+                .collect();
+            assert_eq!(asked, expected_reads, "{reads:?}");
+        }
     }
 
     #[test]
     fn terminals_and_editors_showing_assignments_give_no_names() {
         let text = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        assert!(names_in_window("com.apple.Terminal", text).is_empty());
-        assert!(names_in_window("com.jetbrains.intellij", text).is_empty());
-        assert_eq!(names_in_window("com.apple.Notes", text), vec!["Ingrid"]);
+        let context = |bundle_id, text| window_context(bundle_id, text, None).names;
+        assert!(context("com.apple.Terminal", text).is_empty());
+        assert!(context("com.jetbrains.intellij", text).is_empty());
+        assert_eq!(context("com.apple.Notes", text), names(&["Ingrid"]));
         assert_eq!(
-            names_in_window("com.microsoft.VSCode", "written by Ingrid"),
-            vec!["Ingrid"]
+            context("com.microsoft.VSCode", "written by Ingrid"),
+            names(&["Ingrid"])
+        );
+    }
+
+    #[test]
+    fn a_code_app_showing_assignments_gives_no_excerpt_either() {
+        let window = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
+        let excerpt = field("thanks to Ingrid for ", "");
+        assert_eq!(
+            window_context("com.apple.Terminal", window, excerpt.clone()),
+            WindowContext::default()
+        );
+        assert_eq!(
+            window_context("com.apple.Notes", window, excerpt.clone()).field,
+            excerpt
+        );
+    }
+
+    #[test]
+    fn an_excerpt_with_a_secret_line_is_dropped() {
+        for (before, after) in [
+            ("Wi-Fi password: Bluebird\nsee you ", ""),
+            ("Hi Ingrid, ", " here is my API key for staging"),
+            ("STRIPE_KEY=Moonlight\n", ""),
+            ("export ADMIN = Corvina\nthen ", "run it"),
+            ("the token is ", ""),
+        ] {
+            let context = window_context("com.apple.Notes", "", field(before, after));
+            assert_eq!(context.field, None, "{before:?} {after:?}");
+        }
+        let clean = field("Thanks for the draft, Priya. ", "");
+        assert_eq!(
+            window_context("com.apple.Notes", "", clean.clone()).field,
+            clean
+        );
+    }
+
+    /// Measures every read on each regular app running, without bringing
+    /// any to the front, and writes a markdown table. Only lengths, counts,
+    /// roles and attribute names are recorded, never text.
+    #[test]
+    #[ignore]
+    fn coverage_of_running_apps() {
+        use crate::accessibility::{is_password_app, is_trusted};
+        use crate::field_excerpt::{MAX_AFTER_CHARS, MAX_BEFORE_CHARS};
+        use objc2_app_kit::{NSApplicationActivationPolicy, NSWorkspace};
+        use std::fmt::Write as _;
+
+        let out = std::env::var("MURMUR_COVERAGE_OUT")
+            .unwrap_or_else(|_| "/tmp/murmur-i153-coverage.md".to_string());
+        let chars = |text: Option<String>| {
+            text.map_or("-".to_string(), |text| text.chars().count().to_string())
+        };
+        let mut main = format!(
+            "# Window context coverage\n\n{} UTC, Accessibility trusted: {}\n\n\
+             Before: the window read at 71afa240 (window chars, names, ms). After: the \
+             production reader with names and field on (excerpt chars before/after the \
+             cursor, names, ms).\n\n\
+             | App | Before | After | Notes |\n|---|---|---|---|\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M"),
+            is_trusted()
+        );
+        let mut report = String::from(
+            "\n## Probe details\n\n\
+             (a) selection + AXStringForRange of the reader's window, (b) selection + AXValue, \
+             (c) AXSelectedText, (d) AXVisibleCharacterRange length, (e) BFS text of the nearest \
+             AXWebArea above the focus. Lengths in chars; `-` is a failed read.\n\n\
+             | app | focus role/subrole | secure | selection | (a) | (b) | (c) | (d) | (e) chars, ms \
+             | before: window chars, names, ms | after: excerpt chars, names, ms |\n\
+             |---|---|---|---|---|---|---|---|---|---|---|\n",
+        );
+        let mut attributes = String::from("\n## Attributes of the focused element\n");
+        let workspace = NSWorkspace::sharedWorkspace();
+        for running in workspace.runningApplications().iter() {
+            let pid = running.processIdentifier();
+            let bundle_id = running
+                .bundleIdentifier()
+                .map(|id| id.to_string())
+                .unwrap_or_default();
+            if running.activationPolicy() != NSApplicationActivationPolicy::Regular
+                || pid <= 0
+                || bundle_id.to_lowercase().contains("murmur")
+                || is_password_app(&bundle_id)
+            {
+                continue;
+            }
+            let Some(app) = Element::application(pid) else {
+                continue;
+            };
+            let focused = app.element("AXFocusedUIElement");
+            let role = focused.as_ref().map_or("no focus".to_string(), |focused| {
+                format!(
+                    "{}/{}",
+                    focused.string("AXRole").unwrap_or_default(),
+                    focused.string("AXSubrole").unwrap_or_default()
+                )
+            });
+            let secure = focused.as_ref().is_some_and(Element::is_secure);
+            let readable = focused.as_ref().filter(|_| !secure);
+            let selection = readable.and_then(|focused| focused.range("AXSelectedTextRange"));
+            let ranged = readable.zip(selection).and_then(|(focused, selection)| {
+                let count = FocusedText::char_count(focused)?;
+                let end = (selection.start + selection.len + 2 * MAX_AFTER_CHARS + 2).min(count);
+                let start = selection
+                    .start
+                    .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
+                    .min(end);
+                focused.string_for_range(Utf16Range {
+                    start,
+                    len: end - start,
+                })
+            });
+            let value = readable
+                .filter(|_| selection.is_some())
+                .and_then(|focused| focused.string("AXValue"));
+            let selected = readable.and_then(|focused| focused.string("AXSelectedText"));
+            let visible = readable
+                .and_then(|focused| focused.range("AXVisibleCharacterRange"))
+                .map(|range| range.len.to_string());
+            let web_area = readable.and_then(|focused| {
+                let mut element = focused.clone();
+                for _ in 0..30 {
+                    if element.string("AXRole").as_deref() == Some("AXWebArea") {
+                        return Some(element);
+                    }
+                    element = element.element("AXParent")?;
+                }
+                None
+            });
+            let web_area = web_area.map_or("-".to_string(), |web_area| {
+                let started = Instant::now();
+                let text = window_text(web_area, started);
+                format!(
+                    "{}, {}",
+                    text.chars().count(),
+                    started.elapsed().as_millis()
+                )
+            });
+
+            let started = Instant::now();
+            let window = app
+                .element("AXFocusedWindow")
+                .map(|window| window_text(window, started));
+            let before = window.map_or("no window".to_string(), |text| {
+                let elapsed = started.elapsed().as_millis();
+                let names = window_context(&bundle_id, &text, None).names.len();
+                format!("{}, {names}, {elapsed}", text.chars().count())
+            });
+
+            let started = Instant::now();
+            let all = ContextReads {
+                names: true,
+                field: true,
+            };
+            let context = read_app(all, pid, &bundle_id, &app, started);
+            let elapsed = started.elapsed().as_millis();
+            let excerpt = context.field.as_ref().map_or(0, |field| {
+                field.before.chars().count() + field.after.chars().count()
+            });
+            let after = format!("{excerpt}, {}, {elapsed}", context.names.len());
+            let split = context.field.as_ref().map_or("0/0".to_string(), |field| {
+                format!(
+                    "{}/{}",
+                    field.before.chars().count(),
+                    field.after.chars().count()
+                )
+            });
+            let worked: Vec<&str> = [
+                ("selection", selection.is_some()),
+                ("AXStringForRange", ranged.is_some()),
+                ("AXValue", value.is_some()),
+                ("AXSelectedText", selected.is_some()),
+                ("AXVisibleCharacterRange", visible.is_some()),
+                ("web area", web_area != "-"),
+            ]
+            .into_iter()
+            .filter_map(|(read, ok)| ok.then_some(read))
+            .collect();
+            let app_name = running
+                .localizedName()
+                .map_or_else(|| bundle_id.clone(), |name| name.to_string());
+            writeln!(
+                main,
+                "| {app_name} | {before} | {split}, {}, {elapsed} | {role}{}; worked: {} |",
+                context.names.len(),
+                if secure { ", secure" } else { "" },
+                if worked.is_empty() {
+                    "none".to_string()
+                } else {
+                    worked.join(", ")
+                }
+            )
+            .unwrap();
+
+            writeln!(
+                report,
+                "| {bundle_id} | {role} | {secure} | {} | {} | {} | {} | {} | {web_area} | {before} | {after} |",
+                selection.map_or("-".to_string(), |selection| format!("len {}", selection.len)),
+                chars(ranged),
+                chars(value),
+                chars(selected),
+                visible.unwrap_or_else(|| "-".to_string()),
+            )
+            .unwrap();
+            if let Some(focused) = &focused {
+                writeln!(
+                    attributes,
+                    "\n- {bundle_id}: {}; parameterized: {}",
+                    focused.attribute_names(false).join(", "),
+                    focused.attribute_names(true).join(", ")
+                )
+                .unwrap();
+            }
+        }
+        main.push_str(&report);
+        main.push_str(&attributes);
+        std::fs::write(&out, &main).unwrap();
+        println!("{main}");
+    }
+
+    #[test]
+    fn names_in_the_excerpt_come_before_the_window_names() {
+        let context = window_context(
+            "com.apple.Mail",
+            "meet Tobias and Siobhán today",
+            field("Dear Siobhán and Priya, ", "with Ingrid"),
+        );
+        assert_eq!(
+            context.names,
+            names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
     }
 }
