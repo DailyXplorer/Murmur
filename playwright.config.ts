@@ -8,7 +8,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  // On CI, failures also become annotations on the check, readable without
+  // the report artifact.
+  reporter: process.env.CI ? [["github"], ["html"]] : "html",
   use: {
     baseURL: `http://localhost:${vitePort}`,
     trace: "on-first-retry",
