@@ -123,11 +123,34 @@
       "continue": "Weiter",
       "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
       "setupCodex": "Codex-Einrichtung öffnen",
-      "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden."
+      "codexSetupFailed": "Die Codex-Einrichtung konnte nicht geöffnet werden.",
+      "optionalTitle": "ChatGPT verbinden (optional)",
+      "optionalDescription": "Verbinden Sie Ihr ChatGPT-Konto für die KI-Bereinigung (entfernt Füllwörter und korrigiert die Grammatik) und für Sprachen, die das lokale Modell nicht abdeckt.",
+      "optionalSession": "Melden Sie sich in der Codex-App mit Ihrem ChatGPT-Konto an. Murmur nutzt diese Sitzung.",
+      "skip": "Überspringen"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Keine Konfiguration erkannt"
+    },
+    "model": {
+      "title": "Auf diesem Mac transkribieren",
+      "description": "Murmur wandelt Ihre Stimme direkt auf diesem Mac in Text um. Ihr Audio bleibt auf dem Mac, und es gibt kein Kontingent.",
+      "download": "Dafür ist ein einmaliger Download von {{size}} nötig.",
+      "alreadyHere": "Das Modell ist bereits auf diesem Mac.",
+      "languages": "Funktioniert in 25 europäischen Sprachen, darunter Deutsch, Englisch und Französisch.",
+      "downloadAndContinue": "Laden und weiter",
+      "useCloud": "Stattdessen die Cloud verwenden"
+    },
+    "done": {
+      "title": "Alles bereit",
+      "ready": "Halten Sie Ihr Tastenkürzel gedrückt und sprechen Sie.",
+      "downloading": "Das Modell wird noch geladen ({{percent}} %).",
+      "preparing": "Das Modell wird für diesen Mac vorbereitet.",
+      "cloudMeanwhile": "Bis es bereit ist, nutzt Murmur die Cloud.",
+      "waitForIt": "Sie können diktieren, sobald es bereit ist.",
+      "stoppedTitle": "Der Download wurde unterbrochen",
+      "start": "Murmur verwenden"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Die lokale Transkription konnte nicht gestartet werden.",
     "switched": "Es wird jetzt auf diesem Mac transkribiert.",
     "switchedDescription": "Du kannst das unter {{section}} ändern."
+  },
+  "localModelPill": {
+    "downloading": "Modell wird geladen… {{percent}} %",
+    "preparing": "Modell wird vorbereitet…"
   }
 }

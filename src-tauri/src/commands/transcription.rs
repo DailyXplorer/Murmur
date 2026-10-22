@@ -1,7 +1,7 @@
 use crate::codex_transcribe::CodexAuthStatus;
 use crate::commands::local_models::{announce_switch_dropped, runnable_models};
 use crate::engine::Engine;
-use crate::settings::{get_settings, write_settings};
+use crate::settings::{get_settings, write_settings, AppSettings};
 use tauri::AppHandle;
 
 #[tauri::command]
@@ -65,19 +65,90 @@ pub fn get_codex_auth_status() -> CodexAuthStatus {
     crate::codex_transcribe::auth_status()
 }
 
+/// Ends onboarding on the engine it keeps. A Mac that cannot run the local
+/// model dictates in the cloud, and the cloud needs a ChatGPT session so the
+/// first recording has somewhere to go.
+fn finish_onboarding(
+    settings: &mut AppSettings,
+    local_runs: bool,
+    signed_in: bool,
+) -> Result<(), String> {
+    if !local_runs {
+        settings.transcription_engine = Engine::Cloud;
+    }
+    if settings.transcription_engine == Engine::Cloud && !signed_in {
+        return Err("No ChatGPT/Codex session was found. Sign in to Codex and retry.".to_string());
+    }
+    settings.onboarding_completed = true;
+    // Onboarding already offered local transcription; the card is for
+    // users from before it.
+    settings.local_stt_card_dismissed = true;
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
-/// Onboarding ends only once a Codex session exists, so the first recording
-/// has somewhere to go.
+/// Dictation on this Mac needs no account. The cloud needs a Codex session,
+/// so the first recording has somewhere to go.
 pub async fn complete_onboarding(app: AppHandle) -> Result<(), String> {
-    let codex_signed_in =
+    let signed_in =
         tauri::async_runtime::spawn_blocking(|| crate::codex_transcribe::auth_status().signed_in)
             .await
             .map_err(|error| format!("Failed to inspect transcription configuration: {error}"))?;
-    if !codex_signed_in {
-        return Err("No ChatGPT/Codex session was found. Sign in to Codex and retry.".to_string());
-    }
-    let mut settings = crate::settings::get_settings(&app);
-    settings.onboarding_completed = true;
+    let local_runs = runnable_models(&app).is_ok();
+    let mut settings = get_settings(&app);
+    finish_onboarding(&mut settings, local_runs, signed_in)?;
     crate::settings::write_settings_checked(&app, settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::get_default_settings;
+
+    /// Finishes a new install's onboarding after it chose `engine`, and
+    /// returns the settings it keeps.
+    fn finish(engine: Engine, local_runs: bool, signed_in: bool) -> Result<AppSettings, String> {
+        let mut settings = get_default_settings();
+        settings.transcription_engine = engine;
+        finish_onboarding(&mut settings, local_runs, signed_in)?;
+        assert!(settings.onboarding_completed);
+        Ok(settings)
+    }
+
+    fn engine(finished: Result<AppSettings, String>) -> Engine {
+        finished.unwrap().transcription_engine
+    }
+
+    #[test]
+    fn onboarding_needs_an_account_only_for_the_cloud() {
+        assert_eq!(engine(finish(Engine::Local, true, false)), Engine::Local);
+        assert_eq!(engine(finish(Engine::Local, true, true)), Engine::Local);
+        assert_eq!(engine(finish(Engine::Cloud, true, true)), Engine::Cloud);
+        assert!(finish(Engine::Cloud, true, false).is_err());
+    }
+
+    #[test]
+    fn a_mac_that_cannot_run_the_local_model_finishes_in_the_cloud() {
+        assert_eq!(engine(finish(Engine::Local, false, true)), Engine::Cloud);
+        assert!(finish(Engine::Local, false, false).is_err());
+    }
+
+    /// The card announces local transcription to users from before it. A new
+    /// install was offered it in onboarding, so choosing the cloud there must
+    /// not bring the offer back on the first screen.
+    #[test]
+    fn a_new_install_never_sees_the_local_transcription_card() {
+        for (engine, local_runs) in [
+            (Engine::Cloud, true),
+            (Engine::Local, true),
+            (Engine::Local, false),
+        ] {
+            let settings = finish(engine, local_runs, true).unwrap();
+            assert!(
+                settings.local_stt_card_dismissed,
+                "{engine:?}, local runs: {local_runs}"
+            );
+        }
+    }
 }

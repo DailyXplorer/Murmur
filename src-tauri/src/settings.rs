@@ -1110,6 +1110,13 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_store_dictates_on_this_mac() {
+        let (settings, _) = parse_stored_settings(&serde_json::json!({}));
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert_eq!(get_default_settings().transcription_engine, Engine::Local);
+    }
+
+    #[test]
     fn a_requested_switch_to_local_waits_for_the_model_and_happens_once() {
         let mut settings = get_default_settings();
         settings.transcription_engine = Engine::Cloud;

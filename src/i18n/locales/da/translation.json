@@ -123,11 +123,34 @@
       "continue": "Fortsæt",
       "completionFailed": "Opsætningen kunne ikke fuldføres. Opdater status, og prøv igen.",
       "setupCodex": "Åbn Codex-opsætning",
-      "codexSetupFailed": "Codex-opsætningen kunne ikke åbnes."
+      "codexSetupFailed": "Codex-opsætningen kunne ikke åbnes.",
+      "optionalTitle": "Forbind ChatGPT (valgfrit)",
+      "optionalDescription": "Forbind din ChatGPT-konto for AI-oprydning (fjerner fyldord og retter grammatikken) og for sprog, som den lokale model ikke dækker.",
+      "optionalSession": "Log ind i Codex-appen med din ChatGPT-konto. Murmur bruger den session.",
+      "skip": "Spring over"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Konfiguration ikke fundet"
+    },
+    "model": {
+      "title": "Transskriber på denne Mac",
+      "description": "Murmur gør din stemme til tekst direkte på denne Mac. Din lyd bliver på den, og der er ingen kvote.",
+      "download": "Det kræver en engangsdownload på {{size}}.",
+      "alreadyHere": "Modellen er allerede på denne Mac.",
+      "languages": "Virker på 25 europæiske sprog, blandt andet dansk, engelsk og fransk.",
+      "downloadAndContinue": "Download og fortsæt",
+      "useCloud": "Brug skyen i stedet"
+    },
+    "done": {
+      "title": "Alt er klar",
+      "ready": "Hold din genvej nede, og tal.",
+      "downloading": "Modellen downloades stadig ({{percent}} %).",
+      "preparing": "Modellen gøres klar til denne Mac.",
+      "cloudMeanwhile": "Indtil den er klar, bruger Murmur skyen.",
+      "waitForIt": "Du kan diktere, så snart den er klar.",
+      "stoppedTitle": "Downloaden stoppede",
+      "start": "Begynd at bruge Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Kunne ikke starte lokal transskription.",
     "switched": "Der transskriberes nu på denne Mac.",
     "switchedDescription": "Du kan ændre det under {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Downloader modellen… {{percent}} %",
+    "preparing": "Gør modellen klar…"
   }
 }

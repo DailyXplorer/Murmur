@@ -123,11 +123,34 @@
       "continue": "Fortsätt",
       "completionFailed": "Inställningen kunde inte slutföras. Uppdatera statusen och försök igen.",
       "setupCodex": "Öppna Codex-konfigurationen",
-      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen."
+      "codexSetupFailed": "Det gick inte att öppna Codex-konfigurationen.",
+      "optionalTitle": "Anslut ChatGPT (valfritt)",
+      "optionalDescription": "Anslut ditt ChatGPT-konto för AI-städning (tar bort utfyllnadsord och rättar grammatiken) och för språk som den lokala modellen inte täcker.",
+      "optionalSession": "Logga in i Codex-appen med ditt ChatGPT-konto. Murmur använder den sessionen.",
+      "skip": "Hoppa över"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Ingen konfiguration hittades"
+    },
+    "model": {
+      "title": "Transkribera på den här Macen",
+      "description": "Murmur gör om din röst till text direkt på den här Macen. Ditt ljud stannar på den, och det finns ingen kvot.",
+      "download": "Det krävs en engångsnedladdning på {{size}}.",
+      "alreadyHere": "Modellen finns redan på den här Macen.",
+      "languages": "Fungerar på 25 europeiska språk, bland annat svenska, engelska och franska.",
+      "downloadAndContinue": "Ladda ned och fortsätt",
+      "useCloud": "Använd molnet i stället"
+    },
+    "done": {
+      "title": "Allt är klart",
+      "ready": "Håll in kortkommandot och prata.",
+      "downloading": "Modellen laddas fortfarande ned ({{percent}} %).",
+      "preparing": "Modellen förbereds för den här Macen.",
+      "cloudMeanwhile": "Tills den är klar använder Murmur molnet.",
+      "waitForIt": "Du kan diktera så snart den är klar.",
+      "stoppedTitle": "Nedladdningen avbröts",
+      "start": "Börja använda Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Det gick inte att starta lokal transkribering.",
     "switched": "Nu transkriberas det på den här Macen.",
     "switchedDescription": "Du kan ändra det under {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Laddar ned modellen… {{percent}} %",
+    "preparing": "Förbereder modellen…"
   }
 }

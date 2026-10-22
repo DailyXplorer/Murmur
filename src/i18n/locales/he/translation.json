@@ -123,11 +123,34 @@
       "continue": "המשך",
       "completionFailed": "לא ניתן להשלים את ההגדרה. רענן את המצב ונסה שוב.",
       "setupCodex": "פתיחת הגדרת Codex",
-      "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex."
+      "codexSetupFailed": "לא ניתן לפתוח את הגדרת Codex.",
+      "optionalTitle": "חיבור ChatGPT (רשות)",
+      "optionalDescription": "אפשר לחבר את חשבון ה-ChatGPT לניקוי בבינה מלאכותית (מסיר מילות מילוי ומתקן דקדוק) ולשפות שהמודל המקומי לא מכסה.",
+      "optionalSession": "יש להתחבר לאפליקציית Codex עם חשבון ה-ChatGPT שלך. Murmur משתמש בהתחברות הזו.",
+      "skip": "דילוג"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "לא זוהתה תצורה"
+    },
+    "model": {
+      "title": "תמלול ב-Mac הזה",
+      "description": "Murmur הופך את הקול שלך לטקסט ישירות ב-Mac הזה. השמע נשאר בו, ואין מכסה.",
+      "download": "נדרשת הורדה חד-פעמית של {{size}}.",
+      "alreadyHere": "המודל כבר נמצא ב-Mac הזה.",
+      "languages": "עובד ב-25 שפות אירופיות, כולל אנגלית וצרפתית.",
+      "downloadAndContinue": "הורדה והמשך",
+      "useCloud": "שימוש בענן במקום"
+    },
+    "done": {
+      "title": "הכול מוכן",
+      "ready": "יש להחזיק את קיצור המקשים ולדבר.",
+      "downloading": "המודל עדיין בהורדה ({{percent}}%).",
+      "preparing": "המודל בהכנה עבור ה-Mac הזה.",
+      "cloudMeanwhile": "עד שיהיה מוכן, Murmur משתמש בענן.",
+      "waitForIt": "אפשר יהיה להכתיב ברגע שיהיה מוכן.",
+      "stoppedTitle": "ההורדה נעצרה",
+      "start": "התחלת השימוש ב-Murmur"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "לא ניתן היה להפעיל תמלול מקומי.",
     "switched": "התמלול מתבצע עכשיו ב-Mac הזה.",
     "switchedDescription": "אפשר לשנות זאת ב{{section}}."
+  },
+  "localModelPill": {
+    "downloading": "המודל בהורדה… {{percent}}%",
+    "preparing": "המודל בהכנה…"
   }
 }

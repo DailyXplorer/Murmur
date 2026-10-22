@@ -123,11 +123,34 @@
       "continue": "Doorgaan",
       "completionFailed": "De installatie kon niet worden voltooid. Vernieuw de status en probeer het opnieuw.",
       "setupCodex": "Codex-configuratie openen",
-      "codexSetupFailed": "De Codex-configuratie kon niet worden geopend."
+      "codexSetupFailed": "De Codex-configuratie kon niet worden geopend.",
+      "optionalTitle": "ChatGPT koppelen (optioneel)",
+      "optionalDescription": "Koppel je ChatGPT-account voor AI-opschoning (haalt stopwoordjes weg en verbetert de grammatica) en voor talen die het lokale model niet dekt.",
+      "optionalSession": "Log in bij de Codex-app met je ChatGPT-account. Murmur gebruikt die sessie.",
+      "skip": "Overslaan"
     },
     "providerLabels": {
       "codex": "Codex",
       "unavailable": "Geen configuratie gedetecteerd"
+    },
+    "model": {
+      "title": "Transcriberen op deze Mac",
+      "description": "Murmur zet je stem direct op deze Mac om in tekst. Je audio blijft op de Mac en er is geen quotum.",
+      "download": "Daarvoor is een eenmalige download van {{size}} nodig.",
+      "alreadyHere": "Het model staat al op deze Mac.",
+      "languages": "Werkt in 25 Europese talen, waaronder Nederlands, Engels en Frans.",
+      "downloadAndContinue": "Download en ga door",
+      "useCloud": "Gebruik de cloud"
+    },
+    "done": {
+      "title": "Alles is klaar",
+      "ready": "Houd je sneltoets ingedrukt en spreek.",
+      "downloading": "Het model wordt nog gedownload ({{percent}}%).",
+      "preparing": "Het model wordt klaargemaakt voor deze Mac.",
+      "cloudMeanwhile": "Tot het klaar is, gebruikt Murmur de cloud.",
+      "waitForIt": "Je kunt dicteren zodra het klaar is.",
+      "stoppedTitle": "De download is gestopt",
+      "start": "Murmur gebruiken"
     }
   },
   "settings": {
@@ -774,5 +797,9 @@
     "error": "Kan lokale transcriptie niet starten.",
     "switched": "Er wordt nu op deze Mac getranscribeerd.",
     "switchedDescription": "Je kunt dit wijzigen in {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Model downloaden… {{percent}}%",
+    "preparing": "Model voorbereiden…"
   }
 }

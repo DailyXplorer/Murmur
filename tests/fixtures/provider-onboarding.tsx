@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import type { AppSettings } from "../../src/bindings";
+import type { AppSettings, Engine, LocalModelStatus } from "../../src/bindings";
 import "../../src/App.css";
 
 type Deferred<T> = {
@@ -28,6 +28,38 @@ let codexConfigured = query.get("codex") === "configured";
  * first check finds it missing, the next one finds it granted again. */
 const returning = query.get("returning") === "1";
 let accessibilityRevoked = returning;
+/** `permissions=missing`: Accessibility is never granted, so the
+ * permissions step stays on screen. */
+const permissionsMissing = query.get("permissions") === "missing";
+
+/** The manifest's download: Apple silicon, or `mac=intel`. */
+const MODEL_BYTES = query.get("mac") === "intel" ? 739_508_576 : 505_044_208;
+const MODELS = {
+  missing: { state: "missing" },
+  downloading: {
+    state: "downloading",
+    done_bytes: 191_916_799,
+    total_bytes: MODEL_BYTES,
+  },
+  preparing: { state: "preparing" },
+  ready: { state: "ready" },
+  failed: { state: "failed", reason: { kind: "no_internet" } },
+  // The default: a Mac without the local model gets today's Codex setup.
+  unsupported: { state: "unsupported", support: "os_too_old" },
+} satisfies Record<string, LocalModelStatus["state"]>;
+type ModelName = keyof typeof MODELS;
+const modelStatus = (name: ModelName): LocalModelStatus => ({
+  state: MODELS[name],
+  size_bytes: MODEL_BYTES,
+  kept_bytes: 0,
+});
+let model = modelStatus((query.get("model") as ModelName) ?? "unsupported");
+
+const setModel = (name: ModelName) => {
+  model = modelStatus(name);
+  return emit("local-model-status", model);
+};
+
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
@@ -82,10 +114,13 @@ let backendSettings: AppSettings = {
   app_language: appLanguage,
   onboarding_completed: returning,
   selected_language: "fr",
+  transcription_engine: returning ? "cloud" : "local",
 };
 
+const engines: Engine[] = [];
+
 mockIPC(
-  (command) => {
+  (command, args) => {
     calls.push(command);
     switch (command) {
       case "plugin:opener|open_url": {
@@ -122,17 +157,43 @@ mockIPC(
         if (completionFailure === "exception") {
           throw new Error("Configuration changed before setup completed");
         }
-        if (!codexConfigured) {
+        // As the backend: a Mac that cannot run the local model finishes in
+        // the cloud, and the cloud needs a session.
+        const engine: Engine =
+          model.state.state === "unsupported"
+            ? "cloud"
+            : (backendSettings.transcription_engine ?? "local");
+        if (engine === "cloud" && !codexConfigured) {
           throw new Error("No ChatGPT/Codex session was found");
         }
-        backendSettings = { ...backendSettings, onboarding_completed: true };
+        backendSettings = {
+          ...backendSettings,
+          onboarding_completed: true,
+          transcription_engine: engine,
+          local_stt_card_dismissed: true,
+        };
         writes.push("complete");
         return null;
       }
+      case "get_local_model_status":
+        return model;
+      case "change_transcription_engine_setting": {
+        const engine = (args as { engine: Engine }).engine;
+        backendSettings = { ...backendSettings, transcription_engine: engine };
+        engines.push(engine);
+        if (engine === "local" && model.state.state !== "ready") {
+          void setModel("downloading");
+        }
+        return null;
+      }
+      case "download_local_model":
+        void setModel("downloading");
+        return null;
       case "get_available_microphones":
       case "get_available_output_devices":
         return [];
       case "plugin:macos-permissions|check_accessibility_permission":
+        if (permissionsMissing) return false;
         if (accessibilityRevoked) {
           accessibilityRevoked = false;
           return false;
@@ -167,7 +228,10 @@ declare global {
       failNextSetupAction: (mode: CompletionFailureMode) => void;
       failNextInitialization: () => void;
       calls: () => string[];
+      engine: () => Engine | undefined;
+      engines: () => Engine[];
       initializationError: () => string | null;
+      setModel: (name: ModelName) => Promise<void>;
       rejectStatusRefresh: (index: number) => void;
       resolveStatusRefresh: (index: number) => void;
       selectedLanguage: () => string | undefined;
@@ -196,7 +260,10 @@ window.providerOnboardingFixture = {
     failNextInitialization = true;
   },
   calls: () => [...calls],
+  engine: () => backendSettings.transcription_engine,
+  engines: () => [...engines],
   initializationError: () => initializationError,
+  setModel,
   rejectStatusRefresh,
   resolveStatusRefresh,
   selectedLanguage: () => backendSettings.selected_language,
