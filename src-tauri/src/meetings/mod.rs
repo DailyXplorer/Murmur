@@ -22,6 +22,8 @@ pub mod protocol;
 pub mod rename;
 pub mod retention;
 pub mod save_panel;
+#[cfg(test)]
+mod soak;
 pub mod speakers;
 pub mod spread;
 pub mod store;
@@ -602,23 +604,19 @@ fn spawn_audio_retention(app: &AppHandle) {
     });
 }
 
-pub struct MeetingsManager {
-    app: AppHandle,
-    coordinator: Mutex<AppCoordinator>,
-    runtime: Arc<Mutex<MeetingRuntime>>,
-    store: Arc<MeetingsStore>,
-    queue: Arc<ProcessingQueue>,
+/// The meetings library as a launch finds it.
+struct Library {
+    store: MeetingsStore,
     root: PathBuf,
-    models: Arc<Models>,
     /// Meetings a crash cut off before this launch, left to process.
     recovered: Vec<i64>,
 }
 
-impl MeetingsManager {
-    /// Opens the library and marks meetings a crash cut off as interrupted.
-    pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
-        let app_data = app.path().app_data_dir()?;
-        let root: PathBuf = app_data.join("meetings");
+impl Library {
+    /// Opens the library in `app_data`, sets aside what no meeting points
+    /// to, and marks meetings a crash cut off as interrupted.
+    fn open(app_data: &Path) -> anyhow::Result<Self> {
+        let root = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
         let now = chrono::Utc::now();
         let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
@@ -651,7 +649,7 @@ impl MeetingsManager {
             }
             DatabaseStartup::Unavailable => {}
         }
-        match paths::purge_set_asides(&app_data, now) {
+        match paths::purge_set_asides(app_data, now) {
             0 => {}
             count => {
                 info!("Deleted {count} meeting folder(s) or file(s) set aside over 30 days ago")
@@ -664,6 +662,34 @@ impl MeetingsManager {
         if !recovered.is_empty() {
             info!("Recovered interrupted meeting(s) {recovered:?}");
         }
+        Ok(Self {
+            store,
+            root,
+            recovered,
+        })
+    }
+}
+
+pub struct MeetingsManager {
+    app: AppHandle,
+    coordinator: Mutex<AppCoordinator>,
+    runtime: Arc<Mutex<MeetingRuntime>>,
+    store: Arc<MeetingsStore>,
+    queue: Arc<ProcessingQueue>,
+    root: PathBuf,
+    models: Arc<Models>,
+    /// Meetings a crash cut off before this launch, left to process.
+    recovered: Vec<i64>,
+}
+
+impl MeetingsManager {
+    /// Opens the library and marks meetings a crash cut off as interrupted.
+    pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
+        let Library {
+            store,
+            root,
+            recovered,
+        } = Library::open(&app.path().app_data_dir()?)?;
         let store = Arc::new(store);
         let models = app
             .try_state::<Arc<Models>>()
