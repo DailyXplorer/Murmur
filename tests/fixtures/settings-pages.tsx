@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
+  AccentColor,
   AnalysisSupport,
   AppSettings,
   AudioDevice,
@@ -75,6 +76,8 @@ const cardShown = params.get("card") === "1";
 const historyFallback = params.get("history") === "fallback";
 /** `localFallback=1`: part of a meeting was transcribed on this Mac. */
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
+/** The updater finds a new version, which the footer offers. */
+const updateAvailable = params.get("update") === "1";
 /** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
 const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
 const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
@@ -110,7 +113,9 @@ const MODELS: Record<string, LocalModelStatus> = {
   },
   ready: { kept_bytes: 0, size_bytes: MODEL_BYTES, state: { state: "ready" } },
   failed: failed({ kind: "no_internet" }),
+  serverDown: failed({ kind: "server_unavailable" }),
   damaged: failed({ kind: "damaged" }),
+  disk: failed({ kind: "disk" }),
   noSpace: failed({
     free_bytes: 120_000_000,
     kind: "not_enough_space",
@@ -153,6 +158,7 @@ const OUTPUTS: AudioDevice[] = [
 ];
 
 const SETTINGS: AppSettings = {
+  accent_color: (params.get("accent") ?? "pink") as AccentColor,
   ai_cleanup_enabled: true,
   always_on_microphone: false,
   app_language: language,
@@ -639,7 +645,16 @@ const RESPONSES: Record<string, unknown> = {
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
   "plugin:macos-permissions|check_microphone_permission": !showOnboarding,
   "plugin:os|locale": language,
-  "plugin:updater|check": null,
+  "plugin:updater|check": updateAvailable
+    ? {
+        body: "",
+        currentVersion: "1.3.7",
+        date: null,
+        rawJson: {},
+        rid: 1,
+        version: "1.9.0",
+      }
+    : null,
 };
 
 window.settingsPages = {
@@ -694,6 +709,15 @@ mockIPC(
     if (command === "stop_meeting") {
       void events.meetingStateChanged.emit({ state: "idle" });
     }
+    // The update's download stops at 42% so its progress stays on screen.
+    if (command === "plugin:updater|download_and_install") {
+      const { onEvent } = args as {
+        onEvent: { onmessage: (event: unknown) => void };
+      };
+      onEvent.onmessage({ data: { contentLength: 100 }, event: "Started" });
+      onEvent.onmessage({ data: { chunkLength: 42 }, event: "Progress" });
+      return new Promise(() => {});
+    }
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
       window.settingsPages.unhandledCommands.push(command);
@@ -721,6 +745,7 @@ const renderFixture = async () => {
     import("../../src/i18n"),
   ]);
   await i18n.changeLanguage(language);
+  document.documentElement.dataset.accentColor = SETTINGS.accent_color;
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <App />,
   );
