@@ -294,9 +294,7 @@ fn show_main_window(app: &AppHandle) {
             if let Err(e) = window.set_focus() {
                 log::error!("Failed to focus webview window: {}", e);
             }
-            if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
-                log::error!("Failed to set activation policy to Regular: {}", e);
-            }
+            accent::set_dock_presence(&app, accent::DockPresence::Shown);
         }) {
             log::error!("Failed to schedule settings window presentation: {}", e);
         }
@@ -385,7 +383,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // If the tray icon is disabled, keep the dock icon so the user can reopen.
     let settings = settings::get_settings(app_handle);
     if settings.start_hidden && settings.show_tray_icon {
-        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        accent::set_dock_presence(app_handle, accent::DockPresence::Hidden);
     }
     let initial_icon = accent::tray_icon().expect("failed to build initial tray icon");
 
@@ -929,12 +927,7 @@ pub fn run(cli_args: CliArgs) {
                 let tray_visible =
                     settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
                 if tray_visible {
-                    let res = window
-                        .app_handle()
-                        .set_activation_policy(tauri::ActivationPolicy::Accessory);
-                    if let Err(e) = res {
-                        log::error!("Failed to set activation policy: {}", e);
-                    }
+                    accent::set_dock_presence(window.app_handle(), accent::DockPresence::Hidden);
                 }
             }
             tauri::WindowEvent::ThemeChanged(theme) => {

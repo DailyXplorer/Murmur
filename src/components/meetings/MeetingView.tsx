@@ -64,8 +64,6 @@ const TitleField: React.FC<{
     if (editedFrom.current === null) setDraft(title ?? "");
   }, [title]);
 
-  // A title in Vietnamese, whatever the UI language, keeps the body font: see
-  // `:lang(vi) .font-title` in App.css.
   const font = VIETNAMESE_TONES.test(draft) ? "font-sans" : "font-title";
 
   return (
