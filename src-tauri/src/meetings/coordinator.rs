@@ -2,7 +2,7 @@
 //! notifications and time come in through traits, so the rules are tested
 //! without audio hardware or a running app.
 
-use log::{error, warn};
+use log::{error, info, warn};
 use serde::Serialize;
 use specta::Type;
 use std::fmt;
@@ -24,6 +24,9 @@ pub trait Track: Send {
     /// The source stopped delivering audio and could not be brought back
     /// yet; the track records silence meanwhile.
     fn interrupted(&self) -> bool;
+    /// Audio the source delivered faster than the disk took it, recorded as
+    /// silence instead.
+    fn dropped_ms(&self) -> u64;
     /// Stops the source and pads the file to `duration`. Returns whether
     /// another app played sound while it recorded, which only system audio
     /// can tell.
@@ -286,7 +289,18 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let active = self.active.take().ok_or(MeetingError::NotRecording)?;
         let duration = self.clock.now().saturating_duration_since(active.origin);
         let mut played = false;
-        for (_, track) in active.tracks {
+        let mut dropped_ms = 0;
+        for (source, track) in active.tracks {
+            let dropped = track.dropped_ms();
+            dropped_ms += dropped;
+            if dropped > 0 {
+                warn!(
+                    "Meeting {}: {source:?} track dropped {dropped} ms",
+                    active.id
+                );
+            } else {
+                info!("Meeting {}: {source:?} track dropped no audio", active.id);
+            }
             match track.finish(duration) {
                 Ok(heard) => played |= heard,
                 Err(error) => error!(
@@ -299,6 +313,14 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             if let Err(error) = self.store.set_system_played(active.id) {
                 error!(
                     "Meeting {}: cannot note system playback: {error}",
+                    active.id
+                );
+            }
+        }
+        if dropped_ms > 0 {
+            if let Err(error) = self.store.set_dropped_ms(active.id, dropped_ms) {
+                error!(
+                    "Meeting {}: cannot note the dropped audio: {error}",
                     active.id
                 );
             }
@@ -427,6 +449,7 @@ mod tests {
         failed: Arc<AtomicBool>,
         interrupted: Arc<AtomicBool>,
         played: bool,
+        dropped_ms: u64,
     }
 
     impl Track for FakeTrack {
@@ -435,6 +458,9 @@ mod tests {
         }
         fn interrupted(&self) -> bool {
             self.interrupted.load(Ordering::SeqCst)
+        }
+        fn dropped_ms(&self) -> u64 {
+            self.dropped_ms
         }
         fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
             self.log
@@ -456,6 +482,8 @@ mod tests {
         system_played: bool,
         microphone_denied: bool,
         system_audio_denied: bool,
+        /// Audio each track dropped.
+        dropped_ms: u64,
     }
 
     impl FakeBackend {
@@ -474,6 +502,7 @@ mod tests {
                     &self.system_interrupted
                 }),
                 played: name == "system" && self.system_played,
+                dropped_ms: self.dropped_ms,
             }))
         }
     }
@@ -586,6 +615,7 @@ mod tests {
             system_played: false,
             microphone_denied: false,
             system_audio_denied: false,
+            dropped_ms: 0,
         };
         Harness {
             coordinator: Coordinator::new(
@@ -663,6 +693,19 @@ mod tests {
 
         assert!(!h.store.system_played(quiet).unwrap());
         assert!(h.store.system_played(played).unwrap());
+    }
+
+    #[test]
+    fn a_meeting_keeps_how_much_audio_its_tracks_dropped() {
+        let mut h = working();
+        let clean = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        h.coordinator.backend.dropped_ms = 400;
+        let dropped = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+
+        assert_eq!(h.store.dropped_ms(clean).unwrap(), 0);
+        assert_eq!(h.store.dropped_ms(dropped).unwrap(), 800, "both tracks");
     }
 
     #[test]
