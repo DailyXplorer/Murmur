@@ -1,8 +1,9 @@
 use crate::settings::SoundTheme;
 use crate::settings::{self, AppSettings};
-use cpal::traits::{DeviceTrait, HostTrait};
 use log::{debug, error, warn};
-use rodio::OutputStreamBuilder;
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::cpal::BufferSize;
+use rodio::DeviceSinkBuilder;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -104,33 +105,36 @@ fn play_audio_file(
     let stream_builder = if let Some(device_name) = selected_device {
         if device_name == "Default" {
             debug!("Using default device");
-            OutputStreamBuilder::from_default_device()?
+            DeviceSinkBuilder::from_default_device()?
         } else {
-            let host = cpal::default_host();
+            let host = rodio::cpal::default_host();
             let devices = host.output_devices()?;
 
             let mut found_device = None;
             for device in devices {
-                if device.name()? == device_name {
+                if device.description()?.name() == device_name {
                     found_device = Some(device);
                     break;
                 }
             }
 
             match found_device {
-                Some(device) => OutputStreamBuilder::from_device(device)?,
+                Some(device) => DeviceSinkBuilder::from_device(device)?,
                 None => {
                     warn!("Device '{}' not found, using default device", device_name);
-                    OutputStreamBuilder::from_default_device()?
+                    DeviceSinkBuilder::from_default_device()?
                 }
             }
         }
     } else {
         debug!("Using default device");
-        OutputStreamBuilder::from_default_device()?
+        DeviceSinkBuilder::from_default_device()?
     };
 
-    let stream_handle = stream_builder.open_stream()?;
+    // rodio 0.22 defaults to a fixed 50 ms buffer; keep the device's own, as before.
+    let stream_handle = stream_builder
+        .with_buffer_size(BufferSize::Default)
+        .open_stream()?;
     let mixer = stream_handle.mixer();
 
     let file = File::open(path)?;
