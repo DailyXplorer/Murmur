@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { commands, type AnalysisSupport, type Engine } from "@/bindings";
-import {
-  statusTranslationKey,
-  useCodexStatus,
-} from "@/components/transcription/providerStatus";
+import { useCodexStatus } from "@/components/transcription/providerStatus";
 import { useLocalModel } from "@/hooks/useLocalModel";
 import { useSettings } from "@/hooks/useSettings";
-import { Button } from "../../ui/Button";
 import { SettingsGroup } from "../../ui/SettingsGroup";
-import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { RadioOption } from "../../ui/RadioOption";
 import { AiCleanup } from "../AiCleanup";
@@ -23,6 +17,7 @@ import { AppendTrailingSpace } from "../AppendTrailingSpace";
 import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
+import { ChatGptRow } from "./ChatGptRow";
 import { LocalModelRow } from "./LocalModelRow";
 
 export const TranscriptionSettings: React.FC = () => {
@@ -106,36 +101,11 @@ export const TranscriptionSettings: React.FC = () => {
             meetingsUseIt={analysis === "available"}
           />
         )}
-        {engine === "local" && noAccount && (
-          <SettingContainer
-            title={t("settings.transcription.chatgpt.title")}
-            description={t("settings.transcription.chatgpt.optional")}
-            descriptionMode="inline"
-            grouped={true}
-          >
-            <Button
-              onClick={() =>
-                void openUrl("https://openai.com/codex/").catch(() =>
-                  toast.error(t("onboarding.provider.codexSetupFailed")),
-                )
-              }
-            >
-              {t("onboarding.provider.setupCodex")}
-            </Button>
-          </SettingContainer>
-        )}
-        {engine === "cloud" && (
-          <SettingContainer
-            title={t("onboarding.providerLabels.codex")}
-            description={t("settings.transcription.sessionDescription")}
-            grouped={true}
-            layout="stacked"
-          >
-            <span className="min-w-0 text-pretty text-sm text-text/80">
-              {t(statusTranslationKey(status))}
-            </span>
-          </SettingContainer>
-        )}
+        <ChatGptRow
+          status={status}
+          refreshStatus={refreshStatus}
+          engine={engine}
+        />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>

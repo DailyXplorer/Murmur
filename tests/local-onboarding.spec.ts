@@ -92,7 +92,7 @@ test("using the cloud instead makes the ChatGPT step required", async ({
   await expect.poll(app.engines).toEqual(["cloud"]);
 
   await expect(
-    page.getByRole("heading", { name: "Connect Codex" }),
+    page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
@@ -113,7 +113,7 @@ test("a Mac that cannot run the local model skips the model step", async ({
   const app = fixture(page);
 
   await expect(
-    page.getByRole("heading", { name: "Connect Codex" }),
+    page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
   ).toBeVisible();
   await expect(modelStep(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
@@ -200,7 +200,7 @@ test("a stopped download can be retried or traded for the cloud", async ({
   await page.getByRole("button", { name: "Use the cloud instead" }).click();
   // No account: the cloud needs one before dictation can work.
   await expect(
-    page.getByRole("heading", { name: "Connect Codex" }),
+    page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
   ).toBeVisible();
   expect(await app.engine()).toBe("cloud");
 
@@ -253,7 +253,7 @@ test.describe("onboarding screenshots", () => {
 
       await page.goto(`${fixturePath}?model=unsupported`);
       await expect(
-        page.getByRole("heading", { name: "Connect Codex" }),
+        page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
       ).toBeVisible();
       await shot(page, "unsupported-mac");
 
@@ -303,7 +303,7 @@ test.describe("onboarding screenshots", () => {
       await page.goto(`${fixturePath}?model=missing`);
       await page.getByRole("button", { name: "Use the cloud instead" }).click();
       await expect(
-        page.getByRole("heading", { name: "Connect Codex" }),
+        page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
       ).toBeVisible();
       await shot(page, "chatgpt-required");
     });
@@ -363,7 +363,7 @@ test.describe("onboarding screenshots", () => {
 
         await page.goto(`${fixturePath}?model=unsupported`);
         await expect(
-          page.getByRole("heading", { name: "Connect Codex" }),
+          page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
         ).toBeVisible();
         await page.waitForTimeout(300);
         await shot("required");
@@ -373,7 +373,7 @@ test.describe("onboarding screenshots", () => {
 
         await page.goto(`${fixturePath}?model=unsupported&codex=configured`);
         await expect(
-          page.getByRole("heading", { name: "Connect Codex" }),
+          page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
         ).toBeVisible();
         await page.waitForTimeout(300);
         await shot("connected");
