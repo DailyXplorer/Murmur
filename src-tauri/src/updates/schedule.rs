@@ -4,6 +4,9 @@
 use std::time::{Duration, Instant};
 
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(4 * 60 * 60);
+/// The wait after a failed check, doubled after each failure in a row up to
+/// [`CHECK_INTERVAL`]. A check on wake can run before the network is back.
+const RETRY_AFTER: Duration = Duration::from_secs(5 * 60);
 /// How often the schedule reads the clocks. A wake is noticed within it.
 pub const TICK: Duration = Duration::from_secs(60);
 /// Between two ticks, this much more wall-clock than awake time means the
@@ -51,6 +54,8 @@ impl Moment {
 pub struct Schedule {
     last_tick: Option<Moment>,
     last_check: Option<Moment>,
+    /// Checks that failed in a row, the last one included.
+    failures: u32,
 }
 
 impl Schedule {
@@ -61,16 +66,29 @@ impl Schedule {
         if !enabled {
             // Turning the checks back on checks at once, as a launch does.
             self.last_check = None;
+            self.failures = 0;
             return false;
         }
-        let due = woke
-            || self
-                .last_check
-                .is_none_or(|check| now.since(check) >= CHECK_INTERVAL);
+        let wait = self.wait();
+        let due = woke || self.last_check.is_none_or(|check| now.since(check) >= wait);
         if due {
             self.last_check = Some(now);
         }
         due
+    }
+
+    /// How the check [`Schedule::due`] asked for went.
+    pub fn checked(&mut self, succeeded: bool) {
+        self.failures = if succeeded { 0 } else { self.failures + 1 };
+    }
+
+    fn wait(&self) -> Duration {
+        match self.failures {
+            0 => CHECK_INTERVAL,
+            failures => RETRY_AFTER
+                .saturating_mul(1 << (failures - 1).min(16))
+                .min(CHECK_INTERVAL),
+        }
     }
 }
 
@@ -120,6 +138,31 @@ mod tests {
             .count()
     }
 
+    /// Ticks for `duration` of awake time, every check that comes due ending
+    /// as `succeeded`; the time between one check and the next.
+    fn gaps_between_checks(
+        schedule: &mut Schedule,
+        clock: &mut Clock,
+        duration: Duration,
+        succeeded: bool,
+    ) -> Vec<Duration> {
+        let mut gaps = Vec::new();
+        let mut since_check = Duration::ZERO;
+        for _ in 0..duration.as_secs() / TICK.as_secs() {
+            since_check += TICK;
+            if schedule.due(clock.run(TICK), true) {
+                schedule.checked(succeeded);
+                gaps.push(since_check);
+                since_check = Duration::ZERO;
+            }
+        }
+        gaps
+    }
+
+    fn minutes<const N: usize>(minutes: [u64; N]) -> [Duration; N] {
+        minutes.map(|minutes| Duration::from_secs(minutes * 60))
+    }
+
     #[test]
     fn checks_at_launch_then_every_four_hours() {
         let mut clock = Clock::new();
@@ -155,6 +198,42 @@ mod tests {
             "first tick after waking"
         );
         assert!(!schedule.due(clock.run(TICK), true), "once per wake");
+    }
+
+    #[test]
+    fn a_failed_check_on_wake_retries_within_minutes() {
+        let mut clock = Clock::new();
+        let mut schedule = Schedule::default();
+        assert!(schedule.due(clock.now, true));
+        schedule.checked(true);
+
+        clock.sleep(8 * HOUR);
+        assert!(schedule.due(clock.run(TICK), true), "on wake");
+        schedule.checked(false);
+
+        assert_eq!(
+            gaps_between_checks(&mut schedule, &mut clock, HOUR, true),
+            minutes([5]),
+            "the network is back five minutes later"
+        );
+    }
+
+    #[test]
+    fn failed_checks_back_off_to_four_hours() {
+        let mut clock = Clock::new();
+        let mut schedule = Schedule::default();
+        assert!(schedule.due(clock.now, true), "launch, offline");
+        schedule.checked(false);
+
+        assert_eq!(
+            gaps_between_checks(&mut schedule, &mut clock, 24 * HOUR, false)[..8],
+            minutes([5, 10, 20, 40, 80, 160, 240, 240])
+        );
+        assert_eq!(
+            gaps_between_checks(&mut schedule, &mut clock, 12 * HOUR, true)[1..],
+            [CHECK_INTERVAL, CHECK_INTERVAL],
+            "back online"
+        );
     }
 
     #[test]

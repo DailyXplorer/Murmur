@@ -41,7 +41,8 @@ pub fn init(app: &AppHandle) {
         loop {
             let enabled = settings::get_settings(&app).update_checks_enabled;
             if schedule.due(Moment::now(), enabled) {
-                app.state::<Checks>().check_quietly(find(&app)).await;
+                let succeeded = app.state::<Checks>().check_quietly(find(&app)).await;
+                schedule.checked(succeeded);
             }
             tokio::time::sleep(TICK).await;
         }

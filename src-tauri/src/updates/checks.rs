@@ -41,14 +41,21 @@ impl Checks {
     }
 
     /// An automatic check. It is skipped while another check runs, and a
-    /// failure only goes to the log.
-    pub async fn check_quietly(&self, check: impl Future<Output = Found>) {
+    /// failure only goes to the log. False when it failed, so the schedule
+    /// retries soon.
+    pub async fn check_quietly(&self, check: impl Future<Output = Found>) -> bool {
         let Ok(_running) = self.running.try_lock() else {
-            return;
+            return true;
         };
         match check.await {
-            Ok(found) => self.record(found),
-            Err(error) => info!("Automatic update check failed: {error}"),
+            Ok(found) => {
+                self.record(found);
+                true
+            }
+            Err(error) => {
+                info!("Automatic update check failed: {error}");
+                false
+            }
         }
     }
 
@@ -84,8 +91,8 @@ mod tests {
     async fn a_found_update_reaches_every_reader_once() {
         let (checks, seen) = published();
 
-        checks.check_quietly(async { Ok(version("1.9.0")) }).await;
-        checks.check_quietly(async { Ok(version("1.9.0")) }).await;
+        assert!(checks.check_quietly(async { Ok(version("1.9.0")) }).await);
+        assert!(checks.check_quietly(async { Ok(version("1.9.0")) }).await);
 
         assert_eq!(checks.available(), version("1.9.0"));
         assert_eq!(*seen.lock().unwrap(), vec![version("1.9.0")]);
@@ -107,10 +114,11 @@ mod tests {
         let (checks, seen) = published();
         checks.check_quietly(async { Ok(version("1.9.0")) }).await;
 
-        checks
+        let succeeded = checks
             .check_quietly(async { Err("offline".to_string()) })
             .await;
 
+        assert!(!succeeded, "the schedule retries soon");
         assert_eq!(checks.available(), version("1.9.0"));
         assert_eq!(seen.lock().unwrap().len(), 1);
     }
@@ -151,7 +159,10 @@ mod tests {
         tokio::task::yield_now().await;
         assert_eq!(running.load(Ordering::SeqCst), 1, "the first check runs");
 
-        checks.check_quietly(check(None)).await;
+        assert!(
+            checks.check_quietly(check(None)).await,
+            "a skipped check is not a failure"
+        );
         let manual = tokio::spawn({
             let checks = checks.clone();
             let check = check(None);
