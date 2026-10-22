@@ -4,6 +4,7 @@
 //! that put spaces between words and for Chinese, Japanese or Thai.
 
 use super::PromptContext;
+use crate::settings::DictationStyle;
 
 /// Stands for any run of spaces and punctuation. It weighs nothing, but a
 /// letter next to it in both texts is anchored at a word edge.
@@ -21,6 +22,14 @@ const NEW_SHARE: u32 = 10;
 /// `EDGE_UNITS` of a reply may add at most `EDGE_SLACK` units each.
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
+/// The formal style writes spoken forms in full ("on peut" -> "nous
+/// pouvons", "ça marche" -> "convient"), which adds about a third of the
+/// reply, some of it at the ends. So it may add this many units in
+/// `NEW_SHARE`, and `FORMAL_EDGE_SLACK` at each end. A short answer that
+/// rewords the question in place then passes; preambles, sign-offs,
+/// translations and long answers still do not.
+const FORMAL_NEW_UNITS: u32 = 4;
+const FORMAL_EDGE_SLACK: u32 = 10;
 /// A reply under this many tenths of the dictation drops what was said: a
 /// summary, or an answer ("No.", "4."). Fillers are not counted in the
 /// dictation. Neither is a restart cue trusted: "no wait" or "scratch that"
@@ -79,9 +88,13 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let added = weight(&reply) - matched;
     let head_added = weight(&reply[..head]) - head_matched;
     let tail_added = weight(&reply[tail..]) - tail_matched;
-    added <= NEW_SLACK + reply_weight / NEW_SHARE
-        && head_added <= EDGE_SLACK
-        && tail_added <= EDGE_SLACK
+    let (new_units, edge_slack) = match context.style {
+        DictationStyle::Formal => (FORMAL_NEW_UNITS, FORMAL_EDGE_SLACK),
+        DictationStyle::Normal | DictationStyle::Casual => (1, EDGE_SLACK),
+    };
+    added <= NEW_SLACK + reply_weight * new_units / NEW_SHARE
+        && head_added <= edge_slack
+        && tail_added <= edge_slack
 }
 
 /// The dictation's words without fillers.
@@ -843,6 +856,80 @@ mod tests {
             "I think Claude'll handle it.",
             &["Claude"]
         ));
+    }
+
+    fn formal() -> PromptContext {
+        PromptContext {
+            style: DictationStyle::Formal,
+            ..PromptContext::default()
+        }
+    }
+
+    #[test]
+    fn formal_rewordings_pass_only_in_the_formal_style() {
+        let appointment = "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi";
+        let rewordings = [
+            (
+                appointment,
+                "Je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi.",
+            ),
+            (
+                appointment,
+                "Donc, je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi.",
+            ),
+            (
+                "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités",
+                "Alors, pour la réunion, il faut que nous préparions :\n- le budget ;\n- le planning ;\n- la liste des invités.",
+            ),
+            (
+                "hey did you get a chance to look at the draft I sent you yesterday",
+                "Hello, did you have a chance to look at the draft I sent you yesterday?",
+            ),
+        ];
+        for (dictation, reply) in rewordings {
+            assert_eq!(
+                accept_output(dictation, reply, &formal()).as_deref(),
+                Some(reply),
+                "Formal rejected {reply:?}"
+            );
+            for style in [DictationStyle::Normal, DictationStyle::Casual] {
+                let context = PromptContext {
+                    style,
+                    ..PromptContext::default()
+                };
+                assert_eq!(
+                    accept_output(dictation, reply, &context),
+                    None,
+                    "{style:?} accepted {reply:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn formal_lets_through_only_short_answers_that_reword_the_question() {
+        let leaked: Vec<String> = corpus()
+            .into_iter()
+            .filter(|(_, dictation, reply, verdict)| {
+                *verdict == Reject && accept_output(dictation, reply, &formal()).is_some()
+            })
+            .map(|(_, _, reply, _)| reply)
+            .collect();
+        assert_eq!(
+            leaked,
+            [
+                "The capital of France is Paris.",
+                "It's 3 pm in Tokyo.",
+                "Twelve times twelve is 144.",
+                "Douze fois douze font 144.",
+                "The weather today is sunny.",
+                "Deployment succeeded and the team is satisfied.",
+                "La capitale de la France est Paris.",
+                "今天天气晴朗。",
+                "晴れです。",
+                "日本の首都は東京です。",
+            ]
+        );
     }
 
     #[test]
