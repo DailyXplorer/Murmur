@@ -218,6 +218,39 @@ fn an_earlier_folder_with_one_wrong_file_downloads_only_that_file() {
 }
 
 #[test]
+fn a_cancelled_check_of_an_earlier_folder_stays_cancelled_after_a_restart() {
+    let fixture = fixture();
+    let vocab = fixture.contents[1].1.clone();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_all(&path);
+    std::fs::write(path.join("asr/vocab.json"), b"{\"0\":\"b\"}").unwrap();
+    std::fs::write(path.join(READY_MARKER), b"").unwrap();
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, _) =
+            test_server::start(Arc::new(move |_, _| Reply::HangAfter(vocab.clone(), 0))).await;
+        let checking = models(&path, &fixture, &base, &host);
+        checking.resume_on_launch(false);
+        checking
+            .state
+            .subscribe()
+            .wait_for(|state| matches!(state, LocalModelState::Downloading { .. }))
+            .await
+            .unwrap();
+        checking.cancel();
+        assert_eq!(settled(&checking).await, LocalModelState::Missing);
+
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let after_restart = models(&path, &fixture, &base, &host);
+        assert_eq!(after_restart.status().state, LocalModelState::Missing);
+        after_restart.resume_on_launch(false);
+        assert_eq!(settled(&after_restart).await, LocalModelState::Missing);
+        assert!(seen.lock().unwrap().is_empty());
+    });
+}
+
+#[test]
 fn a_download_the_user_wanted_resumes_at_the_next_launch() {
     let fixture = fixture();
     let dir = tempfile::tempdir().unwrap();

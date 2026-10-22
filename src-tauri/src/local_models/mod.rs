@@ -307,6 +307,15 @@ impl LocalModels {
         let missing = tauri::async_runtime::spawn_blocking(move || missing_files(&dir, sources))
             .await
             .map_err(|_| Stopped::Failed(DownloadFailure::Disk))??;
+        // The check removed the wrong files: the folder is no longer
+        // complete, so whether to download them is the user's call.
+        if earlier && !missing.is_empty() {
+            match std::fs::remove_file(self.dir.join(READY_MARKER)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
         if operation.is_cancelled() {
             return Err(Stopped::Cancelled);
         }
