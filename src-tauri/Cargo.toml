@@ -45,16 +45,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cpal = "0.16.0"
 anyhow = "1.0.95"
-base64 = "0.22"
+base64 = "0.23"
 rubato = "0.16.2"
 hound = "3.5.1"
 log = "0.4.25"
-env_filter = "0.1.0"
+env_filter = "2.0.0"
 tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macros", "io-util"] }
 enigo = "0.6.1"
 core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 rodio = "0.21.1"
-reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
+reqwest = { version = "0.13", features = ["json", "query", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
 strsim = "0.11.0"
 # Accent-insensitive word keys for meeting transcripts.
@@ -63,9 +63,9 @@ natural = "0.5.0"
 regex = "1"
 chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
-ferrous-opencc = "0.2.3"
+ferrous-opencc = "0.4.0"
 clap = { version = "4", features = ["derive"] }
-signal-hook = "0.3"
+signal-hook = "0.4"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }

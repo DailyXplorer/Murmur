@@ -114,7 +114,7 @@ const sizeViolations = (page: Page) =>
     },
   );
 
-for (const language of ["en", "fr", "de", "ru"]) {
+for (const language of ["en", "fr", "de", "es"]) {
   test.describe(`settings control sizes (${language})`, () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize({ width: 960, height: 2400 });

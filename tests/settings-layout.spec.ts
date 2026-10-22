@@ -83,7 +83,7 @@ for (const [name, size] of [
   ["default", DEFAULT_WINDOW],
   ["minimum", MIN_WINDOW],
 ] as const) {
-  for (const language of ["en", "de", "es", "fr", "ru", "uk"]) {
+  for (const language of ["en", "de", "es", "fr", "it", "pt"]) {
     test(`Insights stat labels fit in full (${language}, ${name} window)`, async ({
       page,
     }) => {
@@ -122,7 +122,6 @@ for (const [name, size] of [
 /** Every way a stat value fails to sit on one line inside its tile. */
 const statValueProblems = (tiles: Locator, language: string) =>
   tiles.evaluateAll((elements, language) => {
-    // Some locales write numbers in their own digits.
     const huge = new Intl.NumberFormat(language).format(999);
     const values = elements.map((tile) => tile.querySelector(":scope > p")!);
     const problems = values.flatMap((value, index) => {

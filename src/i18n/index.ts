@@ -3,11 +3,6 @@ import { initReactI18next } from "react-i18next";
 import { locale } from "@tauri-apps/plugin-os";
 import { LANGUAGE_METADATA } from "./languages";
 import { commands } from "@/bindings";
-import {
-  getLanguageDirection,
-  updateDocumentDirection,
-  updateDocumentLanguage,
-} from "@/lib/utils/rtl";
 
 const localeModules = import.meta.glob<{ default: Record<string, unknown> }>(
   "./locales/*/translation.json",
@@ -53,30 +48,11 @@ export const getSupportedLanguage = (
   if (!langCode) return null;
 
   const normalized = langCode.toLowerCase().replace(/_/g, "-");
-  const subtags = normalized.split("-");
-  const language = subtags[0];
-  const isHant = subtags.includes("hant");
-  const isHans = subtags.includes("hans");
-  const isTraditionalRegion = ["tw", "hk", "mo"].some((region) =>
-    subtags.includes(region),
-  );
+  const language = normalized.split("-")[0];
+  const find = (code: string) =>
+    SUPPORTED_LANGUAGES.find((lang) => lang.code.toLowerCase() === code);
 
-  let supported = SUPPORTED_LANGUAGES.find(
-    (lang) => lang.code.toLowerCase() === normalized,
-  );
-  if (!supported) {
-    let fallback = language;
-    if (language === "zh" && (isHant || (!isHans && isTraditionalRegion))) {
-      fallback = "zh-tw";
-    } else if (language === "yue") {
-      // Cantonese uses Traditional Chinese unless explicitly tagged as Hans.
-      fallback = isHans ? "zh" : "zh-tw";
-    }
-    supported = SUPPORTED_LANGUAGES.find(
-      (lang) => lang.code.toLowerCase() === fallback,
-    );
-  }
-  return supported ? supported.code : null;
+  return (find(normalized) ?? find(language))?.code ?? null;
 };
 
 i18n.use(initReactI18next).init({
@@ -114,9 +90,7 @@ export const syncLanguageFromSettings = async () => {
 syncLanguageFromSettings();
 
 i18n.on("languageChanged", (lng) => {
-  const dir = getLanguageDirection(lng);
-  updateDocumentDirection(dir);
-  updateDocumentLanguage(lng);
+  document.documentElement.lang = lng;
 });
 
 export default i18n;
