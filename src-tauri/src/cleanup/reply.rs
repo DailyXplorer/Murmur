@@ -22,14 +22,27 @@ const NEW_SHARE: u32 = 10;
 /// `EDGE_UNITS` of a reply may add at most `EDGE_SLACK` units each.
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
-/// The formal style writes spoken forms in full ("on peut" -> "nous
-/// pouvons", "ça marche" -> "convient"), which adds about a third of the
-/// reply, some of it at the ends. So it may add this many units in
-/// `NEW_SHARE`, and `FORMAL_EDGE_SLACK` at each end. A short answer that
-/// rewords the question in place then passes; preambles, sign-offs,
-/// translations and long answers still do not.
-const FORMAL_NEW_UNITS: u32 = 4;
-const FORMAL_EDGE_SLACK: u32 = 10;
+/// The spoken forms the formal style writes in full, as (written, spoken),
+/// each before any shorter form it contains. In that style both texts read
+/// every written form as the spoken one before they are aligned, so these
+/// rewordings cost nothing and the budget stays that of the other styles.
+const REGISTER: [(&str, &str); 15] = [
+    ("il faut que nous", "faut qu'on"),
+    ("il faut que", "faut que"),
+    ("que nous", "qu'on"),
+    ("nous pouvons", "on peut"),
+    ("cela me convient", "ça marche"),
+    ("me convient", "ça marche"),
+    ("convient", "ça marche"),
+    ("fonctionne", "marche"),
+    ("tu es", "t'es"),
+    ("tu as", "t'as"),
+    ("as-tu", "t'as"),
+    ("disponible", "dispo"),
+    ("going to", "gonna"),
+    ("i will", "i'll"),
+    ("hello", "hey"),
+];
 /// A reply under this many tenths of the dictation drops what was said: a
 /// summary, or an answer ("No.", "4."). Fillers are not counted in the
 /// dictation. Neither is a restart cue trusted: "no wait" or "scratch that"
@@ -67,7 +80,11 @@ pub fn max_output_chars(input_chars: usize) -> usize {
 }
 
 fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
-    let spoken = without_apostrophes(units(dictation));
+    let register = |text| match context.style {
+        DictationStyle::Formal => in_spoken_register(text),
+        DictationStyle::Normal | DictationStyle::Casual => text,
+    };
+    let spoken = register(without_apostrophes(units(dictation)));
     let reply = units(reply);
     let reply_weight = weight(&reply);
     if reply_weight * 10 < weight(&units(&without_fillers(dictation))) * MIN_KEPT_TENTHS {
@@ -79,7 +96,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_apostrophes(without_terms(reply, &terms));
+    let reply = register(without_apostrophes(without_terms(reply, &terms)));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -88,13 +105,32 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     let added = weight(&reply) - matched;
     let head_added = weight(&reply[..head]) - head_matched;
     let tail_added = weight(&reply[tail..]) - tail_matched;
-    let (new_units, edge_slack) = match context.style {
-        DictationStyle::Formal => (FORMAL_NEW_UNITS, FORMAL_EDGE_SLACK),
-        DictationStyle::Normal | DictationStyle::Casual => (1, EDGE_SLACK),
-    };
-    added <= NEW_SLACK + reply_weight * new_units / NEW_SHARE
-        && head_added <= edge_slack
-        && tail_added <= edge_slack
+    added <= NEW_SLACK + reply_weight / NEW_SHARE
+        && head_added <= EDGE_SLACK
+        && tail_added <= EDGE_SLACK
+}
+
+/// `units` with each written form of `REGISTER` read as its spoken one.
+fn in_spoken_register(mut text: Vec<char>) -> Vec<char> {
+    for (written, spoken) in REGISTER {
+        let written = without_apostrophes(units(written));
+        let spoken = without_apostrophes(units(spoken));
+        let mut out = Vec::with_capacity(text.len());
+        let mut i = 0;
+        while i < text.len() {
+            // Both forms are framed by gaps; the closing one is kept for
+            // the next word, which may start another match.
+            if text[i..].starts_with(&written) {
+                out.extend_from_slice(&spoken[..spoken.len() - 1]);
+                i += written.len() - 1;
+            } else {
+                out.push(text[i]);
+                i += 1;
+            }
+        }
+        text = out;
+    }
+    text
 }
 
 /// The dictation's words without fillers.
@@ -907,29 +943,24 @@ mod tests {
     }
 
     #[test]
-    fn formal_lets_through_only_short_answers_that_reword_the_question() {
-        let leaked: Vec<String> = corpus()
+    fn every_style_classifies_the_corpus_as_normal_does() {
+        let differs: Vec<String> = corpus()
             .into_iter()
-            .filter(|(_, dictation, reply, verdict)| {
-                *verdict == Reject && accept_output(dictation, reply, &formal()).is_some()
+            .filter(|(_, dictation, reply, _)| {
+                let normal = accept_output(dictation, reply, &PromptContext::default());
+                [DictationStyle::Formal, DictationStyle::Casual]
+                    .into_iter()
+                    .any(|style| {
+                        let context = PromptContext {
+                            style,
+                            ..PromptContext::default()
+                        };
+                        accept_output(dictation, reply, &context) != normal
+                    })
             })
             .map(|(_, _, reply, _)| reply)
             .collect();
-        assert_eq!(
-            leaked,
-            [
-                "The capital of France is Paris.",
-                "It's 3 pm in Tokyo.",
-                "Twelve times twelve is 144.",
-                "Douze fois douze font 144.",
-                "The weather today is sunny.",
-                "Deployment succeeded and the team is satisfied.",
-                "La capitale de la France est Paris.",
-                "今天天气晴朗。",
-                "晴れです。",
-                "日本の首都は東京です。",
-            ]
-        );
+        assert_eq!(differs, Vec::<String>::new());
     }
 
     #[test]
