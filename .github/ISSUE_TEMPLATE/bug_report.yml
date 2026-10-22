@@ -1,0 +1,62 @@
+name: Bug report
+description: Report something Murmur does wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Search [existing issues](https://github.com/DailyXplorer/Murmur/issues) before opening another.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong, and when.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Murmur version
+      description: Settings → About, or the version in the app menu.
+      placeholder: "1.8.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Apple menu → About This Mac. For a Windows beta bug, write the Windows version and say it is the beta.
+      placeholder: "15.6"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps someone else can follow.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the relevant lines. The log directory is in Settings → About. If there are none, say so.
+    validations:
+      required: true

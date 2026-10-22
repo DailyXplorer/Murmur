@@ -29,16 +29,14 @@ bun run build      # Build frontend (TypeScript + Vite)
 bun run preview    # Preview built frontend
 ```
 
-**Linting and Formatting (run before committing):**
+**Checks (run before pushing):**
 
 ```bash
-bun run lint              # ESLint for frontend
-bun run lint:fix          # ESLint with auto-fix
-bun run format            # Prettier + cargo fmt
-bun run format:check      # Check formatting without changes
-bun run format:frontend   # Prettier only
-bun run format:backend    # cargo fmt only
+bun run check             # CI code-quality job: audit, translations, macOS guard, versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
+bun run test:playwright   # UI changes. This is the Playwright CI job.
 ```
+
+From `src-tauri` on macOS, Rust behavior changes also need `cargo test --locked`. The macOS CI job runs that, plus Clippy with `-D warnings`.
 
 **Model Setup:** Transcription uses the Codex / ChatGPT session already on the machine (`~/.codex/auth.json`). No local model download is required.
 
@@ -195,39 +193,37 @@ Access debug features with `Cmd+Shift+D`.
 
 See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
-## Contributor workflow
+## No-go
 
-- Pull requests should explain the change, its boundaries, and the exact checks run. Include screenshots or recordings for visible changes.
-- Use [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) for bug reports.
-- Use [`.github/ISSUE_TEMPLATE/feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md) for a feature whose outcome and done-when are already clear.
-- Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) for translation changes and [CONTRIBUTING.md](CONTRIBUTING.md) for the general workflow.
-- Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). Focus the message on why the change is needed.
+- Do not edit `src/bindings.ts` by hand. It is generated.
+- Do not remove the `compile_error!` at the top of `src-tauri/src/lib.rs`. `main` is macOS-only. Windows work stays on `beta`.
+- Do not add a Windows target, a `target_os` cfg, or a Windows CI job on `main`.
+- Do not create GitHub labels.
+- Do not silence a check with `#[allow]`, `eslint-disable`, a skipped test, or `--no-verify` unless the pull request explains why.
+- Do not ask CodeRabbit to push commits. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled.
+- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together. Do not update one of them alone.
+- Do not reformat or refactor files the change does not need.
 
 ## Checks before pushing
 
-Run the tests your change adds or modifies, plus a build: `bun run build` for frontend changes, and from `src-tauri` `cargo test <your tests>` for Rust changes. CI runs the full suite (lint, formatting, translations, Clippy, all Rust tests, Playwright) and is the safety net.
+Run `bun run check` before pushing. It is the CI `code quality` job. On macOS it also runs Clippy.
 
-`bun install` sets `core.hooksPath` to `.githooks`, whose pre-commit hook runs the fast checks. Let the hook run. If you skip it, say why in the pull request.
+For a UI change, also run `bun run test:playwright`. For Rust behavior, from `src-tauri` run `cargo test --locked`.
+
+`bun install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs the fast subset. Let it run. If you skip it, say why in the pull request.
 
 ## Pull requests
 
-- Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why.
-- Body sections: `## Summary`, `## Changes`, `## Testing`. Visible UI changes include screenshots or recordings.
-- Keep the change focused. Leave lockfiles, generated `src/bindings.ts`, and unrelated refactors alone.
-- `main` is macOS-only. Windows work stays on the `beta` branch. Keep the `compile_error!` guard in `lib.rs`.
+- Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why. Branch the same way: `feat/short-description`.
+- Body: `## Summary` (why, and the issue link), `## Changes`, `## Testing` (`bun run check` and anything else you ran). Visible UI changes include screenshots or recordings.
+- Open an issue before a large pull request (a new feature, or a change across several modules).
 - User-facing JSX text goes through i18next. Add the English key and keep the other locales in sync.
-- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together.
-- Fix a failing check. A `#[allow]`, `eslint-disable`, skipped test, or `--no-verify` needs an explanation in the pull request.
+- Use the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) and the [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml). Translation rules are in [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md). The human workflow is [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Review rounds
 
-Review and fix rounds continue until a review comes back clean. There is no round limit. Only real bugs (correctness, security, behavior) block a merge; style never does.
+Address every review comment in one pass, then push once.
 
-- Fix each real bug with a test that fails before the fix.
-- If the same comment comes back after a fix, do not apply it again: check whether the fix works or the comment is wrong, and reply on the thread.
-- If one file has had bugs in three rounds, simplify that part (reuse a proven approach) instead of patching it again.
-- After 20 rounds, stop and ask a maintainer.
+A completed round is a review, then your fix commit. After two completed rounds, stop when the next review arrives. Summarize the remaining disagreements and wait for a maintainer. A style comment does not need another commit.
 
-The `review loop` workflow comments and applies the `review-loop` label in those three cases, so a maintainer or the lead agent takes a look. The label is created the first time it is needed. It never means "stop fixing bugs".
-
-Do not ask CodeRabbit to push the fixes. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled so a review cannot commit onto the branch.
+The `review loop` workflow may comment and apply the `review-loop` label. That label is created the first time it is needed. It means a maintainer decides. Do not start another fix round because of it.
