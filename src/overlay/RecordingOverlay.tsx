@@ -98,7 +98,6 @@ const RecordingOverlay: React.FC = () => {
   const waveRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
   const copyBodyRef = useRef<HTMLSpanElement>(null);
-  const copyNoteRef = useRef<HTMLSpanElement>(null);
   const copyId = useId();
 
   useEffect(() => {
@@ -152,7 +151,8 @@ const RecordingOverlay: React.FC = () => {
       setView({ kind: "error", message: event.payload });
     }).then(storeUnlistener, () => undefined);
 
-    // No text field had the focus, so the text is already on the clipboard.
+    // No text field had the focus; the text goes on the clipboard only when
+    // the pill is clicked.
     void listen<CopyLabels>("show-overlay-copy", (event) => {
       setView({ kind: "copy", labels: event.payload, copied: false });
       refreshPosition();
@@ -214,35 +214,7 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  // The note takes two lines, at the narrowest width that holds them, so the
-  // pill widens with a longer translation or a wider font up to its widest
-  // body. A note that needs more lines there keeps them, again as narrow as
-  // they fit. A note only loses lines as it widens, so the narrowest width
-  // is bisected. Layout sizes ignore the pop-in scale.
   const copyShowing = view.kind === "copy";
-  const copyNote = view.kind === "copy" ? view.labels.note : null;
-  useLayoutEffect(() => {
-    const note = copyNoteRef.current;
-    if (copyNote === null || !note) return;
-    note.style.width = "";
-    const style = getComputedStyle(note);
-    const lines = () =>
-      Math.round(
-        (note.clientHeight -
-          parseFloat(style.paddingTop) -
-          parseFloat(style.paddingBottom)) /
-          parseFloat(style.lineHeight),
-      );
-    const target = Math.max(2, lines());
-    let [tooNarrow, wideEnough] = [0, Math.ceil(parseFloat(style.width))];
-    while (wideEnough - tooNarrow > 1) {
-      const width = Math.floor((tooNarrow + wideEnough) / 2);
-      note.style.width = `${width}px`;
-      if (lines() <= target) wideEnough = width;
-      else tooNarrow = width;
-    }
-    note.style.width = `${wideEnough}px`;
-  }, [copyNote]);
 
   // The copy pill's body sizes itself from its text, whatever font renders
   // it, and the window is fitted to it: only the webview can measure it.
@@ -325,11 +297,7 @@ const RecordingOverlay: React.FC = () => {
           onClick={copyAgain}
         >
           <span ref={copyBodyRef} className="ov-copy-body">
-            <span
-              ref={copyNoteRef}
-              id={`${copyId}-note`}
-              className="ov-copy-note"
-            >
+            <span id={`${copyId}-note`} className="ov-copy-note">
               {view.labels.note}
             </span>
             <span className="ov-copy-action">

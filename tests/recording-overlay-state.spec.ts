@@ -31,7 +31,7 @@ const errorStringsByLocale = trayStringsByLocale.map(({ locale, tray }) => {
 const COPY_LABELS = {
   copy: "Copy",
   copied: "Copied",
-  note: "There was no text field to paste into. Your text is on the clipboard.",
+  note: "There was no text field to paste into.",
 };
 
 const centerBarHeight = (page: Page) =>
@@ -274,16 +274,19 @@ test("without a text field the pill says so and is one Copy button that confirms
   await expect(page.locator(".ov-stage button")).toHaveCount(1);
   await expect(button.getByText(COPY_LABELS.note)).toBeVisible();
   await expect(page.locator(".ov-wave")).toHaveCount(0);
+  const copyCalls = () =>
+    page.evaluate(() => window.overlayHarness.copyCalls());
+  expect(await copyCalls(), "nothing copied before the click").toBe(0);
 
   await button.click();
   const copied = page.getByRole("button", { name: "Copied", exact: true });
   await expect(copied).toBeVisible();
   await expect(copied).toHaveAccessibleDescription(COPY_LABELS.note);
   await expect(copied.getByText(COPY_LABELS.note)).toBeVisible();
-  expect(await page.evaluate(() => window.overlayHarness.copyCalls())).toBe(1);
+  expect(await copyCalls()).toBe(1);
 });
 
-test("the copy pill grows from the rest capsule to fit its note", async ({
+test("the copy pill widens from the rest capsule to fit its one-line note", async ({
   page,
 }) => {
   await openOverlay(page);
@@ -305,22 +308,19 @@ test("the copy pill grows from the rest capsule to fit its note", async ({
   );
 
   expect(sizes.length, "the pill showed").toBeGreaterThan(10);
-  for (const [axis, rest, least] of [
-    ["width", 112, 180],
-    ["height", 30, 40],
-  ] as const) {
-    const values = sizes.map((size) => size[axis === "width" ? 0 : 1]);
-    expect(values[0], `${axis} starts at rest`).toBeLessThanOrEqual(rest);
-    const final = values[values.length - 1];
-    expect(final, `${axis} ends fitted to the note`).toBeGreaterThan(least);
-    const steps = values.slice(1).map((value, i) => value - values[i]);
-    expect(Math.min(...steps), `${axis} never shrinks`).toBeGreaterThanOrEqual(
-      0,
-    );
-    expect(Math.max(...steps), `${axis} grows over frames`).toBeLessThan(
-      (final - values[0]) / 2,
-    );
-  }
+  const widths = sizes.map(([width]) => width);
+  expect(widths[0], "width starts at rest").toBeLessThanOrEqual(112);
+  const final = widths[widths.length - 1];
+  expect(final, "width ends fitted to the note").toBeGreaterThan(180);
+  const steps = widths.slice(1).map((width, i) => width - widths[i]);
+  expect(Math.min(...steps), "width never shrinks").toBeGreaterThanOrEqual(0);
+  expect(Math.max(...steps), "width grows over frames").toBeLessThan(
+    (final - widths[0]) / 2,
+  );
+  expect(
+    new Set(sizes.map(([, height]) => height)),
+    "a one-line note keeps the capsule height throughout",
+  ).toEqual(new Set([30]));
 });
 
 test("a refused copy leaves the pill on Copy and says why in the log", async ({
@@ -386,7 +386,7 @@ const WIDE_FONT = `.ov-stage {
 }`;
 
 // The widest copy pill keeps its window, margins included, well inside a
-// 1280-px-wide screen. Below it the pill widens to keep its note on two lines.
+// 1280-px-wide screen.
 const WIDEST_PILL = 560;
 
 for (const { locale, tray } of trayStringsByLocale) {
@@ -427,7 +427,7 @@ for (const { locale, tray } of trayStringsByLocale) {
         await entranceFinished(page);
         windows.push(await fitCopyWindow(page));
         const fit = await button.evaluate(
-          (capsule: HTMLElement, { texts, widestPill }) => {
+          (capsule: HTMLElement, texts) => {
             const box = capsule.getBoundingClientRect();
             const leaves = capsule.querySelectorAll<HTMLElement>(
               "span:not(:has(span))",
@@ -464,24 +464,8 @@ for (const { locale, tray } of trayStringsByLocale) {
               }
               lineTop = rect.top;
             }
-            const body = capsule.querySelector<HTMLElement>(".ov-copy-body")!;
-            const noteStyle = getComputedStyle(note);
-            const widestNote =
-              widestPill - (body.offsetWidth - note.offsetWidth);
-            const width = note.style.width;
-            body.style.maxWidth = "none";
-            note.style.width = `${widestNote}px`;
-            const linesInWidestPill = Math.round(
-              (note.clientHeight -
-                parseFloat(noteStyle.paddingTop) -
-                parseFloat(noteStyle.paddingBottom)) /
-                lineHeight,
-            );
-            note.style.width = width;
-            body.style.maxWidth = "";
             return {
               pillWidth: capsule.offsetWidth,
-              linesInWidestPill,
               shown: spans.map((span) => span.textContent),
               clipped:
                 capsule.scrollWidth > capsule.clientWidth ||
@@ -507,19 +491,19 @@ for (const { locale, tray } of trayStringsByLocale) {
               ),
             };
           },
-          { texts: [labels.note, label], widestPill: WIDEST_PILL },
+          [labels.note, label],
         );
+        test.info().annotations.push({
+          type: "note lines",
+          description: `${label}: ${fit.noteLines}`,
+        });
         expect(fit.pillWidth, `${label}: pill width`).toBeLessThanOrEqual(
           WIDEST_PILL,
         );
         expect(
           fit.noteLines,
-          font === "app font"
-            ? `${label}: the note takes two lines at most`
-            : `${label}: the note takes a third line only when the widest pill needs it`,
-        ).toBeLessThanOrEqual(
-          font === "app font" ? 2 : Math.max(2, fit.linesInWidestPill),
-        );
+          `${label}: the note takes two lines at most`,
+        ).toBeLessThanOrEqual(2);
         expect(
           fit.gapToAction,
           `${label}: note ends by the action`,
@@ -538,7 +522,6 @@ for (const { locale, tray } of trayStringsByLocale) {
         ).toBeLessThanOrEqual(1);
         expect(fit, label).toEqual({
           pillWidth: fit.pillWidth,
-          linesInWidestPill: fit.linesInWidestPill,
           shown: [labels.note, label],
           clipped: false,
           insideWindow: true,
