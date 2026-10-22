@@ -198,7 +198,8 @@ pub(crate) async fn process_transcription_output(
     let final_text =
         crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
-    match cleanup_request(&settings, crate::cleanup::available(), window) {
+    let available = settings.ai_cleanup_enabled && crate::cleanup::available();
+    match cleanup_request(&settings, available, window) {
         Some(context) => crate::cleanup::clean(final_text, &context, operation).await,
         None => ProcessedText::unprocessed(final_text),
     }
