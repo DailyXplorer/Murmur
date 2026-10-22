@@ -3,7 +3,7 @@ import { expect, type Page } from "@playwright/test";
 // OVERLAY_*, ERROR_OVERLAY_* and COPY_OVERLAY_* in src-tauri/src/overlay.rs.
 export const RECORDING_WINDOW = { width: 158, height: 62 };
 export const ERROR_WINDOW = { width: 312, height: 116 };
-export const COPY_WINDOW = { width: 200, height: 62 };
+export const COPY_WINDOW = { width: 356, height: 62 };
 
 /** Opens the overlay page with Tauri's event bridge mocked. */
 export async function openOverlay(

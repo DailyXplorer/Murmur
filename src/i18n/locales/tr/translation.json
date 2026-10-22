@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Son dökümü yapıştır",
     "overlayCopy": "Kopyala",
     "overlayCopied": "Kopyalandı",
+    "overlayNotPasted": "Metin alanı yok, kopyalandı",
     "noticeNothingToPaste": "Henüz yapıştırılacak bir döküm yok.",
     "startMeeting": "Toplantıyı başlat",
     "stopMeeting": "Toplantıyı durdur",

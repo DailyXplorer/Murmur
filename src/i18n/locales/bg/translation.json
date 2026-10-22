@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Поставяне на последната транскрипция",
     "overlayCopy": "Копиране",
     "overlayCopied": "Копирано",
+    "overlayNotPasted": "Не е поставено, копирано",
     "noticeNothingToPaste": "Все още няма транскрипция за поставяне.",
     "startMeeting": "Започване на среща",
     "stopMeeting": "Спиране на срещата",

@@ -30,6 +30,7 @@
     "pasteLastTranscript": "अंतिम ट्रांसक्रिप्ट पेस्ट करें",
     "overlayCopy": "कॉपी करें",
     "overlayCopied": "कॉपी हो गया",
+    "overlayNotPasted": "टेक्स्ट फ़ील्ड नहीं, कॉपी हो गया",
     "noticeNothingToPaste": "पेस्ट करने के लिए अभी कोई ट्रांसक्रिप्शन नहीं है।",
     "startMeeting": "मीटिंग शुरू करें",
     "stopMeeting": "मीटिंग रोकें",

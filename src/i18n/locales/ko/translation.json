@@ -30,6 +30,7 @@
     "pasteLastTranscript": "마지막 받아쓰기 붙여넣기",
     "overlayCopy": "복사",
     "overlayCopied": "복사됨",
+    "overlayNotPasted": "입력란 없음, 복사됨",
     "noticeNothingToPaste": "아직 붙여넣을 받아쓰기가 없습니다.",
     "startMeeting": "회의 시작",
     "stopMeeting": "회의 중지",

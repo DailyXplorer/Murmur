@@ -28,7 +28,11 @@ const errorStringsByLocale = trayStringsByLocale.map(({ locale, tray }) => {
   return { locale, messages };
 });
 
-const COPY_LABELS = { copy: "Copy", copied: "Copied" };
+const COPY_LABELS = {
+  copy: "Copy",
+  copied: "Copied",
+  note: "No text field, copied",
+};
 
 const centerBarHeight = (page: Page) =>
   page
@@ -257,23 +261,58 @@ for (const { locale, messages } of errorStringsByLocale) {
   });
 }
 
-test("without a text field the pill is one Copy button that confirms the copy", async ({
+test("without a text field the pill says so and is one Copy button that confirms the copy", async ({
   page,
 }) => {
   await openOverlay(page);
   await dispatch(page, "show-overlay", "transcribing");
   await dispatch(page, "show-overlay-copy", COPY_LABELS);
 
-  const button = page.getByRole("button", { name: "Copy" });
+  const button = page.getByRole("button", { name: "Copy", exact: true });
   await expect(button).toBeVisible();
+  await expect(button).toHaveAccessibleDescription(COPY_LABELS.note);
   await expect(page.locator(".ov-stage button")).toHaveCount(1);
-  await expect(page.locator(".ov-stage")).toHaveText("Copy");
+  await expect(button.getByText(COPY_LABELS.note)).toBeVisible();
   await expect(page.locator(".ov-wave")).toHaveCount(0);
 
   await button.click();
-  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
-  await expect(page.locator(".ov-stage")).toHaveText("Copied");
+  const copied = page.getByRole("button", { name: "Copied", exact: true });
+  await expect(copied).toBeVisible();
+  await expect(copied).toHaveAccessibleDescription(COPY_LABELS.note);
+  await expect(copied.getByText(COPY_LABELS.note)).toBeVisible();
   expect(await page.evaluate(() => window.overlayHarness.copyCalls())).toBe(1);
+});
+
+test("the copy pill grows from the rest width to fit its note", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await page.evaluate(() => document.fonts.ready);
+  const widths = await page.evaluate(
+    (labels) =>
+      new Promise<number[]>((resolve) => {
+        window.overlayHarness.dispatch("show-overlay-copy", labels);
+        const seen: number[] = [];
+        const start = performance.now();
+        requestAnimationFrame(function sample(now) {
+          const pill = document.querySelector<HTMLElement>(".ov-copy");
+          if (pill) seen.push(pill.offsetWidth);
+          if (now - start < 900) requestAnimationFrame(sample);
+          else resolve(seen);
+        });
+      }),
+    COPY_LABELS,
+  );
+
+  expect(widths.length, "the pill showed").toBeGreaterThan(10);
+  expect(widths[0], "starts at the rest width").toBeLessThanOrEqual(112);
+  const final = widths[widths.length - 1];
+  expect(final, "ends wide enough for the note").toBeGreaterThan(180);
+  const steps = widths.slice(1).map((width, i) => width - widths[i]);
+  expect(Math.min(...steps), "never shrinks").toBeGreaterThanOrEqual(0);
+  expect(Math.max(...steps), "grows over several frames").toBeLessThan(
+    (final - widths[0]) / 2,
+  );
 });
 
 test("a refused copy leaves the pill on Copy and says why in the log", async ({
@@ -292,7 +331,9 @@ test("a refused copy leaves the pill on Copy and says why in the log", async ({
   await expect
     .poll(() => warnings.join("\n"))
     .toContain("copy_notice_again not allowed");
-  await expect(page.locator(".ov-stage")).toHaveText("Copy");
+  await expect(
+    page.getByRole("button", { name: "Copy", exact: true }),
+  ).toBeVisible();
 });
 
 test("the copy pill hides on request and gives way to a new recording", async ({
@@ -312,37 +353,59 @@ test("the copy pill hides on request and gives way to a new recording", async ({
 });
 
 for (const { locale, tray } of trayStringsByLocale) {
-  test(`the ${locale} copy pill fits the copy window unclipped`, async ({
+  test(`the ${locale} copy pill fits its note and action in the copy window`, async ({
     page,
   }) => {
     await page.setViewportSize(COPY_WINDOW);
     await openOverlay(page);
     await page.evaluate(() => document.fonts.ready);
-    const labels = { copy: tray.overlayCopy, copied: tray.overlayCopied };
-    expect(labels.copy && labels.copied, "both labels exist").toBeTruthy();
+    const labels = {
+      copy: tray.overlayCopy,
+      copied: tray.overlayCopied,
+      note: tray.overlayNotPasted,
+    };
+    expect(
+      labels.copy && labels.copied && labels.note,
+      "all three labels exist",
+    ).toBeTruthy();
 
     await dispatch(page, "show-overlay-copy", labels);
     for (const label of [labels.copy, labels.copied]) {
       const button = page.getByRole("button", { name: label, exact: true });
       await expect(button).toBeVisible();
+      await expect(button.getByText(labels.note)).toBeVisible();
       await entranceFinished(page);
-      const fit = await button.evaluate((capsule) => {
-        const box = capsule.getBoundingClientRect();
-        const text = capsule.querySelector("span")!;
-        return {
-          clipped:
-            capsule.scrollWidth > capsule.clientWidth ||
-            text.getBoundingClientRect().right > box.right ||
-            text.getBoundingClientRect().left < box.left,
-          insideWindow:
-            box.left >= 0 &&
-            box.right <= window.innerWidth &&
-            box.top >= 0 &&
-            box.bottom <= window.innerHeight,
-          height: box.height,
-        };
-      });
+      const fit = await button.evaluate(
+        (capsule, texts) => {
+          const box = capsule.getBoundingClientRect();
+          const leaves = capsule.querySelectorAll("span:not(:has(span))");
+          const spans = [...leaves].filter((span) =>
+            texts.includes(span.textContent ?? ""),
+          );
+          const rects = spans.map((span) => span.getBoundingClientRect());
+          return {
+            shown: spans.map((span) => span.textContent),
+            clipped:
+              capsule.scrollWidth > capsule.clientWidth ||
+              rects.some(
+                (rect) =>
+                  rect.right > box.right ||
+                  rect.left < box.left ||
+                  rect.top < box.top ||
+                  rect.bottom > box.bottom,
+              ),
+            insideWindow:
+              box.left >= 0 &&
+              box.right <= window.innerWidth &&
+              box.top >= 0 &&
+              box.bottom <= window.innerHeight,
+            height: box.height,
+          };
+        },
+        [labels.note, label],
+      );
       expect(fit, label).toEqual({
+        shown: [labels.note, label],
         clipped: false,
         insideWindow: true,
         height: 30,

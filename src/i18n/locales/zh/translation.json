@@ -30,6 +30,7 @@
     "pasteLastTranscript": "粘贴上一条转录",
     "overlayCopy": "复制",
     "overlayCopied": "已复制",
+    "overlayNotPasted": "无文本框，已复制",
     "noticeNothingToPaste": "还没有可粘贴的转录。",
     "startMeeting": "开始会议",
     "stopMeeting": "停止会议",

@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Klistra in senaste transkriptionen",
     "overlayCopy": "Kopiera",
     "overlayCopied": "Kopierat",
+    "overlayNotPasted": "Inget textfält, kopierat",
     "noticeNothingToPaste": "Det finns ingen transkription att klistra in ännu.",
     "startMeeting": "Starta möte",
     "stopMeeting": "Stoppa möte",

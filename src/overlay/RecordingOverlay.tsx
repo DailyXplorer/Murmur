@@ -3,6 +3,8 @@ import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -41,6 +43,7 @@ interface MeetingPill {
 interface CopyLabels {
   copy: string;
   copied: string;
+  note: string;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -68,6 +71,13 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
 
 const CENTER = (BAR_COUNT - 1) / 2;
 
+// The window renders no text until its first message, so without this the
+// font would still be loading when the copy pill measures its fitted width.
+// "aą" pulls in both the Latin and the Latin Extended subsets.
+void document.fonts
+  .load('1em "Instrument Sans Variable"', "aą")
+  .catch(() => undefined);
+
 const reducedMotionQuery = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 );
@@ -87,6 +97,8 @@ const RecordingOverlay: React.FC = () => {
   const levelsRef = useRef<number[]>([]);
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const copyId = useId();
 
   useEffect(() => {
     let isUnmounted = false;
@@ -201,6 +213,21 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
+  // The copy pill opens at the rest width and grows to fit its note. CSS
+  // cannot transition to an auto width, so the fitted width is measured
+  // before the first paint and the growth runs towards it.
+  const copyShowing = view.kind === "copy";
+  useLayoutEffect(() => {
+    const pill = copyRef.current;
+    if (!copyShowing || !pill || reducedMotion) return;
+    const rest = getComputedStyle(pill).getPropertyValue("--ov-rest-w");
+    const growth = pill.animate(
+      [{ width: rest }, { width: `${pill.offsetWidth}px` }],
+      { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => growth.cancel();
+  }, [copyShowing, reducedMotion]);
+
   if (view.kind === "hidden") return null;
 
   if (view.kind === "meeting") {
@@ -232,13 +259,22 @@ const RecordingOverlay: React.FC = () => {
     return (
       <div className={`ov-stage ${position}`}>
         <button
+          ref={copyRef}
           type="button"
+          dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
+          aria-labelledby={`${copyId}-action`}
+          aria-describedby={`${copyId}-note`}
           onClick={copyAgain}
         >
-          <Icon size={15} weight="bold" aria-hidden="true" />
-          <span dir="auto" aria-live="polite">
-            {view.copied ? view.labels.copied : view.labels.copy}
+          <span id={`${copyId}-note`} className="ov-copy-note">
+            {view.labels.note}
+          </span>
+          <span className="ov-copy-action">
+            <Icon size={14} weight="bold" aria-hidden="true" />
+            <span id={`${copyId}-action`} aria-live="polite">
+              {view.copied ? view.labels.copied : view.labels.copy}
+            </span>
           </span>
         </button>
       </div>

@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Colar a última transcrição",
     "overlayCopy": "Copiar",
     "overlayCopied": "Copiado",
+    "overlayNotPasted": "Sem campo de texto, copiado",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
     "startMeeting": "Iniciar reunião",
     "stopMeeting": "Parar reunião",

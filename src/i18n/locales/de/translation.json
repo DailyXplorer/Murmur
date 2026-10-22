@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Letzte Transkription einfügen",
     "overlayCopy": "Kopieren",
     "overlayCopied": "Kopiert",
+    "overlayNotPasted": "Kein Textfeld, kopiert",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",

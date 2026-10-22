@@ -11,7 +11,7 @@
   --ov-grow-step: 2px;
   --ov-error-min-h: 36px;
   --ov-error-max-w: 280px;
-  --ov-copy-max-w: 168px;
+  --ov-copy-max-w: 324px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
      opaque because WebKit's backdrop-filter cannot blur the desktop behind a
@@ -199,30 +199,48 @@
   background: rgb(255 204 0);
 }
 
-/* Copy pill: the whole capsule is one button. */
+/* Copy pill: the whole capsule is one button, a note then the Copy action.
+   The action sits in an inner capsule 4px from the end, concentric with the
+   outer one. Content is clipped while the pill grows from the rest width. */
 .ov-capsule.ov-copy {
   width: auto;
   min-width: var(--ov-rest-w);
   max-width: var(--ov-copy-max-w);
-  gap: 6px;
-  padding: 0 14px;
+  overflow: hidden;
+  gap: 8px;
+  padding-inline: 13px 4px;
   border: none;
   margin: 0;
   font: inherit;
-  font-size: 13px;
-  font-weight: 560;
+  font-size: 12.5px;
   white-space: nowrap;
   color: var(--ov-ink);
   cursor: pointer;
   transition: transform 120ms ease;
 }
-.ov-copy svg {
+.ov-copy-note {
+  flex: none;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.7);
+  animation: ov-fade-in 260ms ease 140ms both;
+}
+.ov-copy-action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding-inline: 7px 9px;
+  border-radius: 11px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.12);
+  transition: background-color 120ms ease;
+}
+.ov-copy-action svg {
   flex: none;
 }
-.ov-copy:hover {
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.04)),
-    var(--ov-fill);
+.ov-copy:hover .ov-copy-action {
+  background: rgb(255 255 255 / 0.2);
 }
 .ov-copy:active {
   transform: scale(0.97);
@@ -234,10 +252,17 @@
 .ov-copy.copied svg {
   color: rgb(48 209 88);
 }
+@keyframes ov-fade-in {
+  from {
+    opacity: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ov-capsule,
   .ov-capsule.ov-copy,
+  .ov-copy-note,
+  .ov-copy-action,
   .ov-wave i {
     animation: none;
     transition: none;

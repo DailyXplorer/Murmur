@@ -40,8 +40,9 @@ const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
-// Copy capsule: 30 high, 108 to 168 wide with its icon and label.
-const COPY_OVERLAY_WIDTH: f64 = 168.0 + 2.0 * CARD_MARGIN;
+// Copy capsule: 30 high, growing from 108 to at most 324 wide to fit its note
+// and Copy action on one line. The widest locale (ru, "Copied") needs 316.
+const COPY_OVERLAY_WIDTH: f64 = 324.0 + 2.0 * CARD_MARGIN;
 const COPY_OVERLAY_HEIGHT: f64 = OVERLAY_HEIGHT;
 const COPY_DISPLAY_TIME: Duration = Duration::from_secs(4);
 const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
@@ -86,6 +87,8 @@ thread_local! {
 struct CopyNoticeLabels {
     copy: String,
     copied: String,
+    /// Says nothing was pasted and the text is on the clipboard.
+    note: String,
 }
 
 /// Whether a dictation owns the overlay (recording or transcribing).
@@ -287,8 +290,9 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
     true
 }
 
-/// Shows the "Copy" pill after the text went on the clipboard because no text
-/// field had the focus. A click copies the text again, Escape dismisses it.
+/// Shows the copy pill, a short note and a "Copy" action, after the text went
+/// on the clipboard because no text field had the focus. A click copies the
+/// text again, Escape dismisses it.
 pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
     let settings = settings::get_settings(app_handle);
     if settings.overlay_style == OverlayStyle::None {
@@ -298,6 +302,7 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String) {
     let labels = CopyNoticeLabels {
         copy: strings.overlay_copy,
         copied: strings.overlay_copied,
+        note: strings.overlay_not_pasted,
     };
     *notice() = Some(Notice::Copy { text });
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;

@@ -28,7 +28,11 @@ const trayStrings = (locale: string) =>
 
 const trayLabels = (locale: string) => {
   const tray = trayStrings(locale);
-  return { copy: tray.overlayCopy, copied: tray.overlayCopied };
+  return {
+    copy: tray.overlayCopy,
+    copied: tray.overlayCopied,
+    note: tray.overlayNotPasted,
+  };
 };
 
 const LOCAL_ERRORS = [
@@ -83,8 +87,12 @@ test.describe("copy pill screenshots", () => {
         const labels = trayLabels(locale);
 
         await dispatch(page, "show-overlay-copy", labels);
-        const button = page.getByRole("button", { name: labels.copy });
+        const button = page.getByRole("button", {
+          name: labels.copy,
+          exact: true,
+        });
         await expect(button).toBeVisible();
+        await expect(button.getByText(labels.note)).toBeVisible();
         await entranceFinished(page);
         await page.mouse.move(0, 0);
         await page.screenshot({
@@ -93,7 +101,7 @@ test.describe("copy pill screenshots", () => {
 
         await button.click();
         await expect(
-          page.getByRole("button", { name: labels.copied }),
+          page.getByRole("button", { name: labels.copied, exact: true }),
         ).toBeVisible();
         await page.mouse.move(0, 0);
         await page.screenshot({

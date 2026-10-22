@@ -30,6 +30,7 @@
     "pasteLastTranscript": "最後の文字起こしを貼り付け",
     "overlayCopy": "コピー",
     "overlayCopied": "コピーしました",
+    "overlayNotPasted": "入力欄なし、コピー済み",
     "noticeNothingToPaste": "貼り付ける文字起こしはまだありません。",
     "startMeeting": "会議を開始",
     "stopMeeting": "会議を停止",

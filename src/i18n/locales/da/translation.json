@@ -30,6 +30,7 @@
     "pasteLastTranscript": "Indsæt seneste transskription",
     "overlayCopy": "Kopiér",
     "overlayCopied": "Kopieret",
+    "overlayNotPasted": "Intet tekstfelt, kopieret",
     "noticeNothingToPaste": "Der er endnu ingen transskription at indsætte.",
     "startMeeting": "Start møde",
     "stopMeeting": "Stop møde",
