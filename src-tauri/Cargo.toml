@@ -85,7 +85,7 @@ core-foundation = "0.10"
 # Free disk space before a meeting records (statvfs).
 libc = "0.2"
 # Checks each downloaded model file against the manifest.
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Parakeet on the CPU of Intel Macs; Apple silicon runs it in the meetings
 # helper. Pinned: the crate is young, and upgrades are deliberate.
