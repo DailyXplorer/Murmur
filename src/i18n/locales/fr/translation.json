@@ -157,6 +157,10 @@
       "waitForIt": "Vous pourrez dicter dès qu'il sera prêt.",
       "stoppedTitle": "Le téléchargement s'est arrêté",
       "start": "Commencer à utiliser Murmur"
+    },
+    "style": {
+      "title": "Choisissez un style",
+      "description": "Le nettoyage écrira vos dictées dans ce style, modifiable à tout moment."
     }
   },
   "settings": {
@@ -481,8 +485,19 @@
       "sessionExpired": "Session expirée, reconnectez-vous dans Codex",
       "aiCleanup": {
         "title": "Nettoyage et mise en forme",
-        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit et ne reformule jamais. En cas d’échec ou de lenteur, la transcription brute est collée.",
+        "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
+      },
+      "style": {
+        "title": "Style de dictée",
+        "description": "Formel : ponctuation complète et tournures écrites. Normal : un peu moins de ponctuation, vos mots restent les vôtres. Détendu : plus relâché, comme un message à un ami.",
+        "cleanupOff": "Les styles s’appliquent seulement quand le nettoyage est activé.",
+        "error": "Impossible de changer le style de dictée.",
+        "options": {
+          "formal": "Formel",
+          "normal": "Normal",
+          "casual": "Détendu"
+        }
       },
       "windowNames": {
         "title": "Noms de la fenêtre active",

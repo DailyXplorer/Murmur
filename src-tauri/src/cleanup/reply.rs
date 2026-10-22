@@ -4,6 +4,7 @@
 //! that put spaces between words and for Chinese, Japanese or Thai.
 
 use super::PromptContext;
+use crate::settings::DictationStyle;
 
 /// Stands for any run of spaces and punctuation. It weighs nothing, but a
 /// letter next to it in both texts is anchored at a word edge.
@@ -21,6 +22,27 @@ const NEW_SHARE: u32 = 10;
 /// `EDGE_UNITS` of a reply may add at most `EDGE_SLACK` units each.
 const EDGE_UNITS: u32 = 16;
 const EDGE_SLACK: u32 = 5;
+/// The spoken forms the formal style writes in full, as (written, spoken),
+/// each before any shorter form it contains. In that style both texts read
+/// every written form as the spoken one before they are aligned, so these
+/// rewordings cost nothing and the budget stays that of the other styles.
+const REGISTER: [(&str, &str); 15] = [
+    ("il faut que nous", "faut qu'on"),
+    ("il faut que", "faut que"),
+    ("que nous", "qu'on"),
+    ("nous pouvons", "on peut"),
+    ("cela me convient", "ça marche"),
+    ("me convient", "ça marche"),
+    ("convient", "ça marche"),
+    ("fonctionne", "marche"),
+    ("tu es", "t'es"),
+    ("tu as", "t'as"),
+    ("as-tu", "t'as"),
+    ("disponible", "dispo"),
+    ("going to", "gonna"),
+    ("i will", "i'll"),
+    ("hello", "hey"),
+];
 /// A reply under this many tenths of the dictation drops what was said: a
 /// summary, or an answer ("No.", "4."). Fillers are not counted in the
 /// dictation. Neither is a restart cue trusted: "no wait" or "scratch that"
@@ -58,7 +80,11 @@ pub fn max_output_chars(input_chars: usize) -> usize {
 }
 
 fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
-    let spoken = without_apostrophes(units(dictation));
+    let register = |text| match context.style {
+        DictationStyle::Formal => in_spoken_register(text),
+        DictationStyle::Normal | DictationStyle::Casual => text,
+    };
+    let spoken = register(without_apostrophes(units(dictation)));
     let reply = units(reply);
     let reply_weight = weight(&reply);
     if reply_weight * 10 < weight(&units(&without_fillers(dictation))) * MIN_KEPT_TENTHS {
@@ -70,7 +96,7 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
         .chain(&context.names)
         .map(|term| units(term))
         .collect();
-    let reply = without_apostrophes(without_terms(reply, &terms));
+    let reply = register(without_apostrophes(without_terms(reply, &terms)));
 
     let head = split_at_weight(&reply, EDGE_UNITS);
     let tail = split_at_weight(&reply, weight(&reply).saturating_sub(EDGE_UNITS));
@@ -82,6 +108,29 @@ fn is_an_edit(dictation: &str, reply: &str, context: &PromptContext) -> bool {
     added <= NEW_SLACK + reply_weight / NEW_SHARE
         && head_added <= EDGE_SLACK
         && tail_added <= EDGE_SLACK
+}
+
+/// `units` with each written form of `REGISTER` read as its spoken one.
+fn in_spoken_register(mut text: Vec<char>) -> Vec<char> {
+    for (written, spoken) in REGISTER {
+        let written = without_apostrophes(units(written));
+        let spoken = without_apostrophes(units(spoken));
+        let mut out = Vec::with_capacity(text.len());
+        let mut i = 0;
+        while i < text.len() {
+            // Both forms are framed by gaps; the closing one is kept for
+            // the next word, which may start another match.
+            if text[i..].starts_with(&written) {
+                out.extend_from_slice(&spoken[..spoken.len() - 1]);
+                i += written.len() - 1;
+            } else {
+                out.push(text[i]);
+                i += 1;
+            }
+        }
+        text = out;
+    }
+    text
 }
 
 /// The dictation's words without fillers.
@@ -843,6 +892,75 @@ mod tests {
             "I think Claude'll handle it.",
             &["Claude"]
         ));
+    }
+
+    fn formal() -> PromptContext {
+        PromptContext {
+            style: DictationStyle::Formal,
+            ..PromptContext::default()
+        }
+    }
+
+    #[test]
+    fn formal_rewordings_pass_only_in_the_formal_style() {
+        let appointment = "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi";
+        let rewordings = [
+            (
+                appointment,
+                "Je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi.",
+            ),
+            (
+                appointment,
+                "Donc, je pense que nous pouvons nous voir demain vers 15 h, si tu es disponible. Sinon, jeudi convient aussi.",
+            ),
+            (
+                "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités",
+                "Alors, pour la réunion, il faut que nous préparions :\n- le budget ;\n- le planning ;\n- la liste des invités.",
+            ),
+            (
+                "hey did you get a chance to look at the draft I sent you yesterday",
+                "Hello, did you have a chance to look at the draft I sent you yesterday?",
+            ),
+        ];
+        for (dictation, reply) in rewordings {
+            assert_eq!(
+                accept_output(dictation, reply, &formal()).as_deref(),
+                Some(reply),
+                "Formal rejected {reply:?}"
+            );
+            for style in [DictationStyle::Normal, DictationStyle::Casual] {
+                let context = PromptContext {
+                    style,
+                    ..PromptContext::default()
+                };
+                assert_eq!(
+                    accept_output(dictation, reply, &context),
+                    None,
+                    "{style:?} accepted {reply:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_style_classifies_the_corpus_as_normal_does() {
+        let differs: Vec<String> = corpus()
+            .into_iter()
+            .filter(|(_, dictation, reply, _)| {
+                let normal = accept_output(dictation, reply, &PromptContext::default());
+                [DictationStyle::Formal, DictationStyle::Casual]
+                    .into_iter()
+                    .any(|style| {
+                        let context = PromptContext {
+                            style,
+                            ..PromptContext::default()
+                        };
+                        accept_output(dictation, reply, &context) != normal
+                    })
+            })
+            .map(|(_, _, reply, _)| reply)
+            .collect();
+        assert_eq!(differs, Vec::<String>::new());
     }
 
     #[test]

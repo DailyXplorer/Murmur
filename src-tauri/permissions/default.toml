@@ -35,6 +35,7 @@ permissions = [
   "allow-change-append-trailing-space-setting",
   "allow-change-lazy-stream-close-setting",
   "allow-change-ai-cleanup-setting",
+  "allow-change-dictation-style-setting",
   "allow-change-window-names-setting",
   "allow-change-whisper-mode-setting",
   "allow-change-app-language-setting",

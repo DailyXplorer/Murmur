@@ -158,10 +158,24 @@ async fn clean_with_session(
     context: &PromptContext,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
+    let output = ask_for_cleanup(url, session, model, raw, context, operation).await?;
+    accept(raw, &output, context)
+}
+
+/// The model's reply, before the guard.
+async fn ask_for_cleanup(
+    url: &str,
+    session: &Session,
+    model: &str,
+    raw: &str,
+    context: &PromptContext,
+    operation: &ProcessingOperation,
+) -> Result<String, CompletionError> {
+    let instructions = prompt::instructions(context.style);
     let user_message = prompt::user_message(raw, context);
     let request = Request {
         model,
-        instructions: prompt::INSTRUCTIONS,
+        instructions: &instructions,
         user_message: &user_message,
         max_output_chars: reply::max_output_chars(raw.chars().count()),
         effort: "low",
@@ -169,8 +183,7 @@ async fn clean_with_session(
         // Short: a dictation that waits ends with the raw text anyway.
         connect_timeout: Duration::from_secs(3),
     };
-    let output = responses::complete(url, session, &request, operation).await?;
-    accept(raw, &output, context)
+    responses::complete(url, session, &request, operation).await
 }
 
 fn accept(raw: &str, output: &str, context: &PromptContext) -> Result<String, CompletionError> {
@@ -220,6 +233,7 @@ mod tests {
     use crate::OperationId;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::thread;
 
     fn session() -> Session {
@@ -232,12 +246,17 @@ mod tests {
     /// Serves one request with `response`, or holds the connection open
     /// without answering when `response` is `None`.
     fn serve_once(response: Option<String>) -> String {
+        serve_and_capture(response).0
+    }
+
+    /// `serve_once`, also handing back the request it read.
+    fn serve_and_capture(response: Option<String>) -> (String, mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let (sender, request) = mpsc::channel();
         thread::spawn(move || {
             let (mut peer, _) = listener.accept().unwrap();
-            let mut buffer = [0_u8; 16 * 1024];
-            let _ = peer.read(&mut buffer);
+            let _ = sender.send(read_request(&mut peer));
             match response {
                 Some(response) => {
                     let _ = peer.write_all(response.as_bytes());
@@ -245,7 +264,32 @@ mod tests {
                 None => thread::sleep(Duration::from_secs(3)),
             }
         });
-        endpoint
+        (endpoint, request)
+    }
+
+    /// Reads the headers and as much body as `content-length` announces.
+    fn read_request(peer: &mut std::net::TcpStream) -> String {
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 16 * 1024];
+        while let Ok(read) = peer.read(&mut buffer) {
+            request.extend_from_slice(&buffer[..read]);
+            let text = String::from_utf8_lossy(&request);
+            let complete = text.split_once("\r\n\r\n").is_some_and(|(head, body)| {
+                let length = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())?
+                    })
+                    .unwrap_or(0);
+                body.len() >= length
+            });
+            if read == 0 || complete {
+                break;
+            }
+        }
+        String::from_utf8_lossy(&request).into_owned()
     }
 
     fn sse_reply(text: &str) -> String {
@@ -295,6 +339,39 @@ mod tests {
                 cleanup: Some(CleanupOutcome::Cleaned),
             }
         );
+    }
+
+    #[test]
+    fn the_chosen_style_reaches_the_request() {
+        use crate::settings::DictationStyle;
+
+        for (style, block) in [
+            (DictationStyle::Formal, Some("Style: formal")),
+            (DictationStyle::Casual, Some("Style: casual")),
+            (DictationStyle::Normal, None),
+        ] {
+            let (endpoint, request) = serve_and_capture(Some(sse_reply("Hello there.")));
+            let operation = ProcessingOperation::new(OperationId(14));
+            let context = PromptContext {
+                style,
+                ..PromptContext::default()
+            };
+            let reply = tauri::async_runtime::block_on(clean_with_session(
+                &endpoint,
+                &session(),
+                "gpt-6-luna",
+                "hello there",
+                &context,
+                &operation,
+            ));
+            assert_eq!(reply.ok().as_deref(), Some("Hello there."));
+            let request = request.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert!(request.contains("You are a dictation editor."), "{style:?}");
+            match block {
+                Some(block) => assert!(request.contains(block), "{style:?} sent no style"),
+                None => assert!(!request.contains("Style:"), "Normal sent a style"),
+            }
+        }
     }
 
     #[test]
@@ -388,5 +465,132 @@ mod tests {
             );
             assert_eq!(processed.cleanup, Some(CleanupOutcome::Cleaned));
         }
+    }
+
+    /// Runs fixed dictations through every style with the stored session,
+    /// never refreshing it, and writes the outputs for a person to judge.
+    #[test]
+    #[ignore]
+    fn live_styles_write_samples() {
+        use crate::settings::DictationStyle;
+        use std::fmt::Write as _;
+
+        const SAMPLES: &str = "/tmp/murmur-styles-samples.md";
+        // Each reply must keep one of the listed words: there, "ça marche"
+        // means "it works", "enfin" means "finally" and "so" a consequence.
+        // The last field marks an enumeration, which every style lists.
+        let dictations: [(&str, &str, &[&str], bool); 9] = [
+            ("fr", "euh donc je pense qu'on peut se voir demain vers 15h enfin si t'es dispo sinon jeudi ça marche aussi", &[], false),
+            ("fr", "alors pour la réunion faut qu'on prépare le budget le planning et la liste des invités", &[], true),
+            ("fr", "t'as pu regarder le devis que je t'ai envoyé hier ou pas encore", &[], false),
+            ("fr", "le micro ça marche plus depuis hier", &["marche", "fonctionne"], false),
+            ("fr", "j'ai enfin fini le rapport", &["enfin", "finalement"], false),
+            ("en", "um so the call is at 2 pm actually no 3 pm and I'll send the link before", &[], false),
+            ("en", "for the trip we need to book the flights the hotel and the rental car", &[], true),
+            ("en", "hey did you get a chance to look at the draft I sent you yesterday", &[], false),
+            ("en", "it's raining so I'll stay home", &["so", "therefore"], false),
+        ];
+        let styles = [
+            DictationStyle::Formal,
+            DictationStyle::Normal,
+            DictationStyle::Casual,
+        ];
+        let auth_path = codex_auth::auth_path().unwrap();
+        let session = codex_auth::stored_session(&auth_path).unwrap();
+        let model = responses::fast_model(auth_path.parent().unwrap_or(&auth_path));
+
+        let normal = prompt::instructions(DictationStyle::Normal);
+        let mut report = format!(
+            "# Dictation style samples\n\n{} UTC, model `{model}`\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M")
+        );
+        for style in [DictationStyle::Formal, DictationStyle::Casual] {
+            let styled = prompt::instructions(style);
+            let block = styled.strip_prefix(normal.as_ref()).unwrap_or(&styled);
+            writeln!(report, "\n{style:?} block:\n\n```\n{}\n```", block.trim()).unwrap();
+        }
+        let mut failures = Vec::new();
+        for (language, dictation, kept, list) in dictations {
+            writeln!(report, "\n## {language}: {dictation}\n").unwrap();
+            let deadline = deadline_for(dictation.chars().count());
+            for style in styles {
+                let context = PromptContext {
+                    language: Some(language.to_string()),
+                    style,
+                    ..PromptContext::default()
+                };
+                let operation = ProcessingOperation::new(OperationId(13));
+                let started = Instant::now();
+                let reply = tauri::async_runtime::block_on(ask_for_cleanup(
+                    responses::RESPONSES_URL,
+                    &session,
+                    &model,
+                    dictation,
+                    &context,
+                    &operation,
+                ));
+                let elapsed = started.elapsed();
+                let slow = if elapsed > deadline {
+                    ", SLOW: the app would paste the raw text"
+                } else {
+                    ""
+                };
+                let timing = format!(
+                    "{} ms of {} ms{slow}",
+                    elapsed.as_millis(),
+                    deadline.as_millis()
+                );
+                let reply = match reply {
+                    Ok(reply) => reply,
+                    Err(error) => {
+                        writeln!(report, "- {style:?}, FAILED ({timing}): {error:?}").unwrap();
+                        failures.push(format!("{style:?} {dictation}: {error:?}"));
+                        continue;
+                    }
+                };
+                let outcome = match accept(dictation, &reply, &context) {
+                    Ok(text) => {
+                        let lower = text.to_lowercase();
+                        let words: Vec<&str> =
+                            lower.split(|c: char| !c.is_alphanumeric()).collect();
+                        if !kept.is_empty() && !kept.iter().any(|word| words.contains(word)) {
+                            failures.push(format!("{style:?} changed the meaning: {text}"));
+                        }
+                        if style == DictationStyle::Casual
+                            && !text.chars().next().is_some_and(char::is_uppercase)
+                        {
+                            failures.push(format!("{style:?} lost the capital: {text}"));
+                        }
+                        let items = text
+                            .lines()
+                            .filter(|line| {
+                                line.starts_with("- ")
+                                    || line
+                                        .split_once(". ")
+                                        .is_some_and(|(number, _)| number.parse::<u8>().is_ok())
+                            })
+                            .count();
+                        if list && items < 3 {
+                            failures.push(format!("{style:?} lost the list: {text}"));
+                        }
+                        "cleaned"
+                    }
+                    Err(error) => {
+                        failures.push(format!("{style:?} {dictation}: {error:?}"));
+                        "REJECTED by the reply guard"
+                    }
+                };
+                writeln!(
+                    report,
+                    "- {style:?}, {outcome}, {} commas ({timing}):\n\n  ```\n  {}\n  ```",
+                    reply.matches(',').count(),
+                    reply.trim().replace('\n', "\n  ")
+                )
+                .unwrap();
+            }
+        }
+        std::fs::write(SAMPLES, &report).unwrap();
+        println!("{report}");
+        assert!(failures.is_empty(), "{failures:#?}");
     }
 }

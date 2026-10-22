@@ -21,6 +21,7 @@ import {
   DoneOnboarding,
   LocalModelOnboarding,
   ProviderOnboarding,
+  StyleOnboarding,
 } from "./components/onboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
@@ -31,23 +32,36 @@ import { useSettingsStore } from "./stores/settingsStore";
 import {
   commands,
   events,
+  type DictationStyle,
   type Engine,
   type LocalModelStatus,
 } from "@/bindings";
 import { LocalSttCard } from "./components/LocalSttCard";
 import { LocalModelPill } from "./components/LocalModelPill";
 
-/** A new install goes model → permissions → account → finish (on this Mac
- * only) → done. `returning`: setup was finished before, and a permission
- * went missing since; granting it again leads back to the app. `engine` is
- * the one chosen in the model step; the cloud makes the account required. */
+/** A new install goes model → permissions → account → style (when AI
+ * cleanup can run) → finish (on this Mac only) → done. `returning`: setup
+ * was finished before, and a permission went missing since; granting it
+ * again leads back to the app. `engine` is the one chosen in the model
+ * step; the cloud makes the account required. */
 type OnboardingState =
   | { kind: "model"; status: LocalModelStatus }
   | { kind: "permissions"; returning: true }
   | { kind: "permissions"; returning: false; engine: Engine }
   | { kind: "account"; engine: Engine }
+  | { kind: "style"; next: "finish" | "done" }
   | { kind: "finish" }
   | { kind: "done" };
+
+/** A style only changes what AI cleanup writes, so the step shows only when
+ * cleanup is on and has an account to run with. */
+const stepAfterAccount = (
+  engine: Engine | undefined,
+  cleanupCanRun: boolean,
+): OnboardingState => {
+  const next = engine === "local" ? "finish" : "done";
+  return cleanupCanRun ? { kind: "style", next } : { kind: next };
+};
 
 /** Mirrors `FailureKind` in src-tauri/src/transcription_error.rs. */
 type FailureKind =
@@ -350,7 +364,9 @@ function App() {
     });
   }, []);
 
-  const handleProviderComplete = async (): Promise<boolean> => {
+  const handleProviderComplete = async (
+    connected: boolean,
+  ): Promise<boolean> => {
     try {
       const result = await commands.completeOnboarding();
       if (result.status === "error") {
@@ -365,8 +381,27 @@ function App() {
       return false;
     }
     // Onboarding keeps the cloud on a Mac that cannot run the local model.
-    const engine = useSettingsStore.getState().settings?.transcription_engine;
-    setOnboardingState({ kind: engine === "local" ? "finish" : "done" });
+    const saved = useSettingsStore.getState().settings;
+    setOnboardingState(
+      stepAfterAccount(
+        saved?.transcription_engine,
+        connected && (saved?.ai_cleanup_enabled ?? true),
+      ),
+    );
+    return true;
+  };
+
+  const leaveStyleStep = () =>
+    setOnboardingState((current) =>
+      current?.kind === "style" ? { kind: current.next } : current,
+    );
+
+  const handleStyleChoice = async (style: DictationStyle): Promise<boolean> => {
+    if (!(await updateSetting("dictation_style", style))) {
+      toast.error(t("settings.transcription.style.error"));
+      return false;
+    }
+    leaveStyleStep();
     return true;
   };
 
@@ -434,6 +469,17 @@ function App() {
         <ProviderOnboarding
           onComplete={handleProviderComplete}
           optional={onboardingState.engine === "local"}
+        />
+      </>
+    );
+  } else if (onboardingState.kind === "style") {
+    content = (
+      <>
+        {downloadingPill}
+        <StyleOnboarding
+          stored={settings?.dictation_style ?? "normal"}
+          onContinue={handleStyleChoice}
+          onSkip={leaveStyleStep}
         />
       </>
     );

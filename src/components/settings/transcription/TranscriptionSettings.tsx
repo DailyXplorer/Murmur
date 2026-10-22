@@ -13,7 +13,9 @@ import { Button } from "../../ui/Button";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsPage } from "../../ui/SettingsPage";
+import { RadioOption } from "../../ui/RadioOption";
 import { AiCleanup } from "../AiCleanup";
+import { DictationStyleSetting } from "../DictationStyle";
 import { CustomWords } from "../CustomWords";
 import { WindowNames } from "../WindowNames";
 import { WhisperMode } from "../WhisperMode";
@@ -22,39 +24,6 @@ import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
 import { AutoSubmit } from "../AutoSubmit";
 import { LocalModelRow } from "./LocalModelRow";
-
-const EngineOption: React.FC<{
-  engine: Engine;
-  checked: boolean;
-  disabled: boolean;
-  description: string;
-  onSelect: (engine: Engine) => void;
-}> = ({ engine, checked, disabled, description, onSelect }) => {
-  const { t } = useTranslation();
-  return (
-    <label
-      className={`flex items-start gap-3 px-4 py-2.5 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-    >
-      <input
-        type="radio"
-        name="transcription-engine"
-        value={engine}
-        checked={checked}
-        disabled={disabled}
-        onChange={() => onSelect(engine)}
-        className="mt-0.5 size-4 shrink-0 accent-logo-primary disabled:opacity-50 dark:[color-scheme:dark]"
-      />
-      <span className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>
-        <span className="block text-sm font-medium">
-          {t(`settings.transcription.engine.${engine}.title`)}
-        </span>
-        <span className="block text-pretty text-sm text-text/70">
-          {description}
-        </span>
-      </span>
-    </label>
-  );
-};
 
 export const TranscriptionSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -103,8 +72,10 @@ export const TranscriptionSettings: React.FC = () => {
           aria-label={t("settings.transcription.groups.engine")}
           className="divide-y divide-mid-gray/20"
         >
-          <EngineOption
-            engine="local"
+          <RadioOption
+            name="transcription-engine"
+            value="local"
+            title={t("settings.transcription.engine.local.title")}
             checked={engine === "local"}
             disabled={
               model === null ||
@@ -118,8 +89,10 @@ export const TranscriptionSettings: React.FC = () => {
             }
             onSelect={(value) => void chooseEngine(value)}
           />
-          <EngineOption
-            engine="cloud"
+          <RadioOption
+            name="transcription-engine"
+            value="cloud"
+            title={t("settings.transcription.engine.cloud.title")}
             checked={engine === "cloud"}
             disabled={isUpdating("transcription_engine")}
             description={t("settings.transcription.engine.cloud.description")}
@@ -171,6 +144,7 @@ export const TranscriptionSettings: React.FC = () => {
           grouped={true}
           needsAccount={noAccount}
         />
+        <DictationStyleSetting noAccount={noAccount} />
         <WindowNames descriptionMode="tooltip" grouped={true} />
         <WhisperMode descriptionMode="tooltip" grouped={true} />
         <CustomWords descriptionMode="tooltip" grouped={true} />
