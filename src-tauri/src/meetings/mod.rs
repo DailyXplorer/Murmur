@@ -165,7 +165,7 @@ impl ProcessingQueue {
         Self {
             state: Mutex::new(state),
             changed: tokio::sync::Notify::new(),
-            reachability: Box::new(CodexHost),
+            reachability: Box::new(CodexHost::new()),
         }
     }
 

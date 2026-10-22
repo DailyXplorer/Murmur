@@ -11,23 +11,50 @@ pub trait Reachability: Send + Sync + 'static {
     fn online(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>>;
 }
 
-/// A TCP connection to the Codex host: it needs DNS, a route and the
-/// server, and sends nothing.
-pub struct CodexHost;
+/// A `HEAD` request to the Codex endpoint through the HTTP stack the
+/// requests use, so it goes through the system proxy and falls back from a
+/// broken IPv6 route as they do. Any answer, whatever its status, means
+/// online; a request that gets none means offline. HTTPS, so a captive
+/// portal that intercepts it counts as offline.
+pub struct CodexHost {
+    /// `None` when the client could not be built: the check then lets the
+    /// queue go, and the run that follows finds out.
+    client: Option<reqwest::Client>,
+    url: String,
+}
 
 impl CodexHost {
-    const ADDRESS: &'static str = "chatgpt.com:443";
-    const TIMEOUT: Duration = Duration::from_secs(3);
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+    const TIMEOUT: Duration = Duration::from_secs(5);
+
+    pub(super) fn new() -> Self {
+        Self::with(
+            reqwest::Client::builder(),
+            crate::codex_transcribe::TRANSCRIBE_URL,
+        )
+    }
+
+    fn with(builder: reqwest::ClientBuilder, url: &str) -> Self {
+        let client = builder
+            .connect_timeout(Self::CONNECT_TIMEOUT)
+            .timeout(Self::TIMEOUT)
+            .build()
+            .inspect_err(|error| log::warn!("Meeting connection check unavailable: {error}"))
+            .ok();
+        Self {
+            client,
+            url: url.to_owned(),
+        }
+    }
 }
 
 impl Reachability for CodexHost {
     fn online(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>> {
         Box::pin(async {
-            let connect = tokio::net::TcpStream::connect(Self::ADDRESS);
-            matches!(
-                tokio::time::timeout(Self::TIMEOUT, connect).await,
-                Ok(Ok(_))
-            )
+            let Some(client) = &self.client else {
+                return true;
+            };
+            client.head(&self.url).send().await.is_ok()
         })
     }
 }
@@ -149,5 +176,64 @@ mod tests {
         assert!(!hold.holds());
         // Codex was still out of reach on the run that followed.
         assert_eq!(hold.unreachable(now()), 4 * MINUTE);
+    }
+
+    /// Answers one request with `status` and returns its address and the
+    /// request line it got.
+    fn answer_once(status: &'static str) -> (String, std::sync::mpsc::Receiver<String>) {
+        use std::io::{BufRead, BufReader, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let (sent, received) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            let mut header = String::new();
+            while reader.read_line(&mut header).unwrap() > 2 {
+                header.clear();
+            }
+            let response = format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\n\r\n");
+            reader.get_mut().write_all(response.as_bytes()).unwrap();
+            sent.send(line.trim_end().to_owned()).unwrap();
+        });
+        (address, received)
+    }
+
+    #[tokio::test]
+    async fn the_check_goes_through_the_proxy_the_requests_use() {
+        // Only the proxy leads out: the host does not even resolve directly.
+        let (proxy, request) = answer_once("403 Forbidden");
+        let builder = reqwest::Client::builder()
+            .proxy(reqwest::Proxy::all(format!("http://{proxy}")).unwrap());
+        let host = CodexHost::with(builder, "http://codex.invalid/backend-api/transcribe");
+        assert!(host.online().await);
+        assert_eq!(
+            request.recv().unwrap(),
+            "HEAD http://codex.invalid/backend-api/transcribe HTTP/1.1"
+        );
+    }
+
+    #[tokio::test]
+    async fn any_answer_means_online_whatever_its_status() {
+        let (server, _request) = answer_once("503 Service Unavailable");
+        let host = CodexHost::with(
+            reqwest::Client::builder().no_proxy(),
+            &format!("http://{server}/"),
+        );
+        assert!(host.online().await);
+    }
+
+    #[tokio::test]
+    async fn no_answer_means_offline() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = closed.local_addr().unwrap();
+        drop(closed);
+        let host = CodexHost::with(
+            reqwest::Client::builder().no_proxy(),
+            &format!("http://{address}/"),
+        );
+        assert!(!host.online().await);
     }
 }
