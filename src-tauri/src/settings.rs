@@ -222,6 +222,22 @@ pub enum MeetingCaptureMode {
     MicOnly,
 }
 
+/// How long a processed meeting keeps its audio. Its transcript and summary
+/// stay either way. The names are spelled out: serde and the TypeScript
+/// bindings split `Days7` differently.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+pub enum MeetingAudioRetention {
+    #[default]
+    #[serde(rename = "keep")]
+    Keep,
+    #[serde(rename = "days7")]
+    Days7,
+    #[serde(rename = "days30")]
+    Days30,
+    #[serde(rename = "days90")]
+    Days90,
+}
+
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// makes every field, including ones added later, fall back to its
 /// `get_default_settings()` value when missing from a stored settings object,
@@ -338,6 +354,8 @@ pub struct AppSettings {
     pub meetings_enabled: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
+    #[serde(default)]
+    pub meeting_audio_retention: MeetingAudioRetention,
     /// Which engine transcribes dictations.
     #[serde(default)]
     pub transcription_engine: Engine,
@@ -585,6 +603,7 @@ pub fn get_default_settings() -> AppSettings {
         overlay_style: default_overlay_style(),
         meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
+        meeting_audio_retention: MeetingAudioRetention::default(),
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
@@ -1485,6 +1504,40 @@ mod tests {
             serde_json::to_value(MeetingCaptureMode::SystemOnly).unwrap(),
             "system_only"
         );
+    }
+
+    #[test]
+    fn settings_saved_before_audio_retention_keep_meeting_audio() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_audio_retention");
+
+        let (settings, _) = parse_stored_settings(&stored);
+
+        assert_eq!(
+            settings.meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        assert_eq!(
+            get_default_settings().meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        // The values the settings page sends, as `src/bindings.ts` types them.
+        for (sent, retention) in [
+            ("keep", MeetingAudioRetention::Keep),
+            ("days7", MeetingAudioRetention::Days7),
+            ("days30", MeetingAudioRetention::Days30),
+            ("days90", MeetingAudioRetention::Days90),
+        ] {
+            stored["meeting_audio_retention"] = serde_json::json!(sent);
+            assert_eq!(
+                parse_stored_settings(&stored).0.meeting_audio_retention,
+                retention
+            );
+            assert_eq!(serde_json::to_value(retention).unwrap(), sent);
+        }
     }
 
     #[test]

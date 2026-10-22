@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use super::chunking::ChunkPlan;
 use super::merge::Track;
 use super::paths;
+use super::retention::MeetingAudio;
 use super::summary::{named_title, SummaryError};
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
@@ -964,6 +965,41 @@ impl MeetingsStore {
             params![id, paths::AUDIO_FILE, bytes as i64],
         )?;
         Ok(updated > 0)
+    }
+
+    /// Every meeting that still has audio, as retention weighs it.
+    pub fn with_audio(&self) -> Result<Vec<MeetingAudio>> {
+        let conn = self.connection()?;
+        let rows = conn
+            .prepare(
+                "SELECT id, started_at_ms, status, summary_status, audio_file
+                 FROM meetings WHERE audio_deleted = 0",
+            )?
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, started_at_ms, status, summary, audio_file)| {
+                Some(MeetingAudio {
+                    id,
+                    started_at_ms,
+                    status: MeetingStatus::from_db(&status)?,
+                    summary: SummaryStatus::from_db(&summary),
+                    audio: match audio_file {
+                        Some(_) => AudioState::Compressed,
+                        None => AudioState::Tracks,
+                    },
+                })
+            })
+            .collect())
     }
 
     /// Marks a finished meeting's audio deleted; its text stays. Returns

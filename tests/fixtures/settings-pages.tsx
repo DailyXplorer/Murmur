@@ -50,6 +50,11 @@ const meetingsEnabled = params.get("meetings") !== "0";
 const systemAudioSilent = params.get("systemAudioSilent") === "1";
 const systemAudioPermission = params.get("systemAudioPermission") ?? "granted";
 const audioBytes = Number(params.get("audioBytes") ?? 34_600_000);
+/** The space the meetings' folders take, and what was set aside next to them. */
+const meetingsStorageBytes = Number(
+  params.get("storageBytes") ?? 1_234_000_000,
+);
+const setAsideBytes = Number(params.get("setAsideBytes") ?? 0);
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
@@ -238,6 +243,7 @@ const SETTINGS: AppSettings = {
   local_model_download_wanted: false,
   local_stt_card_dismissed: !cardShown,
   log_level: "info",
+  meeting_audio_retention: "keep",
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
@@ -686,7 +692,12 @@ const handleAccountCommand = (
 };
 
 const RESPONSES: Record<string, unknown> = {
+  change_meeting_audio_retention_setting: null,
   change_meeting_capture_mode_setting: null,
+  get_meetings_storage: {
+    audio_bytes: meetingsStorageBytes,
+    set_aside_bytes: setAsideBytes,
+  },
   change_meetings_enabled_setting: null,
   copy_meeting_markdown: null,
   discard_meeting: null,

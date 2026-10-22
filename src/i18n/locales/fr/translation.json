@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Réunions",
         "description": "Enregistrez vos réunions depuis votre microphone et l’audio du système. Ajoute une page Réunions, un raccourci et un élément dans la barre des menus."
+      },
+      "meetingsAudio": {
+        "title": "Supprimer l’audio des réunions",
+        "description": "Supprime l’audio des réunions traitées après le délai choisi, pour libérer de l’espace. Les transcriptions et les résumés sont conservés.",
+        "textKept": "Les transcriptions et les résumés sont conservés.",
+        "used": "L’audio des réunions occupe {{size}}.",
+        "usedWithSetAside": "L’audio des réunions occupe {{size}}, plus {{setAside}} d’enregistrements non listés, supprimés après 30 jours.",
+        "options": {
+          "keep": "Jamais",
+          "days7": "Après 7 jours",
+          "days30": "Après 30 jours",
+          "days90": "Après 90 jours"
+        }
       }
     },
     "history": {

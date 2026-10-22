@@ -704,6 +704,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::open_system_audio_privacy_settings,
             commands::meetings::change_meetings_enabled_setting,
             commands::meetings::change_meeting_capture_mode_setting,
+            commands::meetings::change_meeting_audio_retention_setting,
+            commands::meetings::get_meetings_storage,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

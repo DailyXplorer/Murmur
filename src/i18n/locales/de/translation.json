@@ -328,6 +328,19 @@
       "meetingsToggle": {
         "label": "Meetings",
         "description": "Nimm Meetings über dein Mikrofon und den Systemton auf. Fügt eine Meetings-Seite, einen Kurzbefehl und einen Eintrag in der Menüleiste hinzu."
+      },
+      "meetingsAudio": {
+        "title": "Meeting-Audio löschen",
+        "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",
+        "textKept": "Transkripte und Zusammenfassungen bleiben erhalten.",
+        "used": "Meeting-Audio belegt {{size}}.",
+        "usedWithSetAside": "Meeting-Audio belegt {{size}}, dazu {{setAside}} nicht aufgeführte Aufnahmen, die nach 30 Tagen gelöscht werden.",
+        "options": {
+          "keep": "Nie",
+          "days7": "Nach 7 Tagen",
+          "days30": "Nach 30 Tagen",
+          "days90": "Nach 90 Tagen"
+        }
       }
     },
     "history": {

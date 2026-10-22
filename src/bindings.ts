@@ -939,6 +939,28 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+/**
+ * Takes effect at the next daily pass, or at the next launch.
+ */
+async changeMeetingAudioRetentionSetting(retention: MeetingAudioRetention) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_audio_retention_setting", { retention }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Measured on disk, off the main thread: uncompressed tracks count too.
+ */
+async getMeetingsStorage() : Promise<Result<MeetingsStorage, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meetings_storage") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -1035,7 +1057,7 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; 
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
 /**
  * Which engine transcribes dictations.
  */
@@ -1227,6 +1249,12 @@ size_bytes: number;
  */
 kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+/**
+ * How long a processed meeting keeps its audio. Its transcript and summary
+ * stay either way. The names are spelled out: serde and the TypeScript
+ * bindings split `Days7` differently.
+ */
+export type MeetingAudioRetention = "keep" | "days7" | "days30" | "days90"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
  * Telling speakers apart on device.
@@ -1349,6 +1377,18 @@ export type MeetingTracks = "both" | "system" | "mic"
  */
 export type MeetingTurn = { speaker_key: string; start_ms: number; end_ms: number; text: string; low_confidence: boolean }
 export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
+/**
+ * The disk space meetings take, in bytes.
+ */
+export type MeetingsStorage = { 
+/**
+ * The meetings' folders: their tracks, compressed or not.
+ */
+audio_bytes: number; 
+/**
+ * What was set aside next to the library, deleted after 30 days.
+ */
+set_aside_bytes: number }
 /**
  * A meeting's row or transcript changed: lists and open views reload it.
  */
