@@ -62,6 +62,9 @@ struct Serve {
     stdin: ChildStdin,
     stdout: Lines<BufReader<ChildStdout>>,
     scratch: PathBuf,
+    models: PathBuf,
+    /// The custom-word model was in place when the helper started.
+    boosting: bool,
 }
 
 /// Deletes a piece's WAV once it is answered, or abandoned.
@@ -75,6 +78,7 @@ impl Drop for Scratch {
 
 impl Serve {
     fn spawn(program: &Path, models: &Path, scratch: PathBuf) -> std::io::Result<Self> {
+        let boosting = crate::local_models::optional_ready(models);
         let mut child = Command::new(program)
             .arg("serve")
             .arg("--models-dir")
@@ -100,6 +104,8 @@ impl Serve {
             stdin,
             stdout: BufReader::new(stdout).lines(),
             scratch,
+            models: models.to_path_buf(),
+            boosting,
         })
     }
 
@@ -134,6 +140,11 @@ impl Serve {
 }
 
 impl Loaded for Serve {
+    /// The helper loads the custom-word model only as it starts.
+    fn outdated(&self) -> bool {
+        !self.boosting && crate::local_models::optional_ready(&self.models)
+    }
+
     /// The helper boosts `terms` with FluidAudio's CTC keyword spotting when
     /// the optional CTC model is downloaded, and otherwise ignores them.
     fn transcribe<'a>(

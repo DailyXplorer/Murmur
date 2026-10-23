@@ -532,6 +532,12 @@ impl LocalModels {
     }
 }
 
+/// Whether the optional sources are in place in the models folder `dir`:
+/// their marker is written once they are fetched and prepared.
+pub fn optional_ready(dir: &Path) -> bool {
+    dir.join(OPTIONAL_MARKER).exists()
+}
+
 /// The size of every file under `dir`, 0 when it is absent.
 fn dir_bytes(dir: &Path) -> u64 {
     let Ok(entries) = std::fs::read_dir(dir) else {
