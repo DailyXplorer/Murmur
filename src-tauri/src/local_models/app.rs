@@ -14,7 +14,7 @@ use super::{
     SwitchedToLocal,
 };
 use crate::meetings::helper::{self, Ended};
-use crate::settings::{get_settings, write_settings};
+use crate::settings::{get_settings, update_settings};
 use crate::ProcessingOperation;
 
 /// The first Core ML load takes about 15 s; this leaves room for a slow Mac.
@@ -36,11 +36,9 @@ impl Host for AppHost {
     }
 
     fn remember_wanted(&self, wanted: bool) {
-        let mut settings = get_settings(&self.app);
-        if settings.local_model_download_wanted != wanted {
+        update_settings(&self.app, |settings| {
             settings.local_model_download_wanted = wanted;
-            write_settings(&self.app, settings);
-        }
+        });
     }
 
     fn free_bytes(&self, dir: &Path) -> Option<u64> {
@@ -81,11 +79,12 @@ impl Host for AppHost {
 /// Moves dictation to this Mac if the user asked for it once the model is
 /// ready, and tells the windows.
 pub fn switch_if_asked(app: &AppHandle, model_ready: bool) {
-    let mut settings = get_settings(app);
-    if !settings.switch_to_local_if_asked(model_ready) {
+    let switched = update_settings(app, |settings| {
+        settings.switch_to_local_if_asked(model_ready)
+    });
+    if !switched {
         return;
     }
-    write_settings(app, settings);
     log::info!("Dictation switched to the local engine");
     let _ = app.emit(
         "settings-changed",
