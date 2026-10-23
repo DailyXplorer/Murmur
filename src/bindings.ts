@@ -358,10 +358,9 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
 }
 },
 /**
- * Fits the copy notice's or the call prompt's window to the capsule the
- * webview measured, so a note that wraps further in a wider fallback font
- * still shows whole, and the window, which takes clicks while the notice
- * shows, stays close to it.
+ * Fits the copy notice's window to the capsule the webview measured, so a
+ * note that wraps further in a wider fallback font still shows whole, and
+ * the window, which takes clicks while the notice shows, stays close to it.
  */
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });
@@ -972,11 +971,17 @@ async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, st
 }
 },
 /**
- * The call prompt's buttons: "Record" or "Stop" when `accept`, else "Not
- * now" or "Keep recording".
+ * The call prompt's buttons: "Record" when `accept`, else "Not now".
  */
-async answerCallPrompt(prompt: CallPrompt, accept: boolean) : Promise<void> {
-    await TAURI_INVOKE("answer_call_prompt", { prompt, accept });
+async answerCallPrompt(accept: boolean) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { accept });
+},
+/**
+ * Fits the call prompt's window to the capsule the webview measured, as
+ * `fit_copy_notice` does the copy notice's.
+ */
+async fitCallPrompt(width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("fit_call_prompt", { width, height });
 }
 }
 
@@ -1075,8 +1080,8 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  */
 meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
 /**
- * Offers to record when a call app starts using the microphone, and to
- * stop when the call ends. Only while meetings are on.
+ * Offers to record when a call app starts using the microphone. Only
+ * while meetings are on.
  */
 meeting_call_prompt?: boolean; 
 /**
@@ -1115,18 +1120,6 @@ export type AudioState =
 "deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
-/**
- * The question a call prompt asks; its answer names it back.
- */
-export type CallPrompt = 
-/**
- * "Record this meeting?"
- */
-"record" | 
-/**
- * "The call ended. Stop recording?"
- */
-"stop"
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.

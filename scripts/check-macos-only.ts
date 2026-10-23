@@ -52,6 +52,7 @@ const requiredPaths = [
   "src-tauri/resources/tray.png",
   "src-tauri/capabilities/main.json",
   "src-tauri/capabilities/recording-overlay.json",
+  "src-tauri/capabilities/call-prompt.json",
   "src-tauri/permissions/default.toml",
   "src-tauri/src/engine/mod.rs",
   "src-tauri/src/engine/parakeet_languages.rs",
@@ -272,7 +273,18 @@ checkCapability(
     "allow-cancel-operation",
     "allow-copy-notice-again",
     "allow-fit-copy-notice",
+  ],
+);
+checkCapability(
+  "src-tauri/capabilities/call-prompt.json",
+  "call-prompt",
+  ["call_prompt"],
+  [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-get-app-settings",
     "allow-answer-call-prompt",
+    "allow-fit-call-prompt",
   ],
 );
 

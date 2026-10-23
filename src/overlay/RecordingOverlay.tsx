@@ -10,7 +10,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import "./RecordingOverlay.css";
-import { type CallPrompt, commands } from "@/bindings";
+import { commands } from "@/bindings";
 import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
 import {
   approach,
@@ -31,18 +31,7 @@ type View =
   | { kind: "transcribing" }
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
-  | { kind: "call"; labels: CallLabels }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
-
-/** Payload of `show-overlay-call`, from `overlay::CallPromptLabels`. */
-interface CallLabels {
-  prompt: CallPrompt;
-  /** The call app's name. */
-  app: string;
-  question: string;
-  accept: string;
-  decline: string;
-}
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
@@ -169,12 +158,6 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
-    // A call app took the microphone, or its call ended while recording.
-    void listen<CallLabels>("show-overlay-call", (event) => {
-      setView({ kind: "call", labels: event.payload });
-      refreshPosition();
-    }).then(storeUnlistener, () => undefined);
-
     void listen("hide-overlay", () => {
       setView({ kind: "hidden" });
     }).then(storeUnlistener, () => undefined);
@@ -233,12 +216,11 @@ const RecordingOverlay: React.FC = () => {
 
   const copyShowing = view.kind === "copy";
 
-  // The copy pill's and the call prompt's bodies size themselves from their
-  // text, whatever font renders it, and the window is fitted to them: only
-  // the webview can measure them. The backend opens each notice at a
-  // default size, so every such view, even one replacing a showing one,
-  // observes and reports again.
-  const fittedView = view.kind === "copy" || view.kind === "call" ? view : null;
+  // The copy pill's body sizes itself from its text, whatever font renders
+  // it, and the window is fitted to it: only the webview can measure it.
+  // The backend opens each notice at a default size, so every such view,
+  // even one replacing a showing one, observes and reports again.
+  const fittedView = view.kind === "copy" ? view : null;
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
@@ -331,53 +313,6 @@ const RecordingOverlay: React.FC = () => {
             </span>
           </span>
         </button>
-      </div>
-    );
-  }
-
-  if (view.kind === "call") {
-    const { labels } = view;
-    const answer = (accept: boolean) => {
-      void commands
-        .answerCallPrompt(labels.prompt, accept)
-        .catch((error: unknown) => {
-          console.warn("Answering the call prompt failed:", error);
-        });
-    };
-    return (
-      <div className={`ov-stage ${position}`}>
-        <div
-          role="alertdialog"
-          dir="auto"
-          className={`ov-capsule ov-call ${labels.prompt}`}
-          aria-labelledby={`${noticeId}-question`}
-          aria-describedby={`${noticeId}-app`}
-        >
-          <span ref={noticeBodyRef} className="ov-call-body">
-            <span className="ov-call-text">
-              <span id={`${noticeId}-question`} className="ov-call-question">
-                {labels.question}
-              </span>
-              <span id={`${noticeId}-app`} className="ov-call-app">
-                {labels.app}
-              </span>
-            </span>
-            <button
-              type="button"
-              className="ov-call-button"
-              onClick={() => answer(false)}
-            >
-              {labels.decline}
-            </button>
-            <button
-              type="button"
-              className="ov-call-button accept"
-              onClick={() => answer(true)}
-            >
-              {labels.accept}
-            </button>
-          </span>
-        </div>
       </div>
     );
   }

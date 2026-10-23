@@ -6,7 +6,7 @@ import {
   entranceFinished,
   ERROR_WINDOW,
   fitCopyWindow,
-  fitCount,
+  openCallPrompt,
   openOverlay,
   RECORDING_WINDOW,
 } from "./overlayHarness";
@@ -634,22 +634,12 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
   await expect(page.locator(".ov-meeting")).toHaveText("3:00:00");
 });
 
-const callLabels = (tray: Record<string, string>, prompt: "record" | "stop") =>
-  prompt === "record"
-    ? {
-        prompt,
-        app: "Google Meet",
-        question: tray.callRecordQuestion,
-        accept: tray.callRecord,
-        decline: tray.callNotNow,
-      }
-    : {
-        prompt,
-        app: "Google Meet",
-        question: tray.callStopQuestion,
-        accept: tray.callStop,
-        decline: tray.callKeepRecording,
-      };
+const callLabels = (tray: Record<string, string>) => ({
+  app: "Google Meet",
+  question: tray.callRecordQuestion,
+  accept: tray.callRecord,
+  decline: tray.callNotNow,
+});
 const englishTray = trayStringsByLocale.find(
   ({ locale }) => locale === "en",
 )!.tray;
@@ -659,8 +649,8 @@ const callAnswers = (page: Page) =>
 test("a call prompt asks to record the meeting and sends back Record or Not now", async ({
   page,
 }) => {
-  await openOverlay(page);
-  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
 
   const prompt = page.getByRole("alertdialog", {
     name: "Record this meeting?",
@@ -670,83 +660,88 @@ test("a call prompt asks to record the meeting and sends back Record or Not now"
   expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
 
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
-  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
   await prompt.getByRole("button", { name: "Not now", exact: true }).click();
-  expect(await callAnswers(page)).toEqual([
-    { prompt: "record", accept: true },
-    { prompt: "record", accept: false },
-  ]);
+  expect(await callAnswers(page)).toEqual([true, false]);
 });
 
-test("once the call ended, the prompt offers to stop or keep recording", async ({
+test("a dictation, its error or the meeting pill never hide the call prompt", async ({
   page,
 }) => {
-  await openOverlay(page);
-  await dispatch(page, "show-overlay-call", callLabels(englishTray, "stop"));
-
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
   const prompt = page.getByRole("alertdialog", {
-    name: "The call ended. Stop recording?",
+    name: "Record this meeting?",
   });
-  await prompt.getByRole("button", { name: "Keep recording" }).click();
-  await prompt.getByRole("button", { name: "Stop", exact: true }).click();
-  expect(await callAnswers(page)).toEqual([
-    { prompt: "stop", accept: false },
-    { prompt: "stop", accept: true },
-  ]);
+  await expect(prompt).toBeVisible();
+
+  const heard = [
+    await dispatch(page, "show-overlay", "recording"),
+    await dispatch(page, "recording-ready"),
+    await dispatch(page, "show-overlay", "transcribing"),
+    await dispatch(page, "show-overlay-error", "Transcription failed."),
+    await dispatch(page, "show-overlay-copy", COPY_LABELS),
+    await dispatch(page, "hide-overlay"),
+    await dispatch(page, "show-overlay-meeting", {
+      started_at_ms: 0,
+      stops_at_ms: 10_800_000,
+    }),
+  ];
+  expect(heard, "the prompt's window hears none of the overlay's").toEqual(
+    Array(heard.length).fill(0),
+  );
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: "Record", exact: true }).click();
+  expect(await callAnswers(page)).toEqual([true]);
 });
 
-test("a dictation takes the place of the call prompt", async ({ page }) => {
-  await openOverlay(page);
-  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+test("the call prompt closes when the call ends", async ({ page }) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
   await expect(page.getByRole("alertdialog")).toBeVisible();
 
-  await dispatch(page, "show-overlay", "recording");
+  await dispatch(page, "hide-overlay-call");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(page.locator(".ov-wave")).toBeVisible();
+  expect(await callAnswers(page)).toEqual([]);
 });
 
 for (const { locale, tray } of trayStringsByLocale) {
-  test(`the ${locale} call prompts fit their window, answers on one line`, async ({
+  test(`the ${locale} call prompt fits its window, answers on one line`, async ({
     page,
   }) => {
-    await openOverlay(page);
+    await openCallPrompt(page);
     await page.evaluate(() => document.fonts.ready);
-    for (const kind of ["record", "stop"] as const) {
-      const labels = callLabels(tray, kind);
-      const earlier = await fitCount(page);
-      await dispatch(page, "show-overlay-call", labels);
-      const prompt = page.getByRole("alertdialog", { name: labels.question });
-      await expect(prompt).toBeVisible();
-      await entranceFinished(page);
-      const fitted = await fitCopyWindow(page, earlier);
-      expect(fitted.width, "within the widest notice").toBeLessThanOrEqual(
-        WIDEST_PILL + 32,
-      );
-      const layout = await prompt.evaluate((capsule) => {
-        const box = capsule.getBoundingClientRect();
-        const answers = [...capsule.querySelectorAll("button")].map(
-          (button) => {
-            const rect = button.getBoundingClientRect();
-            return {
-              inside: rect.left >= box.left && rect.right <= box.right,
-              oneLine: rect.height <= 28,
-            };
-          },
-        );
+    const labels = callLabels(tray);
+    await dispatch(page, "show-overlay-call", labels);
+    const prompt = page.getByRole("alertdialog", { name: labels.question });
+    await expect(prompt).toBeVisible();
+    await entranceFinished(page);
+    const fitted = await fitCopyWindow(page);
+    expect(fitted.width, "within the widest notice").toBeLessThanOrEqual(
+      WIDEST_PILL + 32,
+    );
+    const layout = await prompt.evaluate((capsule) => {
+      const box = capsule.getBoundingClientRect();
+      const answers = [...capsule.querySelectorAll("button")].map((button) => {
+        const rect = button.getBoundingClientRect();
         return {
-          inWindow:
-            box.left >= 0 &&
-            box.top >= 0 &&
-            box.right <= window.innerWidth &&
-            box.bottom <= window.innerHeight,
-          answers,
+          inside: rect.left >= box.left && rect.right <= box.right,
+          oneLine: rect.height <= 28,
         };
       });
-      expect(layout.inWindow, `${kind} capsule in its window`).toBe(true);
-      expect(layout.answers, `${kind} answers`).toEqual([
-        { inside: true, oneLine: true },
-        { inside: true, oneLine: true },
-      ]);
-    }
+      return {
+        inWindow:
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= window.innerWidth &&
+          box.bottom <= window.innerHeight,
+        answers,
+      };
+    });
+    expect(layout.inWindow, "capsule in its window").toBe(true);
+    expect(layout.answers, "answers").toEqual([
+      { inside: true, oneLine: true },
+      { inside: true, oneLine: true },
+    ]);
   });
 }

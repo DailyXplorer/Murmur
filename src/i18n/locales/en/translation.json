@@ -34,9 +34,6 @@
     "callRecordQuestion": "Record this meeting?",
     "callRecord": "Record",
     "callNotNow": "Not now",
-    "callStopQuestion": "The call ended. Stop recording?",
-    "callStop": "Stop",
-    "callKeepRecording": "Keep recording",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",
@@ -337,7 +334,7 @@
       },
       "meetingCallPrompt": {
         "label": "Offer to record calls",
-        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it, and offer to stop when it ends. Murmur never records without a click."
+        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click."
       },
       "meetingsAudio": {
         "title": "Delete meeting audio",

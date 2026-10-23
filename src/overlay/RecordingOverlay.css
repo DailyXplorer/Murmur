@@ -289,9 +289,9 @@
 }
 
 /* Call prompt: the question over the call app's name, then the two answers,
-   the one that acts last and filled. Like the copy pill, the body sizes
-   itself and overlay.rs fits the window to it. Asking to record shows the
-   meeting pill's red dot. */
+   the one that acts last and filled, after the meeting pill's red dot. Like
+   the copy pill, the body sizes itself and overlay.rs fits its window to
+   it. */
 .ov-capsule.ov-call {
   width: auto;
   height: auto;
@@ -311,7 +311,7 @@
   padding: 6px;
   padding-inline-start: 14px;
 }
-.ov-call.record .ov-call-body::before {
+.ov-call .ov-call-body::before {
   content: "";
   flex: none;
   width: 8px;

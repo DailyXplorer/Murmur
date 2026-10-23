@@ -356,8 +356,8 @@ pub struct AppSettings {
     pub meeting_capture_mode: MeetingCaptureMode,
     #[serde(default)]
     pub meeting_audio_retention: MeetingAudioRetention,
-    /// Offers to record when a call app starts using the microphone, and to
-    /// stop when the call ends. Only while meetings are on.
+    /// Offers to record when a call app starts using the microphone. Only
+    /// while meetings are on.
     #[serde(default = "default_meeting_call_prompt")]
     pub meeting_call_prompt: bool,
     /// Which engine transcribes dictations.

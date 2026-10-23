@@ -34,9 +34,6 @@
     "callRecordQuestion": "Enregistrer cette réunion ?",
     "callRecord": "Enregistrer",
     "callNotNow": "Pas maintenant",
-    "callStopQuestion": "L’appel est terminé. Arrêter l’enregistrement ?",
-    "callStop": "Arrêter",
-    "callKeepRecording": "Continuer",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
     "startMeeting": "Démarrer une réunion",
     "stopMeeting": "Arrêter la réunion",
@@ -337,7 +334,7 @@
       },
       "meetingCallPrompt": {
         "label": "Proposer d’enregistrer les appels",
-        "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer, et proposer d’arrêter à la fin. Murmur n’enregistre jamais sans un clic."
+        "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer. La question reste affichée jusqu’à votre réponse ou la fin de l’appel. Murmur n’enregistre jamais sans un clic."
       },
       "meetingsAudio": {
         "title": "Supprimer l’audio des réunions",
