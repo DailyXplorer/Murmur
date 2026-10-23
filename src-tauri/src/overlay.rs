@@ -491,8 +491,8 @@ fn update_call_prompt_position(app_handle: &AppHandle) {
         labels.clone()
     };
     if let Some(window) = app_handle.get_webview_window(CALL_PROMPT_WINDOW) {
-        let (width, height) =
-            current_overlay_logical_size(&window).unwrap_or((COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT));
+        let (width, height) = current_overlay_logical_size(&window)
+            .unwrap_or((COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT));
         place_call_prompt(app_handle, &window, width, height);
         let _ = app_handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
     }

@@ -677,7 +677,11 @@ fn a_corrupt_optional_file_never_blocks_ready() {
 fn an_optional_marker_of_another_pin_is_not_ready() {
     let dir = tempfile::tempdir().unwrap();
     let marker = dir.path().join(OPTIONAL_MARKER);
-    std::fs::write(&marker, "earlier/ctc@1111111111111111111111111111111111111111").unwrap();
+    std::fs::write(
+        &marker,
+        "earlier/ctc@1111111111111111111111111111111111111111",
+    )
+    .unwrap();
     assert!(!optional_ready(dir.path()));
 
     let optional = manifest::this_mac().iter().filter(|source| source.optional);

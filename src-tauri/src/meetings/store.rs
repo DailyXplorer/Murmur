@@ -1854,10 +1854,7 @@ mod tests {
         assert!(store.delete_audio(id).unwrap());
 
         assert!(!store.reopen(id).unwrap());
-        assert_eq!(
-            store.get(id).unwrap().unwrap().status,
-            MeetingStatus::Ready
-        );
+        assert_eq!(store.get(id).unwrap().unwrap().status, MeetingStatus::Ready);
     }
 
     #[test]
