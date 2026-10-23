@@ -44,7 +44,7 @@ impl CallApp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Browser {
     Safari,
     Chrome,
@@ -151,12 +151,16 @@ pub fn parse_mic_users(list: &str) -> Vec<MicUser> {
         .collect()
 }
 
-/// The calls on the microphone now, each once. A browser is in a call only
-/// on a meeting page, which `page` reads from its windows. Murmur itself is
-/// never in a call: its own dictation holds the microphone too.
+/// The calls on the microphone now, each once. A browser joins a call on a
+/// meeting page, which `page` reads from its windows, and stays in it, in
+/// `browser_calls`, while it holds the microphone: windows show only their
+/// front tab, and the call goes on behind another. A browser in a call is not
+/// read again. Murmur itself is never in a call: its own dictation holds the
+/// microphone too.
 pub fn calls_on_mic(
     users: &[MicUser],
     own_pid: i32,
+    browser_calls: &mut BTreeMap<Browser, CallApp>,
     mut page: impl FnMut(Browser) -> Option<CallApp>,
 ) -> Vec<CallApp> {
     let mut browsers = Vec::new();
@@ -173,7 +177,16 @@ pub fn calls_on_mic(
             }
         })
         .collect();
-    calls.extend(browsers.into_iter().filter_map(&mut page));
+    browser_calls.retain(|browser, _| browsers.contains(browser));
+    for browser in browsers {
+        if browser_calls.contains_key(&browser) {
+            continue;
+        }
+        if let Some(call) = page(browser) {
+            browser_calls.insert(browser, call);
+        }
+    }
+    calls.extend(browser_calls.values());
     calls.sort();
     calls.dedup();
     calls
@@ -409,6 +422,7 @@ mod tests {
     /// Drives a watch one second at a time, as the watcher polls.
     struct Clock {
         watch: CallWatch,
+        browser_calls: BTreeMap<Browser, CallApp>,
         start: Instant,
         second: u64,
     }
@@ -417,9 +431,27 @@ mod tests {
         fn new() -> Self {
             Self {
                 watch: CallWatch::default(),
+                browser_calls: BTreeMap::new(),
                 start: Instant::now(),
                 second: 0,
             }
+        }
+
+        /// `seconds` polls with `users` on the microphone, their browser's
+        /// front tab showing `page`.
+        fn run_mic(
+            &mut self,
+            seconds: u64,
+            users: &[MicUser],
+            page: Option<CallApp>,
+            meeting: Option<i64>,
+        ) -> Vec<(u64, Action)> {
+            let mut actions = Vec::new();
+            for _ in 0..seconds {
+                let calls = calls_on_mic(users, OWN_PID, &mut self.browser_calls, |_| page);
+                actions.extend(self.run(1, &calls, false, meeting));
+            }
+            actions
         }
 
         /// `seconds` polls with `calls` on the microphone, the first at
@@ -486,9 +518,15 @@ mod tests {
     #[test]
     fn murmur_itself_on_the_microphone_is_never_a_call() {
         let users = [user(OWN_PID, "com.tinyspeck.slackmacgap")];
-        assert_eq!(calls_on_mic(&users, OWN_PID, |_| None), []);
+        assert_eq!(
+            calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |_| None),
+            []
+        );
         let users = [user(OWN_PID, "com.murmur.app"), user(77, "us.zoom.xos")];
-        assert_eq!(calls_on_mic(&users, OWN_PID, |_| None), [CallApp::Zoom]);
+        assert_eq!(
+            calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |_| None),
+            [CallApp::Zoom]
+        );
     }
 
     #[test]
@@ -572,7 +610,10 @@ mod tests {
     #[test]
     fn a_browser_prompts_only_on_a_meeting_page() {
         let users = [user(500, "com.google.Chrome.helper")];
-        assert_eq!(calls_on_mic(&users, OWN_PID, |_| None), []);
+        assert_eq!(
+            calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |_| None),
+            []
+        );
         let titles = ["Voice memo".to_string()];
         let read = |browser: Browser| {
             assert_eq!(browser, Browser::Chrome);
@@ -580,9 +621,59 @@ mod tests {
                 Some("https://meet.google.com/abc-defg-hij".to_string())
             })
         };
-        assert_eq!(calls_on_mic(&users, OWN_PID, read), [CallApp::GoogleMeet]);
+        assert_eq!(
+            calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), read),
+            [CallApp::GoogleMeet]
+        );
         let landing = || Some("https://meet.google.com/landing".to_string());
         assert_eq!(meeting_page(&titles, landing), None);
+    }
+
+    const MEET: Option<CallApp> = Some(CallApp::GoogleMeet);
+
+    fn chrome() -> [MicUser; 1] {
+        [user(500, "com.google.Chrome.helper")]
+    }
+
+    #[test]
+    fn a_meet_call_behind_another_tab_goes_on_while_chrome_holds_the_microphone() {
+        let mut clock = Clock::new();
+        assert_eq!(
+            clock.run_mic(4, &chrome(), MEET, None),
+            [(3, Action::Prompt(CallApp::GoogleMeet))]
+        );
+        clock.watch.answered(Question::Record);
+        assert_eq!(clock.run_mic(10, &chrome(), MEET, Some(1)), []);
+        assert_eq!(clock.run_mic(20, &chrome(), None, Some(1)), []);
+        assert_eq!(
+            clock.run_mic(16, &[], None, Some(1)),
+            [(49, Action::Ended(CallApp::GoogleMeet))]
+        );
+    }
+
+    #[test]
+    fn not_now_holds_while_the_meet_call_is_behind_another_tab() {
+        let mut clock = Clock::new();
+        clock.run_mic(4, &chrome(), MEET, None);
+        assert_eq!(
+            clock.watch.answered(Question::Record),
+            Some(CallApp::GoogleMeet)
+        );
+        assert_eq!(clock.run_mic(40, &chrome(), None, None), []);
+        assert_eq!(clock.run_mic(10, &chrome(), MEET, None), []);
+    }
+
+    #[test]
+    fn a_browser_off_the_microphone_leaves_its_call() {
+        let mut clock = Clock::new();
+        clock.run_mic(4, &chrome(), MEET, None);
+        clock.watch.answered(Question::Record);
+        clock.run_mic(31, &[], None, None);
+        assert_eq!(clock.run_mic(10, &chrome(), None, None), []);
+        assert_eq!(
+            clock.run_mic(4, &chrome(), MEET, None),
+            [(48, Action::Prompt(CallApp::GoogleMeet))]
+        );
     }
 
     #[test]
@@ -609,7 +700,7 @@ mod tests {
             user(600, "com.apple.WebKit.GPU"),
         ];
         let mut reads = Vec::new();
-        calls_on_mic(&users, OWN_PID, |browser| {
+        calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
             reads.push(browser);
             None
         });

@@ -3,6 +3,7 @@
 //! processes use the microphone from macOS 14, on Apple silicon builds,
 //! which have the bridge; elsewhere there is no detection and no setting.
 
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -82,11 +83,12 @@ pub fn sync(app: &AppHandle) {
         .name("call-watch".into())
         .spawn(move || loop {
             let mut seen = Vec::new();
+            let mut browser_calls = BTreeMap::new();
             while wanted(&app) {
                 std::thread::sleep(POLL);
                 // A panic would leave the watcher marked running, and dead.
                 let polled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    tick(&app, &mut seen)
+                    tick(&app, &mut seen, &mut browser_calls)
                 }));
                 if polled.is_err() {
                     error!("Looking for calls failed");
@@ -108,7 +110,8 @@ pub fn sync(app: &AppHandle) {
 
 /// `seen`: the bundle IDs on the microphone at the last poll, logged when
 /// they change so an app missing from the table can be found.
-fn tick(app: &AppHandle, seen: &mut Vec<String>) {
+/// `browser_calls`: the call each browser on the microphone joined.
+fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Browser, CallApp>) {
     let Some(users) = mic_users() else {
         return;
     };
@@ -130,7 +133,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>) {
                 MeetingRuntime::Idle => None,
             });
     let snapshot = Snapshot {
-        calls: calls::calls_on_mic(&users, own_pid, browser_call),
+        calls: calls::calls_on_mic(&users, own_pid, browser_calls, browser_call),
         dictating: crate::transcription_coordinator::dictating(),
         meeting,
         now: Instant::now(),
