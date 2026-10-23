@@ -1285,7 +1285,11 @@ mod tests {
         assert!(!audio_retention_due(&settings, hours_ago(23), now));
         assert!(audio_retention_due(&settings, hours_ago(24), now));
         // A clock set back runs it rather than waiting.
-        assert!(audio_retention_due(&settings, Some(now + Duration::from_secs(60)), now));
+        assert!(audio_retention_due(
+            &settings,
+            Some(now + Duration::from_secs(60)),
+            now
+        ));
 
         settings.meeting_audio_retention = MeetingAudioRetention::Keep;
         assert!(!audio_retention_due(&settings, None, now));
