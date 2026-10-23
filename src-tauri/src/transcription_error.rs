@@ -148,21 +148,35 @@ mod tests {
         }
     }
 
-    fn quick_client() -> reqwest::Client {
+    fn quick_client_builder() -> reqwest::ClientBuilder {
         reqwest::Client::builder()
             .connect_timeout(Duration::from_millis(100))
             .timeout(Duration::from_millis(1000))
             .no_proxy()
-            .build()
-            .unwrap()
+    }
+
+    fn quick_client() -> reqwest::Client {
+        quick_client_builder().build().unwrap()
+    }
+
+    /// A DNS server that never answers, as on a Wi-Fi with no Internet behind
+    /// it. Local, so the test does not depend on how the network treats an
+    /// unreachable address.
+    struct SilentDns;
+
+    impl reqwest::dns::Resolve for SilentDns {
+        fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+            Box::pin(std::future::pending())
+        }
     }
 
     #[tokio::test]
     async fn a_connection_that_never_opens_is_a_network_failure() {
-        // TEST-NET-1 never answers a SYN, as on a Wi-Fi with no Internet
-        // behind it. reqwest's own connect-timeout test uses this address.
-        let error = quick_client()
-            .get("http://192.0.2.1:81/")
+        let error = quick_client_builder()
+            .dns_resolver(SilentDns)
+            .build()
+            .unwrap()
+            .get("https://murmur.invalid/")
             .send()
             .await
             .unwrap_err();
