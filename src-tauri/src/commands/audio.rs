@@ -1,7 +1,7 @@
 use crate::audio_feedback;
 use crate::audio_toolkit::audio::{list_input_devices, list_output_devices, AudioRecorder};
 use crate::managers::audio::{AudioRecordingManager, MicrophoneMode};
-use crate::settings::{get_settings, write_settings};
+use crate::settings::update_settings;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -136,9 +136,9 @@ pub async fn get_available_output_devices() -> Result<Vec<AudioDevice>, String> 
 #[tauri::command]
 #[specta::specta]
 pub fn set_selected_output_device(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_output_device = chosen_device(device_name);
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.selected_output_device = chosen_device(device_name);
+    });
     Ok(())
 }
 
@@ -163,9 +163,9 @@ fn test_sound(sound_type: &str) -> Option<audio_feedback::SoundType> {
 #[tauri::command]
 #[specta::specta]
 pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.clamshell_microphone = chosen_device(device_name);
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.clamshell_microphone = chosen_device(device_name);
+    });
     Ok(())
 }
 

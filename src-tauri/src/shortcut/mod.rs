@@ -267,7 +267,9 @@ pub fn change_binding(
 
     clear_registration_error(&app, &id);
     give_back_meeting_keys(&app, &current, &next, &id);
-    settings::write_settings(&app, next);
+    settings::update_settings(&app, |settings| {
+        settings.bindings.insert(id, updated.clone());
+    });
     Ok(BindingResponse {
         success: true,
         binding: Some(updated),
@@ -356,47 +358,42 @@ pub fn resume_all_bindings(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn change_audio_feedback_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.audio_feedback = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.audio_feedback = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_audio_feedback_volume_setting(app: AppHandle, volume: f32) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.audio_feedback_volume = volume.clamp(0.0, 1.0);
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| {
+        value.audio_feedback_volume = volume.clamp(0.0, 1.0)
+    });
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_sound_theme_setting(app: AppHandle, theme: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.sound_theme = match theme.as_str() {
+    let parsed = match theme.as_str() {
         "marimba" => SoundTheme::Marimba,
         "pop" => SoundTheme::Pop,
         "custom" => SoundTheme::Custom,
         _ => return Err(format!("Invalid sound theme: {theme}")),
     };
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.sound_theme = parsed);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_theme_setting(app: AppHandle, theme: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
     let parsed = match theme.as_str() {
         "system" => Theme::System,
         "light" => Theme::Light,
         "dark" => Theme::Dark,
         _ => return Err(format!("Invalid theme: {theme}")),
     };
-    value.theme = parsed;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.theme = parsed);
     apply_window_theme(&app, parsed);
     let _ = app.emit("theme-changed", parsed);
     Ok(())
@@ -415,9 +412,7 @@ pub fn change_accent_color_setting(app: AppHandle, accent_color: String) -> Resu
         _ => return Err(format!("Invalid accent color: {accent_color}")),
     };
 
-    let mut value = settings::get_settings(&app);
-    value.accent_color = parsed;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.accent_color = parsed);
 
     if let Err(error) = accent::apply_native_accent(&app, parsed) {
         warn!("Failed to update native accent icon: {error}");
@@ -443,22 +438,19 @@ pub fn apply_window_theme(app: &AppHandle, theme: Theme) {
 #[tauri::command]
 #[specta::specta]
 pub fn change_selected_language_setting(app: AppHandle, language: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.selected_language = language;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.selected_language = language);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.overlay_position = match position.as_str() {
+    let parsed = match position.as_str() {
         "top" => OverlayPosition::Top,
         "bottom" => OverlayPosition::Bottom,
         _ => return Err(format!("Invalid overlay position: {position}")),
     };
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.overlay_position = parsed);
     crate::utils::update_overlay_position(&app);
     Ok(())
 }
@@ -466,14 +458,12 @@ pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Resu
 #[tauri::command]
 #[specta::specta]
 pub fn change_overlay_style_setting(app: AppHandle, style: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
     let parsed = match style.as_str() {
         "none" => OverlayStyle::None,
         "minimal" => OverlayStyle::Minimal,
         _ => return Err(format!("Invalid overlay style: {style}")),
     };
-    value.overlay_style = parsed;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.overlay_style = parsed);
     crate::overlay::update_overlay_enabled_cache(parsed != OverlayStyle::None);
     crate::utils::update_overlay_position(&app);
     Ok(())
@@ -482,9 +472,7 @@ pub fn change_overlay_style_setting(app: AppHandle, style: String) -> Result<(),
 #[tauri::command]
 #[specta::specta]
 pub fn change_debug_mode_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.debug_mode = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.debug_mode = enabled);
     crate::WEBVIEW_LOG_STREAMING.store(enabled, std::sync::atomic::Ordering::Relaxed);
     let _ = app.emit(
         "settings-changed",
@@ -496,18 +484,14 @@ pub fn change_debug_mode_setting(app: AppHandle, enabled: bool) -> Result<(), St
 #[tauri::command]
 #[specta::specta]
 pub fn change_start_hidden_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.start_hidden = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.start_hidden = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.autostart_enabled = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.autostart_enabled = enabled);
     crate::autostart::apply_autostart(&app, enabled);
     Ok(())
 }
@@ -515,9 +499,7 @@ pub fn change_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), Str
 #[tauri::command]
 #[specta::specta]
 pub fn change_update_checks_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.update_checks_enabled = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.update_checks_enabled = enabled);
     // The tray's "Check for Updates…" item follows the setting.
     tray::update_tray_menu(&app, None);
     Ok(())
@@ -529,9 +511,7 @@ pub fn change_show_whats_new_on_update_setting(
     app: AppHandle,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.show_whats_new_on_update = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.show_whats_new_on_update = enabled);
     Ok(())
 }
 
@@ -541,9 +521,9 @@ pub fn change_whats_new_last_seen_version_setting(
     app: AppHandle,
     version: String,
 ) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.whats_new_last_seen_version = version.trim().to_string();
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| {
+        value.whats_new_last_seen_version = version.trim().to_string()
+    });
     Ok(())
 }
 
@@ -551,9 +531,7 @@ pub fn change_whats_new_last_seen_version_setting(
 #[specta::specta]
 pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), String> {
     settings::validate_custom_words(&words)?;
-    let mut value = settings::get_settings(&app);
-    value.custom_words = words;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.custom_words = words);
     Ok(())
 }
 
@@ -563,9 +541,9 @@ pub fn change_word_correction_threshold_setting(
     app: AppHandle,
     threshold: f64,
 ) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.word_correction_threshold = threshold.clamp(0.0, 1.0);
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| {
+        value.word_correction_threshold = threshold.clamp(0.0, 1.0)
+    });
     Ok(())
 }
 
@@ -578,9 +556,7 @@ pub fn change_extra_recording_buffer_setting(app: AppHandle, ms: u64) -> Result<
             settings::MAX_EXTRA_RECORDING_BUFFER_MS
         ));
     }
-    let mut value = settings::get_settings(&app);
-    value.extra_recording_buffer_ms = ms;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.extra_recording_buffer_ms = ms);
     Ok(())
 }
 
@@ -593,9 +569,7 @@ pub fn change_paste_delay_ms_setting(app: AppHandle, ms: u64) -> Result<(), Stri
             settings::MAX_PASTE_DELAY_MS
         ));
     }
-    let mut value = settings::get_settings(&app);
-    value.paste_delay_ms = ms;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.paste_delay_ms = ms);
     Ok(())
 }
 
@@ -608,9 +582,7 @@ pub fn change_paste_delay_after_ms_setting(app: AppHandle, ms: u64) -> Result<()
             settings::MAX_PASTE_DELAY_MS
         ));
     }
-    let mut value = settings::get_settings(&app);
-    value.paste_delay_after_ms = ms;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.paste_delay_after_ms = ms);
     Ok(())
 }
 
@@ -620,104 +592,87 @@ pub fn change_reliable_paste_setting(app: AppHandle, enabled: bool) -> Result<()
     if !enabled {
         return Err("Reliable paste is required to protect clipboard contents".to_string());
     }
-    let mut value = settings::get_settings(&app);
-    value.reliable_paste = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.reliable_paste = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_paste_method_setting(app: AppHandle, method: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.paste_method = match method.as_str() {
+    let parsed = match method.as_str() {
         "ctrl_v" => PasteMethod::CtrlV,
         "direct" => PasteMethod::Direct,
         "none" => PasteMethod::None,
         _ => return Err(format!("Invalid paste method: {method}")),
     };
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.paste_method = parsed);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_clipboard_handling_setting(app: AppHandle, handling: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.clipboard_handling = match handling.as_str() {
+    let parsed = match handling.as_str() {
         "dont_modify" => ClipboardHandling::DontModify,
         "copy_to_clipboard" => ClipboardHandling::CopyToClipboard,
         _ => return Err(format!("Invalid clipboard handling: {handling}")),
     };
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.clipboard_handling = parsed);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_auto_submit_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.auto_submit = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.auto_submit = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_auto_submit_key_setting(app: AppHandle, key: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.auto_submit_key = match key.as_str() {
+    let parsed = match key.as_str() {
         "enter" => AutoSubmitKey::Enter,
         "ctrl_enter" => AutoSubmitKey::CtrlEnter,
         "cmd_enter" => AutoSubmitKey::CmdEnter,
         _ => return Err(format!("Invalid auto-submit key: {key}")),
     };
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.auto_submit_key = parsed);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_experimental_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.experimental_enabled = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.experimental_enabled = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_mute_while_recording_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.mute_while_recording = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.mute_while_recording = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_append_trailing_space_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.append_trailing_space = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.append_trailing_space = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_lazy_stream_close_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.lazy_stream_close = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.lazy_stream_close = enabled);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn change_app_language_setting(app: AppHandle, language: String) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.app_language = language.clone();
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.app_language = language.clone());
     tray::update_tray_menu(&app, Some(&language));
     Ok(())
 }
@@ -725,9 +680,7 @@ pub fn change_app_language_setting(app: AppHandle, language: String) -> Result<(
 #[tauri::command]
 #[specta::specta]
 pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut value = settings::get_settings(&app);
-    value.show_tray_icon = enabled;
-    settings::write_settings(&app, value);
+    settings::update_settings(&app, |value| value.show_tray_icon = enabled);
     tray::set_tray_visibility(&app, enabled);
     Ok(())
 }

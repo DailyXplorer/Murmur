@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::local_models::{LocalModelState, LocalModelStatus, LocalModels};
-use crate::settings::{get_settings, write_settings};
+use crate::settings::update_settings;
 
 pub(crate) fn models(app: &AppHandle) -> Result<Arc<LocalModels>, String> {
     app.try_state::<Arc<LocalModels>>()
@@ -23,10 +23,12 @@ pub(crate) fn runnable_models(app: &AppHandle) -> Result<Arc<LocalModels>, Strin
 
 /// Stopping or deleting the model also drops a pending switch to it.
 fn forget_switch(app: &AppHandle) {
-    let mut settings = get_settings(app);
-    if settings.switch_to_local_when_ready {
+    let was_switching = update_settings(app, |settings| {
+        let was_switching = settings.switch_to_local_when_ready;
         settings.switch_to_local_when_ready = false;
-        write_settings(app, settings);
+        was_switching
+    });
+    if was_switching {
         announce_switch_dropped(app);
     }
 }

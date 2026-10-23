@@ -1,7 +1,7 @@
 use crate::codex_transcribe::CodexAuthStatus;
 use crate::commands::local_models::{announce_switch_dropped, runnable_models};
 use crate::engine::Engine;
-use crate::settings::{get_settings, write_settings, AppSettings};
+use crate::settings::{update_settings, AppSettings};
 use tauri::AppHandle;
 
 #[tauri::command]
@@ -12,11 +12,12 @@ pub fn change_transcription_engine_setting(app: AppHandle, engine: Engine) -> Re
         Engine::Local => Some(runnable_models(&app)?),
         Engine::Cloud => None,
     };
-    let mut settings = get_settings(&app);
-    let was_switching = settings.switch_to_local_when_ready;
-    settings.transcription_engine = engine;
-    settings.switch_to_local_when_ready = false;
-    write_settings(&app, settings);
+    let was_switching = update_settings(&app, |settings| {
+        let was_switching = settings.switch_to_local_when_ready;
+        settings.transcription_engine = engine;
+        settings.switch_to_local_when_ready = false;
+        was_switching
+    });
     if was_switching {
         announce_switch_dropped(&app);
     }
@@ -32,9 +33,7 @@ pub fn change_transcription_engine_setting(app: AppHandle, engine: Engine) -> Re
 /// model is ready, at once if it already is.
 pub fn switch_to_local_when_ready(app: AppHandle) -> Result<(), String> {
     let models = runnable_models(&app)?;
-    let mut settings = get_settings(&app);
-    settings.switch_to_local_when_ready = true;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| settings.switch_to_local_when_ready = true);
     // Asked before the check, so a download ending in between still switches.
     if models.is_ready() {
         crate::local_models::switch_if_asked(&app, true);
@@ -50,9 +49,9 @@ pub fn change_local_stt_card_dismissed_setting(
     app: AppHandle,
     dismissed: bool,
 ) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.local_stt_card_dismissed = dismissed;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.local_stt_card_dismissed = dismissed
+    });
     Ok(())
 }
 
@@ -96,9 +95,9 @@ pub async fn complete_onboarding(app: AppHandle) -> Result<(), String> {
             .await
             .map_err(|error| format!("Failed to inspect transcription configuration: {error}"))?;
     let local_runs = runnable_models(&app).is_ok();
-    let mut settings = get_settings(&app);
-    finish_onboarding(&mut settings, local_runs, signed_in)?;
-    crate::settings::write_settings_checked(&app, settings)
+    crate::settings::update_settings_checked(&app, |settings| {
+        finish_onboarding(settings, local_runs, signed_in)
+    })
 }
 
 #[cfg(test)]
