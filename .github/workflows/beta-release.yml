@@ -87,17 +87,17 @@ jobs:
             echo "### On Windows"
             echo
             echo "- Dictation: hold Ctrl+Win to talk, or double-tap it for hands-free; the shortcut can be changed in Settings."
-            echo "- Transcription and AI cleanup through your Codex (ChatGPT) session, read from \`%USERPROFILE%\\.codex\\auth.json\`."
-            echo "- Paste into the app in front, recording overlay, tray menu, History, Insights, custom words, start at login, sounds."
+            echo "- Transcription on this PC (Parakeet, 25 European languages, a one-time model download), or in the cloud through your ChatGPT account. Sign in from Murmur; the session is the one Codex keeps in \`%USERPROFILE%\\.codex\\auth.json\`."
+            echo "- AI cleanup with a Formal, Normal or Casual dictation style, custom words, History, Insights."
+            echo "- Paste into the app in front, recording overlay, tray menu, start at login, sounds."
             echo
-            echo "Not in this beta: meetings, Apple Intelligence cleanup, Gemini through Antigravity, learning words from your corrections, names read from the window, automatic updates."
+            echo "Not in this beta: meetings, learning words from your corrections, context from the active window, the copy offer when no text field has the focus, automatic updates."
             echo
             echo "### Install without administrator rights"
             echo
-            echo "1. Sign in to Codex on this PC first, so that \`%USERPROFILE%\\.codex\\auth.json\` exists."
-            echo "2. Download \`${asset}\` below and run it."
-            echo "3. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
-            echo "4. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one."
+            echo "1. Download \`${asset}\` below and run it."
+            echo "2. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
+            echo "3. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one."
             echo
             echo "SHA-256 of \`${asset}\`: \`${checksum}\`"
           } > notes.md
