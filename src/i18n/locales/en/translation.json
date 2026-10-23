@@ -776,7 +776,7 @@
       "title": "Recording",
       "idle": "No meeting in progress",
       "active": "Recording · {{time}}",
-      "description": "You can also start and stop a meeting with its shortcut or from the menu bar. A meeting stops on its own after 3 hours."
+      "description": "You can also start and stop a meeting with its shortcut or from the menu bar. A long meeting goes on in a new part every 3 hours and stops on its own after 12 hours."
     },
     "start": "Start meeting",
     "stop": "Stop",

@@ -776,7 +776,7 @@
       "title": "Enregistrement",
       "idle": "Aucune réunion en cours",
       "active": "Enregistrement · {{time}}",
-      "description": "Vous pouvez aussi démarrer et arrêter une réunion avec son raccourci ou depuis la barre des menus. Une réunion s’arrête d’elle-même au bout de 3 heures."
+      "description": "Vous pouvez aussi démarrer et arrêter une réunion avec son raccourci ou depuis la barre des menus. Une longue réunion continue dans une nouvelle partie toutes les 3 heures et s’arrête d’elle-même au bout de 12 heures."
     },
     "start": "Démarrer une réunion",
     "stop": "Arrêter",
