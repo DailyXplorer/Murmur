@@ -48,8 +48,13 @@ impl FailureKind {
         }
     }
 
+    /// A connection that never opened is `Network` even when it timed out
+    /// (no answer to DNS, the SYN or the TLS handshake, as on a Wi-Fi with no
+    /// Internet): the service was never reached.
     pub fn from_transport(error: &reqwest::Error) -> Self {
-        if error.is_timeout() {
+        if error.is_connect() {
+            Self::Network
+        } else if error.is_timeout() {
             Self::Timeout
         } else {
             Self::Network
@@ -141,6 +146,41 @@ mod tests {
         ] {
             assert_eq!(retry_delay(kind, 0), None, "{kind:?} must not retry");
         }
+    }
+
+    fn quick_client() -> reqwest::Client {
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(100))
+            .timeout(Duration::from_millis(1000))
+            .no_proxy()
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_connection_that_never_opens_is_a_network_failure() {
+        // TEST-NET-1 never answers a SYN, as on a Wi-Fi with no Internet
+        // behind it. reqwest's own connect-timeout test uses this address.
+        let error = quick_client()
+            .get("http://192.0.2.1:81/")
+            .send()
+            .await
+            .unwrap_err();
+        assert!(error.is_connect() && error.is_timeout(), "{error}");
+        assert_eq!(FailureKind::from_transport(&error), FailureKind::Network);
+    }
+
+    #[tokio::test]
+    async fn an_answer_that_never_comes_is_a_timeout() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let _socket = listener.accept().await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        });
+        let error = quick_client().get(url).send().await.unwrap_err();
+        assert!(!error.is_connect() && error.is_timeout(), "{error}");
+        assert_eq!(FailureKind::from_transport(&error), FailureKind::Timeout);
     }
 
     #[test]
