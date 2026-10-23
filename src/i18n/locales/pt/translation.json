@@ -43,8 +43,8 @@
     "meetingSystemAudioUnavailable": "O áudio do sistema não está disponível, então a reunião grava apenas o microfone.",
     "meetingMicrophoneUnavailable": "O microfone não está disponível, então a reunião grava apenas o áudio do sistema.",
     "meetingStartFailed": "Não foi possível iniciar a reunião. Verifique o microfone e as permissões de áudio.",
-    "meetingStopsSoon": "A reunião para em 5 minutos (limite de 12 horas).",
-    "meetingStoppedAtLimit": "A reunião atingiu o limite de 12 horas e foi salva.",
+    "meetingStopsSoon": "A reunião para em 5 minutos (limite de 3 horas).",
+    "meetingStoppedAtLimit": "A reunião atingiu o limite de 3 horas e foi salva.",
     "meetingStoppedLowDisk": "A reunião parou porque este Mac está quase sem espaço. O que foi gravado é mantido.",
     "meetingWriteFailed": "A reunião parou porque o Murmur não conseguiu gravar no disco. O que foi gravado foi mantido.",
     "meetingLowDiskSpace": "Há menos de 1,5 GB livres neste Mac. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido.",
@@ -683,8 +683,6 @@
     "view": {
       "back": "Todas as reuniões",
       "titleLabel": "Título da reunião",
-      "part": "Parte {{part}}",
-      "seePart": "Ver a parte {{part}}",
       "loadError": "Não foi possível carregar esta reunião.",
       "renameError": "Não foi possível renomear a reunião.",
       "tabs": {
@@ -776,7 +774,7 @@
       "title": "Gravação",
       "idle": "Nenhuma reunião em andamento",
       "active": "Gravando · {{time}}",
-      "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pela barra de menus. Uma reunião longa continua em uma nova parte a cada 3 horas e para sozinha após 12 horas."
+      "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pela barra de menus. A reunião para sozinha após 3 horas."
     },
     "start": "Iniciar reunião",
     "stop": "Parar",
@@ -790,7 +788,6 @@
     "discardDialog": {
       "title": "Descartar esta reunião?",
       "description": "A gravação até agora é excluída e não pode ser recuperada.",
-      "descriptionParts": "Toda a gravação até agora, incluindo as partes anteriores, é excluída e não pode ser recuperada.",
       "keep": "Continuar gravando"
     },
     "deleteDialog": {
@@ -818,7 +815,6 @@
       "title": "Gravações",
       "empty": "Ainda não há reuniões.",
       "untitled": "Reunião · {{date}}",
-      "part": "{{title}} (parte {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mostrar mais"
     },

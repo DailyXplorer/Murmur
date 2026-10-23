@@ -573,9 +573,10 @@ impl Notifier for AppNotifier {
         match runtime {
             MeetingRuntime::Idle => crate::overlay::hide_meeting_overlay(&self.app),
             MeetingRuntime::Recording {
-                meeting_started_at_ms,
+                started_at_ms,
+                stops_at_ms,
                 ..
-            } => crate::overlay::show_meeting_overlay(&self.app, *meeting_started_at_ms),
+            } => crate::overlay::show_meeting_overlay(&self.app, *started_at_ms, *stops_at_ms),
         }
         crate::utils::update_tray_menu(&self.app, None);
         if let Err(error) = MeetingStateChanged(runtime.clone()).emit(&self.app) {
@@ -589,10 +590,6 @@ impl Notifier for AppNotifier {
 
     fn recorded(&self, id: i64) {
         self.queue.enqueue(id);
-    }
-
-    fn discarded(&self, id: i64) {
-        self.queue.cancel(id);
     }
 }
 
@@ -1069,8 +1066,7 @@ impl MeetingsManager {
         self.queue.pause();
     }
 
-    /// Drives the cap and write-failure checks of the meeting that started
-    /// as `id`, through all its parts, until it ends.
+    /// Drives the cap and write-failure checks of meeting `id` until it ends.
     fn spawn_ticker(&self, id: i64) {
         let app = self.app.clone();
         let spawned = std::thread::Builder::new()

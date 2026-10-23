@@ -7,7 +7,6 @@ import {
   fitCopyWindow,
   fitCount,
   openOverlay,
-  RECORDING_WINDOW,
 } from "./overlayHarness";
 
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
@@ -69,34 +68,6 @@ test.describe("local engine error screenshots", () => {
         }
       });
     }
-  }
-});
-
-test.describe("meeting pill screenshots", () => {
-  test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
-  test.use({ viewport: RECORDING_WINDOW, deviceScaleFactor: 2 });
-
-  for (const theme of ["light", "dark"] as const) {
-    test(`past three hours, ${theme}`, async ({ page }) => {
-      const now = Date.parse("2026-10-17T10:00:00Z");
-      await page.clock.install({ time: now - 1_000 });
-      await page.clock.pauseAt(now);
-      await page.emulateMedia({ colorScheme: theme });
-      await openOverlay(page);
-      await page.evaluate(
-        (background) => (document.body.style.background = background),
-        DESKTOP[theme],
-      );
-      await page.evaluate(() => document.fonts.ready);
-      await dispatch(page, "show-overlay-meeting", {
-        started_at_ms: now - (3 * 3600 + 20 * 60) * 1000,
-      });
-      await expect(page.locator(".ov-meeting")).toHaveText("3:20:00");
-      await entranceFinished(page);
-      await page.screenshot({
-        path: `${outputDir}/overlay-meeting-pill-3h20-${theme}.png`,
-      });
-    });
   }
 });
 

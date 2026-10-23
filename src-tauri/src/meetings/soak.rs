@@ -45,7 +45,7 @@ use super::analysis::{AnalysisRequest, AnalyzeFuture, Analyzer, AnalyzerOutcome,
 use super::capture::route::OutputRoute;
 use super::capture::{Feeder, TrackWriter};
 use super::coordinator::{
-    self, CaptureBackend, Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier, Rotation,
+    self, CaptureBackend, Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier,
 };
 use super::helper;
 use super::merge::{Track as Source, PLACEHOLDER};
@@ -181,7 +181,6 @@ impl Clock for PushedClock {
 
 struct WriterTrack {
     writer: TrackWriter,
-    file: &'static str,
 }
 
 impl coordinator::Track for WriterTrack {
@@ -195,10 +194,6 @@ impl coordinator::Track for WriterTrack {
 
     fn dropped_ms(&self) -> u64 {
         self.writer.dropped_ms()
-    }
-
-    fn rotate(&self, dir: &Path, origin: Instant) -> Rotation {
-        Rotation::new(self.writer.rotate(&dir.join(self.file), origin), false)
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
@@ -220,7 +215,7 @@ impl PushedAudio {
     ) -> Result<Box<dyn coordinator::Track>, String> {
         let writer = TrackWriter::create(&dir.join(file), origin)?;
         self.0.lock().unwrap().push((source, writer.feeder()));
-        Ok(Box::new(WriterTrack { writer, file }))
+        Ok(Box::new(WriterTrack { writer }))
     }
 }
 
@@ -276,7 +271,6 @@ impl Notifier for Unseen {
         eprintln!("The soak recording raised {alert:?}");
     }
     fn recorded(&self, _: i64) {}
-    fn discarded(&self, _: i64) {}
 }
 
 /// The dialogue played on a loop, a little later each time round so the

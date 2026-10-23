@@ -79,18 +79,6 @@ public func murmurSystemTapInterrupted() -> Int32 {
     return tap?.interrupted() == true ? 1 : 0
 }
 
-/// Returns 1 when another app played sound since the tap started or since
-/// the last call, and starts over: a meeting rolling into its next part keeps
-/// the tap running, and each part tells its own.
-@_cdecl("murmur_system_tap_take_played")
-public func murmurSystemTapTakePlayed() -> Int32 {
-    guard #available(macOS 14.4, *) else { return 0 }
-    sessionLock.lock()
-    let tap = session as? SystemTap
-    sessionLock.unlock()
-    return tap?.takePlayed() == true ? 1 : 0
-}
-
 /// Whether System Audio Recording is allowed: 0 yes, 1 denied, 2 not asked
 /// yet or unknown.
 @_cdecl("murmur_system_audio_permission")
@@ -359,19 +347,6 @@ private final class SystemTap: @unchecked Sendable {
         // the context.
         ioQueue.sync {}
         return played
-    }
-
-    /// Returns whether another process played sound so far, then counts
-    /// anew from what plays now: a call still playing counts for the next
-    /// part too.
-    func takePlayed() -> Bool {
-        control.sync {
-            if !othersPlayed { othersPlayed = otherProcessPlaysOutput() }
-            let played = othersPlayed
-            othersPlayed = otherProcessPlaysOutput()
-            if playbackWatch == nil, !stopped { watchPlayback() }
-            return played
-        }
     }
 
     /// Checks every second whether another process plays sound, until one

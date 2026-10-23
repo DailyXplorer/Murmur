@@ -14,7 +14,7 @@ pub mod system;
 
 use std::fs::{File, OpenOptions};
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::Arc;
@@ -69,14 +69,6 @@ enum Message {
     },
     Finish {
         total: u64,
-    },
-    /// Closes the file at `origin`, the start of the meeting's next part,
-    /// and goes on in a new file at `path`. The device stays open, so no
-    /// audio is lost at the seam.
-    Rotate {
-        path: PathBuf,
-        origin: Instant,
-        closed: SyncSender<Result<(), String>>,
     },
 }
 
@@ -139,7 +131,18 @@ impl TrackWriter {
         sync_interval: Duration,
         sync: SyncHook,
     ) -> Result<Self, String> {
-        let (wav, handle) = open_wav(path)?;
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: TARGET_SAMPLE_RATE,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let cannot_create =
+            |error: &dyn std::fmt::Display| format!("Cannot create {}: {error}", path.display());
+        let file = File::create(path).map_err(|error| cannot_create(&error))?;
+        let handle = file.try_clone().map_err(|error| cannot_create(&error))?;
+        let wav = hound::WavWriter::new(BufWriter::new(file), spec)
+            .map_err(|error| cannot_create(&error))?;
         let (sender, receiver) = mpsc::sync_channel(QUEUE_CHUNKS);
         let path = path.to_path_buf();
         let failed = Arc::new(AtomicBool::new(false));
@@ -152,7 +155,7 @@ impl TrackWriter {
         let thread = std::thread::Builder::new()
             .name("meeting-track-writer".into())
             .spawn(move || {
-                let result = write_track(wav, path, receiver, origin, disk);
+                let result = write_track(wav, &path, receiver, origin, disk);
                 if let Err(error) = &result {
                     log::error!("Meeting track writer failed: {error}");
                     thread_failed.store(true, Ordering::SeqCst);
@@ -185,21 +188,6 @@ impl TrackWriter {
         self.dropped_us.load(Ordering::Relaxed) / 1_000
     }
 
-    /// Ends the current file at `origin`, padded or cut to the time since
-    /// its own origin, and records on into a new one at `path` from there.
-    /// The returned receiver answers once the current file is closed.
-    pub fn rotate(&self, path: &Path, origin: Instant) -> Receiver<Result<(), String>> {
-        let (closed, answer) = mpsc::sync_channel(1);
-        // A writer that already failed has dropped its receiver, and so the
-        // answer's sender: waiting on it then fails at once.
-        let _ = self.sender.send(Message::Rotate {
-            path: path.to_path_buf(),
-            origin,
-            closed,
-        });
-        answer
-    }
-
     /// Writes what is queued, pads or cuts the track to exactly `duration`,
     /// and closes the file. Returns the number of samples in it.
     pub fn finish(self, duration: Duration) -> Result<u64, String> {
@@ -229,62 +217,11 @@ impl Disk {
     }
 }
 
-/// Creates the WAV at `path`, and a second handle on it to sync it with.
-fn open_wav(path: &Path) -> Result<(Wav, File), String> {
-    let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: TARGET_SAMPLE_RATE,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let cannot_create =
-        |error: &dyn std::fmt::Display| format!("Cannot create {}: {error}", path.display());
-    let file = File::create(path).map_err(|error| cannot_create(&error))?;
-    let handle = file.try_clone().map_err(|error| cannot_create(&error))?;
-    let wav =
-        hound::WavWriter::new(BufWriter::new(file), spec).map_err(|error| cannot_create(&error))?;
-    Ok((wav, handle))
-}
-
-/// Seconds from `origin` to `at`, negative when `at` comes first.
-fn seconds_since(origin: Instant, at: Instant) -> f64 {
-    match at.checked_duration_since(origin) {
-        Some(after) => after.as_secs_f64(),
-        None => -origin.duration_since(at).as_secs_f64(),
-    }
-}
-
-/// Writes what the resampler still holds, pads or cuts the file to exactly
-/// `total` samples, closes it and syncs it. Returns the samples in it.
-fn close(
-    mut wav: Wav,
-    path: &Path,
-    resampler: Option<(u32, FrameResampler)>,
-    mut written: u64,
-    total: u64,
-    disk: &mut Disk,
-) -> Result<u64, String> {
-    let mut frames = Vec::new();
-    if let Some((_, mut resampler)) = resampler {
-        resampler.finish(|frame| frames.extend_from_slice(frame));
-    }
-    let room = total.saturating_sub(written) as usize;
-    written += write_samples(&mut wav, &frames[..frames.len().min(room)])?;
-    written += write_silence(&mut wav, total.saturating_sub(written))?;
-    wav.finalize().map_err(|error| error.to_string())?;
-    if written > total {
-        truncate(path, written, total)?;
-        written = total;
-    }
-    disk.sync()?;
-    Ok(written)
-}
-
 fn write_track(
     mut wav: Wav,
-    mut path: PathBuf,
+    path: &Path,
     receiver: Receiver<Message>,
-    mut origin: Instant,
+    origin: Instant,
     mut disk: Disk,
 ) -> Result<u64, String> {
     let mut resampler: Option<(u32, FrameResampler)> = None;
@@ -321,9 +258,8 @@ fn write_track(
                     )
                 });
                 let rate = f64::from(sample_rate);
-                // Audio captured before the origin belongs to the part
-                // before: the first chunk drops it.
-                let start = seconds_since(origin, captured) - data.len() as f64 / rate;
+                let end = captured.saturating_duration_since(origin).as_secs_f64();
+                let start = (end - data.len() as f64 / rate).max(0.0);
                 let offset = correction(placed, start);
                 let mut audio = &data[..];
                 if offset > 0.0 {
@@ -338,31 +274,20 @@ fn write_track(
                 placed += audio.len() as f64 / rate;
             }
             Ok(Message::Finish { total }) => {
-                return close(wav, &path, resampler, written, total, &mut disk);
-            }
-            Ok(Message::Rotate {
-                path: next,
-                origin: next_origin,
-                closed,
-            }) => {
-                let total = samples_in(next_origin.saturating_duration_since(origin));
-                let opened = close(wav, &path, resampler.take(), written, total, &mut disk)
-                    .and_then(|_| open_wav(&next));
-                match opened {
-                    Ok((next_wav, handle)) => {
-                        wav = next_wav;
-                        disk.file = handle;
-                        path = next;
-                        origin = next_origin;
-                        written = 0;
-                        placed = 0.0;
-                        let _ = closed.send(Ok(()));
-                    }
-                    Err(error) => {
-                        let _ = closed.send(Err(error.clone()));
-                        return Err(error);
-                    }
+                let mut frames = Vec::new();
+                if let Some((_, mut resampler)) = resampler.take() {
+                    resampler.finish(|frame| frames.extend_from_slice(frame));
                 }
+                let room = total.saturating_sub(written) as usize;
+                written += write_samples(&mut wav, &frames[..frames.len().min(room)])?;
+                written += write_silence(&mut wav, total.saturating_sub(written))?;
+                wav.finalize().map_err(|error| error.to_string())?;
+                if written > total {
+                    truncate(path, written, total)?;
+                    written = total;
+                }
+                disk.sync()?;
+                return Ok(written);
             }
             Err(RecvTimeoutError::Timeout) => {}
             // The capture was dropped without finishing: keep what was written.
@@ -807,82 +732,6 @@ mod tests {
         }
         assert!(writer.failed());
         assert!(writer.finish(Duration::from_secs(1)).is_err());
-    }
-
-    #[test]
-    fn a_rotation_cuts_the_track_at_its_time_with_no_gap_at_the_seam() {
-        let dir = tempfile::tempdir().unwrap();
-        let (first, second) = (dir.path().join("one.wav"), dir.path().join("two.wav"));
-        let origin = Instant::now();
-        let writer = TrackWriter::create(&first, origin).unwrap();
-        let feeder = writer.feeder();
-        // A tone up to the seam at 3 s, where the next part starts.
-        let at = deliver(
-            &feeder,
-            origin,
-            &sine(16_000, 3.0),
-            160,
-            16_000,
-            16_000.0,
-            0.0,
-        );
-        let seam = origin + Duration::from_secs(3);
-        let closed = writer.rotate(&second, seam);
-        // Captured before the seam but queued after it: it belongs to no part.
-        feeder.push_at(vec![0.9; 160], 16_000, seam - Duration::from_millis(5));
-        // Then 1 s of quiet and a marker tone 1 s into the new part.
-        let at = deliver(&feeder, origin, &[0.01; 16_000], 160, 16_000, 16_000.0, at);
-        deliver(
-            &feeder,
-            origin,
-            &sine(16_000, 2.0),
-            160,
-            16_000,
-            16_000.0,
-            at,
-        );
-        assert_eq!(closed.recv().unwrap(), Ok(()));
-
-        writer.finish(Duration::from_secs(3)).unwrap();
-
-        let (_, one) = read(&first);
-        assert_eq!(one.len(), 48_000, "exactly 3 s");
-        let last = one.iter().rposition(|s| s.abs() > 8_000).unwrap();
-        assert!(
-            last >= 48_000 - 40,
-            "the tone runs to the seam, last at {last}"
-        );
-        let (_, two) = read(&second);
-        assert_eq!(two.len(), 48_000);
-        assert!(
-            two[..15_000].iter().all(|s| s.abs() < 8_000),
-            "nothing from before the seam"
-        );
-        let marker = onset(&two) as i64;
-        assert!(
-            (marker - 16_000).abs() < 16,
-            "the marker is at sample {marker}"
-        );
-    }
-
-    #[test]
-    fn a_part_whose_file_cannot_be_created_fails_the_track_and_keeps_the_part_before() {
-        let dir = tempfile::tempdir().unwrap();
-        let first = dir.path().join(MIC_TRACK);
-        let origin = Instant::now();
-        let writer = TrackWriter::create(&first, origin).unwrap();
-        push_chunks(&writer.feeder(), origin, 0, 100);
-
-        let missing = dir.path().join("no-such-folder").join(MIC_TRACK);
-        let closed = writer.rotate(&missing, origin + Duration::from_secs(1));
-
-        assert!(closed.recv().unwrap().is_err());
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while !writer.failed() && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        assert!(writer.failed());
-        assert_eq!(read(&first).1.len(), 16_000);
     }
 
     #[test]

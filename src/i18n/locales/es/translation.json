@@ -43,8 +43,8 @@
     "meetingSystemAudioUnavailable": "El audio del sistema no está disponible, así que la reunión solo graba su micrófono.",
     "meetingMicrophoneUnavailable": "El micrófono no está disponible, así que la reunión solo graba el audio del sistema.",
     "meetingStartFailed": "No se pudo iniciar la reunión. Compruebe el micrófono y los permisos de audio.",
-    "meetingStopsSoon": "La reunión se detendrá en 5 minutos (límite de 12 horas).",
-    "meetingStoppedAtLimit": "La reunión alcanzó el límite de 12 horas y se guardó.",
+    "meetingStopsSoon": "La reunión se detendrá en 5 minutos (límite de 3 horas).",
+    "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
     "meetingStoppedLowDisk": "La reunión se detuvo porque este Mac casi no tiene espacio libre. Lo grabado se conserva.",
     "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva.",
     "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva.",
@@ -683,8 +683,6 @@
     "view": {
       "back": "Todas las reuniones",
       "titleLabel": "Título de la reunión",
-      "part": "Parte {{part}}",
-      "seePart": "Ver la parte {{part}}",
       "loadError": "No se pudo cargar esta reunión.",
       "renameError": "No se pudo cambiar el nombre de la reunión.",
       "tabs": {
@@ -776,7 +774,7 @@
       "title": "Grabación",
       "idle": "Ninguna reunión en curso",
       "active": "Grabando · {{time}}",
-      "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión larga continúa en una nueva parte cada 3 horas y se detiene sola a las 12 horas."
+      "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión se detiene sola a las 3 horas."
     },
     "start": "Iniciar reunión",
     "stop": "Detener",
@@ -790,7 +788,6 @@
     "discardDialog": {
       "title": "¿Descartar esta reunión?",
       "description": "La grabación hasta ahora se elimina y no se puede recuperar.",
-      "descriptionParts": "Toda la grabación hasta ahora, incluidas sus partes anteriores, se elimina y no se puede recuperar.",
       "keep": "Seguir grabando"
     },
     "deleteDialog": {
@@ -818,7 +815,6 @@
       "title": "Grabaciones",
       "empty": "Todavía no hay reuniones.",
       "untitled": "Reunión · {{date}}",
-      "part": "{{title}} (parte {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mostrar más"
     },

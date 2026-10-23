@@ -214,37 +214,6 @@ const ProcessingBanner: React.FC<{
   return null;
 };
 
-const CHIP =
-  "inline-flex rounded-md border border-mid-gray/20 px-2 py-0.5 text-xs text-mid-gray tabular-nums";
-
-/** Which part of a meeting that went on past 3 hours this is, with links to
- * the parts before and after it. */
-const PartLinks: React.FC<{
-  meeting: MeetingDetail;
-  onOpen: (id: number) => void;
-}> = ({ meeting, onOpen }) => {
-  const { t } = useTranslation();
-  const link = (id: number, part: number) => (
-    <button
-      type="button"
-      className="cursor-pointer rounded-sm text-xs font-medium text-text underline decoration-accent-text decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
-      onClick={() => onOpen(id)}
-    >
-      {t("meetings.view.seePart", { part })}
-    </button>
-  );
-  return (
-    <>
-      <span className={CHIP}>
-        {t("meetings.view.part", { part: meeting.part })}
-      </span>
-      {meeting.previous_id !== null &&
-        link(meeting.previous_id, meeting.part - 1)}
-      {meeting.next_id !== null && link(meeting.next_id, meeting.part + 1)}
-    </>
-  );
-};
-
 /** Says why speakers were not told apart, and offers to do it now. */
 const SpeakerNotice: React.FC<{
   meeting: MeetingDetail;
@@ -345,15 +314,9 @@ const SystemAudioNotice: React.FC = () => {
 interface MeetingViewProps {
   id: number;
   onBack: () => void;
-  /** Opens another meeting, such as the next part of this one. */
-  onOpen: (id: number) => void;
 }
 
-export const MeetingView: React.FC<MeetingViewProps> = ({
-  id,
-  onBack,
-  onOpen,
-}) => {
+export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const { t, i18n } = useTranslation();
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [failed, setFailed] = useState(false);
@@ -385,12 +348,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     const progressed = events.meetingProgress.listen((event) => {
       if (event.payload.id === id) setProgress(event.payload);
     });
-    // The next part of this meeting is linked once it stops recording.
-    const stateChanged = events.meetingStateChanged.listen(() => void load());
     return () => {
       void updated.then((stop) => stop());
       void progressed.then((stop) => stop());
-      void stateChanged.then((stop) => stop());
     };
   }, [id, load]);
 
@@ -490,14 +450,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           placeholder={defaultTitle}
           onCommit={(title) => void rename(title)}
         />
-        <div className="ml-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className={CHIP}>
-            {formatChipDate(meeting.started_at_ms, i18n.language)}
-          </span>
-          {(meeting.part > 1 || meeting.next_id !== null) && (
-            <PartLinks meeting={meeting} onOpen={onOpen} />
-          )}
-        </div>
+        <span className="ml-1 inline-flex rounded-md border border-mid-gray/20 px-2 py-0.5 text-xs text-mid-gray tabular-nums">
+          {formatChipDate(meeting.started_at_ms, i18n.language)}
+        </span>
       </div>
       <ProcessingBanner
         meeting={meeting}
