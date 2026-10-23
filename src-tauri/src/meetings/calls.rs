@@ -347,9 +347,14 @@ impl CallWatch {
                 call.off_since = Some(now);
             }
         }
+        // A call the meeting recorded stays until "Stop recording?" was
+        // asked, which a dictation may hold back past `CALL_OVER_AFTER`.
         self.calls.retain(|_, call| {
             call.off_since
                 .is_none_or(|off| now.duration_since(off) < CALL_OVER_AFTER)
+                || (call.recorded_in.is_some()
+                    && call.recorded_in == snapshot.meeting
+                    && !call.end_asked)
         });
 
         if let Some(shown) = self.showing {
@@ -564,6 +569,18 @@ mod tests {
         );
         assert_eq!(clock.watch.answered(Question::Stop), Some(CallApp::Zoom));
         assert_eq!(clock.run(30, &[], false, Some(1)), []);
+    }
+
+    #[test]
+    fn a_dictation_through_the_end_of_a_recorded_call_delays_the_end_prompt() {
+        let mut clock = Clock::new();
+        clock.run(30, ZOOM, false, Some(7));
+        clock.run(10, &[], false, Some(7));
+        assert_eq!(clock.run(30, &[], true, Some(7)), []);
+        assert_eq!(
+            clock.run(1, &[], false, Some(7)),
+            [(70, Action::Ended(CallApp::Zoom))]
+        );
     }
 
     #[test]
