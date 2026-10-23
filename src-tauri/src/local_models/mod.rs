@@ -164,6 +164,10 @@ impl LocalModels {
         *self.state.borrow() == LocalModelState::Ready
     }
 
+    pub fn subscribe(&self) -> watch::Receiver<LocalModelState> {
+        self.state.subscribe()
+    }
+
     /// The sources dictation waits for.
     fn required(&self) -> impl Iterator<Item = &'static Source> + Send + 'static {
         self.sources.iter().filter(|source| !source.optional)

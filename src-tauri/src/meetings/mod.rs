@@ -47,6 +47,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::local_models::LocalModelState;
 use crate::managers::history::DatabaseStartup;
 use crate::settings::{get_settings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
@@ -98,11 +99,14 @@ pub struct MeetingCapabilities {
 /// Recorded meetings wait here and are processed one at a time, in order.
 /// After a rate-limited meeting, or one that could not reach Codex, the
 /// queue holds: only meetings the user asked for go through, ahead of the
-/// others.
+/// others. While only the connection holds it and this Mac's model is
+/// ready, the meetings that model has not tried go through too.
 struct ProcessingQueue {
     state: Mutex<QueueState>,
     changed: tokio::sync::Notify,
     reachability: Box<dyn Reachability>,
+    /// Whether this Mac's model is ready.
+    local_ready: Box<dyn Fn() -> bool + Send + Sync>,
 }
 
 struct QueueState {
@@ -134,6 +138,9 @@ struct Queued {
     /// rate-limit hold lets through: pressing it is how the user says Codex
     /// may have freed up.
     asked: bool,
+    /// Queued again after a run that had this Mac's model: only Codex can
+    /// do what is left.
+    local_tried: bool,
 }
 
 impl QueueState {
@@ -141,14 +148,19 @@ impl QueueState {
         self.held_until.is_some() || self.offline.holds()
     }
 
+    fn goes_through(&self, queued: &Queued, local_ready: bool) -> bool {
+        !self.held()
+            || queued.asked
+            || (self.held_until.is_none() && local_ready && !queued.local_tried)
+    }
+
     /// The meeting to process now or, when none may go, what to wait for.
-    fn take_next(&mut self, now: SystemTime) -> Next {
+    fn take_next(&mut self, now: SystemTime, local_ready: bool) -> Next {
         self.held_until = self.held_until.filter(|until| now < *until);
-        let index = if self.held() {
-            self.queued.iter().position(|queued| queued.asked)
-        } else {
-            (!self.queued.is_empty()).then_some(0)
-        };
+        let index = self
+            .queued
+            .iter()
+            .position(|queued| self.goes_through(queued, local_ready));
         if let Some(queued) = index.and_then(|index| self.queued.remove(index)) {
             return Next::Process(queued.id);
         }
@@ -174,6 +186,7 @@ impl ProcessingQueue {
             state: Mutex::new(state),
             changed: tokio::sync::Notify::new(),
             reachability: Box::new(CodexHost::new()),
+            local_ready: Box::new(|| false),
         }
     }
 
@@ -184,22 +197,40 @@ impl ProcessingQueue {
     }
 
     fn enqueue(&self, id: i64) {
-        self.push(id, false);
+        self.push(id, false, false);
     }
 
     /// Queues a meeting the user just asked for, which a rate-limit hold
     /// does not keep waiting. Already queued, it keeps its place in line
     /// and goes through the hold.
     fn enqueue_asked(&self, id: i64) {
-        self.push(id, true);
+        self.push(id, true, false);
     }
 
-    fn push(&self, id: i64, asked: bool) {
+    /// Queues a meeting whose run could not reach Codex, to go on once the
+    /// connection is back. `local_tried`: the run had this Mac's model.
+    fn requeue_unreachable(&self, id: i64, local_tried: bool) {
+        self.push(id, false, local_tried);
+    }
+
+    /// Meetings waiting for the connection may go on with this Mac's model.
+    fn local_model_ready(&self) {
+        self.changed.notify_one();
+    }
+
+    fn push(&self, id: i64, asked: bool, local_tried: bool) {
         {
             let mut state = self.state();
             match state.queued.iter_mut().find(|queued| queued.id == id) {
-                Some(queued) => queued.asked |= asked,
-                None => state.queued.push_back(Queued { id, asked }),
+                Some(queued) => {
+                    queued.asked |= asked;
+                    queued.local_tried |= local_tried;
+                }
+                None => state.queued.push_back(Queued {
+                    id,
+                    asked,
+                    local_tried,
+                }),
             }
         }
         // `notify_one` keeps a permit, so a worker between its check and its
@@ -217,7 +248,8 @@ impl ProcessingQueue {
         loop {
             let changed = self.changed.notified();
             let now = SystemTime::now();
-            let next = self.state().take_next(now);
+            let local_ready = (self.local_ready)();
+            let next = self.state().take_next(now, local_ready);
             match next {
                 Next::Process(id) => return id,
                 Next::CheckConnection => {
@@ -301,12 +333,13 @@ impl ProcessingQueue {
 
     /// Whether queued meeting `id` waits for the connection to come back.
     fn offline_for(&self, id: i64) -> bool {
+        let local_ready = (self.local_ready)();
         let state = self.state();
         state.offline.holds()
             && state
                 .queued
                 .iter()
-                .any(|queued| queued.id == id && !queued.asked)
+                .any(|queued| queued.id == id && !state.goes_through(queued, local_ready))
     }
 
     fn queued(&self) -> Vec<i64> {
@@ -401,7 +434,19 @@ fn spawn_processing(
     root: PathBuf,
     models: Arc<Models>,
 ) -> Arc<ProcessingQueue> {
-    let queue = Arc::new(ProcessingQueue::new(!get_settings(app).meetings_enabled));
+    let mut queue = ProcessingQueue::new(!get_settings(app).meetings_enabled);
+    let ready = Arc::clone(&models);
+    queue.local_ready = Box::new(move || ready.is_ready());
+    let queue = Arc::new(queue);
+    let mut model_state = models.subscribe();
+    let waking = Arc::clone(&queue);
+    tauri::async_runtime::spawn(async move {
+        while model_state.changed().await.is_ok() {
+            if *model_state.borrow_and_update() == LocalModelState::Ready {
+                waking.local_model_ready();
+            }
+        }
+    });
     let worker = Arc::clone(&queue);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -416,6 +461,7 @@ fn spawn_processing(
             // Its view stops saying it waits for a hold or the connection.
             AppEvents(app.clone()).updated(id);
             let language = get_settings(&app).selected_language;
+            let local_tried = models.is_ready();
             let processor = Processor {
                 store: Arc::clone(&store),
                 root: root.clone(),
@@ -424,8 +470,7 @@ fn spawn_processing(
                     auth_path: None,
                 }),
                 // Its own engine, released with the run.
-                local: models
-                    .is_ready()
+                local: local_tried
                     .then(|| crate::engine::local::engine(&app, Box::new(|| false)))
                     .flatten()
                     .map(|engine| {
@@ -464,7 +509,7 @@ fn spawn_processing(
                         "Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}"
                     );
                     // It goes on with the others once the connection is back.
-                    worker.enqueue(id);
+                    worker.requeue_unreachable(id, local_tried);
                 }
                 (_, Some(wait)) => {
                     info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
@@ -1197,7 +1242,7 @@ mod tests {
         let queue = ProcessingQueue::new(false);
         queue.enqueue(3);
         queue.enqueue(4);
-        let id = queue.state().take_next(SystemTime::now());
+        let id = queue.state().take_next(SystemTime::now(), false);
         assert_eq!(id, Next::Process(3));
         assert!(queue.begin(3, &operation(1)));
 
@@ -1520,6 +1565,53 @@ mod tests {
         // A rate limit is an answer too: the connection works.
         queue.codex_said(CodexVerdict::RateLimited);
         assert!(!queue.state().offline.holds());
+    }
+
+    #[test]
+    fn offline_with_the_local_model_ready_new_meetings_still_go_through() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        assert!(!queue.offline_for(1));
+        assert_eq!(next_within(&queue, NOW), Some(1));
+
+        // This Mac transcribed meeting 2 already: only Codex can finish it.
+        queue.requeue_unreachable(2, true);
+        assert!(queue.offline_for(2));
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+        // Meeting 3 was held before the model was ready.
+        queue.requeue_unreachable(3, false);
+        assert_eq!(next_within(&queue, NOW), Some(3));
+    }
+
+    #[test]
+    fn a_rate_limit_holds_meetings_even_with_the_local_model_ready() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    #[test]
+    fn the_local_model_becoming_ready_wakes_the_meetings_waiting_offline() {
+        let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut queue = queue_with(&FakeConnection::default());
+        let flag = Arc::clone(&ready);
+        queue.local_ready = Box::new(move || flag.load(std::sync::atomic::Ordering::SeqCst));
+        let queue = Arc::new(queue);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        let waking = Arc::clone(&queue);
+        let model = std::thread::spawn(move || {
+            std::thread::sleep(A_MOMENT);
+            ready.store(true, std::sync::atomic::Ordering::SeqCst);
+            waking.local_model_ready();
+        });
+        // Well before the next connection check, a minute away.
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        model.join().unwrap();
     }
 
     #[test]
