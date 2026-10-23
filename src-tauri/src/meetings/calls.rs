@@ -42,12 +42,17 @@ impl CallApp {
     }
 }
 
+/// A browser edition: its windows and cached call must not belong to a
+/// different edition running alongside it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Browser {
     Safari,
     Chrome,
+    ChromeBeta,
+    ChromeCanary,
     Arc,
     Edge,
+    EdgeBeta,
     Brave,
     Firefox,
 }
@@ -59,8 +64,11 @@ impl Browser {
         match self {
             Self::Safari => "com.apple.Safari",
             Self::Chrome => "com.google.Chrome",
+            Self::ChromeBeta => "com.google.Chrome.beta",
+            Self::ChromeCanary => "com.google.Chrome.canary",
             Self::Arc => "company.thebrowser.Browser",
             Self::Edge => "com.microsoft.edgemac",
+            Self::EdgeBeta => "com.microsoft.edgemac.Beta",
             Self::Brave => "com.brave.Browser",
             Self::Firefox => "org.mozilla.firefox",
         }
@@ -69,7 +77,10 @@ impl Browser {
     /// Whether the address of its front page is read as well as the window
     /// titles.
     pub fn reads_url(self) -> bool {
-        matches!(self, Self::Safari | Self::Chrome)
+        matches!(
+            self,
+            Self::Safari | Self::Chrome | Self::ChromeBeta | Self::ChromeCanary
+        )
     }
 }
 
@@ -106,9 +117,18 @@ const MIC_APPS: [(&str, MicApp); 21] = [
         "org.mozilla.plugincontainer",
         MicApp::Browser(Browser::Firefox),
     ),
-    ("com.google.Chrome.beta", MicApp::Browser(Browser::Chrome)),
-    ("com.google.Chrome.canary", MicApp::Browser(Browser::Chrome)),
-    ("com.microsoft.edgemac.Beta", MicApp::Browser(Browser::Edge)),
+    (
+        "com.google.Chrome.beta",
+        MicApp::Browser(Browser::ChromeBeta),
+    ),
+    (
+        "com.google.Chrome.canary",
+        MicApp::Browser(Browser::ChromeCanary),
+    ),
+    (
+        "com.microsoft.edgemac.Beta",
+        MicApp::Browser(Browser::EdgeBeta),
+    ),
 ];
 
 /// `bundle_id` is `known` or one of its helpers, such as
@@ -617,6 +637,84 @@ mod tests {
     }
 
     #[test]
+    fn browser_editions_read_their_own_windows_with_or_without_the_stable_app() {
+        for (bundle_id, stable_id, reads_url) in [
+            ("com.google.Chrome.beta", "com.google.Chrome", true),
+            ("com.google.Chrome.canary", "com.google.Chrome", true),
+            ("com.microsoft.edgemac.Beta", "com.microsoft.edgemac", false),
+        ] {
+            for stable_running in [false, true] {
+                let mut windows = Vec::new();
+                if stable_running {
+                    windows.push((stable_id, "Voice memo"));
+                }
+                windows.push((bundle_id, "Meet - abc-defg-hij"));
+                let users = [user(500, &format!("{bundle_id}.helper"))];
+                let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+                    assert_eq!(browser.reads_url(), reads_url);
+                    // Same exact app-selection predicate as call_watch::browser_call.
+                    windows.iter().find_map(|(running_id, title)| {
+                        (*running_id == browser.bundle_id())
+                            .then(|| meeting_title(title))
+                            .flatten()
+                    })
+                });
+                assert_eq!(calls, [CallApp::GoogleMeet], "{bundle_id}");
+
+                // A meeting window in stable must not turn this edition's
+                // microphone use into a call.
+                let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+                    (browser.bundle_id() == stable_id)
+                        .then(|| meeting_title("Meet - abc-defg-hij"))
+                        .flatten()
+                });
+                assert_eq!(calls, [], "{bundle_id}");
+            }
+        }
+    }
+
+    #[test]
+    fn simultaneous_browser_editions_keep_separate_cached_calls() {
+        let editions = [
+            ("com.google.Chrome", CallApp::GoogleMeet),
+            ("com.google.Chrome.beta", CallApp::Teams),
+            ("com.google.Chrome.canary", CallApp::Zoom),
+            ("com.microsoft.edgemac", CallApp::Webex),
+            ("com.microsoft.edgemac.Beta", CallApp::Discord),
+        ];
+        let users: Vec<_> = editions
+            .iter()
+            .map(|(bundle_id, _)| user(500, &format!("{bundle_id}.helper")))
+            .collect();
+        let mut browser_calls = BTreeMap::new();
+        let mut reads = Vec::new();
+        let calls = calls_on_mic(&users, OWN_PID, &mut browser_calls, |browser| {
+            reads.push(browser.bundle_id());
+            editions
+                .iter()
+                .find_map(|(bundle_id, call)| (*bundle_id == browser.bundle_id()).then_some(*call))
+        });
+        assert_eq!(reads, editions.map(|(bundle_id, _)| bundle_id));
+        assert_eq!(calls.len(), editions.len());
+        assert_eq!(browser_calls.len(), editions.len());
+
+        // Beta leaving the microphone must not borrow stable's cached call,
+        // nor keep Beta's cached call alive while only stable remains.
+        assert_eq!(
+            calls_on_mic(&users[..1], OWN_PID, &mut browser_calls, |_| {
+                panic!("the stable browser's cached call was read again")
+            }),
+            [CallApp::GoogleMeet]
+        );
+        assert_eq!(browser_calls.len(), 1);
+        assert_eq!(
+            calls_on_mic(&users[1..2], OWN_PID, &mut browser_calls, |_| None),
+            []
+        );
+        assert!(browser_calls.is_empty());
+    }
+
+    #[test]
     fn every_call_app_and_its_helpers_are_known() {
         for (bundle_id, app) in [
             ("us.zoom.xos", CallApp::Zoom),
@@ -638,7 +736,7 @@ mod tests {
         }
         assert_eq!(
             mic_app("com.google.Chrome.beta.helper"),
-            Some(MicApp::Browser(Browser::Chrome))
+            Some(MicApp::Browser(Browser::ChromeBeta))
         );
     }
 
