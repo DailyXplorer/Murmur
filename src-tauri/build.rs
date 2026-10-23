@@ -247,6 +247,18 @@ fn build_swift_bridges() {
         let status = Command::new(&swiftc)
             .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
             .args(["-target", swift_target, "-sdk", &sdk])
+            // The bridges use no Swift concurrency, but Foundation's import
+            // still asks to link it. Below macOS 12 that is
+            // `@rpath/libswift_Concurrency.dylib`, which the bundle does not
+            // ship.
+            .args([
+                "-Xfrontend",
+                "-disable-autolink-library",
+                "-Xfrontend",
+                "swift_Concurrency",
+                "-Xfrontend",
+                "-disable-autolinking-runtime-compatibility-concurrency",
+            ])
             .arg("-module-name")
             .arg(module)
             .arg(source)
@@ -282,9 +294,6 @@ fn build_swift_bridges() {
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=framework=CoreAudio");
     println!("cargo:rustc-link-lib=framework=AudioToolbox");
-    // macOS 11 has no Swift concurrency runtime: it is weak so the app still
-    // launches there.
-    println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
 
