@@ -663,11 +663,23 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
-    if let Some(pill) = meeting_pill() {
-        present_meeting_pill(app_handle, pill);
-        return;
+    settle_overlay(app_handle);
+}
+
+/// Leaves the overlay as it is when no dictation or notice holds it: the
+/// meeting pill, or hidden, so a prompt that held it never stays behind.
+fn settle_overlay(app_handle: &AppHandle) {
+    let style = settings::get_settings(app_handle).overlay_style;
+    match resting_pill(meeting_pill(), style) {
+        Some(pill) => present_meeting_pill(app_handle, pill),
+        None => fade_out_overlay(app_handle),
     }
-    fade_out_overlay(app_handle);
+}
+
+/// The meeting pill shows while a meeting records, unless the overlay is
+/// off.
+fn resting_pill(pill: Option<MeetingPill>, style: OverlayStyle) -> Option<MeetingPill> {
+    pill.filter(|_| style != OverlayStyle::None)
 }
 
 /// Shows the meeting pill unless a dictation or a notice is on screen; it
@@ -683,7 +695,7 @@ pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64) {
         return;
     }
     if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
-        present_meeting_pill(app_handle, pill);
+        settle_overlay(app_handle);
     }
 }
 
@@ -699,9 +711,6 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
 }
 
 fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
-    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
-        return;
-    }
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -770,6 +779,14 @@ mod tests {
         assert!(is_point_within((-1, 1239), &position, &size));
         assert!(!is_point_within((0, 0), &position, &size));
         assert!(!is_point_within((-1, 1240), &position, &size));
+    }
+
+    #[test]
+    fn with_the_overlay_off_a_prompt_over_a_meeting_leaves_nothing_on_screen() {
+        let pill = MeetingPill { started_at_ms: 1 };
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::None), None);
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::Minimal), Some(pill));
+        assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
     }
 
     #[test]
