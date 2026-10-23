@@ -291,8 +291,8 @@ fn utf16_string(text: &CFString) -> String {
 }
 
 /// The frontmost app other than Murmur, unless it is a password manager:
-/// its pid, bundle identifier and application element.
-pub fn frontmost_app() -> Option<(i32, String, Element)> {
+/// its pid and application element.
+pub fn frontmost_app() -> Option<(i32, Element)> {
     let application = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = application.processIdentifier();
     if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
@@ -305,7 +305,7 @@ pub fn frontmost_app() -> Option<(i32, String, Element)> {
     if is_password_app(&bundle_id) {
         return None;
     }
-    Some((pid, bundle_id, Element::application(pid)?))
+    Some((pid, Element::application(pid)?))
 }
 
 /// The titles of `app`'s windows, which browsers name after their front tab.
@@ -345,7 +345,7 @@ pub fn front_page_url(app: &Element) -> Option<String> {
 /// The keyboard focus anywhere on screen, when it is a readable, non-secure
 /// element of an app that is not a password manager.
 pub fn focused_text_element() -> Option<Element> {
-    let (pid, _, _) = frontmost_app()?;
+    let (pid, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
 }
@@ -451,7 +451,7 @@ pub fn keyboard_focus() -> FocusedField {
 }
 
 fn focused_element() -> Option<FocusedElement> {
-    let (pid, _, _) = frontmost_app()?;
+    let (pid, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid)).then(|| FocusedElement {
         role: focused.string("AXRole"),
