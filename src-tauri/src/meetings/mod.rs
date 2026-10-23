@@ -940,8 +940,9 @@ impl MeetingsManager {
         if self.detail(id)?.audio == store::AudioState::Deleted {
             return Err(format!("Meeting {id} has no audio left"));
         }
+        // The daily retention may delete the audio after the check above.
         if !self.store.reopen(id).map_err(|error| error.to_string())? {
-            return Err(format!("Meeting {id} is not finished"));
+            return Err(format!("Meeting {id} is not finished or has no audio left"));
         }
         // A summary still being written is of the analysis that goes.
         self.queue.cancel(id);

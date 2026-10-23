@@ -1044,11 +1044,12 @@ impl MeetingsStore {
     }
 
     /// Makes a finished meeting wait for processing again, to tell its
-    /// speakers apart anew. Returns false when it is not finished.
+    /// speakers apart anew. Returns false when it is not finished or has no
+    /// audio.
     pub fn reopen(&self, id: i64) -> Result<bool> {
         let updated = self.connection()?.execute(
             "UPDATE meetings SET status = 'processing', stage = NULL
-             WHERE id = ?1 AND status IN ('ready', 'failed')",
+             WHERE id = ?1 AND status IN ('ready', 'failed') AND audio_deleted = 0",
             params![id],
         )?;
         Ok(updated > 0)
