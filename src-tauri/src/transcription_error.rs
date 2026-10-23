@@ -19,6 +19,11 @@ pub enum FailureKind {
     Timeout,
     RateLimited,
     ServerError,
+    /// Codex was reached, but the connection broke before its answer, as
+    /// behind a proxy that cuts large uploads. Retried and shown like
+    /// `ServerError`; a meeting piece then goes to this Mac's model, as
+    /// after a timeout.
+    ConnectionDropped,
     /// The session expired and could not be refreshed: the user must sign in.
     SessionExpired,
     /// No usable session on disk.
@@ -51,16 +56,16 @@ impl FailureKind {
     /// Only a connection that never opened is `Network`, even when it timed
     /// out (no answer to DNS, the SYN or the TLS handshake, as on a Wi-Fi
     /// with no Internet): the service was never reached. One dropped after
-    /// it opened is `ServerError`: a proxy that cuts every large request
-    /// would otherwise pass for an offline Mac, and a meeting would wait for
-    /// the connection for ever.
+    /// it opened is `ConnectionDropped`: a proxy that cuts every large
+    /// request would otherwise pass for an offline Mac, and a meeting would
+    /// wait for the connection for ever.
     pub fn from_transport(error: &reqwest::Error) -> Self {
         if error.is_connect() {
             Self::Network
         } else if error.is_timeout() {
             Self::Timeout
         } else {
-            Self::ServerError
+            Self::ConnectionDropped
         }
     }
 }
@@ -70,7 +75,10 @@ impl FailureKind {
 pub fn retry_delay(kind: FailureKind, attempt: u32) -> Option<Duration> {
     let transient = matches!(
         kind,
-        FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError
+        FailureKind::Network
+            | FailureKind::Timeout
+            | FailureKind::ServerError
+            | FailureKind::ConnectionDropped
     );
     if !transient {
         return None;
@@ -130,6 +138,7 @@ pub(crate) mod tests {
             FailureKind::Network,
             FailureKind::Timeout,
             FailureKind::ServerError,
+            FailureKind::ConnectionDropped,
         ] {
             assert_eq!(retry_delay(kind, 0), Some(Duration::from_millis(500)));
             assert_eq!(retry_delay(kind, 1), Some(Duration::from_millis(1500)));
@@ -214,7 +223,7 @@ pub(crate) mod tests {
         assert!(!error.is_connect() && !error.is_timeout(), "{error}");
         assert_eq!(
             FailureKind::from_transport(&error),
-            FailureKind::ServerError
+            FailureKind::ConnectionDropped
         );
     }
 

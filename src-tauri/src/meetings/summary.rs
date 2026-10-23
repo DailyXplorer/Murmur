@@ -131,7 +131,9 @@ impl SummaryError {
         match kind {
             FailureKind::SessionExpired | FailureKind::SignedOut => Self::SignedOut,
             FailureKind::RateLimited => Self::RateLimited,
-            FailureKind::Network | FailureKind::ServerError => Self::Network,
+            FailureKind::Network | FailureKind::ServerError | FailureKind::ConnectionDropped => {
+                Self::Network
+            }
             FailureKind::Timeout => Self::Timeout,
             FailureKind::TooLarge
             | FailureKind::Rejected
@@ -404,7 +406,10 @@ async fn ask(
                 waited += delay;
                 (waited <= policy.rate_limit_budget).then_some(delay)
             }
-            FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
+            FailureKind::Network
+            | FailureKind::Timeout
+            | FailureKind::ServerError
+            | FailureKind::ConnectionDropped => {
                 transient += 1;
                 policy.transient.get(transient - 1).copied()
             }

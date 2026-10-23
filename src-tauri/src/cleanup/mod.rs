@@ -430,7 +430,7 @@ mod tests {
         ));
         match result {
             Err(CompletionError::Failed { kind, .. }) => {
-                assert_eq!(kind, FailureKind::ServerError)
+                assert_eq!(kind, FailureKind::ConnectionDropped)
             }
             other => panic!("{other:?}"),
         }

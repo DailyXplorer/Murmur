@@ -378,13 +378,17 @@ impl Shared {
                         self.gate.hold(delay);
                         self.runner.observer.rate_limited();
                     }
-                    FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
+                    FailureKind::Network
+                    | FailureKind::Timeout
+                    | FailureKind::ServerError
+                    | FailureKind::ConnectionDropped => {
                         let Some(delay) = policy.transient.get(transient).copied() else {
                             if error.kind == FailureKind::ServerError {
                                 return Attempt::Outcome(Outcome::Failed(error.kind));
                             }
-                            // After a timeout, the other pieces still try
-                            // Codex; a lost connection stops them.
+                            // After a timeout or a dropped connection, the
+                            // other pieces still try Codex; a connection
+                            // that never opened stops them.
                             if unreachable(error.kind) {
                                 self.unreachable_out.store(true, Ordering::SeqCst);
                             }
@@ -1075,6 +1079,57 @@ mod tests {
                     text: "local 16000".into(),
                     codex: FailureKind::Timeout
                 }));
+    }
+
+    /// Codex behind a proxy that cuts every upload once the connection
+    /// opened, classified as the real client does.
+    struct CutUploads(String);
+
+    impl Transcriber for CutUploads {
+        fn transcribe(
+            &self,
+            _: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            let url = self.0.clone();
+            Box::pin(async move {
+                let client = reqwest::Client::builder().no_proxy().build().unwrap();
+                let error = client.post(url).send().await.unwrap_err();
+                Err(TranscriptionError::new(
+                    FailureKind::from_transport(&error),
+                    error.to_string(),
+                ))
+            })
+        }
+    }
+
+    /// Round 51: the pieces go to a ready model, as after a timeout, and
+    /// not into failed parts.
+    #[test]
+    fn pieces_cut_after_the_connection_opened_go_to_a_ready_model() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/transcribe", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                drop(stream);
+            }
+        });
+        let (end, recorder) = run_through(
+            &Arc::new(CutUploads(url)),
+            jobs(2, 1_000),
+            Some(FakeLocal::answering() as Arc<dyn Transcriber>),
+        );
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 2);
+        assert!(
+            finished.iter().all(|(_, outcome)| matches!(
+                outcome,
+                Outcome::DoneLocally { text, .. } if text == "local 16000"
+            )),
+            "{finished:?}"
+        );
     }
 
     #[test]
