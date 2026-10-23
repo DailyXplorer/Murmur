@@ -203,7 +203,16 @@ where
                 fallback.engine.as_str(),
                 fallback.fallback
             );
-            Ok((run(fallback.engine).await?, fallback))
+            match run(fallback.engine).await {
+                Ok(text) => Ok((text, fallback)),
+                // Codex's error says what the user can do: sign in again,
+                // or wait for the limit.
+                Err(local) if source.engine == Engine::Cloud => {
+                    log::warn!("Local transcription failed too: {local:#}");
+                    Err(error)
+                }
+                Err(cloud) => Err(cloud),
+            }
         }
     }
 }
