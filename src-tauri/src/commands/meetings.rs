@@ -7,7 +7,7 @@ use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
 use crate::settings::{
-    get_settings, write_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
+    get_settings, update_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
     ShortcutBinding,
 };
 use crate::user_alert::{self, Alert};
@@ -285,8 +285,11 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
         meetings::init(&app, false);
     }
     // Saved before the shutdown: a meeting still opening its devices sees
-    // meetings off once it has started, and discards itself.
-    write_settings(&app, toggle.settings);
+    // meetings off once it has started, and discards itself. Only this field
+    // belongs to the toggle; its earlier planning snapshot is never persisted.
+    update_settings(&app, |settings| {
+        settings.meetings_enabled = toggle.settings.meetings_enabled;
+    });
     if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
         if enabled {
             manager.resume_processing();
@@ -340,9 +343,7 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
 #[tauri::command]
 #[specta::specta]
 pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.meeting_call_prompt = enabled;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| settings.meeting_call_prompt = enabled);
     meetings::call_watch::sync(&app);
     Ok(())
 }
@@ -354,9 +355,8 @@ pub fn answer_call_prompt(app: AppHandle, accept: bool) {
     meetings::call_watch::answer(&app, accept);
 }
 
-fn with_capture_mode(mut settings: AppSettings, mode: MeetingCaptureMode) -> AppSettings {
+fn with_capture_mode(settings: &mut AppSettings, mode: MeetingCaptureMode) {
     settings.meeting_capture_mode = mode;
-    settings
 }
 
 #[tauri::command]
@@ -365,7 +365,7 @@ pub fn change_meeting_capture_mode_setting(
     app: AppHandle,
     mode: MeetingCaptureMode,
 ) -> Result<(), String> {
-    write_settings(&app, with_capture_mode(get_settings(&app), mode));
+    update_settings(&app, |settings| with_capture_mode(settings, mode));
     Ok(())
 }
 
@@ -376,9 +376,9 @@ pub fn change_meeting_audio_retention_setting(
     app: AppHandle,
     retention: MeetingAudioRetention,
 ) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.meeting_audio_retention = retention;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.meeting_audio_retention = retention
+    });
     Ok(())
 }
 
@@ -521,7 +521,8 @@ mod tests {
     fn capture_mode_changes_only_that_setting() {
         let before = get_default_settings();
         assert_ne!(before.meeting_capture_mode, MeetingCaptureMode::SystemOnly);
-        let after = with_capture_mode(before.clone(), MeetingCaptureMode::SystemOnly);
+        let mut after = before.clone();
+        with_capture_mode(&mut after, MeetingCaptureMode::SystemOnly);
 
         let serde_json::Value::Object(before) = serde_json::to_value(before).unwrap() else {
             panic!("settings serialize as an object");

@@ -1,3 +1,8 @@
+mod transaction;
+
+#[cfg(test)]
+pub(crate) use transaction::Transactions;
+
 use crate::engine::Engine;
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
@@ -5,6 +10,7 @@ use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -806,6 +812,12 @@ fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
 /// Loads persisted settings, repairing invalid fields and obsolete values
 /// before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
+    SETTINGS_TRANSACTIONS.read(|| read_settings(app))
+}
+
+// Only called while SETTINGS_TRANSACTIONS is held. Loading can itself write
+// a repaired value; it must not race with a mutation.
+fn read_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
@@ -984,45 +996,76 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
     })
 }
 
-pub fn write_settings(app: &AppHandle, mut settings: AppSettings) {
+static SETTINGS_TRANSACTIONS: transaction::Transactions = transaction::Transactions::new();
+
+/// Changes only the caller's owned fields on the latest settings. The whole
+/// load/change/commit is serialized, including load-time repairs. Keep `change`
+/// free of settings calls, application locks, events and native side effects.
+pub fn update_settings<T>(app: &AppHandle, change: impl FnOnce(&mut AppSettings) -> T) -> T {
+    let result = SETTINGS_TRANSACTIONS.update(
+        || Ok::<_, Infallible>(read_settings(app)),
+        |settings| Ok(change(settings)),
+        |settings| {
+            store_settings(app, settings);
+            Ok(())
+        },
+    );
+    match result {
+        Ok(value) => value,
+        Err(impossible) => match impossible {},
+    }
+}
+
+fn store_settings(app: &AppHandle, mut settings: AppSettings) {
     normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    let next = serde_json::to_value(&settings).expect("settings serialize to JSON");
+    if store.get("settings").as_ref() != Some(&next) {
+        store.set("settings", next);
+    }
 }
 
-/// Persist settings synchronously and restore the store cache if the write
-/// fails. Callers that need a transactional side effect should use this rather
-/// than the fire-and-forget write helper above.
-pub fn write_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
+/// Changes owned fields and persists synchronously. Mutation errors publish
+/// nothing. Saving and restoring the cache on failure share the same transaction
+/// lock, so rollback cannot erase a concurrent accepted change. The callback has
+/// the same no-side-effects restriction as `update_settings`.
+pub fn update_settings_checked<T>(
+    app: &AppHandle,
+    change: impl FnOnce(&mut AppSettings) -> Result<T, String>,
+) -> Result<T, String> {
+    SETTINGS_TRANSACTIONS.update(
+        || {
+            // Report initialization failure rather than panicking on this path.
+            app.store(SETTINGS_STORE_PATH)
+                .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
+            Ok(read_settings(app))
+        },
+        change,
+        |settings| store_settings_checked(app, settings),
+    )
+}
+
+fn store_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
     normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
     let next = serde_json::to_value(&settings)
         .map_err(|error| format!("Failed to serialize settings: {error}"))?;
-    let previous = store.get("settings");
-
-    store.set("settings", next);
-    if let Err(write_error) = store.save() {
-        match previous {
-            Some(previous) => store.set("settings", previous),
+    transaction::persist_checked(
+        next,
+        || store.get("settings"),
+        |value| match value {
+            Some(value) => store.set("settings", value),
             None => {
                 store.delete("settings");
             }
-        }
-
-        return match store.save() {
-            Ok(()) => Err(format!("Failed to persist settings: {write_error}")),
-            Err(restore_error) => Err(format!(
-                "Failed to persist settings: {write_error}. Failed to restore the previous settings: {restore_error}"
-            )),
-        };
-    }
-
-    Ok(())
+        },
+        || store.save(),
+    )
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
