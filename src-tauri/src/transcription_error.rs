@@ -14,7 +14,7 @@ const RETRY_BACKOFF: [Duration; MAX_RETRIES as usize] =
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureKind {
-    /// The service could not be reached, or the connection dropped mid-request.
+    /// The service could not be reached.
     Network,
     Timeout,
     RateLimited,
@@ -48,16 +48,19 @@ impl FailureKind {
         }
     }
 
-    /// A connection that never opened is `Network` even when it timed out
-    /// (no answer to DNS, the SYN or the TLS handshake, as on a Wi-Fi with no
-    /// Internet): the service was never reached.
+    /// Only a connection that never opened is `Network`, even when it timed
+    /// out (no answer to DNS, the SYN or the TLS handshake, as on a Wi-Fi
+    /// with no Internet): the service was never reached. One dropped after
+    /// it opened is `ServerError`: a proxy that cuts every large request
+    /// would otherwise pass for an offline Mac, and a meeting would wait for
+    /// the connection for ever.
     pub fn from_transport(error: &reqwest::Error) -> Self {
         if error.is_connect() {
             Self::Network
         } else if error.is_timeout() {
             Self::Timeout
         } else {
-            Self::Network
+            Self::ServerError
         }
     }
 }
@@ -195,6 +198,24 @@ pub(crate) mod tests {
         let error = quick_client().get(url).send().await.unwrap_err();
         assert!(!error.is_connect() && error.is_timeout(), "{error}");
         assert_eq!(FailureKind::from_transport(&error), FailureKind::Timeout);
+    }
+
+    /// Codex was reached: a proxy that cuts the request every time must not
+    /// pass for an offline Mac, which waits for the connection for ever.
+    #[tokio::test]
+    async fn a_connection_dropped_after_it_opened_is_no_network_failure() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            drop(socket);
+        });
+        let error = quick_client().get(url).send().await.unwrap_err();
+        assert!(!error.is_connect() && !error.is_timeout(), "{error}");
+        assert_eq!(
+            FailureKind::from_transport(&error),
+            FailureKind::ServerError
+        );
     }
 
     #[test]

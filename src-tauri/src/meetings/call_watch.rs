@@ -179,7 +179,7 @@ pub fn answer(app: &AppHandle, prompt: CallPrompt, accept: bool) {
         CallPrompt::Record => Question::Record,
         CallPrompt::Stop => Question::Stop,
     };
-    let answered = watch().answered(question);
+    let answered = watch().answered(question, accept);
     // Before the meeting starts, so its pill can show.
     overlay::hide_call_prompt(app);
     if answered.is_none() || !accept {
