@@ -2,9 +2,7 @@ use crate::settings::{self, AppSettings, DictationStyle};
 use tauri::AppHandle;
 
 fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
-    let mut value = settings::get_settings(app);
-    change(&mut value);
-    settings::write_settings(app, value);
+    settings::update_settings(app, change);
     Ok(())
 }
 

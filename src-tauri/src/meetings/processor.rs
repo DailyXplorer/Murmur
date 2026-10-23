@@ -1913,6 +1913,67 @@ mod tests {
     }
 
     #[test]
+    fn an_offline_summary_after_rate_limited_local_fallback_stays_in_the_live_queue() {
+        use crate::meetings::{processing_finished, Next, ProcessingQueue};
+        use std::time::SystemTime;
+
+        let local = codex(|_| Ok("Sur ce Mac.".into()));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(id);
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Process(id)
+        );
+        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
+            kind: FailureKind::Network,
+            detail: String::new(),
+        })]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+        assert_eq!(summarizer.calls(), 1);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        let local_calls = local.calls.lock().unwrap().len();
+        assert!(local_calls > 0);
+
+        processing_finished(&queue, &h.store, id, verdict, true);
+        assert_eq!(queue.queued(), [id]);
+        assert!(queue.held_for(id).is_some());
+        let until = queue.state().held_until.unwrap();
+        assert_eq!(queue.state().take_next(until, true), Next::Process(id));
+
+        let cloud_again = codex(|_| panic!("completed chunks must not be sent again"));
+        let recovered = FakeSummarizer::answering(vec![Ok("# Recovered\nNotes.".into())]);
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&cloud_again),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&recovered),
+        );
+        processing_finished(&queue, &h.store, id, verdict, true);
+        assert_eq!(verdict, CodexVerdict::Answered);
+        assert!(queue.queued().is_empty());
+        assert_eq!(recovered.calls(), 1);
+        assert!(cloud_again.calls.lock().unwrap().is_empty());
+        assert_eq!(local.calls.lock().unwrap().len(), local_calls);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(meeting.audio, AudioState::Compressed);
+    }
+
+    #[test]
     fn a_meeting_codex_transcribes_says_codex_answered() {
         let h = harness();
         let id = spoken_meeting(&h);

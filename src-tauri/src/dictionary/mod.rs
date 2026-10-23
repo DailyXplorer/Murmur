@@ -11,7 +11,7 @@ pub use observer::{stop_observing, watch_pasted_text};
 
 use crate::audio_toolkit::apply_custom_words_counted;
 use crate::insights::InsightsManager;
-use crate::settings::{self, MAX_CUSTOM_WORDS};
+use crate::settings::{self, AppSettings, MAX_CUSTOM_WORDS};
 use learn::Correction;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -62,7 +62,25 @@ pub fn correct(
 /// Adds learned words to the dictionary, tells the settings UI, and counts
 /// each new word once in Insights as a word the user corrected.
 fn remember(app: &AppHandle, corrections: Vec<Correction>) {
-    let mut value = settings::get_settings(app);
+    let added = settings::update_settings(app, |value| remember_corrections(value, corrections));
+    if added == 0 {
+        return;
+    }
+    info!("Learned {added} dictionary word(s) from a correction");
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({"setting": "custom_words"}),
+    );
+    let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
+        return;
+    };
+    if let Err(e) = insights.record_correction(added) {
+        error!("Failed to record corrected words in insights: {e}");
+    }
+}
+
+// A pure field-owned mutation, shared by the watcher and regression tests.
+fn remember_corrections(value: &mut AppSettings, corrections: Vec<Correction>) -> u32 {
     let mut added = 0;
     for correction in corrections {
         if value.custom_words.contains(&correction.word) {
@@ -78,26 +96,121 @@ fn remember(app: &AppHandle, corrections: Vec<Correction>) {
         });
         added += 1;
     }
-    if added == 0 {
-        return;
-    }
-    settings::write_settings(app, value);
-    info!("Learned {added} dictionary word(s) from a correction");
-    let _ = app.emit(
-        "settings-changed",
-        serde_json::json!({"setting": "custom_words"}),
-    );
-    let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
-        return;
-    };
-    if let Err(e) = insights.record_correction(added) {
-        error!("Failed to record corrected words in insights: {e}");
-    }
+    added
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn correction(word: &str) -> Correction {
+        Correction {
+            word: word.to_string(),
+            heard_as: "misheard".to_string(),
+        }
+    }
+
+    #[test]
+    fn learning_preserves_other_preferences_and_only_counts_new_words() {
+        let mut value = settings::get_default_settings();
+        value.window_names_enabled = false;
+        value.custom_words.push("Existing".to_string());
+        let mut expected = serde_json::to_value(&value).unwrap();
+        assert_eq!(
+            remember_corrections(
+                &mut value,
+                vec![correction("Existing"), correction("Murmur")]
+            ),
+            1
+        );
+        expected["custom_words"] = serde_json::json!(["Existing", "Murmur"]);
+        expected["learned_words"] = serde_json::json!([{"word": "Murmur", "heard_as": "misheard"}]);
+        assert_eq!(serde_json::to_value(&value).unwrap(), expected);
+        assert_eq!(
+            remember_corrections(&mut value, vec![correction("Murmur")]),
+            0
+        );
+    }
+
+    #[test]
+    fn learning_checks_the_current_dictionary_capacity() {
+        let mut value = settings::get_default_settings();
+        value.custom_words = (0..MAX_CUSTOM_WORDS - 1)
+            .map(|i| format!("Word{i}"))
+            .collect();
+        assert_eq!(
+            remember_corrections(&mut value, vec![correction("First"), correction("Second")]),
+            1
+        );
+        assert_eq!(value.custom_words.len(), MAX_CUSTOM_WORDS);
+        assert_eq!(value.learned_words, vec![learned("First", "misheard")]);
+        assert_eq!(
+            remember_corrections(&mut value, vec![correction("Second")]),
+            0
+        );
+    }
+
+    #[test]
+    fn concurrent_learning_and_context_change_preserve_both_settings() {
+        use std::sync::{mpsc, Mutex};
+        use std::thread;
+        use std::time::Duration;
+
+        let transactions = Arc::new(settings::Transactions::new());
+        let store = Arc::new(Mutex::new(settings::get_default_settings()));
+        let (loaded_tx, loaded_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        let learner = {
+            let transactions = Arc::clone(&transactions);
+            let store = Arc::clone(&store);
+            thread::spawn(move || {
+                transactions.update(
+                    || {
+                        assert!(transactions.is_locked());
+                        Ok::<_, ()>(store.lock().unwrap().clone())
+                    },
+                    |value| {
+                        loaded_tx.send(()).unwrap();
+                        resume_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                        Ok(remember_corrections(value, vec![correction("Murmur")]))
+                    },
+                    |value| {
+                        *store.lock().unwrap() = value;
+                        Ok(())
+                    },
+                )
+            })
+        };
+        loaded_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(
+            transactions.is_locked(),
+            "the load and dictionary change must share the commit lock"
+        );
+        let toggle = {
+            let transactions = Arc::clone(&transactions);
+            let store = Arc::clone(&store);
+            thread::spawn(move || {
+                transactions.update(
+                    || Ok::<_, ()>(store.lock().unwrap().clone()),
+                    |value| {
+                        value.window_names_enabled = false;
+                        Ok(())
+                    },
+                    |value| {
+                        *store.lock().unwrap() = value;
+                        Ok(())
+                    },
+                )
+            })
+        };
+        resume_tx.send(()).unwrap();
+        assert_eq!(learner.join().unwrap(), Ok(1));
+        toggle.join().unwrap().unwrap();
+        let value = store.lock().unwrap();
+        assert!(!value.window_names_enabled);
+        assert_eq!(value.custom_words, ["Murmur"]);
+        assert_eq!(value.learned_words, [learned("Murmur", "misheard")]);
+    }
 
     fn learned(word: &str, heard_as: &str) -> LearnedWord {
         LearnedWord {

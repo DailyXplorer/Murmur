@@ -91,18 +91,21 @@ trait CancelShortcutPersistence {
 
 struct TauriCancelShortcutPersistence<'a> {
     app: &'a AppHandle,
-    previous_settings: &'a AppSettings,
-    updated_settings: &'a AppSettings,
+    previous_binding: &'a ShortcutBinding,
+    updated_binding: &'a ShortcutBinding,
     current_state: Cell<CancelShortcutSettingsState>,
 }
 
 impl CancelShortcutPersistence for TauriCancelShortcutPersistence<'_> {
     fn persist(&self, state: CancelShortcutSettingsState) -> Result<(), String> {
-        let settings = match state {
-            CancelShortcutSettingsState::Previous => self.previous_settings,
-            CancelShortcutSettingsState::Updated => self.updated_settings,
+        let binding = match state {
+            CancelShortcutSettingsState::Previous => self.previous_binding,
+            CancelShortcutSettingsState::Updated => self.updated_binding,
         };
-        settings::write_settings_checked(self.app, settings.clone())?;
+        settings::update_settings_checked(self.app, |settings| {
+            replace_cancel_binding(settings, binding);
+            Ok(())
+        })?;
         self.current_state.set(state);
         Ok(())
     }
@@ -110,6 +113,14 @@ impl CancelShortcutPersistence for TauriCancelShortcutPersistence<'_> {
     fn current_state(&self) -> CancelShortcutSettingsState {
         self.current_state.get()
     }
+}
+
+/// Cancel persistence, including rollback, owns only its one binding. Other
+/// preferences may have changed while macOS was registering the shortcut.
+fn replace_cancel_binding(settings: &mut AppSettings, binding: &ShortcutBinding) {
+    settings
+        .bindings
+        .insert("cancel".to_string(), binding.clone());
 }
 
 fn apply_cancel_shortcut_lifecycle_operation<R: CancelShortcutRegistry>(
@@ -371,8 +382,7 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    let previous_settings: AppSettings = get_settings(app);
-    let previous = previous_settings
+    let previous = get_settings(app)
         .bindings
         .get("cancel")
         .cloned()
@@ -386,16 +396,11 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
     let mut updated = previous.clone();
     updated.current_binding = binding;
 
-    let mut updated_settings = previous_settings.clone();
-    updated_settings
-        .bindings
-        .insert("cancel".to_string(), updated.clone());
-
     let registry = TauriCancelShortcutRegistry { app };
     let persistence = TauriCancelShortcutPersistence {
         app,
-        previous_settings: &previous_settings,
-        updated_settings: &updated_settings,
+        previous_binding: &previous,
+        updated_binding: &updated,
         current_state: Cell::new(CancelShortcutSettingsState::Previous),
     };
     let mut tracked_bindings = CANCEL_SHORTCUT_BINDINGS
@@ -405,7 +410,7 @@ pub fn change_cancel_binding(app: &AppHandle, binding: String) -> Result<Shortcu
         &registry,
         &persistence,
         &mut tracked_bindings,
-        previous,
+        previous.clone(),
         updated.clone(),
     )?;
 
@@ -625,13 +630,36 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
 mod tests {
     use super::{
         apply_cancel_shortcut_lifecycle_operation, conflicting_binding, parse_shortcut,
-        register_tracked_cancel_binding, replace_active_cancel_shortcut,
+        register_tracked_cancel_binding, replace_active_cancel_shortcut, replace_cancel_binding,
         CancelShortcutLifecycleOperation, CancelShortcutPersistence, CancelShortcutRegistry,
         CancelShortcutSettingsState,
     };
     use crate::settings::ShortcutBinding;
     use std::cell::RefCell;
     use std::collections::{BTreeSet, VecDeque};
+
+    #[test]
+    fn cancel_binding_rollback_preserves_intervening_settings_and_other_bindings() {
+        let mut settings = crate::settings::get_default_settings();
+        let previous = settings.bindings["cancel"].clone();
+        let mut updated = previous.clone();
+        updated.current_binding = "ctrl+escape".to_string();
+        replace_cancel_binding(&mut settings, &updated);
+
+        // These changes may happen while the native rebind is in progress.
+        settings.window_names_enabled = false;
+        settings.custom_words.push("Murmur".to_string());
+        settings
+            .bindings
+            .get_mut("transcribe")
+            .unwrap()
+            .current_binding = "ctrl+space".to_string();
+        let mut expected = serde_json::to_value(&settings).unwrap();
+        expected["bindings"]["cancel"] = serde_json::to_value(&previous).unwrap();
+
+        replace_cancel_binding(&mut settings, &previous);
+        assert_eq!(serde_json::to_value(&settings).unwrap(), expected);
+    }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     enum RegistryOperation {

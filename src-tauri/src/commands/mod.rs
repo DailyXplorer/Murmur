@@ -6,7 +6,7 @@ pub mod local_models;
 pub mod meetings;
 pub mod transcription;
 
-use crate::settings::{get_settings, write_settings, AppSettings, LogLevel};
+use crate::settings::{get_settings, update_settings, AppSettings, LogLevel};
 use crate::utils::cancel_current_operation_before_coordinator;
 use crate::TranscriptionCoordinator;
 use std::process::Command;
@@ -124,9 +124,9 @@ pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
         std::sync::atomic::Ordering::Relaxed,
     );
 
-    let mut settings = get_settings(&app);
-    settings.log_level = level;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.log_level = level;
+    });
 
     Ok(())
 }

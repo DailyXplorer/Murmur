@@ -442,6 +442,37 @@ impl ProcessEvents for AppEvents {
     }
 }
 
+/// Ends a run, retaining unfinished work separately from the verdict that
+/// holds the queue. A transcript and its summary may end for different reasons.
+fn processing_finished(
+    worker: &ProcessingQueue,
+    store: &MeetingsStore,
+    id: i64,
+    codex: CodexVerdict,
+    local_tried: bool,
+) {
+    worker.end();
+    // While held, the meetings still queued wait as they are,
+    // unfailed.
+    match (codex, worker.codex_said(codex)) {
+        (CodexVerdict::Unreachable, Some(wait)) => {
+            info!("Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}");
+            // It goes on with the others once the connection is back.
+            worker.requeue(id, local_tried || codex_only(store, id));
+        }
+        (_, Some(wait)) => {
+            info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+            // A chunk's rate limit can outweigh a later unreachable summary.
+            // Keep that Pending summary behind the cap, without automatically
+            // retrying a Failed summary. Only Codex can finish it.
+            if codex_only(store, id) {
+                worker.requeue(id, true);
+            }
+        }
+        (_, None) => {}
+    }
+}
+
 /// Runs the queue for the life of the app.
 fn spawn_processing(
     app: &AppHandle,
@@ -515,22 +546,7 @@ fn spawn_processing(
                     CodexVerdict::Unknown
                 }
             };
-            worker.end();
-            // While held, the meetings still queued wait as they are,
-            // unfailed.
-            match (codex, worker.codex_said(codex)) {
-                (CodexVerdict::Unreachable, Some(wait)) => {
-                    info!(
-                        "Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}"
-                    );
-                    // It goes on with the others once the connection is back.
-                    worker.requeue(id, local_tried || codex_only(&store, id));
-                }
-                (_, Some(wait)) => {
-                    info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
-                }
-                (_, None) => {}
-            }
+            processing_finished(&worker, &store, id, codex, local_tried);
             // A hold that starts or lifts changes what their views say.
             if codex != CodexVerdict::Unknown {
                 let events = AppEvents(app.clone());
@@ -1798,6 +1814,179 @@ mod tests {
             queue.offline_for(transcribed),
             "only Codex can summarise it"
         );
+    }
+
+    /// A complete transcript whose summary has not been written yet.
+    fn pending_summary(store: &MeetingsStore) -> i64 {
+        let id = store
+            .insert_recording(0, store::MeetingTracks::Mic)
+            .unwrap();
+        store.finish_recording(id, 60_000, 60_000).unwrap();
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        id
+    }
+
+    #[test]
+    fn a_pending_summary_survives_a_rate_limit_hold_and_recovers() {
+        // Model availability can change before the summary is retried. It
+        // cannot write a summary, whether or not it transcribed this run.
+        for local_ready in [false, true] {
+            for local_tried in [false, true] {
+                let dir = tempfile::tempdir().unwrap();
+                let (store, _) =
+                    MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+                let id = pending_summary(&store);
+                let other = pending_summary(&store);
+                let mut queue = ProcessingQueue::new(false);
+                queue.local_ready = Box::new(move || local_ready);
+                queue.enqueue_asked(id);
+                queue.enqueue(other);
+                let now = SystemTime::now();
+                assert_eq!(queue.state().take_next(now, local_ready), Next::Process(id));
+                assert!(queue.begin(id, &operation(1)));
+
+                // Cloud chunks hit the cap, the local model filled them,
+                // then the summary could not reach Codex. The cap still wins.
+                let verdict = CodexVerdict::RateLimited.max(CodexVerdict::Unreachable);
+                processing_finished(&queue, &store, id, verdict, local_tried);
+                assert_eq!(queue.queued(), [other, id]);
+                assert_eq!(queue.busy(), HashSet::from([other, id]));
+                assert_eq!(held_minutes(&queue), Some(30));
+                assert!(queue.held_for(id).is_some());
+                assert!(queue.held_for(other).is_some());
+                let queued = queue.state();
+                let summary = queued.queued.iter().find(|queued| queued.id == id).unwrap();
+                assert!(summary.codex_only);
+                assert!(!summary.asked, "the user's first request is not repeated");
+                drop(queued);
+
+                // Connectivity alone must not lift the cap, nor may the
+                // local model immediately take this cloud-only job again.
+                queue.state().offline.checked(true, now);
+                let until = queue.state().held_until.unwrap();
+                for _ in 0..3 {
+                    assert_eq!(
+                        queue.state().take_next(now, local_ready),
+                        Next::Wait(Some(until))
+                    );
+                }
+                assert_eq!(
+                    queue.state().take_next(until, local_ready),
+                    Next::Process(other)
+                );
+                assert_eq!(
+                    queue.state().take_next(until, local_ready),
+                    Next::Process(id)
+                );
+                assert!(store.save_summary(id, None, "Recovered notes.").unwrap());
+                processing_finished(&queue, &store, id, CodexVerdict::Answered, local_tried);
+                assert!(queue.queued().is_empty());
+                assert_eq!(
+                    queue.state().take_next(until, local_ready),
+                    Next::Wait(None)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_retained_summary_still_offline_after_the_cap_waits_for_the_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let id = pending_summary(&store);
+        let mut queue = ProcessingQueue::new(false);
+        queue.local_ready = Box::new(|| true);
+        processing_finished(&queue, &store, id, CodexVerdict::RateLimited, true);
+        let until = queue.state().held_until.unwrap();
+        assert_eq!(queue.state().take_next(until, true), Next::Process(id));
+
+        // The next run has no local model, and fails to reach Codex again.
+        processing_finished(&queue, &store, id, CodexVerdict::Unreachable, false);
+        assert_eq!(queue.queued(), [id]);
+        assert!(queue.offline_for(id));
+        assert!(queue.state().queued[0].codex_only);
+        let next_check = queue.state().offline.retry_at().unwrap();
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Wait(Some(next_check))
+        );
+
+        // New transcripts can still use the now-ready model; this summary
+        // cannot. A failed check leaves it queued rather than running it.
+        let other = store
+            .insert_recording(0, store::MeetingTracks::Mic)
+            .unwrap();
+        store.finish_recording(other, 60_000, 60_000).unwrap();
+        queue.enqueue(other);
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Process(other)
+        );
+        queue.state().offline.checked(false, SystemTime::now());
+        assert!(queue.offline_for(id));
+        assert_eq!(queue.queued(), [id]);
+        queue.state().offline.checked(true, SystemTime::now());
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Process(id)
+        );
+    }
+
+    #[test]
+    fn a_rate_limit_does_not_requeue_a_settled_summary_or_failed_transcript() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let failed = pending_summary(&store);
+        store
+            .summary_failed(failed, summary::SummaryError::RateLimited)
+            .unwrap();
+        let ready = pending_summary(&store);
+        store.save_summary(ready, None, "Notes.").unwrap();
+        let untranscribed = store
+            .insert_recording(0, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(untranscribed, 60_000, 60_000)
+            .unwrap();
+        store.begin_processing(untranscribed).unwrap();
+        store
+            .finish_processing(untranscribed, Some(ProcessingError::RateLimited))
+            .unwrap();
+
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(99);
+        for id in [failed, ready, untranscribed] {
+            processing_finished(&queue, &store, id, CodexVerdict::RateLimited, true);
+            assert_eq!(
+                queue.queued(),
+                [99],
+                "{id} must not be retried automatically"
+            );
+        }
+        assert_eq!(
+            held_minutes(&queue),
+            Some(120),
+            "the cap backoff is preserved"
+        );
+    }
+
+    #[test]
+    fn pending_work_without_a_holding_verdict_does_not_hot_loop() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let id = pending_summary(&store);
+        let queue = ProcessingQueue::new(false);
+        // A cancelled or superseded summary may stay Pending without a
+        // connection/cap failure. It must not be retried in a tight loop.
+        for verdict in [CodexVerdict::Unknown, CodexVerdict::Answered] {
+            processing_finished(&queue, &store, id, verdict, true);
+            assert!(queue.queued().is_empty());
+            assert_eq!(
+                queue.state().take_next(SystemTime::now(), true),
+                Next::Wait(None)
+            );
+        }
     }
 
     #[test]
