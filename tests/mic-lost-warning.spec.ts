@@ -159,6 +159,37 @@ test("a copy pill without the warning looks as before", async ({ page }) => {
   await expect(page.getByText(WARNING)).toHaveCount(0);
 });
 
+test("a copy pill without the warning keeps the width its note wraps at", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await page.addStyleTag({ content: WIDE_FONT });
+  await page.evaluate(() => document.fonts.ready);
+  // No shipped note wraps today; a longer translation would.
+  await dispatch(page, "show-overlay-copy", {
+    ...WARNED_COPY,
+    note: `${WARNED_COPY.note} ${WARNED_COPY.note}`,
+    warning: null,
+  });
+  const note = page
+    .getByRole("button", { name: "Copy", exact: true })
+    .locator(".ov-copy-note");
+  await expect(note).toBeVisible();
+  await entranceFinished(page);
+  const { lines, width, laidOut } = await note.evaluate((text: HTMLElement) => {
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const tops = [...range.getClientRects()].map((r) => Math.round(r.top));
+    const width = text.offsetWidth;
+    // The width the browser gives the note by itself, as before the warning
+    // existed.
+    text.style.width = "";
+    return { lines: new Set(tops).size, width, laidOut: text.offsetWidth };
+  });
+  expect(lines, "the note wraps").toBe(2);
+  expect(width, "the note is not narrowed").toBe(laidOut);
+});
+
 test("the warning pill hides on Escape or its timer and gives way to a new recording", async ({
   page,
 }) => {

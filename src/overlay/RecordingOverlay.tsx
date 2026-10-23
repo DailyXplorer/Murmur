@@ -253,7 +253,10 @@ const RecordingOverlay: React.FC = () => {
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
-    hugWrappedLines(body);
+    // The copy pill without the warning keeps the width it had before.
+    if (fittedView.kind === "warning" || fittedView.labels.warning) {
+      hugWrappedLines(body);
+    }
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands

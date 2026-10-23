@@ -982,9 +982,6 @@ impl AudioRecordingManager {
                         error!("Recorder not available");
                         Capture::default()
                     };
-                if mic_lost {
-                    warn!("The microphone went away during the recording");
-                }
 
                 *self.is_recording.lock().unwrap() = false;
                 self.set_state(&mut self.state.lock().unwrap(), RecordingState::Idle);
