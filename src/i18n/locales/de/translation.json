@@ -43,8 +43,8 @@
     "meetingSystemAudioUnavailable": "Systemton ist nicht verfügbar, daher nimmt das Meeting nur dein Mikrofon auf.",
     "meetingMicrophoneUnavailable": "Das Mikrofon ist nicht verfügbar, daher nimmt das Meeting nur den Systemton auf.",
     "meetingStartFailed": "Das Meeting konnte nicht starten. Prüfe das Mikrofon und die Audioberechtigungen.",
-    "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 12 Stunden).",
-    "meetingStoppedAtLimit": "Das Meeting hat das Limit von 12 Stunden erreicht und wurde gespeichert.",
+    "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 3 Stunden).",
+    "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
     "meetingStoppedLowDisk": "Das Meeting wurde beendet, weil auf diesem Mac kaum noch Speicherplatz frei ist. Die bisherige Aufnahme bleibt erhalten.",
     "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten.",
     "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
@@ -683,8 +683,6 @@
     "view": {
       "back": "Alle Meetings",
       "titleLabel": "Meeting-Titel",
-      "part": "Teil {{part}}",
-      "seePart": "Teil {{part}} ansehen",
       "loadError": "Dieses Meeting konnte nicht geladen werden.",
       "renameError": "Das Meeting konnte nicht umbenannt werden.",
       "tabs": {
@@ -776,7 +774,7 @@
       "title": "Aufnahme",
       "idle": "Kein laufendes Meeting",
       "active": "Aufnahme · {{time}}",
-      "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Ein langes Meeting geht alle 3 Stunden in einem neuen Teil weiter und endet nach 12 Stunden von selbst."
+      "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Nach 3 Stunden endet es von selbst."
     },
     "start": "Meeting starten",
     "stop": "Beenden",
@@ -790,7 +788,6 @@
     "discardDialog": {
       "title": "Dieses Meeting verwerfen?",
       "description": "Die bisherige Aufnahme wird gelöscht und kann nicht wiederhergestellt werden.",
-      "descriptionParts": "Die gesamte bisherige Aufnahme wird samt ihrer früheren Teile gelöscht und kann nicht wiederhergestellt werden.",
       "keep": "Weiter aufnehmen"
     },
     "deleteDialog": {
@@ -818,7 +815,6 @@
       "title": "Aufnahmen",
       "empty": "Noch keine Meetings.",
       "untitled": "Meeting · {{date}}",
-      "part": "{{title}} (Teil {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mehr anzeigen"
     },

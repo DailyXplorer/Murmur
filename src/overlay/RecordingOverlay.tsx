@@ -11,7 +11,7 @@ import React, {
 } from "react";
 import "./RecordingOverlay.css";
 import { type CallPrompt, commands } from "@/bindings";
-import { formatDuration } from "@/lib/meetings/format";
+import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
 import {
   approach,
   BAR_COUNT,
@@ -32,7 +32,7 @@ type View =
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "call"; labels: CallLabels }
-  | { kind: "meeting"; startedAtMs: number };
+  | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 /** Payload of `show-overlay-call`, from `overlay::CallPromptLabels`. */
 interface CallLabels {
@@ -46,8 +46,8 @@ interface CallLabels {
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
-  /** When the first part started: the pill counts on across parts. */
   started_at_ms: number;
+  stops_at_ms: number;
 }
 
 /** Payload of `show-overlay-copy`, from `overlay::CopyNoticeLabels`. */
@@ -57,18 +57,25 @@ interface CopyLabels {
   note: string;
 }
 
-/** Ticks once a second while a meeting records, through all its parts. */
-const MeetingPillView: React.FC<{ startedAtMs: number }> = ({
+/** Ticks once a second while a meeting records. */
+const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
   startedAtMs,
+  stopsAtMs,
 }) => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+  const warning = now >= stopsAtMs - CAP_WARNING_MS;
+  // Woken past the cap, the meeting stops within a tick: never read past it.
+  const elapsed = Math.min(now, stopsAtMs) - startedAtMs;
   return (
-    <div className="ov-capsule ov-meeting" role="timer">
-      <span>{formatDuration(now - startedAtMs)}</span>
+    <div
+      className={`ov-capsule ov-meeting${warning ? " warning" : ""}`}
+      role="timer"
+    >
+      <span>{formatDuration(elapsed)}</span>
     </div>
   );
 };
@@ -144,6 +151,7 @@ const RecordingOverlay: React.FC = () => {
       setView({
         kind: "meeting",
         startedAtMs: event.payload.started_at_ms,
+        stopsAtMs: event.payload.stops_at_ms,
       });
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
@@ -272,7 +280,10 @@ const RecordingOverlay: React.FC = () => {
   if (view.kind === "meeting") {
     return (
       <div className={`ov-stage ${position}`}>
-        <MeetingPillView startedAtMs={view.startedAtMs} />
+        <MeetingPillView
+          startedAtMs={view.startedAtMs}
+          stopsAtMs={view.stopsAtMs}
+        />
       </div>
     );
   }

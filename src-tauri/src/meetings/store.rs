@@ -110,9 +110,8 @@ fn migrations() -> Migrations<'static> {
         M::up("ALTER TABLE meetings ADD COLUMN compress_failures INTEGER NOT NULL DEFAULT 0;"),
         // Time the Mac slept while the meeting recorded, which holds no audio.
         M::up("ALTER TABLE meetings ADD COLUMN slept_ms INTEGER NOT NULL DEFAULT 0;"),
-        // A meeting past 3 hours goes on in a new row: the part before it,
-        // and which part it is. No foreign key: a deleted part leaves the
-        // next one as it is, and ids are never given again.
+        // Unused: an unreleased build split a long meeting into linked rows.
+        // Migrations only append, so the columns stay.
         M::up(
             "ALTER TABLE meetings ADD COLUMN previous_id INTEGER;
     ALTER TABLE meetings ADD COLUMN part INTEGER NOT NULL DEFAULT 1;",
@@ -454,12 +453,6 @@ pub struct MeetingDetail {
     pub summary_status: SummaryStatus,
     pub summary_error: Option<SummaryError>,
     pub audio: AudioState,
-    /// 1, or which part of a meeting that went on past 3 hours this is.
-    pub part: i64,
-    /// The part before this one, while it exists.
-    pub previous_id: Option<i64>,
-    /// The part after this one, once it is recorded.
-    pub next_id: Option<i64>,
     /// The size of `audio.m4a`, once compressed.
     pub audio_bytes: i64,
     /// System audio was recorded as pure silence while the user spoke, which
@@ -485,8 +478,6 @@ pub struct MeetingListItem {
     pub duration_ms: i64,
     pub status: MeetingStatus,
     pub tracks: MeetingTracks,
-    /// 1, or which part of a meeting that went on past 3 hours this is.
-    pub part: i64,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Type)]
@@ -529,26 +520,6 @@ impl MeetingsStore {
     }
 
     pub fn insert_recording(&self, started_at_ms: i64, tracks: MeetingTracks) -> Result<i64> {
-        self.insert(started_at_ms, tracks, None)
-    }
-
-    /// The next part of meeting `previous`, which goes on recording past
-    /// 3 hours.
-    pub fn insert_part(
-        &self,
-        started_at_ms: i64,
-        tracks: MeetingTracks,
-        previous: i64,
-    ) -> Result<i64> {
-        self.insert(started_at_ms, tracks, Some(previous))
-    }
-
-    fn insert(
-        &self,
-        started_at_ms: i64,
-        tracks: MeetingTracks,
-        previous: Option<i64>,
-    ) -> Result<i64> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         tx.execute(
@@ -557,10 +528,9 @@ impl MeetingsStore {
             [],
         )?;
         tx.execute(
-            "INSERT INTO meetings (id, started_at_ms, capture_mode, status, previous_id, part)
-             VALUES ((SELECT id FROM meeting_last_id), ?1, ?2, 'recording', ?3,
-                     COALESCE((SELECT part + 1 FROM meetings WHERE id = ?3), 1))",
-            params![started_at_ms, tracks.as_db(), previous],
+            "INSERT INTO meetings (id, started_at_ms, capture_mode, status)
+             VALUES ((SELECT id FROM meeting_last_id), ?1, ?2, 'recording')",
+            params![started_at_ms, tracks.as_db()],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;
@@ -609,7 +579,7 @@ impl MeetingsStore {
     pub fn list(&self, cursor: Option<i64>, limit: usize) -> Result<MeetingsPage> {
         let conn = self.connection()?;
         let mut statement = conn.prepare(
-            "SELECT id, title, started_at_ms, duration_ms, status, capture_mode, part
+            "SELECT id, title, started_at_ms, duration_ms, status, capture_mode
              FROM meetings WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
         )?;
         let mut meetings = statement
@@ -623,12 +593,11 @@ impl MeetingsStore {
                         row.get::<_, i64>(3)?,
                         row.get::<_, String>(4)?,
                         row.get::<_, String>(5)?,
-                        row.get::<_, i64>(6)?,
                     ))
                 },
             )?
             .filter_map(|row| match row {
-                Ok((id, title, started_at_ms, duration_ms, status, tracks, part)) => {
+                Ok((id, title, started_at_ms, duration_ms, status, tracks)) => {
                     match (
                         MeetingStatus::from_db(&status),
                         MeetingTracks::from_db(&tracks),
@@ -640,7 +609,6 @@ impl MeetingsStore {
                             duration_ms,
                             status,
                             tracks,
-                            part,
                         })),
                         _ => None,
                     }
@@ -774,10 +742,7 @@ impl MeetingsStore {
             .query_row(
                 "SELECT title, started_at_ms, duration_ms, status, capture_mode, stage, error_kind,
                         speaker_analysis, summary_md, summary_status, summary_error,
-                        audio_file, audio_bytes, audio_deleted, system_audio_silent, part,
-                        (SELECT p.id FROM meetings p WHERE p.id = meetings.previous_id),
-                        (SELECT n.id FROM meetings n
-                         WHERE n.previous_id = meetings.id AND n.status != 'recording')
+                        audio_file, audio_bytes, audio_deleted, system_audio_silent
                  FROM meetings WHERE id = ?1",
                 params![id],
                 |row| {
@@ -801,11 +766,6 @@ impl MeetingsStore {
                             row.get::<_, bool>(13)?,
                             row.get::<_, bool>(14)?,
                         ),
-                        (
-                            row.get::<_, i64>(15)?,
-                            row.get::<_, Option<i64>>(16)?,
-                            row.get::<_, Option<i64>>(17)?,
-                        ),
                     ))
                 },
             )
@@ -821,7 +781,6 @@ impl MeetingsStore {
                 audio_deleted,
                 system_audio_silent,
             ),
-            (part, previous_id, next_id),
         )) = row
         else {
             return Ok(None);
@@ -882,9 +841,6 @@ impl MeetingsStore {
                 (false, Some(_)) => AudioState::Compressed,
                 (false, None) => AudioState::Tracks,
             },
-            part,
-            previous_id,
-            next_id,
             audio_bytes,
             system_audio_silent,
             held_until_ms: None,
@@ -948,28 +904,14 @@ impl MeetingsStore {
     /// Saves the summary, and the title it gives the meeting unless the
     /// user named it. Returns false when the meeting no longer waits for
     /// it: transcribed again or re-analysed meanwhile, its summary is of a
-    /// transcript that is gone. The later parts the user did not name take
-    /// the same title: offline, a later part can be summarised first.
+    /// transcript that is gone.
     pub fn save_summary(&self, id: i64, title: Option<&str>, body: &str) -> Result<bool> {
-        let connection = self.connection()?;
-        let updated = connection.execute(
+        let updated = self.connection()?.execute(
             "UPDATE meetings SET summary_md = ?3, summary_status = 'ready', summary_error = NULL,
                  title = CASE WHEN title_edited = 0 AND ?2 IS NOT NULL THEN ?2 ELSE title END
              WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
             params![id, title, body],
         )?;
-        if updated > 0 {
-            connection.execute(
-                "WITH RECURSIVE later(id) AS (
-                     SELECT id FROM meetings WHERE previous_id = ?1
-                     UNION SELECT meetings.id FROM meetings JOIN later
-                         ON meetings.previous_id = later.id)
-                 UPDATE meetings SET title = (SELECT title FROM meetings WHERE id = ?1)
-                 WHERE id IN later AND title_edited = 0
-                     AND (SELECT title FROM meetings WHERE id = ?1) IS NOT NULL",
-                params![id],
-            )?;
-        }
         Ok(updated > 0)
     }
 
@@ -1444,7 +1386,6 @@ mod tests {
                     duration_ms: 0,
                     status: MeetingStatus::Recording,
                     tracks: MeetingTracks::Mic,
-                    part: 1,
                 },
                 MeetingListItem {
                     id: first,
@@ -1453,7 +1394,6 @@ mod tests {
                     duration_ms: 3_000,
                     status: MeetingStatus::Processing,
                     tracks: MeetingTracks::Both,
-                    part: 1,
                 },
             ]
         );
@@ -1966,40 +1906,6 @@ mod tests {
     }
 
     #[test]
-    fn a_part_summarised_after_the_later_ones_gives_them_its_title() {
-        let (_dir, store) = store();
-        let first = store.insert_recording(1_000, MeetingTracks::Both).unwrap();
-        let second = store
-            .insert_part(5_000, MeetingTracks::Both, first)
-            .unwrap();
-        store.finish_recording(first, 5_000, 4_000).unwrap();
-        store.finish_recording(second, 9_000, 4_000).unwrap();
-        let third = store
-            .insert_part(9_000, MeetingTracks::Both, second)
-            .unwrap();
-        store.finish_recording(third, 13_000, 4_000).unwrap();
-        let renamed = store
-            .insert_part(13_000, MeetingTracks::Both, third)
-            .unwrap();
-        store.finish_recording(renamed, 17_000, 4_000).unwrap();
-        for id in [first, second, third, renamed] {
-            store.begin_processing(id).unwrap();
-            store.finish_processing(id, None).unwrap();
-        }
-        store.rename(renamed, Some("My title")).unwrap();
-
-        // Part 2 went first, without part 1's title to follow.
-        assert!(store.save_summary(second, Some("Later"), "B.").unwrap());
-        assert!(store.save_summary(third, Some("Later"), "C.").unwrap());
-        assert!(store.save_summary(first, Some("Budget"), "A.").unwrap());
-        let title = |id| store.get(id).unwrap().unwrap().title;
-        for id in [first, second, third] {
-            assert_eq!(title(id).as_deref(), Some("Budget"), "meeting {id}");
-        }
-        assert_eq!(title(renamed).as_deref(), Some("My title"));
-    }
-
-    #[test]
     fn a_failed_summary_waits_for_retry_and_then_for_processing() {
         let (_dir, store) = store();
         let id = ready(&store);
@@ -2108,60 +2014,29 @@ mod tests {
     }
 
     #[test]
-    fn the_parts_of_a_long_meeting_are_linked_both_ways_once_recorded() {
+    fn a_row_marked_as_a_later_part_reads_as_a_meeting_of_its_own() {
         let (_dir, store) = store();
-        let first = store.insert_recording(1_000, MeetingTracks::Both).unwrap();
-        let second = store
-            .insert_part(5_000, MeetingTracks::Both, first)
-            .unwrap();
-        store.finish_recording(first, 5_000, 4_000).unwrap();
-
-        let meeting = store.get(first).unwrap().unwrap();
-        assert_eq!((meeting.part, meeting.previous_id), (1, None));
-        assert_eq!(meeting.next_id, None, "the next part still records");
-        let meeting = store.get(second).unwrap().unwrap();
-        assert_eq!(
-            (meeting.part, meeting.previous_id, meeting.next_id),
-            (2, Some(first), None)
-        );
-        let parts: Vec<_> = store
-            .list(None, 10)
+        let first = recorded(&store);
+        let second = recorded(&store);
+        store
+            .connection()
             .unwrap()
-            .meetings
-            .iter()
-            .map(|meeting| (meeting.id, meeting.part))
-            .collect();
-        assert_eq!(parts, [(second, 2), (first, 1)]);
-
-        store.finish_recording(second, 9_000, 4_000).unwrap();
-        let third = store
-            .insert_part(9_000, MeetingTracks::Mic, second)
+            .execute(
+                "UPDATE meetings SET previous_id = ?1, part = 2 WHERE id = ?2",
+                params![first, second],
+            )
             .unwrap();
-        assert_eq!(store.get(first).unwrap().unwrap().next_id, Some(second));
-        assert_eq!(store.get(second).unwrap().unwrap().next_id, None);
-        let meeting = store.get(third).unwrap().unwrap();
-        assert_eq!((meeting.part, meeting.previous_id), (3, Some(second)));
-    }
 
-    #[test]
-    fn deleting_a_part_leaves_the_next_one_readable() {
-        let (_dir, store) = store();
-        let first = store.insert_recording(1_000, MeetingTracks::Both).unwrap();
-        let second = store
-            .insert_part(5_000, MeetingTracks::Both, first)
-            .unwrap();
-        store.finish_recording(first, 5_000, 4_000).unwrap();
-        store.finish_recording(second, 9_000, 4_000).unwrap();
-
-        store.delete(first).unwrap();
-
-        let meeting = store.get(second).unwrap().unwrap();
-        assert_eq!(meeting.status, MeetingStatus::Processing);
-        assert_eq!((meeting.part, meeting.previous_id), (2, None));
-        // An id is never given again, so no new meeting becomes part 1.
-        let next = store.insert_recording(10_000, MeetingTracks::Both).unwrap();
-        assert!(next > second);
-        assert_eq!(store.get(second).unwrap().unwrap().previous_id, None);
+        for id in [first, second] {
+            let detail = serde_json::to_value(store.get(id).unwrap().unwrap()).unwrap();
+            for key in ["part", "previous_id", "next_id"] {
+                assert!(detail.get(key).is_none(), "meeting {id} has {key}");
+            }
+        }
+        for item in store.list(None, 10).unwrap().meetings {
+            let item = serde_json::to_value(item).unwrap();
+            assert!(item.get("part").is_none(), "{item}");
+        }
     }
 
     #[test]

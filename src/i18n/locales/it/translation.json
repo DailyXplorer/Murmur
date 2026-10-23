@@ -43,8 +43,8 @@
     "meetingSystemAudioUnavailable": "L'audio di sistema non è disponibile, quindi la riunione registra solo il microfono.",
     "meetingMicrophoneUnavailable": "Il microfono non è disponibile, quindi la riunione registra solo l'audio di sistema.",
     "meetingStartFailed": "Impossibile avviare la riunione. Controlla il microfono e i permessi audio.",
-    "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 12 ore).",
-    "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 12 ore ed è stata salvata.",
+    "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 3 ore).",
+    "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
     "meetingStoppedLowDisk": "La riunione si è interrotta perché su questo Mac lo spazio è quasi esaurito. Quanto registrato viene conservato.",
     "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
     "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
@@ -683,8 +683,6 @@
     "view": {
       "back": "Tutte le riunioni",
       "titleLabel": "Titolo della riunione",
-      "part": "Parte {{part}}",
-      "seePart": "Vedi la parte {{part}}",
       "loadError": "Impossibile caricare questa riunione.",
       "renameError": "Impossibile rinominare la riunione.",
       "tabs": {
@@ -776,7 +774,7 @@
       "title": "Registrazione",
       "idle": "Nessuna riunione in corso",
       "active": "Registrazione · {{time}}",
-      "description": "Puoi anche avviare e interrompere una riunione con la scorciatoia o dalla barra dei menu. Una riunione lunga prosegue in una nuova parte ogni 3 ore e si interrompe da sola dopo 12 ore."
+      "description": "Puoi anche avviare e interrompere una riunione con la scorciatoia o dalla barra dei menu. Una riunione si interrompe da sola dopo 3 ore."
     },
     "start": "Avvia riunione",
     "stop": "Interrompi",
@@ -790,7 +788,6 @@
     "discardDialog": {
       "title": "Eliminare questa riunione?",
       "description": "La registrazione fin qui viene eliminata e non può essere recuperata.",
-      "descriptionParts": "Tutta la registrazione fin qui, comprese le parti precedenti, viene eliminata e non può essere recuperata.",
       "keep": "Continua a registrare"
     },
     "deleteDialog": {
@@ -818,7 +815,6 @@
       "title": "Registrazioni",
       "empty": "Ancora nessuna riunione.",
       "untitled": "Riunione · {{date}}",
-      "part": "{{title}} (parte {{part}})",
       "details": "{{duration}} · {{status}}",
       "loadMore": "Mostra altro"
     },

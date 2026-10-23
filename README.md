@@ -174,8 +174,8 @@ Meetings are on by default and can be turned off in Settings → Advanced.
 Press Control+Option+Command+M, or choose Start meeting in the menu bar, to
 start recording; press it again to stop. You can pick other keys in Settings;
 if another app already holds them, the shortcut field says so. A red pill
-shows the elapsed time. A long meeting goes on in a new part every 3 hours
-and stops by itself after 12 hours, with a warning 5 minutes before.
+shows the elapsed time. A meeting stops by itself after 3 hours, with a
+warning 5 minutes before.
 
 - Murmur records two tracks: your microphone ("Me") and the system audio,
   which holds the other participants. System audio needs macOS 14.4 or later

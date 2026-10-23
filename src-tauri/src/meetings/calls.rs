@@ -268,8 +268,7 @@ fn is_meet_code(segment: &str) -> bool {
 pub struct Snapshot {
     pub calls: Vec<CallApp>,
     pub dictating: bool,
-    /// The meeting recording, by when its first part started: it stays the
-    /// same through its parts.
+    /// The meeting recording, by when it started.
     pub meeting: Option<i64>,
     pub now: Instant,
 }

@@ -130,8 +130,8 @@ static MEETING_PILL: Mutex<Option<MeetingPill>> = Mutex::new(None);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct MeetingPill {
-    /// When the meeting's first part started: the pill counts on across parts.
     pub started_at_ms: i64,
+    pub stops_at_ms: i64,
 }
 
 fn meeting_pill() -> Option<MeetingPill> {
@@ -683,17 +683,15 @@ fn resting_pill(pill: Option<MeetingPill>, style: OverlayStyle) -> Option<Meetin
 }
 
 /// Shows the meeting pill unless a dictation or a notice is on screen; it
-/// appears when they hide. A meeting going on in its next part keeps the
-/// pill it has.
-pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64) {
-    let pill = MeetingPill { started_at_ms };
-    let previous = MEETING_PILL
+/// appears when they hide.
+pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at_ms: i64) {
+    let pill = MeetingPill {
+        started_at_ms,
+        stops_at_ms,
+    };
+    *MEETING_PILL
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .replace(pill);
-    if previous == Some(pill) {
-        return;
-    }
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
     if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
         settle_overlay(app_handle);
     }
@@ -783,7 +781,10 @@ mod tests {
 
     #[test]
     fn with_the_overlay_off_a_prompt_over_a_meeting_leaves_nothing_on_screen() {
-        let pill = MeetingPill { started_at_ms: 1 };
+        let pill = MeetingPill {
+            started_at_ms: 1,
+            stops_at_ms: 2,
+        };
         assert_eq!(resting_pill(Some(pill), OverlayStyle::None), None);
         assert_eq!(resting_pill(Some(pill), OverlayStyle::Minimal), Some(pill));
         assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);

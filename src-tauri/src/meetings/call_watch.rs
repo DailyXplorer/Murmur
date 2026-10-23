@@ -126,10 +126,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
     let meeting =
         app.try_state::<Arc<MeetingsManager>>()
             .and_then(|manager| match manager.runtime() {
-                MeetingRuntime::Recording {
-                    meeting_started_at_ms,
-                    ..
-                } => Some(meeting_started_at_ms),
+                MeetingRuntime::Recording { started_at_ms, .. } => Some(started_at_ms),
                 MeetingRuntime::Idle => None,
             });
     let snapshot = Snapshot {

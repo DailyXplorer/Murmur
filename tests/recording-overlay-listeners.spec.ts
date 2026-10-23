@@ -236,7 +236,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
       ),
       meeting: window.recordingOverlayListenerHarness.dispatch(
         "show-overlay-meeting",
-        { started_at_ms: 0 },
+        { started_at_ms: 0, stops_at_ms: 10_800_000 },
       ),
       copy: window.recordingOverlayListenerHarness.dispatch(
         "show-overlay-copy",

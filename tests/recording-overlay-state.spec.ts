@@ -573,11 +573,11 @@ test("reduced motion shows static bars that ignore the voice", async ({
   expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
 });
 
-test("the meeting pill ticks without moving, stays plain past 2:55 and gives way to dictation", async ({
+test("the meeting pill ticks without moving, turns amber near the cap and gives way to dictation", async ({
   page,
 }) => {
   const now = Date.parse("2026-10-17T10:00:00Z");
-  const threeHours = 3 * 3600 * 1000;
+  const cap = 3 * 3600 * 1000;
   await page.clock.install({ time: now - 1_000 });
   await page.clock.pauseAt(now);
   await page.setViewportSize(RECORDING_WINDOW);
@@ -585,7 +585,10 @@ test("the meeting pill ticks without moving, stays plain past 2:55 and gives way
   const pill = page.locator(".ov-meeting");
   const startedAt = now - 65_000;
 
-  await dispatch(page, "show-overlay-meeting", { started_at_ms: startedAt });
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: startedAt,
+    stops_at_ms: startedAt + cap,
+  });
   await expect(pill).toHaveText("01:05");
   await entranceFinished(page);
   const edges = () =>
@@ -604,36 +607,31 @@ test("the meeting pill ticks without moving, stays plain past 2:55 and gives way
   await expect(pill).toHaveCount(0);
   await expect(page.locator(".ov-wave")).toBeVisible();
 
-  // Past 2:55 the meeting goes on into its next part: nothing to warn of.
-  const pastWarning = now + 2_000 - (threeHours - 4 * 60 * 1000);
-  await dispatch(page, "show-overlay-meeting", { started_at_ms: pastWarning });
+  const nearCap = now + 2_000 - (cap - 4 * 60 * 1000);
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: nearCap,
+    stops_at_ms: nearCap + cap,
+  });
   await expect(pill).toHaveText("2:56:00");
-  await expect(pill).not.toHaveClass(/warning/);
-  const color = await pill.evaluate(
-    (capsule) => getComputedStyle(capsule).color,
-  );
-  await dispatch(page, "show-overlay-meeting", { started_at_ms: startedAt });
-  await expect(pill).toHaveText("01:07");
-  expect(
-    await pill.evaluate((capsule) => getComputedStyle(capsule).color),
-  ).toBe(color);
+  await expect(pill).toHaveClass(/warning/);
 });
 
-test("the pill counts on from the first part past three hours", async ({
+test("after a sleep past the cap the pill reads the cap until the meeting stops", async ({
   page,
 }) => {
   const now = Date.parse("2026-10-17T10:00:00Z");
+  const cap = 3 * 3600 * 1000;
   await page.clock.install({ time: now - 1_000 });
   await page.clock.pauseAt(now);
   await page.setViewportSize(RECORDING_WINDOW);
   await openOverlay(page);
-  const startedAt = now - 3 * 3600 * 1000 - 20 * 60 * 1000;
+  const startedAt = now - cap - 20 * 60 * 1000;
 
-  await dispatch(page, "show-overlay-meeting", { started_at_ms: startedAt });
-  const pill = page.locator(".ov-meeting");
-  await expect(pill).toHaveText("3:20:00");
-  await page.clock.runFor(2_000);
-  await expect(pill).toHaveText("3:20:02");
+  await dispatch(page, "show-overlay-meeting", {
+    started_at_ms: startedAt,
+    stops_at_ms: startedAt + cap,
+  });
+  await expect(page.locator(".ov-meeting")).toHaveText("3:00:00");
 });
 
 const callLabels = (tray: Record<string, string>, prompt: "record" | "stop") =>
