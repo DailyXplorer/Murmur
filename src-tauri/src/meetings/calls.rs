@@ -314,6 +314,8 @@ struct Call {
 pub struct CallWatch {
     calls: BTreeMap<CallApp, Call>,
     showing: Option<Showing>,
+    /// The meeting recording, and when the watch first saw it.
+    meeting_seen: Option<(i64, Instant)>,
 }
 
 impl CallWatch {
@@ -321,6 +323,10 @@ impl CallWatch {
     /// change at a time.
     pub fn update(&mut self, snapshot: &Snapshot) -> Option<Action> {
         let now = snapshot.now;
+        self.meeting_seen = snapshot.meeting.map(|meeting| match self.meeting_seen {
+            Some((seen, since)) if seen == meeting => (seen, since),
+            _ => (meeting, now),
+        });
         let mut back = false;
         for &app in &snapshot.calls {
             let call = self.calls.entry(app).or_insert(Call {
@@ -372,14 +378,17 @@ impl CallWatch {
         if snapshot.dictating {
             return None;
         }
-        if let Some(meeting) = snapshot.meeting {
+        if let Some((meeting, started)) = self.meeting_seen {
             // Asked once every call the meeting recorded is off the
-            // microphone, about the last one to leave.
+            // microphone, about the last one to leave. A call that has held
+            // the microphone since before the meeting, such as Discord idling
+            // in a voice channel, holds nothing back.
             let recorded = |call: &Call| call.recorded_in == Some(meeting) && !call.end_asked;
+            let held_through = |call: &Call| call.off_since.is_none() && call.on_since < started;
             let (off, app) = self
                 .calls
                 .iter()
-                .filter(|(_, call)| recorded(call))
+                .filter(|(_, call)| recorded(call) && !held_through(call))
                 .map(|(&app, call)| call.off_since.map(|off| (off, app)))
                 .collect::<Option<Vec<_>>>()?
                 .into_iter()
@@ -604,6 +613,25 @@ mod tests {
         );
         assert_eq!(clock.watch.answered(Question::Stop), Some(CallApp::Zoom));
         assert_eq!(clock.run(30, &[], false, Some(7)), []);
+    }
+
+    #[test]
+    fn a_call_on_the_microphone_since_before_the_meeting_does_not_hold_back_the_end_prompt() {
+        let mut clock = Clock::new();
+        let discord = &[CallApp::Discord];
+        clock.run(10, discord, false, None);
+        assert_eq!(
+            clock.watch.answered(Question::Record),
+            Some(CallApp::Discord)
+        );
+        let both = &[CallApp::Zoom, CallApp::Discord];
+        clock.run(4, both, false, None);
+        assert_eq!(clock.watch.answered(Question::Record), Some(CallApp::Zoom));
+        clock.run(60, both, false, Some(7));
+        assert_eq!(
+            clock.run(16, discord, false, Some(7)),
+            [(89, Action::Ended(CallApp::Zoom))]
+        );
     }
 
     #[test]
