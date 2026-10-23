@@ -79,6 +79,10 @@ jobs:
       HAS_APPLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE != '' }}
       HAS_APPLE_NOTARIZATION: ${{ inputs.sign-binaries && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}
       HAS_STABLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE == '' && secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_SIGNING_IDENTITY != '' }}
+      # With CI=true, Tauri skips the Finder AppleScript that lays out the
+      # DMG window (background, icon positions). The runner images allow
+      # osascript to drive Finder, so run it.
+      TAURI_BUNDLER_DMG_IGNORE_CI: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
