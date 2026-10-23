@@ -356,6 +356,7 @@
       "openFolder": "Ouvrir le dossier",
       "loading": "Chargement de l'historique...",
       "empty": "Pas encore de transcriptions. Commencez à enregistrer pour créer votre historique !",
+      "loadError": "Impossible de charger l’historique.",
       "copyToClipboard": "Copier la transcription dans le presse-papiers",
       "save": "Enregistrer la transcription",
       "unsave": "Retirer des favoris",

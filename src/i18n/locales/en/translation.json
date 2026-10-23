@@ -356,6 +356,7 @@
       "openFolder": "Open folder",
       "loading": "Loading history...",
       "empty": "No transcriptions yet. Start recording to build your history!",
+      "loadError": "Couldn't load History.",
       "copyToClipboard": "Copy transcription to clipboard",
       "save": "Save transcription",
       "unsave": "Remove from saved",

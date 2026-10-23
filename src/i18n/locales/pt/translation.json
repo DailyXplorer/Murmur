@@ -356,6 +356,7 @@
       "openFolder": "Abrir pasta",
       "loading": "Carregando histórico...",
       "empty": "Nenhuma transcrição ainda. Comece a gravar para construir seu histórico!",
+      "loadError": "Não foi possível carregar o histórico.",
       "copyToClipboard": "Copiar transcrição para área de transferência",
       "save": "Salvar transcrição",
       "unsave": "Remover dos salvos",

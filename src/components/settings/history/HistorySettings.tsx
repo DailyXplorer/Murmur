@@ -107,6 +107,7 @@ export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [historyListenerReady, setHistoryListenerReady] = useState(false);
   const [hasQueuedFirstPageRefresh, setHasQueuedFirstPageRefresh] =
@@ -147,6 +148,7 @@ export const HistorySettings: React.FC = () => {
         cursor ?? null,
         PAGE_SIZE,
       );
+      if (isFirstPage) setLoadFailed(result.status !== "ok");
       if (result.status === "ok") {
         const newEntries = result.data.entries.filter(
           (entry) => !deletedDuringRequestIdsRef.current.has(entry.id),
@@ -167,6 +169,7 @@ export const HistorySettings: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to load history entries:", error);
+      if (isFirstPage) setLoadFailed(true);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -368,7 +371,9 @@ export const HistorySettings: React.FC = () => {
   } else if (entries.length === 0) {
     content = (
       <div className="px-4 py-3 text-center text-text/60">
-        {t("settings.history.empty")}
+        {loadFailed
+          ? t("settings.history.loadError")
+          : t("settings.history.empty")}
       </div>
     );
   } else {

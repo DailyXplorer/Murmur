@@ -356,6 +356,7 @@
       "openFolder": "Abrir carpeta",
       "loading": "Cargando historial...",
       "empty": "Aún no hay transcripciones. ¡Comienza a grabar para crear tu historial!",
+      "loadError": "No se pudo cargar el historial.",
       "copyToClipboard": "Copiar transcripción al portapapeles",
       "save": "Guardar transcripción",
       "unsave": "Eliminar de guardados",

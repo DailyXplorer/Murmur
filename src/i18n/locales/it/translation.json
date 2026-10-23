@@ -356,6 +356,7 @@
       "openFolder": "Apri cartella",
       "loading": "Caricamento cronologia...",
       "empty": "Non ci sono ancora trascrizioni. Comincia a registrare per costruire la tua cronologia!",
+      "loadError": "Impossibile caricare la cronologia.",
       "copyToClipboard": "Copia la trascrizione negli appunti",
       "save": "Salva la trascrizione",
       "unsave": "Rimuovi dai salvataggi",
