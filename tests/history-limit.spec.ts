@@ -34,13 +34,39 @@ test("editing the limit commits when the field loses focus", async ({
   await expect.poll(() => limitWrites(page)).toEqual([55]);
 });
 
-test("a limit below one is saved as one", async ({ page }) => {
-  await limitField(page).fill("0");
-  await page.keyboard.press("Enter");
+for (const mode of ["Enter", "blur"]) {
+  for (const value of ["1e3", "1E3", "1000"]) {
+    test(`${mode} commits ${value} as one thousand, never one`, async ({
+      page,
+    }) => {
+      await limitField(page).fill(value);
+      if (mode === "Enter") await limitField(page).press("Enter");
+      else await page.getByRole("button", { name: "Elsewhere" }).click();
 
-  await expect(limitField(page)).toHaveValue("1");
-  await expect.poll(() => limitWrites(page)).toEqual([1]);
-});
+      await expect.poll(() => limitWrites(page)).toEqual([1000]);
+      await expect(limitField(page)).toHaveValue("1000");
+    });
+  }
+
+  for (const value of ["0", "-1", "1001", "1.5", "1e-1"]) {
+    test(`${mode} rejects ${value} rather than lowering or clamping the limit`, async ({
+      page,
+    }) => {
+      await limitField(page).fill(value);
+      if (mode === "Enter") await limitField(page).press("Enter");
+      else await page.getByRole("button", { name: "Elsewhere" }).click();
+
+      expect(await limitWrites(page)).toEqual([]);
+      expect(
+        await limitField(page).evaluate((input: HTMLInputElement) =>
+          input.checkValidity(),
+        ),
+      ).toBe(false);
+      await limitField(page).press("Escape");
+      await expect(limitField(page)).toHaveValue("50");
+    });
+  }
+}
 
 test("an emptied field restores the saved limit", async ({ page }) => {
   await limitField(page).fill("");
