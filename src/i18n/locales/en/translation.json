@@ -837,6 +837,7 @@
         "signed_out": "Sign in with ChatGPT, then retry.",
         "rate_limited": "Codex is limiting requests right now. Retry later.",
         "network": "Couldn't reach Codex. Check the connection, then retry.",
+        "server": "Codex ran into a problem writing the summary. Retry later.",
         "timeout": "Codex took too long to answer.",
         "too_long": "The summary came out too long.",
         "empty": "Codex returned an empty summary.",

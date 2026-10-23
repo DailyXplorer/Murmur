@@ -1486,9 +1486,13 @@ export type SummaryError =
  */
 "signed_out" | "rate_limited" | 
 /**
- * Codex could not be reached, or answered with an error.
+ * Codex could not be reached.
  */
-"network" | "timeout" | 
+"network" | 
+/**
+ * Codex answered with a server error, or its reply was cut off.
+ */
+"server" | "timeout" | 
 /**
  * The reply ran past its length cap.
  */

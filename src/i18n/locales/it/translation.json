@@ -837,6 +837,7 @@
         "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste. Riprova più tardi.",
         "network": "Impossibile raggiungere Codex. Controlla la connessione, poi riprova.",
+        "server": "Codex ha avuto un problema nello scrivere il riepilogo. Riprova più tardi.",
         "timeout": "Codex ha impiegato troppo tempo a rispondere.",
         "too_long": "Il riepilogo è risultato troppo lungo.",
         "empty": "Codex ha restituito un riepilogo vuoto.",
