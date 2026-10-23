@@ -16,11 +16,14 @@ interface ProviderOnboardingProps {
   /** Dictation runs on this Mac, so the account only adds AI cleanup and
    * more languages, and the step can be skipped. */
   optional: boolean;
+  /** Leaves the step for the one before, giving up a sign-in in progress. */
+  onBack?: () => void;
 }
 
 const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
   onComplete,
   optional,
+  onBack,
 }) => {
   const { t } = useTranslation();
   const { invalidatePendingRefreshes, refreshStatus, status } =
@@ -111,6 +114,17 @@ const ProviderOnboarding: React.FC<ProviderOnboardingProps> = ({
             <div
               className={`inline-grid grid-flow-col auto-cols-fr gap-2 ${checked ? "" : "invisible"}`}
             >
+              {onBack && (
+                <Button
+                  onClick={() => {
+                    if (signIn.phase === "waiting") cancel();
+                    onBack();
+                  }}
+                  disabled={isCompleting}
+                >
+                  {t("onboarding.provider.back")}
+                </Button>
+              )}
               {connected ? (
                 <Button onClick={() => void complete()}>
                   {t("onboarding.provider.continue")}

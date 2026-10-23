@@ -141,7 +141,8 @@
       "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
       "optionalTitle": "ChatGPT verbinden (optional)",
       "optionalDescription": "Verbinden Sie Ihr ChatGPT-Konto für die KI-Bereinigung (entfernt Füllwörter und korrigiert die Grammatik) und für Sprachen, die das lokale Modell nicht abdeckt.",
-      "skip": "Überspringen"
+      "skip": "Überspringen",
+      "back": "Zurück"
     },
     "model": {
       "title": "Auf diesem Mac transkribieren",

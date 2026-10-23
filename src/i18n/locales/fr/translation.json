@@ -141,7 +141,8 @@
       "completionFailed": "Impossible de terminer la configuration. Actualisez l’état et réessayez.",
       "optionalTitle": "Connecter ChatGPT (facultatif)",
       "optionalDescription": "Connectez votre compte ChatGPT pour le nettoyage par IA (retire les « euh » et corrige la grammaire) et pour les langues que le modèle local ne couvre pas.",
-      "skip": "Passer"
+      "skip": "Passer",
+      "back": "Retour"
     },
     "model": {
       "title": "Transcrire sur ce Mac",

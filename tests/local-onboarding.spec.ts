@@ -198,15 +198,38 @@ test("a stopped download can be retried or traded for the cloud", async ({
 
   await app.setModel("failed");
   await page.getByRole("button", { name: "Use the cloud instead" }).click();
-  // No account: the cloud needs one before dictation can work.
+  // No account: the cloud needs one before dictation can work, and the
+  // engine changes only once there is one.
   await expect(
     page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
   ).toBeVisible();
-  expect(await app.engine()).toBe("cloud");
+  expect(await app.engine()).toBe("local");
 
   await app.connect();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  expect(await app.engine()).toBe("cloud");
+});
+
+test("the ChatGPT step reached from a stopped download leads back to it", async ({
+  page,
+}) => {
+  await page.goto(`${fixturePath}?model=missing`);
+  const app = fixture(page);
+  await page.getByRole("button", { name: "Download and continue" }).click();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await app.setModel("failed");
+  await page.getByRole("button", { name: "Use the cloud instead" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Connect ChatGPT", exact: true }),
+  ).toBeVisible();
+
+  // Offline, sign-in cannot work: Back is the way out.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "The download stopped" }),
+  ).toBeVisible();
+  expect(await app.engines()).toEqual(["local"]);
 });
 
 test("the French model and finish steps fit the native minimum window size", async ({
