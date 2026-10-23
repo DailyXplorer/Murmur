@@ -38,6 +38,8 @@ declare global {
       finishModelDownload: () => void;
       /** The browser sign-in saved a session. */
       resolveSignIn: () => void;
+      /** What the backend's last update check found. */
+      emitUpdateStatus: (available: string | null) => Promise<void>;
       /** The update found is no longer offered by the next check. */
       withdrawUpdate: () => void;
     };
@@ -114,6 +116,8 @@ let historyFails = params.get("history") === "fails";
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The updater finds a new version, which the footer offers. */
 const updateAvailable = params.get("update") === "1";
+/** `missedUpdate=1`: a check finds a new version the footer never heard of. */
+const missedUpdate = params.get("missedUpdate") === "1";
 let updateWithdrawn = false;
 const UPDATE = {
   body: "",
@@ -720,6 +724,10 @@ const RESPONSES: Record<string, unknown> = {
   start_meeting: null,
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },
+  check_for_updates: {
+    available: updateAvailable || missedUpdate ? "1.9.0" : null,
+  },
+  get_update_status: { available: updateAvailable ? "1.9.0" : null },
   get_app_dir_path: APP_DATA_DIR,
   get_audio_file_path: `${APP_DATA_DIR}/recordings/murmur-1.wav`,
   get_available_microphones: MICROPHONES,
@@ -777,6 +785,7 @@ window.settingsPages = {
     signIn?.resolve(null);
     signIn = null;
   },
+  emitUpdateStatus: (available) => emit("update-status", { available }),
   withdrawUpdate: () => {
     updateWithdrawn = true;
   },
@@ -825,6 +834,9 @@ mockIPC(
       return new Promise(() => {});
     }
     if (command === "plugin:updater|check" && updateWithdrawn) return null;
+    if (command === "check_for_updates" && updateWithdrawn) {
+      return { available: null };
+    }
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;
       return Promise.reject("database disk image is malformed");

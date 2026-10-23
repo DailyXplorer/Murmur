@@ -2,6 +2,7 @@
   "tray": {
     "settings": "Settings...",
     "checkUpdates": "Check for updates...",
+    "updateAvailable": "Update available",
     "copyLastTranscript": "Copy last transcript",
     "quit": "Quit",
     "cancel": "Cancel",

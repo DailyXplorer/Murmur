@@ -342,6 +342,20 @@ async relaunchAfterUpdate() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async getUpdateStatus() : Promise<UpdateStatus> {
+    return await TAURI_INVOKE("get_update_status");
+},
+/**
+ * The footer's "Check for updates".
+ */
+async checkForUpdates() : Promise<Result<UpdateStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_for_updates") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
 },
@@ -1001,7 +1015,8 @@ localModelStatus: LocalModelStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated,
-switchedToLocal: SwitchedToLocal
+switchedToLocal: SwitchedToLocal,
+updateStatus: UpdateStatus
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
@@ -1009,7 +1024,8 @@ localModelStatus: "local-model-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated",
-switchedToLocal: "switched-to-local"
+switchedToLocal: "switched-to-local",
+updateStatus: "update-status"
 })
 
 /** user-defined constants **/
@@ -1554,6 +1570,14 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * What the last update check found.
+ */
+export type UpdateStatus = { 
+/**
+ * The newer version, `None` when Murmur is up to date.
+ */
+available: string | null }
 
 /** tauri-specta globals **/
 

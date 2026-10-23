@@ -30,6 +30,45 @@ const colours = (element: Locator) =>
     };
   });
 
+const commands = (page: Page) =>
+  page.evaluate(() => window.settingsPages.calls.map(({ command }) => command));
+
+test("the footer follows the update checks the backend runs", async ({
+  page,
+}) => {
+  await open(page, "", "light");
+  const check = page.getByRole("button", { name: "Check for updates" });
+  await expect(check).toBeVisible();
+
+  await page.evaluate(() => window.settingsPages.emitUpdateStatus("1.9.0"));
+  await expect(
+    page.getByRole("button", { name: "Update available" }),
+  ).toBeVisible();
+
+  await page.evaluate(() => window.settingsPages.emitUpdateStatus(null));
+  await expect(check).toBeVisible();
+  expect(await commands(page)).not.toContain("plugin:updater|check");
+});
+
+test("a check the user asks for says when Murmur is up to date", async ({
+  page,
+}) => {
+  await open(page, "", "light");
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  await expect(footer(page).getByText("Up to date")).toBeVisible();
+  expect(await commands(page)).toContain("check_for_updates");
+});
+
+test("a check the user asks for shows an update the footer missed", async ({
+  page,
+}) => {
+  await open(page, "missedUpdate=1", "light");
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  await expect(
+    page.getByRole("button", { name: "Update available" }),
+  ).toBeVisible();
+});
+
 for (const theme of THEMES) {
   for (const accent of ACCENTS) {
     test(`the update shows as an accent pill (${accent}, ${theme})`, async ({
@@ -113,4 +152,14 @@ test("an update withdrawn before it installs no longer shows as available", asyn
   await expect(
     page.getByRole("button", { name: "Check for updates" }),
   ).toBeVisible();
+  // The backend's status, which the tray shows, learns it too.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls.some(
+          ({ command }) => command === "check_for_updates",
+        ),
+      ),
+    )
+    .toBe(true);
 });

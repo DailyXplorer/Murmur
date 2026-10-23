@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { check } from "@tauri-apps/plugin-updater";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
-import { commands } from "@/bindings";
+import { commands, events } from "@/bindings";
 import { ProgressBar } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -24,65 +24,51 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   const updateChecksEnabled = settings?.update_checks_enabled ?? false;
 
   const upToDateTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const isManualCheckRef = useRef(false);
-  const activeCheckRef = useRef<symbol>(undefined);
+  const isCheckingRef = useRef(false);
   const downloadedBytesRef = useRef(0);
   const contentLengthRef = useRef(0);
 
-  const checkForUpdates = useCallback(
-    async (isManual = false) => {
-      if (!updateChecksEnabled) return;
+  // The backend checks on its own schedule and owns the result. Reading it
+  // once the listener is in place means no status falls in between.
+  useEffect(() => {
+    let heard = false;
+    const unlisten = events.updateStatus.listen(({ payload }) => {
+      heard = true;
+      setUpdateAvailable(payload.available !== null);
+    });
+    void unlisten
+      .then(() => commands.getUpdateStatus())
+      .then(({ available }) => {
+        if (!heard) setUpdateAvailable(available !== null);
+      });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
 
-      if (isManual) {
-        isManualCheckRef.current = true;
+  const handleManualUpdateCheck = useCallback(async () => {
+    if (!updateChecksEnabled || isCheckingRef.current) return;
+    isCheckingRef.current = true;
+    setIsChecking(true);
+    const result = await commands.checkForUpdates();
+    isCheckingRef.current = false;
+    setIsChecking(false);
+
+    if (result.status === "error") {
+      toast.error(t("footer.checkForUpdates"), { description: result.error });
+      return;
+    }
+    setUpdateAvailable(result.data.available !== null);
+    if (result.data.available === null) {
+      setShowUpToDate(true);
+      if (upToDateTimeoutRef.current) {
+        clearTimeout(upToDateTimeoutRef.current);
       }
-
-      if (activeCheckRef.current) return;
-
-      const checkId = Symbol("update-check");
-      activeCheckRef.current = checkId;
-
-      try {
-        setIsChecking(true);
-        const update = await check();
-
-        if (update) {
-          setUpdateAvailable(true);
-          setShowUpToDate(false);
-        } else {
-          setUpdateAvailable(false);
-
-          if (isManualCheckRef.current) {
-            setShowUpToDate(true);
-            if (upToDateTimeoutRef.current) {
-              clearTimeout(upToDateTimeoutRef.current);
-            }
-            upToDateTimeoutRef.current = setTimeout(() => {
-              setShowUpToDate(false);
-            }, 3000);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to check for updates:", error);
-        if (isManualCheckRef.current) {
-          toast.error(t("footer.checkForUpdates"), {
-            description: error instanceof Error ? error.message : String(error),
-          });
-        }
-      } finally {
-        if (activeCheckRef.current === checkId) {
-          activeCheckRef.current = undefined;
-          setIsChecking(false);
-          isManualCheckRef.current = false;
-        }
-      }
-    },
-    [t, updateChecksEnabled],
-  );
-
-  const handleManualUpdateCheck = useCallback(() => {
-    void checkForUpdates(true);
-  }, [checkForUpdates]);
+      upToDateTimeoutRef.current = setTimeout(() => {
+        setShowUpToDate(false);
+      }, 3000);
+    }
+  }, [t, updateChecksEnabled]);
 
   useEffect(() => {
     if (!settingsLoaded) return;
@@ -91,15 +77,12 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       if (upToDateTimeoutRef.current) {
         clearTimeout(upToDateTimeoutRef.current);
       }
-      setUpdateAvailable(false);
       setShowUpToDate(false);
       return;
     }
 
-    void checkForUpdates();
-
     const updateUnlisten = listen("check-for-updates", () => {
-      handleManualUpdateCheck();
+      void handleManualUpdateCheck();
     });
 
     return () => {
@@ -108,12 +91,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       }
       updateUnlisten.then((fn) => fn());
     };
-  }, [
-    checkForUpdates,
-    handleManualUpdateCheck,
-    settingsLoaded,
-    updateChecksEnabled,
-  ]);
+  }, [handleManualUpdateCheck, settingsLoaded, updateChecksEnabled]);
 
   const installUpdate = async () => {
     if (!updateChecksEnabled) return;
@@ -128,6 +106,8 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       if (!update) {
         console.log("No update available during install attempt");
         setUpdateAvailable(false);
+        // The tray shows the backend's status, which still has the update.
+        void commands.checkForUpdates();
         return;
       }
 

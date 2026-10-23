@@ -37,6 +37,7 @@ mod transcription_coordinator;
 mod transcription_error;
 mod tray;
 mod tray_i18n;
+mod updates;
 mod user_alert;
 mod utils;
 mod window_names;
@@ -386,6 +387,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     meetings::init(app_handle, true);
     meetings::call_watch::sync(app_handle);
     app_handle.manage(tray::CurrentTrayIconState::new());
+    updates::init(app_handle);
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend calls `initialize_shortcuts` after permissions are confirmed.
@@ -407,7 +409,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     let tray = tray_builder
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "settings" => {
+            "settings" | updates::TRAY_ITEM_ID => {
                 show_main_window(app);
             }
             "check_updates" => {
@@ -640,6 +642,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
             relaunch_after_update,
+            updates::get_update_status,
+            updates::check_for_updates,
             commands::cancel_operation,
             overlay::copy_notice_again,
             overlay::fit_copy_notice,
@@ -722,7 +726,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             meetings::MeetingsUpdated,
             meetings::processor::MeetingProgress,
             local_models::LocalModelStatus,
-            local_models::SwitchedToLocal
+            local_models::SwitchedToLocal,
+            updates::UpdateStatus
         ])
 }
 

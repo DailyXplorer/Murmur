@@ -41,6 +41,8 @@ const APP_COMMANDS: &[&str] = &[
     "change_show_tray_icon_setting",
     "show_main_window_command",
     "relaunch_after_update",
+    "get_update_status",
+    "check_for_updates",
     "cancel_operation",
     "copy_notice_again",
     "fit_copy_notice",

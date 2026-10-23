@@ -45,6 +45,8 @@ permissions = [
   "allow-change-show-tray-icon-setting",
   "allow-show-main-window-command",
   "allow-relaunch-after-update",
+  "allow-get-update-status",
+  "allow-check-for-updates",
   "allow-cancel-operation",
   "allow-copy-notice-again",
   "allow-fit-copy-notice",
