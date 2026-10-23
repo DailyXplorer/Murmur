@@ -7,9 +7,6 @@ use std::time::Instant;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
-/// How far before the insertion point the field is read and checked, for
-/// the label of a long list above the excerpt.
-const CHECK_BEFORE_UNITS: usize = 2_000;
 
 /// A selection or insertion point in UTF-16 code units, as Accessibility reports it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,14 +102,8 @@ pub trait FocusedText {
 /// The excerpt around the focused element's selection. Never reads a secure
 /// field, and never guesses the cursor: no selection range, no excerpt.
 /// Each read may take a hung app's whole messaging timeout, so none starts
-/// after `deadline`. None when `withheld` holds for all the text read, up
-/// to `CHECK_BEFORE_UNITS` before the cursor: a label the cut leaves out
-/// still marks the values it keeps, however its list is laid out.
-pub fn read_field(
-    focused: &impl FocusedText,
-    deadline: Instant,
-    withheld: impl Fn(&str) -> bool,
-) -> Option<FieldExcerpt> {
+/// after `deadline`.
+pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
     let in_time = || Instant::now() < deadline;
     if focused.is_secure() || !in_time() {
         return None;
@@ -123,9 +114,6 @@ pub fn read_field(
         None if in_time() => (focused.value()?, 0),
         None => return None,
     };
-    if withheld(&text) {
-        return None;
-    }
     cut(
         &text,
         Utf16Range {
@@ -135,9 +123,9 @@ pub fn read_field(
     )
 }
 
-/// Enough of the field for `cut` and for the check before it, and where it
-/// starts. A window that does not start at the field's start holds
-/// more than the limit, so `cut` drops its partial first word.
+/// Just enough of the field for `cut`, and where it starts. A UTF-16 unit
+/// is at least half a char, so a window that does not start at the field's
+/// start holds more than the limit and `cut` drops its partial first word.
 fn window_around(
     focused: &impl FocusedText,
     selection: Utf16Range,
@@ -151,7 +139,10 @@ fn window_around(
     let end = selection_end
         .saturating_add(2 * MAX_AFTER_CHARS + 2)
         .min(count);
-    let start = selection.start.saturating_sub(CHECK_BEFORE_UNITS).min(end);
+    let start = selection
+        .start
+        .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
+        .min(end);
     if !in_time() {
         return None;
     }
@@ -323,17 +314,13 @@ mod tests {
         }
     }
 
-    fn read(focused: &Fake, deadline: Instant) -> Option<FieldExcerpt> {
-        read_field(focused, deadline, |_| false)
-    }
-
     #[test]
     fn a_secure_field_is_never_read() {
         let fake = Fake {
             secure: true,
             ..Fake::new("hunter2 is my password", at(7))
         };
-        assert_eq!(read(&fake, later()), None);
+        assert_eq!(read_field(&fake, later()), None);
         assert!(fake.reads.borrow().is_empty(), "{:?}", fake.reads.borrow());
     }
 
@@ -343,7 +330,7 @@ mod tests {
             selection: None,
             ..Fake::new("Hello there", at(0))
         };
-        assert_eq!(read(&fake, later()), None);
+        assert_eq!(read_field(&fake, later()), None);
         assert_eq!(*fake.reads.borrow(), vec!["selection"]);
     }
 
@@ -361,7 +348,7 @@ mod tests {
                     let selection = Utf16Range { start, len };
                     let fake = Fake::new(text, selection);
                     assert_eq!(
-                        read(&fake, later()),
+                        read_field(&fake, later()),
                         cut(text, selection),
                         "start {start} len {len}"
                     );
@@ -375,16 +362,16 @@ mod tests {
     fn the_window_asked_for_is_bounded_by_the_limits() {
         let text = "word ".repeat(1_000);
         let selection = Utf16Range {
-            start: 3_000,
+            start: 2_000,
             len: 10,
         };
         let fake = Fake::new(&text, selection);
-        read(&fake, later());
+        read_field(&fake, later());
         assert_eq!(
             *fake.requested.borrow(),
             Some(Utf16Range {
-                start: 3_000 - CHECK_BEFORE_UNITS,
-                len: CHECK_BEFORE_UNITS + 10 + 2 * MAX_AFTER_CHARS + 2,
+                start: 2_000 - (2 * MAX_BEFORE_CHARS + 2),
+                len: 2 * MAX_BEFORE_CHARS + 2 + 10 + 2 * MAX_AFTER_CHARS + 2,
             })
         );
     }
@@ -396,7 +383,7 @@ mod tests {
             range_fails: true,
             ..Fake::new(text, at(22))
         };
-        assert_eq!(read(&fake, later()), excerpt(text, ""));
+        assert_eq!(read_field(&fake, later()), excerpt(text, ""));
         assert!(fake.reads.borrow().contains(&"value"));
     }
 
@@ -409,7 +396,7 @@ mod tests {
             ..Fake::new(text, at(22))
         };
         assert_eq!(
-            read(&slow, Instant::now() + Duration::from_millis(10)),
+            read_field(&slow, Instant::now() + Duration::from_millis(10)),
             None
         );
         assert_eq!(
@@ -418,7 +405,7 @@ mod tests {
         );
 
         let late = Fake::new(text, at(22));
-        assert_eq!(read(&late, Instant::now()), None);
+        assert_eq!(read_field(&late, Instant::now()), None);
         assert!(late.reads.borrow().is_empty(), "{:?}", late.reads.borrow());
     }
 }

@@ -77,25 +77,18 @@ pub fn collect() -> WindowContext {
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
     crate::accessibility::frontmost_app()
-        .map(|(pid, bundle_id, app)| read_app(reads, pid, &bundle_id, &app, started))
+        .map(|(pid, app)| read_app(reads, pid, &app, started))
         .unwrap_or_default()
 }
 
 /// The focused field first, then the focused window with what is left of
 /// the budget that began at `started`.
-fn read_app(
-    reads: ContextReads,
-    pid: i32,
-    bundle_id: &str,
-    app: &Element,
-    started: Instant,
-) -> WindowContext {
+fn read_app(reads: ContextReads, pid: i32, app: &Element, started: Instant) -> WindowContext {
     read_window(
         reads,
-        bundle_id,
         || {
             crate::accessibility::focus_in(pid, app)
-                .and_then(|focused| read_excerpt(&focused, started + FIELD_BUDGET))
+                .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
         },
         || {
             app.element("AXFocusedWindow")
@@ -105,33 +98,35 @@ fn read_app(
     )
 }
 
-fn read_excerpt(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
-    read_field(focused, deadline, shows_secret)
-}
-
-/// Runs only the reads `reads` asks for. Without the window text, a code
-/// app's other panes are not checked for assignments; the excerpt still is.
+/// Runs only the reads `reads` asks for.
 fn read_window(
     reads: ContextReads,
-    bundle_id: &str,
     field: impl FnOnce() -> Option<FieldExcerpt>,
     window_text: impl FnOnce() -> String,
 ) -> WindowContext {
     let field = if reads.field { field() } else { None };
-    let text = if reads.names {
-        window_text()
+    let names = if reads.names {
+        names_in(field.as_ref(), &window_text())
     } else {
-        String::new()
+        Vec::new()
     };
-    let context = window_context(bundle_id, &text, field);
-    WindowContext {
-        names: if reads.names {
-            context.names
-        } else {
-            Vec::new()
-        },
-        field: context.field,
+    WindowContext { names, field }
+}
+
+/// Names in the excerpt come first: they are next to what the user is
+/// writing.
+fn names_in(field: Option<&FieldExcerpt>, window_text: &str) -> Vec<String> {
+    let excerpt = field
+        .map(|field| format!("{}\n{}", field.before, field.after))
+        .unwrap_or_default();
+    let mut names = candidate_names(&excerpt);
+    for name in candidate_names(window_text) {
+        if !names.contains(&name) {
+            names.push(name);
+        }
     }
+    names.truncate(MAX_NAMES);
+    names
 }
 
 impl FocusedText for Element {
@@ -183,440 +178,9 @@ fn window_text(window: Element, started: Instant) -> String {
     text
 }
 
-/// Terminals and code editors, where a `.env` file or a shell `export` may
-/// be on screen.
-const CODE_APPS: [&str; 18] = [
-    "com.apple.Terminal",
-    "com.googlecode.iterm2",
-    "dev.warp.Warp-Stable",
-    "net.kovidgoyal.kitty",
-    "org.alacritty",
-    "com.github.wez.wezterm",
-    "com.mitchellh.ghostty",
-    "co.zeit.hyper",
-    "com.microsoft.VSCode",
-    "com.microsoft.VSCodeInsiders",
-    "com.vscodium",
-    "com.todesktop.230313mzl4w4u92",
-    "dev.zed.Zed",
-    "com.sublimetext.4",
-    "com.apple.dt.Xcode",
-    "com.panic.Nova",
-    "com.barebones.bbedit",
-    "com.apple.TextEdit",
-];
-const CODE_APP_PREFIXES: [&str; 1] = ["com.jetbrains."];
-
-fn is_code_app(bundle_id: &str) -> bool {
-    CODE_APPS
-        .iter()
-        .any(|known| known.eq_ignore_ascii_case(bundle_id))
-        || CODE_APP_PREFIXES
-            .iter()
-            .any(|prefix| bundle_id.starts_with(prefix))
-}
-
-/// A terminal or editor with any `KEY=value` line may be showing a `.env`
-/// file or a shell session, so it gives no names and no excerpt at all.
-/// Elsewhere an excerpt with a line that assigns a value, mentions a
-/// password, token, secret, key, PIN, door code or bank card (in English or
-/// French), holds a credential as a shell shows one, or holds a key, token
-/// or card number with no label, is dropped. Names in the excerpt come
-/// first: they are next to what the user is writing.
-fn window_context(
-    bundle_id: &str,
-    window_text: &str,
-    field: Option<FieldExcerpt>,
-) -> WindowContext {
-    let excerpt = field
-        .as_ref()
-        .map(|field| format!("{}\n{}", field.before, field.after))
-        .unwrap_or_default();
-    let assigns = excerpt
-        .lines()
-        .chain(window_text.lines())
-        .any(is_assignment);
-    if is_code_app(bundle_id) && assigns {
-        return WindowContext::default();
-    }
-    let mut names = candidate_names(&excerpt);
-    for name in candidate_names(window_text) {
-        if !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    names.truncate(MAX_NAMES);
-    WindowContext {
-        names,
-        field: field.filter(|_| !shows_secret(&excerpt)),
-    }
-}
-
-/// A line of `text` assigns a value, also after a shell prompt, mentions a
-/// secret, or holds a key.
-fn shows_secret(text: &str) -> bool {
-    text.lines().any(|line| {
-        is_assignment(line)
-            || line
-                .split_whitespace()
-                .any(|token| is_assignment(token) || holds_key(token))
-            || mentions_secret(line)
-    })
-}
-
-/// 13 to 19 digits in a row, or in groups split by one space or dash as
-/// cards print them, that pass the Luhn check every card number passes.
-fn holds_card_number(line: &str) -> bool {
-    let passes_luhn = |digits: &str| {
-        let sum: u32 = digits
-            .bytes()
-            .rev()
-            .enumerate()
-            .map(|(at, byte)| {
-                let digit = u32::from(byte - b'0');
-                match (at % 2, digit * 2) {
-                    (0, _) => digit,
-                    (_, doubled) if doubled > 9 => doubled - 9,
-                    (_, doubled) => doubled,
-                }
-            })
-            .sum();
-        sum.is_multiple_of(10)
-    };
-    line.split(|c: char| !(c.is_ascii_digit() || c == ' ' || c == '-'))
-        .flat_map(|stretch| {
-            let groups: Vec<&str> = stretch.split([' ', '-']).collect();
-            groups
-                .split(|group| group.is_empty())
-                .map(<[&str]>::to_vec)
-                .collect::<Vec<_>>()
-        })
-        .any(|run| {
-            (0..run.len()).any(|start| {
-                let mut digits = String::new();
-                run[start..].iter().any(|group| {
-                    digits.push_str(group);
-                    (13..=19).contains(&digits.len()) && passes_luhn(&digits)
-                })
-            })
-        })
-}
-
-/// How the API keys and tokens of common services begin.
-const KEY_PREFIXES: [&str; 11] = [
-    "sk-",
-    "sk_live_",
-    "ghp_",
-    "gho_",
-    "github_pat_",
-    "glpat-",
-    "xoxa-",
-    "xoxb-",
-    "xoxp-",
-    "AKIA",
-    "AIza",
-];
-
-/// A token, or a part of a URL or of `name=value` in it, that is a service's
-/// key or a long generated one, with or without a label.
-fn holds_key(token: &str) -> bool {
-    token
-        .split(['=', ':', '/', '?', '&', '#', '@'])
-        .map(trim_word)
-        .any(|part| {
-            KEY_PREFIXES.iter().any(|prefix| {
-                part.strip_prefix(prefix)
-                    .is_some_and(|rest| rest.chars().count() >= 8)
-            }) || (part.chars().count() >= LONG_TOKEN_CHARS && looks_generated(part))
-        })
-}
-
-/// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
-fn is_assignment(line: &str) -> bool {
-    let line = line.trim();
-    let line = line.strip_prefix("export ").unwrap_or(line);
-    let Some((key, value)) = line.split_once('=') else {
-        return false;
-    };
-    let key = key.trim_end();
-    key.chars()
-        .next()
-        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
-        && key
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
-        && !value.trim().is_empty()
-        && !value.starts_with('=')
-}
-
-/// English and French labels next to a secret, lowercase and without
-/// accents, French plurals spelled out, and the header that carries one in
-/// a shell.
-const SECRET_WORDS: [&str; 32] = [
-    "password",
-    "passwd",
-    "passcode",
-    "passphrase",
-    "token",
-    "secret",
-    "api key",
-    "api_key",
-    "api-key",
-    "apikey",
-    "private key",
-    "credential",
-    "authorization:",
-    "bearer ",
-    "mot de passe",
-    "mots de passe",
-    "mdp",
-    "cle api",
-    "cles api",
-    "cle d'api",
-    "cles d'api",
-    "cle de l'api",
-    "cles de l'api",
-    "cle privee",
-    "cles privees",
-    "jeton",
-    "identifiant",
-    "code d'acces",
-    "codes d'acces",
-    "code pin",
-    "codes pin",
-    "digicode",
-];
-
-/// Short labels that name a secret only right before its value, as in
-/// `PIN: 1234` or `OpenAI key: sk-…`: "the key point" holds none.
-const VALUE_LABELS: [&str; 14] = [
-    "key", "keys", "pin", "pass", "pwd", "pw", "login", "logins", "cle", "cles", "clef", "clefs",
-    "code", "codes",
-];
-
-/// What a Wi-Fi key or a door code opens. It labels the secret as any word
-/// of a label of up to `SHORT_LABEL_WORDS` words before a colon, `Le wifi de
-/// la maison :`, or the first or one of the last three of a longer one; as
-/// the first or last word of a line of up to three words, whose value is on
-/// the next line, `Wifi maison`; or with a value with a digit within
-/// `NUMBER_WINDOW` words, `Porte - 4512B`.
-const OPENED_BY_A_SECRET: [&str; 15] = [
-    "wifi",
-    "wi-fi",
-    "porte",
-    "portail",
-    "interphone",
-    "door",
-    "gate",
-    "cadenas",
-    "alarme",
-    "coffre",
-    "alarm",
-    "lockbox",
-    "padlock",
-    "keypad",
-    "intercom",
-];
-const SHORT_LABEL_WORDS: usize = 6;
-
-/// A bank card, which labels its number as an `OPENED_BY_A_SECRET` word
-/// labels before a colon: `Carte bleue :`, `Numéro de carte :`.
-const CARD_WORDS: [&str; 3] = ["card", "carte", "cb"];
-
-/// Words that name a secret when a value with a digit follows within
-/// `NUMBER_WINDOW` words, not counting `NUMBER_FILLERS`, as DLP keyword
-/// proximity rules do: `PIN 1234`, "le code pour rentrer dans l'immeuble
-/// c'est 4512", `CVV 123`.
-const NUMBER_LABELS: [&str; 6] = ["pin", "code", "codes", "cvv", "cvc", "cryptogramme"];
-const NUMBER_WINDOW: usize = 6;
-const NUMBER_FILLERS: [&str; 8] = ["c", "est", "l", "le", "la", "is", "the", "to"];
-
-/// A code right after one of these words, or with one as the first word
-/// after it past `CODE_LINKS`, is no secret: "Zip code", "Code postal",
-/// "error code 500". A `LINKED_PUBLIC_CODES` word counts only past a link,
-/// "le code de la route", "le code du travail": `Code travail : 4512B` is
-/// the door code at work.
-const PUBLIC_CODES: [&str; 6] = ["postal", "zip", "promo", "source", "error", "erreur"];
-const LINKED_PUBLIC_CODES: [&str; 2] = ["route", "travail"];
-const CODE_LINKS: [&str; 9] = ["de", "du", "d", "des", "la", "l", "le", "of", "the"];
-
-/// French names a secret first and what it opens after it, within three
-/// words: "Clé Wi-Fi", "Code de la porte", and any word that begins with a
-/// `FRENCH_SECRET_PREFIXES` entry, such as "Clé WPA2" or "Clé de sécu".
-const FRENCH_SECRET_HEADS: [&str; 6] = ["cle", "cles", "clef", "clefs", "code", "codes"];
-const FRENCH_SECRET_PREFIXES: [&str; 2] = ["wpa", "secu"];
-const FRENCH_SECRET_OBJECTS: [&str; 21] = [
-    "wifi",
-    "wi-fi",
-    "porte",
-    "immeuble",
-    "entree",
-    "interphone",
-    "batiment",
-    "alarme",
-    "portail",
-    "garage",
-    "parking",
-    "cadenas",
-    "coffre",
-    "boite",
-    "cb",
-    "carte",
-    "reseau",
-    "box",
-    "freebox",
-    "livebox",
-    "bbox",
-];
-
-/// English names what a code opens first, "Door code", or after `for` or
-/// `to`, "The code for the gate".
-const ENGLISH_CODE_OBJECTS: [&str; 6] = ["door", "gate", "alarm", "access", "lockbox", "security"];
-
-fn mentions_secret(line: &str) -> bool {
-    let folded = folded(line);
-    SECRET_WORDS.iter().any(|word| folded.contains(word))
-        || names_a_secret(&folded)
-        || has_url_credential(line)
-        || has_user_option(line)
-        || holds_card_number(line)
-}
-
-/// A `VALUE_LABELS` word or "PIN code" right before a colon, an
-/// `OPENED_BY_A_SECRET` or `CARD_WORDS` word in the label before it, an
-/// `OPENED_BY_A_SECRET` word heading a line of up to three words, a
-/// `NUMBER_LABELS` or `OPENED_BY_A_SECRET` word before a digit, a French
-/// secret head or an English code object before or after the code, in whole
-/// words of the `folded` line. A public code is no `NUMBER_LABELS` one.
-fn names_a_secret(folded: &str) -> bool {
-    fn words(text: &str) -> Vec<&str> {
-        text.split(|c: char| c.is_whitespace() || c == '\'')
-            .map(trim_word)
-            .filter(|word| !word.is_empty())
-            .collect()
-    }
-    let is_label = |label: &str| {
-        let words = words(label);
-        let named = words.iter().enumerate().any(|(at, word)| {
-            (words.len() <= SHORT_LABEL_WORDS || at == 0 || at + 3 >= words.len())
-                && (OPENED_BY_A_SECRET.contains(word) || CARD_WORDS.contains(word))
-        });
-        named
-            || match words.as_slice() {
-                [.., "pin", "code"] => true,
-                [.., before, "code" | "codes"] if PUBLIC_CODES.contains(before) => false,
-                [.., last] => VALUE_LABELS.contains(last),
-                [] => false,
-            }
-    };
-    let labelled = folded
-        .match_indices(':')
-        .any(|(colon, _)| is_label(&folded[..colon]));
-    let words = words(folded);
-    let heading = words.len() <= 3
-        && [words.first(), words.last()]
-            .into_iter()
-            .flatten()
-            .any(|word| OPENED_BY_A_SECRET.contains(word));
-    let numbered = |at: usize| {
-        words[at + 1..]
-            .iter()
-            .filter(|next| !NUMBER_FILLERS.contains(next))
-            .take(NUMBER_WINDOW)
-            .any(|next| next.chars().any(|c| c.is_ascii_digit()))
-    };
-    let public = |at: usize| {
-        let before = at.checked_sub(1).map(|before| words[before]);
-        let links = words[at + 1..]
-            .iter()
-            .take_while(|next| CODE_LINKS.contains(next))
-            .count();
-        let after = words.get(at + 1 + links);
-        before.is_some_and(|before| PUBLIC_CODES.contains(&before))
-            || after.is_some_and(|after| {
-                PUBLIC_CODES.contains(after) || (links > 0 && LINKED_PUBLIC_CODES.contains(after))
-            })
-    };
-    labelled
-        || heading
-        || words.iter().enumerate().any(|(at, word)| {
-            ((NUMBER_LABELS.contains(word) && !public(at)) || OPENED_BY_A_SECRET.contains(word))
-                && numbered(at)
-                || (FRENCH_SECRET_HEADS.contains(word)
-                    && words[at + 1..].iter().take(3).any(|next| {
-                        FRENCH_SECRET_OBJECTS.contains(next)
-                            || FRENCH_SECRET_PREFIXES
-                                .iter()
-                                .any(|prefix| next.starts_with(prefix))
-                    }))
-        })
-        || words.windows(2).any(|pair| {
-            ENGLISH_CODE_OBJECTS.contains(&pair[0]) && matches!(pair[1], "code" | "codes")
-        })
-        || (0..words.len()).any(|at| match &words[at..] {
-            ["code" | "codes", "for" | "to", "the", object, ..]
-            | ["code" | "codes", "for" | "to", object, ..] => ENGLISH_CODE_OBJECTS.contains(object),
-            _ => false,
-        })
-}
-
-/// Lowercase, without French accents, with `’` as `'` and the
-/// non-breaking hyphens as `-`.
-fn folded(line: &str) -> String {
-    line.to_lowercase()
-        .chars()
-        .map(|c| match c {
-            'à' | 'â' | 'ä' => 'a',
-            'é' | 'è' | 'ê' | 'ë' => 'e',
-            'î' | 'ï' => 'i',
-            'ô' | 'ö' => 'o',
-            'ù' | 'û' | 'ü' => 'u',
-            'ç' => 'c',
-            '’' => '\'',
-            '\u{2010}'..='\u{2012}' => '-',
-            c => c,
-        })
-        .collect()
-}
-
-/// A URL that holds a password, as in `postgres://user:password@host`, or a
-/// token as its user, as in `https://ghp_…@github.com`.
-fn has_url_credential(line: &str) -> bool {
-    line.match_indices("://").any(|(at, _)| {
-        let authority = line[at + 3..]
-            .split(['/', '?', '#', ' ', '"', '\''])
-            .next()
-            .unwrap_or_default();
-        authority
-            .rsplit_once('@')
-            .is_some_and(|(user, _)| user.contains(':') || looks_generated(user))
-    })
-}
-
-/// A user and password given to a command, as in `curl -u user:password`.
-fn has_user_option(line: &str) -> bool {
-    let mut words = line.split_whitespace();
-    while let Some(word) = words.next() {
-        if matches!(word, "-u" | "--user")
-            && words.next().is_some_and(|user| {
-                user.split_once(':')
-                    .is_some_and(|(_, pass)| !pass.is_empty())
-            })
-        {
-            return true;
-        }
-    }
-    false
-}
-
 /// Words that look like names: capitalised but not merely sentence case,
 /// never seen in lowercase in the same text, plus the name parts of email
-/// addresses and @handles. Most frequent first, at most 50. Lines that
-/// assign a value or mention a password, token, secret or API key are
-/// skipped, and so is the line after them, where a label's value sits, and
-/// every entry of the list they head, across blank lines and remarks such as
-/// "À changer tous les 6 mois.", up to a paragraph with no entry whose next
-/// paragraph does not start with one.
+/// addresses and @handles. Most frequent first, at most 50.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -634,38 +198,7 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         counts.entry(name).or_insert((0, order)).0 += 1;
     };
 
-    let lines: Vec<&str> = text.lines().collect();
-    let mut after_secret_label = false;
-    let mut in_secret_list = false;
-    let mut paragraph_start = true;
-    for (at, line) in lines.iter().enumerate() {
-        if line.trim().is_empty() {
-            paragraph_start = true;
-            continue;
-        }
-        let label = mentions_secret(line);
-        let entry = in_secret_list && is_list_entry(line);
-        let sensitive = after_secret_label || entry || is_assignment(line) || label;
-        after_secret_label = if entry {
-            awaits_value(line, label)
-        } else {
-            label
-        };
-        let entry_follows = || {
-            let mut rest = lines[at + 1..].iter();
-            rest.by_ref()
-                .take_while(|next| !next.trim().is_empty())
-                .any(|next| is_list_entry(next))
-                || rest
-                    .find(|next| !next.trim().is_empty())
-                    .is_some_and(|next| is_list_entry(next))
-        };
-        in_secret_list =
-            label || (in_secret_list && (sensitive || !paragraph_start || entry_follows()));
-        paragraph_start = false;
-        if sensitive {
-            continue;
-        }
+    for line in text.lines() {
         let mut sentence_start = true;
         for token in line.split_whitespace() {
             if let Some(parts) = address_names(token) {
@@ -692,46 +225,6 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         .map(|(name, _)| name)
         .take(MAX_NAMES)
         .collect()
-}
-
-/// A line of a list such as `Bureau - Corvina`, `Bureau : Corvina`,
-/// `Bureau Corvina`, `- Bureau Corvina`, `2. Bureau Corvina`, `2- Bureau
-/// Corvina`, `2 Bureau Corvina`, a lone `monChat2020`, a passphrase such as
-/// `Correct Horse Battery Staple`, or a short line with a value that has a
-/// digit or an inner capital, such as `gmail Etoile99`: an entry and its
-/// value, rather than a sentence such as "merci Ingrid".
-fn is_list_entry(line: &str) -> bool {
-    let line = line.trim();
-    let digits = line.trim_start_matches(|c: char| c.is_ascii_digit());
-    let after_marker = if digits.len() < line.len() {
-        Some(digits.strip_prefix(['.', ')', '-', '/']).unwrap_or(digits))
-    } else {
-        line.strip_prefix(['-', '*', '•', '–', '—'])
-    };
-    let words: Vec<&str> = line.split_whitespace().collect();
-    let short = words.len() <= 6 && !line.ends_with(['.', '!', '?']);
-    let holds_value = |word: &&str| {
-        word.chars().any(|c| c.is_ascii_digit()) || word.chars().skip(1).any(char::is_uppercase)
-    };
-    after_marker.is_some_and(|rest| rest.starts_with(char::is_whitespace))
-        || has_separator(line)
-        || words.len() == 1
-        || (line.starts_with(char::is_uppercase) && (words.len() <= 3 || short))
-        || (short && words.iter().any(holds_value))
-}
-
-fn has_separator(line: &str) -> bool {
-    [" - ", " – ", " — ", ":", "\t", " | ", " = ", " → ", " -> "]
-        .iter()
-        .any(|separator| line.contains(separator))
-}
-
-/// Whether a list entry leaves its value to the next line, as `Netflix :`
-/// or a `label` with no separator such as `Netflix password` do, where
-/// `Wi-Fi : Soleil2024` holds its own.
-fn awaits_value(entry: &str, label: bool) -> bool {
-    let entry = entry.trim();
-    entry.ends_with([':', '-', '–', '—', '|']) || (label && !has_separator(entry))
 }
 
 fn trim_word(token: &str) -> &str {
@@ -762,10 +255,11 @@ fn is_name(word: &str, sentence_start: bool) -> bool {
     inner_capital || !sentence_start
 }
 
-/// Passwords, API keys and hashes rather than words. Written names mix
-/// letters and digits at most once ("GPT-4o", "iPhone15"), switch case at
-/// most twice ("McDonald", "DeepSeek"), have vowels, and stay short unless
-/// they are hyphenated words.
+/// Generated strings such as keys and hashes rather than words, which would
+/// crowd real names out of the hints. Written names mix letters and digits
+/// at most once ("GPT-4o", "iPhone15"), switch case at most twice
+/// ("McDonald", "DeepSeek"), have vowels, and stay short unless they are
+/// hyphenated words.
 fn looks_generated(word: &str) -> bool {
     let segments: Vec<&str> = word
         .split(['-', '\'', '&', '.'])
@@ -913,8 +407,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_secrets_are_not_names() {
-        for secret in [
+    fn generated_tokens_are_not_names() {
+        for token in [
             // Generated passwords.
             "Xk9mPq2vLr7T",
             "Tr0ub4dor&3",
@@ -931,8 +425,8 @@ mod tests {
             "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         ] {
             assert!(
-                candidate_names(&format!("see {secret} here")).is_empty(),
-                "accepted {secret}"
+                candidate_names(&format!("see {token} here")).is_empty(),
+                "accepted {token}"
             );
         }
     }
@@ -964,22 +458,6 @@ mod tests {
         ] {
             assert!(!looks_generated(word), "rejected {word}");
         }
-    }
-
-    #[test]
-    fn values_next_to_secret_labels_are_skipped() {
-        assert_eq!(
-            candidate_names("Wi-Fi password: Bluebird\nshared with Corvina\nthanks to Ingrid"),
-            vec!["Ingrid"]
-        );
-        assert_eq!(
-            candidate_names("API key\nZephyrine\nmeet Tobias"),
-            vec!["Tobias"]
-        );
-        assert_eq!(
-            candidate_names("STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya"),
-            vec!["Amaya"]
-        );
     }
 
     /// `PENDING` is shared by every dictation, so its tests take turns.
@@ -1059,7 +537,6 @@ mod tests {
                 let field_log = Arc::clone(&log);
                 let context = read_window(
                     reads,
-                    "com.apple.Notes",
                     move || {
                         field_log.lock().unwrap().push("field");
                         excerpt()
@@ -1091,767 +568,24 @@ mod tests {
     }
 
     #[test]
-    fn terminals_and_editors_showing_assignments_give_no_names() {
-        let text = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        let context = |bundle_id, text| window_context(bundle_id, text, None).names;
-        assert!(context("com.apple.Terminal", text).is_empty());
-        assert!(context("com.jetbrains.intellij", text).is_empty());
-        assert_eq!(context("com.apple.Notes", text), names(&["Ingrid"]));
+    fn the_excerpt_and_names_are_sent_as_read() {
+        let all = ContextReads {
+            names: true,
+            field: true,
+        };
+        let context = read_window(
+            all,
+            || field("Code porte : 4512B\n", ""),
+            || "Wi-Fi password: Bluebird\nshared with Corvina".to_string(),
+        );
         assert_eq!(
-            context("com.microsoft.VSCode", "written by Ingrid"),
-            names(&["Ingrid"])
+            context,
+            WindowContext {
+                names: names(&["Wi-Fi", "Corvina"]),
+                field: field("Code porte : 4512B\n", ""),
+            }
         );
     }
-
-    #[test]
-    fn a_code_app_showing_assignments_gives_no_excerpt_either() {
-        let window = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        let excerpt = field("thanks to Ingrid for ", "");
-        assert_eq!(
-            window_context("com.apple.Terminal", window, excerpt.clone()),
-            WindowContext::default()
-        );
-        assert_eq!(
-            window_context("com.apple.Notes", window, excerpt.clone()).field,
-            excerpt
-        );
-    }
-
-    /// Every excerpt the secret filter was checked on: the app, its window
-    /// text, the text before and after the cursor, and whether the excerpt
-    /// may be sent. Add rows; never change one to make a fix pass.
-    const EXCERPT_CORPUS: &[(&str, &str, &str, &str, bool)] = &[
-        // English labels and assignments.
-        (
-            "com.apple.Notes",
-            "",
-            "Wi-Fi password: Bluebird\nsee you ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Hi Ingrid, ",
-            " here is my API key for staging",
-            false,
-        ),
-        ("com.apple.Notes", "", "STRIPE_KEY=Moonlight\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "export ADMIN = Corvina\nthen ",
-            "run it",
-            false,
-        ),
-        ("com.apple.Notes", "", "the token is ", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Thanks for the draft, Priya. ",
-            "",
-            true,
-        ),
-        // A code app showing an assignment sends nothing; elsewhere the
-        // window's assignment is not the excerpt's.
-        (
-            "com.apple.Terminal",
-            "DATABASE_URL=postgres://localhost\nwritten by Ingrid",
-            "thanks to Ingrid for ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "DATABASE_URL=postgres://localhost\nwritten by Ingrid",
-            "thanks to Ingrid for ",
-            "",
-            true,
-        ),
-        // French labels (round 44).
-        (
-            "com.apple.Notes",
-            "",
-            "Le mot de passe du Wi-Fi est Soleil2024\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "mdp : Soleil2024\nà demain ",
-            "",
-            false,
-        ),
-        ("com.apple.Mail", "", "clé API : sk-abc123\n", "", false),
-        (
-            "com.apple.Mail",
-            "",
-            "Voici la clé d'API de la préprod ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Mail",
-            "",
-            "Voici la clé d’API de la préprod ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "cle api : sk-abc123\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Ton jeton d'accès expire demain, ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Identifiant : jdupont\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Code d'accès de l'immeuble : 4589B\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Code PIN de la carte : 1234\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Merci pour la relecture, Priya. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Le mot de la fin revient à Ingrid. ",
-            "",
-            true,
-        ),
-        // Credentials in a terminal's scrollback (round 44).
-        (
-            "com.apple.Terminal",
-            "",
-            "$ curl -H \"Authorization: Bearer sk-live-abc\" https://api.example.com\n$ ",
-            "",
-            false,
-        ),
-        (
-            "com.googlecode.iterm2",
-            "",
-            "$ psql postgres://admin:S3cret@db.example.com/app\n$ ",
-            "",
-            false,
-        ),
-        (
-            "com.googlecode.iterm2",
-            "",
-            "$ git clone ssh://git@github.com/example/app.git\n$ ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Terminal",
-            "",
-            "$ open https://example.com/docs?page=2\n$ ",
-            "",
-            true,
-        ),
-        // French plurals and variants (round 45).
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe :\nWi-Fi : Soleil2024\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Les clés API : sk-abc123\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Clés privées du serveur : Corvina\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Codes d'accès : 4589B et 7781A\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Codes PIN : 1234, 5678\n", "", false),
-        (
-            "com.apple.Mail",
-            "",
-            "Voici la clé de l'API : sk-abc123\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Digicode : 4589B\n", "", false),
-        // A shell prompt before the command (round 45).
-        (
-            "com.apple.Terminal",
-            "",
-            "$ export DB_PASS=hunter2\n$ ",
-            "",
-            false,
-        ),
-        (
-            "com.googlecode.iterm2",
-            "",
-            "dev@Mac app % export STRIPE_KEY=sk_live_abc\ndev@Mac app % ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Terminal",
-            "",
-            "$ curl -u admin:S3cret https://api.example.com\n$ ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Terminal",
-            "",
-            "$ git clone https://ghp_x7Kq2mN9vR4bL1tW@github.com/example/app.git\n$ ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Terminal",
-            "",
-            "$ git clone https://dev@example.com/app.git\n$ ",
-            "",
-            true,
-        ),
-        // The 300-character cut goes through the label (round 45).
-        (
-            "com.apple.Notes",
-            "",
-            "Mot de passe :\nSoleil2024\nla suite. la suite. la suite. la suite. la suite. \
-             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
-             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
-             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
-             la suite. la suite. ",
-            "",
-            false,
-        ),
-        // Labels with no listed word, and keys with no label (round 46).
-        ("com.apple.Notes", "", "Clé Wi-Fi : Soleil2024\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Clé de sécurité : Soleil2024\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Code porte : 4589B\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Le code de la porte est 4589B, ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "PIN: 1234\n", "", false),
-        ("com.apple.Notes", "", "PIN code: 1234\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Login: jdoe / pass: hunter2\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "OpenAI key: sk-proj-4fT9xQ2mN7vR1bL8\n",
-            "",
-            false,
-        ),
-        (
-            "com.tinyspeck.slackmacgap",
-            "",
-            "here you go sk-proj-4fT9xQ2mN7vR1bL8 thanks ",
-            "",
-            false,
-        ),
-        (
-            "com.tinyspeck.slackmacgap",
-            "",
-            "ghp_x7Kq2mN9vR4bL1tW8cZ3dF6gH0jK5pS2uY4 ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Mail",
-            "",
-            "the id is AKIAIOSFODNN7EXAMPLE ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "https://maps.googleapis.com/api?key=AIzaSyD4fT9xQ2mN7vR1bL8cW3zK5pS2uY4hJ0 ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Q3 report: w8Kd2LpQ9xVz3RtY7mNc4BfH1jGs ",
-            "",
-            false,
-        ),
-        // The label of a list longer than the excerpt (round 46).
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n",
-            "",
-            false,
-        ),
-        // The same words in ordinary text (round 46).
-        (
-            "com.apple.Notes",
-            "",
-            "The key point is the launch date. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Key takeaways: ship on Monday. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "La clé du succès, c'est la régularité. ",
-            "",
-            true,
-        ),
-        ("com.apple.Notes", "", "Code postal : 75001\n", "", true),
-        (
-            "com.apple.Notes",
-            "",
-            "I'll pass on dinner, pin the tab and ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "The login page is broken again. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Rendez-vous à 14h30 le 2024-10-23, réf. 648e96d6. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Mail",
-            "",
-            "Écris à jean-baptiste.delacroix@exemple-societe.fr pour ",
-            "",
-            true,
-        ),
-        ("com.apple.Notes", "", "We use sk-learn and ", "", true),
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe\nBanque : Soleil2024\n\nLa réunion de lundi parle du budget. ",
-            "",
-            false,
-        ),
-        // Door codes, PINs and Wi-Fi keys with no listed label (round 47).
-        ("com.apple.Notes", "", "Code : 4512B\n", "", false),
-        ("com.apple.Notes", "", "Code: 1234\n", "", false),
-        ("com.apple.Notes", "", "Le code est 4512, ", "", false),
-        ("com.apple.Notes", "", "Door code: 4512\n", "", false),
-        ("com.apple.Notes", "", "Gate code 4512\n", "", false),
-        ("com.apple.Notes", "", "Alarm code: 1234\n", "", false),
-        ("com.apple.Notes", "", "Access code: 482913\n", "", false),
-        ("com.apple.Notes", "", "PIN 1234\n", "", false),
-        ("com.apple.Messages", "", "My PIN is 1234, ", "", false),
-        ("com.apple.Notes", "", "PIN number: 1234\n", "", false),
-        ("com.apple.Notes", "", "Wifi : Soleil2024\n", "", false),
-        ("com.apple.Mail", "", "Wi-Fi: Bluebird2024\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Code interphone : 4512B\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Code bâtiment : 4512\n", "", false),
-        ("com.apple.Notes", "", "Code garage : 1234\n", "", false),
-        ("com.apple.Notes", "", "Mon code PIN est 1234, ", "", false),
-        ("com.apple.Notes", "", "Zip code: 94103\n", "", true),
-        (
-            "com.apple.Notes",
-            "",
-            "Code promo : BIENVENUE10\n",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "The code review is on Monday. ",
-            "",
-            true,
-        ),
-        // A blank line under the label of a list longer than the excerpt
-        // (round 47).
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe\n\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
-             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n",
-            "",
-            false,
-        ),
-        // Door codes and PINs said as people text them, `WPA2` and a
-        // non-breaking hyphen (round 48).
-        ("com.apple.Messages", "", "Le code c’est 4512B ", "", false),
-        ("com.apple.Messages", "", "Le code, c'est 4512 ", "", false),
-        ("com.apple.Messages", "", "Le code est le 4512, ", "", false),
-        ("com.apple.Messages", "", "Le PIN c’est 1234 ", "", false),
-        (
-            "com.apple.Mail",
-            "",
-            "The code for the gate is 4512, ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Code for the gate: Bluebird\n", "", false),
-        ("com.apple.Notes", "", "Clé WPA2 : Soleil2024\n", "", false),
-        ("com.apple.Notes", "", "Wi\u{2011}Fi : Soleil2024\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Le code de la route a changé en 2024. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "C'est le code source de la version 2. ",
-            "",
-            true,
-        ),
-        // Door codes a few words after the word, `code to the …`, and codes
-        // that are no secret (round 48, review).
-        (
-            "com.apple.Messages",
-            "",
-            "Le code pour rentrer c'est 4512 ",
-            "",
-            false,
-        ),
-        ("com.apple.Mail", "", "The code to the gate is 4512, ", "", false),
-        (
-            "com.apple.Messages",
-            "",
-            "Le code de l'appart c'est 4512 ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Code to the gate: Bluebird\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Le code du travail prévoit 5 semaines de congés. ",
-            "",
-            true,
-        ),
-        (
-            "com.tinyspeck.slackmacgap",
-            "",
-            "We got error code 500 again. ",
-            "",
-            true,
-        ),
-        (
-            "com.tinyspeck.slackmacgap",
-            "",
-            "Merci pour le code, je teste demain et je te redis vers 18h. ",
-            "",
-            true,
-        ),
-        // A heading above a paragraph of two lines or more, with a list
-        // longer than the excerpt under it (round 48).
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe\nMis à jour en mars\n\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
-             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Passwords\n\nAll my accounts.\nUpdate yearly.\n\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
-             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Mots de passe\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
-             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n",
-            "",
-            false,
-        ),
-        // Wi-Fi keys and door codes with no colon, a few words further from
-        // "code", or labelled by what they open (round 49).
-        (
-            "com.apple.Messages",
-            "",
-            "Le wifi c'est Soleil2024 ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Messages",
-            "",
-            "The wifi is Bluebird2024 ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Wifi - Bluebird2024\n", "", false),
-        ("com.apple.Notes", "", "Porte : 4512B\n", "", false),
-        ("com.apple.Notes", "", "Door: 4512\n", "", false),
-        (
-            "com.apple.Messages",
-            "",
-            "Le code pour rentrer dans l'immeuble c'est 4512 ",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Mail",
-            "",
-            "The code to get into the building is 4512, ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Clé de sécu : X7f3e9\n", "", false),
-        (
-            "com.apple.Messages",
-            "",
-            "Le wifi de l'hôtel marche bien. ",
-            "",
-            true,
-        ),
-        // Door codes after a dash, a space or nothing, Wi-Fi labels of more
-        // than one word with the key on the next line, `travail` further
-        // from "code", and `clef` and `réseau` (round 50).
-        ("com.apple.Notes", "", "Porte 4512B\n", "", false),
-        ("com.apple.Notes", "", "Porte - 4512B\n", "", false),
-        ("com.apple.Notes", "", "Porte d'entrée 4512B\n", "", false),
-        ("com.apple.Notes", "", "Portail 4512\n", "", false),
-        ("com.apple.Notes", "", "Interphone 4512B\n", "", false),
-        ("com.apple.Notes", "", "Door 4512\n", "", false),
-        ("com.apple.Notes", "", "Door - 4512\n", "", false),
-        ("com.apple.Notes", "", "Front door 4512\n", "", false),
-        ("com.apple.Notes", "", "Gate 4512\n", "", false),
-        ("com.apple.Notes", "", "Wifi maison :\nmonChat2020\n", "", false),
-        ("com.apple.Notes", "", "Wifi invités :\nmonChat2020\n", "", false),
-        ("com.apple.Notes", "", "Wifi du gîte :\nmonChat2020\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Wifi du travail : Soleil2024\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Messages",
-            "",
-            "Le code pour rentrer au travail c'est 4512 ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Clé réseau : X7f3e9\n", "", false),
-        ("com.apple.Notes", "", "Clef de sécurité : X7f3e9\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "On se retrouve au travail à 9h. ",
-            "",
-            true,
-        ),
-        // Bank cards, labelled or not (round 51).
-        (
-            "com.apple.Notes",
-            "",
-            "Card number: 4970 1012 3456 7890\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Carte bleue : 4970 1012 3456 7890 exp 08/27 CVV 123\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "CB : 4970101234567890\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Numéro de carte : 4970 1012 3456 7890\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Messages",
-            "",
-            "Je t'envoie 4970 1012 3456 7893 pour la résa ",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "4970-1012-3456-7893\n", "", false),
-        ("com.apple.Notes", "", "CVV 123\n", "", false),
-        (
-            "com.apple.Messages",
-            "",
-            "Appelle-moi au 06 12 34 56 78 demain. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Mail",
-            "",
-            "La commande 1234567890123 est partie. ",
-            "",
-            true,
-        ),
-        (
-            "com.apple.Messages",
-            "",
-            "J'ai payé par carte hier soir. ",
-            "",
-            true,
-        ),
-        // A Wi-Fi or door label on its own line, an article before the
-        // label, lock, alarm and box words, and `travail` right after
-        // `code` (round 51).
-        ("com.apple.Notes", "", "Wifi maison\nmonChat2020\n", "", false),
-        ("com.apple.Notes", "", "Wi-Fi\nmonChat2020\n", "", false),
-        ("com.apple.Notes", "", "Interphone\n4512B\n", "", false),
-        ("com.apple.Notes", "", "Door\n4512\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Le wifi de la maison :\nmonChat2020\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "Le Wi-Fi de l'appart :\nmonChat2020\n",
-            "",
-            false,
-        ),
-        (
-            "com.apple.Notes",
-            "",
-            "The wifi at the cabin:\nBluebird2024\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Cadenas : 4512\n", "", false),
-        ("com.apple.Notes", "", "Alarme : 1234\n", "", false),
-        ("com.apple.Notes", "", "Coffre : 4512\n", "", false),
-        ("com.apple.Notes", "", "Lockbox: 4512\n", "", false),
-        ("com.apple.Notes", "", "Alarm: 1234\n", "", false),
-        ("com.apple.Notes", "", "Keypad 4512\n", "", false),
-        ("com.apple.Notes", "", "Intercom: 4512B\n", "", false),
-        ("com.apple.Notes", "", "Padlock 4512\n", "", false),
-        ("com.apple.Notes", "", "Clé box : Soleil2024\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Clé de la box : monchatroux\n",
-            "",
-            false,
-        ),
-        ("com.apple.Notes", "", "Clé Freebox : Soleil2024\n", "", false),
-        ("com.apple.Notes", "", "Code travail : 4512B\n", "", false),
-        ("com.apple.Notes", "", "Code travail 4512\n", "", false),
-        (
-            "com.apple.Notes",
-            "",
-            "Le wifi était lent hier soir, on en reparle. ",
-            "",
-            true,
-        ),
-    ];
 
     /// Every text the name finder was checked on, and the names it gives.
     /// Add rows; never change one to make a fix pass.
@@ -1901,157 +635,6 @@ mod tests {
                 "DeepSeek",
             ],
         ),
-        // Values next to a secret label (rounds 44 and 45).
-        (
-            "Wi-Fi password: Bluebird\nshared with Corvina\nthanks to Ingrid",
-            &["Ingrid"],
-        ),
-        ("API key\nZephyrine\nmeet Tobias", &["Tobias"]),
-        (
-            "STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya",
-            &["Amaya"],
-        ),
-        ("Mots de passe :\nWi-Fi : Soleil2024\nmerci Ingrid", &["Ingrid"]),
-        // Every entry of a list under a secret label (round 46).
-        (
-            "Wi-Fi password\nMaison - Bluebird\nBureau - Corvina\nGîte - Soleil2024",
-            &[],
-        ),
-        (
-            "Mots de passe\nMaison Bluebird\nBureau Corvina\nGîte Soleil2024\n\nmerci Ingrid",
-            &["Ingrid"],
-        ),
-        (
-            "Clé Wi-Fi : Bluebird\nBureau : Corvina\nwith Tobias",
-            &["Tobias"],
-        ),
-        (
-            "Code porte : 4589B\nGarage – Corvina\nask Amaya",
-            &["Amaya"],
-        ),
-        // Numbered and bulleted entries, and a blank line under the label
-        // (round 47).
-        (
-            "Mots de passe\n1. Banque Soleil2024\n2. Netflix Lune2023\n3. Gmail Etoile99",
-            &[],
-        ),
-        (
-            "Mots de passe\n- Banque Soleil2024\n- Netflix Lune2023\n- Gmail Etoile99",
-            &[],
-        ),
-        (
-            "Passwords\n• Bank Bluebird7\n• Netflix Corvina\n• Gmail Zephyr42",
-            &[],
-        ),
-        (
-            "Mots de passe\n\nBanque Soleil2024\nNetflix Lune2023\n\nmerci Ingrid",
-            &["Ingrid"],
-        ),
-        // A label in the list whose value sits on the next line.
-        ("Gmail password:\nHunter2\nNetflix password:\nmonChat2020", &[]),
-        ("Mots de passe\nMot de passe Gmail :\nmonChat2020", &[]),
-        (
-            "Gmail password:\nHunter2\nNetflix password:\ncorrect Horse battery Staple",
-            &[],
-        ),
-        (
-            "Mots de passe\n- Netflix :\nmonChat2020\n- Wi-Fi : Soleil2024\nmerci Ingrid",
-            &["Ingrid"],
-        ),
-        // Dashed and slashed numbers, lone values, long passphrases, a
-        // blank line between groups and a `Logins` label (round 48).
-        (
-            "Mots de passe\n1- Banque Soleil2024\n2- Netflix Lune2023\n3- Gmail Etoile99",
-            &[],
-        ),
-        (
-            "Mots de passe\n1/ Banque Soleil2024\n2/ Netflix Lune2023\n3/ Gmail Etoile99",
-            &[],
-        ),
-        ("Mots de passe\nNetflix\nmonChat2020\nGmail\nEtoile99", &[]),
-        (
-            "Mots de passe\nGmail Etoile99\nNetflix\nCorrect Horse Battery Staple",
-            &[],
-        ),
-        (
-            "Mots de passe\nBanque Soleil2024\n\nNetflix Lune2023\nGmail Etoile99",
-            &[],
-        ),
-        ("Logins :\nNetflix Lune2023\nGmail Etoile99", &[]),
-        (
-            "Mots de passe\nBanque Soleil2024\n\nNetflix Lune2023\n\nmerci Ingrid",
-            &["Ingrid"],
-        ),
-        // Lowercase and plainly numbered entries (round 48, review).
-        (
-            "Mots de passe\n1 Banque Soleil2024\n2 Netflix Lune2023\n3 Gmail Etoile99",
-            &[],
-        ),
-        (
-            "Mots de passe\ngmail Etoile99\nnetflix Lune2023\nbanque Soleil2024",
-            &[],
-        ),
-        ("Mots de passe\nGmail Etoile99\nnetflix monChat2020", &[]),
-        ("Mots de passe\ngmail Etoile99\nmerci Ingrid", &["Ingrid"]),
-        // A remark or an intro of two lines inside the list, and `=` or an
-        // arrow between an entry and its value (round 49).
-        (
-            "Mots de passe\nGmail - Etoile99\nNetflix - Lune2023\nÀ changer tous les 6 mois.\n\
-             Banque - Soleil2024\nFree : monChat2020",
-            &[],
-        ),
-        (
-            "Passwords\nGmail - Hunter22\nAll of these were changed in March.\nBank - Tiger2024\n\
-             Amazon - Sunshine7",
-            &["March"],
-        ),
-        (
-            "Mots de passe\nMis à jour en mars 2025.\nPenser à les changer chaque année.\n\
-             Gmail - Etoile99\nBanque - Soleil2024",
-            &[],
-        ),
-        (
-            "Mots de passe\nGmail - Etoile99\nCompte de la banque en ligne = Soleil2024\n\
-             Compte du site des impôts → Lune2023\nCompte de la mutuelle santé -> Etoile99",
-            &[],
-        ),
-        (
-            "Mots de passe\nGmail - Etoile99\nÀ changer tous les 6 mois.\nBanque - Soleil2024\n\n\
-             Réunion avec Ingrid demain.",
-            &["Ingrid"],
-        ),
-        // A Wi-Fi label of two words, and a remark set off by blank lines
-        // inside the list (round 50).
-        ("Wifi maison :\nmonChat2020", &[]),
-        (
-            "Mots de passe\nGmail - Etoile99\n\nÀ changer tous les 6 mois.\nBanque - Soleil2024\n\
-             Free : monChat2020",
-            &[],
-        ),
-        (
-            "Passwords\nGmail - Hunter22\n\nAll of these were changed in March.\nBank - Tiger2024\n\
-             Amazon - Sunshine7",
-            &["March"],
-        ),
-        // A Wi-Fi label on its own line or after an article, a remark of
-        // two lines set off by a blank line inside the list, and a card
-        // number (round 51).
-        ("Wifi maison\nmonChat2020", &[]),
-        ("Le wifi de la maison :\nmonChat2020", &[]),
-        (
-            "Mots de passe\nGmail - Etoile99\n\nÀ changer tous les 6 mois.\n\
-             Surtout celui de la banque.\nBanque - Soleil2024",
-            &[],
-        ),
-        (
-            "Passwords\nGmail - Hunter22\n\nAll of these were changed in March.\n\
-             Especially the bank one.\nBank - Tiger2024",
-            &["March"],
-        ),
-        (
-            "Réunion avec Ingrid.\nCarte Visa : 4970 1012 3456 7893 Corvina",
-            &["Ingrid"],
-        ),
     ];
 
     #[test]
@@ -2062,60 +645,6 @@ mod tests {
             .map(|(text, expected)| {
                 format!("{text:?}: {:?}, not {expected:?}", candidate_names(text))
             })
-            .collect();
-        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-    }
-
-    /// A field holding `0` with the cursor at UTF-16 unit `1`.
-    struct Field(String, usize);
-
-    impl FocusedText for Field {
-        fn is_secure(&self) -> bool {
-            false
-        }
-        fn selection(&self) -> Option<Utf16Range> {
-            Some(Utf16Range {
-                start: self.1,
-                len: 0,
-            })
-        }
-        fn char_count(&self) -> Option<usize> {
-            Some(self.0.encode_utf16().count())
-        }
-        fn string_for_range(&self, range: Utf16Range) -> Option<String> {
-            let units: Vec<u16> = self.0.encode_utf16().collect();
-            units
-                .get(range.start..range.start + range.len)
-                .map(String::from_utf16_lossy)
-        }
-        fn value(&self) -> Option<String> {
-            Some(self.0.clone())
-        }
-    }
-
-    #[test]
-    fn excerpt_secret_corpus() {
-        let wrong: Vec<String> = EXCERPT_CORPUS
-            .iter()
-            .filter(|&&(app, window, before, after, kept)| {
-                let text = format!("{before}{after}");
-                let cursor = before.encode_utf16().count();
-                let deadline = Instant::now() + Duration::from_secs(60);
-                let excerpt = read_excerpt(&Field(text.clone(), cursor), deadline);
-                let expected = if kept {
-                    crate::field_excerpt::cut(
-                        &text,
-                        Utf16Range {
-                            start: cursor,
-                            len: 0,
-                        },
-                    )
-                } else {
-                    None
-                };
-                window_context(app, window, excerpt).field != expected
-            })
-            .map(|(app, _, before, after, kept)| format!("{app} {before:?} {after:?} kept: {kept}"))
             .collect();
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
@@ -2228,7 +757,7 @@ mod tests {
                 .map(|window| window_text(window, started));
             let before = window.map_or("no window".to_string(), |text| {
                 let elapsed = started.elapsed().as_millis();
-                let names = window_context(&bundle_id, &text, None).names.len();
+                let names = names_in(None, &text).len();
                 format!("{}, {names}, {elapsed}", text.chars().count())
             });
 
@@ -2237,7 +766,7 @@ mod tests {
                 names: true,
                 field: true,
             };
-            let context = read_app(all, pid, &bundle_id, &app, started);
+            let context = read_app(all, pid, &app, started);
             let elapsed = started.elapsed().as_millis();
             let excerpt = context.field.as_ref().map_or(0, |field| {
                 field.before.chars().count() + field.after.chars().count()
@@ -2305,13 +834,9 @@ mod tests {
 
     #[test]
     fn names_in_the_excerpt_come_before_the_window_names() {
-        let context = window_context(
-            "com.apple.Mail",
-            "meet Tobias and Siobhán today",
-            field("Dear Siobhán and Priya, ", "with Ingrid"),
-        );
+        let excerpt = field("Dear Siobhán and Priya, ", "with Ingrid");
         assert_eq!(
-            context.names,
+            names_in(excerpt.as_ref(), "meet Tobias and Siobhán today"),
             names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
     }
