@@ -961,6 +961,16 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
             let map = merged
                 .as_object_mut()
                 .expect("merged settings stay an object");
+            // The default keeps 5 dictations: an unknown period deletes
+            // none, as after a damaged file.
+            if key == "recording_retention_period" {
+                map.insert(
+                    key.clone(),
+                    serde_json::to_value(RecordingRetentionPeriod::Never)
+                        .expect("a retention period serializes"),
+                );
+                continue;
+            }
             match previous {
                 Some(previous) => map.insert(key.clone(), previous),
                 None => map.remove(key),
