@@ -219,9 +219,9 @@ fn is_code_app(bundle_id: &str) -> bool {
 /// A terminal or editor with any `KEY=value` line may be showing a `.env`
 /// file or a shell session, so it gives no names and no excerpt at all.
 /// Elsewhere an excerpt with a line that assigns a value, mentions a
-/// password, token, secret, key, PIN or door code (in English or French),
-/// holds a credential as a shell shows one, or holds a key or token with no
-/// label, is dropped. Names in the excerpt come
+/// password, token, secret, key, PIN, door code or bank card (in English or
+/// French), holds a credential as a shell shows one, or holds a key, token
+/// or card number with no label, is dropped. Names in the excerpt come
 /// first: they are next to what the user is writing.
 fn window_context(
     bundle_id: &str,
@@ -262,6 +262,44 @@ fn shows_secret(text: &str) -> bool {
                 .any(|token| is_assignment(token) || holds_key(token))
             || mentions_secret(line)
     })
+}
+
+/// 13 to 19 digits in a row, or in groups split by one space or dash as
+/// cards print them, that pass the Luhn check every card number passes.
+fn holds_card_number(line: &str) -> bool {
+    let passes_luhn = |digits: &str| {
+        let sum: u32 = digits
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(at, byte)| {
+                let digit = u32::from(byte - b'0');
+                match (at % 2, digit * 2) {
+                    (0, _) => digit,
+                    (_, doubled) if doubled > 9 => doubled - 9,
+                    (_, doubled) => doubled,
+                }
+            })
+            .sum();
+        sum.is_multiple_of(10)
+    };
+    line.split(|c: char| !(c.is_ascii_digit() || c == ' ' || c == '-'))
+        .flat_map(|stretch| {
+            let groups: Vec<&str> = stretch.split([' ', '-']).collect();
+            groups
+                .split(|group| group.is_empty())
+                .map(<[&str]>::to_vec)
+                .collect::<Vec<_>>()
+        })
+        .any(|run| {
+            (0..run.len()).any(|start| {
+                let mut digits = String::new();
+                run[start..].iter().any(|group| {
+                    digits.push_str(group);
+                    (13..=19).contains(&digits.len()) && passes_luhn(&digits)
+                })
+            })
+        })
 }
 
 /// How the API keys and tokens of common services begin.
@@ -356,10 +394,13 @@ const VALUE_LABELS: [&str; 14] = [
     "code", "codes",
 ];
 
-/// What a Wi-Fi key or a door code opens, which labels it as the first or
-/// one of the last three words before a colon, `Wifi maison :`, or with a
-/// value with a digit within `NUMBER_WINDOW` words, `Porte - 4512B`.
-const OPENED_BY_A_SECRET: [&str; 7] = [
+/// What a Wi-Fi key or a door code opens. It labels the secret as any word
+/// of a label of up to `SHORT_LABEL_WORDS` words before a colon, `Le wifi de
+/// la maison :`, or the first or one of the last three of a longer one; as
+/// the first or last word of a line of up to three words, whose value is on
+/// the next line, `Wifi maison`; or with a value with a digit within
+/// `NUMBER_WINDOW` words, `Porte - 4512B`.
+const OPENED_BY_A_SECRET: [&str; 15] = [
     "wifi",
     "wi-fi",
     "porte",
@@ -367,22 +408,36 @@ const OPENED_BY_A_SECRET: [&str; 7] = [
     "interphone",
     "door",
     "gate",
+    "cadenas",
+    "alarme",
+    "coffre",
+    "alarm",
+    "lockbox",
+    "padlock",
+    "keypad",
+    "intercom",
 ];
+const SHORT_LABEL_WORDS: usize = 6;
+
+/// A bank card, which labels its number as an `OPENED_BY_A_SECRET` word
+/// labels before a colon: `Carte bleue :`, `Numéro de carte :`.
+const CARD_WORDS: [&str; 3] = ["card", "carte", "cb"];
 
 /// Words that name a secret when a value with a digit follows within
 /// `NUMBER_WINDOW` words, not counting `NUMBER_FILLERS`, as DLP keyword
 /// proximity rules do: `PIN 1234`, "le code pour rentrer dans l'immeuble
-/// c'est 4512".
-const NUMBER_LABELS: [&str; 3] = ["pin", "code", "codes"];
+/// c'est 4512", `CVV 123`.
+const NUMBER_LABELS: [&str; 6] = ["pin", "code", "codes", "cvv", "cvc", "cryptogramme"];
 const NUMBER_WINDOW: usize = 6;
 const NUMBER_FILLERS: [&str; 8] = ["c", "est", "l", "le", "la", "is", "the", "to"];
 
 /// A code right after one of these words, or with one as the first word
-/// after it past `CODE_LINKS`, is no secret: "Zip code", "Code postal", "le
-/// code de la route", "error code 500".
-const PUBLIC_CODES: [&str; 8] = [
-    "postal", "zip", "promo", "source", "route", "travail", "error", "erreur",
-];
+/// after it past `CODE_LINKS`, is no secret: "Zip code", "Code postal",
+/// "error code 500". A `LINKED_PUBLIC_CODES` word counts only past a link,
+/// "le code de la route", "le code du travail": `Code travail : 4512B` is
+/// the door code at work.
+const PUBLIC_CODES: [&str; 6] = ["postal", "zip", "promo", "source", "error", "erreur"];
+const LINKED_PUBLIC_CODES: [&str; 2] = ["route", "travail"];
 const CODE_LINKS: [&str; 9] = ["de", "du", "d", "des", "la", "l", "le", "of", "the"];
 
 /// French names a secret first and what it opens after it, within three
@@ -390,7 +445,7 @@ const CODE_LINKS: [&str; 9] = ["de", "du", "d", "des", "la", "l", "le", "of", "t
 /// `FRENCH_SECRET_PREFIXES` entry, such as "Clé WPA2" or "Clé de sécu".
 const FRENCH_SECRET_HEADS: [&str; 6] = ["cle", "cles", "clef", "clefs", "code", "codes"];
 const FRENCH_SECRET_PREFIXES: [&str; 2] = ["wpa", "secu"];
-const FRENCH_SECRET_OBJECTS: [&str; 17] = [
+const FRENCH_SECRET_OBJECTS: [&str; 21] = [
     "wifi",
     "wi-fi",
     "porte",
@@ -408,6 +463,10 @@ const FRENCH_SECRET_OBJECTS: [&str; 17] = [
     "cb",
     "carte",
     "reseau",
+    "box",
+    "freebox",
+    "livebox",
+    "bbox",
 ];
 
 /// English names what a code opens first, "Door code", or after `for` or
@@ -420,14 +479,15 @@ fn mentions_secret(line: &str) -> bool {
         || names_a_secret(&folded)
         || has_url_credential(line)
         || has_user_option(line)
+        || holds_card_number(line)
 }
 
 /// A `VALUE_LABELS` word or "PIN code" right before a colon, an
-/// `OPENED_BY_A_SECRET` word first or among the last three before it, a
+/// `OPENED_BY_A_SECRET` or `CARD_WORDS` word in the label before it, an
+/// `OPENED_BY_A_SECRET` word heading a line of up to three words, a
 /// `NUMBER_LABELS` or `OPENED_BY_A_SECRET` word before a digit, a French
 /// secret head or an English code object before or after the code, in whole
-/// words of the `folded` line. A code next to a `PUBLIC_CODES` word is no
-/// `NUMBER_LABELS` one.
+/// words of the `folded` line. A public code is no `NUMBER_LABELS` one.
 fn names_a_secret(folded: &str) -> bool {
     fn words(text: &str) -> Vec<&str> {
         text.split(|c: char| c.is_whitespace() || c == '\'')
@@ -437,12 +497,11 @@ fn names_a_secret(folded: &str) -> bool {
     }
     let is_label = |label: &str| {
         let words = words(label);
-        let opened = words
-            .first()
-            .into_iter()
-            .chain(words.iter().rev().take(3))
-            .any(|word| OPENED_BY_A_SECRET.contains(word));
-        opened
+        let named = words.iter().enumerate().any(|(at, word)| {
+            (words.len() <= SHORT_LABEL_WORDS || at == 0 || at + 3 >= words.len())
+                && (OPENED_BY_A_SECRET.contains(word) || CARD_WORDS.contains(word))
+        });
+        named
             || match words.as_slice() {
                 [.., "pin", "code"] => true,
                 [.., before, "code" | "codes"] if PUBLIC_CODES.contains(before) => false,
@@ -454,6 +513,11 @@ fn names_a_secret(folded: &str) -> bool {
         .match_indices(':')
         .any(|(colon, _)| is_label(&folded[..colon]));
     let words = words(folded);
+    let heading = words.len() <= 3
+        && [words.first(), words.last()]
+            .into_iter()
+            .flatten()
+            .any(|word| OPENED_BY_A_SECRET.contains(word));
     let numbered = |at: usize| {
         words[at + 1..]
             .iter()
@@ -463,16 +527,18 @@ fn names_a_secret(folded: &str) -> bool {
     };
     let public = |at: usize| {
         let before = at.checked_sub(1).map(|before| words[before]);
-        let after = words[at + 1..]
+        let links = words[at + 1..]
             .iter()
-            .copied()
-            .find(|next| !CODE_LINKS.contains(next));
-        before
-            .into_iter()
-            .chain(after)
-            .any(|near| PUBLIC_CODES.contains(&near))
+            .take_while(|next| CODE_LINKS.contains(next))
+            .count();
+        let after = words.get(at + 1 + links);
+        before.is_some_and(|before| PUBLIC_CODES.contains(&before))
+            || after.is_some_and(|after| {
+                PUBLIC_CODES.contains(after) || (links > 0 && LINKED_PUBLIC_CODES.contains(after))
+            })
     };
     labelled
+        || heading
         || words.iter().enumerate().any(|(at, word)| {
             ((NUMBER_LABELS.contains(word) && !public(at)) || OPENED_BY_A_SECRET.contains(word))
                 && numbered(at)
@@ -549,8 +615,8 @@ fn has_user_option(line: &str) -> bool {
 /// assign a value or mention a password, token, secret or API key are
 /// skipped, and so is the line after them, where a label's value sits, and
 /// every entry of the list they head, across blank lines and remarks such as
-/// "À changer tous les 6 mois.", up to a paragraph whose first line is no
-/// entry and is not followed by one.
+/// "À changer tous les 6 mois.", up to a paragraph with no entry whose next
+/// paragraph does not start with one.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -586,10 +652,13 @@ pub fn candidate_names(text: &str) -> Vec<String> {
             label
         };
         let entry_follows = || {
-            lines[at + 1..]
-                .iter()
-                .find(|next| !next.trim().is_empty())
-                .is_some_and(|next| is_list_entry(next))
+            let mut rest = lines[at + 1..].iter();
+            rest.by_ref()
+                .take_while(|next| !next.trim().is_empty())
+                .any(|next| is_list_entry(next))
+                || rest
+                    .find(|next| !next.trim().is_empty())
+                    .is_some_and(|next| is_list_entry(next))
         };
         in_secret_list =
             label || (in_secret_list && (sensitive || !paragraph_start || entry_follows()));
@@ -1675,6 +1744,113 @@ mod tests {
             "",
             true,
         ),
+        // Bank cards, labelled or not (round 51).
+        (
+            "com.apple.Notes",
+            "",
+            "Card number: 4970 1012 3456 7890\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Carte bleue : 4970 1012 3456 7890 exp 08/27 CVV 123\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "CB : 4970101234567890\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Numéro de carte : 4970 1012 3456 7890\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Messages",
+            "",
+            "Je t'envoie 4970 1012 3456 7893 pour la résa ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "4970-1012-3456-7893\n", "", false),
+        ("com.apple.Notes", "", "CVV 123\n", "", false),
+        (
+            "com.apple.Messages",
+            "",
+            "Appelle-moi au 06 12 34 56 78 demain. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Mail",
+            "",
+            "La commande 1234567890123 est partie. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Messages",
+            "",
+            "J'ai payé par carte hier soir. ",
+            "",
+            true,
+        ),
+        // A Wi-Fi or door label on its own line, an article before the
+        // label, lock, alarm and box words, and `travail` right after
+        // `code` (round 51).
+        ("com.apple.Notes", "", "Wifi maison\nmonChat2020\n", "", false),
+        ("com.apple.Notes", "", "Wi-Fi\nmonChat2020\n", "", false),
+        ("com.apple.Notes", "", "Interphone\n4512B\n", "", false),
+        ("com.apple.Notes", "", "Door\n4512\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Le wifi de la maison :\nmonChat2020\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Le Wi-Fi de l'appart :\nmonChat2020\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "The wifi at the cabin:\nBluebird2024\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Cadenas : 4512\n", "", false),
+        ("com.apple.Notes", "", "Alarme : 1234\n", "", false),
+        ("com.apple.Notes", "", "Coffre : 4512\n", "", false),
+        ("com.apple.Notes", "", "Lockbox: 4512\n", "", false),
+        ("com.apple.Notes", "", "Alarm: 1234\n", "", false),
+        ("com.apple.Notes", "", "Keypad 4512\n", "", false),
+        ("com.apple.Notes", "", "Intercom: 4512B\n", "", false),
+        ("com.apple.Notes", "", "Padlock 4512\n", "", false),
+        ("com.apple.Notes", "", "Clé box : Soleil2024\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Clé de la box : monchatroux\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Clé Freebox : Soleil2024\n", "", false),
+        ("com.apple.Notes", "", "Code travail : 4512B\n", "", false),
+        ("com.apple.Notes", "", "Code travail 4512\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Le wifi était lent hier soir, on en reparle. ",
+            "",
+            true,
+        ),
     ];
 
     /// Every text the name finder was checked on, and the names it gives.
@@ -1856,6 +2032,25 @@ mod tests {
             "Passwords\nGmail - Hunter22\n\nAll of these were changed in March.\nBank - Tiger2024\n\
              Amazon - Sunshine7",
             &["March"],
+        ),
+        // A Wi-Fi label on its own line or after an article, a remark of
+        // two lines set off by a blank line inside the list, and a card
+        // number (round 51).
+        ("Wifi maison\nmonChat2020", &[]),
+        ("Le wifi de la maison :\nmonChat2020", &[]),
+        (
+            "Mots de passe\nGmail - Etoile99\n\nÀ changer tous les 6 mois.\n\
+             Surtout celui de la banque.\nBanque - Soleil2024",
+            &[],
+        ),
+        (
+            "Passwords\nGmail - Hunter22\n\nAll of these were changed in March.\n\
+             Especially the bank one.\nBank - Tiger2024",
+            &["March"],
+        ),
+        (
+            "Réunion avec Ingrid.\nCarte Visa : 4970 1012 3456 7893 Corvina",
+            &["Ingrid"],
         ),
     ];
 
