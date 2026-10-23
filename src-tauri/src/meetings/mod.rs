@@ -100,7 +100,7 @@ pub struct MeetingCapabilities {
 /// After a rate-limited meeting, or one that could not reach Codex, the
 /// queue holds: only meetings the user asked for go through, ahead of the
 /// others. While only the connection holds it and this Mac's model is
-/// ready, the meetings that model has not tried go through too.
+/// ready, the meetings that model can still transcribe go through too.
 struct ProcessingQueue {
     state: Mutex<QueueState>,
     changed: tokio::sync::Notify,
@@ -120,6 +120,9 @@ struct QueueState {
     /// Holds the queue, as the rate-limit hold does, until the connection
     /// is back.
     offline: OfflineHold,
+    /// The meeting taken last went past the offline hold on this Mac's
+    /// model.
+    local_pass: bool,
 }
 
 /// What the worker does next.
@@ -138,9 +141,9 @@ struct Queued {
     /// rate-limit hold lets through: pressing it is how the user says Codex
     /// may have freed up.
     asked: bool,
-    /// Queued again after a run that had this Mac's model: only Codex can
-    /// do what is left.
-    local_tried: bool,
+    /// Only Codex can do what is left: a run had this Mac's model, or the
+    /// transcript is complete and only the summary is left.
+    codex_only: bool,
 }
 
 impl QueueState {
@@ -151,7 +154,7 @@ impl QueueState {
     fn goes_through(&self, queued: &Queued, local_ready: bool) -> bool {
         !self.held()
             || queued.asked
-            || (self.held_until.is_none() && local_ready && !queued.local_tried)
+            || (self.held_until.is_none() && local_ready && !queued.codex_only)
     }
 
     /// The meeting to process now or, when none may go, what to wait for.
@@ -162,6 +165,7 @@ impl QueueState {
             .iter()
             .position(|queued| self.goes_through(queued, local_ready));
         if let Some(queued) = index.and_then(|index| self.queued.remove(index)) {
+            self.local_pass = self.held() && !queued.asked;
             return Next::Process(queued.id);
         }
         if self.offline.due(now) {
@@ -181,6 +185,7 @@ impl ProcessingQueue {
             held_until: None,
             rate_limit: RateLimitHold::default(),
             offline: OfflineHold::default(),
+            local_pass: false,
         };
         Self {
             state: Mutex::new(state),
@@ -207,10 +212,10 @@ impl ProcessingQueue {
         self.push(id, true, false);
     }
 
-    /// Queues a meeting whose run could not reach Codex, to go on once the
-    /// connection is back. `local_tried`: the run had this Mac's model.
-    fn requeue_unreachable(&self, id: i64, local_tried: bool) {
-        self.push(id, false, local_tried);
+    /// Queues a meeting that an offline hold may keep waiting for the
+    /// connection. `codex_only`: this Mac's model cannot do what is left.
+    fn requeue(&self, id: i64, codex_only: bool) {
+        self.push(id, false, codex_only);
     }
 
     /// Meetings waiting for the connection may go on with this Mac's model.
@@ -218,18 +223,18 @@ impl ProcessingQueue {
         self.changed.notify_one();
     }
 
-    fn push(&self, id: i64, asked: bool, local_tried: bool) {
+    fn push(&self, id: i64, asked: bool, codex_only: bool) {
         {
             let mut state = self.state();
             match state.queued.iter_mut().find(|queued| queued.id == id) {
                 Some(queued) => {
                     queued.asked |= asked;
-                    queued.local_tried |= local_tried;
+                    queued.codex_only |= codex_only;
                 }
                 None => state.queued.push_back(Queued {
                     id,
                     asked,
-                    local_tried,
+                    codex_only,
                 }),
             }
         }
@@ -283,6 +288,7 @@ impl ProcessingQueue {
     /// about its cap.
     fn codex_said(&self, verdict: CodexVerdict) -> Option<Duration> {
         let mut state = self.state();
+        let local_pass = std::mem::take(&mut state.local_pass);
         match verdict {
             CodexVerdict::RateLimited => {
                 // A refusal is an answer: the connection works.
@@ -291,7 +297,16 @@ impl ProcessingQueue {
                 state.held_until = Some(SystemTime::now() + wait);
                 Some(wait)
             }
-            CodexVerdict::Unreachable => Some(state.offline.unreachable(SystemTime::now())),
+            CodexVerdict::Unreachable => {
+                let now = SystemTime::now();
+                match state.offline.retry_at() {
+                    // The hold already waits for the connection: a meeting
+                    // this Mac's model took past it leaves the next check
+                    // where it was.
+                    Some(at) if local_pass => Some(at.duration_since(now).unwrap_or_default()),
+                    _ => Some(state.offline.unreachable(now)),
+                }
+            }
             CodexVerdict::Answered => {
                 state.offline.reset();
                 state.rate_limit.reset();
@@ -509,7 +524,7 @@ fn spawn_processing(
                         "Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}"
                     );
                     // It goes on with the others once the connection is back.
-                    worker.requeue_unreachable(id, local_tried);
+                    worker.requeue(id, local_tried || codex_only(&store, id));
                 }
                 (_, Some(wait)) => {
                     info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
@@ -582,6 +597,25 @@ impl Notifier for AppNotifier {
 }
 
 type AppCoordinator = Coordinator<DeviceCapture, AppNotifier, SystemClock>;
+
+/// Queues the meetings a quit (or turning meetings off) left mid-way.
+fn queue_waiting(queue: &ProcessingQueue, store: &MeetingsStore) {
+    match store.waiting_for_processing() {
+        Ok(ids) => ids
+            .into_iter()
+            .for_each(|id| queue.requeue(id, codex_only(store, id))),
+        Err(error) => error!("Failed to list meetings to process: {error}"),
+    }
+}
+
+/// Meeting `id` waits for its summary only, which this Mac's model cannot
+/// write.
+fn codex_only(store: &MeetingsStore, id: i64) -> bool {
+    store.get(id).ok().flatten().is_some_and(|meeting| {
+        meeting.status == store::MeetingStatus::Ready
+            && meeting.summary_status == store::SummaryStatus::Pending
+    })
+}
 
 /// Deletes finished meeting `id`'s audio and the analysis made from it.
 fn delete_audio(store: &MeetingsStore, root: &Path, id: i64) -> Result<(), String> {
@@ -987,10 +1021,7 @@ impl MeetingsManager {
     /// meetings off) left mid-way.
     pub fn resume_processing(&self) {
         self.queue.resume();
-        match self.store.waiting_for_processing() {
-            Ok(ids) => ids.into_iter().for_each(|id| self.queue.enqueue(id)),
-            Err(error) => error!("Failed to list meetings to process: {error}"),
-        }
+        queue_waiting(&self.queue, &self.store);
     }
 
     /// The summary or the transcript as Markdown, and the file name to save
@@ -1577,12 +1608,63 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(1));
 
         // This Mac transcribed meeting 2 already: only Codex can finish it.
-        queue.requeue_unreachable(2, true);
+        queue.requeue(2, true);
         assert!(queue.offline_for(2));
         assert_eq!(next_within(&queue, A_MOMENT), None);
         // Meeting 3 was held before the model was ready.
-        queue.requeue_unreachable(3, false);
+        queue.requeue(3, false);
         assert_eq!(next_within(&queue, NOW), Some(3));
+    }
+
+    #[test]
+    fn a_meeting_the_local_model_takes_past_the_hold_leaves_the_next_check_as_it_was() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        let check = queue.state().offline.retry_at();
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        let wait = queue.codex_said(CodexVerdict::Unreachable);
+        assert!(
+            wait.is_some_and(|wait| wait <= Duration::from_secs(60)),
+            "{wait:?}"
+        );
+        assert_eq!(queue.state().offline.retry_at(), check);
+        // A run the hold did not let through still counts.
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(120))
+        );
+    }
+
+    #[test]
+    fn offline_a_meeting_left_with_only_its_summary_waits_for_the_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let untranscribed = store
+            .insert_recording(1_000, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(untranscribed, 61_000, 60_000)
+            .unwrap();
+        let transcribed = store
+            .insert_recording(100_000, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(transcribed, 160_000, 60_000)
+            .unwrap();
+        store.begin_processing(transcribed).unwrap();
+        store.finish_processing(transcribed, None).unwrap();
+
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue_waiting(&queue, &store);
+        assert!(!queue.offline_for(untranscribed), "this Mac transcribes it");
+        assert!(
+            queue.offline_for(transcribed),
+            "only Codex can summarise it"
+        );
     }
 
     #[test]
