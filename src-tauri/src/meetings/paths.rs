@@ -436,6 +436,7 @@ mod tests {
             .to_string()
     }
 
+    #[cfg(unix)]
     #[test]
     fn only_real_folders_set_aside_over_30_days_ago_are_purged() {
         let now = Utc::now();
@@ -473,6 +474,7 @@ mod tests {
         assert!(outside.path().join("keep.txt").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn storage_measures_the_meetings_and_what_was_set_aside_without_the_models() {
         let app_data = tempfile::tempdir().unwrap();

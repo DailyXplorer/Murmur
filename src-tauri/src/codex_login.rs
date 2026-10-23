@@ -1281,6 +1281,8 @@ mod tests {
         );
     }
 
+    // Counts this process's sockets on the port through /dev/fd.
+    #[cfg(unix)]
     #[tokio::test]
     async fn a_new_sign_in_cancels_the_one_under_way_and_takes_its_port() {
         let directory = tempfile::tempdir().unwrap();

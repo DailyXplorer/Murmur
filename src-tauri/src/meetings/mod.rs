@@ -8,6 +8,8 @@ pub mod analysis;
 pub mod archive;
 pub mod bleed;
 pub mod call_watch;
+// Windows detects no calls (see `call_watch`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub mod calls;
 pub mod cap;
 pub mod capture;

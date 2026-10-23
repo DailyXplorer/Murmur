@@ -1,6 +1,6 @@
 mod transaction;
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 pub(crate) use transaction::Transactions;
 
 use crate::engine::Engine;

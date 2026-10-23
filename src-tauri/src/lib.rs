@@ -45,6 +45,8 @@ mod tray_i18n;
 mod updates;
 mod user_alert;
 mod utils;
+// Windows reads no window, so finds no names in it (see `window_names`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 mod window_names;
 #[cfg(target_os = "windows")]
 mod window_placement;

@@ -14,12 +14,16 @@ const ACRONYMS = [
   "GGUF", // the file format of the Intel model
   "MB",
   "NVIDIA",
+  "PC", // the Windows build's "this PC"
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
 ];
 
-/** Proper nouns and named macOS or app surfaces a sentence may capitalize. */
+/** Proper nouns and named macOS, Windows or app surfaces a sentence may
+ * capitalize. */
 const PROPER_PHRASES = [
   "Screen & System Audio Recording",
+  "Privacy & security → Microphone",
+  "Windows Settings",
   "Privacy & Security → Microphone",
   "System Audio Recording",
   "Privacy & Security",

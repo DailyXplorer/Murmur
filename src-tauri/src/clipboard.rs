@@ -31,6 +31,8 @@ pub(crate) enum PasteOutcome {
     IntentionalNone,
     /// No text field had the keyboard focus, so the overlay offers to copy
     /// the text; the clipboard is left alone until the user clicks Copy.
+    /// Only macOS Accessibility tells, so Windows never offers it.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     CopyOffered,
 }
 
