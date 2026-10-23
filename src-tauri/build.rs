@@ -114,6 +114,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_meeting_call_prompt_setting",
     "answer_call_prompt",
     "fit_call_prompt",
+    "get_call_prompt",
 ];
 
 fn main() {

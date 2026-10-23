@@ -282,9 +282,9 @@ checkCapability(
   [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "allow-get-app-settings",
     "allow-answer-call-prompt",
     "allow-fit-call-prompt",
+    "allow-get-call-prompt",
   ],
 );
 

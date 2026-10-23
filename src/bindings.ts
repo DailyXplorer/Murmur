@@ -982,6 +982,12 @@ async answerCallPrompt(accept: boolean) : Promise<void> {
  */
 async fitCallPrompt(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_call_prompt", { width, height });
+},
+/**
+ * The call prompt showing, if any.
+ */
+async getCallPrompt() : Promise<CallPromptLabels | null> {
+    return await TAURI_INVOKE("get_call_prompt");
 }
 }
 
@@ -1120,6 +1126,18 @@ export type AudioState =
 "deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+/**
+ * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
+ */
+export type CallPromptLabels = { 
+/**
+ * The call app's name.
+ */
+app: string; question: string; accept: string; decline: string; 
+/**
+ * The overlay's side of the screen, which the prompt sits on too.
+ */
+position: OverlayPosition }
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
