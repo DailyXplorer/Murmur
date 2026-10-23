@@ -362,6 +362,43 @@ mod tests {
         }
 
         #[test]
+        fn deleting_the_audio_while_it_is_compressed_leaves_none() {
+            let dir = tempfile::tempdir().unwrap();
+            let (store, _) =
+                MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+            let root = dir.path().join("meetings");
+            let id = store.insert_recording(0, MeetingTracks::Both).unwrap();
+            store.finish_recording(id, 120_000, 120_000).unwrap();
+            store.begin_processing(id).unwrap();
+            store.finish_processing(id, None).unwrap();
+            let meeting_dir = paths::meeting_dir(&root, id);
+            std::fs::create_dir_all(&meeting_dir).unwrap();
+            // Long enough for the deletion to land while the encoder writes.
+            tone(&meeting_dir.join(MIC_TRACK), 120, 440.0);
+            tone(&meeting_dir.join(SYSTEM_TRACK), 120, 1_000.0);
+
+            std::thread::scope(|scope| {
+                let compressing = scope.spawn(|| archive(&store, &root, id));
+                let partial = meeting_dir.join(paths::partial(AUDIO_FILE));
+                while !partial.exists() {
+                    assert!(!compressing.is_finished(), "the encoder never started");
+                    std::thread::yield_now();
+                }
+                crate::meetings::delete_audio(&store, &root, id).unwrap();
+                // Its files gone, the compression may fail, but whatever it
+                // published is removed.
+                let _ = compressing.join().unwrap();
+            });
+
+            assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Deleted);
+            let left: Vec<_> = std::fs::read_dir(&meeting_dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            assert!(left.is_empty(), "{left:?}");
+        }
+
+        #[test]
         fn a_track_that_cannot_be_read_is_kept() {
             let dir = tempfile::tempdir().unwrap();
             std::fs::write(dir.path().join(MIC_TRACK), b"not audio").unwrap();

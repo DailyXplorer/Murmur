@@ -1,6 +1,7 @@
 //! Meeting recording: the microphone ("Me") and system audio (the remote
 //! participants) on two tracks, started and stopped by the user, kept in a
-//! library of their own. Everything here stays behind `meetings_enabled`.
+//! library of their own. Everything here stays behind `meetings_enabled`,
+//! except the audio retention the user chose.
 
 pub mod align;
 pub mod analysis;
@@ -49,7 +50,7 @@ use tauri_specta::Event;
 
 use crate::local_models::LocalModelState;
 use crate::managers::history::DatabaseStartup;
-use crate::settings::{get_settings, MeetingAudioRetention};
+use crate::settings::{get_settings, AppSettings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
 use analysis::HelperAnalyzer;
@@ -632,12 +633,16 @@ fn codex_only(store: &MeetingsStore, id: i64) -> bool {
 
 /// Deletes finished meeting `id`'s audio and the analysis made from it.
 fn delete_audio(store: &MeetingsStore, root: &Path, id: i64) -> Result<(), String> {
-    if !store.delete_audio(id).map_err(|error| error.to_string())? {
+    let deleted = store
+        .delete_audio(id, || {
+            paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
+                .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
+        })
+        .map_err(|error| format!("Cannot delete the meeting audio: {error}"))?;
+    if !deleted {
         return Err(format!("Meeting {id} is not finished"));
     }
-    paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
-        .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
-        .map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+    Ok(())
 }
 
 /// Deletes the audio `retention` has kept long enough at `now_ms`, except
@@ -669,21 +674,24 @@ fn sweep_audio(
         .collect()
 }
 
-/// Applies the audio retention at launch, then once a day. The hourly look
-/// reads the wall clock, which goes on while the Mac sleeps.
-fn spawn_audio_retention(app: &AppHandle) {
+/// Whether the audio retention runs at `now`, last run at `last`: at launch,
+/// then once a day, while `settings` keep the audio for a limited time.
+/// Meetings turned off still lose their audio when the user chose.
+fn audio_retention_due(settings: &AppSettings, last: Option<SystemTime>, now: SystemTime) -> bool {
     const DAY: Duration = Duration::from_secs(24 * 3600);
+    settings.meeting_audio_retention != MeetingAudioRetention::Keep
+        && last.is_none_or(|last| now.duration_since(last).map_or(true, |since| since >= DAY))
+}
+
+/// Applies the audio retention when it is due. The hourly look reads the
+/// wall clock, which goes on while the Mac sleeps.
+fn spawn_audio_retention(app: &AppHandle) {
     const LOOK: Duration = Duration::from_secs(3600);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut last: Option<SystemTime> = None;
         loop {
-            let due = last.is_none_or(|last| {
-                SystemTime::now()
-                    .duration_since(last)
-                    .map_or(true, |since| since >= DAY)
-            });
-            if due && get_settings(&app).meetings_enabled {
+            if audio_retention_due(&get_settings(&app), last, SystemTime::now()) {
                 if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
                     let manager = Arc::clone(&manager);
                     let swept = tauri::async_runtime::spawn_blocking(move || {
@@ -1266,6 +1274,28 @@ mod tests {
     }
 
     #[test]
+    fn audio_retention_runs_daily_with_meetings_off() {
+        let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = false;
+        settings.meeting_audio_retention = MeetingAudioRetention::Days30;
+        let now = SystemTime::now();
+        let hours_ago = |hours: u64| Some(now - Duration::from_secs(hours * 3600));
+
+        assert!(audio_retention_due(&settings, None, now));
+        assert!(!audio_retention_due(&settings, hours_ago(23), now));
+        assert!(audio_retention_due(&settings, hours_ago(24), now));
+        // A clock set back runs it rather than waiting.
+        assert!(audio_retention_due(
+            &settings,
+            Some(now + Duration::from_secs(60)),
+            now
+        ));
+
+        settings.meeting_audio_retention = MeetingAudioRetention::Keep;
+        assert!(!audio_retention_due(&settings, None, now));
+    }
+
+    #[test]
     fn retention_deletes_old_audio_and_keeps_the_text_and_busy_meetings() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("meetings");
@@ -1294,6 +1324,103 @@ mod tests {
             let files = paths::meeting_dir(&root, kept);
             assert!(files.join(paths::AUDIO_FILE).exists());
         }
+    }
+
+    #[test]
+    fn failed_audio_deletion_keeps_its_state_and_retention_retries_after_reopening() {
+        let files: Vec<_> = paths::AUDIO_FILES
+            .into_iter()
+            .chain([analysis::ANALYSIS_FILE])
+            .collect();
+        // Every failure position: before any unlink, after partial audio
+        // removal, and after all audio went but analysis cleanup failed.
+        for (failed_at, failed_file) in files.iter().enumerate() {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().join("meetings");
+            let db = dir.path().join("meetings.db");
+            let (store, _) = MeetingsStore::open(db.clone(), chrono::Utc::now());
+            let now_ms = chrono::Utc::now().timestamp_millis();
+            let id = processed(&store, &root, now_ms, 8);
+            let meeting_dir = paths::meeting_dir(&root, id);
+            for file in &files {
+                std::fs::write(meeting_dir.join(file), b"fixture").unwrap();
+            }
+            // A directory at a file path deterministically makes unlink
+            // fail, including when the test runner has elevated privileges.
+            let fault = meeting_dir.join(failed_file);
+            std::fs::remove_file(&fault).unwrap();
+            std::fs::create_dir(&fault).unwrap();
+            let before = store.get(id).unwrap().unwrap();
+
+            assert!(delete_audio(&store, &root, id).is_err());
+            assert_eq!(store.get(id).unwrap().unwrap(), before, "{failed_file}");
+            assert_eq!(store.with_audio().unwrap()[0].id, id);
+            for (index, file) in files.iter().enumerate() {
+                assert_eq!(meeting_dir.join(file).exists(), index >= failed_at);
+            }
+            assert!(sweep_audio(
+                &store,
+                &root,
+                MeetingAudioRetention::Days7,
+                now_ms,
+                &HashSet::new(),
+            )
+            .is_empty());
+            drop(store);
+
+            std::fs::remove_dir(&fault).unwrap();
+            let (store, _) = MeetingsStore::open(db, chrono::Utc::now());
+            assert_eq!(store.get(id).unwrap().unwrap(), before);
+            assert_eq!(
+                sweep_audio(
+                    &store,
+                    &root,
+                    MeetingAudioRetention::Days7,
+                    now_ms,
+                    &HashSet::new(),
+                ),
+                [id]
+            );
+            // Repeated manual deletion accepts the already-missing files.
+            delete_audio(&store, &root, id).unwrap();
+            let after = store.get(id).unwrap().unwrap();
+            assert_eq!(after.audio, store::AudioState::Deleted);
+            assert_eq!(after.audio_bytes, 0);
+            assert_eq!(after.turns, before.turns);
+            assert_eq!(after.summary, before.summary);
+            assert_eq!(after.speakers, before.speakers);
+            assert!(files.iter().all(|file| !meeting_dir.join(file).exists()));
+        }
+    }
+
+    #[test]
+    fn uncompressed_audio_deletion_is_retryable_after_a_partial_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("meetings");
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let id = store
+            .insert_recording(0, store::MeetingTracks::Both)
+            .unwrap();
+        store.finish_recording(id, 3_000, 3_000).unwrap();
+        store.finish_processing(id, None).unwrap();
+        store.save_summary(id, None, "Notes.").unwrap();
+        let meeting_dir = paths::fresh_meeting_dir(&root, id, 0).unwrap();
+        std::fs::write(meeting_dir.join(paths::MIC_TRACK), b"audio").unwrap();
+        let fault = meeting_dir.join(paths::SYSTEM_TRACK);
+        std::fs::create_dir(&fault).unwrap();
+
+        assert!(delete_audio(&store, &root, id).is_err());
+        assert!(!meeting_dir.join(paths::MIC_TRACK).exists());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().audio,
+            store::AudioState::Tracks
+        );
+        std::fs::remove_dir(fault).unwrap();
+        delete_audio(&store, &root, id).unwrap();
+        assert_eq!(
+            store.get(id).unwrap().unwrap().audio,
+            store::AudioState::Deleted
+        );
     }
 
     /// Meetings set aside at launch are deleted 30 days later, so the user
