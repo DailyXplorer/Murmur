@@ -2,19 +2,9 @@
 //! times, pyannote Community-1 for diarization) are the shared local models
 //! (`local_models`), one download with dictation. Meetings add one rule: a
 //! meeting start fetches them while it records, unless the user deleted
-//! them or cancelled their download.
-
-use std::sync::Arc;
+//! them or cancelled their download (`download_unless_declined`).
 
 pub use crate::local_models::LocalModels as Models;
-
-impl Models {
-    pub fn download_unless_declined(self: &Arc<Self>) {
-        if !self.declined() {
-            self.start_download();
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
