@@ -12,7 +12,7 @@ mod real_engine;
 pub mod session;
 
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
-use crate::audio_toolkit::pauses::{is_silent, split_at_pauses};
+use crate::audio_toolkit::pauses::speech_pieces;
 use crate::local_models::LocalModels;
 use crate::ProcessingOperation;
 use session::{Runtime, Session};
@@ -77,11 +77,8 @@ impl LocalEngine {
         if std::env::var("MURMUR_FORCE_LOCAL_FAILURE").is_ok() {
             anyhow::bail!("Simulated local transcription failure (MURMUR_FORCE_LOCAL_FAILURE)");
         }
-        if is_silent(samples) {
-            return Ok(String::new());
-        }
         let mut texts = Vec::new();
-        for range in split_at_pauses(samples, self.max_piece) {
+        for range in speech_pieces(samples, self.max_piece) {
             let piece = padded(&samples[range]);
             let limit = RUN_ALLOWANCE + seconds(piece.len());
             let text = tokio::select! {
@@ -296,6 +293,23 @@ mod tests {
             .unwrap();
         assert_eq!(text, "");
         assert!(pieces.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_pause_a_dictation_ends_on_never_reaches_the_model() {
+        let (engine, pieces) = engine(Some("Thank you."));
+        // Longer than one piece: the cut lands in the closing pause, and
+        // what follows it is room noise only.
+        let mut audio = speech(9.0, 0.0);
+        audio.extend(
+            (0..3 * SAMPLES_PER_SECOND)
+                .map(|i| 0.001 * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()),
+        );
+        let text = engine.transcribe(&audio, &[], &operation()).await.unwrap();
+        let pieces = pieces.lock().unwrap().clone();
+        assert_eq!(pieces.len(), 1, "{pieces:?}");
+        assert!(pieces[0] < audio.len());
+        assert_eq!(text, "Thank you.");
     }
 
     #[tokio::test]

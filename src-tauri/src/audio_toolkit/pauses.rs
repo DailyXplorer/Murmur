@@ -92,13 +92,33 @@ fn cut_frame(levels: &[f32], quiet_below: f32, first: usize, max_frames: usize) 
 /// Whether a clip holds no speech, judged by the threshold meetings use. The
 /// engine is not run on it: a recogniser fed silence invents words.
 pub fn is_silent(samples: &[f32]) -> bool {
+    speech_level(&frame_levels(samples)).is_none()
+}
+
+/// The level speech reaches in a clip, `None` when it holds no speech.
+fn speech_level(levels: &[f32]) -> Option<f32> {
+    let threshold = speech_threshold(levels)?;
+    let speech = levels.iter().filter(|level| **level >= threshold).count();
+    (speech >= MIN_SPEECH_FRAMES).then_some(threshold)
+}
+
+/// `split_at_pauses`, keeping only the pieces with speech: none for a silent
+/// clip, and never the pause a dictation ends on, which the cut leaves on
+/// its own. A piece is judged by the whole clip's speech level, since its
+/// own noise floor would make room noise look like speech.
+pub fn speech_pieces(samples: &[f32], max_len: usize) -> Vec<Range<usize>> {
     let levels = frame_levels(samples);
-    match speech_threshold(&levels) {
-        None => true,
-        Some(threshold) => {
-            levels.iter().filter(|level| **level >= threshold).count() < MIN_SPEECH_FRAMES
-        }
-    }
+    let Some(threshold) = speech_level(&levels) else {
+        return Vec::new();
+    };
+    split_at_pauses(samples, max_len)
+        .into_iter()
+        .filter(|piece| {
+            levels[piece.start / FRAME..piece.end.div_ceil(FRAME)]
+                .iter()
+                .any(|level| *level >= threshold)
+        })
+        .collect()
 }
 
 #[cfg(test)]
