@@ -64,6 +64,15 @@ test("auto-delete says it deletes the transcriptions, not only the audio", async
   ).toBeVisible();
 });
 
+test("keeping one dictation reads as one in French", async ({ page }) => {
+  await page.goto("/tests/fixtures/history-limit.html?lang=fr&keep=1");
+
+  await expect(
+    page.getByText("Conserver le plus récent", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Conserver les 1/)).toHaveCount(0);
+});
+
 test("Escape discards the edit", async ({ page }) => {
   await limitField(page).fill("7");
   await page.keyboard.press("Escape");

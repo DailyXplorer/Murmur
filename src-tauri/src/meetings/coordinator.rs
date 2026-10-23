@@ -778,6 +778,35 @@ mod tests {
         assert!(paths::meeting_dir(&h.root, id).is_dir());
     }
 
+    /// A full disk refuses the database write that ends the recording too:
+    /// the meeting is saved for processing once there is room, not left on
+    /// "Recording" until the next launch.
+    #[test]
+    fn a_close_the_disk_refused_is_saved_once_it_has_room() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.clock.advance(Duration::from_secs(90));
+        let db = h._dir.path().join("meetings.db");
+        let writable = |yes: bool| {
+            let mode = if yes { 0o644 } else { 0o444 };
+            std::fs::set_permissions(&db, std::fs::Permissions::from_mode(mode)).unwrap();
+        };
+
+        writable(false);
+        assert!(h.coordinator.stop().is_err());
+        assert!(h.coordinator.tick(id), "the close is tried again");
+        writable(true);
+        h.log.take();
+        assert!(!h.coordinator.tick(id), "the close is done");
+
+        assert_eq!(h.log.take(), ["recorded"]);
+        assert_eq!(
+            statuses(&h.store),
+            [(MeetingStatus::Processing, MeetingTracks::Both, 90_000)]
+        );
+    }
+
     #[test]
     fn a_meeting_remembers_whether_another_app_played_sound() {
         let mut h = working();

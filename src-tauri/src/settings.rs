@@ -1244,6 +1244,22 @@ mod tests {
         assert_eq!(salvaged.sound_theme, default_sound_theme());
     }
 
+    /// The default keeps only the latest 5 dictations, so an unknown period
+    /// must not fall back to it and delete the rest of the history.
+    #[test]
+    fn salvage_of_an_unknown_retention_period_deletes_no_history() {
+        let mut stored = default_settings_json();
+        stored["recording_retention_period"] = serde_json::json!("years1");
+        stored["history_limit"] = serde_json::json!(5);
+        assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
+
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(
+            salvaged.recording_retention_period,
+            RecordingRetentionPeriod::Never
+        );
+    }
+
     /// Gemini and Apple Intelligence were removed, so Codex is the only
     /// service. A store that chose either, or a value no build knows, keeps
     /// every other setting and is rewritten without the old choice.

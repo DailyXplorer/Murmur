@@ -483,6 +483,22 @@ mod tests {
         assert_eq!(asked, [Engine::Cloud, Engine::Local]);
     }
 
+    /// The Codex error says what the user can do about it; a failed run on
+    /// this Mac after it says nothing more.
+    #[test]
+    fn a_failed_fallback_keeps_the_codex_error() {
+        for kind in [FailureKind::SessionExpired, FailureKind::RateLimited] {
+            let (result, asked) = dictate(
+                Engine::Cloud,
+                when(READY, ACCOUNT, "fr"),
+                Err(FailureKind::Other),
+                Err(kind),
+            );
+            assert_eq!(TranscriptionError::kind_of(&result.unwrap_err()), kind);
+            assert_eq!(asked, [Engine::Cloud, Engine::Local]);
+        }
+    }
+
     #[test]
     fn a_cancelled_dictation_is_not_sent_again() {
         let mut asked = 0;

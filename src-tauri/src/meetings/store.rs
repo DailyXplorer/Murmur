@@ -1844,6 +1844,22 @@ mod tests {
     }
 
     #[test]
+    fn a_meeting_whose_audio_went_is_not_reopened() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        // The daily retention sweep, between Reanalyze's check and `reopen`.
+        assert!(store.delete_audio(id).unwrap());
+
+        assert!(!store.reopen(id).unwrap());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().status,
+            MeetingStatus::Ready
+        );
+    }
+
+    #[test]
     fn a_meeting_can_be_renamed_and_given_back_its_default_name() {
         let (_dir, store) = store();
         let id = recorded(&store);
