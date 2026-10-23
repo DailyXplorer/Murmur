@@ -177,6 +177,10 @@ pub fn restore(dir: &Path, tracks: MeetingTracks) -> Result<()> {
 /// deletes its tracks. The tracks stay when compression fails, and it is
 /// tried again at the next launch, up to the store's limit.
 pub fn archive(store: &MeetingsStore, root: &Path, id: i64) -> Result<()> {
+    // A delete must not commit while an encoder can still publish audio.
+    // Claim before reading the state, so a completed delete wins. A busy
+    // meeting is retried rather than blocking a delete through encoding.
+    let _files = store.claim_audio_files(id)?;
     let Some(meeting) = store.get(id)? else {
         return Ok(());
     };
@@ -218,6 +222,42 @@ mod tests {
         assert_eq!(track_files(MeetingTracks::Both), [MIC_TRACK, SYSTEM_TRACK]);
         assert_eq!(track_files(MeetingTracks::System), [SYSTEM_TRACK]);
         assert_eq!(track_files(MeetingTracks::Mic), [MIC_TRACK]);
+    }
+
+    #[test]
+    fn archive_and_delete_cannot_publish_over_each_other() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let root = dir.path().join("meetings");
+        let id = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        store.finish_recording(id, 3_000, 3_000).unwrap();
+        store.finish_processing(id, None).unwrap();
+        let meeting_dir = paths::fresh_meeting_dir(&root, id, 0).unwrap();
+        std::fs::write(meeting_dir.join(MIC_TRACK), b"audio").unwrap();
+
+        // An encoder owns the claim from before its initial state read
+        // through publication and track cleanup. Delete must promptly defer.
+        let encoding = store.claim_audio_files(id).unwrap();
+        assert!(super::super::delete_audio(&store, &root, id).is_err());
+        assert!(meeting_dir.join(MIC_TRACK).exists());
+        assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Tracks);
+        std::fs::write(meeting_dir.join(AUDIO_FILE), b"compressed").unwrap();
+        store.audio_compressed(id, 10).unwrap();
+        drop(encoding);
+
+        assert!(store
+            .delete_audio(id, || {
+                // The opposite ordering: a new archive cannot observe the
+                // old committed row and publish while deletion is pending.
+                assert!(archive(&store, &root, id).is_err());
+                paths::remove_meeting_files(&root, id, &paths::AUDIO_FILES)
+            })
+            .unwrap());
+        archive(&store, &root, id).unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Deleted);
+        assert!(paths::AUDIO_FILES
+            .iter()
+            .all(|file| !meeting_dir.join(file).exists()));
     }
 
     #[test]
