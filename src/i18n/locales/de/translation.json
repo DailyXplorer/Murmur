@@ -776,7 +776,7 @@
       "title": "Aufnahme",
       "idle": "Kein laufendes Meeting",
       "active": "Aufnahme · {{time}}",
-      "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Nach 3 Stunden endet es von selbst."
+      "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Ein langes Meeting geht alle 3 Stunden in einem neuen Teil weiter und endet nach 12 Stunden von selbst."
     },
     "start": "Meeting starten",
     "stop": "Beenden",

@@ -122,6 +122,32 @@ mod tests {
         );
     }
 
+    /// The Meetings page tells, in every language, when a meeting rolls
+    /// into a new part and when it stops.
+    #[test]
+    fn the_meetings_page_states_the_part_length_and_the_stop() {
+        let locales = [
+            include_str!("../../../src/i18n/locales/en/translation.json"),
+            include_str!("../../../src/i18n/locales/fr/translation.json"),
+            include_str!("../../../src/i18n/locales/de/translation.json"),
+            include_str!("../../../src/i18n/locales/es/translation.json"),
+            include_str!("../../../src/i18n/locales/it/translation.json"),
+            include_str!("../../../src/i18n/locales/pt/translation.json"),
+        ];
+        let hours = |limit: Duration| (limit.as_secs() / 3600).to_string();
+        for locale in locales {
+            let json: serde_json::Value = serde_json::from_str(locale).unwrap();
+            let text = json["meetings"]["recording"]["description"]
+                .as_str()
+                .unwrap();
+            let numbers: Vec<&str> = text
+                .split(|c: char| !c.is_ascii_digit())
+                .filter(|number| !number.is_empty())
+                .collect();
+            assert_eq!(numbers, [hours(PART), hours(MAX_TOTAL)], "{text}");
+        }
+    }
+
     #[test]
     fn wall_clock_time_without_instant_time_is_a_sleep() {
         assert_eq!(

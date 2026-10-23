@@ -776,7 +776,7 @@
       "title": "Grabación",
       "idle": "Ninguna reunión en curso",
       "active": "Grabando · {{time}}",
-      "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión se detiene sola a las 3 horas."
+      "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión larga continúa en una nueva parte cada 3 horas y se detiene sola a las 12 horas."
     },
     "start": "Iniciar reunión",
     "stop": "Detener",

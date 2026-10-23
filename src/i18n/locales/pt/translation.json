@@ -776,7 +776,7 @@
       "title": "Gravação",
       "idle": "Nenhuma reunião em andamento",
       "active": "Gravando · {{time}}",
-      "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pela barra de menus. A reunião para sozinha após 3 horas."
+      "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pela barra de menus. Uma reunião longa continua em uma nova parte a cada 3 horas e para sozinha após 12 horas."
     },
     "start": "Iniciar reunião",
     "stop": "Parar",

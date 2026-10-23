@@ -102,8 +102,13 @@ pub trait FocusedText {
 /// The excerpt around the focused element's selection. Never reads a secure
 /// field, and never guesses the cursor: no selection range, no excerpt.
 /// Each read may take a hung app's whole messaging timeout, so none starts
-/// after `deadline`.
-pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
+/// after `deadline`. None when `withheld` holds for the text the excerpt is
+/// cut from: a label the cut leaves out still marks the value it keeps.
+pub fn read_field(
+    focused: &impl FocusedText,
+    deadline: Instant,
+    withheld: impl Fn(&str) -> bool,
+) -> Option<FieldExcerpt> {
     let in_time = || Instant::now() < deadline;
     if focused.is_secure() || !in_time() {
         return None;
@@ -114,6 +119,9 @@ pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<Field
         None if in_time() => (focused.value()?, 0),
         None => return None,
     };
+    if withheld(&text) {
+        return None;
+    }
     cut(
         &text,
         Utf16Range {
@@ -314,13 +322,17 @@ mod tests {
         }
     }
 
+    fn read(focused: &Fake, deadline: Instant) -> Option<FieldExcerpt> {
+        read_field(focused, deadline, |_| false)
+    }
+
     #[test]
     fn a_secure_field_is_never_read() {
         let fake = Fake {
             secure: true,
             ..Fake::new("hunter2 is my password", at(7))
         };
-        assert_eq!(read_field(&fake, later()), None);
+        assert_eq!(read(&fake, later()), None);
         assert!(fake.reads.borrow().is_empty(), "{:?}", fake.reads.borrow());
     }
 
@@ -330,7 +342,7 @@ mod tests {
             selection: None,
             ..Fake::new("Hello there", at(0))
         };
-        assert_eq!(read_field(&fake, later()), None);
+        assert_eq!(read(&fake, later()), None);
         assert_eq!(*fake.reads.borrow(), vec!["selection"]);
     }
 
@@ -348,7 +360,7 @@ mod tests {
                     let selection = Utf16Range { start, len };
                     let fake = Fake::new(text, selection);
                     assert_eq!(
-                        read_field(&fake, later()),
+                        read(&fake, later()),
                         cut(text, selection),
                         "start {start} len {len}"
                     );
@@ -366,7 +378,7 @@ mod tests {
             len: 10,
         };
         let fake = Fake::new(&text, selection);
-        read_field(&fake, later());
+        read(&fake, later());
         assert_eq!(
             *fake.requested.borrow(),
             Some(Utf16Range {
@@ -383,7 +395,7 @@ mod tests {
             range_fails: true,
             ..Fake::new(text, at(22))
         };
-        assert_eq!(read_field(&fake, later()), excerpt(text, ""));
+        assert_eq!(read(&fake, later()), excerpt(text, ""));
         assert!(fake.reads.borrow().contains(&"value"));
     }
 
@@ -396,7 +408,7 @@ mod tests {
             ..Fake::new(text, at(22))
         };
         assert_eq!(
-            read_field(&slow, Instant::now() + Duration::from_millis(10)),
+            read(&slow, Instant::now() + Duration::from_millis(10)),
             None
         );
         assert_eq!(
@@ -405,7 +417,7 @@ mod tests {
         );
 
         let late = Fake::new(text, at(22));
-        assert_eq!(read_field(&late, Instant::now()), None);
+        assert_eq!(read(&late, Instant::now()), None);
         assert!(late.reads.borrow().is_empty(), "{:?}", late.reads.borrow());
     }
 }

@@ -107,7 +107,7 @@ impl fmt::Display for TranscriptionError {
 impl std::error::Error for TranscriptionError {}
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -162,7 +162,7 @@ mod tests {
     /// A DNS server that never answers, as on a Wi-Fi with no Internet behind
     /// it. Local, so the test does not depend on how the network treats an
     /// unreachable address.
-    struct SilentDns;
+    pub(crate) struct SilentDns;
 
     impl reqwest::dns::Resolve for SilentDns {
         fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
