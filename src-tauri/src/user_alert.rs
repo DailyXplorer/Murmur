@@ -33,6 +33,9 @@ pub enum Alert {
     MeetingsRecovered {
         count: usize,
     },
+    /// At launch: the meetings library was damaged or deleted, and its
+    /// meetings were set aside.
+    MeetingsReset,
 }
 
 impl Alert {
@@ -107,6 +110,7 @@ impl Alert {
             Self::MeetingsRecovered { count } => strings
                 .meetings_recovered
                 .replace("{{count}}", &count.to_string()),
+            Self::MeetingsReset => strings.meetings_reset.clone(),
         }
     }
 }

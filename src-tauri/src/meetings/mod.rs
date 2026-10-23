@@ -690,6 +690,9 @@ struct Library {
     root: PathBuf,
     /// Meetings a crash cut off before this launch, left to process.
     recovered: Vec<i64>,
+    /// The database was damaged or gone, and the meetings it listed were
+    /// set aside, to be deleted 30 days later.
+    reset: bool,
 }
 
 impl Library {
@@ -699,10 +702,14 @@ impl Library {
         let root = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
         let now = chrono::Utc::now();
-        let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
+        let database = app_data.join("meetings.db");
+        let had_database = database.exists();
+        let (store, startup) = MeetingsStore::open(database, now);
         info!("Meetings database: {startup:?}");
+        let mut reset = false;
         match &startup {
             DatabaseStartup::Reset { moved_to } => {
+                reset = true;
                 if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
                     error!("Failed to set aside the recordings of the reset library: {error}");
                 }
@@ -720,10 +727,13 @@ impl Library {
                     .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));
                 match moved {
                     Ok(0) => {}
-                    Ok(count) => warn!(
-                        "Moved {count} meeting folder(s) no meeting points to into {}",
-                        aside.display()
-                    ),
+                    Ok(count) => {
+                        warn!(
+                            "Moved {count} meeting folder(s) no meeting points to into {}",
+                            aside.display()
+                        );
+                        reset = !had_database;
+                    }
                     Err(error) => error!("Failed to set aside orphan meeting folders: {error}"),
                 }
             }
@@ -746,6 +756,7 @@ impl Library {
             store,
             root,
             recovered,
+            reset,
         })
     }
 }
@@ -769,7 +780,11 @@ impl MeetingsManager {
             store,
             root,
             recovered,
+            reset,
         } = Library::open(&app.path().app_data_dir()?)?;
+        if reset {
+            user_alert::show(app, Alert::MeetingsReset);
+        }
         let store = Arc::new(store);
         let models = app
             .try_state::<Arc<Models>>()

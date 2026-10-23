@@ -50,6 +50,7 @@
     "meetingSystemAudioDenied": "Die Systemaudioaufnahme ist aus, daher nimmt das Meeting die anderen Teilnehmer nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme.",
     "meetingRecovered": "Ein Meeting wurde unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
     "meetingsRecovered": "{{count}} Meetings wurden unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
+    "meetingsReset": "Die Meeting-Bibliothek war beschädigt und wurde zurückgesetzt. Ihre Aufnahmen werden 30 Tage lang daneben aufbewahrt.",
     "meetingPausedWhileAsleep": "Dein Mac war während des Meetings im Ruhezustand. Von {{from}} bis {{to}} wurde nichts aufgenommen.",
     "meetingAudioDropped": "Ein Teil des Meeting-Audios ging verloren, weil der Mac zu ausgelastet war."
   },
