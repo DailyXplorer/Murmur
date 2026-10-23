@@ -368,12 +368,22 @@ export const HistorySettings: React.FC = () => {
         {t("settings.history.loading")}
       </div>
     );
+  } else if (entries.length === 0 && loadFailed) {
+    content = (
+      <div
+        role="alert"
+        className="flex items-center justify-center gap-3 px-4 py-3 text-text/60"
+      >
+        {t("settings.history.loadError")}
+        <Button onClick={() => void loadPage()}>
+          {t("settings.history.retry")}
+        </Button>
+      </div>
+    );
   } else if (entries.length === 0) {
     content = (
       <div className="px-4 py-3 text-center text-text/60">
-        {loadFailed
-          ? t("settings.history.loadError")
-          : t("settings.history.empty")}
+        {t("settings.history.empty")}
       </div>
     );
   } else {

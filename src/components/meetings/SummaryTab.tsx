@@ -47,11 +47,8 @@ const SummaryState: React.FC<{
   if (meeting.summary_status === "failed") {
     const error = meeting.summary_error ?? "other";
     return (
-      <div
-        role="alert"
-        className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
-      >
-        <p className="flex-1 text-sm">
+      <div role="alert" className="flex items-center gap-3 px-1 py-2">
+        <p className="flex-1 text-sm text-mid-gray">
           {t(`meetings.summary.errors.${error}`)}
         </p>
         {/* Only a Ready meeting gets its summary written; a failed one

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("History that cannot be read says so, not that it is empty", async ({
+test("History that cannot be read says so, and Retry reloads it", async ({
   page,
 }) => {
   await page.goto("/tests/fixtures/settings-pages.html?history=fails");
@@ -9,6 +9,13 @@ test("History that cannot be read says so, not that it is empty", async ({
     .getByRole("button", { name: "History", exact: true })
     .click();
 
-  await expect(page.getByText("Couldn't load History.")).toBeVisible();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Couldn't load your history.");
   await expect(page.getByText(/No transcriptions yet/)).toHaveCount(0);
+
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Copy transcription to clipboard" }),
+  ).not.toHaveCount(0);
 });
