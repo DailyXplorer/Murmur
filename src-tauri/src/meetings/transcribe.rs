@@ -109,9 +109,11 @@ impl Default for RetryPolicy {
 }
 
 /// A failure that, once its retries are spent, says Codex is out of reach
-/// rather than refusing this piece.
+/// rather than refusing this piece. A timeout is not one: Codex was reached,
+/// and the connection check would find it online and rerun the same request
+/// for ever.
 pub fn unreachable(kind: FailureKind) -> bool {
-    matches!(kind, FailureKind::Network | FailureKind::Timeout)
+    kind == FailureKind::Network
 }
 
 /// This Mac's model, with its own engine so a meeting never waits behind a
@@ -378,10 +380,14 @@ impl Shared {
                     }
                     FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
                         let Some(delay) = policy.transient.get(transient).copied() else {
-                            if !unreachable(error.kind) {
+                            if error.kind == FailureKind::ServerError {
                                 return Attempt::Outcome(Outcome::Failed(error.kind));
                             }
-                            self.unreachable_out.store(true, Ordering::SeqCst);
+                            // After a timeout, the other pieces still try
+                            // Codex; a lost connection stops them.
+                            if unreachable(error.kind) {
+                                self.unreachable_out.store(true, Ordering::SeqCst);
+                            }
                             return self.refused(samples, error.kind).await;
                         };
                         transient += 1;
@@ -960,8 +966,8 @@ mod tests {
         }
     }
 
-    fn run_through(
-        codex: &Arc<Connection>,
+    fn run_through<C: Transcriber + 'static>(
+        codex: &Arc<C>,
         jobs: Vec<Job>,
         local: Option<Arc<dyn Transcriber>>,
     ) -> (RunEnd, Arc<Recorder>) {
@@ -1022,6 +1028,53 @@ mod tests {
         assert!(finished
             .iter()
             .all(|(_, outcome)| *outcome == Outcome::Done("En ligne.".into())));
+    }
+
+    /// Codex that connects but answers every piece too late, as on a slow
+    /// uplink.
+    struct TooSlow;
+
+    impl Transcriber for TooSlow {
+        fn transcribe(
+            &self,
+            _: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            Box::pin(async { Err(TranscriptionError::new(FailureKind::Timeout, "too slow")) })
+        }
+    }
+
+    #[test]
+    fn pieces_that_keep_timing_out_fail_instead_of_waiting_for_a_connection() {
+        // The connection works: waiting for it to come back would rerun the
+        // same requests for ever.
+        let (end, recorder) = run_through(&Arc::new(TooSlow), jobs(4, 1_000), None);
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 4, "every piece is tried");
+        assert!(finished
+            .iter()
+            .all(|(_, outcome)| *outcome == Outcome::Failed(FailureKind::Timeout)));
+
+        // This Mac's model still takes them.
+        let local = FakeLocal::answering();
+        let (end, recorder) = run_through(
+            &Arc::new(TooSlow),
+            jobs(2, 1_000),
+            Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        );
+        assert_eq!(end, RunEnd::Finished);
+        assert!(recorder
+            .finished
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, outcome)| *outcome
+                == Outcome::DoneLocally {
+                    text: "local 16000".into(),
+                    codex: FailureKind::Timeout
+                }));
     }
 
     #[test]

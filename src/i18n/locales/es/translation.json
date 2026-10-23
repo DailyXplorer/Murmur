@@ -141,7 +141,8 @@
       "completionFailed": "No se pudo completar la configuración. Actualiza el estado y vuelve a intentarlo.",
       "optionalTitle": "Conectar ChatGPT (opcional)",
       "optionalDescription": "Conecta tu cuenta de ChatGPT para la limpieza con IA (quita las muletillas y corrige la gramática) y para los idiomas que el modelo local no cubre.",
-      "skip": "Omitir"
+      "skip": "Omitir",
+      "back": "Atrás"
     },
     "model": {
       "title": "Transcribir en este Mac",

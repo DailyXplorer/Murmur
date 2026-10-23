@@ -474,6 +474,56 @@ fn delete_removes_everything_and_reports_missing() {
     assert_eq!(ready.status().state, LocalModelState::Missing);
 }
 
+/// Ready models whose optional source is still coming, from a server that
+/// hangs partway through it.
+fn ready_while_the_optional_source_hangs(
+    path: &Path,
+    fixture: &Fixture,
+    base: &str,
+) -> Arc<LocalModels> {
+    fixture.write_ready_without_optional(path);
+    let ready = models(path, fixture, base, &Arc::new(FakeHost::default()));
+    ready.resume_on_launch(false);
+    assert!(ready.is_ready());
+    ready
+}
+
+#[test]
+fn delete_stops_the_optional_fetch_of_ready_models() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    tauri::async_runtime::block_on(async {
+        let (base, _) = test_server::start(Arc::new(|_: &Request, _| {
+            Reply::HangAfter(vec![9; 3_000], 1_000)
+        }))
+        .await;
+        let ready = ready_while_the_optional_source_hangs(&path, &fixture, &base);
+        ready.delete().unwrap();
+        assert!(!path.exists());
+        assert_eq!(ready.status().state, LocalModelState::Missing);
+        ready.fetched().await;
+        assert!(!path.exists(), "written after the delete");
+    });
+}
+
+#[test]
+fn models_found_missing_download_again_during_the_optional_fetch() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    tauri::async_runtime::block_on(async {
+        let (base, _) = test_server::start(Arc::new(|_: &Request, _| {
+            Reply::HangAfter(vec![9; 3_000], 1_000)
+        }))
+        .await;
+        let ready = ready_while_the_optional_source_hangs(&path, &fixture, &base);
+        ready.invalidate();
+        ready.download();
+        assert_eq!(settled(&ready).await, LocalModelState::Ready);
+    });
+}
+
 fn paths(seen: &Mutex<Vec<Request>>) -> Vec<String> {
     seen.lock()
         .unwrap()

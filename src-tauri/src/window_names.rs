@@ -214,8 +214,9 @@ fn is_code_app(bundle_id: &str) -> bool {
 
 /// A terminal or editor with any `KEY=value` line may be showing a `.env`
 /// file or a shell session, so it gives no names and no excerpt at all.
-/// Elsewhere an excerpt with a line that assigns a value or mentions a
-/// password, token, secret or API key is dropped. Names in the excerpt come
+/// Elsewhere an excerpt with a line that assigns a value, mentions a
+/// password, token, secret or API key (in English or French), or holds a
+/// credential as a shell shows one, is dropped. Names in the excerpt come
 /// first: they are next to what the user is writing.
 fn window_context(
     bundle_id: &str,
@@ -267,7 +268,9 @@ fn is_assignment(line: &str) -> bool {
         && !value.starts_with('=')
 }
 
-const SECRET_WORDS: [&str; 12] = [
+/// English and French labels next to a secret, lowercase and without
+/// accents, and the header that carries one in a shell.
+const SECRET_WORDS: [&str; 23] = [
     "password",
     "passwd",
     "passcode",
@@ -280,11 +283,52 @@ const SECRET_WORDS: [&str; 12] = [
     "apikey",
     "private key",
     "credential",
+    "authorization:",
+    "bearer ",
+    "mot de passe",
+    "mdp",
+    "cle api",
+    "cle d'api",
+    "cle privee",
+    "jeton",
+    "identifiant",
+    "code d'acces",
+    "code pin",
 ];
 
 fn mentions_secret(line: &str) -> bool {
-    let line = line.to_lowercase();
-    SECRET_WORDS.iter().any(|word| line.contains(word))
+    let line = folded(line);
+    SECRET_WORDS.iter().any(|word| line.contains(word)) || has_url_password(&line)
+}
+
+/// Lowercase, without French accents, and with `’` as `'`.
+fn folded(line: &str) -> String {
+    line.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'à' | 'â' | 'ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' => 'i',
+            'ô' | 'ö' => 'o',
+            'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            '’' => '\'',
+            c => c,
+        })
+        .collect()
+}
+
+/// A URL that holds a password, as in `postgres://user:password@host`.
+fn has_url_password(line: &str) -> bool {
+    line.match_indices("://").any(|(at, _)| {
+        let authority = line[at + 3..]
+            .split(['/', '?', '#', ' ', '"', '\''])
+            .next()
+            .unwrap_or_default();
+        authority
+            .rsplit_once('@')
+            .is_some_and(|(user, _)| user.contains(':'))
+    })
 }
 
 /// Words that look like names: capitalised but not merely sentence case,
@@ -729,23 +773,166 @@ mod tests {
         );
     }
 
+    /// Every excerpt the secret filter was checked on: the app, its window
+    /// text, the text before and after the cursor, and whether the excerpt
+    /// may be sent. Add rows; never change one to make a fix pass.
+    const EXCERPT_CORPUS: &[(&str, &str, &str, &str, bool)] = &[
+        // English labels and assignments.
+        (
+            "com.apple.Notes",
+            "",
+            "Wi-Fi password: Bluebird\nsee you ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Hi Ingrid, ",
+            " here is my API key for staging",
+            false,
+        ),
+        ("com.apple.Notes", "", "STRIPE_KEY=Moonlight\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "export ADMIN = Corvina\nthen ",
+            "run it",
+            false,
+        ),
+        ("com.apple.Notes", "", "the token is ", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Thanks for the draft, Priya. ",
+            "",
+            true,
+        ),
+        // A code app showing an assignment sends nothing; elsewhere the
+        // window's assignment is not the excerpt's.
+        (
+            "com.apple.Terminal",
+            "DATABASE_URL=postgres://localhost\nwritten by Ingrid",
+            "thanks to Ingrid for ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "DATABASE_URL=postgres://localhost\nwritten by Ingrid",
+            "thanks to Ingrid for ",
+            "",
+            true,
+        ),
+        // French labels (round 44).
+        (
+            "com.apple.Notes",
+            "",
+            "Le mot de passe du Wi-Fi est Soleil2024\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "mdp : Soleil2024\nà demain ",
+            "",
+            false,
+        ),
+        ("com.apple.Mail", "", "clé API : sk-abc123\n", "", false),
+        (
+            "com.apple.Mail",
+            "",
+            "Voici la clé d'API de la préprod ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Mail",
+            "",
+            "Voici la clé d’API de la préprod ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "cle api : sk-abc123\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Ton jeton d'accès expire demain, ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Identifiant : jdupont\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Code d'accès de l'immeuble : 4589B\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Code PIN de la carte : 1234\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Merci pour la relecture, Priya. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Le mot de la fin revient à Ingrid. ",
+            "",
+            true,
+        ),
+        // Credentials in a terminal's scrollback (round 44).
+        (
+            "com.apple.Terminal",
+            "",
+            "$ curl -H \"Authorization: Bearer sk-live-abc\" https://api.example.com\n$ ",
+            "",
+            false,
+        ),
+        (
+            "com.googlecode.iterm2",
+            "",
+            "$ psql postgres://admin:S3cret@db.example.com/app\n$ ",
+            "",
+            false,
+        ),
+        (
+            "com.googlecode.iterm2",
+            "",
+            "$ git clone ssh://git@github.com/example/app.git\n$ ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Terminal",
+            "",
+            "$ open https://example.com/docs?page=2\n$ ",
+            "",
+            true,
+        ),
+    ];
+
     #[test]
-    fn an_excerpt_with_a_secret_line_is_dropped() {
-        for (before, after) in [
-            ("Wi-Fi password: Bluebird\nsee you ", ""),
-            ("Hi Ingrid, ", " here is my API key for staging"),
-            ("STRIPE_KEY=Moonlight\n", ""),
-            ("export ADMIN = Corvina\nthen ", "run it"),
-            ("the token is ", ""),
-        ] {
-            let context = window_context("com.apple.Notes", "", field(before, after));
-            assert_eq!(context.field, None, "{before:?} {after:?}");
+    fn excerpt_secret_corpus() {
+        for &(app, window, before, after, kept) in EXCERPT_CORPUS {
+            let excerpt = field(before, after);
+            let expected = if kept { excerpt.clone() } else { None };
+            assert_eq!(
+                window_context(app, window, excerpt).field,
+                expected,
+                "{app} {before:?} {after:?}"
+            );
         }
-        let clean = field("Thanks for the draft, Priya. ", "");
-        assert_eq!(
-            window_context("com.apple.Notes", "", clean.clone()).field,
-            clean
-        );
     }
 
     /// Measures every read on each regular app running, without bringing

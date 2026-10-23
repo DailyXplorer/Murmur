@@ -141,7 +141,8 @@
       "completionFailed": "Couldn't finish setup. Refresh the status and try again.",
       "optionalTitle": "Connect ChatGPT (optional)",
       "optionalDescription": "Connect your ChatGPT account for AI cleanup (removes ums and fixes grammar) and for languages the local model doesn't cover.",
-      "skip": "Skip"
+      "skip": "Skip",
+      "back": "Back"
     },
     "model": {
       "title": "Transcribe on this Mac",

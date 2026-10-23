@@ -108,6 +108,8 @@ pub struct LocalModels {
     host: Arc<dyn Host>,
     state: watch::Sender<LocalModelState>,
     download: Mutex<Option<ProcessingOperation>>,
+    /// The optional sources' fetch, which ready models run on their own.
+    optional: Mutex<Option<ProcessingOperation>>,
 }
 
 impl LocalModels {
@@ -126,6 +128,7 @@ impl LocalModels {
             host,
             state: watch::channel(LocalModelState::Missing).0,
             download: Mutex::new(None),
+            optional: Mutex::new(None),
         };
         let state = if support != AnalysisSupport::Available {
             LocalModelState::Unsupported { support }
@@ -161,6 +164,10 @@ impl LocalModels {
         *self.state.borrow() == LocalModelState::Ready
     }
 
+    pub fn subscribe(&self) -> watch::Receiver<LocalModelState> {
+        self.state.subscribe()
+    }
+
     /// The sources dictation waits for.
     fn required(&self) -> impl Iterator<Item = &'static Source> + Send + 'static {
         self.sources.iter().filter(|source| !source.optional)
@@ -173,6 +180,12 @@ impl LocalModels {
 
     fn download_slot(&self) -> std::sync::MutexGuard<'_, Option<ProcessingOperation>> {
         self.download
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn optional_slot(&self) -> std::sync::MutexGuard<'_, Option<ProcessingOperation>> {
+        self.optional
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
@@ -218,7 +231,7 @@ impl LocalModels {
     #[cfg(test)]
     pub(crate) async fn fetched(&self) {
         for _ in 0..60_000 {
-            if self.download_slot().is_none() {
+            if self.download_slot().is_none() && self.optional_slot().is_none() {
                 return;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -308,15 +321,14 @@ impl LocalModels {
         let models = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
             let result = models.fetch(&operation, earlier).await;
-            if result.is_ok() {
-                log::info!("Local models ready");
-                models.set(LocalModelState::Ready);
-                models.fetch_optional(&operation).await;
-            }
             let mut slot = models.download_slot();
             *slot = None;
             match result {
-                Ok(()) => {}
+                Ok(()) => {
+                    log::info!("Local models ready");
+                    models.set(LocalModelState::Ready);
+                    models.start_optional();
+                }
                 Err(Stopped::Cancelled) => models.set(LocalModelState::Missing),
                 Err(Stopped::Failed(reason)) => {
                     log::warn!("Local models download failed: {reason:?}");
@@ -329,7 +341,7 @@ impl LocalModels {
     /// Fetches the optional files ready models lack, in the background.
     fn start_optional(self: &Arc<Self>) {
         let operation = {
-            let mut slot = self.download_slot();
+            let mut slot = self.optional_slot();
             if slot.is_some() {
                 return;
             }
@@ -340,8 +352,25 @@ impl LocalModels {
         let models = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
             models.fetch_optional(&operation).await;
-            *models.download_slot() = None;
+            *models.optional_slot() = None;
         });
+    }
+
+    /// Cancels the optional fetch and waits for it to stop, so it writes
+    /// nothing more into the folder.
+    fn stop_optional(&self) -> Result<(), String> {
+        const STOP_WITHIN: Duration = Duration::from_secs(10);
+        if let Some(operation) = self.optional_slot().as_ref() {
+            operation.cancel();
+        }
+        let started = Instant::now();
+        while self.optional_slot().is_some() {
+            if started.elapsed() > STOP_WITHIN {
+                return Err("The models are downloading".to_string());
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        Ok(())
     }
 
     /// The state stays as it is: a failure is logged, and the next launch
@@ -486,11 +515,14 @@ impl LocalModels {
             .map_or(0, |metadata| metadata.len().min(file.size))
     }
 
-    /// Deletes the models. Refused while they download.
+    /// Deletes the models. Refused while they download; the optional files
+    /// ready models are still fetching are given up. Blocks until that fetch
+    /// stops.
     pub fn delete(&self) -> Result<(), String> {
         if self.download_slot().is_some() {
             return Err("The models are downloading".to_string());
         }
+        self.stop_optional()?;
         match std::fs::remove_dir_all(&self.dir) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -502,6 +534,12 @@ impl LocalModels {
         }
         Ok(())
     }
+}
+
+/// Whether the optional sources are in place in the models folder `dir`:
+/// their marker is written once they are fetched and prepared.
+pub fn optional_ready(dir: &Path) -> bool {
+    dir.join(OPTIONAL_MARKER).exists()
 }
 
 /// The size of every file under `dir`, 0 when it is absent.

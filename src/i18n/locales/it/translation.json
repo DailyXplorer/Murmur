@@ -141,7 +141,8 @@
       "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
       "optionalTitle": "Collega ChatGPT (facoltativo)",
       "optionalDescription": "Collega il tuo account ChatGPT per la pulizia con IA (toglie le esitazioni e corregge la grammatica) e per le lingue che il modello locale non copre.",
-      "skip": "Salta"
+      "skip": "Salta",
+      "back": "Indietro"
     },
     "model": {
       "title": "Trascrivi su questo Mac",
