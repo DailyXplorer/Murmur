@@ -1,4 +1,4 @@
-use crate::audio_toolkit::{list_input_devices, AudioRecorder};
+use crate::audio_toolkit::{list_input_devices, AudioRecorder, Capture};
 use crate::helpers::clamshell;
 use crate::settings::{get_settings, update_settings, AppSettings};
 use crate::utils;
@@ -925,7 +925,7 @@ impl AudioRecordingManager {
         self.cancel_generation.load(Ordering::Acquire) != generation
     }
 
-    pub fn stop_recording(&self, binding_id: &str, cancel_generation: u64) -> Option<Vec<f32>> {
+    pub fn stop_recording(&self, binding_id: &str, cancel_generation: u64) -> Option<Capture> {
         let mut state = self.state.lock().unwrap();
 
         // This check is deliberately inside the state lock and before any
@@ -969,18 +969,22 @@ impl AudioRecordingManager {
                     }
                 }
 
-                let samples = if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                    match rec.stop() {
-                        Ok(buf) => buf,
-                        Err(e) => {
-                            error!("stop() failed: {e}");
-                            Vec::new()
+                let Capture { samples, mic_lost } =
+                    if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
+                        match rec.stop() {
+                            Ok(capture) => capture,
+                            Err(e) => {
+                                error!("stop() failed: {e}");
+                                Capture::default()
+                            }
                         }
-                    }
-                } else {
-                    error!("Recorder not available");
-                    Vec::new()
-                };
+                    } else {
+                        error!("Recorder not available");
+                        Capture::default()
+                    };
+                if mic_lost {
+                    warn!("The microphone went away during the recording");
+                }
 
                 *self.is_recording.lock().unwrap() = false;
                 self.set_state(&mut self.state.lock().unwrap(), RecordingState::Idle);
@@ -999,13 +1003,14 @@ impl AudioRecordingManager {
                 }
 
                 let s_len = samples.len();
-                if s_len < TARGET_SAMPLE_RATE && s_len > 0 {
+                let samples = if s_len < TARGET_SAMPLE_RATE && s_len > 0 {
                     let mut padded = samples;
                     padded.resize(TARGET_SAMPLE_RATE * 5 / 4, 0.0);
-                    Some(padded)
+                    padded
                 } else {
-                    Some(samples)
-                }
+                    samples
+                };
+                Some(Capture { samples, mic_lost })
             }
             _ => None,
         }

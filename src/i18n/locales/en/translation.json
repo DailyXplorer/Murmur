@@ -32,6 +32,7 @@
     "overlayCopy": "Copy",
     "overlayCopied": "Copied",
     "overlayNotPasted": "There was no text field to paste into.",
+    "overlayMicDisconnected": "Recording stopped early: your microphone disconnected.",
     "callRecordQuestion": "Record this meeting?",
     "callRecord": "Record",
     "callNotNow": "Not now",

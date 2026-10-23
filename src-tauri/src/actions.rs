@@ -1,5 +1,5 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
-use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error};
+use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error, Capture};
 use crate::cleanup::{ProcessedText, PromptContext};
 use crate::engine::EngineUsed;
 use crate::managers::audio::AudioRecordingManager;
@@ -10,7 +10,7 @@ use crate::shortcut;
 use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::user_alert::{self, Alert};
-use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
+use crate::utils::{self, show_mic_lost_notice, show_recording_overlay, show_transcribing_overlay};
 use crate::window_names::{ContextReads, WindowContext};
 use crate::{ProcessingOperation, TranscriptionCoordinator};
 use log::{debug, error};
@@ -435,7 +435,9 @@ impl ShortcutAction for TranscribeAction {
 
             let stop_recording_time = Instant::now();
             let window = crate::window_names::collect();
-            if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
+            if let Some(Capture { samples, mic_lost }) =
+                rm.stop_recording(&binding_id, cancel_generation)
+            {
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
                     stop_recording_time.elapsed(),
@@ -449,6 +451,9 @@ impl ShortcutAction for TranscribeAction {
 
                 if samples.is_empty() {
                     debug!("Recording produced no audio samples; skipping persistence");
+                    if mic_lost {
+                        show_mic_lost_notice(&ah);
+                    }
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
@@ -557,6 +562,9 @@ impl ShortcutAction for TranscribeAction {
                                         source,
                                     );
                                 }
+                                if mic_lost {
+                                    show_mic_lost_notice(&ah);
+                                }
                             } else {
                                 // `clipboard::paste` owns its native
                                 // main-thread transactions and waits through
@@ -569,6 +577,7 @@ impl ShortcutAction for TranscribeAction {
                                     final_text.clone(),
                                     ah.clone(),
                                     operation.clone(),
+                                    mic_lost,
                                 )
                                 .await
                                 {
@@ -582,6 +591,17 @@ impl ShortcutAction for TranscribeAction {
                                                 &ah,
                                                 final_text.clone(),
                                             );
+                                        }
+                                        // The copy pill carries the warning,
+                                        // and a failed paste shows its error.
+                                        if mic_lost
+                                            && matches!(
+                                                outcome,
+                                                crate::clipboard::PasteOutcome::Injected
+                                                    | crate::clipboard::PasteOutcome::IntentionalNone
+                                            )
+                                        {
+                                            show_mic_lost_notice(&ah);
                                         }
                                         outcome != crate::clipboard::PasteOutcome::Skipped
                                     }

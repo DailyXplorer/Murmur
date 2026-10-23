@@ -32,6 +32,7 @@
     "overlayCopy": "Copiar",
     "overlayCopied": "Copiado",
     "overlayNotPasted": "No había ningún campo de texto donde pegar.",
+    "overlayMicDisconnected": "La grabación se detuvo antes de tiempo: su micrófono se desconectó.",
     "callRecordQuestion": "¿Grabar esta reunión?",
     "callRecord": "Grabar",
     "callNotNow": "Ahora no",
