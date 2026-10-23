@@ -84,6 +84,7 @@ function mountHook() {
         stopCount++;
       });
     },
+    failRegistration: () => registration.reject(new Error("listen failed")),
     transition: (status: LocalModelStatus) => {
       backend = status;
       if (active) listener({ payload: status });
@@ -133,6 +134,17 @@ test("loads the initial snapshot and continues to receive events", async () => {
   hook.unmount();
   await settle();
   expect(hook.stopCount()).toBe(1);
+});
+
+test("a failed subscription still loads the snapshot", async () => {
+  const hook = mountHook();
+  hook.failRegistration();
+  await settle();
+  expect(hook.readCount()).toBe(1);
+  hook.resolveSnapshot();
+  await settle();
+  expect(hook.status()).toEqual(preparing);
+  hook.unmount();
 });
 
 test("unmount during registration releases the late listener without reading", async () => {

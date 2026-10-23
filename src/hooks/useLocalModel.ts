@@ -25,6 +25,11 @@ export const useLocalModel = (): LocalModelStatus | null => {
           return;
         }
         unlisten = stop;
+      } catch (error) {
+        // Without events the snapshot still shows the current state.
+        console.error("Failed to listen for local model status", error);
+      }
+      try {
         const initialRevision = revision;
         const result = await commands.getLocalModelStatus();
         // An event received while the snapshot was in flight is newer.

@@ -46,18 +46,13 @@ function mountHistoryLimit(settings: { saved?: number } = { saved: 50 }) {
       NonNullable<Element["props"]["onChange"]>
     >[0]);
   };
-  const commit = (
-    valueAsNumber: number,
-    valid: boolean,
-    mode: "Enter" | "blur",
-  ) => {
+  const commit = (valueAsNumber: number, mode: "Enter" | "blur") => {
     let reports = 0;
     const currentTarget = {
       valueAsNumber,
-      validity: { valid },
       reportValidity: () => {
         reports++;
-        return valid;
+        return false;
       },
     } as HTMLInputElement;
     if (mode === "Enter") {
@@ -87,7 +82,7 @@ for (const mode of ["Enter", "blur"] as const) {
       const component = mountHistoryLimit();
       component.change(draft);
       expect(component.writes).toEqual([]);
-      component.commit(value, true, mode);
+      component.commit(value, mode);
       expect(component.writes).toEqual([{ key: "history_limit", value }]);
       // React compares number-input values loosely: a numeric prop would
       // leave equivalent text such as "1e3" in the DOM instead of "1000".
@@ -95,24 +90,37 @@ for (const mode of ["Enter", "blur"] as const) {
     });
   }
 
+  for (const [draft, value, limit] of [
+    ["0", 0, 1],
+    ["-1", -1, 1],
+    ["1001", 1001, 1000],
+    ["1e4", 10000, 1000],
+  ] as const) {
+    test(`${mode} saves ${draft} as ${limit}`, () => {
+      const component = mountHistoryLimit();
+      component.change(draft);
+      component.commit(value, mode);
+      expect(component.writes).toEqual([
+        { key: "history_limit", value: limit },
+      ]);
+      expect(component.input().value).toBe(String(limit));
+    });
+  }
+
   for (const [draft, value] of [
-    ["0", 0],
-    ["-1", -1],
-    ["1001", 1001],
-    ["1e4", 10000],
     ["1.5", 1.5],
     ["1e-1", 0.1],
     ["1e", NaN],
     ["12abc", NaN],
     ["Infinity", Infinity],
   ] as const) {
-    test(`${mode} rejects ${draft} without a destructive write`, () => {
+    test(`${mode} drops ${draft} and shows the saved limit again`, () => {
       const component = mountHistoryLimit();
       component.change(draft);
-      const reports = component.commit(value, false, mode);
+      const reports = component.commit(value, mode);
       expect(component.writes).toEqual([]);
-      expect(reports).toBe(1);
-      expect(component.input().value).toBe(draft);
+      expect(reports).toBe(0);
+      expect(component.input().value).toBe("50");
     });
   }
 }
@@ -120,26 +128,26 @@ for (const mode of ["Enter", "blur"] as const) {
 test("empty edits restore the saved limit without writing", () => {
   const component = mountHistoryLimit();
   component.change("");
-  component.commit(NaN, true, "Enter");
+  component.commit(NaN, "Enter");
   expect(component.input().value).toBe("50");
   expect(component.writes).toEqual([]);
 });
 
-test("Escape cancels an invalid edit", () => {
+test("Escape cancels an edit", () => {
   const component = mountHistoryLimit();
   component.change("0");
   component.input().onKeyDown!({ key: "Escape" } as Parameters<
     NonNullable<Element["props"]["onKeyDown"]>
   >[0]);
   expect(component.input().value).toBe("50");
-  component.commit(50, true, "blur");
+  component.commit(50, "blur");
   expect(component.writes).toEqual([]);
 });
 
 test("an unchanged value does not write and the default remains five", () => {
   const component = mountHistoryLimit();
   component.change("50");
-  component.commit(50, true, "Enter");
+  component.commit(50, "Enter");
   expect(component.writes).toEqual([]);
   // Passing no persisted value exercises the production fallback.
   const missing = mountHistoryLimit({});

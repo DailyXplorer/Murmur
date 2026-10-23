@@ -26,25 +26,17 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
   // must never be saved: the value is committed on Enter or blur only.
   const commit = (input: HTMLInputElement) => {
     if (draft === null) return;
-    if (draft === "") {
-      setDraft(null);
-      return;
-    }
-    // Use the number control's complete value: parseInt("1e3") is 1,
-    // not 1000. Never round or clamp a value that deletes history.
-    const value = input.valueAsNumber;
-    if (
-      !input.validity.valid ||
-      !Number.isInteger(value) ||
-      value < MIN_HISTORY_LIMIT ||
-      value > MAX_HISTORY_LIMIT
-    ) {
-      input.reportValidity();
-      return;
-    }
     setDraft(null);
-    if (value !== historyLimit) {
-      void updateSetting("history_limit", value);
+    // The number control's complete value: parseInt("1e3") is 1, not 1000.
+    // An empty or fractional value is dropped, never rounded.
+    const value = input.valueAsNumber;
+    if (!Number.isInteger(value)) return;
+    const limit = Math.min(
+      MAX_HISTORY_LIMIT,
+      Math.max(MIN_HISTORY_LIMIT, value),
+    );
+    if (limit !== historyLimit) {
+      void updateSetting("history_limit", limit);
     }
   };
 
@@ -69,7 +61,6 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
           type="number"
           min={MIN_HISTORY_LIMIT}
           max={MAX_HISTORY_LIMIT}
-          step={1}
           value={draft ?? String(historyLimit)}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={(event) => commit(event.currentTarget)}
