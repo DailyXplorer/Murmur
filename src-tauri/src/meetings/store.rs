@@ -948,14 +948,28 @@ impl MeetingsStore {
     /// Saves the summary, and the title it gives the meeting unless the
     /// user named it. Returns false when the meeting no longer waits for
     /// it: transcribed again or re-analysed meanwhile, its summary is of a
-    /// transcript that is gone.
+    /// transcript that is gone. The later parts the user did not name take
+    /// the same title: offline, a later part can be summarised first.
     pub fn save_summary(&self, id: i64, title: Option<&str>, body: &str) -> Result<bool> {
-        let updated = self.connection()?.execute(
+        let connection = self.connection()?;
+        let updated = connection.execute(
             "UPDATE meetings SET summary_md = ?3, summary_status = 'ready', summary_error = NULL,
                  title = CASE WHEN title_edited = 0 AND ?2 IS NOT NULL THEN ?2 ELSE title END
              WHERE id = ?1 AND status = 'ready' AND summary_status = 'pending'",
             params![id, title, body],
         )?;
+        if updated > 0 {
+            connection.execute(
+                "WITH RECURSIVE later(id) AS (
+                     SELECT id FROM meetings WHERE previous_id = ?1
+                     UNION SELECT meetings.id FROM meetings JOIN later
+                         ON meetings.previous_id = later.id)
+                 UPDATE meetings SET title = (SELECT title FROM meetings WHERE id = ?1)
+                 WHERE id IN later AND title_edited = 0
+                     AND (SELECT title FROM meetings WHERE id = ?1) IS NOT NULL",
+                params![id],
+            )?;
+        }
         Ok(updated > 0)
     }
 
@@ -1949,6 +1963,40 @@ mod tests {
         let untitled = ready(&store);
         assert!(store.save_summary(untitled, None, "Notes.").unwrap());
         assert_eq!(store.get(untitled).unwrap().unwrap().title, None);
+    }
+
+    #[test]
+    fn a_part_summarised_after_the_later_ones_gives_them_its_title() {
+        let (_dir, store) = store();
+        let first = store.insert_recording(1_000, MeetingTracks::Both).unwrap();
+        let second = store
+            .insert_part(5_000, MeetingTracks::Both, first)
+            .unwrap();
+        store.finish_recording(first, 5_000, 4_000).unwrap();
+        store.finish_recording(second, 9_000, 4_000).unwrap();
+        let third = store
+            .insert_part(9_000, MeetingTracks::Both, second)
+            .unwrap();
+        store.finish_recording(third, 13_000, 4_000).unwrap();
+        let renamed = store
+            .insert_part(13_000, MeetingTracks::Both, third)
+            .unwrap();
+        store.finish_recording(renamed, 17_000, 4_000).unwrap();
+        for id in [first, second, third, renamed] {
+            store.begin_processing(id).unwrap();
+            store.finish_processing(id, None).unwrap();
+        }
+        store.rename(renamed, Some("My title")).unwrap();
+
+        // Part 2 went first, without part 1's title to follow.
+        assert!(store.save_summary(second, Some("Later"), "B.").unwrap());
+        assert!(store.save_summary(third, Some("Later"), "C.").unwrap());
+        assert!(store.save_summary(first, Some("Budget"), "A.").unwrap());
+        let title = |id| store.get(id).unwrap().unwrap().title;
+        for id in [first, second, third] {
+            assert_eq!(title(id).as_deref(), Some("Budget"), "meeting {id}");
+        }
+        assert_eq!(title(renamed).as_deref(), Some("My title"));
     }
 
     #[test]
