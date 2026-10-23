@@ -124,6 +124,62 @@ public func murmurOutputRoute(
     return ok
 }
 
+/// The processes other than Murmur whose audio input runs now, for call
+/// detection: one "pid<TAB>bundle id" line each, written into `buffer` with
+/// a closing NUL when it fits. Returns the length of the whole list, or -1
+/// before macOS 14, whose Core Audio does not tell.
+@_cdecl("murmur_mic_users")
+public func murmurMicUsers(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int32) -> Int32 {
+    guard #available(macOS 14.0, *) else { return -1 }
+    let own = getpid()
+    let list = processObjects().compactMap { object -> String? in
+        guard property(object, kAudioProcessPropertyIsRunningInput, as: UInt32.self) == 1,
+              let pid = property(object, kAudioProcessPropertyPID, as: pid_t.self), pid != own
+        else { return nil }
+        return "\(pid)\t\(processBundleID(object) ?? "")\n"
+    }.joined()
+    let bytes = Array(list.utf8)
+    if let buffer, bytes.count < Int(capacity) {
+        bytes.withUnsafeBufferPointer { source in
+            source.withMemoryRebound(to: CChar.self) { source in
+                buffer.update(from: source.baseAddress!, count: bytes.count)
+            }
+        }
+        buffer[bytes.count] = 0
+    }
+    return Int32(clamping: bytes.count)
+}
+
+/// Every process Core Audio knows of (macOS 14).
+@available(macOS 14.0, *)
+private func processObjects() -> [AudioObjectID] {
+    var address = processListAddress
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0
+    else { return [] }
+    var objects = [AudioObjectID](
+        repeating: AudioObjectID(kAudioObjectUnknown),
+        count: Int(size) / MemoryLayout<AudioObjectID>.size)
+    guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &objects) == noErr
+    else { return [] }
+    return Array(objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
+}
+
+@available(macOS 14.0, *)
+private func processBundleID(_ object: AudioObjectID) -> String? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyBundleID,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var bundleID: Unmanaged<CFString>?
+    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &bundleID) == noErr,
+          let bundleID
+    else { return nil }
+    return bundleID.takeRetainedValue() as String
+}
+
 private let permissionGranted: Int32 = 0
 private let permissionDenied: Int32 = 1
 private let permissionUnknown: Int32 = 2

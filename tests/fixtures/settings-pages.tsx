@@ -67,6 +67,8 @@ const meetingError = (params.get("meetingError") ??
  */
 const offline = params.get("offline") === "1";
 const analysis = params.get("analysis") ?? "available";
+/** `0`: a Mac that cannot tell a call started (Intel, or before macOS 14). */
+const callDetection = params.get("callDetection") !== "0";
 /** `failed` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
@@ -244,6 +246,7 @@ const SETTINGS: AppSettings = {
   local_stt_card_dismissed: !cardShown,
   log_level: "info",
   meeting_audio_retention: "keep",
+  meeting_call_prompt: true,
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
@@ -693,6 +696,7 @@ const handleAccountCommand = (
 
 const RESPONSES: Record<string, unknown> = {
   change_meeting_audio_retention_setting: null,
+  change_meeting_call_prompt_setting: null,
   change_meeting_capture_mode_setting: null,
   get_meetings_storage: {
     audio_bytes: meetingsStorageBytes,
@@ -708,7 +712,11 @@ const RESPONSES: Record<string, unknown> = {
   download_local_model: null,
   cancel_local_model_download: null,
   delete_local_model: null,
-  get_meeting_capabilities: { analysis, system_audio: systemAudio },
+  get_meeting_capabilities: {
+    analysis,
+    system_audio: systemAudio,
+    call_detection: callDetection,
+  },
   get_meeting_runtime: MEETING_RUNTIME,
   get_system_audio_permission: systemAudioPermission,
   open_system_audio_privacy_settings: null,

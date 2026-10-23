@@ -31,6 +31,12 @@
     "overlayCopy": "Copiar",
     "overlayCopied": "Copiado",
     "overlayNotPasted": "No había ningún campo de texto donde pegar.",
+    "callRecordQuestion": "¿Grabar esta reunión?",
+    "callRecord": "Grabar",
+    "callNotNow": "Ahora no",
+    "callStopQuestion": "La llamada terminó. ¿Detener la grabación?",
+    "callStop": "Detener",
+    "callKeepRecording": "Seguir grabando",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
     "startMeeting": "Iniciar reunión",
     "stopMeeting": "Detener reunión",
@@ -328,6 +334,10 @@
       "meetingsToggle": {
         "label": "Reuniones",
         "description": "Grabe reuniones desde su micrófono y el audio del sistema. Añade una página de reuniones, un atajo y un elemento en la barra de menús."
+      },
+      "meetingCallPrompt": {
+        "label": "Ofrecer grabar las llamadas",
+        "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba y ofrecer detenerla cuando termina. Murmur nunca graba sin un clic."
       },
       "meetingsAudio": {
         "title": "Eliminar el audio de las reuniones",

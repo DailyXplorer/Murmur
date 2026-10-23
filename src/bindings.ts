@@ -358,9 +358,10 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
 }
 },
 /**
- * Fits the copy notice's window to the capsule the webview measured, so a
- * note that wraps further in a wider fallback font still shows whole, and
- * the window, which takes clicks while the notice shows, stays close to it.
+ * Fits the copy notice's or the call prompt's window to the capsule the
+ * webview measured, so a note that wraps further in a wider fallback font
+ * still shows whole, and the window, which takes clicks while the notice
+ * shows, stays close to it.
  */
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });
@@ -961,6 +962,21 @@ async getMeetingsStorage() : Promise<Result<MeetingsStorage, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_call_prompt_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The call prompt's buttons: "Record" or "Stop" when `accept`, else "Not
+ * now" or "Keep recording".
+ */
+async answerCallPrompt(prompt: CallPrompt, accept: boolean) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { prompt, accept });
 }
 }
 
@@ -1059,6 +1075,11 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  */
 meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
 /**
+ * Offers to record when a call app starts using the microphone, and to
+ * stop when the call ends. Only while meetings are on.
+ */
+meeting_call_prompt?: boolean; 
+/**
  * Which engine transcribes dictations.
  */
 transcription_engine?: Engine; 
@@ -1094,6 +1115,18 @@ export type AudioState =
 "deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+/**
+ * The question a call prompt asks; its answer names it back.
+ */
+export type CallPrompt = 
+/**
+ * "Record this meeting?"
+ */
+"record" | 
+/**
+ * "The call ended. Stop recording?"
+ */
+"stop"
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
@@ -1259,7 +1292,11 @@ export type MeetingCapabilities = { system_audio: SystemAudioSupport;
 /**
  * Telling speakers apart on device.
  */
-analysis: AnalysisSupport }
+analysis: AnalysisSupport; 
+/**
+ * Telling that a call started, for the call prompt.
+ */
+call_detection: boolean }
 /**
  * Which sources a meeting records. Without system audio support (before
  * macOS 14.4, or on Intel) every mode records the microphone only; the

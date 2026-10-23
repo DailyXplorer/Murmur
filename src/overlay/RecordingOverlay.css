@@ -281,16 +281,100 @@
   }
 }
 
+/* Call prompt: the question over the call app's name, then the two answers,
+   the one that acts last and filled. Like the copy pill, the body sizes
+   itself and overlay.rs fits the window to it. Asking to record shows the
+   meeting pill's red dot. */
+.ov-capsule.ov-call {
+  width: auto;
+  height: auto;
+  min-width: var(--ov-rest-w);
+  border-radius: 22px;
+  font-size: 12.5px;
+  color: var(--ov-ink);
+}
+.ov-call-body {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: var(--ov-copy-max-w);
+  padding: 6px;
+  padding-inline-start: 14px;
+}
+.ov-call.record .ov-call-body::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(255 69 58);
+}
+.ov-call-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-inline-end: 4px;
+  line-height: 16px;
+}
+.ov-call-question {
+  font-weight: 600;
+  text-wrap: balance;
+}
+.ov-call-app {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.6);
+}
+.ov-call-button {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 14px;
+  margin: 0;
+  white-space: nowrap;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ov-ink);
+  background: rgb(255 255 255 / 0.12);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+.ov-call-button:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+.ov-call-button.accept {
+  color: rgb(24 24 27);
+  background: rgb(255 255 255 / 0.92);
+}
+.ov-call-button.accept:hover {
+  background: rgb(255 255 255);
+}
+.ov-call-button:active {
+  transform: scale(0.96);
+}
+.ov-call-button:focus-visible {
+  outline: 2px solid rgb(10 132 255);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ov-capsule,
   .ov-capsule.ov-copy,
   .ov-copy-note,
   .ov-copy-action,
+  .ov-call-button,
   .ov-wave i {
     animation: none;
     transition: none;
   }
-  .ov-copy:active {
+  .ov-copy:active,
+  .ov-call-button:active {
     transform: none;
   }
   .processing .ov-wave i {

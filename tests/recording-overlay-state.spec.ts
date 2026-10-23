@@ -6,6 +6,7 @@ import {
   entranceFinished,
   ERROR_WINDOW,
   fitCopyWindow,
+  fitCount,
   openOverlay,
   RECORDING_WINDOW,
 } from "./overlayHarness";
@@ -634,3 +635,120 @@ test("the pill counts on from the first part past three hours", async ({
   await page.clock.runFor(2_000);
   await expect(pill).toHaveText("3:20:02");
 });
+
+const callLabels = (tray: Record<string, string>, prompt: "record" | "stop") =>
+  prompt === "record"
+    ? {
+        prompt,
+        app: "Google Meet",
+        question: tray.callRecordQuestion,
+        accept: tray.callRecord,
+        decline: tray.callNotNow,
+      }
+    : {
+        prompt,
+        app: "Google Meet",
+        question: tray.callStopQuestion,
+        accept: tray.callStop,
+        decline: tray.callKeepRecording,
+      };
+const englishTray = trayStringsByLocale.find(
+  ({ locale }) => locale === "en",
+)!.tray;
+const callAnswers = (page: Page) =>
+  page.evaluate(() => window.overlayHarness.callAnswers());
+
+test("a call prompt asks to record the meeting and sends back Record or Not now", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+
+  const prompt = page.getByRole("alertdialog", {
+    name: "Record this meeting?",
+  });
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toHaveAccessibleDescription("Google Meet");
+  expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
+
+  await prompt.getByRole("button", { name: "Record", exact: true }).click();
+  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+  await prompt.getByRole("button", { name: "Not now", exact: true }).click();
+  expect(await callAnswers(page)).toEqual([
+    { prompt: "record", accept: true },
+    { prompt: "record", accept: false },
+  ]);
+});
+
+test("once the call ended, the prompt offers to stop or keep recording", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray, "stop"));
+
+  const prompt = page.getByRole("alertdialog", {
+    name: "The call ended. Stop recording?",
+  });
+  await prompt.getByRole("button", { name: "Keep recording" }).click();
+  await prompt.getByRole("button", { name: "Stop", exact: true }).click();
+  expect(await callAnswers(page)).toEqual([
+    { prompt: "stop", accept: false },
+    { prompt: "stop", accept: true },
+  ]);
+});
+
+test("a dictation takes the place of the call prompt", async ({ page }) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray, "record"));
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+
+  await dispatch(page, "show-overlay", "recording");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.locator(".ov-wave")).toBeVisible();
+});
+
+for (const { locale, tray } of trayStringsByLocale) {
+  test(`the ${locale} call prompts fit their window, answers on one line`, async ({
+    page,
+  }) => {
+    await openOverlay(page);
+    await page.evaluate(() => document.fonts.ready);
+    for (const kind of ["record", "stop"] as const) {
+      const labels = callLabels(tray, kind);
+      const earlier = await fitCount(page);
+      await dispatch(page, "show-overlay-call", labels);
+      const prompt = page.getByRole("alertdialog", { name: labels.question });
+      await expect(prompt).toBeVisible();
+      await entranceFinished(page);
+      const fitted = await fitCopyWindow(page, earlier);
+      expect(fitted.width, "within the widest notice").toBeLessThanOrEqual(
+        WIDEST_PILL + 32,
+      );
+      const layout = await prompt.evaluate((capsule) => {
+        const box = capsule.getBoundingClientRect();
+        const answers = [...capsule.querySelectorAll("button")].map(
+          (button) => {
+            const rect = button.getBoundingClientRect();
+            return {
+              inside: rect.left >= box.left && rect.right <= box.right,
+              oneLine: rect.height <= 28,
+            };
+          },
+        );
+        return {
+          inWindow:
+            box.left >= 0 &&
+            box.top >= 0 &&
+            box.right <= window.innerWidth &&
+            box.bottom <= window.innerHeight,
+          answers,
+        };
+      });
+      expect(layout.inWindow, `${kind} capsule in its window`).toBe(true);
+      expect(layout.answers, `${kind} answers`).toEqual([
+        { inside: true, oneLine: true },
+        { inside: true, oneLine: true },
+      ]);
+    }
+  });
+}
