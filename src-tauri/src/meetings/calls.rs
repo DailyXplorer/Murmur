@@ -373,14 +373,23 @@ impl CallWatch {
             return None;
         }
         if let Some(meeting) = snapshot.meeting {
-            let (&app, call) = self.calls.iter_mut().find(|(_, call)| {
-                call.recorded_in == Some(meeting)
-                    && !call.end_asked
-                    && call
-                        .off_since
-                        .is_some_and(|off| now.duration_since(off) >= ENDED_AFTER)
-            })?;
-            call.end_asked = true;
+            // Asked once every call the meeting recorded is off the
+            // microphone, about the last one to leave.
+            let recorded = |call: &Call| call.recorded_in == Some(meeting) && !call.end_asked;
+            let (off, app) = self
+                .calls
+                .iter()
+                .filter(|(_, call)| recorded(call))
+                .map(|(&app, call)| call.off_since.map(|off| (off, app)))
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .max()?;
+            if now.duration_since(off) < ENDED_AFTER {
+                return None;
+            }
+            for call in self.calls.values_mut().filter(|call| recorded(call)) {
+                call.end_asked = true;
+            }
             self.show(Question::Stop, app, now);
             return Some(Action::Ended(app));
         }
@@ -581,6 +590,20 @@ mod tests {
             clock.run(1, &[], false, Some(7)),
             [(70, Action::Ended(CallApp::Zoom))]
         );
+    }
+
+    #[test]
+    fn a_recorded_call_still_on_the_microphone_holds_back_the_end_prompt() {
+        let mut clock = Clock::new();
+        let both = &[CallApp::Zoom, CallApp::Slack];
+        clock.run(30, both, false, Some(7));
+        assert_eq!(clock.run(60, ZOOM, false, Some(7)), []);
+        assert_eq!(
+            clock.run(16, &[], false, Some(7)),
+            [(105, Action::Ended(CallApp::Zoom))]
+        );
+        assert_eq!(clock.watch.answered(Question::Stop), Some(CallApp::Zoom));
+        assert_eq!(clock.run(30, &[], false, Some(7)), []);
     }
 
     #[test]

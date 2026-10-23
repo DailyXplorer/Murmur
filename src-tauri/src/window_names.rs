@@ -350,17 +350,37 @@ const SECRET_WORDS: [&str; 32] = [
 ];
 
 /// Short labels that name a secret only right before its value, as in
-/// `PIN: 1234` or `OpenAI key: sk-…`: "the key point" holds none.
-const VALUE_LABELS: [&str; 14] = [
-    "key", "keys", "pin", "pass", "pwd", "pw", "login", "logins", "cle", "cles", "code", "codes",
-    "wifi", "wi-fi",
+/// `PIN: 1234`, `Porte : 4512B` or `OpenAI key: sk-…`: "the key point"
+/// holds none.
+const VALUE_LABELS: [&str; 19] = [
+    "key",
+    "keys",
+    "pin",
+    "pass",
+    "pwd",
+    "pw",
+    "login",
+    "logins",
+    "cle",
+    "cles",
+    "code",
+    "codes",
+    "wifi",
+    "wi-fi",
+    "porte",
+    "portail",
+    "interphone",
+    "door",
+    "gate",
 ];
 
 /// Words that name a secret when a value with a digit follows within
-/// `NUMBER_WINDOW` words, as DLP keyword proximity rules do: `PIN 1234`,
-/// "le code pour rentrer c'est 4512".
-const NUMBER_LABELS: [&str; 3] = ["pin", "code", "codes"];
+/// `NUMBER_WINDOW` words, not counting `NUMBER_FILLERS`, as DLP keyword
+/// proximity rules do: `PIN 1234`, "le code pour rentrer dans l'immeuble
+/// c'est 4512", "the wifi is Bluebird2024".
+const NUMBER_LABELS: [&str; 5] = ["pin", "code", "codes", "wifi", "wi-fi"];
 const NUMBER_WINDOW: usize = 6;
+const NUMBER_FILLERS: [&str; 8] = ["c", "est", "l", "le", "la", "is", "the", "to"];
 
 /// Codes after or among these words are no secret: "Code postal", "Zip
 /// code", "le code de la route", "error code 500".
@@ -369,14 +389,13 @@ const PUBLIC_CODES: [&str; 8] = [
 ];
 
 /// French names a secret first and what it opens after it, within three
-/// words: "Clé Wi-Fi", "Clé de sécurité", "Code de la porte", and any
-/// `wpa…` such as "Clé WPA2".
+/// words: "Clé Wi-Fi", "Code de la porte", and any word that begins with a
+/// `FRENCH_SECRET_PREFIXES` entry, such as "Clé WPA2" or "Clé de sécu".
 const FRENCH_SECRET_HEADS: [&str; 4] = ["cle", "cles", "code", "codes"];
-const FRENCH_SECRET_OBJECTS: [&str; 18] = [
+const FRENCH_SECRET_PREFIXES: [&str; 2] = ["wpa", "secu"];
+const FRENCH_SECRET_OBJECTS: [&str; 16] = [
     "wifi",
     "wi-fi",
-    "wpa",
-    "securite",
     "porte",
     "immeuble",
     "entree",
@@ -430,9 +449,11 @@ fn names_a_secret(folded: &str) -> bool {
     let numbered = |at: usize| {
         words[at + 1..]
             .iter()
+            .enumerate()
+            .filter(|(_, next)| !NUMBER_FILLERS.contains(next))
             .take(NUMBER_WINDOW)
-            .position(|next| next.chars().any(|c| c.is_ascii_digit()))
-            .is_some_and(|value| {
+            .find(|(_, next)| next.chars().any(|c| c.is_ascii_digit()))
+            .is_some_and(|(value, _)| {
                 !words[at.saturating_sub(1)..=at + 1 + value]
                     .iter()
                     .any(|near| PUBLIC_CODES.contains(near))
@@ -443,7 +464,10 @@ fn names_a_secret(folded: &str) -> bool {
             (NUMBER_LABELS.contains(word) && numbered(at))
                 || (FRENCH_SECRET_HEADS.contains(word)
                     && words[at + 1..].iter().take(3).any(|next| {
-                        FRENCH_SECRET_OBJECTS.contains(next) || next.starts_with("wpa")
+                        FRENCH_SECRET_OBJECTS.contains(next)
+                            || FRENCH_SECRET_PREFIXES
+                                .iter()
+                                .any(|prefix| next.starts_with(prefix))
                     }))
         })
         || words.windows(2).any(|pair| {
@@ -510,8 +534,9 @@ fn has_user_option(line: &str) -> bool {
 /// addresses and @handles. Most frequent first, at most 50. Lines that
 /// assign a value or mention a password, token, secret or API key are
 /// skipped, and so is the line after them, where a label's value sits, and
-/// every entry of the list they head, across blank lines, up to a line that
-/// reads as a sentence.
+/// every entry of the list they head, across blank lines and remarks such as
+/// "À changer tous les 6 mois.", up to a paragraph that does not begin with
+/// an entry.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -531,8 +556,10 @@ pub fn candidate_names(text: &str) -> Vec<String> {
 
     let mut after_secret_label = false;
     let mut in_secret_list = false;
+    let mut paragraph_start = true;
     for line in text.lines() {
         if line.trim().is_empty() {
+            paragraph_start = true;
             continue;
         }
         let label = mentions_secret(line);
@@ -543,7 +570,8 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         } else {
             label
         };
-        in_secret_list = label || (in_secret_list && sensitive);
+        in_secret_list = label || (in_secret_list && (sensitive || !paragraph_start));
+        paragraph_start = false;
         if sensitive {
             continue;
         }
@@ -602,7 +630,7 @@ fn is_list_entry(line: &str) -> bool {
 }
 
 fn has_separator(line: &str) -> bool {
-    [" - ", " – ", " — ", ":", "\t", " | "]
+    [" - ", " – ", " — ", ":", "\t", " | ", " = ", " → ", " -> "]
         .iter()
         .any(|separator| line.contains(separator))
 }
@@ -1546,6 +1574,47 @@ mod tests {
             "",
             false,
         ),
+        // Wi-Fi keys and door codes with no colon, a few words further from
+        // "code", or labelled by what they open (round 49).
+        (
+            "com.apple.Messages",
+            "",
+            "Le wifi c'est Soleil2024 ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Messages",
+            "",
+            "The wifi is Bluebird2024 ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Wifi - Bluebird2024\n", "", false),
+        ("com.apple.Notes", "", "Porte : 4512B\n", "", false),
+        ("com.apple.Notes", "", "Door: 4512\n", "", false),
+        (
+            "com.apple.Messages",
+            "",
+            "Le code pour rentrer dans l'immeuble c'est 4512 ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Mail",
+            "",
+            "The code to get into the building is 4512, ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Clé de sécu : X7f3e9\n", "", false),
+        (
+            "com.apple.Messages",
+            "",
+            "Le wifi de l'hôtel marche bien. ",
+            "",
+            true,
+        ),
     ];
 
     /// Every text the name finder was checked on, and the names it gives.
@@ -1688,6 +1757,33 @@ mod tests {
         ),
         ("Mots de passe\nGmail Etoile99\nnetflix monChat2020", &[]),
         ("Mots de passe\ngmail Etoile99\nmerci Ingrid", &["Ingrid"]),
+        // A remark or an intro of two lines inside the list, and `=` or an
+        // arrow between an entry and its value (round 49).
+        (
+            "Mots de passe\nGmail - Etoile99\nNetflix - Lune2023\nÀ changer tous les 6 mois.\n\
+             Banque - Soleil2024\nFree : monChat2020",
+            &[],
+        ),
+        (
+            "Passwords\nGmail - Hunter22\nAll of these were changed in March.\nBank - Tiger2024\n\
+             Amazon - Sunshine7",
+            &["March"],
+        ),
+        (
+            "Mots de passe\nMis à jour en mars 2025.\nPenser à les changer chaque année.\n\
+             Gmail - Etoile99\nBanque - Soleil2024",
+            &[],
+        ),
+        (
+            "Mots de passe\nGmail - Etoile99\nCompte de la banque en ligne = Soleil2024\n\
+             Compte du site des impôts → Lune2023\nCompte de la mutuelle santé -> Etoile99",
+            &[],
+        ),
+        (
+            "Mots de passe\nGmail - Etoile99\nÀ changer tous les 6 mois.\nBanque - Soleil2024\n\n\
+             Réunion avec Ingrid demain.",
+            &["Ingrid"],
+        ),
     ];
 
     #[test]
