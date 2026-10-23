@@ -45,7 +45,6 @@
     "meetingStartFailed": "Impossibile avviare la riunione. Controlla il microfono e i permessi audio.",
     "meetingStopsSoon": "La riunione si interrompe tra 5 minuti (limite di 3 ore).",
     "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
-    "meetingStoppedLowDisk": "La riunione si è interrotta perché su questo Mac lo spazio è quasi esaurito. Quanto registrato viene conservato.",
     "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
     "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
     "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato.",

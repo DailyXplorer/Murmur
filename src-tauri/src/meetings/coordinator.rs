@@ -56,10 +56,6 @@ pub trait CaptureBackend: Send {
 /// tracks take about 700 MB before they are compressed.
 pub const LOW_DISK_BYTES: u64 = 1_500_000_000;
 
-/// Below this much free space a recording meeting stops, so processing and
-/// the rest of the Mac still have room.
-const STOP_DISK_BYTES: u64 = 500_000_000;
-
 /// Audio the tracks dropped, summed, past which the user is told once.
 const DROPPED_ALERT_MS: u64 = 2_000;
 
@@ -72,9 +68,6 @@ pub enum MeetingAlert {
     StartFailed,
     StopsSoon,
     StoppedAtLimit,
-    /// The disk was nearly full, so the meeting stopped and kept what was
-    /// recorded.
-    StoppedLowDisk,
     WriteFailed,
     /// System audio stopped after the sound output changed; the microphone
     /// keeps recording.
@@ -426,16 +419,6 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         if active.tracks.iter().any(|(_, track)| track.failed()) {
             let _ = self.stop();
             self.notifier.alert(MeetingAlert::WriteFailed);
-            return false;
-        }
-        if self
-            .backend
-            .free_bytes(&paths::meeting_dir(&self.root, id))
-            .is_some_and(|free| free < STOP_DISK_BYTES)
-        {
-            warn!("Meeting {id}: less than 500 MB free on disk, so it stops");
-            let _ = self.stop();
-            self.notifier.alert(MeetingAlert::StoppedLowDisk);
             return false;
         }
         let interrupted: Vec<Source> = active
@@ -1057,32 +1040,14 @@ mod tests {
     }
 
     #[test]
-    fn a_disk_nearly_full_while_recording_stops_the_meeting_and_keeps_it() {
+    fn a_disk_nearly_full_while_recording_lets_the_meeting_go_on() {
         let mut h = working();
         let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
         h.log.take();
-        h.clock.advance(Duration::from_secs(60));
-        h.coordinator.backend.free_bytes = Some(STOP_DISK_BYTES);
-        assert!(h.coordinator.tick(id), "low, but not yet too low");
-
         h.clock.advance(Duration::from_secs(1));
-        h.coordinator.backend.free_bytes = Some(STOP_DISK_BYTES - 1);
-        assert!(!h.coordinator.tick(id));
-
-        assert_eq!(
-            h.log.take(),
-            [
-                "finish mic 61s",
-                "finish system 61s",
-                "idle",
-                "recorded",
-                "alert StoppedLowDisk"
-            ]
-        );
-        assert_eq!(
-            statuses(&h.store),
-            [(MeetingStatus::Processing, MeetingTracks::Both, 61_000)]
-        );
+        h.coordinator.backend.free_bytes = Some(0);
+        assert!(h.coordinator.tick(id), "only a failed write stops it");
+        assert_eq!(h.log.take(), Vec::<String>::new());
     }
 
     #[test]
