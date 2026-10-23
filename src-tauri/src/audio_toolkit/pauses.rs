@@ -104,8 +104,9 @@ fn speech_level(levels: &[f32]) -> Option<f32> {
 
 /// `split_at_pauses`, keeping only the pieces with speech: none for a silent
 /// clip, and never the pause a dictation ends on, which the cut leaves on
-/// its own. A piece is judged by the whole clip's speech level, since its
-/// own noise floor would make room noise look like speech.
+/// its own, even with a click or a breath in it. A piece is judged by the
+/// whole clip's speech level, since its own noise floor would make room
+/// noise look like speech, and needs as much speech as a whole clip.
 pub fn speech_pieces(samples: &[f32], max_len: usize) -> Vec<Range<usize>> {
     let levels = frame_levels(samples);
     let Some(threshold) = speech_level(&levels) else {
@@ -116,7 +117,9 @@ pub fn speech_pieces(samples: &[f32], max_len: usize) -> Vec<Range<usize>> {
         .filter(|piece| {
             levels[piece.start / FRAME..piece.end.div_ceil(FRAME)]
                 .iter()
-                .any(|level| *level >= threshold)
+                .filter(|level| **level >= threshold)
+                .count()
+                >= MIN_SPEECH_FRAMES
         })
         .collect()
 }
@@ -278,6 +281,24 @@ mod tests {
             (100, SPEECH),
             (1_400, ROOM)
         ])));
+    }
+
+    #[test]
+    fn a_click_in_the_closing_pause_does_not_make_it_speech() {
+        let max_len = samples_for_ms(14_500);
+        let ending = |last: (usize, f32)| {
+            let mut segments = talking(13_000);
+            segments.extend([(1_000, ROOM), last, (1_600, ROOM)]);
+            clip(&segments)
+        };
+        // 40 ms of a click or a breath, well over the speech threshold.
+        let click = ending((40, -30.0));
+        let pieces = speech_pieces(&click, max_len);
+        assert_eq!(pieces.len(), 1, "{pieces:?}");
+        assert!(at_ms(pieces[0].end) < 14_500, "{pieces:?}");
+        // A last word of 400 ms after the pause is kept.
+        let word = ending((400, SPEECH));
+        assert_eq!(speech_pieces(&word, max_len).len(), 2);
     }
 
     #[test]
