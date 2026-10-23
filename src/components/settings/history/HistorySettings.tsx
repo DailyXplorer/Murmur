@@ -16,6 +16,7 @@ import {
 import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { FailureLine } from "../../ui/FailureLine";
 import { IconButton, IconToolbar } from "../../ui/IconButton";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
@@ -370,15 +371,15 @@ export const HistorySettings: React.FC = () => {
     );
   } else if (entries.length === 0 && loadFailed) {
     content = (
-      <div
-        role="alert"
-        className="flex items-center justify-center gap-3 px-4 py-3 text-text/60"
-      >
-        {t("settings.history.loadError")}
-        <Button onClick={() => void loadPage()}>
-          {t("settings.history.retry")}
-        </Button>
-      </div>
+      <FailureLine
+        className="px-4 py-2"
+        message={t("settings.history.loadError")}
+        action={
+          <Button onClick={() => void loadPage()}>
+            {t("settings.history.retry")}
+          </Button>
+        }
+      />
     );
   } else if (entries.length === 0) {
     content = (

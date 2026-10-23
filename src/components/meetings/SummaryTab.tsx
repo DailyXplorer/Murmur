@@ -11,6 +11,7 @@ import {
   type SummaryBlock,
 } from "@/lib/meetings/summary";
 import { Button } from "../ui/Button";
+import { FailureLine } from "../ui/FailureLine";
 import { IconButton } from "../ui/IconButton";
 import { TabHeaderBar, useTextSearch } from "./TabHeaderBar";
 import { useMeetingMarkdown } from "./useMeetingMarkdown";
@@ -47,18 +48,20 @@ const SummaryState: React.FC<{
   if (meeting.summary_status === "failed") {
     const error = meeting.summary_error ?? "other";
     return (
-      <div role="alert" className="flex items-center gap-3 px-1 py-2">
-        <p className="flex-1 text-sm text-mid-gray">
-          {t(`meetings.summary.errors.${error}`)}
-        </p>
-        {/* Only a Ready meeting gets its summary written; a failed one
-            comes back with the meeting's own retry. */}
-        {meeting.status === "ready" && error !== "nothing_to_summarize" && (
-          <Button onClick={onRetry} disabled={retrying}>
-            {t("meetings.processing.retry")}
-          </Button>
-        )}
-      </div>
+      <FailureLine
+        className="px-1 py-2"
+        message={t(`meetings.summary.errors.${error}`)}
+        action={
+          // Only a Ready meeting gets its summary written; a failed one
+          // comes back with the meeting's own retry.
+          meeting.status === "ready" &&
+          error !== "nothing_to_summarize" && (
+            <Button onClick={onRetry} disabled={retrying}>
+              {t("meetings.processing.retry")}
+            </Button>
+          )
+        }
+      />
     );
   }
   if (meeting.status === "ready") {
