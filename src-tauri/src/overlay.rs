@@ -105,14 +105,26 @@ const CALL_PROMPT_WINDOW: &str = "call_prompt";
 /// shows beside it.
 const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 
-/// Payload of `show-overlay-call`.
-#[derive(Clone, serde::Serialize)]
-struct CallPromptLabels {
+/// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
+#[derive(Clone, serde::Serialize, specta::Type)]
+pub struct CallPromptLabels {
     /// The call app's name.
     app: String,
     question: String,
     accept: String,
     decline: String,
+    /// The overlay's side of the screen, which the prompt sits on too.
+    position: OverlayPosition,
+}
+
+/// The call prompt showing. Its page asks for it once it listens, so a
+/// prompt shown while the page still loaded is not lost.
+static CALL_PROMPT: Mutex<Option<CallPromptLabels>> = Mutex::new(None);
+
+fn call_prompt() -> MutexGuard<'static, Option<CallPromptLabels>> {
+    CALL_PROMPT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Whether a dictation owns the overlay (recording or transcribing).
@@ -412,13 +424,16 @@ pub fn create_call_prompt(app_handle: &AppHandle) {
 /// never hides it. It shows even with the overlay off: the call prompt has
 /// a setting of its own. The panel never takes the focus from the call.
 pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
-    let strings = get_tray_translations(Some(settings::get_settings(app_handle).app_language));
+    let settings = settings::get_settings(app_handle);
+    let strings = get_tray_translations(Some(settings.app_language));
     let labels = CallPromptLabels {
         app: app.to_string(),
         question: strings.call_record_question,
         accept: strings.call_record,
         decline: strings.call_not_now,
+        position: settings.overlay_position,
     };
+    *call_prompt() = Some(labels.clone());
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
@@ -431,6 +446,7 @@ pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
 }
 
 pub fn hide_call_prompt(app_handle: &AppHandle) {
+    *call_prompt() = None;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
@@ -453,6 +469,32 @@ fn place_call_prompt(
             OverlayPosition::Bottom => y - CALL_PROMPT_OFFSET,
         };
         let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+    }
+}
+
+/// The call prompt showing, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn get_call_prompt() -> Option<CallPromptLabels> {
+    call_prompt().clone()
+}
+
+/// Moves the call prompt showing to the overlay's new side.
+fn update_call_prompt_position(app_handle: &AppHandle) {
+    let position = settings::get_settings(app_handle).overlay_position;
+    let labels = {
+        let mut prompt = call_prompt();
+        let Some(labels) = prompt.as_mut() else {
+            return;
+        };
+        labels.position = position;
+        labels.clone()
+    };
+    if let Some(window) = app_handle.get_webview_window(CALL_PROMPT_WINDOW) {
+        let (width, height) = current_overlay_logical_size(&window)
+            .unwrap_or((COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT));
+        place_call_prompt(app_handle, &window, width, height);
+        let _ = app_handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
     }
 }
 
@@ -691,6 +733,7 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
 }
 
 fn update_overlay_position_on_main(app_handle: &AppHandle) {
+    update_call_prompt_position(app_handle);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));

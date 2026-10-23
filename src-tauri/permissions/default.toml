@@ -118,4 +118,5 @@ permissions = [
   "allow-change-meeting-call-prompt-setting",
   "allow-answer-call-prompt",
   "allow-fit-call-prompt",
+  "allow-get-call-prompt",
 ]

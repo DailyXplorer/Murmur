@@ -474,6 +474,44 @@ fn delete_removes_everything_and_reports_missing() {
     assert_eq!(ready.status().state, LocalModelState::Missing);
 }
 
+/// A meeting that starts while the user deletes a partial download starts
+/// no download into the folder going away.
+#[test]
+fn a_meeting_start_during_a_delete_downloads_nothing() {
+    let fixture = fixture();
+    let weights = fixture.contents[0].1.clone();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let partial = path.join("partial");
+    std::fs::create_dir_all(&partial).unwrap();
+    for index in 0..3_000 {
+        std::fs::write(partial.join(index.to_string()), b"x").unwrap();
+    }
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, _) = test_server::start(Arc::new(move |_, _| {
+            Reply::HangAfter(weights.clone(), 1_000)
+        }))
+        .await;
+        let models = models(&path, &fixture, &base, &host);
+        let meeting = {
+            let models = Arc::clone(&models);
+            let partial = partial.clone();
+            std::thread::spawn(move || {
+                // Once the delete is removing files.
+                while std::fs::read_dir(&partial).is_ok_and(|entries| entries.count() == 3_000) {}
+                models.download_unless_declined();
+            })
+        };
+        let deleted = models.delete();
+        meeting.join().unwrap();
+        deleted.unwrap();
+        assert!(models.declined());
+        assert!(models.download_slot().is_none(), "a download started");
+        assert_eq!(models.status().state, LocalModelState::Missing);
+    });
+}
+
 /// Ready models whose optional source is still coming, from a server that
 /// hangs partway through it.
 fn ready_while_the_optional_source_hangs(
@@ -631,6 +669,24 @@ fn a_corrupt_optional_file_never_blocks_ready() {
         assert!(after_restart.is_ready());
         assert_eq!(std::fs::read(&ctc).unwrap(), vec![9; 3_000]);
     });
+}
+
+/// After a pin change the marker of the earlier files stays until the new
+/// ones are prepared: the helper must not count on files being replaced.
+#[test]
+fn an_optional_marker_of_another_pin_is_not_ready() {
+    let dir = tempfile::tempdir().unwrap();
+    let marker = dir.path().join(OPTIONAL_MARKER);
+    std::fs::write(
+        &marker,
+        "earlier/ctc@1111111111111111111111111111111111111111",
+    )
+    .unwrap();
+    assert!(!optional_ready(dir.path()));
+
+    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    std::fs::write(&marker, manifest::id(optional)).unwrap();
+    assert!(optional_ready(dir.path()));
 }
 
 #[test]

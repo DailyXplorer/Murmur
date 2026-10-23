@@ -90,6 +90,7 @@ test.describe("call prompt screenshots", () => {
         question: tray.callRecordQuestion,
         accept: tray.callRecord,
         decline: tray.callNotNow,
+        position: "bottom",
       });
       await expect(
         page.getByRole("alertdialog", { name: tray.callRecordQuestion }),

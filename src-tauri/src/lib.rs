@@ -713,6 +713,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::change_meeting_call_prompt_setting,
             commands::meetings::answer_call_prompt,
             overlay::fit_call_prompt,
+            overlay::get_call_prompt,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

@@ -38,6 +38,8 @@ declare global {
       finishModelDownload: () => void;
       /** The browser sign-in saved a session. */
       resolveSignIn: () => void;
+      /** The update found is no longer offered by the next check. */
+      withdrawUpdate: () => void;
     };
   }
 }
@@ -69,7 +71,7 @@ const offline = params.get("offline") === "1";
 const analysis = params.get("analysis") ?? "available";
 /** `0`: a Mac that cannot tell a call started (Intel, or before macOS 14). */
 const callDetection = params.get("callDetection") !== "0";
-/** `failed` or `pending`; ready by default. */
+/** `failed` (rate limited), `server` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
 const processingStage = (params.get("stage") ?? "transcribing") as MeetingStage;
@@ -106,10 +108,21 @@ const styleRefused = params.get("styleRefused") === "1";
 const cardShown = params.get("card") === "1";
 /** `history=fallback`: entries transcribed by the engine not chosen. */
 const historyFallback = params.get("history") === "fallback";
+/** `history=fails`: the first load fails, a retry reads the entries. */
+let historyFails = params.get("history") === "fails";
 /** `localFallback=1`: part of a meeting was transcribed on this Mac. */
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The updater finds a new version, which the footer offers. */
 const updateAvailable = params.get("update") === "1";
+let updateWithdrawn = false;
+const UPDATE = {
+  body: "",
+  currentVersion: "1.3.7",
+  date: null,
+  rawJson: {},
+  rid: 1,
+  version: "1.9.0",
+};
 /** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
 const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
 const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
@@ -438,10 +451,13 @@ const summaryOf = (item: MeetingListItem) => {
       summary_status: "pending" as const,
     };
   }
-  return meetingSummary === "failed"
+  return meetingSummary === "failed" || meetingSummary === "server"
     ? {
         summary: null,
-        summary_error: "rate_limited" as const,
+        summary_error:
+          meetingSummary === "server"
+            ? ("server" as const)
+            : ("rate_limited" as const),
         summary_status: "failed" as const,
       }
     : {
@@ -734,16 +750,7 @@ const RESPONSES: Record<string, unknown> = {
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
   "plugin:macos-permissions|check_microphone_permission": !showOnboarding,
   "plugin:os|locale": language,
-  "plugin:updater|check": updateAvailable
-    ? {
-        body: "",
-        currentVersion: "1.3.7",
-        date: null,
-        rawJson: {},
-        rid: 1,
-        version: "1.9.0",
-      }
-    : null,
+  "plugin:updater|check": updateAvailable ? UPDATE : null,
 };
 
 window.settingsPages = {
@@ -769,6 +776,9 @@ window.settingsPages = {
     account = "signedIn";
     signIn?.resolve(null);
     signIn = null;
+  },
+  withdrawUpdate: () => {
+    updateWithdrawn = true;
   },
 };
 
@@ -813,6 +823,11 @@ mockIPC(
       onEvent.onmessage({ data: { contentLength: 100 }, event: "Started" });
       onEvent.onmessage({ data: { chunkLength: 42 }, event: "Progress" });
       return new Promise(() => {});
+    }
+    if (command === "plugin:updater|check" && updateWithdrawn) return null;
+    if (command === "get_history_entries" && historyFails) {
+      historyFails = false;
+      return Promise.reject("database disk image is malformed");
     }
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {

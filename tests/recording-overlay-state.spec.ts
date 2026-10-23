@@ -639,6 +639,7 @@ const callLabels = (tray: Record<string, string>) => ({
   question: tray.callRecordQuestion,
   accept: tray.callRecord,
   decline: tray.callNotNow,
+  position: "bottom",
 });
 const englishTray = trayStringsByLocale.find(
   ({ locale }) => locale === "en",
@@ -693,6 +694,42 @@ test("a dictation, its error or the meeting pill never hide the call prompt", as
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
   expect(await callAnswers(page)).toEqual([true]);
+});
+
+test("a call prompt shown before the page listened still appears", async ({
+  page,
+}) => {
+  await openOverlay(page, {
+    fixture: "call-prompt",
+    readyOn: null,
+    callPrompt: callLabels(englishTray),
+  });
+
+  await expect(
+    page.getByRole("alertdialog", { name: "Record this meeting?" }),
+  ).toBeVisible();
+});
+
+test("the call prompt sits on the overlay's side from its first frame", async ({
+  page,
+}) => {
+  // Settings never answer: the side comes with the prompt.
+  await openOverlay(page, {
+    fixture: "call-prompt",
+    readyOn: "hide-overlay-call",
+    holdSettings: true,
+  });
+  const stage = page.locator(".ov-stage");
+
+  await dispatch(page, "show-overlay-call", {
+    ...callLabels(englishTray),
+    position: "top",
+  });
+  await expect(stage).toHaveClass(/\btop\b/);
+
+  // The overlay was moved while the prompt showed.
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  await expect(stage).toHaveClass(/\bbottom\b/);
 });
 
 test("the call prompt closes when the call ends", async ({ page }) => {

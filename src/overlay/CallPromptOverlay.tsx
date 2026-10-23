@@ -7,16 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
-import { commands } from "@/bindings";
-
-/** Payload of `show-overlay-call`, from `overlay::CallPromptLabels`. */
-interface CallLabels {
-  /** The call app's name. */
-  app: string;
-  question: string;
-  accept: string;
-  decline: string;
-}
+import { commands, type CallPromptLabels } from "@/bindings";
 
 // The window renders no text until its first message, so without this the
 // font would still be loading when the prompt measures its fitted size.
@@ -27,13 +18,14 @@ void document.fonts
 /** "Record this meeting?", in a window of its own: only the call watcher
  * shows or hides it, so nothing the overlay shows takes its place. */
 const CallPromptOverlay: React.FC = () => {
-  const [labels, setLabels] = useState<CallLabels | null>(null);
-  const [position, setPosition] = useState<"top" | "bottom">("bottom");
+  const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
   const id = useId();
 
   useEffect(() => {
     let isUnmounted = false;
+    // An event heard since the page asked is newer than the answer.
+    let heard = false;
     const unlisteners: UnlistenFn[] = [];
     const storeUnlistener = (unlisten: UnlistenFn) => {
       if (isUnmounted) {
@@ -43,23 +35,24 @@ const CallPromptOverlay: React.FC = () => {
       }
     };
 
-    void listen<CallLabels>("show-overlay-call", (event) => {
-      setLabels(event.payload);
-      void commands
-        .getAppSettings()
-        .then((settings) => {
-          if (settings.status === "ok") {
-            setPosition(
-              settings.data.overlay_position === "top" ? "top" : "bottom",
-            );
-          }
-        })
-        .catch(() => undefined);
-    }).then(storeUnlistener, () => undefined);
+    const listening = [
+      listen<CallPromptLabels>("show-overlay-call", (event) => {
+        heard = true;
+        setLabels(event.payload);
+      }).then(storeUnlistener, () => undefined),
+      listen("hide-overlay-call", () => {
+        heard = true;
+        setLabels(null);
+      }).then(storeUnlistener, () => undefined),
+    ];
 
-    void listen("hide-overlay-call", () => {
-      setLabels(null);
-    }).then(storeUnlistener, () => undefined);
+    // A prompt shown while the page loaded was sent before it listened.
+    void Promise.all(listening)
+      .then(() => commands.getCallPrompt())
+      .then((shown) => {
+        if (shown && !heard && !isUnmounted) setLabels(shown);
+      })
+      .catch(() => undefined);
 
     return () => {
       isUnmounted = true;
@@ -93,7 +86,7 @@ const CallPromptOverlay: React.FC = () => {
   };
 
   return (
-    <div className={`ov-stage ${position}`}>
+    <div className={`ov-stage ${labels.position}`}>
       <div
         role="alertdialog"
         dir="auto"

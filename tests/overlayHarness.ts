@@ -6,7 +6,8 @@ export const RECORDING_WINDOW = { width: 158, height: 62 };
 export const ERROR_WINDOW = { width: 312, height: 116 };
 
 /** Opens the overlay page, or the call prompt's with `fixture`, with
- * Tauri's event bridge mocked; `readyOn` is an event the page listens to. */
+ * Tauri's event bridge mocked; `readyOn` is an event the page listens to,
+ * or `null` not to wait. `callPrompt` is what `get_call_prompt` answers. */
 export async function openOverlay(
   page: Page,
   {
@@ -14,15 +15,21 @@ export async function openOverlay(
     copyError,
     fixture = "recording-overlay-listeners",
     readyOn = "mic-level",
+    callPrompt = null,
   }: {
     holdSettings?: boolean;
     copyError?: string;
     fixture?: string;
-    readyOn?: string;
+    readyOn?: string | null;
+    callPrompt?: unknown;
   } = {},
 ) {
-  const options = { hold: holdSettings, copyRejection: copyError };
-  await page.addInitScript(({ hold, copyRejection }) => {
+  const options = {
+    hold: holdSettings,
+    copyRejection: copyError,
+    shownPrompt: callPrompt,
+  };
+  await page.addInitScript(({ hold, copyRejection, shownPrompt }) => {
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -79,6 +86,9 @@ export async function openOverlay(
           callAnswers.push(args?.accept ?? false);
           return Promise.resolve(null);
         }
+        if (command === "get_call_prompt") {
+          return Promise.resolve(shownPrompt);
+        }
         throw new Error(`Unexpected Tauri command: ${command}`);
       },
       transformCallback: (callback: (event: unknown) => unknown) => {
@@ -97,6 +107,7 @@ export async function openOverlay(
   }, options);
 
   await page.goto(`/tests/fixtures/${fixture}.html`);
+  if (readyOn === null) return;
   await expect
     .poll(() =>
       page.evaluate(

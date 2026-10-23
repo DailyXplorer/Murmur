@@ -833,8 +833,34 @@ mod tests {
             .unwrap()
     }
 
+    /// Asks this process, not the system: a child another test spawns at the
+    /// same moment gets a copy of every open socket, and on macOS keeps the
+    /// port taken for a while after the sign-in closed it.
     fn assert_port_is_free(port: u16) {
-        StdListener::bind(("127.0.0.1", port)).expect("the sign-in let go of its port");
+        assert_eq!(sockets_on(port), 0, "the sign-in let go of its port");
+    }
+
+    fn sockets_on(port: u16) -> usize {
+        fs::read_dir("/dev/fd")
+            .unwrap()
+            .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
+            .filter(|&fd| local_port(fd) == Some(port))
+            .count()
+    }
+
+    fn local_port(fd: std::os::fd::RawFd) -> Option<u16> {
+        // SAFETY: an all-zero sockaddr_storage is a valid value.
+        let mut address: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let mut length = std::mem::size_of_val(&address) as libc::socklen_t;
+        // SAFETY: `address` and `length` are alive for the call and `length`
+        // is the size of `address`; a closed or non-socket fd only errors.
+        let named =
+            unsafe { libc::getsockname(fd, (&raw mut address).cast(), &raw mut length) } == 0;
+        (named && i32::from(address.ss_family) == libc::AF_INET).then(|| {
+            // SAFETY: the family says `address` holds a sockaddr_in.
+            let address = unsafe { &*(&raw const address).cast::<libc::sockaddr_in>() };
+            u16::from_be(address.sin_port)
+        })
     }
 
     #[test]
@@ -1220,14 +1246,14 @@ mod tests {
 
         let (issuer, _requests) = fake_issuer(vec![tokens_reply(), (500, "{}".to_string())]);
         config.issuer = issuer;
-        config.ports = vec![ports[0], free_port()];
+        config.ports = vec![ports[0], 0];
         let (result, (authorize, _)) = sign_in_with(&config, |authorize| {
             let finished = finish_in_browser(&authorize);
             (authorize, finished)
         })
         .await;
         assert_eq!(result, Ok(()));
-        assert_eq!(redirect_port(&authorize), config.ports[1]);
+        assert_ne!(redirect_port(&authorize), ports[0]);
         assert_eq!(
             holders[0].accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -1237,18 +1263,16 @@ mod tests {
     #[tokio::test]
     async fn a_new_sign_in_cancels_the_one_under_way_and_takes_its_port() {
         let directory = tempfile::tempdir().unwrap();
-        let mut config = config(&unreachable_issuer(), directory.path());
-        let port = free_port();
-        config.ports = vec![port];
+        let config = config(&unreachable_issuer(), directory.path());
         let slot = SignInSlot::new();
-        let (first_opened_tx, first_opened_rx) = oneshot::channel();
-        let (second_opened_tx, second_opened_rx) = oneshot::channel::<String>();
+        let (first_opened_tx, first_opened_rx) = oneshot::channel::<String>();
+        let (second_opened_tx, second_opened_rx) = oneshot::channel();
 
         let first = slot.run(|cancelled| {
             sign_in(
                 &config,
-                move |_| {
-                    first_opened_tx.send(()).unwrap();
+                move |url| {
+                    first_opened_tx.send(url.to_string()).unwrap();
                     Ok(())
                 },
                 async move {
@@ -1257,12 +1281,19 @@ mod tests {
             )
         });
         let second = async {
-            first_opened_rx.await.unwrap();
+            let port = redirect_port(&first_opened_rx.await.unwrap());
+            let config = LoginConfig {
+                issuer: config.issuer.clone(),
+                ports: vec![port, 0],
+                timeout: config.timeout,
+                auth_path: config.auth_path.clone(),
+            };
             let run = slot.run(|cancelled| {
                 sign_in(
                     &config,
                     move |url| {
-                        second_opened_tx.send(url.to_string()).unwrap();
+                        let taken = redirect_port(url) == port;
+                        second_opened_tx.send((taken, sockets_on(port))).unwrap();
                         Ok(())
                     },
                     async move {
@@ -1271,17 +1302,19 @@ mod tests {
                 )
             });
             let cancel = async {
-                let url = second_opened_rx.await.unwrap();
+                let opened = second_opened_rx.await.unwrap();
                 slot.cancel();
-                url
+                opened
             };
             tokio::join!(run, cancel)
         };
-        let (first, (second, url)) = tokio::join!(first, second);
+        let (first, (second, (taken, sockets))) = tokio::join!(first, second);
 
         assert_eq!(first, Err(SignInError::Cancelled));
         assert_eq!(second, Err(SignInError::Cancelled));
-        assert_eq!(redirect_port(&url), port);
+        // Only a copy a child of another test holds for a moment makes the
+        // second fall back; the first sign-in is gone either way.
+        assert_eq!(sockets, usize::from(taken), "the first let go of its port");
     }
 
     fn session_file(directory: &Path, tokens: Value) -> LoginConfig {

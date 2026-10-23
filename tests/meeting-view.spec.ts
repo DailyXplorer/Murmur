@@ -490,6 +490,18 @@ test("a failed summary shows why, and Retry writes it", async ({ page }) => {
   await expect(alert).toHaveCount(0);
 });
 
+test("a summary a server error stopped says so in one line", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=server");
+  const alert = page.locator("article [role=alert]");
+  await expect(alert).toHaveText(
+    /^Couldn't write the summary\. Try again later\.Retry$/,
+  );
+  await expect(alert).not.toContainText("Codex");
+  await expect(alert.getByRole("button")).toHaveCount(1);
+});
+
 test("a summary on its way says so", async ({ page }) => {
   await openMeeting(page, /Point hebdo produit/, "&summary=pending");
   await expect(page.locator("article [role=status]")).toContainText(

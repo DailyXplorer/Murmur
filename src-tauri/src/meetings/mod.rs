@@ -690,6 +690,9 @@ struct Library {
     root: PathBuf,
     /// Meetings a crash cut off before this launch, left to process.
     recovered: Vec<i64>,
+    /// The database was damaged or gone, and the meetings it listed were
+    /// set aside, to be deleted 30 days later.
+    reset: bool,
 }
 
 impl Library {
@@ -699,10 +702,14 @@ impl Library {
         let root = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
         let now = chrono::Utc::now();
-        let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
+        let database = app_data.join("meetings.db");
+        let had_database = database.exists();
+        let (store, startup) = MeetingsStore::open(database, now);
         info!("Meetings database: {startup:?}");
+        let mut reset = false;
         match &startup {
             DatabaseStartup::Reset { moved_to } => {
+                reset = true;
                 if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
                     error!("Failed to set aside the recordings of the reset library: {error}");
                 }
@@ -720,10 +727,13 @@ impl Library {
                     .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));
                 match moved {
                     Ok(0) => {}
-                    Ok(count) => warn!(
-                        "Moved {count} meeting folder(s) no meeting points to into {}",
-                        aside.display()
-                    ),
+                    Ok(count) => {
+                        warn!(
+                            "Moved {count} meeting folder(s) no meeting points to into {}",
+                            aside.display()
+                        );
+                        reset = !had_database;
+                    }
                     Err(error) => error!("Failed to set aside orphan meeting folders: {error}"),
                 }
             }
@@ -746,6 +756,7 @@ impl Library {
             store,
             root,
             recovered,
+            reset,
         })
     }
 }
@@ -769,7 +780,11 @@ impl MeetingsManager {
             store,
             root,
             recovered,
+            reset,
         } = Library::open(&app.path().app_data_dir()?)?;
+        if reset {
+            user_alert::show(app, Alert::MeetingsReset);
+        }
         let store = Arc::new(store);
         let models = app
             .try_state::<Arc<Models>>()
@@ -940,8 +955,9 @@ impl MeetingsManager {
         if self.detail(id)?.audio == store::AudioState::Deleted {
             return Err(format!("Meeting {id} has no audio left"));
         }
+        // The daily retention may delete the audio after the check above.
         if !self.store.reopen(id).map_err(|error| error.to_string())? {
-            return Err(format!("Meeting {id} is not finished"));
+            return Err(format!("Meeting {id} is not finished or has no audio left"));
         }
         // A summary still being written is of the analysis that goes.
         self.queue.cancel(id);
@@ -1262,6 +1278,26 @@ mod tests {
             let files = paths::meeting_dir(&root, kept);
             assert!(files.join(paths::AUDIO_FILE).exists());
         }
+    }
+
+    /// Meetings set aside at launch are deleted 30 days later, so the user
+    /// is told the library was reset.
+    #[test]
+    fn a_library_reset_at_launch_is_told() {
+        let damaged = tempfile::tempdir().unwrap();
+        std::fs::write(damaged.path().join("meetings.db"), b"not a database").unwrap();
+        std::fs::create_dir_all(damaged.path().join("meetings").join("1")).unwrap();
+        assert!(Library::open(damaged.path()).unwrap().reset, "damaged");
+
+        let gone = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(gone.path().join("meetings").join("3")).unwrap();
+        assert!(Library::open(gone.path()).unwrap().reset, "deleted");
+
+        let first_launch = tempfile::tempdir().unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
+        // A folder no meeting points to, in a library that opened.
+        std::fs::create_dir_all(first_launch.path().join("meetings").join("9")).unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
     }
 
     #[test]

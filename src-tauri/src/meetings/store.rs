@@ -1044,11 +1044,12 @@ impl MeetingsStore {
     }
 
     /// Makes a finished meeting wait for processing again, to tell its
-    /// speakers apart anew. Returns false when it is not finished.
+    /// speakers apart anew. Returns false when it is not finished or has no
+    /// audio.
     pub fn reopen(&self, id: i64) -> Result<bool> {
         let updated = self.connection()?.execute(
             "UPDATE meetings SET status = 'processing', stage = NULL
-             WHERE id = ?1 AND status IN ('ready', 'failed')",
+             WHERE id = ?1 AND status IN ('ready', 'failed') AND audio_deleted = 0",
             params![id],
         )?;
         Ok(updated > 0)
@@ -1841,6 +1842,19 @@ mod tests {
             MeetingStatus::Processing
         );
         assert!(store.begin_processing(id).unwrap());
+    }
+
+    #[test]
+    fn a_meeting_whose_audio_went_is_not_reopened() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        // The daily retention sweep, between Reanalyze's check and `reopen`.
+        assert!(store.delete_audio(id).unwrap());
+
+        assert!(!store.reopen(id).unwrap());
+        assert_eq!(store.get(id).unwrap().unwrap().status, MeetingStatus::Ready);
     }
 
     #[test]

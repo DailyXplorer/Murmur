@@ -297,12 +297,23 @@ impl LocalModels {
     /// Starts downloading in the background, unless the models are there,
     /// already coming, or cannot run on this Mac.
     pub fn start_download(self: &Arc<Self>) {
+        self.start_download_unless(false);
+    }
+
+    /// `start_download`, unless the user deleted the models or cancelled
+    /// their download, as a meeting start does. Checked under the slot
+    /// `delete` holds, so a delete under way wins.
+    pub fn download_unless_declined(self: &Arc<Self>) {
+        self.start_download_unless(true);
+    }
+
+    fn start_download_unless(self: &Arc<Self>, declined: bool) {
         if self.support != AnalysisSupport::Available {
             return;
         }
         let operation = {
             let mut slot = self.download_slot();
-            if slot.is_some() || self.is_ready() {
+            if slot.is_some() || self.is_ready() || (declined && self.declined()) {
                 return;
             }
             let operation = ProcessingOperation::new(OperationId(0));
@@ -517,29 +528,33 @@ impl LocalModels {
 
     /// Deletes the models. Refused while they download; the optional files
     /// ready models are still fetching are given up. Blocks until that fetch
-    /// stops.
+    /// stops. No download starts until it returns.
     pub fn delete(&self) -> Result<(), String> {
-        if self.download_slot().is_some() {
+        let slot = self.download_slot();
+        if slot.is_some() {
             return Err("The models are downloading".to_string());
         }
         self.stop_optional()?;
+        self.decline();
         match std::fs::remove_dir_all(&self.dir) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("Cannot delete the models: {error}")),
         }
-        self.decline();
         if self.support == AnalysisSupport::Available {
             self.set(LocalModelState::Missing);
         }
+        drop(slot);
         Ok(())
     }
 }
 
-/// Whether the optional sources are in place in the models folder `dir`:
-/// their marker is written once they are fetched and prepared.
+/// Whether this build's optional sources are in place in the models folder
+/// `dir`: their marker is written once they are fetched and prepared. An
+/// earlier pin's marker stays while its files are replaced.
 pub fn optional_ready(dir: &Path) -> bool {
-    dir.join(OPTIONAL_MARKER).exists()
+    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    std::fs::read_to_string(dir.join(OPTIONAL_MARKER)).is_ok_and(|id| id == manifest::id(optional))
 }
 
 /// The size of every file under `dir`, 0 when it is absent.

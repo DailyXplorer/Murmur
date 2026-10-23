@@ -36,6 +36,10 @@ const MIN_PIECE: usize = SAMPLES_PER_SECOND / 2;
 /// A run may take this long plus the length of its audio.
 const RUN_ALLOWANCE: Duration = Duration::from_secs(30);
 
+/// In the app's cache: the pieces the helper reads, each deleted once
+/// answered. A quit or a crash during a request leaves one behind.
+const SCRATCH_DIR: &str = "local-stt";
+
 pub struct LocalEngine {
     session: Arc<Session>,
     max_piece: usize,
@@ -115,7 +119,7 @@ fn join(texts: Vec<String>) -> String {
 #[cfg(target_arch = "aarch64")]
 fn runtime(app: &AppHandle, models: &LocalModels) -> Option<Box<dyn Runtime>> {
     let program = crate::meetings::helper::helper_path()?;
-    let scratch = app.path().app_cache_dir().ok()?.join("local-stt");
+    let scratch = app.path().app_cache_dir().ok()?.join(SCRATCH_DIR);
     Some(Box::new(fluid::FluidRuntime::new(
         program,
         models.dir().to_path_buf(),
@@ -146,8 +150,12 @@ pub fn engine(
     ))
 }
 
-/// Registers the dictation engine, after the local models.
+/// Registers the dictation engine, after the local models. Pieces an
+/// earlier run left go first, before any engine writes one.
 pub fn init(app: &AppHandle) {
+    if let Ok(cache) = app.path().app_cache_dir() {
+        remove_scratch(&cache);
+    }
     let handle = app.clone();
     let recording = Box::new(move || {
         handle
@@ -162,12 +170,35 @@ pub fn init(app: &AppHandle) {
     }
 }
 
+/// Deletes the pieces a quit or a crash left in `cache`.
+fn remove_scratch(cache: &std::path::Path) {
+    match std::fs::remove_dir_all(cache.join(SCRATCH_DIR)) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => log::warn!("Cannot empty the local transcription pieces: {error}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::session::{BoxFuture, Loaded};
     use super::*;
     use crate::OperationId;
     use std::sync::Mutex;
+
+    #[test]
+    fn pieces_left_by_an_earlier_run_are_deleted() {
+        let cache = tempfile::tempdir().unwrap();
+        let scratch = cache.path().join(SCRATCH_DIR);
+        std::fs::create_dir_all(&scratch).unwrap();
+        std::fs::write(scratch.join("piece-1.wav"), [0u8; 44]).unwrap();
+
+        remove_scratch(cache.path());
+
+        assert!(!scratch.exists());
+        // Nothing to delete is not an error.
+        remove_scratch(cache.path());
+    }
 
     /// Answers each piece with its length in samples, or the given text,
     /// and keeps the terms each piece was given.

@@ -77,8 +77,10 @@ pub enum SummaryError {
     /// Codex needs a new sign-in.
     SignedOut,
     RateLimited,
-    /// Codex could not be reached, or answered with an error.
+    /// Codex could not be reached.
     Network,
+    /// Codex answered with a server error, or its reply was cut off.
+    Server,
     Timeout,
     /// The reply ran past its length cap.
     TooLong,
@@ -95,6 +97,7 @@ impl SummaryError {
             Self::SignedOut => "signed_out",
             Self::RateLimited => "rate_limited",
             Self::Network => "network",
+            Self::Server => "server",
             Self::Timeout => "timeout",
             Self::TooLong => "too_long",
             Self::Empty => "empty",
@@ -108,6 +111,7 @@ impl SummaryError {
             "signed_out" => Self::SignedOut,
             "rate_limited" => Self::RateLimited,
             "network" => Self::Network,
+            "server" => Self::Server,
             "timeout" => Self::Timeout,
             "too_long" => Self::TooLong,
             "empty" => Self::Empty,
@@ -121,9 +125,8 @@ impl SummaryError {
         match kind {
             FailureKind::SessionExpired | FailureKind::SignedOut => Self::SignedOut,
             FailureKind::RateLimited => Self::RateLimited,
-            FailureKind::Network | FailureKind::ServerError | FailureKind::ConnectionDropped => {
-                Self::Network
-            }
+            FailureKind::Network => Self::Network,
+            FailureKind::ServerError | FailureKind::ConnectionDropped => Self::Server,
             FailureKind::Timeout => Self::Timeout,
             FailureKind::TooLarge
             | FailureKind::Rejected
@@ -491,6 +494,7 @@ impl SummaryError {
             Self::TooLong | Self::Empty => CodexVerdict::Answered,
             Self::SignedOut
             | Self::Network
+            | Self::Server
             | Self::Timeout
             | Self::NothingToSummarize
             | Self::Other => CodexVerdict::Unknown,
@@ -806,13 +810,17 @@ mod tests {
         assert_eq!(script.requests.lock().unwrap().len(), 4);
     }
 
+    /// Codex was reached: the summary does not say it could not be.
     #[test]
-    fn a_lasting_server_failure_still_fails_the_summary() {
-        let script = Script::new((0..4).map(|_| failed(FailureKind::ServerError)).collect());
-        assert_eq!(
-            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
-            SummaryEnd::Failed(SummaryError::Network)
-        );
+    fn a_lasting_server_failure_or_cut_reply_fails_as_codex_trouble() {
+        for kind in [FailureKind::ServerError, FailureKind::ConnectionDropped] {
+            let script = Script::new((0..4).map(|_| failed(kind)).collect());
+            assert_eq!(
+                run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+                SummaryEnd::Failed(SummaryError::Server),
+                "{kind:?}"
+            );
+        }
     }
 
     #[test]
@@ -929,7 +937,7 @@ mod tests {
             ),
             (
                 failed(FailureKind::ServerError),
-                SummaryEnd::Failed(SummaryError::Network),
+                SummaryEnd::Failed(SummaryError::Server),
             ),
             (
                 Err(CompletionError::TooLong),
@@ -1166,6 +1174,7 @@ mod tests {
             SummaryError::SignedOut,
             SummaryError::RateLimited,
             SummaryError::Network,
+            SummaryError::Server,
             SummaryError::Timeout,
             SummaryError::TooLong,
             SummaryError::Empty,

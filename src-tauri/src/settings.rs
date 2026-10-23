@@ -961,6 +961,16 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
             let map = merged
                 .as_object_mut()
                 .expect("merged settings stay an object");
+            // The default keeps 5 dictations: an unknown period deletes
+            // none, as after a damaged file.
+            if key == "recording_retention_period" {
+                map.insert(
+                    key.clone(),
+                    serde_json::to_value(RecordingRetentionPeriod::Never)
+                        .expect("a retention period serializes"),
+                );
+                continue;
+            }
             match previous {
                 Some(previous) => map.insert(key.clone(), previous),
                 None => map.remove(key),
@@ -1242,6 +1252,22 @@ mod tests {
         assert!(salvaged.onboarding_completed);
         assert_eq!(salvaged.bindings["transcribe"].current_binding, "f13");
         assert_eq!(salvaged.sound_theme, default_sound_theme());
+    }
+
+    /// The default keeps only the latest 5 dictations, so an unknown period
+    /// must not fall back to it and delete the rest of the history.
+    #[test]
+    fn salvage_of_an_unknown_retention_period_deletes_no_history() {
+        let mut stored = default_settings_json();
+        stored["recording_retention_period"] = serde_json::json!("years1");
+        stored["history_limit"] = serde_json::json!(5);
+        assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
+
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(
+            salvaged.recording_retention_period,
+            RecordingRetentionPeriod::Never
+        );
     }
 
     /// Gemini and Apple Intelligence were removed, so Codex is the only
