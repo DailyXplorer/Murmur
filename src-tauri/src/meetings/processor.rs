@@ -10,7 +10,8 @@
 //!    device (`align`), or, when those cannot be trusted, its sentences are
 //!    spread over the moments the track holds speech (`spread`). Words then
 //!    go to their speaker (`speakers`), echoes of remote voices are taken off
-//!    the microphone (`bleed`), and both tracks are interleaved into bubbles
+//!    the microphone (`bleed`) unless the meeting played on headphones
+//!    throughout, and both tracks are interleaved into bubbles
 //!    (`merge`). Parts that failed show as placeholders, so the user gets
 //!    everything that worked.
 //! 3. Once the whole transcript is there, Codex writes the summary and the
@@ -29,7 +30,8 @@ use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
 use super::analysis::{diarized_track, Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
 use super::archive;
-use super::bleed::remove_echoes;
+use super::bleed::{remove_echoes, WordTimes};
+use super::capture::route::OutputRoute;
 use super::chunking::{
     plan_chunks, speech_threshold, split_chunk, system_audio_missing, voiced_ms,
 };
@@ -493,6 +495,7 @@ impl Processor {
             analysis.as_ref(),
             diarize,
             self.language.as_deref(),
+            self.store.output_route(id)?,
         );
         // A recorded track that could not be read leaves one side of the
         // conversation out: never a Ready meeting, nor a summary of half of
@@ -682,12 +685,14 @@ fn spread_chunk(text: &str, chunk: &ChunkRow, audio: &Audio) -> Vec<TimedToken> 
 
 /// The transcript, with Chinese in the script `language` chose. Pieces keep
 /// the script Codex wrote, so a transcript built again follows the choice.
+/// `route` is where the meeting played sound.
 fn build_transcript(
     chunks: &[ChunkRow],
     audio: &HashMap<Track, Audio>,
     analysis: Option<&Analysis>,
     diarize: Track,
     language: Option<&str>,
+    route: OutputRoute,
 ) -> Built {
     let words: HashMap<Track, Vec<TimedWord>> = analysis
         .map(|analysis| {
@@ -710,6 +715,9 @@ fn build_transcript(
     let mut units = Vec::new();
     let mut missing = false;
     let mut score = (0.0, 0);
+    // The system words as placed with Codex's text, for when none were
+    // heard on device.
+    let mut placed_system: Vec<TimedWord> = Vec::new();
     for track in [Track::System, Track::Mic] {
         let Some(track_audio) = audio.get(&track) else {
             continue;
@@ -742,13 +750,26 @@ fn build_transcript(
             }
             _ => vec![single_speaker(track, room_voices); stream.len()],
         };
+        if track == Track::System {
+            placed_system = stream
+                .iter()
+                .filter(|timed| !timed.token.key.is_empty())
+                .map(|timed| TimedWord {
+                    key: timed.token.key.clone(),
+                    start_ms: timed.start_ms,
+                    end_ms: timed.end_ms,
+                })
+                .collect();
+        }
         units.extend(speakers::units(track, stream, &keys));
     }
-    if let (Some(mic), Some(system), Some(system_words)) = (
-        audio.get(&Track::Mic),
-        audio.get(&Track::System),
-        words.get(&Track::System),
-    ) {
+    let (system_words, times) = match words.get(&Track::System) {
+        Some(heard) => (heard.as_slice(), WordTimes::Heard),
+        None => (placed_system.as_slice(), WordTimes::Placed),
+    };
+    if route == OutputRoute::Headphones {
+        log::info!("The meeting played on headphones: no echo to remove");
+    } else if let (Some(mic), Some(system)) = (audio.get(&Track::Mic), audio.get(&Track::System)) {
         let mic_chunk_starts: Vec<u64> = chunks
             .iter()
             .filter(|chunk| chunk.track == Track::Mic)
@@ -758,11 +779,14 @@ fn build_transcript(
             &mut units,
             &mic_chunk_starts,
             system_words,
+            times,
             &mic.levels.levels,
             &system.levels.levels,
         );
         if removed > 0 {
-            log::info!("Removed {removed} echo(es) of system audio from the microphone");
+            log::info!(
+                "Removed {removed} echo(es) of system audio from the microphone ({times:?} times)"
+            );
         }
     }
     let turns: Vec<MeetingTurn> = merge(units)
@@ -2216,6 +2240,97 @@ mod tests {
     }
 
     const ROOM: f32 = -58.0;
+
+    /// The levels of a track of `seconds`: `quiet`, but for the given
+    /// `(from, to, db)` stretches, in milliseconds.
+    fn levels_of(seconds: u64, quiet: f32, sounds: &[(u64, u64, f32)]) -> Audio {
+        let levels: Vec<f32> = (0..seconds * 1_000 / chunking::FRAME_MS)
+            .map(|frame| {
+                let ms = frame * chunking::FRAME_MS;
+                sounds
+                    .iter()
+                    .find(|(from, to, _)| (*from..*to).contains(&ms))
+                    .map_or(quiet, |(_, _, db)| *db)
+            })
+            .collect();
+        Audio {
+            path: PathBuf::new(),
+            threshold: speech_threshold(&levels),
+            levels: TrackLevels {
+                duration_ms: seconds * 1_000,
+                levels,
+            },
+        }
+    }
+
+    /// A call on the built-in speakers, without the on-device models: the
+    /// user speaks from 1 to 4 s, the remote side from 6 to 9 s, and the
+    /// microphone hears it 15 dB lower. Codex writes the echo too.
+    fn echoed_call(route: OutputRoute) -> Vec<(String, String)> {
+        let audio = HashMap::from([
+            (
+                Track::Mic,
+                levels_of(20, -65.0, &[(1_000, 4_000, -20.0), (6_000, 9_000, -40.0)]),
+            ),
+            (
+                Track::System,
+                levels_of(20, DIGITAL_SILENCE_DBFS, &[(6_000, 9_000, -25.0)]),
+            ),
+        ]);
+        let piece = |track, text: &str| ChunkRow {
+            track,
+            idx: 0,
+            start_ms: 0,
+            end_ms: 20_000,
+            status: ChunkStatus::Done,
+            text: Some(text.to_string()),
+        };
+        let chunks = [
+            piece(Track::System, "On valide le budget jeudi prochain."),
+            piece(
+                Track::Mic,
+                "Moi je préfère lundi, vraiment. On valide le budget jeudi prochain.",
+            ),
+        ];
+        build_transcript(&chunks, &audio, None, Track::System, None, route)
+            .turns
+            .into_iter()
+            .map(|turn| (turn.speaker_key, turn.text))
+            .collect()
+    }
+
+    #[test]
+    fn an_echo_is_removed_without_words_heard_on_device() {
+        assert_eq!(
+            echoed_call(OutputRoute::Speakers),
+            [
+                (
+                    "me".to_string(),
+                    "Moi je préfère lundi, vraiment.".to_string()
+                ),
+                (
+                    "s1".to_string(),
+                    "On valide le budget jeudi prochain.".to_string()
+                ),
+            ]
+        );
+    }
+
+    /// On headphones the microphone hears no remote voice: whatever the
+    /// user said stays, even the remote side's words said back.
+    #[test]
+    fn nothing_is_taken_off_the_microphone_of_a_meeting_on_headphones() {
+        let turns = echoed_call(OutputRoute::Headphones);
+        let mine: Vec<&str> = turns
+            .iter()
+            .filter(|(key, _)| key == "me")
+            .map(|(_, text)| text.as_str())
+            .collect();
+        assert_eq!(
+            mine.join(" "),
+            "Moi je préfère lundi, vraiment. On valide le budget jeudi prochain."
+        );
+    }
 
     /// Without words heard on device, an hour-long call where the user
     /// presents and three remote participants ask questions for a few

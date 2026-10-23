@@ -12,6 +12,7 @@ use specta::Type;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use super::capture::route::OutputRoute;
 use super::chunking::ChunkPlan;
 use super::merge::Track;
 use super::paths;
@@ -116,6 +117,9 @@ fn migrations() -> Migrations<'static> {
             "ALTER TABLE meetings ADD COLUMN previous_id INTEGER;
     ALTER TABLE meetings ADD COLUMN part INTEGER NOT NULL DEFAULT 1;",
         ),
+        // Where the meeting played sound (`OutputRoute`); NULL for meetings
+        // recorded before it was read.
+        M::up("ALTER TABLE meetings ADD COLUMN output_route TEXT;"),
     ])
 }
 
@@ -917,6 +921,28 @@ impl MeetingsStore {
             )
             .optional()?
             .unwrap_or(false))
+    }
+
+    /// Notes where meeting `id` played sound while it recorded.
+    pub fn set_output_route(&self, id: i64, route: OutputRoute) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET output_route = ?2 WHERE id = ?1",
+            params![id, route.as_str()],
+        )?;
+        Ok(())
+    }
+
+    pub fn output_route(&self, id: i64) -> Result<OutputRoute> {
+        let name: Option<String> = self
+            .connection()?
+            .query_row(
+                "SELECT output_route FROM meetings WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(OutputRoute::parse(name.as_deref()))
     }
 
     /// Saves the summary, and the title it gives the meeting unless the
@@ -2015,6 +2041,15 @@ mod tests {
     }
 
     #[test]
+    fn a_meeting_keeps_where_it_played_sound() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.output_route(id).unwrap(), OutputRoute::Unknown);
+        store.set_output_route(id, OutputRoute::Headphones).unwrap();
+        assert_eq!(store.output_route(id).unwrap(), OutputRoute::Headphones);
+    }
+
+    #[test]
     fn each_sleep_during_a_recording_adds_to_the_time_asleep() {
         let (_dir, store) = store();
         let id = recorded(&store);
@@ -2248,6 +2283,7 @@ mod tests {
              ALTER TABLE meetings DROP COLUMN slept_ms;
              ALTER TABLE meetings DROP COLUMN previous_id;
              ALTER TABLE meetings DROP COLUMN part;
+             ALTER TABLE meetings DROP COLUMN output_route;
              PRAGMA user_version = 6;",
         )
         .unwrap();

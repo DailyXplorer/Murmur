@@ -9,6 +9,7 @@
 //! means the same moment in both files.
 
 pub mod mic;
+pub mod route;
 pub mod system;
 
 use std::fs::{File, OpenOptions};
@@ -484,6 +485,10 @@ impl CaptureBackend for DeviceCapture {
     fn keep_awake(&self) -> Option<Box<dyn Send>> {
         let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
         Some(Box::new(guard))
+    }
+
+    fn output_route(&self) -> route::OutputRoute {
+        route::OutputRoute::of(system::output_route_facts())
     }
 }
 
