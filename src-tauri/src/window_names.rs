@@ -95,7 +95,7 @@ fn read_app(
         bundle_id,
         || {
             crate::accessibility::focus_in(pid, app)
-                .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
+                .and_then(|focused| read_excerpt(&focused, started + FIELD_BUDGET))
         },
         || {
             app.element("AXFocusedWindow")
@@ -103,6 +103,10 @@ fn read_app(
                 .unwrap_or_default()
         },
     )
+}
+
+fn read_excerpt(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
+    read_field(focused, deadline, shows_secret)
 }
 
 /// Runs only the reads `reads` asks for. Without the window text, a code
@@ -241,13 +245,18 @@ fn window_context(
         }
     }
     names.truncate(MAX_NAMES);
-    let secret = excerpt
-        .lines()
-        .any(|line| is_assignment(line) || mentions_secret(line));
     WindowContext {
         names,
-        field: field.filter(|_| !secret),
+        field: field.filter(|_| !shows_secret(&excerpt)),
     }
+}
+
+/// A line of `text` assigns a value, also after a shell prompt, or
+/// mentions a secret.
+fn shows_secret(text: &str) -> bool {
+    text.lines().any(|line| {
+        is_assignment(line) || line.split_whitespace().any(is_assignment) || mentions_secret(line)
+    })
 }
 
 /// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
@@ -269,8 +278,9 @@ fn is_assignment(line: &str) -> bool {
 }
 
 /// English and French labels next to a secret, lowercase and without
-/// accents, and the header that carries one in a shell.
-const SECRET_WORDS: [&str; 23] = [
+/// accents, French plurals spelled out, and the header that carries one in
+/// a shell.
+const SECRET_WORDS: [&str; 32] = [
     "password",
     "passwd",
     "passcode",
@@ -286,19 +296,30 @@ const SECRET_WORDS: [&str; 23] = [
     "authorization:",
     "bearer ",
     "mot de passe",
+    "mots de passe",
     "mdp",
     "cle api",
+    "cles api",
     "cle d'api",
+    "cles d'api",
+    "cle de l'api",
+    "cles de l'api",
     "cle privee",
+    "cles privees",
     "jeton",
     "identifiant",
     "code d'acces",
+    "codes d'acces",
     "code pin",
+    "codes pin",
+    "digicode",
 ];
 
 fn mentions_secret(line: &str) -> bool {
-    let line = folded(line);
-    SECRET_WORDS.iter().any(|word| line.contains(word)) || has_url_password(&line)
+    let folded = folded(line);
+    SECRET_WORDS.iter().any(|word| folded.contains(word))
+        || has_url_credential(line)
+        || has_user_option(line)
 }
 
 /// Lowercase, without French accents, and with `’` as `'`.
@@ -318,8 +339,9 @@ fn folded(line: &str) -> String {
         .collect()
 }
 
-/// A URL that holds a password, as in `postgres://user:password@host`.
-fn has_url_password(line: &str) -> bool {
+/// A URL that holds a password, as in `postgres://user:password@host`, or a
+/// token as its user, as in `https://ghp_…@github.com`.
+fn has_url_credential(line: &str) -> bool {
     line.match_indices("://").any(|(at, _)| {
         let authority = line[at + 3..]
             .split(['/', '?', '#', ' ', '"', '\''])
@@ -327,8 +349,24 @@ fn has_url_password(line: &str) -> bool {
             .unwrap_or_default();
         authority
             .rsplit_once('@')
-            .is_some_and(|(user, _)| user.contains(':'))
+            .is_some_and(|(user, _)| user.contains(':') || looks_generated(user))
     })
+}
+
+/// A user and password given to a command, as in `curl -u user:password`.
+fn has_user_option(line: &str) -> bool {
+    let mut words = line.split_whitespace();
+    while let Some(word) = words.next() {
+        if matches!(word, "-u" | "--user")
+            && words.next().is_some_and(|user| {
+                user.split_once(':')
+                    .is_some_and(|(_, pass)| !pass.is_empty())
+            })
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Words that look like names: capitalised but not merely sentence case,
@@ -920,19 +958,146 @@ mod tests {
             "",
             true,
         ),
+        // French plurals and variants (round 45).
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe :\nWi-Fi : Soleil2024\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Les clés API : sk-abc123\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Clés privées du serveur : Corvina\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Codes d'accès : 4589B et 7781A\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Codes PIN : 1234, 5678\n", "", false),
+        (
+            "com.apple.Mail",
+            "",
+            "Voici la clé de l'API : sk-abc123\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Digicode : 4589B\n", "", false),
+        // A shell prompt before the command (round 45).
+        (
+            "com.apple.Terminal",
+            "",
+            "$ export DB_PASS=hunter2\n$ ",
+            "",
+            false,
+        ),
+        (
+            "com.googlecode.iterm2",
+            "",
+            "dev@Mac app % export STRIPE_KEY=sk_live_abc\ndev@Mac app % ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Terminal",
+            "",
+            "$ curl -u admin:S3cret https://api.example.com\n$ ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Terminal",
+            "",
+            "$ git clone https://ghp_x7Kq2mN9vR4bL1tW@github.com/example/app.git\n$ ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Terminal",
+            "",
+            "$ git clone https://dev@example.com/app.git\n$ ",
+            "",
+            true,
+        ),
+        // The 300-character cut goes through the label (round 45).
+        (
+            "com.apple.Notes",
+            "",
+            "Mot de passe :\nSoleil2024\nla suite. la suite. la suite. la suite. la suite. \
+             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
+             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
+             la suite. la suite. la suite. la suite. la suite. la suite. la suite. \
+             la suite. la suite. ",
+            "",
+            false,
+        ),
     ];
+
+    /// A field holding `0` with the cursor at UTF-16 unit `1`.
+    struct Field(String, usize);
+
+    impl FocusedText for Field {
+        fn is_secure(&self) -> bool {
+            false
+        }
+        fn selection(&self) -> Option<Utf16Range> {
+            Some(Utf16Range {
+                start: self.1,
+                len: 0,
+            })
+        }
+        fn char_count(&self) -> Option<usize> {
+            Some(self.0.encode_utf16().count())
+        }
+        fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+            let units: Vec<u16> = self.0.encode_utf16().collect();
+            units
+                .get(range.start..range.start + range.len)
+                .map(String::from_utf16_lossy)
+        }
+        fn value(&self) -> Option<String> {
+            Some(self.0.clone())
+        }
+    }
 
     #[test]
     fn excerpt_secret_corpus() {
-        for &(app, window, before, after, kept) in EXCERPT_CORPUS {
-            let excerpt = field(before, after);
-            let expected = if kept { excerpt.clone() } else { None };
-            assert_eq!(
-                window_context(app, window, excerpt).field,
-                expected,
-                "{app} {before:?} {after:?}"
-            );
-        }
+        let wrong: Vec<String> = EXCERPT_CORPUS
+            .iter()
+            .filter(|&&(app, window, before, after, kept)| {
+                let text = format!("{before}{after}");
+                let cursor = before.encode_utf16().count();
+                let deadline = Instant::now() + Duration::from_secs(60);
+                let excerpt = read_excerpt(&Field(text.clone(), cursor), deadline);
+                let expected = if kept {
+                    crate::field_excerpt::cut(
+                        &text,
+                        Utf16Range {
+                            start: cursor,
+                            len: 0,
+                        },
+                    )
+                } else {
+                    None
+                };
+                window_context(app, window, excerpt).field != expected
+            })
+            .map(|(app, _, before, after, kept)| format!("{app} {before:?} {after:?} kept: {kept}"))
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     /// Measures every read on each regular app running, without bringing
