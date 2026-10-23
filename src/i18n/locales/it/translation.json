@@ -428,6 +428,7 @@
         "description": "Elimina le trascrizioni vecchie e il loro audio. Gli elementi salvati vengono conservati.",
         "never": "Mai",
         "preserveLimit": "Conserva le ultime {{count}}",
+        "preserveLimit_one": "Conserva le ultime {{count}}",
         "days3": "Dopo 3 giorni",
         "weeks2": "Dopo 2 settimane",
         "months3": "Dopo 3 mesi",

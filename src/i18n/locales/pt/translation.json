@@ -428,6 +428,7 @@
         "description": "Exclui transcrições antigas e o áudio delas. Entradas salvas são mantidas.",
         "never": "Nunca",
         "preserveLimit": "Manter as últimas {{count}}",
+        "preserveLimit_one": "Manter as últimas {{count}}",
         "days3": "Após 3 dias",
         "weeks2": "Após 2 semanas",
         "months3": "Após 3 meses",

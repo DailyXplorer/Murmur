@@ -428,6 +428,7 @@
         "description": "Supprime les anciennes transcriptions et leur audio. Les favoris sont conservés.",
         "never": "Jamais",
         "preserveLimit": "Conserver les {{count}} plus récents",
+        "preserveLimit_one": "Conserver le plus récent",
         "days3": "Après 3 jours",
         "weeks2": "Après 2 semaines",
         "months3": "Après 3 mois",

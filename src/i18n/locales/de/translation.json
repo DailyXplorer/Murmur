@@ -428,6 +428,7 @@
         "description": "Löscht alte Transkriptionen samt Audio. Gespeicherte Einträge bleiben erhalten.",
         "never": "Nie",
         "preserveLimit": "Neueste {{count}} behalten",
+        "preserveLimit_one": "Neueste {{count}} behalten",
         "days3": "Nach 3 Tagen",
         "weeks2": "Nach 2 Wochen",
         "months3": "Nach 3 Monaten",

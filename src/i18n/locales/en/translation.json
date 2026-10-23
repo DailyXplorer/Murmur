@@ -435,6 +435,7 @@
         "description": "Deletes old transcriptions and their audio. Saved entries are kept.",
         "never": "Never",
         "preserveLimit": "Keep latest {{count}}",
+        "preserveLimit_one": "Keep latest {{count}}",
         "days3": "After 3 days",
         "weeks2": "After 2 weeks",
         "months3": "After 3 months",

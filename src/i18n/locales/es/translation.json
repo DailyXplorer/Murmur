@@ -428,6 +428,7 @@
         "description": "Elimina las transcripciones antiguas y su audio. Las entradas guardadas se conservan.",
         "never": "Nunca",
         "preserveLimit": "Mantener las últimas {{count}}",
+        "preserveLimit_one": "Mantener las últimas {{count}}",
         "days3": "Después de 3 días",
         "weeks2": "Después de 2 semanas",
         "months3": "Después de 3 meses",
