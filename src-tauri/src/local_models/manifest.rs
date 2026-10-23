@@ -99,6 +99,26 @@ mod tests {
         assert_eq!(total_bytes(pinned::X86_64), 739_508_576);
     }
 
+    /// The Meetings page shows the size the download really is, in every
+    /// language, rather than a number of its own.
+    #[test]
+    fn the_meetings_page_quotes_the_download_size_it_is_given() {
+        let locales = [
+            include_str!("../../../src/i18n/locales/en/translation.json"),
+            include_str!("../../../src/i18n/locales/fr/translation.json"),
+            include_str!("../../../src/i18n/locales/de/translation.json"),
+            include_str!("../../../src/i18n/locales/es/translation.json"),
+            include_str!("../../../src/i18n/locales/it/translation.json"),
+            include_str!("../../../src/i18n/locales/pt/translation.json"),
+        ];
+        for locale in locales {
+            let json: serde_json::Value = serde_json::from_str(locale).unwrap();
+            let text = json["meetings"]["models"]["description"].as_str().unwrap();
+            assert!(text.contains("{{size}}"), "{text}");
+            assert!(!text.contains(|c: char| c.is_ascii_digit()), "{text}");
+        }
+    }
+
     #[test]
     fn only_the_boosting_model_is_optional() {
         let optional: Vec<_> = pinned::APPLE_SILICON

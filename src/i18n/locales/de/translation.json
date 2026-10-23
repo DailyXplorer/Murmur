@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Sprechererkennung",
-      "description": "Lokale Modelle unterscheiden die Teilnehmenden. Sie werden einmal geladen (etwa 480 MB), und dieser Schritt sendet kein Audio.",
+      "description": "Lokale Modelle unterscheiden die Teilnehmenden. Sie werden einmal geladen ({{size}}), und dieser Schritt sendet kein Audio.",
       "missing": "Nicht geladen",
       "downloading": "Wird geladen… {{percent}} %",
       "preparing": "Modelle werden für diesen Mac vorbereitet…",

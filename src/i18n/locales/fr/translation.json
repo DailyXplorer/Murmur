@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Détection des intervenants",
-      "description": "Des modèles locaux distinguent les participants. Ils se téléchargent une seule fois (environ 480 Mo), et cette étape n'envoie aucun audio.",
+      "description": "Des modèles locaux distinguent les participants. Ils se téléchargent une seule fois ({{size}}), et cette étape n'envoie aucun audio.",
       "missing": "Non téléchargés",
       "downloading": "Téléchargement… {{percent}} %",
       "preparing": "Préparation des modèles pour ce Mac…",

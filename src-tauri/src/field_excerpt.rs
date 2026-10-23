@@ -7,6 +7,12 @@ use std::time::Instant;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
+/// UTF-16 units before the insertion point that always hold the excerpt: a
+/// unit is at least half a char.
+const EXCERPT_BEFORE_UNITS: usize = 2 * MAX_BEFORE_CHARS + 2;
+/// How far before the insertion point the paragraph the excerpt starts in
+/// is read, for the label of a long list above it.
+const CHECK_BEFORE_UNITS: usize = 2_000;
 
 /// A selection or insertion point in UTF-16 code units, as Accessibility reports it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,7 +109,8 @@ pub trait FocusedText {
 /// field, and never guesses the cursor: no selection range, no excerpt.
 /// Each read may take a hung app's whole messaging timeout, so none starts
 /// after `deadline`. None when `withheld` holds for the text the excerpt is
-/// cut from: a label the cut leaves out still marks the value it keeps.
+/// cut from, from the start of the paragraph it begins in: a label the cut
+/// leaves out still marks the values it keeps.
 pub fn read_field(
     focused: &impl FocusedText,
     deadline: Instant,
@@ -114,12 +121,15 @@ pub fn read_field(
         return None;
     }
     let selection = focused.selection()?;
-    let (text, offset) = match window_around(focused, selection, in_time) {
-        Some(window) => window,
-        None if in_time() => (focused.value()?, 0),
+    let (text, offset, checked) = match window_around(focused, selection, in_time) {
+        Some((text, offset)) => {
+            let checked = paragraph_start(&text, selection.start.saturating_sub(offset));
+            (text, offset, checked)
+        }
+        None if in_time() => (focused.value()?, 0, 0),
         None => return None,
     };
-    if withheld(&text) {
+    if withheld(&text[checked..]) {
         return None;
     }
     cut(
@@ -131,9 +141,24 @@ pub fn read_field(
     )
 }
 
-/// Just enough of the field for `cut`, and where it starts. A UTF-16 unit
-/// is at least half a char, so a window that does not start at the field's
-/// start holds more than the limit and `cut` drops its partial first word.
+/// The byte where the paragraph holding the excerpt's earliest possible
+/// start begins, after the last blank line before it; 0 without one.
+fn paragraph_start(text: &str, cursor: usize) -> usize {
+    let excerpt_start = byte_offset(text, cursor.saturating_sub(EXCERPT_BEFORE_UNITS));
+    let mut paragraph = 0;
+    let mut line = 0;
+    for (newline, _) in text[..excerpt_start].match_indices('\n') {
+        if text[line..newline].trim().is_empty() {
+            paragraph = newline + 1;
+        }
+        line = newline + 1;
+    }
+    paragraph
+}
+
+/// Enough of the field for `cut` and for the paragraph it starts in, and
+/// where it starts. A window that does not start at the field's start holds
+/// more than the limit, so `cut` drops its partial first word.
 fn window_around(
     focused: &impl FocusedText,
     selection: Utf16Range,
@@ -147,10 +172,7 @@ fn window_around(
     let end = selection_end
         .saturating_add(2 * MAX_AFTER_CHARS + 2)
         .min(count);
-    let start = selection
-        .start
-        .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
-        .min(end);
+    let start = selection.start.saturating_sub(CHECK_BEFORE_UNITS).min(end);
     if !in_time() {
         return None;
     }
@@ -374,7 +396,7 @@ mod tests {
     fn the_window_asked_for_is_bounded_by_the_limits() {
         let text = "word ".repeat(1_000);
         let selection = Utf16Range {
-            start: 2_000,
+            start: 3_000,
             len: 10,
         };
         let fake = Fake::new(&text, selection);
@@ -382,8 +404,8 @@ mod tests {
         assert_eq!(
             *fake.requested.borrow(),
             Some(Utf16Range {
-                start: 2_000 - (2 * MAX_BEFORE_CHARS + 2),
-                len: 2 * MAX_BEFORE_CHARS + 2 + 10 + 2 * MAX_AFTER_CHARS + 2,
+                start: 3_000 - CHECK_BEFORE_UNITS,
+                len: CHECK_BEFORE_UNITS + 10 + 2 * MAX_AFTER_CHARS + 2,
             })
         );
     }

@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Detección de participantes",
-      "description": "Modelos locales distinguen a los participantes. Se descargan una vez (unos 480 MB) y este paso no envía audio a ningún sitio.",
+      "description": "Modelos locales distinguen a los participantes. Se descargan una vez ({{size}}) y este paso no envía audio a ningún sitio.",
       "missing": "No descargados",
       "downloading": "Descargando… {{percent}} %",
       "preparing": "Preparando los modelos para este Mac…",

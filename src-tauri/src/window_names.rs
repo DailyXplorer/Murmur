@@ -219,8 +219,9 @@ fn is_code_app(bundle_id: &str) -> bool {
 /// A terminal or editor with any `KEY=value` line may be showing a `.env`
 /// file or a shell session, so it gives no names and no excerpt at all.
 /// Elsewhere an excerpt with a line that assigns a value, mentions a
-/// password, token, secret or API key (in English or French), or holds a
-/// credential as a shell shows one, is dropped. Names in the excerpt come
+/// password, token, secret, key, PIN or door code (in English or French),
+/// holds a credential as a shell shows one, or holds a key or token with no
+/// label, is dropped. Names in the excerpt come
 /// first: they are next to what the user is writing.
 fn window_context(
     bundle_id: &str,
@@ -251,12 +252,45 @@ fn window_context(
     }
 }
 
-/// A line of `text` assigns a value, also after a shell prompt, or
-/// mentions a secret.
+/// A line of `text` assigns a value, also after a shell prompt, mentions a
+/// secret, or holds a key.
 fn shows_secret(text: &str) -> bool {
     text.lines().any(|line| {
-        is_assignment(line) || line.split_whitespace().any(is_assignment) || mentions_secret(line)
+        is_assignment(line)
+            || line
+                .split_whitespace()
+                .any(|token| is_assignment(token) || holds_key(token))
+            || mentions_secret(line)
     })
+}
+
+/// How the API keys and tokens of common services begin.
+const KEY_PREFIXES: [&str; 11] = [
+    "sk-",
+    "sk_live_",
+    "ghp_",
+    "gho_",
+    "github_pat_",
+    "glpat-",
+    "xoxa-",
+    "xoxb-",
+    "xoxp-",
+    "AKIA",
+    "AIza",
+];
+
+/// A token, or a part of a URL or of `name=value` in it, that is a service's
+/// key or a long generated one, with or without a label.
+fn holds_key(token: &str) -> bool {
+    token
+        .split(['=', ':', '/', '?', '&', '#', '@'])
+        .map(trim_word)
+        .any(|part| {
+            KEY_PREFIXES.iter().any(|prefix| {
+                part.strip_prefix(prefix)
+                    .is_some_and(|rest| rest.chars().count() >= 8)
+            }) || (part.chars().count() >= LONG_TOKEN_CHARS && looks_generated(part))
+        })
 }
 
 /// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
@@ -315,11 +349,53 @@ const SECRET_WORDS: [&str; 32] = [
     "digicode",
 ];
 
+/// Short labels that name a secret only right before its value, as in
+/// `PIN: 1234` or `OpenAI key: sk-…`: "the key point" holds none.
+const VALUE_LABELS: [&str; 9] = [
+    "key", "keys", "pin", "pass", "pwd", "pw", "login", "cle", "cles",
+];
+
+/// French names a secret first and what it opens after it, within three
+/// words: "Clé Wi-Fi", "Clé de sécurité", "Code de la porte".
+const FRENCH_SECRET_HEADS: [&str; 4] = ["cle", "cles", "code", "codes"];
+const FRENCH_SECRET_OBJECTS: [&str; 8] = [
+    "wifi", "wi-fi", "securite", "porte", "immeuble", "entree", "alarme", "portail",
+];
+
 fn mentions_secret(line: &str) -> bool {
     let folded = folded(line);
     SECRET_WORDS.iter().any(|word| folded.contains(word))
+        || names_a_secret(&folded)
         || has_url_credential(line)
         || has_user_option(line)
+}
+
+/// A `VALUE_LABELS` word or "PIN code" right before a colon, or a French
+/// secret head, in whole words of the `folded` line.
+fn names_a_secret(folded: &str) -> bool {
+    fn words(text: &str) -> Vec<&str> {
+        text.split(|c: char| c.is_whitespace() || c == '\'')
+            .map(trim_word)
+            .filter(|word| !word.is_empty())
+            .collect()
+    }
+    let is_label = |label: &str| match words(label).as_slice() {
+        [.., "pin", "code"] => true,
+        [.., last] => VALUE_LABELS.contains(last),
+        [] => false,
+    };
+    let labelled = folded
+        .match_indices(':')
+        .any(|(colon, _)| is_label(&folded[..colon]));
+    let words = words(folded);
+    labelled
+        || words.iter().enumerate().any(|(at, word)| {
+            FRENCH_SECRET_HEADS.contains(word)
+                && words[at + 1..]
+                    .iter()
+                    .take(3)
+                    .any(|next| FRENCH_SECRET_OBJECTS.contains(next))
+        })
 }
 
 /// Lowercase, without French accents, and with `’` as `'`.
@@ -373,7 +449,8 @@ fn has_user_option(line: &str) -> bool {
 /// never seen in lowercase in the same text, plus the name parts of email
 /// addresses and @handles. Most frequent first, at most 50. Lines that
 /// assign a value or mention a password, token, secret or API key are
-/// skipped, and so is the line after them, where a label's value sits.
+/// skipped, and so is the line after them, where a label's value sits, and
+/// every entry of the list they head, up to a blank line or a sentence.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -392,11 +469,19 @@ pub fn candidate_names(text: &str) -> Vec<String> {
     };
 
     let mut after_secret_label = false;
+    let mut in_secret_list = false;
     for line in text.lines() {
-        let sensitive = after_secret_label || is_assignment(line) || mentions_secret(line);
-        if !line.trim().is_empty() {
-            after_secret_label = mentions_secret(line);
+        if line.trim().is_empty() {
+            in_secret_list = false;
+            continue;
         }
+        let label = mentions_secret(line);
+        let sensitive = after_secret_label
+            || (in_secret_list && is_list_entry(line))
+            || is_assignment(line)
+            || label;
+        after_secret_label = label;
+        in_secret_list = label || (in_secret_list && sensitive);
         if sensitive {
             continue;
         }
@@ -426,6 +511,16 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         .map(|(name, _)| name)
         .take(MAX_NAMES)
         .collect()
+}
+
+/// A line of a list such as `Bureau - Corvina`, `Bureau : Corvina` or
+/// `Bureau Corvina`: an entry and its value, rather than a sentence.
+fn is_list_entry(line: &str) -> bool {
+    let line = line.trim();
+    [" - ", " – ", " — ", ":", "\t", " | "]
+        .iter()
+        .any(|separator| line.contains(separator))
+        || (line.split_whitespace().count() <= 3 && line.starts_with(char::is_uppercase))
 }
 
 fn trim_word(token: &str) -> &str {
@@ -1044,7 +1139,239 @@ mod tests {
             "",
             false,
         ),
+        // Labels with no listed word, and keys with no label (round 46).
+        ("com.apple.Notes", "", "Clé Wi-Fi : Soleil2024\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Clé de sécurité : Soleil2024\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Code porte : 4589B\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Le code de la porte est 4589B, ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "PIN: 1234\n", "", false),
+        ("com.apple.Notes", "", "PIN code: 1234\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Login: jdoe / pass: hunter2\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "OpenAI key: sk-proj-4fT9xQ2mN7vR1bL8\n",
+            "",
+            false,
+        ),
+        (
+            "com.tinyspeck.slackmacgap",
+            "",
+            "here you go sk-proj-4fT9xQ2mN7vR1bL8 thanks ",
+            "",
+            false,
+        ),
+        (
+            "com.tinyspeck.slackmacgap",
+            "",
+            "ghp_x7Kq2mN9vR4bL1tW8cZ3dF6gH0jK5pS2uY4 ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Mail",
+            "",
+            "the id is AKIAIOSFODNN7EXAMPLE ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "https://maps.googleapis.com/api?key=AIzaSyD4fT9xQ2mN7vR1bL8cW3zK5pS2uY4hJ0 ",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Q3 report: w8Kd2LpQ9xVz3RtY7mNc4BfH1jGs ",
+            "",
+            false,
+        ),
+        // The label of a list longer than the excerpt (round 46).
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n",
+            "",
+            false,
+        ),
+        // The same words in ordinary text (round 46).
+        (
+            "com.apple.Notes",
+            "",
+            "The key point is the launch date. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Key takeaways: ship on Monday. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "La clé du succès, c'est la régularité. ",
+            "",
+            true,
+        ),
+        ("com.apple.Notes", "", "Code postal : 75001\n", "", true),
+        (
+            "com.apple.Notes",
+            "",
+            "I'll pass on dinner, pin the tab and ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "The login page is broken again. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Rendez-vous à 14h30 le 2024-10-23, réf. 648e96d6. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Mail",
+            "",
+            "Écris à jean-baptiste.delacroix@exemple-societe.fr pour ",
+            "",
+            true,
+        ),
+        ("com.apple.Notes", "", "We use sk-learn and ", "", true),
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe\nBanque : Soleil2024\n\nLa réunion de lundi parle du budget. ",
+            "",
+            false,
+        ),
     ];
+
+    /// Every text the name finder was checked on, and the names it gives.
+    /// Add rows; never change one to make a fix pass.
+    const NAMES_CORPUS: &[(&str, &[&str])] = &[
+        (
+            "Thanks for the update. I spoke with Ingrid and Tobias yesterday.\nShipping is on track.",
+            &["Ingrid", "Tobias"],
+        ),
+        ("File\nEdit\nView\nSearch messages", &[]),
+        (
+            "Open the Settings page. the settings are saved with Murmur.",
+            &["Murmur"],
+        ),
+        (
+            "GitHub and iPhone users. macOS ships soon.",
+            &["GitHub", "iPhone", "macOS"],
+        ),
+        (
+            "reply to jane.doe@example.com or ping @kai_dev today",
+            &["Jane", "Doe", "kai_dev"],
+        ),
+        ("see the PDF and 2024 and www.Example.com now", &[]),
+        ("meet Zed then Amaya then Zed again", &["Zed", "Amaya"]),
+        ("see Xk9mPq2vLr7T here", &[]),
+        ("see Tr0ub4dor&3 here", &[]),
+        ("see hGqWzKpLxV here", &[]),
+        ("see Xkqzvbnm here", &[]),
+        ("see aB3dE5fG7hJ9kL1mN0pQ here", &[]),
+        ("see Z7kQ2mN9xR4bL1vT8cW3 here", &[]),
+        ("see dGhpcyBpcyBhIHNlY3JldA== here", &[]),
+        ("see Deadbeef0042 here", &[]),
+        ("see Fa3c9e1b7d5a here", &[]),
+        ("see AKIAIOSFODNN7EXAMPLE here", &[]),
+        ("see wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY here", &[]),
+        (
+            "met McDonald, O'Brien, Jean-Luc, Schwarzschild and Strzelczyk about iPhone15, \
+             GPT-4o, OpenAI and DeepSeek",
+            &[
+                "McDonald",
+                "O'Brien",
+                "Jean-Luc",
+                "Schwarzschild",
+                "Strzelczyk",
+                "iPhone15",
+                "GPT-4o",
+                "OpenAI",
+                "DeepSeek",
+            ],
+        ),
+        // Values next to a secret label (rounds 44 and 45).
+        (
+            "Wi-Fi password: Bluebird\nshared with Corvina\nthanks to Ingrid",
+            &["Ingrid"],
+        ),
+        ("API key\nZephyrine\nmeet Tobias", &["Tobias"]),
+        (
+            "STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya",
+            &["Amaya"],
+        ),
+        ("Mots de passe :\nWi-Fi : Soleil2024\nmerci Ingrid", &["Ingrid"]),
+        // Every entry of a list under a secret label (round 46).
+        (
+            "Wi-Fi password\nMaison - Bluebird\nBureau - Corvina\nGîte - Soleil2024",
+            &[],
+        ),
+        (
+            "Mots de passe\nMaison Bluebird\nBureau Corvina\nGîte Soleil2024\n\nmerci Ingrid",
+            &["Ingrid"],
+        ),
+        (
+            "Clé Wi-Fi : Bluebird\nBureau : Corvina\nwith Tobias",
+            &["Tobias"],
+        ),
+        (
+            "Code porte : 4589B\nGarage – Corvina\nask Amaya",
+            &["Amaya"],
+        ),
+    ];
+
+    #[test]
+    fn names_corpus() {
+        let wrong: Vec<String> = NAMES_CORPUS
+            .iter()
+            .filter(|(text, expected)| candidate_names(text) != names(expected))
+            .map(|(text, expected)| {
+                format!("{text:?}: {:?}, not {expected:?}", candidate_names(text))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
 
     /// A field holding `0` with the cursor at UTF-16 unit `1`.
     struct Field(String, usize);

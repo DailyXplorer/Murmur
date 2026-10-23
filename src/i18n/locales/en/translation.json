@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Speaker detection",
-      "description": "On-device models tell participants apart. They download once (about 480 MB), and this step sends no audio anywhere.",
+      "description": "On-device models tell participants apart. They download once ({{size}}), and this step sends no audio anywhere.",
       "missing": "Not downloaded",
       "downloading": "Downloading… {{percent}}%",
       "preparing": "Preparing the models for this Mac…",

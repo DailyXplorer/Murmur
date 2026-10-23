@@ -12,9 +12,13 @@ on:
   issue_comment:
     types: [created]
 
+# One run at a time per pull request, so two runs never both post the
+# comment. Runs wait in line instead of canceling each other: a bot comment
+# right after a push would otherwise cancel the pull_request run, and the
+# canceled run shows as a failed check on the pull request.
 concurrency:
   group: review-loop-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
-  cancel-in-progress: true
+  queue: max
 
 permissions:
   contents: read
