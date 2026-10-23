@@ -937,7 +937,7 @@ mod tests {
             ),
             (
                 failed(FailureKind::ServerError),
-                SummaryEnd::Failed(SummaryError::Network),
+                SummaryEnd::Failed(SummaryError::Server),
             ),
             (
                 Err(CompletionError::TooLong),
