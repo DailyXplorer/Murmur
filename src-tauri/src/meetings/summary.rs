@@ -1035,11 +1035,17 @@ mod tests {
             (Err(CompletionError::Cancelled), SummaryEnd::Cancelled),
             (Ok("\n".into()), SummaryEnd::Failed(SummaryError::Empty)),
             (failed(FailureKind::Network), SummaryEnd::Unreachable),
+            // Codex was reached: a long summary that runs out of time is no
+            // reason to wait for the connection.
+            (
+                failed(FailureKind::Timeout),
+                SummaryEnd::Failed(SummaryError::Timeout),
+            ),
         ] {
             assert_eq!(run(&Script::new(vec![answer]), MAX_SUMMARY_CHARS), end);
         }
         // A failed section stops before the merge.
-        let script = Script::new(vec![failed(FailureKind::Timeout)]);
+        let script = Script::new(vec![failed(FailureKind::Network)]);
         assert_eq!(run(&script, 100), SummaryEnd::Unreachable);
         assert_eq!(script.requests.lock().unwrap().len(), 1);
     }
