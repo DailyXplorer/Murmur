@@ -1008,7 +1008,10 @@ pub fn run(cli_args: CliArgs) {
                     let tray_visible =
                         settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
                     if tray_visible {
-                        accent::set_dock_presence(window.app_handle(), accent::DockPresence::Hidden);
+                        accent::set_dock_presence(
+                            window.app_handle(),
+                            accent::DockPresence::Hidden,
+                        );
                     }
                 }
             }
@@ -1075,120 +1078,120 @@ mod headless_guard_tests {
     /// AppKit's settings window placement.
     #[cfg(target_os = "macos")]
     mod settings_window {
-    use super::super::{
-        centered_window_origin, fitted_window_size, screen_containing,
-        settings_window_collection_behavior, settings_window_needs_order_out,
-        SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE,
-    };
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
+        use super::super::{
+            centered_window_origin, fitted_window_size, screen_containing,
+            settings_window_collection_behavior, settings_window_needs_order_out,
+            SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE,
+        };
+        use objc2_foundation::{NSPoint, NSRect, NSSize};
 
-    #[test]
-    fn settings_window_moves_to_active_space_without_joining_every_space() {
-        use objc2_app_kit::NSWindowCollectionBehavior;
+        #[test]
+        fn settings_window_moves_to_active_space_without_joining_every_space() {
+            use objc2_app_kit::NSWindowCollectionBehavior;
 
-        let current =
-            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
-        let configured = settings_window_collection_behavior(current);
+            let current =
+                NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
+            let configured = settings_window_collection_behavior(current);
 
-        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
-        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
-        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
-    }
+            assert!(configured.contains(NSWindowCollectionBehavior::Managed));
+            assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
+            assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+        }
 
-    #[test]
-    fn settings_window_is_reordered_only_when_visible_on_another_space() {
-        assert!(settings_window_needs_order_out(true, false));
-        assert!(!settings_window_needs_order_out(false, false));
-        assert!(!settings_window_needs_order_out(true, true));
-        assert!(!settings_window_needs_order_out(false, true));
-    }
+        #[test]
+        fn settings_window_is_reordered_only_when_visible_on_another_space() {
+            assert!(settings_window_needs_order_out(true, false));
+            assert!(!settings_window_needs_order_out(false, false));
+            assert!(!settings_window_needs_order_out(true, true));
+            assert!(!settings_window_needs_order_out(false, true));
+        }
 
-    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
-        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
-    }
+        fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+            NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+        }
 
-    #[test]
-    fn settings_window_is_centered_in_the_visible_frame() {
-        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
-        // a 70-point Dock. The vertical center is the visible frame's, not the
-        // slightly higher spot NSWindow.center() picks.
-        let visible = rect(0.0, 70.0, 1512.0, 879.0);
-        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
-        assert_eq!((origin.x, origin.y), (366.0, 135.0));
-    }
+        #[test]
+        fn settings_window_is_centered_in_the_visible_frame() {
+            // A 1512x982 screen whose visible frame drops a 33-point menu bar and
+            // a 70-point Dock. The vertical center is the visible frame's, not the
+            // slightly higher spot NSWindow.center() picks.
+            let visible = rect(0.0, 70.0, 1512.0, 879.0);
+            let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+            assert_eq!((origin.x, origin.y), (366.0, 135.0));
+        }
 
-    #[test]
-    fn settings_window_is_centered_on_a_secondary_screen() {
-        // A screen left of the main one has negative AppKit coordinates.
-        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
-        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
-        assert_eq!((origin.x, origin.y), (-1350.0, -47.0));
-    }
+        #[test]
+        fn settings_window_is_centered_on_a_secondary_screen() {
+            // A screen left of the main one has negative AppKit coordinates.
+            let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
+            let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+            assert_eq!((origin.x, origin.y), (-1350.0, -47.0));
+        }
 
-    #[test]
-    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
-        let visible = rect(0.0, 0.0, 600.0, 500.0);
-        let size = frame(SETTINGS_WINDOW_SIZE);
-        let origin = centered_window_origin(visible, size);
-        // Left edge and top edge stay inside the visible frame.
-        assert_eq!((origin.x, origin.y + size.height), (0.0, 500.0));
-    }
+        #[test]
+        fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
+            let visible = rect(0.0, 0.0, 600.0, 500.0);
+            let size = frame(SETTINGS_WINDOW_SIZE);
+            let origin = centered_window_origin(visible, size);
+            // Left edge and top edge stay inside the visible frame.
+            assert_eq!((origin.x, origin.y + size.height), (0.0, 500.0));
+        }
 
-    /// The frame size of a content size, with the 28-point title bar.
-    fn frame(content: (f64, f64)) -> NSSize {
-        NSSize::new(content.0, content.1 + 28.0)
-    }
+        /// The frame size of a content size, with the 28-point title bar.
+        fn frame(content: (f64, f64)) -> NSSize {
+            NSSize::new(content.0, content.1 + 28.0)
+        }
 
-    #[test]
-    fn settings_window_keeps_its_default_size_on_a_large_screen() {
-        let visible = NSSize::new(1512.0, 879.0);
-        let size = fitted_window_size(
-            visible,
-            frame(SETTINGS_WINDOW_SIZE),
-            frame(SETTINGS_WINDOW_MIN_SIZE),
-        );
-        assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
-    }
+        #[test]
+        fn settings_window_keeps_its_default_size_on_a_large_screen() {
+            let visible = NSSize::new(1512.0, 879.0);
+            let size = fitted_window_size(
+                visible,
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
+        }
 
-    #[test]
-    fn settings_window_shrinks_to_a_small_screen() {
-        // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
-        let visible = NSSize::new(1280.0, 705.0);
-        let size = fitted_window_size(
-            visible,
-            frame(SETTINGS_WINDOW_SIZE),
-            frame(SETTINGS_WINDOW_MIN_SIZE),
-        );
-        assert_eq!(size, NSSize::new(SETTINGS_WINDOW_SIZE.0, 705.0));
-    }
+        #[test]
+        fn settings_window_shrinks_to_a_small_screen() {
+            // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
+            let visible = NSSize::new(1280.0, 705.0);
+            let size = fitted_window_size(
+                visible,
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, NSSize::new(SETTINGS_WINDOW_SIZE.0, 705.0));
+        }
 
-    #[test]
-    fn settings_window_never_shrinks_below_its_minimum() {
-        let visible = NSSize::new(600.0, 500.0);
-        let size = fitted_window_size(
-            visible,
-            frame(SETTINGS_WINDOW_SIZE),
-            frame(SETTINGS_WINDOW_MIN_SIZE),
-        );
-        assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
-    }
+        #[test]
+        fn settings_window_never_shrinks_below_its_minimum() {
+            let visible = NSSize::new(600.0, 500.0);
+            let size = fitted_window_size(
+                visible,
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
+        }
 
-    #[test]
-    fn the_screen_under_the_pointer_is_the_one_containing_it() {
-        let screens = [
-            rect(0.0, 0.0, 1512.0, 982.0),
-            rect(1512.0, -100.0, 1920.0, 1080.0),
-        ];
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
-            Some(1)
-        );
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
-            Some(0)
-        );
-        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
-    }
+        #[test]
+        fn the_screen_under_the_pointer_is_the_one_containing_it() {
+            let screens = [
+                rect(0.0, 0.0, 1512.0, 982.0),
+                rect(1512.0, -100.0, 1920.0, 1080.0),
+            ];
+            assert_eq!(
+                screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
+                Some(1)
+            );
+            assert_eq!(
+                screen_containing(&screens, NSPoint::new(10.0, 982.0)),
+                Some(0)
+            );
+            assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
+        }
     }
 
     #[test]

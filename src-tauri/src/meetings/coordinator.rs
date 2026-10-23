@@ -829,7 +829,9 @@ mod tests {
 
     /// A full disk refuses the database write that ends the recording too:
     /// the meeting is saved for processing once there is room, not left on
-    /// "Recording" until the next launch.
+    /// "Recording" until the next launch. Unix file modes stand in for the
+    /// full disk.
+    #[cfg(unix)]
     #[test]
     fn a_close_the_disk_refused_is_saved_once_it_has_room() {
         use std::os::unix::fs::PermissionsExt;

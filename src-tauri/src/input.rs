@@ -169,6 +169,7 @@ mod macos {
 
 /// What the current keyboard layout types on each virtual key code while
 /// Command is held, indexed by key code. Call it on the main thread.
+#[cfg(target_os = "macos")]
 pub fn command_key_chars() -> Result<Vec<Option<char>>, String> {
     macos::command_chars()
 }

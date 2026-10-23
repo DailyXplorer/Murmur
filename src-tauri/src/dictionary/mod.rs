@@ -15,6 +15,9 @@ pub(crate) use learn::{is_everyday_word, ELISIONS};
 pub use observer::{stop_observing, watch_pasted_text};
 
 use crate::audio_toolkit::apply_custom_words_counted;
+use serde::{Deserialize, Serialize};
+use specta::Type;
+use std::collections::HashSet;
 #[cfg(target_os = "macos")]
 use {
     crate::insights::InsightsManager,
@@ -24,9 +27,6 @@ use {
     std::sync::Arc,
     tauri::{AppHandle, Emitter, Manager},
 };
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
 pub struct LearnedWord {

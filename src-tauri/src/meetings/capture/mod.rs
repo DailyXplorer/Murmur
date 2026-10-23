@@ -407,6 +407,13 @@ impl CaptureBackend for DeviceCapture {
         system::permission() == system::SystemAudioPermission::Denied
     }
 
+    /// Windows offers no meetings, so it never records one to keep awake for.
+    #[cfg(target_os = "windows")]
+    fn keep_awake(&self) -> Option<Box<dyn Send>> {
+        None
+    }
+
+    #[cfg(target_os = "macos")]
     fn keep_awake(&self) -> Option<Box<dyn Send>> {
         let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
         Some(Box::new(guard))

@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::future::Future;
 use std::net::Ipv4Addr;
+#[cfg(unix)]
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -392,11 +393,14 @@ async fn save(
     );
     let content =
         serde_json::to_string_pretty(&Value::Object(root)).map_err(std::io::Error::other)?;
+    // Mode 0700 like Codex; on Windows the folder keeps the access rules of
+    // the user's profile folder.
     if let Some(directory) = path.parent() {
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(directory)?;
+        let mut builder = fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        builder.mode(0o700);
+        builder.create(directory)?;
     }
     write_atomically(path, &content)
 }
@@ -648,6 +652,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpListener as StdListener;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use std::sync::mpsc;
     use std::thread;
@@ -835,11 +840,16 @@ mod tests {
 
     /// Asks this process, not the system: a child another test spawns at the
     /// same moment gets a copy of every open socket, and on macOS keeps the
-    /// port taken for a while after the sign-in closed it.
+    /// port taken for a while after the sign-in closed it. Windows has no
+    /// `/dev/fd` to ask; the shared sign-in code is checked on macOS.
     fn assert_port_is_free(port: u16) {
+        #[cfg(unix)]
         assert_eq!(sockets_on(port), 0, "the sign-in let go of its port");
+        #[cfg(windows)]
+        let _ = port;
     }
 
+    #[cfg(unix)]
     fn sockets_on(port: u16) -> usize {
         fs::read_dir("/dev/fd")
             .unwrap()
@@ -848,6 +858,7 @@ mod tests {
             .count()
     }
 
+    #[cfg(unix)]
     fn local_port(fd: std::os::fd::RawFd) -> Option<u16> {
         // SAFETY: an all-zero sockaddr_storage is a valid value.
         let mut address: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
@@ -1045,12 +1056,15 @@ mod tests {
                 "future_key": {"kept": true}
             })
         );
-        let mode = fs::metadata(&config.auth_path)
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o600);
+        #[cfg(unix)]
+        assert_eq!(
+            fs::metadata(&config.auth_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
         let leftovers: Vec<_> = fs::read_dir(config.auth_path.parent().unwrap())
             .unwrap()
             .map(|entry| entry.unwrap().file_name())
@@ -1154,8 +1168,15 @@ mod tests {
         assert_eq!(saved["OPENAI_API_KEY"], Value::Null);
         assert_eq!(saved["auth_mode"], "chatgpt");
         assert_eq!(saved["tokens"]["refresh_token"], "rt-1");
-        let folder = fs::metadata(config.auth_path.parent().unwrap()).unwrap();
-        assert_eq!(folder.permissions().mode() & 0o777, 0o700);
+        #[cfg(unix)]
+        assert_eq!(
+            fs::metadata(config.auth_path.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
     }
 
     #[tokio::test]

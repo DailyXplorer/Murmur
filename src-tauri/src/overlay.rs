@@ -669,8 +669,8 @@ pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
         {
             let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
             if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
-                let _ = window
-                    .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+                let _ =
+                    window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
             }
         }
     });

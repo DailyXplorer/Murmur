@@ -200,6 +200,34 @@ for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
   }
 }
 
+// Each Windows wording replaces a key the app has (see src/i18n/index.ts).
+type Translations = { [key: string]: string | Translations };
+function staleOverrides(
+  overrides: Translations,
+  base: Translations | string | undefined,
+  prefix: string,
+): string[] {
+  return Object.entries(overrides).flatMap(([key, value]) => {
+    const target = typeof base === "object" ? base[key] : undefined;
+    if (typeof value === "string") {
+      return typeof target === "string" ? [] : [`${prefix}${key}`];
+    }
+    return staleOverrides(value, target, `${prefix}${key}.`);
+  });
+}
+for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
+  const { windows, ...translations } = JSON.parse(
+    read(relativePath),
+  ) as Translations;
+  if (typeof windows !== "object") {
+    failures.push(`no Windows wording: ${relativePath}`);
+    continue;
+  }
+  for (const key of staleOverrides(windows, translations, "")) {
+    failures.push(`Windows wording for a missing key ${key}: ${relativePath}`);
+  }
+}
+
 const cargoManifest = read("src-tauri/Cargo.toml");
 for (const text of [
   "tauri-plugin-dialog",
@@ -217,8 +245,10 @@ const allowedCargoTargets = new Set([
   "unix",
   'target_os = "macos"',
   'target_os = "windows"',
-  // The CPU engine of Intel Macs and Windows, by architecture.
+  // The CPU engine of Intel Macs and Windows, by architecture, and its
+  // Windows packaging.
   'target_arch = "x86_64"',
+  'all(target_os = "windows", target_arch = "x86_64")',
 ]);
 for (const [, target] of cargoManifest.matchAll(
   /^\[target\.'cfg\((.*)\)'\.dependencies\]$/gm,
