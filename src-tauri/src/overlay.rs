@@ -65,9 +65,6 @@ enum Notice {
         text: String,
         write: ClipboardWriter,
     },
-    /// Asks whether to record a call, or to stop once it ended. The call
-    /// watcher hides it.
-    Call,
 }
 
 /// Puts a copy notice's text on the clipboard.
@@ -101,20 +98,16 @@ struct CopyNoticeLabels {
     note: String,
 }
 
-/// The question a call prompt asks; its answer names it back.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-pub enum CallPrompt {
-    /// "Record this meeting?"
-    Record,
-    /// "The call ended. Stop recording?"
-    Stop,
-}
+/// The call prompt's own panel, beside the overlay.
+const CALL_PROMPT_WINDOW: &str = "call_prompt";
+/// The call prompt sits this much further from the screen edge than the
+/// overlay, clear of its tallest capsule, a four-line error: a dictation
+/// shows beside it.
+const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 
 /// Payload of `show-overlay-call`.
 #[derive(Clone, serde::Serialize)]
 struct CallPromptLabels {
-    prompt: CallPrompt,
     /// The call app's name.
     app: String,
     question: String,
@@ -380,84 +373,136 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWr
     true
 }
 
-/// Asks about a call, with "Record" and "Not now" or, once the call ended
-/// while recording, "Stop" and "Keep recording". It shows even with the
-/// overlay off: the call prompt has a setting of its own. The panel never
-/// takes the focus from the call.
-pub fn show_call_prompt(app_handle: &AppHandle, prompt: CallPrompt, app: &str) {
+/// Creates the call prompt's panel, hidden. It takes clicks whenever it
+/// shows.
+pub fn create_call_prompt(app_handle: &AppHandle) {
+    if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
+        .url(WebviewUrl::App("src/overlay/call.html".into()))
+        .title("Call")
+        .level(PanelLevel::Status)
+        .size(tauri::Size::Logical(tauri::LogicalSize {
+            width: COPY_OVERLAY_WIDTH,
+            height: COPY_OVERLAY_HEIGHT,
+        }))
+        .has_shadow(false)
+        .transparent(true)
+        .no_activate(true)
+        .corner_radius(0.0)
+        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        .with_window(|w| {
+            w.decorations(false)
+                .transparent(true)
+                .focusable(false)
+                .accept_first_mouse(true)
+        })
+        .collection_behavior(
+            CollectionBehavior::new()
+                .can_join_all_spaces()
+                .full_screen_auxiliary(),
+        )
+        .build()
+        .map(|panel| panel.hide())
+    {
+        log::error!("Failed to create the call prompt panel: {}", e);
+    }
+}
+
+/// Asks whether to record the call `app` started, with "Record" and "Not
+/// now", in a panel of its own: a dictation, an error or the meeting pill
+/// never hides it. It shows even with the overlay off: the call prompt has
+/// a setting of its own. The panel never takes the focus from the call.
+pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
     let strings = get_tray_translations(Some(settings::get_settings(app_handle).app_language));
-    let (question, accept, decline) = match prompt {
-        CallPrompt::Record => (
-            strings.call_record_question,
-            strings.call_record,
-            strings.call_not_now,
-        ),
-        CallPrompt::Stop => (
-            strings.call_stop_question,
-            strings.call_stop,
-            strings.call_keep_recording,
-        ),
-    };
     let labels = CallPromptLabels {
-        prompt,
         app: app.to_string(),
-        question,
-        accept,
-        decline,
+        question: strings.call_record_question,
+        accept: strings.call_record,
+        decline: strings.call_not_now,
     };
-    *notice() = Some(Notice::Call);
-    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) = present_overlay_window(
-            &handle,
-            "call",
-            COPY_OVERLAY_WIDTH,
-            COPY_OVERLAY_HEIGHT,
-            true,
-        ) {
-            let _ = window.emit("show-overlay-call", labels);
+        let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
+            return;
+        };
+        place_call_prompt(&handle, &window, COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT);
+        let _ = window.show();
+        let _ = handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
+    });
+}
+
+pub fn hide_call_prompt(app_handle: &AppHandle) {
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let _ = window.hide();
+            let _ = handle.emit_to(CALL_PROMPT_WINDOW, "hide-overlay-call", ());
         }
     });
 }
 
-/// Hides the call prompt, if it still shows: a dictation or an error may
-/// have replaced it.
-pub fn hide_call_prompt(app_handle: &AppHandle) {
-    if matches!(*notice(), Some(Notice::Call)) {
-        dismiss_notice(app_handle);
+fn place_call_prompt(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+    if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
+        let y = match settings::get_settings(app_handle).overlay_position {
+            OverlayPosition::Top => y + CALL_PROMPT_OFFSET,
+            OverlayPosition::Bottom => y - CALL_PROMPT_OFFSET,
+        };
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
     }
 }
 
-/// Fits the copy notice's or the call prompt's window to the capsule the
-/// webview measured, so a note that wraps further in a wider fallback font
-/// still shows whole, and the window, which takes clicks while the notice
-/// shows, stays close to it.
+/// Fits the call prompt's window to the capsule the webview measured, as
+/// `fit_copy_notice` does the copy notice's.
+#[tauri::command]
+#[specta::specta]
+pub fn fit_call_prompt(app: AppHandle, width: f64, height: f64) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let (width, height) = fitted_window_size(&handle, width, height);
+            place_call_prompt(&handle, &window, width, height);
+        }
+    });
+}
+
+/// Fits the copy notice's window to the capsule the webview measured, so a
+/// note that wraps further in a wider fallback font still shows whole, and
+/// the window, which takes clicks while the notice shows, stays close to it.
 #[tauri::command]
 #[specta::specta]
 pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        if !matches!(*notice(), Some(Notice::Copy { .. } | Notice::Call)) {
+        if !matches!(*notice(), Some(Notice::Copy { .. })) {
             return;
         }
         let Some(window) = handle.get_webview_window("recording_overlay") else {
             return;
         };
-        let work_area = get_monitor_with_cursor(&handle).map(|monitor| {
-            let scale = monitor.scale_factor();
-            let area = monitor.work_area().size;
-            (area.width as f64 / scale, area.height as f64 / scale)
-        });
-        let (width, height) = copy_window_size(
-            (width, height),
-            work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
-        );
+        let (width, height) = fitted_window_size(&handle, width, height);
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
         if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
             let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         }
     });
+}
+
+/// `copy_window_size` on the screen under the cursor.
+fn fitted_window_size(app_handle: &AppHandle, width: f64, height: f64) -> (f64, f64) {
+    let work_area = get_monitor_with_cursor(app_handle).map(|monitor| {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area().size;
+        (area.width as f64 / scale, area.height as f64 / scale)
+    });
+    copy_window_size(
+        (width, height),
+        work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
+    )
 }
 
 /// The copy notice's window around a measured capsule: CARD_MARGIN on each

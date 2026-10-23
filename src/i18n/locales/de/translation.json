@@ -34,9 +34,6 @@
     "callRecordQuestion": "Dieses Meeting aufnehmen?",
     "callRecord": "Aufnehmen",
     "callNotNow": "Nicht jetzt",
-    "callStopQuestion": "Der Anruf ist beendet. Aufnahme stoppen?",
-    "callStop": "Stoppen",
-    "callKeepRecording": "Weiter aufnehmen",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",
@@ -45,7 +42,6 @@
     "meetingStartFailed": "Das Meeting konnte nicht starten. Prüfe das Mikrofon und die Audioberechtigungen.",
     "meetingStopsSoon": "Das Meeting endet in 5 Minuten (Limit 3 Stunden).",
     "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
-    "meetingStoppedLowDisk": "Das Meeting wurde beendet, weil auf diesem Mac kaum noch Speicherplatz frei ist. Die bisherige Aufnahme bleibt erhalten.",
     "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten.",
     "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
     "meetingSystemAudioInterrupted": "Der Systemton wurde nach einem Wechsel der Audioausgabe unterbrochen. Murmur versucht weiter, ihn wiederherzustellen; dein Mikrofon wird weiter aufgenommen.",
@@ -338,7 +334,7 @@
       },
       "meetingCallPrompt": {
         "label": "Aufnahme von Anrufen anbieten",
-        "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll, und am Ende das Stoppen anbieten. Murmur nimmt nie ohne Klick auf."
+        "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf."
       },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",

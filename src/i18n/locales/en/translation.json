@@ -34,9 +34,6 @@
     "callRecordQuestion": "Record this meeting?",
     "callRecord": "Record",
     "callNotNow": "Not now",
-    "callStopQuestion": "The call ended. Stop recording?",
-    "callStop": "Stop",
-    "callKeepRecording": "Keep recording",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",
@@ -45,7 +42,6 @@
     "meetingStartFailed": "Couldn't start the meeting. Check the microphone and audio permissions.",
     "meetingStopsSoon": "The meeting stops in 5 minutes (3-hour limit).",
     "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
-    "meetingStoppedLowDisk": "The meeting stopped because this Mac is almost out of space. What was recorded is kept.",
     "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept.",
     "meetingLowDiskSpace": "Less than 1.5 GB is free on this Mac. A long meeting may stop early; what is recorded is kept.",
     "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded.",
@@ -338,7 +334,7 @@
       },
       "meetingCallPrompt": {
         "label": "Offer to record calls",
-        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it, and offer to stop when it ends. Murmur never records without a click."
+        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click."
       },
       "meetingsAudio": {
         "title": "Delete meeting audio",

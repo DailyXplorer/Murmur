@@ -5,13 +5,21 @@ const CARD_MARGIN = 16;
 export const RECORDING_WINDOW = { width: 158, height: 62 };
 export const ERROR_WINDOW = { width: 312, height: 116 };
 
-/** Opens the overlay page with Tauri's event bridge mocked. */
+/** Opens the overlay page, or the call prompt's with `fixture`, with
+ * Tauri's event bridge mocked; `readyOn` is an event the page listens to. */
 export async function openOverlay(
   page: Page,
   {
     holdSettings = false,
     copyError,
-  }: { holdSettings?: boolean; copyError?: string } = {},
+    fixture = "recording-overlay-listeners",
+    readyOn = "mic-level",
+  }: {
+    holdSettings?: boolean;
+    copyError?: string;
+    fixture?: string;
+    readyOn?: string;
+  } = {},
 ) {
   const options = { hold: holdSettings, copyRejection: copyError };
   await page.addInitScript(({ hold, copyRejection }) => {
@@ -20,7 +28,7 @@ export async function openOverlay(
     const pendingSettings: Array<(settings: unknown) => void> = [];
     let copyCalls = 0;
     const copyFits: Array<{ width: number; height: number }> = [];
-    const callAnswers: Array<{ prompt: string; accept: boolean }> = [];
+    const callAnswers: boolean[] = [];
     let nextId = 1;
 
     window.overlayHarness = {
@@ -45,7 +53,6 @@ export async function openOverlay(
           handler?: number;
           width?: number;
           height?: number;
-          prompt?: string;
           accept?: boolean;
         },
       ) => {
@@ -64,15 +71,12 @@ export async function openOverlay(
           if (copyRejection) return Promise.reject(copyRejection);
           return Promise.resolve(null);
         }
-        if (command === "fit_copy_notice") {
+        if (command === "fit_copy_notice" || command === "fit_call_prompt") {
           copyFits.push({ width: args?.width ?? 0, height: args?.height ?? 0 });
           return Promise.resolve(null);
         }
         if (command === "answer_call_prompt") {
-          callAnswers.push({
-            prompt: args?.prompt ?? "",
-            accept: args?.accept ?? false,
-          });
+          callAnswers.push(args?.accept ?? false);
           return Promise.resolve(null);
         }
         throw new Error(`Unexpected Tauri command: ${command}`);
@@ -92,13 +96,20 @@ export async function openOverlay(
     };
   }, options);
 
-  await page.goto("/tests/fixtures/recording-overlay-listeners.html");
+  await page.goto(`/tests/fixtures/${fixture}.html`);
   await expect
     .poll(() =>
-      page.evaluate(() => window.overlayHarness.dispatch("mic-level", [0])),
+      page.evaluate(
+        (event) => window.overlayHarness.dispatch(event, [0]),
+        readyOn,
+      ),
     )
     .toBe(1);
 }
+
+/** Opens the call prompt's own window. */
+export const openCallPrompt = (page: Page) =>
+  openOverlay(page, { fixture: "call-prompt", readyOn: "hide-overlay-call" });
 
 export const dispatch = (page: Page, event: string, payload?: unknown) =>
   page.evaluate(
@@ -106,18 +117,14 @@ export const dispatch = (page: Page, event: string, payload?: unknown) =>
     [event, payload] as const,
   );
 
-/** How many capsule sizes were sent so far, for `fitCopyWindow`. */
-export const fitCount = (page: Page) =>
-  page.evaluate(() => window.overlayHarness.copyFits().length);
-
-/** Resizes the page the way `fit_copy_notice` resizes the overlay window:
- * the last capsule size the copy pill or call prompt measured plus
- * CARD_MARGIN around it, once more than `earlier` sizes were sent. */
-export async function fitCopyWindow(page: Page, earlier = 0) {
+/** Resizes the page the way `fit_copy_notice` and `fit_call_prompt` resize
+ * their windows: the last capsule size the copy pill or call prompt
+ * measured plus CARD_MARGIN around it. */
+export async function fitCopyWindow(page: Page) {
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect
     .poll(() => page.evaluate(() => window.overlayHarness.copyFits().length))
-    .toBeGreaterThan(earlier);
+    .toBeGreaterThan(0);
   const capsule = await page.evaluate(() => {
     const fits = window.overlayHarness.copyFits();
     return fits[fits.length - 1];

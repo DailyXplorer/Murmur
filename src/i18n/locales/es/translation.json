@@ -34,9 +34,6 @@
     "callRecordQuestion": "¿Grabar esta reunión?",
     "callRecord": "Grabar",
     "callNotNow": "Ahora no",
-    "callStopQuestion": "La llamada terminó. ¿Detener la grabación?",
-    "callStop": "Detener",
-    "callKeepRecording": "Seguir grabando",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
     "startMeeting": "Iniciar reunión",
     "stopMeeting": "Detener reunión",
@@ -45,7 +42,6 @@
     "meetingStartFailed": "No se pudo iniciar la reunión. Compruebe el micrófono y los permisos de audio.",
     "meetingStopsSoon": "La reunión se detendrá en 5 minutos (límite de 3 horas).",
     "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
-    "meetingStoppedLowDisk": "La reunión se detuvo porque este Mac casi no tiene espacio libre. Lo grabado se conserva.",
     "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva.",
     "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva.",
     "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando.",
@@ -338,7 +334,7 @@
       },
       "meetingCallPrompt": {
         "label": "Ofrecer grabar las llamadas",
-        "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba y ofrecer detenerla cuando termina. Murmur nunca graba sin un clic."
+        "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba. La pregunta se mantiene hasta que respondas o termine la llamada. Murmur nunca graba sin un clic."
       },
       "meetingsAudio": {
         "title": "Eliminar el audio de las reuniones",

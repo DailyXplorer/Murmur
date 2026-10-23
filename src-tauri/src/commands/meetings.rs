@@ -6,7 +6,6 @@ use crate::meetings::coordinator::MeetingRuntime;
 use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
-use crate::overlay::CallPrompt;
 use crate::settings::{
     get_settings, write_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
     ShortcutBinding,
@@ -348,12 +347,11 @@ pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Resu
     Ok(())
 }
 
-/// The call prompt's buttons: "Record" or "Stop" when `accept`, else "Not
-/// now" or "Keep recording".
+/// The call prompt's buttons: "Record" when `accept`, else "Not now".
 #[tauri::command]
 #[specta::specta]
-pub fn answer_call_prompt(app: AppHandle, prompt: CallPrompt, accept: bool) {
-    meetings::call_watch::answer(&app, prompt, accept);
+pub fn answer_call_prompt(app: AppHandle, accept: bool) {
+    meetings::call_watch::answer(&app, accept);
 }
 
 fn with_capture_mode(mut settings: AppSettings, mode: MeetingCaptureMode) -> AppSettings {

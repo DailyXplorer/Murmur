@@ -25,6 +25,7 @@ export default defineConfig(async ({ mode }) => ({
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "src/overlay/index.html"),
+        callPrompt: resolve(__dirname, "src/overlay/call.html"),
         ...(mode === "test"
           ? {
               settingsInitialization: resolve(

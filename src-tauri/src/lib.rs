@@ -452,6 +452,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
     utils::create_recording_overlay(app_handle);
+    if meetings::call_watch::supported() {
+        utils::create_call_prompt(app_handle);
+    }
 }
 
 #[tauri::command]
@@ -709,6 +712,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::get_meetings_storage,
             commands::meetings::change_meeting_call_prompt_setting,
             commands::meetings::answer_call_prompt,
+            overlay::fit_call_prompt,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

@@ -1,6 +1,6 @@
 //! Which calls are on, from the apps holding the microphone, and when to
-//! offer to record one or to stop. Pure: `call_watch.rs` polls the system
-//! and shows what this decides. Nothing here starts or stops a meeting.
+//! offer to record one. Pure: `call_watch.rs` polls the system and shows
+//! what this decides. Nothing here starts or stops a meeting.
 
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -8,19 +8,13 @@ use std::time::{Duration, Instant};
 /// How long an app holds the microphone before the prompt: a device check
 /// or a short voice message is over sooner.
 pub const PROMPT_AFTER: Duration = Duration::from_secs(3);
-/// Off the microphone this long while Murmur records, the call has ended.
+/// Off the microphone this long, the call has ended and its prompt closes.
 /// Slack and Zoom drop the microphone for a moment on mute or a device
 /// change.
 pub const ENDED_AFTER: Duration = Duration::from_secs(15);
 /// Off this long, the call is over: the app's next use of the microphone is
 /// a new call, which "Not now" no longer mutes.
 pub const CALL_OVER_AFTER: Duration = Duration::from_secs(30);
-/// A prompt nobody answers hides itself after this.
-pub const PROMPT_SHOWN_FOR: Duration = Duration::from_secs(20);
-/// A meeting started by hand this soon after a "Record" prompt let go was
-/// started for that call: the user changed their mind. Discord idling in a
-/// voice channel was let go long before.
-pub const CHANGED_MIND_WITHIN: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallApp {
@@ -267,9 +261,8 @@ fn is_meet_code(segment: &str) -> bool {
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     pub calls: Vec<CallApp>,
-    pub dictating: bool,
-    /// The meeting recording, by when it started.
-    pub meeting: Option<i64>,
+    /// Whether a meeting records.
+    pub recording: bool,
     pub now: Instant,
 }
 
@@ -277,24 +270,8 @@ pub struct Snapshot {
 pub enum Action {
     /// "Record this meeting?"
     Prompt(CallApp),
-    /// "The call ended. Stop recording?"
-    Ended(CallApp),
     /// Hide the prompt showing.
     Hide,
-}
-
-/// Which question the prompt asks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Question {
-    Record,
-    Stop,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Showing {
-    question: Question,
-    app: CallApp,
-    since: Instant,
 }
 
 /// One app's call.
@@ -304,27 +281,16 @@ struct Call {
     on_since: Instant,
     /// Since when it left the microphone; `None` while it holds it.
     off_since: Option<Instant>,
-    /// Asked once, answered, or recorded: no other "Record" prompt for this
-    /// call.
+    /// Asked once, answered, or recorded: no other prompt for this call.
     asked: bool,
-    /// The meeting that recorded while the call held the microphone.
-    recorded_in: Option<i64>,
-    /// When the "Record" prompt showed that got "Not now", or was let go
-    /// unanswered or hidden by a dictation: on the microphone, such as
-    /// Discord idling in a voice channel, the call holds back no "Stop
-    /// recording?".
-    passed_over: Option<Instant>,
 }
 
 #[derive(Debug, Default)]
 pub struct CallWatch {
     calls: BTreeMap<CallApp, Call>,
-    showing: Option<Showing>,
-    /// When the call "Stop recording?" last asked about left the microphone:
-    /// each leave is asked about once.
-    stop_asked: Option<Instant>,
-    /// The meeting recording at the last update.
-    meeting: Option<i64>,
+    /// The call the prompt showing asks about. It stays until it is
+    /// answered, a meeting records, or that call ends.
+    showing: Option<CallApp>,
 }
 
 impl CallWatch {
@@ -332,107 +298,42 @@ impl CallWatch {
     /// change at a time.
     pub fn update(&mut self, snapshot: &Snapshot) -> Option<Action> {
         let now = snapshot.now;
-        for &app in &snapshot.calls {
-            let call = self.calls.entry(app).or_insert(Call {
-                on_since: now,
-                off_since: None,
-                asked: false,
-                recorded_in: None,
-                passed_over: None,
-            });
-            if let Some(off) = call.off_since.take() {
-                call.on_since = now;
-                // Kept by the meeting, back after a call's end: a new call.
-                if now.duration_since(off) >= CALL_OVER_AFTER {
-                    call.passed_over = None;
-                }
-            }
-            if snapshot.meeting.is_some() {
-                call.recorded_in = snapshot.meeting;
-                call.asked = true;
-            }
-        }
         for (app, call) in self.calls.iter_mut() {
             if !snapshot.calls.contains(app) && call.off_since.is_none() {
                 call.off_since = Some(now);
             }
         }
-        // The calls a meeting recorded stay while it records: a dictation
-        // may hold "Stop recording?" back past `CALL_OVER_AFTER`.
+        // Back after this long, it is a new call.
         self.calls.retain(|_, call| {
             call.off_since
                 .is_none_or(|off| now.duration_since(off) < CALL_OVER_AFTER)
-                || (snapshot.meeting.is_some() && call.recorded_in == snapshot.meeting)
         });
-        // A meeting started by hand with only calls passed over on the
-        // microphone was started for those just let go: they hold "Stop
-        // recording?" back.
-        if snapshot.meeting.is_some() && snapshot.meeting != self.meeting {
-            let on_mic: Vec<&mut Call> = self
-                .calls
-                .values_mut()
-                .filter(|call| call.off_since.is_none())
-                .collect();
-            if on_mic.iter().all(|call| call.passed_over.is_some()) {
-                for call in on_mic {
-                    if call
-                        .passed_over
-                        .is_some_and(|asked| now.duration_since(asked) < CHANGED_MIND_WITHIN)
-                    {
-                        call.passed_over = None;
-                    }
-                }
+        for &app in &snapshot.calls {
+            let showing = self.showing == Some(app);
+            let call = self.calls.entry(app).or_insert(Call {
+                on_since: now,
+                off_since: None,
+                asked: showing,
+            });
+            if call.off_since.take().is_some() {
+                call.on_since = now;
             }
+            call.asked |= snapshot.recording;
         }
-        self.meeting = snapshot.meeting;
-        // Every call on the microphone while a meeting records is recorded.
-        let recording_a_call = snapshot.meeting.is_some()
-            && self
-                .calls
-                .values()
-                .any(|call| call.off_since.is_none() && call.passed_over.is_none());
 
-        if let Some(shown) = self.showing {
-            let expired = now.duration_since(shown.since) >= PROMPT_SHOWN_FOR;
-            let stale = snapshot.dictating
-                || expired
-                || match shown.question {
-                    Question::Record => snapshot.meeting.is_some(),
-                    Question::Stop => snapshot.meeting.is_none() || recording_a_call,
-                };
-            if !stale {
+        if let Some(app) = self.showing {
+            let ended = self.calls.get(&app).is_none_or(|call| {
+                call.off_since
+                    .is_some_and(|off| now.duration_since(off) >= ENDED_AFTER)
+            });
+            if !snapshot.recording && !ended {
                 return None;
             }
             self.showing = None;
-            match shown.question {
-                // Let go unanswered, also when a dictation hid it.
-                Question::Record if snapshot.meeting.is_none() => self.pass_over(shown),
-                // Asked again once the dictation is over.
-                Question::Stop if snapshot.dictating => self.stop_asked = None,
-                _ => {}
-            }
             return Some(Action::Hide);
         }
-        if snapshot.dictating {
+        if snapshot.recording {
             return None;
-        }
-        if snapshot.meeting.is_some() {
-            if recording_a_call {
-                return None;
-            }
-            // About the last call the meeting recorded to leave.
-            let (off, app) = self
-                .calls
-                .iter()
-                .filter(|(_, call)| call.recorded_in == snapshot.meeting)
-                .filter_map(|(&app, call)| call.off_since.map(|off| (off, app)))
-                .max()?;
-            if self.stop_asked == Some(off) || now.duration_since(off) < ENDED_AFTER {
-                return None;
-            }
-            self.stop_asked = Some(off);
-            self.show(Question::Stop, app, now);
-            return Some(Action::Ended(app));
         }
         let (&app, call) = self.calls.iter_mut().find(|(_, call)| {
             !call.asked
@@ -440,34 +341,14 @@ impl CallWatch {
                 && now.duration_since(call.on_since) >= PROMPT_AFTER
         })?;
         call.asked = true;
-        self.show(Question::Record, app, now);
+        self.showing = Some(app);
         Some(Action::Prompt(app))
     }
 
-    fn show(&mut self, question: Question, app: CallApp, since: Instant) {
-        self.showing = Some(Showing {
-            question,
-            app,
-            since,
-        });
-    }
-
-    /// The prompt asking `question` was answered, "Record" or "Stop" when
-    /// `accept`: it hides. Returns its app, or `None` when that prompt no
-    /// longer shows.
-    pub fn answered(&mut self, question: Question, accept: bool) -> Option<CallApp> {
-        let shown = self.showing.filter(|shown| shown.question == question)?;
-        self.showing = None;
-        if question == Question::Record && !accept {
-            self.pass_over(shown);
-        }
-        Some(shown.app)
-    }
-
-    fn pass_over(&mut self, shown: Showing) {
-        if let Some(call) = self.calls.get_mut(&shown.app) {
-            call.passed_over = Some(shown.since);
-        }
+    /// The prompt was answered: it hides. Returns its call, or `None` when
+    /// no prompt shows any more.
+    pub fn answered(&mut self) -> Option<CallApp> {
+        self.showing.take()
     }
 }
 
@@ -509,33 +390,26 @@ mod tests {
             seconds: u64,
             users: &[MicUser],
             page: Option<CallApp>,
-            meeting: Option<i64>,
+            recording: bool,
         ) -> Vec<(u64, Action)> {
             let mut actions = Vec::new();
             for _ in 0..seconds {
                 let calls = calls_on_mic(users, OWN_PID, &mut self.browser_calls, |_| page);
-                actions.extend(self.run(1, &calls, false, meeting));
+                actions.extend(self.run(1, &calls, recording));
             }
             actions
         }
 
         /// `seconds` polls with `calls` on the microphone, the first at
         /// second 0; the actions taken, at the second they were.
-        fn run(
-            &mut self,
-            seconds: u64,
-            calls: &[CallApp],
-            dictating: bool,
-            meeting: Option<i64>,
-        ) -> Vec<(u64, Action)> {
+        fn run(&mut self, seconds: u64, calls: &[CallApp], recording: bool) -> Vec<(u64, Action)> {
             (0..seconds)
                 .filter_map(|_| {
                     let at = self.second;
                     self.second += 1;
                     let snapshot = Snapshot {
                         calls: calls.to_vec(),
-                        dictating,
-                        meeting,
+                        recording,
                         now: self.start + Duration::from_secs(at),
                     };
                     self.watch.update(&snapshot).map(|action| (at, action))
@@ -549,38 +423,69 @@ mod tests {
     #[test]
     fn zoom_on_the_microphone_for_three_seconds_prompts_once() {
         let mut clock = Clock::new();
-        assert_eq!(clock.run(3, ZOOM, false, None), []);
+        assert_eq!(clock.run(3, ZOOM, false), []);
         assert_eq!(
-            clock.run(1, ZOOM, false, None),
+            clock.run(1, ZOOM, false),
             [(3, Action::Prompt(CallApp::Zoom))]
         );
-        assert_eq!(clock.run(10, ZOOM, false, None), []);
-        assert_eq!(
-            clock.watch.answered(Question::Record, true),
-            Some(CallApp::Zoom)
-        );
-        assert_eq!(clock.run(60, ZOOM, false, None), []);
+        assert_eq!(clock.run(10, ZOOM, false), []);
+        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        assert_eq!(clock.run(60, ZOOM, false), []);
     }
 
     #[test]
     fn a_short_use_of_the_microphone_does_not_prompt() {
         let mut clock = Clock::new();
-        assert_eq!(clock.run(2, ZOOM, false, None), []);
-        assert_eq!(clock.run(5, &[], false, None), []);
+        assert_eq!(clock.run(2, ZOOM, false), []);
+        assert_eq!(clock.run(5, &[], false), []);
     }
 
     #[test]
-    fn a_dictation_running_holds_the_prompt_back() {
+    fn the_prompt_stays_until_it_is_answered() {
         let mut clock = Clock::new();
-        assert_eq!(clock.run(10, ZOOM, true, None), []);
+        assert_eq!(
+            clock.run(600, ZOOM, false),
+            [(3, Action::Prompt(CallApp::Zoom))]
+        );
     }
 
     #[test]
-    fn a_dictation_that_starts_hides_the_prompt() {
+    fn the_call_leaving_the_microphone_closes_its_prompt() {
         let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
-        assert_eq!(clock.run(1, ZOOM, true, None), [(4, Action::Hide)]);
-        assert_eq!(clock.run(10, ZOOM, false, None), []);
+        clock.run(4, ZOOM, false);
+        assert_eq!(clock.run(14, &[], false), []);
+        assert_eq!(clock.run(10, &[], false), [(19, Action::Hide)]);
+    }
+
+    #[test]
+    fn a_short_drop_of_the_call_keeps_its_prompt() {
+        let mut clock = Clock::new();
+        clock.run(4, ZOOM, false);
+        assert_eq!(clock.run(10, &[], false), []);
+        assert_eq!(clock.run(60, ZOOM, false), []);
+    }
+
+    #[test]
+    fn a_call_back_after_the_mac_slept_through_its_prompt_is_not_asked_again() {
+        let mut clock = Clock::new();
+        clock.run(4, ZOOM, false);
+        clock.run(1, &[], false);
+        clock.second += 60;
+        assert_eq!(clock.run(5, ZOOM, false), []);
+        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        assert_eq!(clock.run(20, ZOOM, false), []);
+    }
+
+    #[test]
+    fn a_recorded_call_that_ends_asks_nothing() {
+        let mut clock = Clock::new();
+        assert_eq!(clock.run(30, ZOOM, true), []);
+        assert_eq!(clock.run(120, &[], true), []);
+
+        let mut clock = Clock::new();
+        clock.run(4, ZOOM, false);
+        assert_eq!(clock.run(60, ZOOM, true), [(4, Action::Hide)]);
+        assert_eq!(clock.run(120, &[], true), []);
     }
 
     #[test]
@@ -600,341 +505,23 @@ mod tests {
     #[test]
     fn not_now_mutes_the_app_until_it_leaves_the_microphone_for_30_seconds() {
         let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
+        clock.run(4, ZOOM, false);
+        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        clock.run(29, &[], false);
+        assert_eq!(clock.run(20, ZOOM, false), []);
+        clock.run(31, &[], false);
         assert_eq!(
-            clock.watch.answered(Question::Record, false),
-            Some(CallApp::Zoom)
-        );
-        clock.run(29, &[], false, None);
-        assert_eq!(clock.run(20, ZOOM, false, None), []);
-        clock.run(31, &[], false, None);
-        assert_eq!(
-            clock.run(4, ZOOM, false, None),
+            clock.run(4, ZOOM, false),
             [(87, Action::Prompt(CallApp::Zoom))]
         );
     }
 
     #[test]
-    fn an_unanswered_prompt_hides_after_20_seconds_and_does_not_come_back() {
+    fn a_meeting_started_some_other_way_hides_the_prompt() {
         let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
-        assert_eq!(clock.run(30, ZOOM, false, None), [(23, Action::Hide)]);
-    }
-
-    #[test]
-    fn a_short_drop_does_not_end_the_call_and_15_seconds_do_while_recording() {
-        let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
-        clock.watch.answered(Question::Record, true);
-        clock.run(60, ZOOM, false, Some(1));
-        assert_eq!(clock.run(5, &[], false, Some(1)), []);
-        assert_eq!(clock.run(30, ZOOM, false, Some(1)), []);
-        assert_eq!(
-            clock.run(16, &[], false, Some(1)),
-            [(114, Action::Ended(CallApp::Zoom))]
-        );
-        assert_eq!(
-            clock.watch.answered(Question::Stop, false),
-            Some(CallApp::Zoom)
-        );
-        assert_eq!(clock.run(30, &[], false, Some(1)), []);
-    }
-
-    /// One step of an end-prompt script.
-    enum Step {
-        /// Seconds of polls with these calls on the microphone, and the
-        /// meeting recording.
-        Poll(u64, &'static [CallApp], Option<i64>),
-        /// The same while a dictation runs.
-        Dictate(u64, &'static [CallApp], Option<i64>),
-        /// The prompt asking this question is answered, "Record" or "Stop"
-        /// when true.
-        Answer(Question, bool),
-    }
-
-    use Step::{Answer, Dictate, Poll};
-
-    const DISCORD: &[CallApp] = &[CallApp::Discord];
-    const SLACK: &[CallApp] = &[CallApp::Slack];
-    const ZOOM_AND_SLACK: &[CallApp] = &[CallApp::Zoom, CallApp::Slack];
-    const ZOOM_AND_DISCORD: &[CallApp] = &[CallApp::Zoom, CallApp::Discord];
-
-    /// A script's name, its steps, and every action they must give.
-    type Script = (&'static str, &'static [Step], &'static [(u64, Action)]);
-
-    /// Every way "Stop recording?" has gone wrong in an audit or a review,
-    /// and what the rule that fixes them gives besides.
-    const END_PROMPT_CORPUS: &[Script] = &[
-        (
-            "round 48: a dictation through the end of a recorded call delays the prompt",
-            &[
-                Poll(30, ZOOM, Some(7)),
-                Poll(10, &[], Some(7)),
-                Dictate(30, &[], Some(7)),
-                Poll(1, &[], Some(7)),
-            ],
-            &[(70, Action::Ended(CallApp::Zoom))],
-        ),
-        (
-            "round 48: a prompt a dictation hid is asked again after it",
-            &[
-                Poll(30, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-                Dictate(5, &[], Some(7)),
-                Poll(5, &[], Some(7)),
-            ],
-            &[
-                (45, Action::Ended(CallApp::Zoom)),
-                (46, Action::Hide),
-                (51, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 49: a recorded call still on the microphone holds the prompt back",
-            &[
-                Poll(30, ZOOM_AND_SLACK, Some(7)),
-                Poll(60, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-                Answer(Question::Stop, false),
-                Poll(30, &[], Some(7)),
-            ],
-            &[(105, Action::Ended(CallApp::Zoom))],
-        ),
-        (
-            "round 49: another recorded call coming back hides the prompt",
-            &[
-                Poll(30, ZOOM_AND_SLACK, Some(7)),
-                Poll(5, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-                Poll(2, SLACK, Some(7)),
-            ],
-            &[(50, Action::Ended(CallApp::Zoom)), (51, Action::Hide)],
-        ),
-        (
-            "round 50: Discord idling after Not now holds nothing back",
-            &[
-                Poll(10, DISCORD, None),
-                Answer(Question::Record, false),
-                Poll(4, ZOOM_AND_DISCORD, None),
-                Answer(Question::Record, true),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (13, Action::Prompt(CallApp::Zoom)),
-                (89, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 50: Discord idling after its prompt expired holds nothing back",
-            &[
-                Poll(30, DISCORD, None),
-                Poll(4, ZOOM_AND_DISCORD, None),
-                Answer(Question::Record, true),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (23, Action::Hide),
-                (33, Action::Prompt(CallApp::Zoom)),
-                (109, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "a call passed over that leaves after the prompt about another asks again",
-            &[
-                Poll(10, DISCORD, None),
-                Answer(Question::Record, false),
-                Poll(4, ZOOM_AND_DISCORD, None),
-                Answer(Question::Record, true),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-                Answer(Question::Stop, false),
-                Poll(16, &[], Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (13, Action::Prompt(CallApp::Zoom)),
-                (89, Action::Ended(CallApp::Zoom)),
-                (105, Action::Ended(CallApp::Discord)),
-            ],
-        ),
-        (
-            "round 50 review: the call recorded from its prompt outlasts a short one",
-            &[
-                Poll(4, ZOOM, None),
-                Answer(Question::Record, true),
-                Poll(60, ZOOM, Some(7)),
-                Poll(2, ZOOM_AND_SLACK, Some(7)),
-                Poll(60, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Zoom)),
-                (141, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 50 review: two calls on the microphone before the meeting",
-            &[
-                Poll(4, ZOOM_AND_SLACK, None),
-                Answer(Question::Record, true),
-                Poll(30, ZOOM_AND_SLACK, Some(7)),
-                Poll(60, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Zoom)),
-                (109, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 51: a call passed over and then recorded by hand outlasts a short one",
-            &[
-                Poll(30, ZOOM, None),
-                Poll(30, ZOOM, Some(7)),
-                Poll(10, ZOOM_AND_SLACK, Some(7)),
-                Poll(60, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Zoom)),
-                (23, Action::Hide),
-                (145, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 51: Discord idling after a dictation hid its prompt holds nothing back",
-            &[
-                Poll(4, DISCORD, None),
-                Dictate(1, DISCORD, None),
-                Poll(4, ZOOM_AND_DISCORD, None),
-                Answer(Question::Record, true),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (4, Action::Hide),
-                (8, Action::Prompt(CallApp::Zoom)),
-                (84, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 51 review: Discord passed over long before a meeting started by hand holds nothing back",
-            &[
-                Poll(10, DISCORD, None),
-                Answer(Question::Record, false),
-                Poll(120, DISCORD, None),
-                Poll(5, DISCORD, Some(7)),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (210, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "round 51 review: the same after Discord's prompt expired",
-            &[
-                Poll(130, DISCORD, None),
-                Poll(5, DISCORD, Some(7)),
-                Poll(60, ZOOM_AND_DISCORD, Some(7)),
-                Poll(16, DISCORD, Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Discord)),
-                (23, Action::Hide),
-                (210, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-        (
-            "Not now, then the same call recorded by hand soon after, outlasts a short one",
-            &[
-                Poll(4, ZOOM, None),
-                Answer(Question::Record, false),
-                Poll(10, ZOOM, None),
-                Poll(30, ZOOM, Some(7)),
-                Poll(10, ZOOM_AND_SLACK, Some(7)),
-                Poll(60, ZOOM, Some(7)),
-                Poll(16, &[], Some(7)),
-            ],
-            &[
-                (3, Action::Prompt(CallApp::Zoom)),
-                (129, Action::Ended(CallApp::Zoom)),
-            ],
-        ),
-    ];
-
-    #[test]
-    fn the_end_prompt_corpus() {
-        let mut wrong = Vec::new();
-        for (name, steps, expected) in END_PROMPT_CORPUS {
-            let mut clock = Clock::new();
-            let mut actions = Vec::new();
-            for step in *steps {
-                match *step {
-                    Poll(seconds, calls, meeting) => {
-                        actions.extend(clock.run(seconds, calls, false, meeting))
-                    }
-                    Dictate(seconds, calls, meeting) => {
-                        actions.extend(clock.run(seconds, calls, true, meeting))
-                    }
-                    Answer(question, accept) => assert!(
-                        clock.watch.answered(question, accept).is_some(),
-                        "{name}: no prompt to answer"
-                    ),
-                }
-            }
-            if actions != *expected {
-                wrong.push(format!("{name}\n  gave {actions:?}\n  want {expected:?}"));
-            }
-        }
-        assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
-    }
-
-    #[test]
-    fn a_call_that_ends_with_nothing_recording_asks_nothing() {
-        let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
-        clock.watch.answered(Question::Record, false);
-        assert_eq!(clock.run(60, &[], false, None), []);
-    }
-
-    #[test]
-    fn a_meeting_started_by_the_shortcut_gets_no_start_prompt_but_an_end_prompt() {
-        let mut clock = Clock::new();
-        assert_eq!(clock.run(30, ZOOM, false, Some(7)), []);
-        assert_eq!(
-            clock.run(16, &[], false, Some(7)),
-            [(45, Action::Ended(CallApp::Zoom))]
-        );
-    }
-
-    #[test]
-    fn stopping_the_recording_hides_the_end_prompt() {
-        let mut clock = Clock::new();
-        clock.run(30, ZOOM, false, Some(7));
-        clock.run(16, &[], false, Some(7));
-        assert_eq!(clock.run(1, &[], false, None), [(46, Action::Hide)]);
-    }
-
-    #[test]
-    fn the_call_coming_back_hides_the_end_prompt() {
-        let mut clock = Clock::new();
-        clock.run(30, ZOOM, false, Some(7));
-        clock.run(16, &[], false, Some(7));
-        assert_eq!(clock.run(1, ZOOM, false, Some(7)), [(46, Action::Hide)]);
-    }
-
-    #[test]
-    fn a_meeting_started_some_other_way_hides_the_start_prompt() {
-        let mut clock = Clock::new();
-        clock.run(4, ZOOM, false, None);
-        assert_eq!(clock.run(1, ZOOM, false, Some(7)), [(4, Action::Hide)]);
+        clock.run(4, ZOOM, false);
+        assert_eq!(clock.run(1, ZOOM, true), [(4, Action::Hide)]);
+        assert_eq!(clock.watch.answered(), None);
     }
 
     #[test]
@@ -966,42 +553,34 @@ mod tests {
     }
 
     #[test]
-    fn a_meet_call_behind_another_tab_goes_on_while_chrome_holds_the_microphone() {
+    fn a_meet_call_behind_another_tab_keeps_its_prompt_while_chrome_holds_the_microphone() {
         let mut clock = Clock::new();
         assert_eq!(
-            clock.run_mic(4, &chrome(), MEET, None),
+            clock.run_mic(4, &chrome(), MEET, false),
             [(3, Action::Prompt(CallApp::GoogleMeet))]
         );
-        clock.watch.answered(Question::Record, true);
-        assert_eq!(clock.run_mic(10, &chrome(), MEET, Some(1)), []);
-        assert_eq!(clock.run_mic(20, &chrome(), None, Some(1)), []);
-        assert_eq!(
-            clock.run_mic(16, &[], None, Some(1)),
-            [(49, Action::Ended(CallApp::GoogleMeet))]
-        );
+        assert_eq!(clock.run_mic(30, &chrome(), None, false), []);
+        assert_eq!(clock.run_mic(16, &[], None, false), [(49, Action::Hide)]);
     }
 
     #[test]
     fn not_now_holds_while_the_meet_call_is_behind_another_tab() {
         let mut clock = Clock::new();
-        clock.run_mic(4, &chrome(), MEET, None);
-        assert_eq!(
-            clock.watch.answered(Question::Record, false),
-            Some(CallApp::GoogleMeet)
-        );
-        assert_eq!(clock.run_mic(40, &chrome(), None, None), []);
-        assert_eq!(clock.run_mic(10, &chrome(), MEET, None), []);
+        clock.run_mic(4, &chrome(), MEET, false);
+        assert_eq!(clock.watch.answered(), Some(CallApp::GoogleMeet));
+        assert_eq!(clock.run_mic(40, &chrome(), None, false), []);
+        assert_eq!(clock.run_mic(10, &chrome(), MEET, false), []);
     }
 
     #[test]
     fn a_browser_off_the_microphone_leaves_its_call() {
         let mut clock = Clock::new();
-        clock.run_mic(4, &chrome(), MEET, None);
-        clock.watch.answered(Question::Record, false);
-        clock.run_mic(31, &[], None, None);
-        assert_eq!(clock.run_mic(10, &chrome(), None, None), []);
+        clock.run_mic(4, &chrome(), MEET, false);
+        clock.watch.answered();
+        clock.run_mic(31, &[], None, false);
+        assert_eq!(clock.run_mic(10, &chrome(), None, false), []);
         assert_eq!(
-            clock.run_mic(4, &chrome(), MEET, None),
+            clock.run_mic(4, &chrome(), MEET, false),
             [(48, Action::Prompt(CallApp::GoogleMeet))]
         );
     }

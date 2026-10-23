@@ -1,5 +1,5 @@
 //! Looks for calls once a second while meetings and call prompts are on,
-//! and shows the prompts `calls.rs` decides on. Core Audio tells which
+//! and shows the prompt `calls.rs` decides on. Core Audio tells which
 //! processes use the microphone from macOS 14, on Apple silicon builds,
 //! which have the bridge; elsewhere there is no detection and no setting.
 
@@ -12,17 +12,19 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use tauri::{AppHandle, Manager};
 
-use super::calls::{self, Action, Browser, CallApp, CallWatch, MicUser, Question, Snapshot};
-use super::coordinator::{MeetingAlert, MeetingRuntime};
+use super::calls::{self, Action, Browser, CallApp, CallWatch, MicUser, Snapshot};
+use super::coordinator::MeetingAlert;
 use super::MeetingsManager;
 use crate::accessibility::{self, Element};
-use crate::overlay::{self, CallPrompt};
+use crate::overlay;
 use crate::settings::get_settings;
 use crate::user_alert::{self, Alert};
 
 const POLL: Duration = Duration::from_secs(1);
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
+/// Held while the prompt is shown or hidden, so the window follows the
+/// watch in the order it changed.
 static WATCH: Lazy<Mutex<CallWatch>> = Lazy::new(Mutex::default);
 
 fn watch() -> MutexGuard<'static, CallWatch> {
@@ -94,8 +96,11 @@ pub fn sync(app: &AppHandle) {
                     error!("Looking for calls failed");
                 }
             }
-            *watch() = CallWatch::default();
-            overlay::hide_call_prompt(&app);
+            {
+                let mut watch = watch();
+                *watch = CallWatch::default();
+                overlay::hide_call_prompt(&app);
+            }
             RUNNING.store(false, Ordering::SeqCst);
             // Turned back on before the flag dropped: nobody else started.
             if !wanted(&app) || RUNNING.swap(true, Ordering::SeqCst) {
@@ -123,27 +128,18 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
         *seen = ids;
     }
     let own_pid = i32::try_from(std::process::id()).unwrap_or(-1);
-    let meeting =
-        app.try_state::<Arc<MeetingsManager>>()
-            .and_then(|manager| match manager.runtime() {
-                MeetingRuntime::Recording { started_at_ms, .. } => Some(started_at_ms),
-                MeetingRuntime::Idle => None,
-            });
     let snapshot = Snapshot {
         calls: calls::calls_on_mic(&users, own_pid, browser_calls, browser_call),
-        dictating: crate::transcription_coordinator::dictating(),
-        meeting,
+        recording: app
+            .try_state::<Arc<MeetingsManager>>()
+            .is_some_and(|manager| manager.is_recording()),
         now: Instant::now(),
     };
-    let action = watch().update(&snapshot);
-    match action {
+    let mut watch = watch();
+    match watch.update(&snapshot) {
         Some(Action::Prompt(call)) => {
             info!("{} started a call: offering to record it", call.name());
-            overlay::show_call_prompt(app, CallPrompt::Record, call.name());
-        }
-        Some(Action::Ended(call)) => {
-            info!("The {} call ended: offering to stop recording", call.name());
-            overlay::show_call_prompt(app, CallPrompt::Stop, call.name());
+            overlay::show_call_prompt(app, call.name());
         }
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}
@@ -169,16 +165,14 @@ fn browser_call(browser: Browser) -> Option<CallApp> {
     })
 }
 
-/// The overlay's answer to the prompt asking `prompt`. "Record" and "Stop"
-/// act only while that prompt still shows; every answer hides it.
-pub fn answer(app: &AppHandle, prompt: CallPrompt, accept: bool) {
-    let question = match prompt {
-        CallPrompt::Record => Question::Record,
-        CallPrompt::Stop => Question::Stop,
+/// The prompt's answer, "Record" when `accept`. "Record" acts only while
+/// the prompt still shows; every answer hides it.
+pub fn answer(app: &AppHandle, accept: bool) {
+    let answered = {
+        let mut watch = watch();
+        overlay::hide_call_prompt(app);
+        watch.answered()
     };
-    let answered = watch().answered(question, accept);
-    // Before the meeting starts, so its pill can show.
-    overlay::hide_call_prompt(app);
     if answered.is_none() || !accept {
         return;
     }
@@ -187,19 +181,12 @@ pub fn answer(app: &AppHandle, prompt: CallPrompt, accept: bool) {
         let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
             return;
         };
-        match question {
-            Question::Record if !manager.is_recording() => {
-                if let Err(error) = manager.start() {
-                    error!("Recording the call failed: {error}");
-                    user_alert::show(&app, Alert::Meeting(MeetingAlert::StartFailed));
-                }
-            }
-            Question::Stop if manager.is_recording() => {
-                if let Err(error) = manager.stop() {
-                    error!("Stopping the meeting after the call failed: {error}");
-                }
-            }
-            _ => {}
+        if manager.is_recording() {
+            return;
+        }
+        if let Err(error) = manager.start() {
+            error!("Recording the call failed: {error}");
+            user_alert::show(&app, Alert::Meeting(MeetingAlert::StartFailed));
         }
     });
 }
