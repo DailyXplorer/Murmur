@@ -34,6 +34,56 @@ test("editing the limit commits when the field loses focus", async ({
   await expect.poll(() => limitWrites(page)).toEqual([55]);
 });
 
+for (const mode of ["Enter", "blur"]) {
+  for (const value of ["1e3", "1E3", "1000"]) {
+    test(`${mode} commits ${value} as one thousand, never one`, async ({
+      page,
+    }) => {
+      await limitField(page).fill(value);
+      if (mode === "Enter") await limitField(page).press("Enter");
+      else await page.getByRole("button", { name: "Elsewhere" }).click();
+
+      await expect.poll(() => limitWrites(page)).toEqual([1000]);
+      await expect(limitField(page)).toHaveValue("1000");
+    });
+  }
+
+  for (const [value, limit] of [
+    ["-1", 1],
+    ["1001", 1000],
+    ["1e4", 1000],
+  ] as const) {
+    test(`${mode} saves ${value} as ${limit}`, async ({ page }) => {
+      await limitField(page).fill(value);
+      if (mode === "Enter") await limitField(page).press("Enter");
+      else await page.getByRole("button", { name: "Elsewhere" }).click();
+
+      await expect.poll(() => limitWrites(page)).toEqual([limit]);
+      await expect(limitField(page)).toHaveValue(String(limit));
+    });
+  }
+
+  for (const value of ["1.5", "1e-1"]) {
+    test(`${mode} drops ${value} and shows the saved limit again`, async ({
+      page,
+    }) => {
+      await limitField(page).evaluate((input: HTMLInputElement) => {
+        input.reportValidity = () => {
+          input.dataset.reported = "true";
+          return false;
+        };
+      });
+      await limitField(page).fill(value);
+      if (mode === "Enter") await limitField(page).press("Enter");
+      else await page.getByRole("button", { name: "Elsewhere" }).click();
+
+      await expect(limitField(page)).toHaveValue("50");
+      expect(await limitWrites(page)).toEqual([]);
+      await expect(limitField(page)).not.toHaveAttribute("data-reported");
+    });
+  }
+}
+
 test("a limit below one is saved as one", async ({ page }) => {
   await limitField(page).fill("0");
   await page.keyboard.press("Enter");

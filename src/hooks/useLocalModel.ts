@@ -8,15 +8,47 @@ export const useLocalModel = (): LocalModelStatus | null => {
 
   useEffect(() => {
     let disposed = false;
-    void commands.getLocalModelStatus().then((result) => {
-      if (!disposed && result.status === "ok") setStatus(result.data);
-    });
-    const unlisten = events.localModelStatus.listen((event) => {
-      setStatus(event.payload);
-    });
+    let unlisten: (() => void) | undefined;
+    let revision = 0;
+
+    const initialize = async () => {
+      try {
+        // Subscribe first so a transition during setup is either delivered
+        // as an event or included in the subsequent snapshot.
+        const stop = await events.localModelStatus.listen((event) => {
+          if (disposed) return;
+          revision++;
+          setStatus(event.payload);
+        });
+        if (disposed) {
+          stop();
+          return;
+        }
+        unlisten = stop;
+      } catch (error) {
+        // Without events the snapshot still shows the current state.
+        console.error("Failed to listen for local model status", error);
+      }
+      try {
+        const initialRevision = revision;
+        const result = await commands.getLocalModelStatus();
+        // An event received while the snapshot was in flight is newer.
+        if (
+          !disposed &&
+          revision === initialRevision &&
+          result.status === "ok"
+        ) {
+          setStatus(result.data);
+        }
+      } catch (error) {
+        if (!disposed)
+          console.error("Failed to load local model status", error);
+      }
+    };
+    void initialize();
     return () => {
       disposed = true;
-      void unlisten.then((stop) => stop());
+      unlisten?.();
     };
   }, []);
 
