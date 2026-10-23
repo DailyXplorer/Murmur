@@ -523,8 +523,11 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         let label = mentions_secret(line);
         let entry = in_secret_list && is_list_entry(line);
         let sensitive = after_secret_label || entry || is_assignment(line) || label;
-        // An entry such as `Wi-Fi : Soleil2024` holds its own value.
-        after_secret_label = label && !entry;
+        after_secret_label = if entry {
+            awaits_value(line, label)
+        } else {
+            label
+        };
         in_secret_list = label || (in_secret_list && sensitive);
         if sensitive {
             continue;
@@ -569,10 +572,22 @@ fn is_list_entry(line: &str) -> bool {
         line.strip_prefix(['-', '*', '•', '–', '—'])
     };
     after_marker.is_some_and(|rest| rest.starts_with(char::is_whitespace))
-        || [" - ", " – ", " — ", ":", "\t", " | "]
-            .iter()
-            .any(|separator| line.contains(separator))
+        || has_separator(line)
         || (line.split_whitespace().count() <= 3 && line.starts_with(char::is_uppercase))
+}
+
+fn has_separator(line: &str) -> bool {
+    [" - ", " – ", " — ", ":", "\t", " | "]
+        .iter()
+        .any(|separator| line.contains(separator))
+}
+
+/// Whether a list entry leaves its value to the next line, as `Netflix :`
+/// or a `label` with no separator such as `Netflix password` do, where
+/// `Wi-Fi : Soleil2024` holds its own.
+fn awaits_value(entry: &str, label: bool) -> bool {
+    let entry = entry.trim();
+    entry.ends_with([':', '-', '–', '—', '|']) || (label && !has_separator(entry))
 }
 
 fn trim_word(token: &str) -> &str {
@@ -1482,6 +1497,17 @@ mod tests {
         ),
         (
             "Mots de passe\n\nBanque Soleil2024\nNetflix Lune2023\n\nmerci Ingrid",
+            &["Ingrid"],
+        ),
+        // A label in the list whose value sits on the next line.
+        ("Gmail password:\nHunter2\nNetflix password:\nmonChat2020", &[]),
+        ("Mots de passe\nMot de passe Gmail :\nmonChat2020", &[]),
+        (
+            "Gmail password:\nHunter2\nNetflix password:\ncorrect Horse battery Staple",
+            &[],
+        ),
+        (
+            "Mots de passe\n- Netflix :\nmonChat2020\n- Wi-Fi : Soleil2024\nmerci Ingrid",
             &["Ingrid"],
         ),
     ];
