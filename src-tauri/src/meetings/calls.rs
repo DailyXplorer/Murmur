@@ -17,6 +17,10 @@ pub const ENDED_AFTER: Duration = Duration::from_secs(15);
 pub const CALL_OVER_AFTER: Duration = Duration::from_secs(30);
 /// A prompt nobody answers hides itself after this.
 pub const PROMPT_SHOWN_FOR: Duration = Duration::from_secs(20);
+/// A meeting started by hand this soon after a "Record" prompt let go was
+/// started for that call: the user changed their mind. Discord idling in a
+/// voice channel was let go long before.
+pub const CHANGED_MIND_WITHIN: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallApp {
@@ -306,11 +310,11 @@ struct Call {
     asked: bool,
     /// The meeting that recorded while the call held the microphone.
     recorded_in: Option<i64>,
-    /// "Not now", or the "Record" prompt let go unanswered or hidden by a
-    /// dictation: on the microphone, such as Discord idling in a voice
-    /// channel, the call holds back no "Stop recording?", unless a meeting
-    /// starts while only such calls are on.
-    passed_over: bool,
+    /// When the "Record" prompt showed that got "Not now", or was let go
+    /// unanswered or hidden by a dictation: on the microphone, such as
+    /// Discord idling in a voice channel, the call holds back no "Stop
+    /// recording?".
+    passed_over: Option<Instant>,
 }
 
 #[derive(Debug, Default)]
@@ -335,13 +339,13 @@ impl CallWatch {
                 off_since: None,
                 asked: false,
                 recorded_in: None,
-                passed_over: false,
+                passed_over: None,
             });
             if let Some(off) = call.off_since.take() {
                 call.on_since = now;
                 // Kept by the meeting, back after a call's end: a new call.
                 if now.duration_since(off) >= CALL_OVER_AFTER {
-                    call.passed_over = false;
+                    call.passed_over = None;
                 }
             }
             if snapshot.meeting.is_some() {
@@ -361,17 +365,23 @@ impl CallWatch {
                 .is_none_or(|off| now.duration_since(off) < CALL_OVER_AFTER)
                 || (snapshot.meeting.is_some() && call.recorded_in == snapshot.meeting)
         });
-        // A meeting started with only calls passed over on the microphone
-        // was started for them, by hand: they hold "Stop recording?" back.
+        // A meeting started by hand with only calls passed over on the
+        // microphone was started for those just let go: they hold "Stop
+        // recording?" back.
         if snapshot.meeting.is_some() && snapshot.meeting != self.meeting {
             let on_mic: Vec<&mut Call> = self
                 .calls
                 .values_mut()
                 .filter(|call| call.off_since.is_none())
                 .collect();
-            if on_mic.iter().all(|call| call.passed_over) {
+            if on_mic.iter().all(|call| call.passed_over.is_some()) {
                 for call in on_mic {
-                    call.passed_over = false;
+                    if call
+                        .passed_over
+                        .is_some_and(|asked| now.duration_since(asked) < CHANGED_MIND_WITHIN)
+                    {
+                        call.passed_over = None;
+                    }
                 }
             }
         }
@@ -381,7 +391,7 @@ impl CallWatch {
             && self
                 .calls
                 .values()
-                .any(|call| call.off_since.is_none() && !call.passed_over);
+                .any(|call| call.off_since.is_none() && call.passed_over.is_none());
 
         if let Some(shown) = self.showing {
             let expired = now.duration_since(shown.since) >= PROMPT_SHOWN_FOR;
@@ -397,7 +407,7 @@ impl CallWatch {
             self.showing = None;
             match shown.question {
                 // Let go unanswered, also when a dictation hid it.
-                Question::Record if snapshot.meeting.is_none() => self.pass_over(shown.app),
+                Question::Record if snapshot.meeting.is_none() => self.pass_over(shown),
                 // Asked again once the dictation is over.
                 Question::Stop if snapshot.dictating => self.stop_asked = None,
                 _ => {}
@@ -450,14 +460,14 @@ impl CallWatch {
         let shown = self.showing.filter(|shown| shown.question == question)?;
         self.showing = None;
         if question == Question::Record && !accept {
-            self.pass_over(shown.app);
+            self.pass_over(shown);
         }
         Some(shown.app)
     }
 
-    fn pass_over(&mut self, app: CallApp) {
-        if let Some(call) = self.calls.get_mut(&app) {
-            call.passed_over = true;
+    fn pass_over(&mut self, shown: Showing) {
+        if let Some(call) = self.calls.get_mut(&shown.app) {
+            call.passed_over = Some(shown.since);
         }
     }
 }
@@ -811,6 +821,51 @@ mod tests {
                 (4, Action::Hide),
                 (8, Action::Prompt(CallApp::Zoom)),
                 (84, Action::Ended(CallApp::Zoom)),
+            ],
+        ),
+        (
+            "round 51 review: Discord passed over long before a meeting started by hand holds nothing back",
+            &[
+                Poll(10, DISCORD, None),
+                Answer(Question::Record, false),
+                Poll(120, DISCORD, None),
+                Poll(5, DISCORD, Some(7)),
+                Poll(60, ZOOM_AND_DISCORD, Some(7)),
+                Poll(16, DISCORD, Some(7)),
+            ],
+            &[
+                (3, Action::Prompt(CallApp::Discord)),
+                (210, Action::Ended(CallApp::Zoom)),
+            ],
+        ),
+        (
+            "round 51 review: the same after Discord's prompt expired",
+            &[
+                Poll(130, DISCORD, None),
+                Poll(5, DISCORD, Some(7)),
+                Poll(60, ZOOM_AND_DISCORD, Some(7)),
+                Poll(16, DISCORD, Some(7)),
+            ],
+            &[
+                (3, Action::Prompt(CallApp::Discord)),
+                (23, Action::Hide),
+                (210, Action::Ended(CallApp::Zoom)),
+            ],
+        ),
+        (
+            "Not now, then the same call recorded by hand soon after, outlasts a short one",
+            &[
+                Poll(4, ZOOM, None),
+                Answer(Question::Record, false),
+                Poll(10, ZOOM, None),
+                Poll(30, ZOOM, Some(7)),
+                Poll(10, ZOOM_AND_SLACK, Some(7)),
+                Poll(60, ZOOM, Some(7)),
+                Poll(16, &[], Some(7)),
+            ],
+            &[
+                (3, Action::Prompt(CallApp::Zoom)),
+                (129, Action::Ended(CallApp::Zoom)),
             ],
         ),
     ];
