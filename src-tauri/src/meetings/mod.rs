@@ -1,6 +1,7 @@
 //! Meeting recording: the microphone ("Me") and system audio (the remote
 //! participants) on two tracks, started and stopped by the user, kept in a
-//! library of their own. Everything here stays behind `meetings_enabled`.
+//! library of their own. Everything here stays behind `meetings_enabled`,
+//! except the audio retention the user chose.
 
 pub mod align;
 pub mod analysis;
@@ -49,7 +50,7 @@ use tauri_specta::Event;
 
 use crate::local_models::LocalModelState;
 use crate::managers::history::DatabaseStartup;
-use crate::settings::{get_settings, MeetingAudioRetention};
+use crate::settings::{get_settings, AppSettings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
 use analysis::HelperAnalyzer;
@@ -673,21 +674,24 @@ fn sweep_audio(
         .collect()
 }
 
-/// Applies the audio retention at launch, then once a day. The hourly look
-/// reads the wall clock, which goes on while the Mac sleeps.
-fn spawn_audio_retention(app: &AppHandle) {
+/// Whether the audio retention runs at `now`, last run at `last`: at launch,
+/// then once a day, while `settings` keep the audio for a limited time.
+/// Meetings turned off still lose their audio when the user chose.
+fn audio_retention_due(settings: &AppSettings, last: Option<SystemTime>, now: SystemTime) -> bool {
     const DAY: Duration = Duration::from_secs(24 * 3600);
+    settings.meeting_audio_retention != MeetingAudioRetention::Keep
+        && last.is_none_or(|last| now.duration_since(last).map_or(true, |since| since >= DAY))
+}
+
+/// Applies the audio retention when it is due. The hourly look reads the
+/// wall clock, which goes on while the Mac sleeps.
+fn spawn_audio_retention(app: &AppHandle) {
     const LOOK: Duration = Duration::from_secs(3600);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let mut last: Option<SystemTime> = None;
         loop {
-            let due = last.is_none_or(|last| {
-                SystemTime::now()
-                    .duration_since(last)
-                    .map_or(true, |since| since >= DAY)
-            });
-            if due && get_settings(&app).meetings_enabled {
+            if audio_retention_due(&get_settings(&app), last, SystemTime::now()) {
                 if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
                     let manager = Arc::clone(&manager);
                     let swept = tauri::async_runtime::spawn_blocking(move || {
@@ -1267,6 +1271,24 @@ mod tests {
         std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
         std::fs::write(dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
         id
+    }
+
+    #[test]
+    fn audio_retention_runs_daily_with_meetings_off() {
+        let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = false;
+        settings.meeting_audio_retention = MeetingAudioRetention::Days30;
+        let now = SystemTime::now();
+        let hours_ago = |hours: u64| Some(now - Duration::from_secs(hours * 3600));
+
+        assert!(audio_retention_due(&settings, None, now));
+        assert!(!audio_retention_due(&settings, hours_ago(23), now));
+        assert!(audio_retention_due(&settings, hours_ago(24), now));
+        // A clock set back runs it rather than waiting.
+        assert!(audio_retention_due(&settings, Some(now + Duration::from_secs(60)), now));
+
+        settings.meeting_audio_retention = MeetingAudioRetention::Keep;
+        assert!(!audio_retention_due(&settings, None, now));
     }
 
     #[test]

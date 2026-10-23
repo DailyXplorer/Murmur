@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use super::capture::route::OutputRoute;
 use super::chunking::ChunkPlan;
@@ -489,24 +488,6 @@ pub struct MeetingsPage {
 
 pub struct MeetingsStore {
     db_path: PathBuf,
-    /// Archive publication and deletion must not interleave on disk.
-    audio_files: Mutex<HashSet<i64>>,
-}
-
-/// A per-meeting claim, not a mutex held during encoding or filesystem IO.
-/// Conflicting work fails promptly and can be retried; other meetings run.
-pub(super) struct AudioFilesGuard<'a> {
-    active: &'a Mutex<HashSet<i64>>,
-    id: i64,
-}
-
-impl Drop for AudioFilesGuard<'_> {
-    fn drop(&mut self) {
-        self.active
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .remove(&self.id);
-    }
 }
 
 fn init_database(db_path: &Path) -> Result<()> {
@@ -529,29 +510,7 @@ impl MeetingsStore {
     /// every later call return an error.
     pub fn open(db_path: PathBuf, now: DateTime<Utc>) -> (Self, DatabaseStartup) {
         let startup = open_or_reset_database(&db_path, now, init_database);
-        (
-            Self {
-                db_path,
-                audio_files: Mutex::new(HashSet::new()),
-            },
-            startup,
-        )
-    }
-
-    /// Claim before opening a write transaction. Recording does not take
-    /// a claim: deletion's status guard refuses its files.
-    pub(super) fn claim_audio_files(&self, id: i64) -> Result<AudioFilesGuard<'_>> {
-        let mut active = self
-            .audio_files
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !active.insert(id) {
-            return Err(anyhow!("Meeting {id}'s audio is already in use"));
-        }
-        Ok(AudioFilesGuard {
-            active: &self.audio_files,
-            id,
-        })
+        (Self { db_path }, startup)
     }
 
     fn connection(&self) -> Result<Connection> {
@@ -1031,13 +990,13 @@ impl MeetingsStore {
     /// after removal succeeds: an error or interruption keeps deletion
     /// retryable, including when some files have already gone.
     /// `remove_files` must only touch the filesystem, not write to the store.
-    /// Returns false while the meeting records or processes.
+    /// A compression finishing meanwhile waits for the commit, then finds the
+    /// audio deleted. Returns false while the meeting records or processes.
     pub fn delete_audio(
         &self,
         id: i64,
         remove_files: impl FnOnce() -> std::io::Result<()>,
     ) -> Result<bool> {
-        let _files = self.claim_audio_files(id)?;
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         let updated = tx.execute(
@@ -2039,15 +1998,13 @@ mod tests {
     }
 
     #[test]
-    fn audio_deletion_claims_files_and_reserves_the_writer_until_commit() {
+    fn audio_deletion_reserves_the_writer_until_commit() {
         let (_dir, store) = store();
         let id = ready(&store);
         store.audio_compressed(id, 4_200).unwrap();
         let before = store.get(id).unwrap().unwrap();
         assert!(store
             .delete_audio(id, || {
-                assert!(store.claim_audio_files(id).is_err());
-                assert!(store.claim_audio_files(id + 1).is_ok());
                 // Readers do not report deletion until filesystem cleanup
                 // succeeds, but a competing state change cannot win.
                 assert_eq!(store.get(id).unwrap().unwrap(), before);
@@ -2067,7 +2024,6 @@ mod tests {
                 Ok(())
             })
             .unwrap());
-        assert!(store.claim_audio_files(id).is_ok());
         assert!(!store.retranscribe(id).unwrap());
         assert!(!store.reopen(id).unwrap());
         assert!(!store.audio_compressed(id, 4_200).unwrap());
