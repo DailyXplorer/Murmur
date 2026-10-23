@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Deteção de participantes",
-      "description": "Modelos locais distinguem os participantes. São transferidos uma vez (cerca de 480 MB) e este passo não envia áudio para lado nenhum.",
+      "description": "Modelos locais distinguem os participantes. São transferidos uma vez ({{size}}) e este passo não envia áudio para lado nenhum.",
       "missing": "Não transferidos",
       "downloading": "A transferir… {{percent}}%",
       "preparing": "A preparar os modelos para este Mac…",

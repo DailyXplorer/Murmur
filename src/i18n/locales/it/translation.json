@@ -724,7 +724,7 @@
     },
     "models": {
       "title": "Rilevamento dei partecipanti",
-      "description": "Modelli locali distinguono i partecipanti. Si scaricano una volta (circa 480 MB) e questo passaggio non invia audio altrove.",
+      "description": "Modelli locali distinguono i partecipanti. Si scaricano una volta ({{size}}) e questo passaggio non invia audio altrove.",
       "missing": "Non scaricati",
       "downloading": "Download in corso… {{percent}}%",
       "preparing": "Preparazione dei modelli per questo Mac…",

@@ -64,13 +64,12 @@ export const SpeakerModels: React.FC<{
   }
 
   const percent = downloadPercent(status);
+  const size = formatSize(status.size_bytes, i18n.language);
   const label = {
     missing: t("meetings.models.missing"),
     downloading: t("meetings.models.downloading", { percent }),
     preparing: t("meetings.models.preparing"),
-    ready: t("meetings.models.ready", {
-      size: formatSize(status.size_bytes, i18n.language),
-    }),
+    ready: t("meetings.models.ready", { size }),
     failed: t("meetings.models.failed"),
   }[state.state];
 
@@ -131,7 +130,7 @@ export const SpeakerModels: React.FC<{
     <SettingsGroup title={t("meetings.models.title")}>
       <SettingContainer
         title={label}
-        description={t("meetings.models.description")}
+        description={t("meetings.models.description", { size })}
         grouped={true}
         detail={
           state.state === "downloading" && (
