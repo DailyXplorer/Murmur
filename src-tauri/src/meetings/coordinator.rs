@@ -166,6 +166,13 @@ struct Active {
     _awake: Option<Box<dyn Send>>,
 }
 
+/// A recording whose end the database refused, on a full disk.
+struct Unclosed {
+    id: i64,
+    ended_at_ms: i64,
+    duration_ms: i64,
+}
+
 pub struct Coordinator<B, N, C> {
     backend: B,
     notifier: N,
@@ -173,6 +180,8 @@ pub struct Coordinator<B, N, C> {
     store: Arc<MeetingsStore>,
     root: PathBuf,
     active: Option<Active>,
+    /// Tried again at each tick of their meeting until saved.
+    unclosed: Vec<Unclosed>,
 }
 
 impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
@@ -190,6 +199,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             store,
             root,
             active: None,
+            unclosed: Vec::new(),
         }
     }
 
@@ -365,15 +375,48 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
                 );
             }
         }
+        let unclosed = Unclosed {
+            id: active.id,
+            ended_at_ms: self.clock.unix_ms(),
+            duration_ms: duration.as_millis() as i64,
+        };
         let result = self
             .store
-            .finish_recording(active.id, self.clock.unix_ms(), duration.as_millis() as i64)
+            .finish_recording(unclosed.id, unclosed.ended_at_ms, unclosed.duration_ms)
             .map_err(storage);
         self.notifier.runtime_changed(&self.runtime());
-        if result.is_ok() {
-            self.notifier.recorded(active.id);
+        match &result {
+            Ok(()) => self.notifier.recorded(active.id),
+            Err(error) => {
+                error!("Meeting {}: cannot save its end: {error}", active.id);
+                self.unclosed.push(unclosed);
+            }
         }
         result.map(|()| active.id)
+    }
+
+    fn is_unclosed(&self, id: i64) -> bool {
+        self.unclosed.iter().any(|unclosed| unclosed.id == id)
+    }
+
+    /// Saves the end of meeting `id` the database refused. Returns whether
+    /// it is still unsaved.
+    fn retry_close(&mut self, id: i64) -> bool {
+        let Some(at) = self.unclosed.iter().position(|unclosed| unclosed.id == id) else {
+            return false;
+        };
+        let unclosed = &self.unclosed[at];
+        if self
+            .store
+            .finish_recording(id, unclosed.ended_at_ms, unclosed.duration_ms)
+            .is_err()
+        {
+            return true;
+        }
+        self.unclosed.remove(at);
+        info!("Meeting {id}: its end is saved");
+        self.notifier.recorded(id);
+        false
     }
 
     /// Ends recording `id` and deletes it. Any other meeting, recording or
@@ -393,8 +436,12 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
     }
 
     /// Called about once a second while meeting `id` records. Returns
-    /// whether it is still recording.
+    /// whether to call it again: the meeting records, or its end waits to
+    /// be saved.
     pub fn tick(&mut self, id: i64) -> bool {
+        if self.is_unclosed(id) {
+            return self.retry_close(id);
+        }
         let Some(active) = self.active.as_mut().filter(|active| active.id == id) else {
             return false;
         };
@@ -419,7 +466,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         if active.tracks.iter().any(|(_, track)| track.failed()) {
             let _ = self.stop();
             self.notifier.alert(MeetingAlert::WriteFailed);
-            return false;
+            return self.is_unclosed(id);
         }
         let interrupted: Vec<Source> = active
             .tracks
@@ -468,7 +515,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             CapAction::Stop => {
                 let _ = self.stop();
                 self.notifier.alert(MeetingAlert::StoppedAtLimit);
-                false
+                self.is_unclosed(id)
             }
         }
     }
@@ -480,7 +527,9 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         // The folder first: a meeting whose audio stays on disk stays listed,
         // so the user can delete it again.
         paths::remove_meeting_dir(&self.root, id).map_err(storage)?;
-        self.store.delete(id).map_err(storage)
+        self.store.delete(id).map_err(storage)?;
+        self.unclosed.retain(|unclosed| unclosed.id != id);
+        Ok(())
     }
 
     /// Removes a meeting that never got going.
