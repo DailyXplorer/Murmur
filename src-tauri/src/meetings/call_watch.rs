@@ -11,9 +11,10 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use tauri::{AppHandle, Manager};
 
-use super::calls::{self, Action, CallWatch, MicUser, Question, Snapshot};
+use super::calls::{self, Action, Browser, CallApp, CallWatch, MicUser, Question, Snapshot};
 use super::coordinator::{MeetingAlert, MeetingRuntime};
 use super::MeetingsManager;
+use crate::accessibility::{self, Element};
 use crate::overlay::{self, CallPrompt};
 use crate::settings::get_settings;
 use crate::user_alert::{self, Alert};
@@ -129,7 +130,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>) {
                 MeetingRuntime::Idle => None,
             });
     let snapshot = Snapshot {
-        calls: calls::calls_on_mic(&users, own_pid),
+        calls: calls::calls_on_mic(&users, own_pid, browser_call),
         dictating: crate::transcription_coordinator::dictating(),
         meeting,
         now: Instant::now(),
@@ -147,6 +148,25 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>) {
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}
     }
+}
+
+/// The meeting `browser` shows, read through Accessibility from the titles
+/// of its windows or the address of its front page. Nothing is logged.
+fn browser_call(browser: Browser) -> Option<CallApp> {
+    let workspace = objc2_app_kit::NSWorkspace::sharedWorkspace();
+    workspace.runningApplications().iter().find_map(|running| {
+        let bundle_id = running.bundleIdentifier()?.to_string();
+        if bundle_id != browser.bundle_id() {
+            return None;
+        }
+        let app = Element::application(running.processIdentifier())?;
+        calls::meeting_page(&accessibility::window_titles(&app), || {
+            browser
+                .reads_url()
+                .then(|| accessibility::front_page_url(&app))
+                .flatten()
+        })
+    })
 }
 
 /// The overlay's answer to the prompt asking `prompt`. "Record" and "Stop"
