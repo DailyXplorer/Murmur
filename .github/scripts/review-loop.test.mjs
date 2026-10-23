@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   COMMENT_MARKER,
@@ -332,4 +333,15 @@ test("flagReviewLoop does not overwrite a pasted marker from someone else", asyn
   assert.equal(state.updates, 0);
   assert.equal(state.issueComments[0].body, `quoting ${COMMENT_MARKER}`);
   assert.equal(state.issueComments.length, 2);
+});
+
+test("runs of one pull request wait in line instead of canceling each other", async () => {
+  const workflow = await readFile(
+    new URL("../workflows/review-loop.yml", import.meta.url),
+    "utf8",
+  );
+  const concurrency = workflow.match(/^concurrency:\n((?: {2}.*\n)+)/m)?.[1];
+  assert.ok(concurrency, "the workflow has a concurrency block");
+  assert.match(concurrency, /^ {2}queue: max$/m);
+  assert.doesNotMatch(concurrency, /cancel-in-progress/);
 });
