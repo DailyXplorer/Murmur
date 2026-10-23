@@ -536,10 +536,12 @@ impl LocalModels {
     }
 }
 
-/// Whether the optional sources are in place in the models folder `dir`:
-/// their marker is written once they are fetched and prepared.
+/// Whether this build's optional sources are in place in the models folder
+/// `dir`: their marker is written once they are fetched and prepared. An
+/// earlier pin's marker stays while its files are replaced.
 pub fn optional_ready(dir: &Path) -> bool {
-    dir.join(OPTIONAL_MARKER).exists()
+    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    std::fs::read_to_string(dir.join(OPTIONAL_MARKER)).is_ok_and(|id| id == manifest::id(optional))
 }
 
 /// The size of every file under `dir`, 0 when it is absent.
