@@ -1768,8 +1768,10 @@ mod tests {
             assert!(dir.join(paths::AUDIO_FILE).exists());
             assert!(!dir.join(paths::MIC_TRACK).exists());
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
-            // Without the archive bridge, the tracks still wait to be
-            // compressed.
+        }
+        // Windows has no archive bridge: the tracks still wait to be
+        // compressed.
+        if cfg!(target_os = "macos") {
             assert!(h.store.waiting_for_processing().unwrap().is_empty());
         }
     }
@@ -1972,7 +1974,10 @@ mod tests {
         assert_eq!(local.calls.lock().unwrap().len(), local_calls);
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
-        assert_eq!(meeting.audio, AudioState::Compressed);
+        // Windows has no archive bridge to compress it.
+        if cfg!(target_os = "macos") {
+            assert_eq!(meeting.audio, AudioState::Compressed);
+        }
     }
 
     #[test]
