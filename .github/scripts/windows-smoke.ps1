@@ -93,6 +93,12 @@ try {
     if (-not (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Murmur')) {
         throw 'The installer registered no per-user uninstaller'
     }
+    # Local transcription: transcribe.cpp and one CPU module per instruction
+    # set, beside the app.
+    $dlls = Get-ChildItem -Path $installDir -Filter '*.dll' | Select-Object -ExpandProperty Name
+    Write-Host "Installed DLLs: $($dlls -join ', ')"
+    if ($dlls -notcontains 'transcribe.dll') { throw 'The installer shipped no transcribe.dll' }
+    if (-not ($dlls | Where-Object { $_ -like 'ggml-cpu*' })) { throw 'The installer shipped no CPU module' }
 
     $murmur = Start-Murmur
     Save-Desktop 'desktop-first-launch.png'

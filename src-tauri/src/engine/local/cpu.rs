@@ -19,6 +19,8 @@ impl Runtime for CpuRuntime {
         let path = self.model.clone();
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
+                #[cfg(target_os = "windows")]
+                load_cpu_modules()?;
                 let options = ModelOptions {
                     backend: Backend::Cpu,
                     device: None,
@@ -35,6 +37,18 @@ impl Runtime for CpuRuntime {
             Ok(Box::new(model) as Box<dyn Loaded>)
         })
     }
+}
+
+/// Windows ships the CPU code as one module per instruction set, beside the
+/// app (see `build.rs`); transcribe.cpp loads the fastest this processor
+/// runs. Once per process, before the first model load: it cannot be retried.
+#[cfg(target_os = "windows")]
+fn load_cpu_modules() -> anyhow::Result<()> {
+    static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+    LOADED
+        .get_or_init(|| transcribe_cpp::init_backends_default().map_err(|error| error.to_string()))
+        .clone()
+        .map_err(|error| anyhow::anyhow!("Cannot load the CPU modules: {error}"))
 }
 
 struct CpuModel {

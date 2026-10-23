@@ -123,6 +123,7 @@ fn main() {
     generate_tray_translations();
     build_swift_bridges();
     build_meetings_helper();
+    stage_transcribe_libs();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
     let attributes = embed_windows_manifest(attributes);
@@ -143,6 +144,49 @@ fn embed_windows_manifest(attributes: tauri_build::Attributes) -> tauri_build::A
     println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
     println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
     attributes.windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest())
+}
+
+/// Copies transcribe.cpp's DLLs, and the CPU modules it picks from for the
+/// user's processor, into `transcribe-libs/`, which the Windows installer
+/// ships beside the app (`tauri.windows.conf.json`). Builds that link it
+/// statically, every Mac, advertise no runtime directory.
+fn stage_transcribe_libs() {
+    use std::path::{Path, PathBuf};
+
+    println!("cargo:rerun-if-env-changed=DEP_TRANSCRIBE_CPP_RUNTIME_DIR");
+    println!("cargo:rerun-if-env-changed=DEP_TRANSCRIBE_CPP_MODULE_DIR");
+    let Some(runtime_dir) = std::env::var_os("DEP_TRANSCRIBE_CPP_RUNTIME_DIR") else {
+        return;
+    };
+    let dest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("transcribe-libs");
+    let _ = std::fs::remove_dir_all(&dest);
+    std::fs::create_dir_all(&dest).expect("transcribe-libs/ is writable");
+    let copy_dlls = |source: &Path| -> usize {
+        std::fs::read_dir(source)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()))
+            .map(|entry| entry.expect("the directory entry is readable").path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "dll"))
+            .map(|path| {
+                std::fs::copy(&path, dest.join(path.file_name().unwrap()))
+                    .expect("the DLL can be copied");
+            })
+            .count()
+    };
+    // An installer without them would ship an app that cannot start.
+    let runtime_dir = PathBuf::from(runtime_dir);
+    assert!(
+        copy_dlls(&runtime_dir) > 0,
+        "no DLLs in {}",
+        runtime_dir.display()
+    );
+    if let Some(module_dir) = std::env::var_os("DEP_TRANSCRIBE_CPP_MODULE_DIR") {
+        let module_dir = PathBuf::from(module_dir);
+        assert!(
+            copy_dlls(&module_dir) > 0,
+            "no backend modules in {}",
+            module_dir.display()
+        );
+    }
 }
 
 fn generate_tray_translations() {
