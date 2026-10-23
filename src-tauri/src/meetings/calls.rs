@@ -306,9 +306,10 @@ struct Call {
     asked: bool,
     /// The meeting that recorded while the call held the microphone.
     recorded_in: Option<i64>,
-    /// "Not now", or the "Record" prompt let go unanswered: on the
-    /// microphone, such as Discord idling in a voice channel, the call holds
-    /// back no "Stop recording?".
+    /// "Not now", or the "Record" prompt let go unanswered or hidden by a
+    /// dictation: on the microphone, such as Discord idling in a voice
+    /// channel, the call holds back no "Stop recording?", unless a meeting
+    /// starts while only such calls are on.
     passed_over: bool,
 }
 
@@ -319,6 +320,8 @@ pub struct CallWatch {
     /// When the call "Stop recording?" last asked about left the microphone:
     /// each leave is asked about once.
     stop_asked: Option<Instant>,
+    /// The meeting recording at the last update.
+    meeting: Option<i64>,
 }
 
 impl CallWatch {
@@ -358,6 +361,21 @@ impl CallWatch {
                 .is_none_or(|off| now.duration_since(off) < CALL_OVER_AFTER)
                 || (snapshot.meeting.is_some() && call.recorded_in == snapshot.meeting)
         });
+        // A meeting started with only calls passed over on the microphone
+        // was started for them, by hand: they hold "Stop recording?" back.
+        if snapshot.meeting.is_some() && snapshot.meeting != self.meeting {
+            let on_mic: Vec<&mut Call> = self
+                .calls
+                .values_mut()
+                .filter(|call| call.off_since.is_none())
+                .collect();
+            if on_mic.iter().all(|call| call.passed_over) {
+                for call in on_mic {
+                    call.passed_over = false;
+                }
+            }
+        }
+        self.meeting = snapshot.meeting;
         // Every call on the microphone while a meeting records is recorded.
         let recording_a_call = snapshot.meeting.is_some()
             && self
@@ -378,11 +396,8 @@ impl CallWatch {
             }
             self.showing = None;
             match shown.question {
-                Question::Record
-                    if expired && !snapshot.dictating && snapshot.meeting.is_none() =>
-                {
-                    self.pass_over(shown.app)
-                }
+                // Let go unanswered, also when a dictation hid it.
+                Question::Record if snapshot.meeting.is_none() => self.pass_over(shown.app),
                 // Asked again once the dictation is over.
                 Question::Stop if snapshot.dictating => self.stop_asked = None,
                 _ => {}
@@ -764,6 +779,38 @@ mod tests {
             &[
                 (3, Action::Prompt(CallApp::Zoom)),
                 (109, Action::Ended(CallApp::Zoom)),
+            ],
+        ),
+        (
+            "round 51: a call passed over and then recorded by hand outlasts a short one",
+            &[
+                Poll(30, ZOOM, None),
+                Poll(30, ZOOM, Some(7)),
+                Poll(10, ZOOM_AND_SLACK, Some(7)),
+                Poll(60, ZOOM, Some(7)),
+                Poll(16, &[], Some(7)),
+            ],
+            &[
+                (3, Action::Prompt(CallApp::Zoom)),
+                (23, Action::Hide),
+                (145, Action::Ended(CallApp::Zoom)),
+            ],
+        ),
+        (
+            "round 51: Discord idling after a dictation hid its prompt holds nothing back",
+            &[
+                Poll(4, DISCORD, None),
+                Dictate(1, DISCORD, None),
+                Poll(4, ZOOM_AND_DISCORD, None),
+                Answer(Question::Record, true),
+                Poll(60, ZOOM_AND_DISCORD, Some(7)),
+                Poll(16, DISCORD, Some(7)),
+            ],
+            &[
+                (3, Action::Prompt(CallApp::Discord)),
+                (4, Action::Hide),
+                (8, Action::Prompt(CallApp::Zoom)),
+                (84, Action::Ended(CallApp::Zoom)),
             ],
         ),
     ];
