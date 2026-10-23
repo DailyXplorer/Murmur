@@ -70,7 +70,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
           min={MIN_HISTORY_LIMIT}
           max={MAX_HISTORY_LIMIT}
           step={1}
-          value={draft ?? historyLimit}
+          value={draft ?? String(historyLimit)}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={(event) => commit(event.currentTarget)}
           onKeyDown={handleKeyDown}

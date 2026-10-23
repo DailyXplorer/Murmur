@@ -28,6 +28,7 @@ function mountHistoryLimit(settings: { saved?: number } = { saved: 50 }) {
         getSetting: () => settings.saved,
         updateSetting: (key: string, value: number) => {
           writes.push({ key, value });
+          settings.saved = value;
           return Promise.resolve(true);
         },
       }),
@@ -88,6 +89,9 @@ for (const mode of ["Enter", "blur"] as const) {
       expect(component.writes).toEqual([]);
       component.commit(value, true, mode);
       expect(component.writes).toEqual([{ key: "history_limit", value }]);
+      // React compares number-input values loosely: a numeric prop would
+      // leave equivalent text such as "1e3" in the DOM instead of "1000".
+      expect(component.input().value).toBe(String(value));
     });
   }
 
@@ -117,7 +121,7 @@ test("empty edits restore the saved limit without writing", () => {
   const component = mountHistoryLimit();
   component.change("");
   component.commit(NaN, true, "Enter");
-  expect(component.input().value).toBe(50);
+  expect(component.input().value).toBe("50");
   expect(component.writes).toEqual([]);
 });
 
@@ -127,7 +131,7 @@ test("Escape cancels an invalid edit", () => {
   component.input().onKeyDown!({ key: "Escape" } as Parameters<
     NonNullable<Element["props"]["onKeyDown"]>
   >[0]);
-  expect(component.input().value).toBe(50);
+  expect(component.input().value).toBe("50");
   component.commit(50, true, "blur");
   expect(component.writes).toEqual([]);
 });
@@ -139,7 +143,7 @@ test("an unchanged value does not write and the default remains five", () => {
   expect(component.writes).toEqual([]);
   // Passing no persisted value exercises the production fallback.
   const missing = mountHistoryLimit({});
-  expect(missing.input().value).toBe(5);
+  expect(missing.input().value).toBe("5");
   expect(missing.input().min).toBe(1);
   expect(missing.input().max).toBe(1000);
 });
