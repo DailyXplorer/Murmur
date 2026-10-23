@@ -22,29 +22,18 @@ test("real settings controls consume the shared rail", async ({ page }) => {
     .getByRole("button", { name: "Default" });
   const language = page
     .getByTestId("production-language")
-    .getByRole("button", { name: "Auto Detect" });
+    .getByRole("button", { name: "Auto", exact: true });
   const shortcut = page
     .getByTestId("production-shortcut")
     .getByText("Alt + Space", { exact: true });
   const historyLabel = page
     .getByTestId("production-history-limit")
     .getByText("entries", { exact: true });
-  const provider = page
-    .getByTestId("production-transcription")
-    .getByRole("button", { name: "Antigravity", exact: true });
 
-  // Custom Words and the provider statuses sit on their own line under the
-  // title, so only the controls beside their titles share the rail.
-  const slots = [microphone, language, shortcut, historyLabel, provider].map(
-    controlSlot,
-  );
-  const slotNames = [
-    "microphone",
-    "language",
-    "shortcut",
-    "history limit",
-    "provider",
-  ];
+  // Custom words and the Codex status sit on their own line under the title,
+  // so only the controls beside their titles share the rail.
+  const slots = [microphone, language, shortcut, historyLabel].map(controlSlot);
+  const slotNames = ["microphone", "language", "shortcut", "history limit"];
   const slotMeasurements = await Promise.all(
     slots.map((slot) =>
       slot.evaluate((element) => {
@@ -70,10 +59,6 @@ test("real settings controls consume the shared rail", async ({ page }) => {
       `${slotNames[index]} control should share the rail edge`,
     ).toBeCloseTo(slotMeasurements[0].right, 1);
   }
-
-  const providerBox = await provider.boundingBox();
-  expect(providerBox).not.toBeNull();
-  expectWidth(providerBox?.width ?? 0, RAIL_WIDTH);
 
   const compositeControls = [
     {
@@ -128,7 +113,7 @@ test("real settings controls consume the shared rail", async ({ page }) => {
 
   const customWordsTitle = page
     .getByTestId("production-custom-words")
-    .getByRole("heading", { name: "Custom Words" });
+    .getByRole("heading", { name: "Custom words" });
   const customTitleBox = await customWordsTitle.boundingBox();
   expect(customTitleBox).not.toBeNull();
   expect(chipMeasurements.x).toBeCloseTo(customTitleBox?.x ?? 0, 1);

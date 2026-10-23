@@ -17,7 +17,7 @@ const LOCAL_GAP: f32 = 0.3;
 /// when they are unrelated. A match must earn, not just cost less: since the
 /// on-device words around the chunk are free to skip, a pairing that only
 /// cost less would let the alignment skip a true match at the edges.
-fn pair_cost(a: &str, b: &str) -> f32 {
+pub fn pair_cost(a: &str, b: &str) -> f32 {
     1.0 - 2.0 * similarity(a, b)
 }
 
@@ -53,45 +53,92 @@ pub enum Step {
     Local(usize),
 }
 
-const FROM_PAIR: u8 = 0;
-const FROM_CODEX: u8 = 1;
+/// How the cheapest alignment reached a cell: by the step into it from a cell
+/// whose last Codex word was paired, from one whose last was not, or by
+/// skipping an on-device word.
+const AFTER_PAIRED: u8 = 0;
+const AFTER_UNPAIRED: u8 = 1;
 const FROM_LOCAL: u8 = 2;
+
+/// The cheaper of a cell left with its last Codex word paired and unpaired.
+fn cheaper(paired: f32, unpaired: f32) -> (f32, u8) {
+    if paired <= unpaired {
+        (paired, AFTER_PAIRED)
+    } else {
+        (unpaired, AFTER_UNPAIRED)
+    }
+}
 
 /// Aligns `codex` against `local` (comparison keys). Every Codex word appears
 /// exactly once, in order. `None` when the inputs are too large.
 pub fn align(codex: &[&str], local: &[&str]) -> Option<Vec<Step>> {
-    let (n, m) = (codex.len(), local.len());
+    align_by(
+        codex.len(),
+        local.len(),
+        |_, _| 0.0,
+        |i, j| pair_cost(codex[i], local[j]),
+    )
+}
+
+/// `align` for `n` Codex words and `m` on-device words, where pairing Codex
+/// word `i` with on-device word `j` costs `pair_cost(i, j)`, and each run of
+/// paired Codex words costs `run_cost(i, j)` more, `(i, j)` its first pair.
+pub fn align_by(
+    n: usize,
+    m: usize,
+    run_cost: impl Fn(usize, usize) -> f32,
+    pair_cost: impl Fn(usize, usize) -> f32,
+) -> Option<Vec<Step>> {
     if (n + 1).saturating_mul(m + 1) > MAX_CELLS {
         return None;
     }
     let width = m + 1;
-    let mut from = vec![FROM_LOCAL; (n + 1) * width];
+    // Per cell, how the cheapest alignment that ends there with its last
+    // Codex word paired (low bits), and unpaired (high bits), got there.
+    let mut from = vec![FROM_LOCAL | (FROM_LOCAL << 2); (n + 1) * width];
     // Leading on-device words cost nothing.
-    let mut previous = vec![0.0f32; width];
-    let mut current = vec![0.0f32; width];
+    let mut previous_paired = vec![f32::INFINITY; width];
+    let mut previous_unpaired = vec![0.0f32; width];
+    let mut paired = vec![f32::INFINITY; width];
+    let mut unpaired = vec![0.0f32; width];
     for i in 1..=n {
-        current[0] = i as f32 * CODEX_GAP;
-        from[i * width] = FROM_CODEX;
+        unpaired[0] = i as f32 * CODEX_GAP;
+        from[i * width] = FROM_LOCAL | (AFTER_UNPAIRED << 2);
         for j in 1..=m {
-            let pair = previous[j - 1] + pair_cost(codex[i - 1], local[j - 1]);
-            let skip_codex = previous[j] + CODEX_GAP;
-            let skip_local = current[j - 1] + LOCAL_GAP;
-            let (cost, step) = if pair <= skip_codex && pair <= skip_local {
-                (pair, FROM_PAIR)
-            } else if skip_codex <= skip_local {
-                (skip_codex, FROM_CODEX)
+            let (before, after) = cheaper(
+                previous_paired[j - 1],
+                previous_unpaired[j - 1] + run_cost(i - 1, j - 1),
+            );
+            let pair = before + pair_cost(i - 1, j - 1);
+            let skip_local = paired[j - 1] + LOCAL_GAP;
+            let paired_from = if pair <= skip_local {
+                paired[j] = pair;
+                after
             } else {
-                (skip_local, FROM_LOCAL)
+                paired[j] = skip_local;
+                FROM_LOCAL
             };
-            current[j] = cost;
-            from[i * width + j] = step;
+            let (before, after) = cheaper(previous_paired[j], previous_unpaired[j]);
+            let skip_codex = before + CODEX_GAP;
+            let skip_local = unpaired[j - 1] + LOCAL_GAP;
+            let unpaired_from = if skip_codex <= skip_local {
+                unpaired[j] = skip_codex;
+                after
+            } else {
+                unpaired[j] = skip_local;
+                FROM_LOCAL
+            };
+            from[i * width + j] = paired_from | (unpaired_from << 2);
         }
-        std::mem::swap(&mut previous, &mut current);
+        std::mem::swap(&mut previous_paired, &mut paired);
+        std::mem::swap(&mut previous_unpaired, &mut unpaired);
     }
     // Trailing on-device words cost nothing either: end where it is cheapest.
+    let end = |j: usize| previous_paired[j].min(previous_unpaired[j]);
     let mut j = (0..=m)
-        .min_by(|a, b| previous[*a].total_cmp(&previous[*b]))
+        .min_by(|a, b| end(*a).total_cmp(&end(*b)))
         .unwrap_or(0);
+    let mut last_paired = previous_paired[j] <= previous_unpaired[j];
     let mut steps: Vec<Step> = (j..m).rev().map(Step::Local).collect();
     let mut i = n;
     while i > 0 || j > 0 {
@@ -100,19 +147,21 @@ pub fn align(codex: &[&str], local: &[&str]) -> Option<Vec<Step>> {
             steps.push(Step::Local(j));
             continue;
         }
-        match from[i * width + j] {
-            FROM_PAIR => {
-                i -= 1;
-                j -= 1;
-                steps.push(Step::Pair(i, j));
-            }
-            FROM_CODEX => {
-                i -= 1;
-                steps.push(Step::Codex(i));
-            }
-            _ => {
+        let shift = if last_paired { 0 } else { 2 };
+        match (from[i * width + j] >> shift) & 3 {
+            FROM_LOCAL => {
                 j -= 1;
                 steps.push(Step::Local(j));
+            }
+            after => {
+                i -= 1;
+                if last_paired {
+                    j -= 1;
+                    steps.push(Step::Pair(i, j));
+                } else {
+                    steps.push(Step::Codex(i));
+                }
+                last_paired = after == AFTER_PAIRED;
             }
         }
     }
@@ -213,6 +262,34 @@ mod tests {
     fn close_spellings_still_pair() {
         assert_eq!(
             pairs("la plateforme marche", "la platforme marche"),
+            [(0, 0), (1, 1), (2, 2)]
+        );
+    }
+
+    #[test]
+    fn a_run_cost_pairs_the_copy_that_runs_on() {
+        let paired = |codex: &str, local: &str| -> Vec<(usize, usize)> {
+            let (codex, local) = (words(codex), words(local));
+            align_by(
+                codex.len(),
+                local.len(),
+                |_, _| 0.0001,
+                |i, j| pair_cost(codex[i], local[j]),
+            )
+            .unwrap()
+            .into_iter()
+            .filter_map(|step| match step {
+                Step::Pair(c, l) => Some((c, l)),
+                _ => None,
+            })
+            .collect()
+        };
+        assert_eq!(
+            paired("dix heures dix heures parfait", "dix heures parfait"),
+            [(2, 0), (3, 1), (4, 2)]
+        );
+        assert_eq!(
+            paired("à dix heures dix heures", "à dix heures"),
             [(0, 0), (1, 1), (2, 2)]
         );
     }

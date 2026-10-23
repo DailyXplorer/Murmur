@@ -1,0 +1,127 @@
+# Weekly grouped updates. Major updates stay as their own pull requests.
+# No labels: this repo does not have a dependencies label, and the review-loop
+# label is only for the review-loop workflow. Without `labels: []` Dependabot
+# would add its default labels.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      bun-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Tauri's CLI refuses to build when @tauri-apps/* and the matching
+      # crates differ in minor version, and bun and cargo updates arrive in
+      # separate pull requests. Bump Tauri minors by hand, both sides together.
+      - dependency-name: "@tauri-apps/api"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "@tauri-apps/plugin-*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # The JS side of tauri-plugin-macos-permissions. The build check does
+      # not cover this pair, so a lone bump would fail at runtime instead.
+      - dependency-name: "tauri-plugin-macos-permissions-api"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # Node types follow the Node that CI runs: no workflow sets up Node, so
+      # it is the ubuntu-latest default (22). Bump the major by hand with it.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
+      # typescript-eslint cannot load TypeScript 7.0, which has no JS API, so
+      # lint fails. Revisit once typescript-eslint supports TS 7; see #208.
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      cargo-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # See the bun entry: Tauri minors move by hand on both sides together.
+      - dependency-name: "tauri"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "tauri-build"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "tauri-plugin-*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # Pinned on purpose to one release candidate.
+      - dependency-name: "specta*"
+      - dependency-name: "tauri-specta"
+      # Git dependency pinned to a commit that matches the Tauri version.
+      - dependency-name: "tauri-nspanel"
+      # rodio 0.22 brings cpal 0.17, which links macOS 14.2 process-tap
+      # symbols strongly. Move rodio together with our own cpal; see #192.
+      # Minor is listed too in case a 0.x bump counts as minor.
+      - dependency-name: "rodio"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # Same macOS 14.2 process-tap symbols as rodio 0.22; move both together.
+      # See #214.
+      - dependency-name: "cpal"
+        update-types:
+          - "version-update:semver-major"
+      # The fixed-input FFT math is unchanged through 5.x, so the port buys
+      # nothing yet. A port must use Fft::new_custom with one sub-chunk and
+      # BlackmanHarris2: Fft::new splits our chunk and changes the output.
+      # See #212.
+      - dependency-name: "rubato"
+        update-types:
+          - "version-update:semver-major"
+      # tao and tauri-codegen keep sha2 0.10, so 0.11 only adds a second
+      # digest stack. Move once Tauri is on digest 0.11; see #213.
+      - dependency-name: "sha2"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: []
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      github-actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # v1 renames includeUpdaterJson and changes the release asset names.
+      # Only a real release exercises that path; see #182 before upgrading.
+      - dependency-name: "tauri-apps/tauri-action"
+        update-types:
+          - "version-update:semver-major"

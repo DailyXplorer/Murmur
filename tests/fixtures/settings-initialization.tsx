@@ -49,7 +49,6 @@ const TEST_SETTINGS: AppSettings = {
   selected_language: "auto",
   selected_microphone: "Default",
   theme: "system",
-  transcription_provider: "gemini",
 };
 
 const respondAfterDelay = <Value,>(value: Value): Promise<Value> =>
@@ -198,10 +197,11 @@ window.settingsInitialization = {
       throw new Error("Generation A did not begin listener registration");
     }
 
-    addActiveListener(aHandler);
+    const generationAHandler = aHandler;
+    addActiveListener(generationAHandler);
     aListenerRegistration.resolve(async () => {
       await aUnlistenFinished.promise;
-      activeListeners.delete(aHandler);
+      activeListeners.delete(generationAHandler);
     });
     await flushMicrotasks();
 

@@ -1,15 +1,17 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error};
 use crate::cleanup::{ProcessedText, PromptContext};
+use crate::engine::EngineUsed;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, OverlayStyle, TranscriptionProvider};
+use crate::settings::{get_settings, AppSettings, OverlayStyle};
 use crate::shortcut;
 use crate::transcription_error::{FailureKind, TranscriptionError};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::user_alert::{self, Alert};
 use crate::utils::{self, show_recording_overlay, show_transcribing_overlay};
+use crate::window_names::{ContextReads, WindowContext};
 use crate::{ProcessingOperation, TranscriptionCoordinator};
 use log::{debug, error};
 use once_cell::sync::Lazy;
@@ -34,7 +36,6 @@ struct RecordingErrorEvent {
 struct TranscriptionErrorEvent {
     kind: FailureKind,
     detail: String,
-    provider: TranscriptionProvider,
 }
 
 /// Drop guard that finishes the cancellation lifecycle when the transcription
@@ -171,8 +172,9 @@ fn save_history(
     recording: Option<&str>,
     pending_wav: &mut Option<PendingWav>,
     text: ProcessedText,
+    source: EngineUsed,
 ) {
-    match hm.save_entry(recording.unwrap_or_default().to_string(), text) {
+    match hm.save_entry(recording.unwrap_or_default().to_string(), text, source) {
         Ok(_) => {
             if recording.is_some() {
                 if let Some(wav) = pending_wav.as_mut() {
@@ -184,60 +186,61 @@ fn save_history(
     }
 }
 
-fn output_language_for_provider(
-    provider: TranscriptionProvider,
-    selected_language: &str,
-) -> Option<&str> {
-    (provider == TranscriptionProvider::Codex).then_some(selected_language)
-}
-
-/// The language dictations are cleaned in, or "auto" when it is not known.
-pub(crate) fn cleanup_language(provider: TranscriptionProvider, selected_language: &str) -> &str {
-    output_language_for_provider(provider, selected_language).unwrap_or("auto")
-}
-
 /// Converts the Chinese variant, then runs AI cleanup when it is on and a
-/// Codex session exists, whichever provider transcribed. `names` come from
-/// the window the user dictated into.
+/// Codex session exists. `window` comes from the window the user dictated into.
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
-    provider: TranscriptionProvider,
-    names: Vec<String>,
+    window: WindowContext,
     operation: &ProcessingOperation,
 ) -> ProcessedText {
     let settings = get_settings(app);
-    // Gemini does not accept Murmur's language preference. Preserve the
-    // stored selection for a later Codex dictation, but do not let an old
-    // Chinese-variant preference rewrite Gemini output.
-    let final_text = crate::chinese_script::in_chosen_script(
-        output_language_for_provider(provider, &settings.selected_language),
-        transcription,
-    );
+    let final_text =
+        crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
-    if !settings.ai_cleanup_enabled {
-        return ProcessedText::unprocessed(final_text);
+    let available = settings.ai_cleanup_enabled && crate::cleanup::available();
+    match cleanup_request(&settings, available, window) {
+        Some(context) => crate::cleanup::clean(final_text, &context, operation).await,
+        None => ProcessedText::unprocessed(final_text),
     }
-    let Some(engine) = crate::cleanup::engine_for(
-        settings.cleanup_engine,
-        cleanup_language(provider, &settings.selected_language),
-    ) else {
-        return ProcessedText::unprocessed(final_text);
-    };
+}
+
+/// What a dictation starting now reads from the frontmost window: only
+/// cleanup uses what it finds.
+fn context_reads(settings: &AppSettings) -> ContextReads {
+    let cleanup_reads = settings.window_names_enabled && settings.ai_cleanup_enabled;
+    ContextReads {
+        names: cleanup_reads,
+        field: cleanup_reads,
+    }
+}
+
+/// The context to clean a dictation with, or None when cleanup does not
+/// run, so nothing read from the window leaves the Mac.
+fn cleanup_request(
+    settings: &AppSettings,
+    available: bool,
+    window: WindowContext,
+) -> Option<PromptContext> {
+    (settings.ai_cleanup_enabled && available).then(|| cleanup_context(settings, window))
+}
+
+fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptContext {
     // The setting may have been turned off while the user was dictating.
-    let context = PromptContext {
-        vocabulary: settings.custom_words.clone(),
-        names: if settings.window_names_enabled {
-            names
-        } else {
-            Vec::new()
-        },
-        language: output_language_for_provider(provider, &settings.selected_language)
-            .filter(|language| *language != "auto")
-            .map(str::to_string),
-        faint_speech: settings.whisper_mode,
+    let window = if settings.window_names_enabled {
+        window
+    } else {
+        WindowContext::default()
     };
-    crate::cleanup::clean(engine, final_text, &context, operation).await
+    PromptContext {
+        vocabulary: settings.custom_words.clone(),
+        names: window.names,
+        field: window.field,
+        language: (settings.selected_language != "auto")
+            .then(|| settings.selected_language.clone()),
+        faint_speech: settings.whisper_mode,
+        style: settings.dictation_style,
+    }
 }
 
 impl ShortcutAction for TranscribeAction {
@@ -298,9 +301,9 @@ impl ShortcutAction for TranscribeAction {
                 );
                 #[cfg(target_os = "macos")]
                 crate::dictionary::stop_observing();
-                crate::window_names::capture(
-                    settings.window_names_enabled && settings.ai_cleanup_enabled,
-                );
+                crate::window_names::capture(context_reads(&settings));
+                let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+                std::thread::spawn(move || tm.warm_if_local());
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);
@@ -432,7 +435,7 @@ impl ShortcutAction for TranscribeAction {
             );
 
             let stop_recording_time = Instant::now();
-            let window_names = crate::window_names::collect();
+            let window = crate::window_names::collect();
             if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
@@ -471,17 +474,14 @@ impl ShortcutAction for TranscribeAction {
                         .take()
                         .map(|wav| wav.write(Arc::clone(&samples)));
 
-                    let provider = get_settings(&ah).transcription_provider;
-                    if provider == TranscriptionProvider::Codex
-                        && crate::codex_transcribe::upload_size_for_samples(sample_count)
-                            > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
+                    if crate::codex_transcribe::upload_size_for_samples(sample_count)
+                        > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
                     {
                         user_alert::show(&ah, Alert::LongRecording);
                     }
                     let transcription_time = Instant::now();
-                    let transcription_result = tm
-                        .transcribe_with_provider(samples, operation.clone(), provider)
-                        .await;
+                    let transcription_result =
+                        tm.transcribe_samples(samples, operation.clone()).await;
 
                     let wav_saved = match wav_handle {
                         None => false,
@@ -518,6 +518,7 @@ impl ShortcutAction for TranscribeAction {
                         Ok(crate::managers::transcription::Transcript {
                             text: transcription,
                             dictionary_fixes,
+                            source,
                         }) => {
                             debug!(
                                 "Transcription completed in {:?} ({} characters)",
@@ -529,8 +530,7 @@ impl ShortcutAction for TranscribeAction {
                                 process_transcription_output(
                                     &ah,
                                     &transcription,
-                                    provider,
-                                    window_names,
+                                    window,
                                     &operation,
                                 ),
                                 || operation_was_cancelled(&operation, &rm, cancel_generation),
@@ -550,7 +550,13 @@ impl ShortcutAction for TranscribeAction {
                                 }
 
                                 if recording.is_some() {
-                                    save_history(&hm, recording, &mut pending_wav, processed);
+                                    save_history(
+                                        &hm,
+                                        recording,
+                                        &mut pending_wav,
+                                        processed,
+                                        source,
+                                    );
                                 }
                             } else {
                                 // `clipboard::paste` owns its native
@@ -599,7 +605,7 @@ impl ShortcutAction for TranscribeAction {
                                 // The transcript is kept whatever happened to
                                 // the paste or the WAV: history first, then
                                 // the clipboard as the immediate way back.
-                                save_history(&hm, recording, &mut pending_wav, processed);
+                                save_history(&hm, recording, &mut pending_wav, processed, source);
                                 if !delivered {
                                     error!("Transcription output could not be delivered");
                                     crate::clipboard::copy_for_recovery(&ah, final_text);
@@ -623,21 +629,26 @@ impl ShortcutAction for TranscribeAction {
                                 TranscriptionErrorEvent {
                                     kind,
                                     detail: format!("{err:#}"),
-                                    provider,
                                 },
                             );
-                            user_alert::show(&ah, Alert::Transcription(kind, provider));
+                            user_alert::show(&ah, Alert::Transcription(kind));
                             // Save entry with empty text so user can retry
                             if wav_saved {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
                                     return;
                                 }
+                                // Nothing transcribed it; Retry records the
+                                // engine that does.
                                 save_history(
                                     &hm,
                                     Some(file_name.as_str()),
                                     &mut pending_wav,
                                     ProcessedText::unprocessed(String::new()),
+                                    EngineUsed {
+                                        engine: get_settings(&ah).transcription_engine,
+                                        fallback: None,
+                                    },
                                 );
                             }
                         }
@@ -700,17 +711,100 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        complete_unless_cancelled, output_language_for_provider, paste_outcome_commits_history,
-        PendingWav,
+        cleanup_context, cleanup_request, complete_unless_cancelled, context_reads,
+        paste_outcome_commits_history, PendingWav,
     };
     use crate::clipboard::PasteOutcome;
-    use crate::settings::TranscriptionProvider;
+    use crate::field_excerpt::FieldExcerpt;
+    use crate::settings::{get_default_settings, DictationStyle};
+    use crate::window_names::{ContextReads, WindowContext};
     use std::fs;
     use std::future;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
+
+    #[test]
+    fn cleanup_follows_the_chosen_dictation_style() {
+        for style in [
+            DictationStyle::Formal,
+            DictationStyle::Normal,
+            DictationStyle::Casual,
+        ] {
+            let mut settings = get_default_settings();
+            settings.dictation_style = style;
+            assert_eq!(
+                cleanup_context(&settings, WindowContext::default()).style,
+                style
+            );
+        }
+    }
+
+    #[test]
+    fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
+        for (setting, cleanup, read) in [
+            (true, true, true),
+            (false, true, false),
+            (true, false, false),
+            (false, false, false),
+        ] {
+            let mut settings = get_default_settings();
+            settings.window_names_enabled = setting;
+            settings.ai_cleanup_enabled = cleanup;
+            assert_eq!(
+                context_reads(&settings),
+                ContextReads {
+                    names: read,
+                    field: read
+                },
+                "setting {setting}, cleanup {cleanup}"
+            );
+        }
+    }
+
+    fn window() -> WindowContext {
+        WindowContext {
+            names: vec!["Ingrid".to_string()],
+            field: Some(FieldExcerpt {
+                before: "Hi Ingrid, ".to_string(),
+                after: String::new(),
+            }),
+        }
+    }
+
+    #[test]
+    fn nothing_is_sent_with_cleanup_off() {
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        settings.ai_cleanup_enabled = false;
+        assert!(cleanup_request(&settings, true, window()).is_none());
+    }
+
+    #[test]
+    fn nothing_is_sent_without_a_session() {
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        settings.ai_cleanup_enabled = true;
+        assert!(cleanup_request(&settings, false, window()).is_none());
+    }
+
+    #[test]
+    fn a_setting_turned_off_while_dictating_drops_names_and_excerpt() {
+        let mut settings = get_default_settings();
+        settings.window_names_enabled = true;
+        settings.ai_cleanup_enabled = true;
+        settings.custom_words = vec!["Murmur".to_string()];
+        let context = cleanup_request(&settings, true, window()).expect("cleanup runs");
+        assert_eq!(context.names, vec!["Ingrid"]);
+        assert_eq!(context.field, window().field);
+
+        settings.window_names_enabled = false;
+        let context = cleanup_request(&settings, true, window()).expect("cleanup runs");
+        assert!(context.names.is_empty());
+        assert_eq!(context.field, None);
+        assert_eq!(context.vocabulary, vec!["Murmur"]);
+    }
 
     #[test]
     fn completed_operation_returns_its_output() {
@@ -808,21 +902,10 @@ mod tests {
     }
 
     #[test]
-    fn gemini_ignores_a_preserved_codex_chinese_variant_preference() {
-        assert_eq!(
-            output_language_for_provider(TranscriptionProvider::Gemini, "zh-Hant"),
-            None
-        );
-        assert_eq!(
-            output_language_for_provider(TranscriptionProvider::Codex, "zh-Hant"),
-            Some("zh-Hant")
-        );
-    }
-
-    #[test]
     fn pasted_or_recoverable_output_survives_late_cancellation() {
         assert!(!paste_outcome_commits_history(PasteOutcome::Cancelled));
         assert!(paste_outcome_commits_history(PasteOutcome::Injected));
+        assert!(paste_outcome_commits_history(PasteOutcome::CopyOffered));
         assert!(paste_outcome_commits_history(PasteOutcome::IntentionalNone));
         assert!(paste_outcome_commits_history(PasteOutcome::Skipped));
     }

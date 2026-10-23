@@ -13,16 +13,21 @@ mod cleanup;
 pub mod cli;
 mod clipboard;
 mod codex_auth;
+mod codex_login;
 mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
 mod dictionary;
+mod engine;
+// Windows reads no field (see `window_names`); only the excerpt type is used.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+mod field_excerpt;
 #[cfg(target_os = "windows")]
 mod foreground;
-mod gemini_transcribe;
 mod helpers;
 mod input;
 mod insights;
+pub mod local_models;
 mod managers;
 mod meetings;
 mod operation;
@@ -37,6 +42,7 @@ mod transcription_coordinator;
 mod transcription_error;
 mod tray;
 mod tray_i18n;
+mod updates;
 mod user_alert;
 mod utils;
 mod window_names;
@@ -67,20 +73,29 @@ use crate::single_instance_actions::{
     action_from_args, SingleInstanceAction, SingleInstanceActionQueue,
 };
 
+/// Types each command's rejection instead of `any`: a `string` error as
+/// `String(e)`, an error enum as its own type.
 #[cfg(any(debug_assertions, test))]
 fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<String> {
-    let pattern = regex::Regex::new(r"error:\s*e\s+as\s+any")
-        .expect("generated-binding error pattern is valid");
+    let pattern = regex::Regex::new(
+        r"(?s)(Promise\s*<\s*Result\s*<.*?,\s*(\w+)\s*>\s*>\s*\{.*?)error:\s*e\s+as\s+any",
+    )
+    .expect("generated-binding error pattern is valid");
+    let mut normalized_error_count = 0;
     let normalized = pattern
-        .replace_all(generated, "error: String(e)")
+        .replace_all(generated, |captures: &regex::Captures| {
+            normalized_error_count += 1;
+            let error = match &captures[2] {
+                "string" => "String(e)".to_string(),
+                named => format!("e as {named}"),
+            };
+            format!("{}error: {error}", &captures[1])
+        })
         .into_owned();
 
     let result_pattern = regex::Regex::new(r"Promise\s*<\s*Result\s*<")
         .expect("generated-binding Result pattern is valid");
-    let string_error_pattern = regex::Regex::new(r"error:\s*String\s*\(\s*e\s*\)")
-        .expect("generated-binding string-error pattern is valid");
     let result_count = result_pattern.find_iter(&normalized).count();
-    let normalized_error_count = string_error_pattern.find_iter(&normalized).count();
 
     if result_count != normalized_error_count {
         return Err(std::io::Error::new(
@@ -184,6 +199,11 @@ fn prepare_settings_window_for_active_space(
     Ok(())
 }
 
+/// Logical content size the settings window opens at, before it is fitted to the screen.
+const SETTINGS_WINDOW_SIZE: (f64, f64) = (780.0, 720.0);
+/// The smallest content size every settings page fits in.
+const SETTINGS_WINDOW_MIN_SIZE: (f64, f64) = (680.0, 570.0);
+
 /// Index of the first screen frame holding `point`, edges included, all in
 /// AppKit's global coordinates.
 #[cfg(target_os = "macos")]
@@ -219,8 +239,24 @@ fn centered_window_origin(
     objc2_foundation::NSPoint::new(x, y)
 }
 
-/// Centers the settings window, at its current size, on the screen under the
-/// pointer. Every show of the window goes through here.
+/// The frame size that fits a window of `size` in `visible`, a screen's frame
+/// without the menu bar and Dock, never smaller than `min`. All are frame sizes.
+#[cfg(target_os = "macos")]
+fn fitted_window_size(
+    visible: objc2_foundation::NSSize,
+    size: objc2_foundation::NSSize,
+    min: objc2_foundation::NSSize,
+) -> objc2_foundation::NSSize {
+    objc2_foundation::NSSize::new(
+        size.width.min(visible.width).max(min.width),
+        size.height.min(visible.height).max(min.height),
+    )
+}
+
+/// Centers the settings window on the screen under the pointer. A window too
+/// tall or wide for that screen, such as a 13" 1280x800 display with the Dock
+/// showing, shrinks to fit, never below its minimum size. Every show of the
+/// window goes through here.
 #[cfg(target_os = "macos")]
 fn center_settings_window_on_pointer_screen(
     main_window: &tauri::WebviewWindow,
@@ -249,8 +285,15 @@ fn center_settings_window_on_pointer_screen(
             .or_else(|| native_window.screen())
             .or_else(|| NSScreen::mainScreen(mtm));
         if let Some(screen) = screen {
-            let origin = centered_window_origin(screen.visibleFrame(), native_window.frame().size);
-            native_window.setFrameOrigin(origin);
+            let visible = screen.visibleFrame();
+            // tao stores min_inner_size as the frame's minSize, title bar included.
+            let size = fitted_window_size(
+                visible.size,
+                native_window.frame().size,
+                native_window.minSize(),
+            );
+            let origin = centered_window_origin(visible, size);
+            native_window.setFrame_display(objc2_foundation::NSRect::new(origin, size), true);
         }
     }
 
@@ -302,9 +345,7 @@ fn show_main_window(app: &AppHandle) {
                 log::error!("Failed to focus webview window: {}", e);
             }
             #[cfg(target_os = "macos")]
-            if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
-                log::error!("Failed to set activation policy to Regular: {}", e);
-            }
+            accent::set_dock_presence(&app, accent::DockPresence::Shown);
         }) {
             log::error!("Failed to schedule settings window presentation: {}", e);
         }
@@ -380,8 +421,12 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
         Err(e) => log::error!("Failed to initialize insights: {e}"),
     }
+    local_models::init(app_handle);
+    engine::local::init(app_handle);
     meetings::init(app_handle, true);
+    meetings::call_watch::sync(app_handle);
     app_handle.manage(tray::CurrentTrayIconState::new());
+    updates::init(app_handle);
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend calls `initialize_shortcuts` after permissions are confirmed.
@@ -394,7 +439,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     {
         let settings = settings::get_settings(app_handle);
         if settings.start_hidden && settings.show_tray_icon {
-            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            accent::set_dock_presence(app_handle, accent::DockPresence::Hidden);
         }
     }
     let initial_icon = accent::tray_icon().expect("failed to build initial tray icon");
@@ -407,7 +452,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     let tray = tray_builder
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "settings" => {
+            "settings" | updates::TRAY_ITEM_ID => {
                 show_main_window(app);
             }
             "check_updates" => {
@@ -452,6 +497,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
     utils::create_recording_overlay(app_handle);
+    #[cfg(target_os = "macos")]
+    if meetings::call_watch::supported() {
+        utils::create_call_prompt(app_handle);
+    }
 }
 
 #[tauri::command]
@@ -555,10 +604,6 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         }
     };
     let audio_secs = samples.len() as f64 / 16_000.0;
-    let backend = match get_settings(app).transcription_provider {
-        settings::TranscriptionProvider::Codex => "chatgpt-session",
-        settings::TranscriptionProvider::Gemini => "antigravity-session",
-    };
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
     let text = match tm.transcribe_sync(samples) {
@@ -579,7 +624,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         println!(
             "{}",
             serde_json::json!({
-                "backend": backend,
+                "backend": "chatgpt-session",
                 "audio_secs": audio_secs,
                 "transcribe_ms": elapsed_ms,
                 "rtf": rtf,
@@ -588,7 +633,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         );
     } else {
         println!(
-            "backend={backend} audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
+            "backend=chatgpt-session audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
         );
         println!("text: {}", text);
     }
@@ -602,6 +647,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_binding,
             shortcut::reset_binding,
             shortcut::get_shortcut_registration_errors,
+            shortcut::get_key_labels,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,
@@ -610,7 +656,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_start_hidden_setting,
             shortcut::change_autostart_setting,
             shortcut::change_selected_language_setting,
-            shortcut::change_transcription_provider_setting,
             shortcut::change_overlay_position_setting,
             shortcut::change_overlay_style_setting,
             shortcut::change_debug_mode_setting,
@@ -631,8 +676,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
             commands::cleanup::change_ai_cleanup_setting,
-            commands::cleanup::change_cleanup_engine_setting,
-            commands::cleanup::get_apple_intelligence_status,
+            commands::cleanup::change_dictation_style_setting,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
             shortcut::change_app_language_setting,
@@ -642,7 +686,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
             relaunch_after_update,
+            updates::get_update_status,
+            updates::check_for_updates,
             commands::cancel_operation,
+            overlay::copy_notice_again,
+            overlay::fit_copy_notice,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,
@@ -667,9 +715,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::get_codex_auth_status,
-            commands::transcription::get_gemini_status,
-            commands::transcription::open_antigravity,
+            commands::chatgpt::sign_in_with_chatgpt,
+            commands::chatgpt::cancel_chatgpt_sign_in,
+            commands::chatgpt::sign_out_of_chatgpt,
             commands::transcription::complete_onboarding,
+            commands::transcription::change_transcription_engine_setting,
+            commands::transcription::switch_to_local_when_ready,
+            commands::transcription::change_local_stt_card_dismissed_setting,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
@@ -693,10 +745,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::retry_meeting_summary,
             commands::meetings::delete_meeting_audio,
             commands::meetings::retranscribe_meeting,
-            commands::meetings::get_meeting_models_status,
-            commands::meetings::download_meeting_models,
-            commands::meetings::cancel_meeting_models_download,
-            commands::meetings::delete_meeting_models,
+            commands::local_models::get_local_model_status,
+            commands::local_models::download_local_model,
+            commands::local_models::cancel_local_model_download,
+            commands::local_models::delete_local_model,
             commands::meetings::copy_meeting_markdown,
             commands::meetings::export_meeting_markdown,
             commands::meetings::get_meeting_capabilities,
@@ -704,6 +756,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::open_system_audio_privacy_settings,
             commands::meetings::change_meetings_enabled_setting,
             commands::meetings::change_meeting_capture_mode_setting,
+            commands::meetings::change_meeting_audio_retention_setting,
+            commands::meetings::get_meetings_storage,
+            commands::meetings::change_meeting_call_prompt_setting,
+            commands::meetings::answer_call_prompt,
+            overlay::fit_call_prompt,
+            overlay::get_call_prompt,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
@@ -711,7 +769,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             meetings::MeetingStateChanged,
             meetings::MeetingsUpdated,
             meetings::processor::MeetingProgress,
-            meetings::models::MeetingModelsStatus
+            local_models::LocalModelStatus,
+            local_models::SwitchedToLocal,
+            updates::UpdateStatus
         ])
 }
 
@@ -844,7 +904,7 @@ pub fn run(cli_args: CliArgs) {
                     handle
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
-                        .shutdown_and_wait(std::time::Duration::from_secs(3));
+                        .shutdown();
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();
@@ -857,8 +917,8 @@ pub fn run(cli_args: CliArgs) {
             let main_window =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Murmur")
-                    .inner_size(680.0, 570.0)
-                    .min_inner_size(680.0, 570.0)
+                    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
+                    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
                     .resizable(true)
                     .maximizable(true)
                     .visible(false)
@@ -948,12 +1008,7 @@ pub fn run(cli_args: CliArgs) {
                     let tray_visible =
                         settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
                     if tray_visible {
-                        let res = window
-                            .app_handle()
-                            .set_activation_policy(tauri::ActivationPolicy::Accessory);
-                        if let Err(e) = res {
-                            log::error!("Failed to set activation policy: {}", e);
-                        }
+                        accent::set_dock_presence(window.app_handle(), accent::DockPresence::Hidden);
                     }
                 }
             }
@@ -983,13 +1038,27 @@ pub fn run(cli_args: CliArgs) {
                 }
             }
             tauri::RunEvent::Exit => {
-                paste_tx::settle_before_exit();
+                // Cmd+Q, the Dock's Quit and a logout skip `ExitRequested` and
+                // so the coordinator's cancel, and macOS keeps the mute. A
+                // dictation may still start and become ready while a meeting
+                // closes below, so the mute is lifted for good.
+                if let Some(audio) = app.try_state::<Arc<AudioRecordingManager>>() {
+                    audio.invalidate_recording_readiness();
+                    audio.remove_mute_for_good();
+                }
+                paste_tx::settle_pending();
                 // Close a meeting's tracks so it is kept, not left interrupted.
                 if let Some(manager) = app.try_state::<Arc<meetings::MeetingsManager>>() {
                     manager.shutdown();
                 }
                 if let Some(manager) = app.try_state::<Arc<TranscriptionManager>>() {
                     manager.shutdown();
+                }
+                // They skip the coordinator's drain too, which waits for a
+                // token refresh: one cut off would sign every Codex client
+                // out. A refresh request times out on its own within this.
+                if !codex_auth::wait_for_refreshes(codex_auth::REFRESH_TIMEOUT) {
+                    log::warn!("Timed out waiting for a Codex token refresh while quitting");
                 }
             }
             _ => {}
@@ -1002,6 +1071,125 @@ mod headless_guard_tests {
         leave_update_relaunch_marker, normalize_generated_bindings_source, run_headless_guarded,
         take_update_relaunch_marker,
     };
+
+    /// AppKit's settings window placement.
+    #[cfg(target_os = "macos")]
+    mod settings_window {
+    use super::super::{
+        centered_window_origin, fitted_window_size, screen_containing,
+        settings_window_collection_behavior, settings_window_needs_order_out,
+        SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE,
+    };
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    #[test]
+    fn settings_window_moves_to_active_space_without_joining_every_space() {
+        use objc2_app_kit::NSWindowCollectionBehavior;
+
+        let current =
+            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
+        let configured = settings_window_collection_behavior(current);
+
+        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
+        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
+        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+    }
+
+    #[test]
+    fn settings_window_is_reordered_only_when_visible_on_another_space() {
+        assert!(settings_window_needs_order_out(true, false));
+        assert!(!settings_window_needs_order_out(false, false));
+        assert!(!settings_window_needs_order_out(true, true));
+        assert!(!settings_window_needs_order_out(false, true));
+    }
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+    }
+
+    #[test]
+    fn settings_window_is_centered_in_the_visible_frame() {
+        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
+        // a 70-point Dock. The vertical center is the visible frame's, not the
+        // slightly higher spot NSWindow.center() picks.
+        let visible = rect(0.0, 70.0, 1512.0, 879.0);
+        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+        assert_eq!((origin.x, origin.y), (366.0, 135.0));
+    }
+
+    #[test]
+    fn settings_window_is_centered_on_a_secondary_screen() {
+        // A screen left of the main one has negative AppKit coordinates.
+        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
+        let origin = centered_window_origin(visible, frame(SETTINGS_WINDOW_SIZE));
+        assert_eq!((origin.x, origin.y), (-1350.0, -47.0));
+    }
+
+    #[test]
+    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
+        let visible = rect(0.0, 0.0, 600.0, 500.0);
+        let size = frame(SETTINGS_WINDOW_SIZE);
+        let origin = centered_window_origin(visible, size);
+        // Left edge and top edge stay inside the visible frame.
+        assert_eq!((origin.x, origin.y + size.height), (0.0, 500.0));
+    }
+
+    /// The frame size of a content size, with the 28-point title bar.
+    fn frame(content: (f64, f64)) -> NSSize {
+        NSSize::new(content.0, content.1 + 28.0)
+    }
+
+    #[test]
+    fn settings_window_keeps_its_default_size_on_a_large_screen() {
+        let visible = NSSize::new(1512.0, 879.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
+    }
+
+    #[test]
+    fn settings_window_shrinks_to_a_small_screen() {
+        // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
+        let visible = NSSize::new(1280.0, 705.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, NSSize::new(SETTINGS_WINDOW_SIZE.0, 705.0));
+    }
+
+    #[test]
+    fn settings_window_never_shrinks_below_its_minimum() {
+        let visible = NSSize::new(600.0, 500.0);
+        let size = fitted_window_size(
+            visible,
+            frame(SETTINGS_WINDOW_SIZE),
+            frame(SETTINGS_WINDOW_MIN_SIZE),
+        );
+        assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
+    }
+
+    #[test]
+    fn the_screen_under_the_pointer_is_the_one_containing_it() {
+        let screens = [
+            rect(0.0, 0.0, 1512.0, 982.0),
+            rect(1512.0, -100.0, 1920.0, 1080.0),
+        ];
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
+            Some(1)
+        );
+        assert_eq!(
+            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
+            Some(0)
+        );
+        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
+    }
+    }
 
     #[test]
     fn an_update_relaunch_shows_the_window_once() {
@@ -1057,6 +1245,21 @@ mod headless_guard_tests {
     }
 
     #[test]
+    fn generated_enum_errors_keep_their_type() {
+        let generated = concat!(
+            "async first(): Promise<Result<Record<string, Foo>, string>> { error: e as any }\n",
+            "async second(): Promise<Result<null, SignInError>> { error: e as any }",
+        );
+        assert_eq!(
+            normalize_generated_bindings_source(generated).unwrap(),
+            concat!(
+                "async first(): Promise<Result<Record<string, Foo>, string>> { error: String(e) }\n",
+                "async second(): Promise<Result<null, SignInError>> { error: e as SignInError }",
+            )
+        );
+    }
+
+    #[test]
     fn unrecognized_generated_result_wrapper_fails_loudly() {
         let generated = "async command(): Promise<Result<null, string>> { error: e as unknown }";
         assert!(normalize_generated_bindings_source(generated).is_err());
@@ -1072,96 +1275,57 @@ mod headless_guard_tests {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
-mod settings_window_tests {
-    use super::{
-        centered_window_origin, screen_containing, settings_window_collection_behavior,
-        settings_window_needs_order_out,
-    };
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
-
-    #[test]
-    fn settings_window_moves_to_active_space_without_joining_every_space() {
-        use objc2_app_kit::NSWindowCollectionBehavior;
-
-        let current =
-            NSWindowCollectionBehavior::Managed | NSWindowCollectionBehavior::CanJoinAllSpaces;
-        let configured = settings_window_collection_behavior(current);
-
-        assert!(configured.contains(NSWindowCollectionBehavior::Managed));
-        assert!(configured.contains(NSWindowCollectionBehavior::MoveToActiveSpace));
-        assert!(!configured.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
-    }
-
-    #[test]
-    fn settings_window_is_reordered_only_when_visible_on_another_space() {
-        assert!(settings_window_needs_order_out(true, false));
-        assert!(!settings_window_needs_order_out(false, false));
-        assert!(!settings_window_needs_order_out(true, true));
-        assert!(!settings_window_needs_order_out(false, true));
-    }
-
-    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
-        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
-    }
-
-    #[test]
-    fn settings_window_is_centered_in_the_visible_frame() {
-        // A 1512x982 screen whose visible frame drops a 33-point menu bar and
-        // a 70-point Dock. The vertical center is the visible frame's, not the
-        // slightly higher spot NSWindow.center() picks.
-        let visible = rect(0.0, 70.0, 1512.0, 879.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (416.0, 224.0));
-    }
-
-    #[test]
-    fn settings_window_is_centered_on_a_secondary_screen() {
-        // A screen left of the main one has negative AppKit coordinates.
-        let visible = rect(-1920.0, -200.0, 1920.0, 1055.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        assert_eq!((origin.x, origin.y), (-1300.0, 42.0));
-    }
-
-    #[test]
-    fn a_window_larger_than_the_screen_keeps_its_title_bar_visible() {
-        let visible = rect(0.0, 0.0, 600.0, 500.0);
-        let origin = centered_window_origin(visible, NSSize::new(680.0, 570.0));
-        // Left edge and top edge stay inside the visible frame.
-        assert_eq!((origin.x, origin.y + 570.0), (0.0, 500.0));
-    }
-
-    #[test]
-    fn the_screen_under_the_pointer_is_the_one_containing_it() {
-        let screens = [
-            rect(0.0, 0.0, 1512.0, 982.0),
-            rect(1512.0, -100.0, 1920.0, 1080.0),
-        ];
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(2000.0, 500.0)),
-            Some(1)
-        );
-        assert_eq!(
-            screen_containing(&screens, NSPoint::new(10.0, 982.0)),
-            Some(0)
-        );
-        assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
-    }
-}
-
 #[cfg(test)]
 mod exit_tests {
-    /// The run-loop closure needs a live AppKit event loop, so this pins the
-    /// call instead: the promised transcript dies with the process, and only
-    /// the exiting process can still put the user's clipboard back.
-    #[test]
-    fn quitting_settles_the_pending_paste() {
-        let source = include_str!("lib.rs");
-        let exit_arm = source
+    /// The run-loop closure needs a live AppKit event loop, so these tests
+    /// pin the calls of its `RunEvent::Exit` arm instead.
+    fn exit_arm() -> &'static str {
+        include_str!("lib.rs")
             .split("tauri::RunEvent::Exit => {")
             .nth(1)
             .and_then(|rest| rest.split("_ => {}").next())
-            .expect("the run loop handles RunEvent::Exit");
-        assert!(exit_arm.contains("paste_tx::settle_before_exit()"));
+            .expect("the run loop handles RunEvent::Exit")
+    }
+
+    /// The promised transcript dies with the process, and only the exiting
+    /// process can still put the user's clipboard back.
+    #[test]
+    fn quitting_settles_the_pending_paste() {
+        assert!(exit_arm().contains("paste_tx::settle_pending()"));
+    }
+
+    /// Cmd+Q, the Dock's Quit and a logout end in `Exit` without
+    /// `ExitRequested`, so only `Exit` can lift "mute while recording":
+    /// macOS keeps the output mute after the process is gone.
+    #[test]
+    fn quitting_restores_the_mute() {
+        let exit_arm = exit_arm();
+        // A dictation started while a meeting is being closed below still
+        // reaches its mute step with a current recording, so the restore
+        // must refuse every later mute.
+        let restore = exit_arm
+            .find(".remove_mute_for_good()")
+            .expect("quitting restores the mute for good");
+        let invalidate = exit_arm
+            .find(".invalidate_recording_readiness()")
+            .expect("quitting invalidates a dictation's pending mute");
+        assert!(invalidate < restore);
+    }
+
+    /// Only the tray's Quit goes through `ExitRequested`, whose drain waits
+    /// for a Codex token refresh. A refresh cut off by the exit has spent the
+    /// old refresh token without saving the new one, which signs every Codex
+    /// client out.
+    #[test]
+    fn quitting_waits_for_a_token_refresh() {
+        let exit_arm = exit_arm();
+        let wait = exit_arm
+            .find("codex_auth::wait_for_refreshes(")
+            .expect("quitting waits for a token refresh");
+        // Once the managers have cancelled the calls that could start one.
+        let shutdown = exit_arm
+            .rfind(".shutdown()")
+            .expect("quitting shuts the managers down");
+        assert!(shutdown < wait);
     }
 }

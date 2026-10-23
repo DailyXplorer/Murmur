@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a change to Murmur
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Search [existing issues](https://github.com/DailyXplorer/Murmur/issues) before opening another.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should change, and for whom. One or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: Behaviour
+      description: How it should work. Bullets, no checkboxes.
+      value: "- "
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Optional. Constraints or decisions already taken. Leave this empty if you have nothing to add.
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Optional. What this request does not include. Leave this empty if you have nothing to add.
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: A check someone else can run. Bullets, no checkboxes.
+      value: "- "
+    validations:
+      required: true

@@ -1,11 +1,15 @@
 ## Summary
 
-<!-- Explain what changed, why, and any important boundaries. -->
+<!-- Why this change is needed. Link the issue. -->
+
+## Changes
+
+<!-- What changed, and anything deliberately left out. -->
 
 ## Testing
 
-<!-- List the exact checks that were run and their results. -->
+<!-- `bun run check`, plus `bun run test:playwright` or `cargo test --locked` when those apply. Commands and results. -->
 
 ## Screenshots or recordings
 
-<!-- Include evidence for visible changes, or write "Not applicable". -->
+<!-- Visible UI changes need evidence. Otherwise: Not applicable. -->

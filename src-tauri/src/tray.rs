@@ -2,6 +2,7 @@ use crate::accent;
 use crate::managers::history::{HistoryEntry, HistoryManager};
 use crate::settings;
 use crate::tray_i18n::get_tray_translations;
+use crate::updates;
 use log::{debug, error, info, warn};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -107,6 +108,16 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
     let version_label = version_label();
     let version_i = MenuItem::with_id(app, "version", &version_label, false, None::<&str>)
         .expect("failed to create version item");
+    let update_i = (settings.update_checks_enabled && updates::update_available(app)).then(|| {
+        MenuItem::with_id(
+            app,
+            updates::TRAY_ITEM_ID,
+            &strings.update_available,
+            true,
+            None::<&str>,
+        )
+        .expect("failed to create update item")
+    });
     let settings_i = MenuItem::with_id(
         app,
         "settings",
@@ -174,7 +185,11 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
         separator(),
     ];
 
-    let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&version_i, &separators[0]];
+    let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&version_i];
+    if let Some(update_i) = &update_i {
+        items.push(update_i);
+    }
+    items.push(&separators[0]);
     if let Some(cancel_i) = &cancel_i {
         items.extend([cancel_i as &dyn IsMenuItem<Wry>, &separators[1]]);
     }
@@ -258,6 +273,8 @@ mod tests {
             transcription_text: transcription.to_string(),
             raw_text: None,
             cleanup: None,
+            engine: crate::engine::Engine::Cloud,
+            fallback_reason: None,
         }
     }
 

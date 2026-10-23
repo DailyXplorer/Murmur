@@ -1,6 +1,6 @@
 use crate::audio_toolkit::{list_input_devices, AudioRecorder};
 use crate::helpers::clamshell;
-use crate::settings::{get_settings, write_settings, AppSettings};
+use crate::settings::{get_settings, update_settings, AppSettings};
 use crate::utils;
 use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -51,6 +51,16 @@ fn get_mute() -> Option<bool> {
     unsafe { volume.GetMute() }
         .ok()
         .map(|muted| muted.as_bool())
+}
+
+/// A late fallback must not clear a microphone chosen since its stream started
+/// opening. Call this against the current settings inside a mutation transaction.
+fn clear_unavailable_microphone(settings: &mut AppSettings, unavailable_name: &str) -> bool {
+    if settings.selected_microphone.as_deref() != Some(unavailable_name) {
+        return false;
+    }
+    settings.selected_microphone = None;
+    true
 }
 
 #[cfg(target_os = "macos")]
@@ -121,6 +131,9 @@ pub enum MicrophoneMode {
 struct MuteState {
     did_mute: bool,
     prev_muted: Option<bool>,
+    /// Murmur is quitting: no recording mutes any more, as a mute applied
+    /// now would outlive the process.
+    quitting: bool,
 }
 
 impl MuteState {
@@ -135,7 +148,7 @@ impl MuteState {
     ) {
         // A duplicate apply must not re-snapshot our own forced mute as the
         // user's state, or release would leave audio muted.
-        if !current || self.did_mute {
+        if !current || self.did_mute || self.quitting {
             return;
         }
         self.prev_muted = read_system();
@@ -150,6 +163,11 @@ impl MuteState {
             self.did_mute = false;
             debug!("Mute removed (restored prev_muted={:?})", self.prev_muted);
         }
+    }
+
+    fn release_for_good(&mut self, restore_system: impl FnOnce(Option<bool>)) {
+        self.release(restore_system);
+        self.quitting = true;
     }
 }
 
@@ -485,17 +503,15 @@ impl AudioRecordingManager {
     }
 
     /// Keep persisted settings and the UI aligned with a successful runtime
-    /// fallback. Re-read first so recovery cannot clear a microphone the user
-    /// selected concurrently while the stream was being rebuilt.
+    /// fallback. Check and clear in one transaction so recovery cannot clear a
+    /// microphone the user selected while the stream was being rebuilt.
     fn persist_default_microphone_after_fallback(&self, unavailable_name: &str) {
-        let mut settings = get_settings(&self.app_handle);
-        if settings.selected_microphone.as_deref() != Some(unavailable_name) {
-            return;
+        let changed = update_settings(&self.app_handle, |settings| {
+            clear_unavailable_microphone(settings, unavailable_name)
+        });
+        if changed {
+            self.emit_default_microphone_fallback();
         }
-
-        settings.selected_microphone = None;
-        write_settings(&self.app_handle, settings);
-        self.emit_default_microphone_fallback();
     }
 
     fn emit_default_microphone_fallback(&self) {
@@ -553,6 +569,15 @@ impl AudioRecordingManager {
     /// (a system already muted before recording stays muted).
     pub fn remove_mute(&self) {
         self.mute_state.lock().unwrap().release(restore_mute);
+    }
+
+    /// Removes mute as Murmur quits, and refuses it to every later recording:
+    /// one may still start, and become ready, before the process ends.
+    pub fn remove_mute_for_good(&self) {
+        self.mute_state
+            .lock()
+            .unwrap()
+            .release_for_good(restore_mute);
     }
 
     pub fn ensure_recorder(&self) -> Result<(), anyhow::Error> {
@@ -718,9 +743,9 @@ impl AudioRecordingManager {
 
     fn persist_microphone_mode(&self, mode: &MicrophoneMode) {
         let always_on = matches!(mode, MicrophoneMode::AlwaysOn);
-        let mut settings = get_settings(&self.app_handle);
-        settings.always_on_microphone = always_on;
-        write_settings(&self.app_handle, settings);
+        update_settings(&self.app_handle, |settings| {
+            settings.always_on_microphone = always_on;
+        });
         let _ = self.app_handle.emit(
             "settings-changed",
             serde_json::json!({
@@ -813,7 +838,9 @@ impl AudioRecordingManager {
         self.invalidate_device_cache();
         let was_open = *self.is_open.lock().unwrap();
         if !was_open {
-            write_settings(&self.app_handle, updated_settings);
+            update_settings(&self.app_handle, |settings| {
+                settings.selected_microphone = updated_settings.selected_microphone;
+            });
             return Ok(());
         }
 
@@ -833,7 +860,9 @@ impl AudioRecordingManager {
                 if fell_back_to_default {
                     updated_settings.selected_microphone = None;
                 }
-                write_settings(&self.app_handle, updated_settings);
+                update_settings(&self.app_handle, |settings| {
+                    settings.selected_microphone = updated_settings.selected_microphone;
+                });
                 if fell_back_to_default {
                     self.emit_default_microphone_fallback();
                 }
@@ -847,12 +876,8 @@ impl AudioRecordingManager {
                 // replacement was being opened. If recovery fell back to the
                 // system default, record that live state instead of reviving a
                 // stale microphone preference.
-                let restored_default_microphone = restored.is_some();
-                if restored_default_microphone {
-                    let mut restored_settings = previous_settings;
-                    restored_settings.selected_microphone = None;
-                    write_settings(&self.app_handle, restored_settings);
-                    self.emit_default_microphone_fallback();
+                if let Some(unavailable_name) = restored {
+                    self.persist_default_microphone_after_fallback(&unavailable_name);
                 }
                 Err(update_error)
             }
@@ -878,7 +903,9 @@ impl AudioRecordingManager {
             if let Some(recorder) = self.recorder.lock().unwrap().as_mut() {
                 recorder.set_selected_channel(selected_channel);
             }
-            write_settings(&self.app_handle, updated_settings);
+            update_settings(&self.app_handle, |settings| {
+                settings.selected_channel = selected_channel;
+            });
             return Ok(());
         }
 
@@ -902,12 +929,13 @@ impl AudioRecordingManager {
             },
         )? {
             StreamRestartOutcome::Updated(unavailable_name) => {
-                let fell_back_to_default = unavailable_name.is_some();
-                if fell_back_to_default {
-                    updated_settings.selected_microphone = None;
-                }
-                write_settings(&self.app_handle, updated_settings);
-                if fell_back_to_default {
+                let cleared_microphone = update_settings(&self.app_handle, |settings| {
+                    settings.selected_channel = selected_channel;
+                    unavailable_name
+                        .as_deref()
+                        .is_some_and(|name| clear_unavailable_microphone(settings, name))
+                });
+                if cleared_microphone {
                     self.emit_default_microphone_fallback();
                 }
                 Ok(())
@@ -916,12 +944,8 @@ impl AudioRecordingManager {
                 restored,
                 update_error,
             } => {
-                let restored_default_microphone = restored.is_some();
-                if restored_default_microphone {
-                    let mut restored_settings = previous_settings;
-                    restored_settings.selected_microphone = None;
-                    write_settings(&self.app_handle, restored_settings);
-                    self.emit_default_microphone_fallback();
+                if let Some(unavailable_name) = restored {
+                    self.persist_default_microphone_after_fallback(&unavailable_name);
                 }
                 Err(update_error)
             }
@@ -1110,6 +1134,36 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn microphone_fallback_changes_only_the_unavailable_selection() {
+        let mut settings = crate::settings::get_default_settings();
+        settings.selected_microphone = Some("Unavailable USB microphone".to_string());
+        settings.selected_channel = Some(2);
+        settings.window_names_enabled = false;
+        settings.custom_words.push("Murmur".to_string());
+        let mut expected = serde_json::to_value(&settings).unwrap();
+        expected["selected_microphone"] = serde_json::Value::Null;
+
+        assert!(clear_unavailable_microphone(
+            &mut settings,
+            "Unavailable USB microphone"
+        ));
+        assert_eq!(serde_json::to_value(&settings).unwrap(), expected);
+    }
+
+    #[test]
+    fn a_late_microphone_fallback_preserves_a_newer_selection() {
+        let mut settings = crate::settings::get_default_settings();
+        settings.selected_microphone = Some("New microphone".to_string());
+        let expected = serde_json::to_value(&settings).unwrap();
+
+        assert!(!clear_unavailable_microphone(
+            &mut settings,
+            "Unavailable USB microphone"
+        ));
+        assert_eq!(serde_json::to_value(&settings).unwrap(), expected);
+    }
+
+    #[test]
     fn late_stop_cannot_claim_a_new_recording_with_the_same_binding() {
         let newer_recording = RecordingState::Recording {
             binding_id: "transcribe".to_string(),
@@ -1138,6 +1192,27 @@ mod tests {
 
         assert!(system.borrow().is_empty());
         assert!(!mute.did_mute);
+    }
+
+    #[test]
+    fn no_recording_can_mute_once_quitting_released_the_mute() {
+        let system = RefCell::new(Vec::new());
+        let mut mute = MuteState::default();
+
+        mute.engage(
+            true,
+            || Some(false),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+        mute.release_for_good(|prev| system.borrow_mut().push(format!("restore {prev:?}")));
+        // A dictation started while quitting has a current generation.
+        mute.engage(
+            true,
+            || Some(false),
+            || system.borrow_mut().push("mute".to_string()),
+        );
+
+        assert_eq!(*system.borrow(), ["mute", "restore Some(false)"]);
     }
 
     #[test]

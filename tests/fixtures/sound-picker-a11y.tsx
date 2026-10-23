@@ -19,7 +19,6 @@ const TEST_SETTINGS: AppSettings = {
   selected_language: "auto",
   selected_microphone: "Default",
   sound_theme: "marimba",
-  transcription_provider: "gemini",
 };
 
 const SoundPickerFixture: React.FC = () => (

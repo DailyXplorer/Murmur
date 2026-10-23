@@ -3,7 +3,6 @@ import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSettings } from "../../hooks/useSettings";
-import { isWindows } from "@/lib/platform";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
@@ -105,18 +104,17 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           <div
             className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
-            {!isWindows && learnedWords.size > 0 && (
-              <p className="pb-2 text-xs text-text/60">
-                {t("settings.advanced.customWords.learnedHint")}
-              </p>
-            )}
             <div className="flex flex-wrap justify-start gap-1">
               {customWords.map((word) => {
                 const heardAs = learnedWords.get(word);
                 return (
                   <Button
                     key={word}
-                    onClick={() => handleRemoveWord(word)}
+                    // The next chip slides in under the rest of a double
+                    // click, which would remove that word too.
+                    onClick={(event) => {
+                      if (event.detail <= 1) handleRemoveWord(word);
+                    }}
                     disabled={isUpdating("custom_words")}
                     size="chip"
                     className="max-w-full min-w-0 gap-1"

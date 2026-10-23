@@ -16,6 +16,7 @@ import {
 import { formatDateTime } from "@/utils/dateFormat";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
+import { FailureLine } from "../../ui/FailureLine";
 import { IconButton, IconToolbar } from "../../ui/IconButton";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
@@ -107,6 +108,7 @@ export const HistorySettings: React.FC = () => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [historyListenerReady, setHistoryListenerReady] = useState(false);
   const [hasQueuedFirstPageRefresh, setHasQueuedFirstPageRefresh] =
@@ -147,6 +149,7 @@ export const HistorySettings: React.FC = () => {
         cursor ?? null,
         PAGE_SIZE,
       );
+      if (isFirstPage) setLoadFailed(result.status !== "ok");
       if (result.status === "ok") {
         const newEntries = result.data.entries.filter(
           (entry) => !deletedDuringRequestIdsRef.current.has(entry.id),
@@ -167,6 +170,7 @@ export const HistorySettings: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to load history entries:", error);
+      if (isFirstPage) setLoadFailed(true);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -365,6 +369,18 @@ export const HistorySettings: React.FC = () => {
         {t("settings.history.loading")}
       </div>
     );
+  } else if (entries.length === 0 && loadFailed) {
+    content = (
+      <FailureLine
+        className="px-4 py-2"
+        message={t("settings.history.loadError")}
+        action={
+          <Button onClick={() => void loadPage()}>
+            {t("settings.history.retry")}
+          </Button>
+        }
+      />
+    );
   } else if (entries.length === 0) {
     content = (
       <div className="px-4 py-3 text-center text-text/60">
@@ -469,7 +485,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     setTimeout(() => setShowCopied(false), 2000);
   };
 
-  const handleDeleteEntry = async () => {
+  // The next entry's trash takes this one's place as soon as it is gone, so
+  // the rest of a double click would delete that entry too.
+  const handleDeleteEntry = async (event: React.MouseEvent) => {
+    if (event.detail > 1) return;
     try {
       await deleteAudio(entry.id);
     } catch (error) {
@@ -595,6 +614,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               : t("settings.history.noRecording")}
       </p>
 
+      {!retrying && entry.fallback_reason && (
+        <p className="-mt-3 text-xs text-text/50">
+          {t(`settings.history.fallback.${entry.fallback_reason}`)}
+        </p>
+      )}
       {!retrying && entry.cleanup === "failed" && (
         <p className="-mt-3 text-xs text-text/50">
           {t("settings.history.cleanupFailed")}

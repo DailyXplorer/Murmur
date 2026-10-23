@@ -61,7 +61,10 @@ pub(crate) fn spawn(app: &AppHandle, operation: ProcessingOperation) {
         };
         match crate::clipboard::paste(text.clone(), app.clone(), operation).await {
             Ok(
-                PasteOutcome::Injected | PasteOutcome::IntentionalNone | PasteOutcome::Cancelled,
+                PasteOutcome::Injected
+                | PasteOutcome::CopyOffered
+                | PasteOutcome::IntentionalNone
+                | PasteOutcome::Cancelled,
             ) => {}
             Ok(PasteOutcome::Skipped) | Err(_) => {
                 crate::clipboard::copy_for_recovery(&app, text);
@@ -115,6 +118,8 @@ mod tests {
             transcription_text: text.to_string(),
             raw_text: None,
             cleanup: None,
+            engine: crate::engine::Engine::Cloud,
+            fallback_reason: None,
         }
     }
 

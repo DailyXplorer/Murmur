@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { ResetButton } from "../ui/ResetButton";
@@ -28,17 +29,26 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
         ? "Default"
         : getSetting("selected_microphone") || "Default";
 
+    // The backend refuses a switch while a dictation records; the selection
+    // then reverts, so say why.
+    const reportRefused = (switched: boolean) => {
+      if (!switched) toast.error(t("settings.sound.microphone.changeFailed"));
+    };
+
     const handleMicrophoneSelect = async (deviceName: string) => {
-      await updateSetting("selected_microphone", deviceName);
+      reportRefused(await updateSetting("selected_microphone", deviceName));
     };
 
     const handleReset = async () => {
-      await resetSetting("selected_microphone");
+      reportRefused(await resetSetting("selected_microphone"));
     };
 
     const microphoneOptions = audioDevices.map((device) => ({
       value: device.name,
-      label: device.name,
+      label:
+        device.index === "default"
+          ? t("settings.sound.defaultDevice")
+          : device.name,
     }));
 
     return (

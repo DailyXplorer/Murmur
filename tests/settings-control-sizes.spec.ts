@@ -114,7 +114,7 @@ const sizeViolations = (page: Page) =>
     },
   );
 
-for (const language of ["en", "fr", "de", "ru"]) {
+for (const language of ["en", "fr", "de", "es"]) {
   test.describe(`settings control sizes (${language})`, () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize({ width: 960, height: 2400 });
@@ -135,24 +135,6 @@ for (const language of ["en", "fr", "de", "ru"]) {
         expect(violations).toEqual([]);
       });
     }
-
-    test("Transcription with Antigravity signed out", async ({ page }) => {
-      await page.goto(
-        `/tests/fixtures/settings-pages.html?lang=${language}&gemini=notSignedIn`,
-      );
-      const sectionButton = page
-        .getByRole("navigation")
-        .getByRole("button")
-        .nth(SECTIONS.indexOf("Transcription"));
-      await sectionButton.click();
-      await expect(sectionButton).toHaveAttribute("aria-current", "page");
-      await expect(
-        page.locator('[data-control="text"]', { hasText: "Antigravity" }),
-      ).toBeVisible();
-
-      const { violations } = await sizeViolations(page);
-      expect(violations).toEqual([]);
-    });
 
     test("language picker search field", async ({ page }) => {
       await page.goto(`/tests/fixtures/settings-pages.html?lang=${language}`);

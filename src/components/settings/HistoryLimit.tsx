@@ -24,11 +24,13 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
 
   // Lowering the limit deletes history at once, so a half-typed number
   // must never be saved: the value is committed on Enter or blur only.
-  const commit = () => {
+  const commit = (input: HTMLInputElement) => {
     if (draft === null) return;
     setDraft(null);
-    const value = parseInt(draft, 10);
-    if (isNaN(value)) return;
+    // The number control's complete value: parseInt("1e3") is 1, not 1000.
+    // An empty or fractional value is dropped, never rounded.
+    const value = input.valueAsNumber;
+    if (!Number.isInteger(value)) return;
     const limit = Math.min(
       MAX_HISTORY_LIMIT,
       Math.max(MIN_HISTORY_LIMIT, value),
@@ -40,7 +42,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
-      commit();
+      commit(event.currentTarget);
     } else if (event.key === "Escape") {
       setDraft(null);
     }
@@ -59,9 +61,9 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
           type="number"
           min={MIN_HISTORY_LIMIT}
           max={MAX_HISTORY_LIMIT}
-          value={draft ?? historyLimit}
+          value={draft ?? String(historyLimit)}
           onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
+          onBlur={(event) => commit(event.currentTarget)}
           onKeyDown={handleKeyDown}
           className="min-w-0 flex-1"
         />

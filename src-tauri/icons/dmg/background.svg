@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="420" height="560" viewBox="0 0 420 560">
+  <defs>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F49AC1" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#F49AC1" stop-opacity="0.32"/>
+      <stop offset="0.8" stop-color="#EE86B5" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#EA7CAE" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="core" cx="160" cy="372" r="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F49AC1" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#F49AC1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 -0.35"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="cursor-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <g id="beam-shape">
+      <path d="M -110 40 L 430 40 L 196 392 L 124 392 Z" fill="url(#beam)" filter="url(#soft)"/>
+      <ellipse cx="160" cy="368" rx="96" ry="64" fill="url(#core)" filter="url(#soft)"/>
+    </g>
+    <!-- The closed hand drag cursor, drawn on a 32-unit grid. -->
+    <g id="hand-shape">
+      <rect x="8.6" y="9.4" width="4.8" height="7" rx="2.4"/>
+      <rect x="13.2" y="8.4" width="4.8" height="10" rx="2.4"/>
+      <rect x="17.8" y="9" width="4.8" height="10" rx="2.4"/>
+      <rect x="22.4" y="10.8" width="4.4" height="9" rx="2.2"/>
+      <rect x="-2.3" y="-5.2" width="4.6" height="7" rx="2.3" transform="translate(11.5 21) rotate(-62)"/>
+      <path d="M 10.4 14 L 26.8 14 L 26.8 19.5 C 26.8 23 25 25.6 23.4 27 L 23.4 29 L 12.6 29 L 12.6 27.4 C 11.2 25.8 10.4 24 10.4 21 Z"/>
+    </g>
+    <g id="hand" filter="url(#cursor-shadow)">
+      <use xlink:href="#hand-shape" fill="#000000" stroke="#000000" stroke-width="2.2" stroke-linejoin="round"/>
+      <use xlink:href="#hand-shape" fill="#FFFFFF"/>
+      <g fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round">
+        <path d="M 13.2 11 L 13.2 14"/>
+        <path d="M 17.8 11 L 17.8 14.2"/>
+        <path d="M 22.4 12.4 L 22.4 14.6"/>
+        <path d="M 10.2 17.6 C 11.2 17.6 12 18 12.6 18.8"/>
+      </g>
+    </g>
+  </defs>
+
+  <rect width="420" height="560" fill="#FFFFFF"/>
+  <use xlink:href="#beam-shape"/>
+  <g filter="url(#grain)" opacity="0.35">
+    <use xlink:href="#beam-shape"/>
+  </g>
+
+  <use xlink:href="#hand" transform="translate(250 171)" opacity="0.35"/>
+  <use xlink:href="#hand" transform="translate(282 223)" opacity="0.55"/>
+  <use xlink:href="#hand" transform="translate(288 281)" opacity="0.78"/>
+  <use xlink:href="#hand" transform="translate(260 333)"/>
+</svg>

@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { readdirSync } from "node:fs";
+import { DEFAULT_WINDOW, MIN_WINDOW } from "./windowSizes";
 
-// The window opens at this size (lib.rs) and cannot be made smaller.
-const DEFAULT_WINDOW = { width: 680, height: 570 };
+const LOCALES = readdirSync(new URL("../src/i18n/locales/", import.meta.url));
 
 const SECTIONS = [
   "General",
@@ -11,8 +12,13 @@ const SECTIONS = [
   "Insights",
 ];
 
-const openSection = async (page: Page, section: string, query = "") => {
-  await page.setViewportSize(DEFAULT_WINDOW);
+const openSection = async (
+  page: Page,
+  section: string,
+  query = "",
+  size = MIN_WINDOW,
+) => {
+  await page.setViewportSize(size);
   await page.goto(`/tests/fixtures/settings-pages.html${query}`);
   const button = page
     .getByRole("navigation")
@@ -37,54 +43,21 @@ const settingRow = (page: Page, title: string) =>
 const isTruncated = (locator: Locator) =>
   locator.evaluate((element) => element.scrollWidth > element.clientWidth);
 
-const GEMINI_STATUS = {
-  notInstalled: "Antigravity not installed",
-  notSignedIn: "Configuration not detected",
-  ready: "Configuration detected",
-};
+test("ChatGPT row puts its status under the title", async ({ page }) => {
+  await openSection(page, "Transcription");
+  const row = settingRow(page, "ChatGPT");
+  const title = await box(row.getByRole("heading"));
+  const status = row.getByText("Signed in", { exact: true });
 
-for (const [gemini, statusText] of Object.entries(GEMINI_STATUS)) {
-  test(`Antigravity row stacks its status under the title (${gemini})`, async ({
-    page,
-  }) => {
-    await openSection(page, "Transcription", `?gemini=${gemini}`);
-    const row = settingRow(page, "Antigravity");
-    const title = await box(row.getByRole("heading"));
-    const badge = await box(row.getByText("Experimental", { exact: true }));
-    const status = row.getByText(statusText, { exact: true });
+  expect((await box(status)).y).toBeGreaterThanOrEqual(title.y + title.height);
+  expect(await isTruncated(status)).toBe(false);
+});
 
-    expect(
-      Math.abs(badge.y + badge.height / 2 - (title.y + title.height / 2)),
-    ).toBeLessThan(2);
-    expect(badge.x).toBeGreaterThan(title.x + title.width);
-    expect((await box(status)).y).toBeGreaterThanOrEqual(
-      title.y + title.height,
-    );
-    expect(await isTruncated(status)).toBe(false);
-
-    const action = row.getByRole("button", {
-      name: /Install|Open Antigravity/,
-    });
-    if (gemini === "ready") {
-      await expect(action).toHaveCount(0);
-    } else {
-      const button = await box(action);
-      const statusBox = await box(status);
-      expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
-      expect(
-        Math.abs(
-          button.y + button.height / 2 - (statusBox.y + statusBox.height / 2),
-        ),
-      ).toBeLessThan(2);
-    }
-  });
-}
-
-test("Custom Words puts a full-width field under its title", async ({
+test("Custom words puts a full-width field under its title", async ({
   page,
 }) => {
   await openSection(page, "Transcription");
-  const row = settingRow(page, "Custom Words");
+  const row = settingRow(page, "Custom words");
   const title = await box(row.getByRole("heading"));
   const field = await box(row.getByPlaceholder("Add a word"));
   const add = row.getByRole("button", { name: "Add", exact: true });
@@ -102,38 +75,153 @@ test("Custom Words puts a full-width field under its title", async ({
   await expect(row.getByPlaceholder("Add a word")).toHaveValue("");
 });
 
-for (const language of ["en", "de", "es", "fr", "ru", "uk"]) {
-  test(`Insights stat labels fit in full (${language})`, async ({ page }) => {
-    await openSection(page, "Insights", `?lang=${language}`);
-    // The stat cards are the sections that show a value right under the label.
-    const tiles = page.getByRole("main").locator("section:has(> p)");
-    await expect(tiles).toHaveCount(3);
-    const overflows = await tiles.evaluateAll((elements) =>
-      elements.flatMap((tile) => {
-        const padding = parseFloat(getComputedStyle(tile).paddingRight);
-        const right = tile.getBoundingClientRect().right - padding;
-        const label = tile.querySelector("h2")!;
-        const parts = [
-          ...Array.from(label.getClientRects()),
-          ...Array.from(tile.querySelectorAll("svg, button")).map((element) =>
-            element.getBoundingClientRect(),
-          ),
-        ];
-        return [
-          ...(label.scrollWidth > label.clientWidth
-            ? [`${label.textContent} is cut off`]
-            : []),
-          ...parts
-            .filter((rect) => rect.right > right + 0.5)
-            .map(
-              (rect) =>
-                `${label.textContent} reaches ${rect.right - right}px past the padding`,
+const statTiles = (page: Page) =>
+  // The stat cards are the sections that show a value right under the label.
+  page.getByRole("main").locator("section:has(> p)");
+
+for (const [name, size] of [
+  ["default", DEFAULT_WINDOW],
+  ["minimum", MIN_WINDOW],
+] as const) {
+  for (const language of ["en", "de", "es", "fr", "it", "pt"]) {
+    test(`Insights stat labels fit in full (${language}, ${name} window)`, async ({
+      page,
+    }) => {
+      await openSection(page, "Insights", `?lang=${language}`, size);
+      const tiles = statTiles(page);
+      await expect(tiles).toHaveCount(3);
+      const overflows = await tiles.evaluateAll((elements) =>
+        elements.flatMap((tile) => {
+          const padding = parseFloat(getComputedStyle(tile).paddingRight);
+          const right = tile.getBoundingClientRect().right - padding;
+          const label = tile.querySelector("h2")!;
+          const parts = [
+            ...Array.from(label.getClientRects()),
+            ...Array.from(tile.querySelectorAll("svg, button")).map((element) =>
+              element.getBoundingClientRect(),
             ),
-        ];
-      }),
-    );
-    expect(overflows).toEqual([]);
+          ];
+          return [
+            ...(label.scrollWidth > label.clientWidth
+              ? [`${label.textContent} is cut off`]
+              : []),
+            ...parts
+              .filter((rect) => rect.right > right + 0.5)
+              .map(
+                (rect) =>
+                  `${label.textContent} reaches ${rect.right - right}px past the padding`,
+              ),
+          ];
+        }),
+      );
+      expect(overflows).toEqual([]);
+    });
+  }
+}
+
+/** Every way a stat value fails to sit on one line inside its tile. */
+const statValueProblems = (tiles: Locator, language: string) =>
+  tiles.evaluateAll((elements, language) => {
+    const huge = new Intl.NumberFormat(language).format(999);
+    const values = elements.map((tile) => tile.querySelector(":scope > p")!);
+    const problems = values.flatMap((value, index) => {
+      const tile = elements[index];
+      const text = value.textContent ?? "";
+      const style = getComputedStyle(value);
+      const tileStyle = getComputedStyle(tile);
+      const tileBox = tile.getBoundingClientRect();
+      const left = tileBox.left + parseFloat(tileStyle.paddingLeft);
+      const right = tileBox.right - parseFloat(tileStyle.paddingRight);
+      const inner = document.createRange();
+      inner.selectNodeContents(value);
+      const innerBox = inner.getBoundingClientRect();
+      // Mixed-direction text gets one rect per bidi run on the same line.
+      const lines = new Set(
+        Array.from(inner.getClientRects(), (rect) => Math.round(rect.top)),
+      ).size;
+      const height = value.getBoundingClientRect().height;
+      return [
+        ...(text.includes(huge) ? [] : [`${text} does not show ${huge}`]),
+        ...(value.scrollWidth > value.clientWidth
+          ? [`${text} overflows its box`]
+          : []),
+        ...(lines === 1 && height <= parseFloat(style.lineHeight) + 1
+          ? []
+          : [`${text} takes ${lines} lines, ${height}px high`]),
+        ...(innerBox.left < left - 0.5 || innerBox.right > right + 0.5
+          ? [`${text} reaches past the tile padding`]
+          : []),
+      ];
+    });
+    const tops = values.map((value) => value.getBoundingClientRect().top);
+    const heights = elements.map((tile) => tile.getBoundingClientRect().height);
+    if (Math.max(...tops) - Math.min(...tops) > 1) {
+      problems.push(`values sit at different heights: ${tops.join(", ")}`);
+    }
+    if (Math.max(...heights) - Math.min(...heights) > 0.5) {
+      problems.push(`tiles differ in height: ${heights.join(", ")}`);
+    }
+    return problems;
+  }, language);
+
+const expectStatValuesOnOneLine = async (
+  page: Page,
+  language: string,
+  theme: "light" | "dark",
+) => {
+  await page.emulateMedia({ colorScheme: theme });
+  await openSection(
+    page,
+    "Insights",
+    `?insights=huge&lang=${language}&theme=${theme}`,
+    DEFAULT_WINDOW,
+  );
+  const tiles = statTiles(page);
+  await expect(tiles).toHaveCount(3);
+  await page.evaluate(() => document.fonts.ready);
+  for (const size of [DEFAULT_WINDOW, MIN_WINDOW]) {
+    await page.setViewportSize(size);
+    await expect
+      .poll(
+        () => statValueProblems(tiles, language),
+        `${theme}, ${size.width}px`,
+      )
+      .toEqual([]);
+  }
+};
+
+for (const language of LOCALES) {
+  test(`Insights stat values stay on one line in their tiles (${language})`, async ({
+    page,
+  }) => {
+    for (const theme of ["light", "dark"] as const) {
+      await expectStatValuesOnOneLine(page, language, theme);
+    }
   });
+
+  // Linux draws text wider than macOS: wider fallback fonts, and glyph
+  // advances rounded up to whole pixels, which do not shrink with the font
+  // size. A wide font with a fixed spacing between letters reproduces both,
+  // so the fit cannot rely on the metrics of one machine. The widest spacing
+  // leaves no room for the full values even at the smallest scale.
+  for (const [width, spacing] of [
+    ["wide", "1px"],
+    ["very wide", "8px"],
+  ]) {
+    test(`Insights stat values stay on one line in their tiles with a ${width} font (${language})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((spacing) => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(`main section > p {
+          font-family: "DejaVu Sans", Verdana, sans-serif !important;
+          letter-spacing: ${spacing};
+        }`);
+        document.adoptedStyleSheets = [sheet];
+      }, spacing);
+      await expectStatValuesOnOneLine(page, language, "light");
+    });
+  }
 }
 
 test("Insights has no subtitles or footnote", async ({ page }) => {
@@ -172,7 +260,7 @@ test("History entry actions match the meeting header toolbar", async ({
   await openSection(page, "Meetings", "?meetings=1");
   await page.getByRole("button", { name: /Point hebdo produit/ }).click();
   const meetingActions = page
-    .getByRole("button", { name: "Search Summary" })
+    .getByRole("button", { name: "Search summary" })
     .locator("xpath=..")
     .getByRole("button");
   const meeting = await toolbarSpacing(meetingActions);
@@ -188,7 +276,7 @@ for (const theme of ["light", "dark"] as const) {
   }) => {
     await page.emulateMedia({ colorScheme: theme });
     await openSection(page, "General", `?theme=${theme}`);
-    const row = settingRow(page, "Accent Color");
+    const row = settingRow(page, "Accent color");
     const selected = row.getByRole("radio", { checked: true });
     const indicator = await selected.evaluate((input) => {
       const control = input.parentElement!;
@@ -242,10 +330,9 @@ for (const theme of ["light", "dark"] as const) {
             knob.borderLeftColor,
           ],
           // Tailwind puts empty ring layers in front of every shadow.
-          shadow: knob.boxShadow.replaceAll(
-            "rgba(0, 0, 0, 0) 0px 0px 0px 0px, ",
-            "",
-          ),
+          shadow: knob.boxShadow
+            .split("rgba(0, 0, 0, 0) 0px 0px 0px 0px, ")
+            .join(""),
           transition: [knob.transitionProperty, knob.transitionDuration],
         };
       }),

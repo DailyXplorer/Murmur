@@ -1,10 +1,11 @@
 name: "windows beta"
-# The Windows beta lives on the beta branch only: dictation, per-user NSIS
-# installer, no updater. Every push is checked, built, installed and run.
+# The Windows beta lives on the beta branch and windows/* work branches:
+# dictation, per-user NSIS installer, no updater. Every push is checked,
+# built, installed and run.
 on:
   workflow_dispatch:
   push:
-    branches: [beta]
+    branches: [beta, "windows/**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -14,7 +14,7 @@ interface UseSettingsReturn {
     key: K,
     value: Settings[K],
   ) => Promise<boolean>;
-  resetSetting: (key: keyof Settings) => Promise<void>;
+  resetSetting: (key: keyof Settings) => Promise<boolean>;
   refreshSettings: () => Promise<void>;
   refreshAudioDevices: () => Promise<void>;
   refreshOutputDevices: () => Promise<void>;

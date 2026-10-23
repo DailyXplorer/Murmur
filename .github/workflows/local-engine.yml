@@ -1,0 +1,74 @@
+name: "local engine"
+# Intel Macs transcribe on the CPU with transcribe.cpp. The arm64 runner
+# builds the x86_64 test binary, which runs under Rosetta, downloads the
+# GGUF model with Murmur's own downloader (739 MB, cached) and checks the
+# words of a French and an English clip. Apple silicon's engine is checked
+# by the meetings helper nightly.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src-tauri/src/engine/local/**"
+      - "src-tauri/src/local_models/pinned.rs"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+      - ".github/workflows/local-engine.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  intel-cpu:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          targets: x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: x86_64-cpu-engine
+
+      - name: Cache the model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: parakeet-gguf-${{ hashFiles('src-tauri/src/local_models/pinned.rs') }}
+
+      - name: Download the model
+        working-directory: src-tauri
+        run: cargo run --locked --target x86_64-apple-darwin --example fetch_models -- "$RUNNER_TEMP/models"
+
+      - name: Record the clips
+        shell: bash
+        run: |
+          set -euo pipefail
+          clips="$RUNNER_TEMP/clips"
+          mkdir -p "$clips"
+          french=$(say -v '?' | awk '/fr_FR/ {print $1}' | grep -xE 'Thomas|Amelie|Audrey|Aurelie' | head -n 1)
+          english=$(say -v '?' | awk '/en_US/ {print $1}' | grep -xE 'Samantha|Alex|Fred|Ralph' | head -n 1)
+          say -v "$french" -o "$clips/fr.aiff" "Bonjour, je voudrais réserver une table pour quatre personnes jeudi soir."
+          say -v "$english" -o "$clips/en.aiff" "The quick brown fox jumps over the lazy dog near the river bank."
+          printf 'table\nquatre\njeudi\n' > "$clips/fr.txt"
+          printf 'quick\nbrown\nfox\nriver\n' > "$clips/en.txt"
+          for clip in fr en; do
+            afconvert -f WAVE -d LEI16@16000 -c 1 "$clips/$clip.aiff" "$clips/$clip.wav"
+          done
+
+      - name: Transcribe the clips on the CPU
+        working-directory: src-tauri
+        env:
+          MURMUR_SMOKE_GGUF: ${{ runner.temp }}/models/parakeet-tdt-0.6b-v3/parakeet-tdt-0.6b-v3-Q8_0.gguf
+          MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
+        run: cargo test --locked --target x86_64-apple-darwin --lib engine::local::cpu -- --ignored --nocapture

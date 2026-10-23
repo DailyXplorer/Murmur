@@ -19,10 +19,13 @@ export default defineConfig(async ({ mode }) => ({
 
   // Multiple entry points for main app and overlay
   build: {
-    rollupOptions: {
+    // Vite 7+ targets Safari 16.4; minimum macOS 10.15 ships an older WebKit.
+    target: ["es2020", "edge88", "firefox78", "chrome87", "safari14"],
+    rolldownOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "src/overlay/index.html"),
+        callPrompt: resolve(__dirname, "src/overlay/call.html"),
         ...(mode === "test"
           ? {
               settingsInitialization: resolve(

@@ -34,7 +34,7 @@ use crate::transcription_error::{FailureKind, TranscriptionError};
 
 const REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_REFRESH_TOKEN_URL_OVERRIDE";
-const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+pub(crate) const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const ACCESS_TOKEN_REFRESH_WINDOW_MINUTES: i64 = 5;
 const TOKEN_REFRESH_INTERVAL_DAYS: i64 = 8;
 pub(crate) const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -147,7 +147,7 @@ impl AuthFile {
                     return Err(TranscriptionError::new(
                         FailureKind::SignedOut,
                         format!(
-                            "Codex/ChatGPT session not found at {}. Open the Codex app and sign in.",
+                            "No ChatGPT session at {}. Sign in with ChatGPT in Murmur's Transcription settings.",
                             path.display()
                         ),
                     ));
@@ -209,7 +209,7 @@ impl AuthFile {
         let access_token = self.access_token().ok_or_else(|| {
             TranscriptionError::new(
                 FailureKind::SignedOut,
-                "A ChatGPT subscription session is required. Sign in to Codex with ChatGPT and configure Codex to store credentials in auth.json.",
+                "A ChatGPT session is required. Sign in with ChatGPT in Murmur's Transcription settings.",
             )
         })?;
         let account_id = self
@@ -378,6 +378,20 @@ async fn session_for_request_at(
     }
 }
 
+/// The session auth.json holds, read once. It never refreshes and never
+/// writes, so a live test cannot rotate the tokens every Codex client shares.
+#[cfg(test)]
+pub(crate) fn stored_session(path: &Path) -> Result<Session, TranscriptionError> {
+    let file = AuthFile::read(path)?;
+    if file.is_expired(Utc::now()) {
+        return Err(TranscriptionError::new(
+            FailureKind::SessionExpired,
+            "The stored Codex access token expired. Use Codex once to refresh it.",
+        ));
+    }
+    file.session()
+}
+
 /// Called once after the transcription endpoint answered 401 for `rejected`.
 pub async fn recover_from_unauthorized(
     path: &Path,
@@ -448,7 +462,7 @@ async fn refresh_to_completion(
     let refresh_token = base.refresh_token().ok_or_else(|| {
         TranscriptionError::new(
             FailureKind::SessionExpired,
-            "The Codex session has no refresh token. Open Codex and sign in again.",
+            "The ChatGPT session has no refresh token. Sign in with ChatGPT again in Murmur.",
         )
     })?;
 
@@ -466,7 +480,7 @@ async fn refresh_to_completion(
             remember_rejected(refresh_token);
             return Err(TranscriptionError::new(
                 FailureKind::SessionExpired,
-                format!("Codex session expired: {detail}. Open Codex and sign in again."),
+                format!("ChatGPT session expired: {detail}. Sign in with ChatGPT again in Murmur."),
             ));
         }
     };
@@ -513,21 +527,26 @@ async fn refresh_to_completion(
     })
 }
 
+/// Connects within the transcription's limit, so a connection that never
+/// opens reads as the network being down, not as a slow answer.
+fn refresh_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(crate::codex_transcribe::user_agent())
+        .connect_timeout(crate::codex_transcribe::CONNECT_TIMEOUT)
+        .timeout(REFRESH_TIMEOUT)
+}
+
 async fn request_refresh(
     endpoint: &str,
     refresh_token: &str,
     reason: RefreshReason,
 ) -> Result<RefreshResponse, RefreshFailure> {
-    let client = reqwest::Client::builder()
-        .user_agent(crate::codex_transcribe::user_agent())
-        .timeout(REFRESH_TIMEOUT)
-        .build()
-        .map_err(|error| {
-            RefreshFailure::Transient(TranscriptionError::new(
-                FailureKind::Other,
-                format!("failed to build refresh HTTP client: {error}"),
-            ))
-        })?;
+    let client = refresh_client().build().map_err(|error| {
+        RefreshFailure::Transient(TranscriptionError::new(
+            FailureKind::Other,
+            format!("failed to build refresh HTTP client: {error}"),
+        ))
+    })?;
     let response = client
         .post(endpoint)
         .json(&refresh_request_body(refresh_token, reason))
@@ -598,7 +617,7 @@ fn classify_refresh_failure(status: u16, body: &str) -> RefreshFailure {
 /// Writes through a temporary file in the same directory, then renames it
 /// over the target, so readers never see a partial file. Mode 0600 like Codex;
 /// on Windows the file keeps the access rules of the user's profile folder.
-fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
+pub(crate) fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let temporary = directory.join(format!(".auth.json.murmur-{}.tmp", std::process::id()));
     let result = (|| {
@@ -771,6 +790,26 @@ mod tests {
 
     fn expiring_token() -> String {
         jwt(serde_json::json!({"exp": now().timestamp() + 60}))
+    }
+
+    /// Offline, an expired token's refresh must say the network is down, or
+    /// a meeting gives up on its pieces instead of waiting for it.
+    #[tokio::test(start_paused = true)]
+    async fn a_refresh_that_never_connects_is_a_network_failure() {
+        let error = refresh_client()
+            .dns_resolver(crate::transcription_error::tests::SilentDns)
+            .no_proxy()
+            .build()
+            .unwrap()
+            .post("https://murmur.invalid/oauth/token")
+            .send()
+            .await
+            .unwrap_err();
+        assert_eq!(
+            FailureKind::from_transport(&error),
+            FailureKind::Network,
+            "{error}"
+        );
     }
 
     #[test]
@@ -1097,6 +1136,25 @@ mod tests {
         assert_eq!(error.kind, FailureKind::SessionExpired);
         assert_eq!(fs::read_to_string(&path).unwrap(), original);
         assert!(was_rejected("rt-dead"));
+    }
+
+    #[test]
+    fn stored_session_never_refreshes_or_writes() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("auth.json");
+        let soon = jwt(serde_json::json!({"exp": Utc::now().timestamp() + 60}));
+        let original = auth_json(&soon, "rt");
+        fs::write(&path, &original).unwrap();
+
+        assert_eq!(stored_session(&path).unwrap().access_token, soon);
+        assert_eq!(fs::read_to_string(&path).unwrap(), original);
+
+        let expired = jwt(serde_json::json!({"exp": Utc::now().timestamp() - 1}));
+        fs::write(&path, auth_json(&expired, "rt")).unwrap();
+        assert_eq!(
+            stored_session(&path).unwrap_err().kind,
+            FailureKind::SessionExpired
+        );
     }
 
     #[test]

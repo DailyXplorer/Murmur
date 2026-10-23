@@ -2,7 +2,8 @@
 
 :root {
   /* Capsule geometry. overlay.rs sizes the native window from these values
-     (CARD_MARGIN, OVERLAY_*, ERROR_OVERLAY_*), so keep the two in sync. */
+     (CARD_MARGIN, OVERLAY_*, ERROR_OVERLAY_*, COPY_OVERLAY_*), so keep the
+     two in sync. */
   --ov-margin: 16px; /* room for the shadow between capsule and window edge */
   --ov-h: 30px;
   --ov-rest-w: 108px;
@@ -10,6 +11,9 @@
   --ov-grow-step: 2px;
   --ov-error-min-h: 36px;
   --ov-error-max-w: 280px;
+  /* The widest copy pill: with its window margins, well inside a
+     1280-px-wide screen. */
+  --ov-copy-max-w: 560px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
      opaque because WebKit's backdrop-filter cannot blur the desktop behind a
@@ -165,6 +169,7 @@
   line-height: 16px;
   color: var(--ov-ink);
   text-align: center;
+  text-wrap: balance;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
@@ -196,11 +201,188 @@
   background: rgb(255 204 0);
 }
 
+/* Copy pill: the whole capsule is one button around a body that sizes itself
+   from its text: the note, on one line when it fits and balanced lines
+   otherwise, then the Copy action in an inner capsule as far from the end
+   as the note is from the start. The action never shrinks; the note wraps. The webview measures the
+   body and overlay.rs fits the window to it. The body is clipped while the
+   pill grows from the rest capsule. */
+.ov-capsule.ov-copy {
+  width: auto;
+  height: auto;
+  min-width: var(--ov-rest-w);
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  margin: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ov-ink);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.ov-copy-body {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: var(--ov-copy-max-w);
+  min-height: var(--ov-h);
+  padding-block: 4px;
+  padding-inline: 14px;
+  text-align: start;
+}
+.ov-copy-note {
+  min-width: 0;
+  padding-block: 3px;
+  font-weight: 500;
+  line-height: 16px;
+  text-wrap: balance;
+  color: rgb(255 255 255 / 0.7);
+  animation: ov-fade-in 260ms ease 140ms both;
+}
+.ov-copy-action {
+  flex: none;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding-inline: 7px 9px;
+  border-radius: 11px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.12);
+  transition: background-color 120ms ease;
+}
+.ov-copy-action svg {
+  flex: none;
+}
+/* Both labels share one cell, so the pill keeps its size when it confirms. */
+.ov-copy-label {
+  display: grid;
+}
+.ov-copy-label > * {
+  grid-area: 1 / 1;
+}
+.ov-copy-label-spare {
+  visibility: hidden;
+}
+.ov-copy:hover .ov-copy-action {
+  background: rgb(255 255 255 / 0.2);
+}
+.ov-copy:active {
+  transform: scale(0.97);
+}
+.ov-copy:focus-visible {
+  outline: 2px solid rgb(10 132 255);
+  outline-offset: 2px;
+}
+.ov-copy.copied svg {
+  color: rgb(48 209 88);
+}
+@keyframes ov-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Call prompt: the question over the call app's name, then the two answers,
+   the one that acts last and filled, after the meeting pill's red dot. Like
+   the copy pill, the body sizes itself and overlay.rs fits its window to
+   it. */
+.ov-capsule.ov-call {
+  width: auto;
+  height: auto;
+  min-width: var(--ov-rest-w);
+  border-radius: 22px;
+  font-size: 12.5px;
+  color: var(--ov-ink);
+}
+.ov-call-body {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: var(--ov-copy-max-w);
+  padding: 6px;
+  padding-inline-start: 14px;
+}
+.ov-call .ov-call-body::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(255 69 58);
+}
+.ov-call-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-inline-end: 4px;
+  line-height: 16px;
+}
+.ov-call-question {
+  font-weight: 600;
+  text-wrap: balance;
+}
+.ov-call-app {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.6);
+}
+.ov-call-button {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 14px;
+  margin: 0;
+  white-space: nowrap;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ov-ink);
+  background: rgb(255 255 255 / 0.12);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+.ov-call-button:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+.ov-call-button.accept {
+  color: rgb(24 24 27);
+  background: rgb(255 255 255 / 0.92);
+}
+.ov-call-button.accept:hover {
+  background: rgb(255 255 255);
+}
+.ov-call-button:active {
+  transform: scale(0.96);
+}
+.ov-call-button:focus-visible {
+  outline: 2px solid rgb(10 132 255);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ov-capsule,
+  .ov-capsule.ov-copy,
+  .ov-copy-note,
+  .ov-copy-action,
+  .ov-call-button,
   .ov-wave i {
     animation: none;
     transition: none;
+  }
+  .ov-copy:active,
+  .ov-call-button:active {
+    transform: none;
   }
   .processing .ov-wave i {
     animation: none;

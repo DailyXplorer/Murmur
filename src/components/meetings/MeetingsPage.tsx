@@ -9,12 +9,13 @@ import {
   type MeetingListItem,
   type MeetingRuntime,
   type MeetingStatus,
+  type AnalysisSupport,
   type SystemAudioSupport,
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
-import { useMeetingModels } from "../../hooks/useMeetingModels";
+import { useLocalModel } from "../../hooks/useLocalModel";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -64,6 +65,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
   const [runtime, setRuntime] = useState<MeetingRuntime>({ state: "idle" });
   const [systemAudio, setSystemAudio] =
     useState<SystemAudioSupport>("available");
+  const [analysis, setAnalysis] = useState<AnalysisSupport | null>(null);
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     null,
   );
   const requestRef = useRef(0);
-  const models = useMeetingModels();
+  const models = useLocalModel();
   const recording = runtime.state === "recording";
   const now = useNow(recording);
   // The dialog closes by itself once its meeting stops some other way.
@@ -121,7 +123,9 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
       if (!disposed) setRuntime(current);
     });
     void commands.getMeetingCapabilities().then((capabilities) => {
-      if (!disposed) setSystemAudio(capabilities.system_audio);
+      if (disposed) return;
+      setSystemAudio(capabilities.system_audio);
+      setAnalysis(capabilities.analysis);
     });
     void loadMeetings(PAGE_SIZE);
     const unlisten = events.meetingStateChanged.listen((event) => {
@@ -144,10 +148,14 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
     };
   }, [loadMeetings]);
 
+  // Start and Stop swap places as soon as the meeting changes state, so the
+  // rest of a double click would undo the first one.
   const run = async (
+    event: React.MouseEvent,
     action: () => Promise<{ status: "ok" } | { status: "error" }>,
     errorKey: string,
   ) => {
+    if (event.detail > 1) return;
     setBusy(true);
     try {
       const result = await action();
@@ -204,14 +212,16 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               <>
                 <Button
                   disabled={busy}
-                  onClick={() => setDiscardId(runtime.id)}
+                  onClick={(event) => {
+                    if (event.detail <= 1) setDiscardId(runtime.id);
+                  }}
                 >
                   {t("meetings.discard")}
                 </Button>
                 <Button
                   disabled={busy}
-                  onClick={() =>
-                    void run(commands.stopMeeting, "meetings.stopError")
+                  onClick={(event) =>
+                    void run(event, commands.stopMeeting, "meetings.stopError")
                   }
                 >
                   {t("meetings.stop")}
@@ -220,8 +230,8 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
             ) : (
               <Button
                 disabled={busy}
-                onClick={() =>
-                  void run(commands.startMeeting, "meetings.startError")
+                onClick={(event) =>
+                  void run(event, commands.startMeeting, "meetings.startError")
                 }
               >
                 {t("meetings.start")}
@@ -267,7 +277,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
         )}
       </SettingsGroup>
 
-      <SpeakerModels status={models} />
+      <SpeakerModels status={models} analysis={analysis} />
 
       <SettingsGroup title={t("meetings.list.title")}>
         {loading ? (
@@ -296,7 +306,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                     type="button"
                     disabled={live}
                     onClick={() => onOpen(meeting.id)}
-                    className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-default"
+                    className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
                   >
                     <p className="truncate text-sm font-medium">
                       {meeting.title ?? t("meetings.list.untitled", { date })}
@@ -348,10 +358,11 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
               {t("meetings.discardDialog.keep")}
             </Button>
             <Button
-              onClick={() => {
+              onClick={(event) => {
                 if (discardId === null) return;
                 setDiscardId(null);
                 void run(
+                  event,
                   () => commands.discardMeeting(discardId),
                   "meetings.stopError",
                 );

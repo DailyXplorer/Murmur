@@ -4,9 +4,15 @@
 //!
 //! Failures are retried by kind. Rate limits pause every piece and back off
 //! for up to about half an hour, then stop the run with the pieces not yet
-//! done left pending; network and server errors retry a few times;
-//! a piece refused as too large is halved; a lost sign-in stops everything,
-//! since no other piece could succeed.
+//! done left pending; network and server errors retry for about five
+//! minutes, then a lost connection stops the run the same way, and the
+//! queue goes on once it is back; a piece refused as too large is halved; a
+//! lost sign-in stops everything, since no other piece could succeed.
+//!
+//! With the local model ready, a piece Codex refuses for good (rejected,
+//! failed, signed out, out of reach, or rate limited past the budget) is
+//! transcribed on this Mac instead, and once Codex is out every piece left
+//! goes there.
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -84,6 +90,8 @@ pub struct RetryPolicy {
 }
 
 impl Default for RetryPolicy {
+    /// About five and a half minutes of retries: a Wi-Fi drop or a switch
+    /// of network recovers within the run.
     fn default() -> Self {
         Self {
             rate_limit_first: Duration::from_secs(15),
@@ -93,8 +101,39 @@ impl Default for RetryPolicy {
                 Duration::from_secs(5),
                 Duration::from_secs(20),
                 Duration::from_secs(60),
+                Duration::from_secs(120),
+                Duration::from_secs(120),
             ],
         }
+    }
+}
+
+/// A failure that, once its retries are spent, says Codex is out of reach
+/// rather than refusing this piece. A timeout is not one: Codex was reached,
+/// and the connection check would find it online and rerun the same request
+/// for ever.
+pub fn unreachable(kind: FailureKind) -> bool {
+    kind == FailureKind::Network
+}
+
+/// This Mac's model, with its own engine so a meeting never waits behind a
+/// dictation. The language is Parakeet's to detect.
+pub struct LocalTranscriber(pub Arc<crate::engine::local::LocalEngine>);
+
+impl Transcriber for LocalTranscriber {
+    fn transcribe(
+        &self,
+        samples: Vec<f32>,
+        _language: Option<String>,
+        operation: ProcessingOperation,
+    ) -> TranscribeFuture {
+        let engine = Arc::clone(&self.0);
+        Box::pin(async move {
+            engine
+                .transcribe(&samples, &[], &operation)
+                .await
+                .map_err(|error| TranscriptionError::new(FailureKind::Other, format!("{error:#}")))
+        })
     }
 }
 
@@ -118,6 +157,11 @@ pub struct Job {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
     Done(String),
+    /// Codex ended with `codex`, and this Mac transcribed the piece.
+    DoneLocally {
+        text: String,
+        codex: FailureKind,
+    },
     Failed(FailureKind),
 }
 
@@ -143,6 +187,9 @@ pub enum RunEnd {
     /// A piece used up its rate-limit budget: Codex will refuse the others
     /// too, so they stay pending for a later retry.
     RateLimited,
+    /// A piece used up its network retries: the others stay pending until
+    /// the connection is back.
+    Unreachable,
     Cancelled,
 }
 
@@ -154,12 +201,16 @@ pub enum CodexVerdict {
     Unknown,
     /// Codex answered at least once.
     Answered,
+    /// Codex could not be reached once the retries were spent.
+    Unreachable,
     /// Codex refused with a rate limit.
     RateLimited,
 }
 
 pub struct Runner {
     pub transcriber: Arc<dyn Transcriber>,
+    /// Takes the pieces Codex refuses for good; `None` without a ready model.
+    pub local: Option<Arc<dyn Transcriber>>,
     pub source: Arc<dyn ChunkSource>,
     pub observer: Arc<dyn RunObserver>,
     pub policy: RetryPolicy,
@@ -205,6 +256,9 @@ struct Shared {
     operation: ProcessingOperation,
     signed_out: AtomicBool,
     rate_limited_out: AtomicBool,
+    unreachable_out: AtomicBool,
+    /// A piece ended without text, or was never sent.
+    incomplete: AtomicBool,
     gate: RateGate,
 }
 
@@ -215,10 +269,46 @@ enum Attempt {
 }
 
 impl Shared {
+    /// Why Codex will refuse every piece left in this run.
+    fn codex_out(&self) -> Option<FailureKind> {
+        if self.signed_out.load(Ordering::SeqCst) {
+            Some(FailureKind::SignedOut)
+        } else if self.rate_limited_out.load(Ordering::SeqCst) {
+            Some(FailureKind::RateLimited)
+        } else if self.unreachable_out.load(Ordering::SeqCst) {
+            Some(FailureKind::Network)
+        } else {
+            None
+        }
+    }
+
     fn stopped(&self) -> bool {
-        self.operation.is_cancelled()
-            || self.signed_out.load(Ordering::SeqCst)
-            || self.rate_limited_out.load(Ordering::SeqCst)
+        self.operation.is_cancelled() || (self.runner.local.is_none() && self.codex_out().is_some())
+    }
+
+    /// A piece Codex refused for good with `codex`: transcribed on this Mac
+    /// when it can, failed with Codex's reason otherwise.
+    async fn refused(&self, samples: Vec<f32>, codex: FailureKind) -> Attempt {
+        let Some(local) = &self.runner.local else {
+            return Attempt::Outcome(Outcome::Failed(codex));
+        };
+        match local
+            .transcribe(samples, None, self.operation.clone())
+            .await
+        {
+            Ok(text) => Attempt::Outcome(Outcome::DoneLocally {
+                text: text.trim().to_string(),
+                codex,
+            }),
+            Err(_) if self.operation.is_cancelled() => Attempt::Stopped,
+            Err(error) => {
+                log::warn!(
+                    "Local transcription of a meeting piece failed: {}",
+                    error.detail
+                );
+                Attempt::Outcome(Outcome::Failed(codex))
+            }
+        }
     }
 
     async fn sleep(&self, delay: Duration) {
@@ -249,9 +339,14 @@ impl Shared {
             let mut rate_limits = 0u32;
             let mut waited = Duration::ZERO;
             loop {
-                self.gate.wait(&self.operation).await;
+                if self.codex_out().is_none() {
+                    self.gate.wait(&self.operation).await;
+                }
                 if self.stopped() {
                     return Attempt::Stopped;
+                }
+                if let Some(codex) = self.codex_out() {
+                    return self.refused(samples, codex).await;
                 }
                 let result = self
                     .runner
@@ -276,16 +371,28 @@ impl Shared {
                         let delay = policy.rate_limit_delay(rate_limits);
                         if waited + delay > policy.rate_limit_budget {
                             self.rate_limited_out.store(true, Ordering::SeqCst);
-                            return Attempt::Outcome(Outcome::Failed(error.kind));
+                            return self.refused(samples, error.kind).await;
                         }
                         waited += delay;
                         rate_limits += 1;
                         self.gate.hold(delay);
                         self.runner.observer.rate_limited();
                     }
-                    FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
+                    FailureKind::Network
+                    | FailureKind::Timeout
+                    | FailureKind::ServerError
+                    | FailureKind::ConnectionDropped => {
                         let Some(delay) = policy.transient.get(transient).copied() else {
-                            return Attempt::Outcome(Outcome::Failed(error.kind));
+                            if error.kind == FailureKind::ServerError {
+                                return Attempt::Outcome(Outcome::Failed(error.kind));
+                            }
+                            // After a timeout or a dropped connection, the
+                            // other pieces still try Codex; a connection
+                            // that never opened stops them.
+                            if unreachable(error.kind) {
+                                self.unreachable_out.store(true, Ordering::SeqCst);
+                            }
+                            return self.refused(samples, error.kind).await;
                         };
                         transient += 1;
                         self.sleep(delay).await;
@@ -297,30 +404,55 @@ impl Shared {
                         let first = Arc::clone(&self)
                             .transcribe_range(track, start_ms, cut)
                             .await;
-                        let Attempt::Outcome(Outcome::Done(first)) = first else {
+                        let Attempt::Outcome(
+                            first @ (Outcome::Done(_) | Outcome::DoneLocally { .. }),
+                        ) = first
+                        else {
                             return first;
                         };
                         let second = Arc::clone(&self).transcribe_range(track, cut, end_ms).await;
-                        let Attempt::Outcome(Outcome::Done(second)) = second else {
+                        let Attempt::Outcome(second) = second else {
                             return second;
                         };
-                        let joined = [first, second]
-                            .into_iter()
-                            .filter(|text| !text.is_empty())
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        return Attempt::Outcome(Outcome::Done(joined));
+                        return Attempt::Outcome(joined(first, second));
                     }
                     FailureKind::SessionExpired | FailureKind::SignedOut => {
                         self.signed_out.store(true, Ordering::SeqCst);
-                        return Attempt::Outcome(Outcome::Failed(error.kind));
+                        return self.refused(samples, error.kind).await;
                     }
-                    FailureKind::Rejected | FailureKind::Other => {
-                        return Attempt::Outcome(Outcome::Failed(error.kind));
+                    FailureKind::Rejected
+                    | FailureKind::LocalNotReady
+                    | FailureKind::LocalFailed
+                    | FailureKind::LanguageNeedsCloud
+                    | FailureKind::Other => {
+                        return self.refused(samples, error.kind).await;
                     }
                 }
             }
         })
+    }
+}
+
+/// The two halves of a piece as one piece: done on this Mac when either half
+/// was, failed when either failed, since a done piece is never sent again.
+fn joined(first: Outcome, second: Outcome) -> Outcome {
+    let mut local = None;
+    let mut texts = Vec::with_capacity(2);
+    for half in [first, second] {
+        match half {
+            Outcome::Done(text) => texts.push(text),
+            Outcome::DoneLocally { text, codex } => {
+                local.get_or_insert(codex);
+                texts.push(text);
+            }
+            failed @ Outcome::Failed(_) => return failed,
+        }
+    }
+    texts.retain(|text| !text.is_empty());
+    let text = texts.join(" ");
+    match local {
+        Some(codex) => Outcome::DoneLocally { text, codex },
+        None => Outcome::Done(text),
     }
 }
 
@@ -333,6 +465,8 @@ impl Runner {
             operation,
             signed_out: AtomicBool::new(false),
             rate_limited_out: AtomicBool::new(false),
+            unreachable_out: AtomicBool::new(false),
+            incomplete: AtomicBool::new(false),
             gate: RateGate::default(),
         });
         let slots = Arc::new(Semaphore::new(MAX_PARALLEL));
@@ -342,6 +476,7 @@ impl Runner {
                 break;
             };
             if shared.stopped() {
+                shared.incomplete.store(true, Ordering::SeqCst);
                 break;
             }
             let shared = Arc::clone(&shared);
@@ -349,19 +484,30 @@ impl Runner {
                 let attempt = Arc::clone(&shared)
                     .transcribe_range(job.track, job.start_ms, job.end_ms)
                     .await;
-                if let Attempt::Outcome(outcome) = attempt {
-                    shared.runner.observer.finished(&job, &outcome);
+                match attempt {
+                    Attempt::Outcome(outcome) => {
+                        if matches!(outcome, Outcome::Failed(_)) {
+                            shared.incomplete.store(true, Ordering::SeqCst);
+                        }
+                        shared.runner.observer.finished(&job, &outcome);
+                    }
+                    Attempt::Stopped => shared.incomplete.store(true, Ordering::SeqCst),
                 }
                 drop(slot);
             });
         }
         while running.join_next().await.is_some() {}
+        // Codex going out ends the run that way only when it left pieces
+        // without text; this Mac may have transcribed them all.
+        let incomplete = shared.incomplete.load(Ordering::SeqCst);
         if shared.operation.is_cancelled() {
             RunEnd::Cancelled
-        } else if shared.signed_out.load(Ordering::SeqCst) {
+        } else if incomplete && shared.signed_out.load(Ordering::SeqCst) {
             RunEnd::SignedOut
-        } else if shared.rate_limited_out.load(Ordering::SeqCst) {
+        } else if incomplete && shared.rate_limited_out.load(Ordering::SeqCst) {
             RunEnd::RateLimited
+        } else if incomplete && shared.unreachable_out.load(Ordering::SeqCst) {
+            RunEnd::Unreachable
         } else {
             RunEnd::Finished
         }
@@ -619,6 +765,15 @@ mod tests {
     }
 
     fn run(server: &FakeServer, jobs: Vec<Job>, operation: ProcessingOperation) -> Run {
+        run_with_local(server, jobs, operation, None)
+    }
+
+    fn run_with_local(
+        server: &FakeServer,
+        jobs: Vec<Job>,
+        operation: ProcessingOperation,
+        local: Option<Arc<dyn Transcriber>>,
+    ) -> Run {
         let dir = tempfile::tempdir().unwrap();
         auth_file(dir.path(), "token-0");
         let recorder = Arc::new(Recorder::default());
@@ -627,6 +782,7 @@ mod tests {
                 url: server.url.clone(),
                 auth_path: Some(dir.path().join("auth.json")),
             }),
+            local,
             source: Arc::new(Silence),
             observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
             policy: quick_policy(),
@@ -720,6 +876,344 @@ mod tests {
         assert!(server.requests.lock().unwrap().len() <= 6 * MAX_PARALLEL);
     }
 
+    /// This Mac's model: answers with the piece's length, or fails.
+    struct FakeLocal {
+        fails: bool,
+        calls: AtomicUsize,
+    }
+
+    impl FakeLocal {
+        fn answering() -> Arc<Self> {
+            Arc::new(Self {
+                fails: false,
+                calls: AtomicUsize::new(0),
+            })
+        }
+
+        fn failing() -> Arc<Self> {
+            Arc::new(Self {
+                fails: true,
+                calls: AtomicUsize::new(0),
+            })
+        }
+    }
+
+    impl Transcriber for FakeLocal {
+        fn transcribe(
+            &self,
+            samples: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let fails = self.fails;
+            Box::pin(async move {
+                if fails {
+                    Err(TranscriptionError::new(FailureKind::Other, "local failed"))
+                } else {
+                    Ok(format!(" local {} ", samples.len()))
+                }
+            })
+        }
+    }
+
+    #[test]
+    fn past_the_rate_limit_budget_every_piece_is_transcribed_on_this_mac() {
+        let server = serve(Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())));
+        let local = FakeLocal::answering();
+        let run = run_with_local(
+            &server,
+            jobs(12, 1_000),
+            operation(),
+            Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        );
+        assert_eq!(run.end, RunEnd::Finished);
+        let outcomes = outcomes(&run);
+        assert_eq!(outcomes.len(), 12);
+        for (_, outcome) in &outcomes {
+            assert_eq!(
+                *outcome,
+                Outcome::DoneLocally {
+                    text: "local 16000".into(),
+                    codex: FailureKind::RateLimited
+                }
+            );
+        }
+        assert_eq!(local.calls.load(Ordering::SeqCst), 12);
+        // Once Codex is out, the pieces left are not sent to it.
+        assert!(server.requests.lock().unwrap().len() <= 6 * MAX_PARALLEL);
+    }
+
+    /// Codex behind a connection that is down until `online` is set.
+    #[derive(Default)]
+    struct Connection {
+        online: AtomicBool,
+        calls: AtomicUsize,
+    }
+
+    impl Transcriber for Connection {
+        fn transcribe(
+            &self,
+            _: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let online = self.online.load(Ordering::SeqCst);
+            Box::pin(async move {
+                if online {
+                    Ok("En ligne.".to_string())
+                } else {
+                    Err(TranscriptionError::new(FailureKind::Network, "offline"))
+                }
+            })
+        }
+    }
+
+    fn run_through<C: Transcriber + 'static>(
+        codex: &Arc<C>,
+        jobs: Vec<Job>,
+        local: Option<Arc<dyn Transcriber>>,
+    ) -> (RunEnd, Arc<Recorder>) {
+        let recorder = Arc::new(Recorder::default());
+        let runner = Runner {
+            transcriber: Arc::clone(codex) as Arc<dyn Transcriber>,
+            local,
+            source: Arc::new(Silence),
+            observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
+            policy: quick_policy(),
+            language: None,
+        };
+        let end = tauri::async_runtime::block_on(runner.run(jobs, operation()));
+        (end, recorder)
+    }
+
+    #[test]
+    fn past_its_network_retries_every_piece_is_transcribed_on_this_mac() {
+        let codex = Arc::new(Connection::default());
+        let local = FakeLocal::answering();
+        let (end, recorder) = run_through(
+            &codex,
+            jobs(9, 1_000),
+            Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        );
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 9);
+        assert!(finished.iter().all(|(_, outcome)| *outcome
+            == Outcome::DoneLocally {
+                text: "local 16000".into(),
+                codex: FailureKind::Network
+            }));
+        // Once Codex is out of reach, the pieces left are not sent to it.
+        assert!(codex.calls.load(Ordering::SeqCst) <= 4 * MAX_PARALLEL);
+    }
+
+    #[test]
+    fn without_a_model_a_lost_connection_leaves_the_pieces_not_sent_pending() {
+        let codex = Arc::new(Connection::default());
+        let (end, recorder) = run_through(&codex, jobs(9, 1_000), None);
+        assert_eq!(end, RunEnd::Unreachable);
+        {
+            let finished = recorder.finished.lock().unwrap();
+            assert!(finished.len() <= MAX_PARALLEL, "{finished:?}");
+            assert!(finished
+                .iter()
+                .all(|(_, outcome)| *outcome == Outcome::Failed(FailureKind::Network)));
+        }
+        assert!(codex.calls.load(Ordering::SeqCst) <= 4 * MAX_PARALLEL);
+
+        // The connection is back: the next run sends every piece again.
+        codex.online.store(true, Ordering::SeqCst);
+        let (end, recorder) = run_through(&codex, jobs(9, 1_000), None);
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 9);
+        assert!(finished
+            .iter()
+            .all(|(_, outcome)| *outcome == Outcome::Done("En ligne.".into())));
+    }
+
+    /// Codex that connects but answers every piece too late, as on a slow
+    /// uplink.
+    struct TooSlow;
+
+    impl Transcriber for TooSlow {
+        fn transcribe(
+            &self,
+            _: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            Box::pin(async { Err(TranscriptionError::new(FailureKind::Timeout, "too slow")) })
+        }
+    }
+
+    #[test]
+    fn pieces_that_keep_timing_out_fail_instead_of_waiting_for_a_connection() {
+        // The connection works: waiting for it to come back would rerun the
+        // same requests for ever.
+        let (end, recorder) = run_through(&Arc::new(TooSlow), jobs(4, 1_000), None);
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 4, "every piece is tried");
+        assert!(finished
+            .iter()
+            .all(|(_, outcome)| *outcome == Outcome::Failed(FailureKind::Timeout)));
+
+        // This Mac's model still takes them.
+        let local = FakeLocal::answering();
+        let (end, recorder) = run_through(
+            &Arc::new(TooSlow),
+            jobs(2, 1_000),
+            Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        );
+        assert_eq!(end, RunEnd::Finished);
+        assert!(recorder
+            .finished
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, outcome)| *outcome
+                == Outcome::DoneLocally {
+                    text: "local 16000".into(),
+                    codex: FailureKind::Timeout
+                }));
+    }
+
+    /// Codex behind a proxy that cuts every upload once the connection
+    /// opened, classified as the real client does.
+    struct CutUploads(String);
+
+    impl Transcriber for CutUploads {
+        fn transcribe(
+            &self,
+            _: Vec<f32>,
+            _: Option<String>,
+            _: ProcessingOperation,
+        ) -> TranscribeFuture {
+            let url = self.0.clone();
+            Box::pin(async move {
+                let client = reqwest::Client::builder().no_proxy().build().unwrap();
+                let error = client.post(url).send().await.unwrap_err();
+                Err(TranscriptionError::new(
+                    FailureKind::from_transport(&error),
+                    error.to_string(),
+                ))
+            })
+        }
+    }
+
+    /// Round 51: the pieces go to a ready model, as after a timeout, and
+    /// not into failed parts.
+    #[test]
+    fn pieces_cut_after_the_connection_opened_go_to_a_ready_model() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/transcribe", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                drop(stream);
+            }
+        });
+        let (end, recorder) = run_through(
+            &Arc::new(CutUploads(url)),
+            jobs(2, 1_000),
+            Some(FakeLocal::answering() as Arc<dyn Transcriber>),
+        );
+        assert_eq!(end, RunEnd::Finished);
+        let finished = recorder.finished.lock().unwrap();
+        assert_eq!(finished.len(), 2);
+        assert!(
+            finished.iter().all(|(_, outcome)| matches!(
+                outcome,
+                Outcome::DoneLocally { text, .. } if text == "local 16000"
+            )),
+            "{finished:?}"
+        );
+    }
+
+    #[test]
+    fn a_refused_piece_goes_to_this_mac_and_a_server_failure_does_not() {
+        let server = serve(Box::new(|_, request| {
+            // The first piece is twice as long as the second.
+            if request.body_bytes > 40_000 {
+                (400, "bad request".into())
+            } else {
+                (502, "bad gateway".into())
+            }
+        }));
+        let jobs = vec![
+            Job {
+                track: Track::Mic,
+                idx: 0,
+                start_ms: 0,
+                end_ms: 2_000,
+            },
+            Job {
+                track: Track::System,
+                idx: 1,
+                start_ms: 2_000,
+                end_ms: 3_000,
+            },
+        ];
+        let local = FakeLocal::answering();
+        let run = run_with_local(
+            &server,
+            jobs,
+            operation(),
+            Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        );
+        assert_eq!(run.end, RunEnd::Finished);
+        assert_eq!(
+            outcomes(&run),
+            [
+                (
+                    0,
+                    Outcome::DoneLocally {
+                        text: "local 32000".into(),
+                        codex: FailureKind::Rejected
+                    }
+                ),
+                (1, Outcome::Failed(FailureKind::ServerError)),
+            ]
+        );
+        assert_eq!(local.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_lost_session_with_a_ready_model_still_finishes_the_meeting() {
+        let server = serve(Box::new(|_, _| (401, r#"{"detail":"expired"}"#.into())));
+        let run = run_with_local(
+            &server,
+            jobs(5, 1_000),
+            operation(),
+            Some(FakeLocal::answering() as Arc<dyn Transcriber>),
+        );
+        assert_eq!(run.end, RunEnd::Finished);
+        let outcomes = outcomes(&run);
+        assert_eq!(outcomes.len(), 5);
+        assert!(outcomes.iter().all(|(_, outcome)| matches!(
+            outcome,
+            Outcome::DoneLocally { codex, .. }
+                if matches!(codex, FailureKind::SessionExpired | FailureKind::SignedOut)
+        )));
+    }
+
+    #[test]
+    fn a_failing_local_model_leaves_the_codex_failure() {
+        let server = serve(Box::new(|_, _| (429, r#"{"detail":"slow down"}"#.into())));
+        let run = run_with_local(
+            &server,
+            jobs(2, 1_000),
+            operation(),
+            Some(FakeLocal::failing() as Arc<dyn Transcriber>),
+        );
+        assert_eq!(run.end, RunEnd::RateLimited);
+        assert!(outcomes(&run)
+            .iter()
+            .all(|(_, outcome)| *outcome == Outcome::Failed(FailureKind::RateLimited)));
+    }
+
     #[test]
     fn server_errors_are_retried_then_the_piece_fails_and_the_others_go_on() {
         let server = serve(Box::new(|_, request| {
@@ -786,6 +1280,65 @@ mod tests {
         );
     }
 
+    /// A 150 s piece refused as too large, whose request `refused` (1 for
+    /// the first half, 2 for the second) Codex then rejects.
+    fn halved_with_one_half_rejected(refused: usize) -> (Run, usize) {
+        let server = serve(Box::new(move |number, request| {
+            if request.body_bytes > 3_000_000 {
+                (413, "too large".into())
+            } else if number == refused {
+                (400, "bad request".into())
+            } else {
+                ok(&format!("moitié {number}"))
+            }
+        }));
+        let piece = Job {
+            track: Track::System,
+            idx: 0,
+            start_ms: 0,
+            end_ms: 150_000,
+        };
+        let run = run_with_local(
+            &server,
+            vec![piece],
+            operation(),
+            Some(FakeLocal::answering() as Arc<dyn Transcriber>),
+        );
+        let requests = server.requests.lock().unwrap().len();
+        (run, requests)
+    }
+
+    #[test]
+    fn a_halved_piece_whose_first_half_goes_to_this_mac_keeps_the_second_half() {
+        let (run, requests) = halved_with_one_half_rejected(1);
+        assert_eq!(
+            outcomes(&run),
+            [(
+                0,
+                Outcome::DoneLocally {
+                    text: "local 1439680 moitié 2".into(),
+                    codex: FailureKind::Rejected
+                }
+            )]
+        );
+        assert_eq!(requests, 3);
+    }
+
+    #[test]
+    fn a_halved_piece_whose_second_half_goes_to_this_mac_keeps_the_first_half() {
+        let (run, _) = halved_with_one_half_rejected(2);
+        assert_eq!(
+            outcomes(&run),
+            [(
+                0,
+                Outcome::DoneLocally {
+                    text: "moitié 1 local 960320".into(),
+                    codex: FailureKind::Rejected
+                }
+            )]
+        );
+    }
+
     #[test]
     fn a_lost_session_stops_every_piece_not_yet_sent() {
         let dir_token = Arc::new(Mutex::new(None::<PathBuf>));
@@ -807,6 +1360,7 @@ mod tests {
                 url: server.url.clone(),
                 auth_path: Some(dir.path().join("auth.json")),
             }),
+            local: None,
             source: Arc::new(Silence),
             observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
             policy: quick_policy(),
@@ -842,6 +1396,7 @@ mod tests {
                 url: server.url.clone(),
                 auth_path: Some(dir.path().join("auth.json")),
             }),
+            local: None,
             source: Arc::new(Silence),
             observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
             policy: quick_policy(),

@@ -27,6 +27,14 @@ async resetBinding(id: string) : Promise<Result<BindingResponse, string>> {
 async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: ShortcutRegistrationError }>> {
     return await TAURI_INVOKE("get_shortcut_registration_errors");
 },
+/**
+ * What the active keyboard layout writes on the keys shortcuts name, keyed
+ * by the name, so a shortcut shows the key to press. Empty when macOS cannot
+ * tell, and the names are shown as they are.
+ */
+async getKeyLabels() : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("get_key_labels");
+},
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_audio_feedback_setting", { enabled }) };
@@ -86,14 +94,6 @@ async changeAutostartSetting(enabled: boolean) : Promise<Result<null, string>> {
 async changeSelectedLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_selected_language_setting", { language }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async changeTranscriptionProviderSetting(provider: TranscriptionProvider) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_transcription_provider_setting", { provider }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -259,16 +259,13 @@ async changeAiCleanupSetting(enabled: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async changeCleanupEngineSetting(engine: CleanupEngine) : Promise<Result<null, string>> {
+async changeDictationStyleSetting(style: DictationStyle) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_engine_setting", { engine }) };
+    return { status: "ok", data: await TAURI_INVOKE("change_dictation_style_setting", { style }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
-},
-async getAppleIntelligenceStatus() : Promise<AppleIntelligenceStatus> {
-    return await TAURI_INVOKE("get_apple_intelligence_status");
 },
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
@@ -345,8 +342,42 @@ async relaunchAfterUpdate() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async getUpdateStatus() : Promise<UpdateStatus> {
+    return await TAURI_INVOKE("get_update_status");
+},
+/**
+ * The footer's "Check for updates".
+ */
+async checkForUpdates() : Promise<Result<UpdateStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_for_updates") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
+},
+/**
+ * The copy pill's click: puts its text on the clipboard, then lets the pill
+ * read "Copied" for a moment before it hides.
+ */
+async copyNoticeAgain() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copy_notice_again") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Fits the copy notice's window to the capsule the webview measured, so a
+ * note that wraps further in a wider fallback font still shows whole, and
+ * the window, which takes clicks while the notice shows, stays close to it.
+ */
+async fitCopyNotice(width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("fit_copy_notice", { width, height });
 },
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
@@ -559,30 +590,69 @@ async getCodexAuthStatus() : Promise<CodexAuthStatus> {
     return await TAURI_INVOKE("get_codex_auth_status");
 },
 /**
- * Signature verification runs off the AppKit thread. This only reports local
- * configuration, not whether the cloud will accept a transcription.
+ * Signs in to ChatGPT in the browser, as Codex does, and saves the session
+ * Codex and Murmur share. A sign-in already under way is cancelled first.
  */
-async getGeminiStatus() : Promise<GeminiStatus> {
-    return await TAURI_INVOKE("get_gemini_status");
+async signInWithChatgpt() : Promise<Result<null, SignInError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sign_in_with_chatgpt") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as SignInError };
+}
+},
+async cancelChatgptSignIn() : Promise<void> {
+    await TAURI_INVOKE("cancel_chatgpt_sign_in");
 },
 /**
- * Opens Antigravity after an explicit user action so the user can sign in.
+ * Signs out as `codex logout` does, so Codex is signed out too.
  */
-async openAntigravity() : Promise<Result<null, string>> {
+async signOutOfChatgpt() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("open_antigravity") };
+    return { status: "ok", data: await TAURI_INVOKE("sign_out_of_chatgpt") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
 /**
- * The provider shown by onboarding must remain selected. Losing its local
- * configuration cannot silently change where the next recording is sent.
+ * Dictation on this Mac needs no account. The cloud needs a Codex session,
+ * so the first recording has somewhere to go.
  */
 async completeOnboarding() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("complete_onboarding") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Picking this Mac starts the local model's download if it is not there.
+ */
+async changeTranscriptionEngineSetting(engine: Engine) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_transcription_engine_setting", { engine }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The one-time card's Download: dictation moves to this Mac once the local
+ * model is ready, at once if it already is.
+ */
+async switchToLocalWhenReady() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_to_local_when_ready") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeLocalSttCardDismissedSetting(dismissed: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_local_stt_card_dismissed_setting", { dismissed }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -789,33 +859,33 @@ async retranscribeMeeting(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async getMeetingModelsStatus() : Promise<Result<MeetingModelsStatus, string>> {
+async getLocalModelStatus() : Promise<Result<LocalModelStatus, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_meeting_models_status") };
+    return { status: "ok", data: await TAURI_INVOKE("get_local_model_status") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async downloadMeetingModels() : Promise<Result<null, string>> {
+async downloadLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("download_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("download_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async cancelMeetingModelsDownload() : Promise<Result<null, string>> {
+async cancelLocalModelDownload() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cancel_meeting_models_download") };
+    return { status: "ok", data: await TAURI_INVOKE("cancel_local_model_download") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
 },
-async deleteMeetingModels() : Promise<Result<null, string>> {
+async deleteLocalModel() : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_meeting_models") };
+    return { status: "ok", data: await TAURI_INVOKE("delete_local_model") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -883,6 +953,55 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+/**
+ * Takes effect at the next daily pass, or at the next launch.
+ */
+async changeMeetingAudioRetentionSetting(retention: MeetingAudioRetention) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_audio_retention_setting", { retention }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Measured on disk, off the main thread: uncompressed tracks count too.
+ */
+async getMeetingsStorage() : Promise<Result<MeetingsStorage, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meetings_storage") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_call_prompt_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The call prompt's buttons: "Record" when `accept`, else "Not now".
+ */
+async answerCallPrompt(accept: boolean) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { accept });
+},
+/**
+ * Fits the call prompt's window to the capsule the webview measured, as
+ * `fit_copy_notice` does the copy notice's.
+ */
+async fitCallPrompt(width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("fit_call_prompt", { width, height });
+},
+/**
+ * The call prompt showing, if any.
+ */
+async getCallPrompt() : Promise<CallPromptLabels | null> {
+    return await TAURI_INVOKE("get_call_prompt");
 }
 }
 
@@ -892,17 +1011,21 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
-meetingModelsStatus: MeetingModelsStatus,
+localModelStatus: LocalModelStatus,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
-meetingsUpdated: MeetingsUpdated
+meetingsUpdated: MeetingsUpdated,
+switchedToLocal: SwitchedToLocal,
+updateStatus: UpdateStatus
 }>({
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
-meetingModelsStatus: "meeting-models-status",
+localModelStatus: "local-model-status",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
-meetingsUpdated: "meetings-updated"
+meetingsUpdated: "meetings-updated",
+switchedToLocal: "switched-to-local",
+updateStatus: "update-status"
 })
 
 /** user-defined constants **/
@@ -951,16 +1074,16 @@ whats_new_last_seen_version?: string; onboarding_completed?: boolean; always_on_
  * Which input channel to use on the selected microphone device.
  * None means "average all channels".
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; transcription_provider?: TranscriptionProvider; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; selected_language?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; accent_color?: AccentColor; experimental_enabled?: boolean; lazy_stream_close?: boolean; show_tray_icon?: boolean; paste_delay_ms?: number; paste_delay_after_ms?: number; 
 /**
  * Required guarded paste path. AppKit does not identify the process
  * reading promised data, so settlement waits a bounded window. macOS only.
  */
 reliable_paste?: boolean; 
 /**
- * AI cleanup and formatting of each transcript, by `cleanup_engine`.
+ * AI cleanup and formatting of each transcript by the Codex session.
  */
-ai_cleanup_enabled?: boolean; cleanup_engine?: CleanupEngine; 
+ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle; 
 /**
  * Dictionary words learned from corrections; each is also in `custom_words`.
  */
@@ -977,12 +1100,29 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode }
-export type AppleIntelligenceStatus = "available" | "deviceNotEligible" | "appleIntelligenceNotEnabled" | "modelNotReady" | "unsupportedOs" | "unavailable" | 
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
 /**
- * The model runs, but not in the selected dictation language.
+ * Offers to record when a call app starts using the microphone. Only
+ * while meetings are on.
  */
-"unsupportedLanguage"
+meeting_call_prompt?: boolean; 
+/**
+ * Which engine transcribes dictations.
+ */
+transcription_engine?: Engine; 
+/**
+ * The one-time card announcing local transcription was closed.
+ */
+local_stt_card_dismissed?: boolean; 
+/**
+ * The user asked for the local model, so its download resumes at launch.
+ */
+local_model_download_wanted?: boolean; 
+/**
+ * The user asked to dictate on this Mac as soon as the local model is
+ * ready.
+ */
+switch_to_local_when_ready?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1002,12 +1142,19 @@ export type AudioState =
 "deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
-export type CategoryUsage = { category: AppCategory; count: number }
 /**
- * Which model runs AI cleanup. Apple's on-device model is free, offline
- * and does not spend the user's Codex allowance, so it is the default.
+ * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
  */
-export type CleanupEngine = "apple" | "codex"
+export type CallPromptLabels = { 
+/**
+ * The call app's name.
+ */
+app: string; question: string; accept: string; decline: string; 
+/**
+ * The overlay's side of the screen, which the prompt sits on too.
+ */
+position: OverlayPosition }
+export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
  */
@@ -1037,7 +1184,64 @@ signed_in: boolean;
  */
 expired: boolean }
 export type CustomSounds = { start: boolean; stop: boolean }
-export type GeminiStatus = { installed: boolean; signed_in: boolean }
+/**
+ * How much AI cleanup reshapes the dictation. It applies only when cleanup
+ * runs; `Normal` is the cleanup Murmur had before styles existed.
+ */
+export type DictationStyle = "formal" | "normal" | "casual"
+/**
+ * Why a download stopped, as the user is told.
+ */
+export type DownloadFailure = { kind: "no_internet" } | 
+/**
+ * Unreachable, an HTTP error, or no data for `STALL_TIMEOUT`.
+ */
+{ kind: "server_unavailable" } | 
+/**
+ * The file arrived twice with the wrong SHA-256.
+ */
+{ kind: "damaged" } | { kind: "not_enough_space"; needed_bytes: number; free_bytes: number } | 
+/**
+ * The models folder could not be written.
+ */
+{ kind: "disk" } | 
+/**
+ * The models downloaded but would not load on this Mac.
+ */
+{ kind: "prepare_failed" }
+export type Engine = 
+/**
+ * Parakeet TDT 0.6B v3 on this Mac, what a new install starts with.
+ */
+"local" | 
+/**
+ * Codex through the user's ChatGPT session.
+ */
+"cloud"
+/**
+ * Why a dictation was transcribed by the engine the user did not choose.
+ */
+export type FallbackReason = 
+/**
+ * Local chosen: the model is not downloaded or not ready yet.
+ */
+"model_not_ready" | 
+/**
+ * Local chosen: the local run failed.
+ */
+"local_failed" | 
+/**
+ * Local chosen: the dictation language is outside Parakeet's 25.
+ */
+"language_not_supported" | 
+/**
+ * Cloud chosen: ChatGPT refused for the account's usage limit.
+ */
+"cloud_limit_reached" | 
+/**
+ * Cloud chosen: ChatGPT failed for any other reason.
+ */
+"cloud_failed"
 export type HeatmapDay = { 
 /**
  * Local calendar date, `YYYY-MM-DD`.
@@ -1055,13 +1259,21 @@ transcription_text: string;
 /**
  * The transcript before AI cleanup, when cleanup ran.
  */
-raw_text: string | null; cleanup: CleanupOutcome | null }
+raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine; 
+/**
+ * Set when the engine is not the one the user chose.
+ */
+fallback_reason: FallbackReason | null }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
  */
-words_per_minute: number | null; words_corrected: number; dictionary_fixes: number; 
+words_per_minute: number | null; 
+/**
+ * Against typing at [`stats::TYPING_WPM`], over the same dictations as `total_words`.
+ */
+minutes_saved: number; 
 /**
  * Non-empty categories, most used first.
  */
@@ -1076,12 +1288,42 @@ export type LearnedWord = { word: string;
  * How Murmur wrote it before the user corrected it.
  */
 heard_as: string }
+export type LocalModelState = 
+/**
+ * This Mac cannot run the models.
+ */
+{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; done_bytes: number; total_bytes: number } | 
+/**
+ * Checking models an earlier version downloaded, or loading new ones
+ * once so they are compiled for this Mac.
+ */
+{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+export type LocalModelStatus = { state: LocalModelState; 
+/**
+ * What the download takes on this Mac.
+ */
+size_bytes: number; 
+/**
+ * What a download that stopped, missing or failed, left on this Mac.
+ * Deleting the models frees it.
+ */
+kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+/**
+ * How long a processed meeting keeps its audio. Its transcript and summary
+ * stay either way. The names are spelled out: serde and the TypeScript
+ * bindings split `Days7` differently.
+ */
+export type MeetingAudioRetention = "keep" | "days7" | "days30" | "days90"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
  * Telling speakers apart on device.
  */
-analysis: AnalysisSupport }
+analysis: AnalysisSupport; 
+/**
+ * Telling that a call started, for the call prompt.
+ */
+call_detection: boolean }
 /**
  * Which sources a meeting records. Without system audio support (before
  * macOS 14.4, or on Intel) every mode records the microphone only; the
@@ -1110,7 +1352,17 @@ system_audio_silent: boolean;
  * When a Codex rate-limit hold stops keeping this queued meeting
  * waiting. Only the processing queue knows; the store never sets it.
  */
-held_until_ms: number | null }
+held_until_ms: number | null; 
+/**
+ * This queued meeting waits for the connection to reach Codex. Only the
+ * processing queue knows; the store never sets it.
+ */
+waiting_for_connection: boolean; 
+/**
+ * How much of the recorded audio this Mac transcribed because Codex
+ * refused it. "Transcribe again" sends it all to Codex once more.
+ */
+local_fallback_ms: number }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
@@ -1120,7 +1372,6 @@ title: string | null; started_at_ms: number; duration_ms: number; status: Meetin
  * Which tab Copy and Export take their text from.
  */
 export type MeetingMarkdownKind = "summary" | "transcript"
-export type MeetingModelsStatus = { state: ModelsState; bytes_on_disk: number }
 /**
  * How far processing has come, for the progress bar.
  */
@@ -1175,18 +1426,21 @@ export type MeetingTracks = "both" | "system" | "mic"
 export type MeetingTurn = { speaker_key: string; start_ms: number; end_ms: number; text: string; low_confidence: boolean }
 export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
 /**
+ * The disk space meetings take, in bytes.
+ */
+export type MeetingsStorage = { 
+/**
+ * The meetings' folders: their tracks, compressed or not.
+ */
+audio_bytes: number; 
+/**
+ * What was set aside next to the library, deleted after 30 days.
+ */
+set_aside_bytes: number }
+/**
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
-export type ModelsState = 
-/**
- * This Mac cannot run the analysis.
- */
-{ state: "unsupported"; support: AnalysisSupport } | { state: "missing" } | { state: "downloading"; fraction: number } | 
-/**
- * Compiling the models for this Mac, once.
- */
-{ state: "preparing" } | { state: "ready" } | { state: "failed" }
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
@@ -1212,6 +1466,11 @@ export type ProcessingError =
  */
 "no_audio" | 
 /**
+ * Codex could not be reached: processing goes on by itself once the
+ * connection is back.
+ */
+"offline" | 
+/**
  * Processing stopped on an unexpected error.
  */
 "other"
@@ -1229,6 +1488,7 @@ export type ShortcutRegistrationError =
  * Another Murmur action already uses the keys, and keeps them.
  */
 "used_by_another_action"
+export type SignInError = "port_busy" | "cancelled" | "timed_out" | "denied" | "not_entitled" | "network" | "rejected" | "save_failed" | "browser_failed"
 export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * How the speakers of a meeting were told apart.
@@ -1260,9 +1520,13 @@ export type SummaryError =
  */
 "signed_out" | "rate_limited" | 
 /**
- * Codex could not be reached, or answered with an error.
+ * Codex could not be reached.
  */
-"network" | "timeout" | 
+"network" | 
+/**
+ * Codex answered with a server error, or its reply was cut off.
+ */
+"server" | "timeout" | 
 /**
  * The reply ran past its length cap.
  */
@@ -1280,6 +1544,10 @@ export type SummaryStatus =
  * Not written yet: it is once the whole transcript is.
  */
 "pending" | "ready" | "failed"
+/**
+ * Dictation moved to this Mac, as the user asked, once the model was ready.
+ */
+export type SwitchedToLocal = Record<string, never>
 /**
  * The "System Audio Recording" permission, as macOS reports it now.
  */
@@ -1302,7 +1570,14 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
-export type TranscriptionProvider = "codex" | "gemini"
+/**
+ * What the last update check found.
+ */
+export type UpdateStatus = { 
+/**
+ * The newer version, `None` when Murmur is up to date.
+ */
+available: string | null }
 
 /** tauri-specta globals **/
 

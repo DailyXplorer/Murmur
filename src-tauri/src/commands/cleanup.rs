@@ -1,11 +1,8 @@
-use crate::cleanup::AppleIntelligenceStatus;
-use crate::settings::{self, AppSettings, CleanupEngine};
+use crate::settings::{self, AppSettings, DictationStyle};
 use tauri::AppHandle;
 
 fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
-    let mut value = settings::get_settings(app);
-    change(&mut value);
-    settings::write_settings(app, value);
+    settings::update_settings(app, change);
     Ok(())
 }
 
@@ -17,18 +14,8 @@ pub fn change_ai_cleanup_setting(app: AppHandle, enabled: bool) -> Result<(), St
 
 #[tauri::command]
 #[specta::specta]
-pub fn change_cleanup_engine_setting(app: AppHandle, engine: CleanupEngine) -> Result<(), String> {
-    update(&app, |value| value.cleanup_engine = engine)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn get_apple_intelligence_status(app: AppHandle) -> AppleIntelligenceStatus {
-    let settings = settings::get_settings(&app);
-    crate::cleanup::apple_intelligence_status(crate::actions::cleanup_language(
-        settings.transcription_provider,
-        &settings.selected_language,
-    ))
+pub fn change_dictation_style_setting(app: AppHandle, style: DictationStyle) -> Result<(), String> {
+    update(&app, |value| value.dictation_style = style)
 }
 
 #[tauri::command]

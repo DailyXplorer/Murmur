@@ -3,10 +3,13 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::meetings::coordinator::MeetingRuntime;
-use crate::meetings::models::MeetingModelsStatus;
+use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
-use crate::settings::{get_settings, write_settings, MeetingCaptureMode};
+use crate::settings::{
+    get_settings, update_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
+    ShortcutBinding,
+};
 use crate::user_alert::{self, Alert};
 
 /// "Screen & System Audio Recording", where "System Audio Recording Only"
@@ -58,6 +61,10 @@ pub async fn discard_meeting(app: AppHandle, id: i64) -> Result<(), String> {
     with_manager(app, move |manager| manager.discard(id)).await
 }
 
+fn page_limit(limit: Option<usize>) -> usize {
+    limit.unwrap_or(PAGE_SIZE).clamp(1, PAGE_SIZE)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_meetings(
@@ -65,7 +72,7 @@ pub async fn get_meetings(
     cursor: Option<i64>,
     limit: Option<usize>,
 ) -> Result<MeetingsPage, String> {
-    let limit = limit.unwrap_or(PAGE_SIZE).clamp(1, PAGE_SIZE);
+    let limit = page_limit(limit);
     with_manager(app, move |manager| manager.list(cursor, limit)).await
 }
 
@@ -195,42 +202,11 @@ pub async fn reanalyze_meeting(app: AppHandle, id: i64) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_meeting_models_status(app: AppHandle) -> Result<MeetingModelsStatus, String> {
-    with_manager(app, |manager| Ok(manager.models_status())).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn download_meeting_models(app: AppHandle) -> Result<(), String> {
-    with_manager(app, |manager| {
-        manager.download_models();
-        Ok(())
-    })
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn cancel_meeting_models_download(app: AppHandle) -> Result<(), String> {
-    with_manager(app, |manager| {
-        manager.cancel_models_download();
-        Ok(())
-    })
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn delete_meeting_models(app: AppHandle) -> Result<(), String> {
-    with_manager(app, MeetingsManager::delete_models).await
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn get_meeting_capabilities() -> MeetingCapabilities {
     MeetingCapabilities {
         system_audio: meetings::capture::system::support(),
         analysis: meetings::helper::support(),
+        call_detection: meetings::call_watch::supported(),
     }
 }
 
@@ -264,6 +240,52 @@ pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
 #[cfg(target_os = "windows")]
 const MEETINGS_UNAVAILABLE: &str = "Meetings are not available on Windows";
 
+/// What turning meetings on or off does to the meeting shortcut.
+enum MeetingShortcutChange {
+    /// Another action already uses these keys and keeps them; the shortcut
+    /// field says so until the user picks other keys.
+    UsedByAnotherAction,
+    Register(ShortcutBinding),
+    /// Only a shortcut that held its keys gives them back.
+    Release {
+        binding: ShortcutBinding,
+        unregister: bool,
+    },
+}
+
+struct MeetingsToggle {
+    settings: AppSettings,
+    /// `None` when there is no meeting shortcut.
+    shortcut: Option<MeetingShortcutChange>,
+}
+
+/// `None` when meetings are already `enabled`.
+fn toggle_meetings(mut settings: AppSettings, enabled: bool) -> Option<MeetingsToggle> {
+    if settings.meetings_enabled == enabled {
+        return None;
+    }
+    let held = crate::shortcut::binding_registers(&settings, meetings::BINDING_ID);
+    settings.meetings_enabled = enabled;
+    let yields = crate::shortcut::meeting_shortcut_yields(&settings);
+    let shortcut = settings
+        .bindings
+        .get(meetings::BINDING_ID)
+        .cloned()
+        .map(|binding| {
+            if yields {
+                MeetingShortcutChange::UsedByAnotherAction
+            } else if enabled {
+                MeetingShortcutChange::Register(binding)
+            } else {
+                MeetingShortcutChange::Release {
+                    binding,
+                    unregister: held,
+                }
+            }
+        });
+    Some(MeetingsToggle { settings, shortcut })
+}
+
 /// Turning meetings off stops a meeting in progress (it is kept) and frees
 /// the shortcut's keys; turning them on claims them.
 #[tauri::command]
@@ -273,21 +295,18 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
     if enabled {
         return Err(MEETINGS_UNAVAILABLE.to_string());
     }
-    let mut settings = get_settings(&app);
-    if settings.meetings_enabled == enabled {
+    let Some(toggle) = toggle_meetings(get_settings(&app), enabled) else {
         return Ok(());
-    }
+    };
     if enabled {
         meetings::init(&app, false);
     }
-    // Only a shortcut that held its keys gives them back.
-    let held = crate::shortcut::binding_registers(&settings, meetings::BINDING_ID);
-    settings.meetings_enabled = enabled;
-    let binding = settings.bindings.get(meetings::BINDING_ID).cloned();
-    let yields = crate::shortcut::meeting_shortcut_yields(&settings);
     // Saved before the shutdown: a meeting still opening its devices sees
-    // meetings off once it has started, and discards itself.
-    write_settings(&app, settings);
+    // meetings off once it has started, and discards itself. Only this field
+    // belongs to the toggle; its earlier planning snapshot is never persisted.
+    update_settings(&app, |settings| {
+        settings.meetings_enabled = toggle.settings.meetings_enabled;
+    });
     if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
         if enabled {
             manager.resume_processing();
@@ -296,16 +315,15 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
         }
     }
 
-    if let Some(binding) = binding {
-        if yields {
-            // Another action already uses these keys and keeps them; the
-            // shortcut field says so until the user picks other keys.
+    match toggle.shortcut {
+        Some(MeetingShortcutChange::UsedByAnotherAction) => {
             crate::shortcut::record_registration_error(
                 &app,
                 meetings::BINDING_ID,
                 crate::shortcut::ShortcutRegistrationError::UsedByAnotherAction,
             );
-        } else if enabled {
+        }
+        Some(MeetingShortcutChange::Register(binding)) => {
             if let Err(error) = crate::shortcut::register_shortcut(&app, binding.clone()) {
                 log::warn!("Meeting shortcut is unavailable: {error}");
                 crate::shortcut::record_registration_error(
@@ -320,17 +338,42 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
                     },
                 );
             }
-        } else {
+        }
+        Some(MeetingShortcutChange::Release {
+            binding,
+            unregister,
+        }) => {
             crate::shortcut::clear_registration_error(&app, meetings::BINDING_ID);
-            if held {
+            if unregister {
                 if let Err(error) = crate::shortcut::unregister_shortcut(&app, binding) {
                     log::debug!("Meeting shortcut was not registered: {error}");
                 }
             }
         }
+        None => {}
     }
+    meetings::call_watch::sync(&app);
     crate::utils::update_tray_menu(&app, None);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    update_settings(&app, |settings| settings.meeting_call_prompt = enabled);
+    meetings::call_watch::sync(&app);
+    Ok(())
+}
+
+/// The call prompt's buttons: "Record" when `accept`, else "Not now".
+#[tauri::command]
+#[specta::specta]
+pub fn answer_call_prompt(app: AppHandle, accept: bool) {
+    meetings::call_watch::answer(&app, accept);
+}
+
+fn with_capture_mode(settings: &mut AppSettings, mode: MeetingCaptureMode) {
+    settings.meeting_capture_mode = mode;
 }
 
 #[tauri::command]
@@ -339,8 +382,177 @@ pub fn change_meeting_capture_mode_setting(
     app: AppHandle,
     mode: MeetingCaptureMode,
 ) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.meeting_capture_mode = mode;
-    write_settings(&app, settings);
+    update_settings(&app, |settings| with_capture_mode(settings, mode));
     Ok(())
+}
+
+/// Takes effect at the next daily pass, or at the next launch.
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_audio_retention_setting(
+    app: AppHandle,
+    retention: MeetingAudioRetention,
+) -> Result<(), String> {
+    update_settings(&app, |settings| {
+        settings.meeting_audio_retention = retention
+    });
+    Ok(())
+}
+
+/// Measured on disk, off the main thread: uncompressed tracks count too.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_meetings_storage(app: AppHandle) -> Result<MeetingsStorage, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || meetings::paths::storage(&app_data))
+        .await
+        .map_err(|error| format!("Measuring the meetings failed: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{page_limit, toggle_meetings, with_capture_mode, MeetingShortcutChange};
+    use crate::meetings::{BINDING_ID, DEFAULT_BINDING};
+    use crate::settings::{get_default_settings, AppSettings, MeetingCaptureMode};
+
+    fn meetings(enabled: bool) -> AppSettings {
+        let mut settings = get_default_settings();
+        settings.meetings_enabled = enabled;
+        settings
+    }
+
+    fn on_meeting_keys(mut settings: AppSettings, id: &str) -> AppSettings {
+        settings.bindings.get_mut(id).unwrap().current_binding = DEFAULT_BINDING.to_string();
+        settings
+    }
+
+    fn shortcut(settings: AppSettings, enabled: bool) -> MeetingShortcutChange {
+        toggle_meetings(settings, enabled)
+            .expect("a change")
+            .shortcut
+            .expect("a meeting shortcut")
+    }
+
+    #[test]
+    fn a_page_holds_one_to_fifty_meetings() {
+        assert_eq!(page_limit(None), 50);
+        assert_eq!(page_limit(Some(0)), 1);
+        assert_eq!(page_limit(Some(20)), 20);
+        assert_eq!(page_limit(Some(500)), 50);
+    }
+
+    #[test]
+    fn an_unchanged_toggle_does_nothing() {
+        for enabled in [true, false] {
+            assert!(
+                toggle_meetings(meetings(enabled), enabled).is_none(),
+                "{enabled}"
+            );
+            assert!(
+                toggle_meetings(meetings(enabled), !enabled).is_some(),
+                "{enabled}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_toggle_writes_the_new_state() {
+        for enabled in [true, false] {
+            let toggle = toggle_meetings(meetings(!enabled), enabled).expect("a change");
+            assert_eq!(toggle.settings.meetings_enabled, enabled);
+        }
+    }
+
+    #[test]
+    fn turning_meetings_on_with_free_keys_registers_the_shortcut() {
+        match shortcut(meetings(false), true) {
+            MeetingShortcutChange::Register(binding) => {
+                assert_eq!(binding.id, BINDING_ID);
+                assert_eq!(binding.current_binding, DEFAULT_BINDING);
+            }
+            _ => panic!("expected Register"),
+        }
+    }
+
+    #[test]
+    fn turning_meetings_on_leaves_keys_another_action_holds() {
+        for id in ["transcribe", "paste_last", "cancel"] {
+            let settings = on_meeting_keys(meetings(false), id);
+            assert!(
+                matches!(
+                    shortcut(settings, true),
+                    MeetingShortcutChange::UsedByAnotherAction
+                ),
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn turning_meetings_off_unregisters_a_shortcut_that_held_its_keys() {
+        match shortcut(meetings(true), false) {
+            MeetingShortcutChange::Release {
+                binding,
+                unregister,
+            } => {
+                assert_eq!(binding.id, BINDING_ID);
+                assert!(unregister);
+            }
+            _ => panic!("expected Release"),
+        }
+    }
+
+    /// The other action keeps its keys, so nothing is unregistered, but the
+    /// "used by another action" error is cleared with the shortcut.
+    #[test]
+    fn turning_meetings_off_releases_a_yielded_shortcut_without_unregistering() {
+        for id in ["transcribe", "paste_last", "cancel"] {
+            let settings = on_meeting_keys(meetings(true), id);
+            assert!(
+                matches!(
+                    shortcut(settings, false),
+                    MeetingShortcutChange::Release {
+                        unregister: false,
+                        ..
+                    }
+                ),
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn without_a_meeting_shortcut_the_toggle_changes_no_keys() {
+        for enabled in [true, false] {
+            let mut settings = meetings(!enabled);
+            settings.bindings.remove(BINDING_ID);
+            let toggle = toggle_meetings(settings, enabled).expect("a change");
+            assert!(toggle.shortcut.is_none(), "{enabled}");
+        }
+    }
+
+    #[test]
+    fn capture_mode_changes_only_that_setting() {
+        let before = get_default_settings();
+        assert_ne!(before.meeting_capture_mode, MeetingCaptureMode::SystemOnly);
+        let mut after = before.clone();
+        with_capture_mode(&mut after, MeetingCaptureMode::SystemOnly);
+
+        let serde_json::Value::Object(before) = serde_json::to_value(before).unwrap() else {
+            panic!("settings serialize as an object");
+        };
+        let serde_json::Value::Object(after) = serde_json::to_value(after).unwrap() else {
+            panic!("settings serialize as an object");
+        };
+        let changed: Vec<&String> = after
+            .keys()
+            .filter(|key| before.get(*key) != after.get(*key))
+            .collect();
+        assert_eq!(changed, ["meeting_capture_mode"]);
+        assert_eq!(after["meeting_capture_mode"], "system_only");
+        assert_eq!(before.len(), after.len());
+    }
 }

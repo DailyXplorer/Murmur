@@ -15,7 +15,7 @@ export const ACCENT_COLOR_OPTIONS: AccentColor[] = [
 export const ACCENT_COLOR_PREVIEWS: Record<AccentColor, string> = {
   pink: "#faa2ca",
   blue: "#9cc7ff",
-  green: "#99e8b7",
+  green: "#6bff86",
   yellow: "#f2d66b",
   orange: "#f9bc82",
   red: "#f6a0a3",

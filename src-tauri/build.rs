@@ -2,6 +2,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_binding",
     "reset_binding",
     "get_shortcut_registration_errors",
+    "get_key_labels",
     "change_audio_feedback_setting",
     "change_audio_feedback_volume_setting",
     "change_sound_theme_setting",
@@ -10,7 +11,6 @@ const APP_COMMANDS: &[&str] = &[
     "change_start_hidden_setting",
     "change_autostart_setting",
     "change_selected_language_setting",
-    "change_transcription_provider_setting",
     "change_overlay_position_setting",
     "change_overlay_style_setting",
     "change_debug_mode_setting",
@@ -31,8 +31,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_append_trailing_space_setting",
     "change_lazy_stream_close_setting",
     "change_ai_cleanup_setting",
-    "change_cleanup_engine_setting",
-    "get_apple_intelligence_status",
+    "change_dictation_style_setting",
     "change_window_names_setting",
     "change_whisper_mode_setting",
     "change_app_language_setting",
@@ -42,7 +41,11 @@ const APP_COMMANDS: &[&str] = &[
     "change_show_tray_icon_setting",
     "show_main_window_command",
     "relaunch_after_update",
+    "get_update_status",
+    "check_for_updates",
     "cancel_operation",
+    "copy_notice_again",
+    "fit_copy_notice",
     "get_app_dir_path",
     "get_app_settings",
     "get_default_settings",
@@ -67,9 +70,13 @@ const APP_COMMANDS: &[&str] = &[
     "get_microphone_channels",
     "set_selected_channel",
     "get_codex_auth_status",
-    "get_gemini_status",
-    "open_antigravity",
+    "sign_in_with_chatgpt",
+    "cancel_chatgpt_sign_in",
+    "sign_out_of_chatgpt",
     "complete_onboarding",
+    "change_transcription_engine_setting",
+    "switch_to_local_when_ready",
+    "change_local_stt_card_dismissed_setting",
     "get_history_entries",
     "get_insights",
     "toggle_history_entry_saved",
@@ -93,10 +100,10 @@ const APP_COMMANDS: &[&str] = &[
     "retry_meeting_summary",
     "delete_meeting_audio",
     "retranscribe_meeting",
-    "get_meeting_models_status",
-    "download_meeting_models",
-    "cancel_meeting_models_download",
-    "delete_meeting_models",
+    "get_local_model_status",
+    "download_local_model",
+    "cancel_local_model_download",
+    "delete_local_model",
     "copy_meeting_markdown",
     "export_meeting_markdown",
     "get_meeting_capabilities",
@@ -104,6 +111,12 @@ const APP_COMMANDS: &[&str] = &[
     "open_system_audio_privacy_settings",
     "change_meetings_enabled_setting",
     "change_meeting_capture_mode_setting",
+    "change_meeting_audio_retention_setting",
+    "get_meetings_storage",
+    "change_meeting_call_prompt_setting",
+    "answer_call_prompt",
+    "fit_call_prompt",
+    "get_call_prompt",
 ];
 
 fn main() {
@@ -199,20 +212,16 @@ fn generate_tray_translations() {
         .expect("generated tray translations are writable");
 }
 
-/// Compiles each Swift bridge in `swift/` into a static library: Apple
-/// Intelligence cleanup, the meeting system-audio tap and the meeting audio
-/// compression. They need Apple silicon, so Intel builds get Rust's stubs
-/// instead.
+/// Compiles each Swift bridge in `swift/` into a static library: the meeting
+/// system-audio tap and the meeting audio compression. The tap needs Apple
+/// silicon, so Intel builds get Rust's stubs for it; compression only needs
+/// AudioToolbox, which Intel Macs have too.
 fn build_swift_bridges() {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    const BRIDGES: [(&str, &str, &str); 3] = [
-        (
-            "swift/apple_cleanup.swift",
-            "MurmurAppleCleanup",
-            "murmur_apple_cleanup",
-        ),
+    // The tap comes first: Intel builds skip it.
+    const BRIDGES: [(&str, &str, &str); 2] = [
         (
             "swift/meeting_audio.swift",
             "MurmurMeetingAudio",
@@ -230,9 +239,11 @@ fn build_swift_bridges() {
     println!("cargo:rerun-if-env-changed=SDKROOT");
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
-    if target_os != "macos" || target_arch != "aarch64" {
-        return;
-    }
+    let (bridges, swift_target) = match (target_os.as_str(), target_arch.as_str()) {
+        ("macos", "aarch64") => (&BRIDGES[..], "arm64-apple-macosx11.0"),
+        ("macos", "x86_64") => (&BRIDGES[1..], "x86_64-apple-macosx11.0"),
+        _ => return,
+    };
 
     let xcrun = |args: &[&str]| -> String {
         let output = Command::new("xcrun")
@@ -252,11 +263,23 @@ fn build_swift_bridges() {
     let swiftc = xcrun(&["--sdk", "macosx", "--find", "swiftc"]);
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
 
-    for (source, module, library) in BRIDGES {
+    for &(source, module, library) in bridges {
         let object = out_dir.join(format!("{library}.o"));
         let status = Command::new(&swiftc)
             .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
-            .args(["-target", "arm64-apple-macosx11.0", "-sdk", &sdk])
+            .args(["-target", swift_target, "-sdk", &sdk])
+            // The bridges use no Swift concurrency, but Foundation's import
+            // still asks to link it. Below macOS 12 that is
+            // `@rpath/libswift_Concurrency.dylib`, which the bundle does not
+            // ship.
+            .args([
+                "-Xfrontend",
+                "-disable-autolink-library",
+                "-Xfrontend",
+                "swift_Concurrency",
+                "-Xfrontend",
+                "-disable-autolinking-runtime-compatibility-concurrency",
+            ])
             .arg("-module-name")
             .arg(module)
             .arg(source)
@@ -292,15 +315,6 @@ fn build_swift_bridges() {
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=framework=CoreAudio");
     println!("cargo:rustc-link-lib=framework=AudioToolbox");
-    // macOS before 26 has no FoundationModels, and macOS 11 has no Swift
-    // concurrency runtime: both are weak so the app still launches there.
-    if Path::new(&sdk)
-        .join("System/Library/Frameworks/FoundationModels.framework")
-        .exists()
-    {
-        println!("cargo:rustc-link-arg=-Wl,-weak_framework,FoundationModels");
-    }
-    println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
 
