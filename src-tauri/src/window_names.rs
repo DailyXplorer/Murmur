@@ -351,16 +351,44 @@ const SECRET_WORDS: [&str; 32] = [
 
 /// Short labels that name a secret only right before its value, as in
 /// `PIN: 1234` or `OpenAI key: sk-…`: "the key point" holds none.
-const VALUE_LABELS: [&str; 9] = [
-    "key", "keys", "pin", "pass", "pwd", "pw", "login", "cle", "cles",
+const VALUE_LABELS: [&str; 13] = [
+    "key", "keys", "pin", "pass", "pwd", "pw", "login", "cle", "cles", "code", "codes", "wifi",
+    "wi-fi",
 ];
+
+/// Words that name a secret when a value with a digit follows within two
+/// words, as in `PIN 1234` or "le code est 4512".
+const NUMBER_LABELS: [&str; 3] = ["pin", "code", "codes"];
+
+/// Codes next to these words are no secret: "Code postal", "Zip code".
+const PUBLIC_CODES: [&str; 4] = ["postal", "zip", "promo", "source"];
 
 /// French names a secret first and what it opens after it, within three
 /// words: "Clé Wi-Fi", "Clé de sécurité", "Code de la porte".
 const FRENCH_SECRET_HEADS: [&str; 4] = ["cle", "cles", "code", "codes"];
-const FRENCH_SECRET_OBJECTS: [&str; 8] = [
-    "wifi", "wi-fi", "securite", "porte", "immeuble", "entree", "alarme", "portail",
+const FRENCH_SECRET_OBJECTS: [&str; 18] = [
+    "wifi",
+    "wi-fi",
+    "wpa",
+    "securite",
+    "porte",
+    "immeuble",
+    "entree",
+    "interphone",
+    "batiment",
+    "alarme",
+    "portail",
+    "garage",
+    "parking",
+    "cadenas",
+    "coffre",
+    "boite",
+    "cb",
+    "carte",
 ];
+
+/// English names what a code opens first: "Door code", "Alarm code".
+const ENGLISH_CODE_OBJECTS: [&str; 6] = ["door", "gate", "alarm", "access", "lockbox", "security"];
 
 fn mentions_secret(line: &str) -> bool {
     let folded = folded(line);
@@ -370,8 +398,10 @@ fn mentions_secret(line: &str) -> bool {
         || has_user_option(line)
 }
 
-/// A `VALUE_LABELS` word or "PIN code" right before a colon, or a French
-/// secret head, in whole words of the `folded` line.
+/// A `VALUE_LABELS` word or "PIN code" right before a colon, a
+/// `NUMBER_LABELS` word before a digit, a French secret head or an English
+/// code object, in whole words of the `folded` line. A code next to a
+/// `PUBLIC_CODES` word counts for none of them.
 fn names_a_secret(folded: &str) -> bool {
     fn words(text: &str) -> Vec<&str> {
         text.split(|c: char| c.is_whitespace() || c == '\'')
@@ -381,6 +411,7 @@ fn names_a_secret(folded: &str) -> bool {
     }
     let is_label = |label: &str| match words(label).as_slice() {
         [.., "pin", "code"] => true,
+        [.., before, "code" | "codes"] if PUBLIC_CODES.contains(before) => false,
         [.., last] => VALUE_LABELS.contains(last),
         [] => false,
     };
@@ -388,13 +419,26 @@ fn names_a_secret(folded: &str) -> bool {
         .match_indices(':')
         .any(|(colon, _)| is_label(&folded[..colon]));
     let words = words(folded);
+    let numbered = |at: usize| {
+        !words[at.saturating_sub(1)..(at + 2).min(words.len())]
+            .iter()
+            .any(|near| PUBLIC_CODES.contains(near))
+            && words[at + 1..]
+                .iter()
+                .take(2)
+                .any(|next| next.chars().any(|c| c.is_ascii_digit()))
+    };
     labelled
         || words.iter().enumerate().any(|(at, word)| {
-            FRENCH_SECRET_HEADS.contains(word)
-                && words[at + 1..]
-                    .iter()
-                    .take(3)
-                    .any(|next| FRENCH_SECRET_OBJECTS.contains(next))
+            (NUMBER_LABELS.contains(word) && numbered(at))
+                || (FRENCH_SECRET_HEADS.contains(word)
+                    && words[at + 1..]
+                        .iter()
+                        .take(3)
+                        .any(|next| FRENCH_SECRET_OBJECTS.contains(next)))
+        })
+        || words.windows(2).any(|pair| {
+            ENGLISH_CODE_OBJECTS.contains(&pair[0]) && matches!(pair[1], "code" | "codes")
         })
 }
 
@@ -450,7 +494,8 @@ fn has_user_option(line: &str) -> bool {
 /// addresses and @handles. Most frequent first, at most 50. Lines that
 /// assign a value or mention a password, token, secret or API key are
 /// skipped, and so is the line after them, where a label's value sits, and
-/// every entry of the list they head, up to a blank line or a sentence.
+/// every entry of the list they head, up to a sentence or a blank line
+/// other than one right under the label.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -472,15 +517,14 @@ pub fn candidate_names(text: &str) -> Vec<String> {
     let mut in_secret_list = false;
     for line in text.lines() {
         if line.trim().is_empty() {
-            in_secret_list = false;
+            in_secret_list &= after_secret_label;
             continue;
         }
         let label = mentions_secret(line);
-        let sensitive = after_secret_label
-            || (in_secret_list && is_list_entry(line))
-            || is_assignment(line)
-            || label;
-        after_secret_label = label;
+        let entry = in_secret_list && is_list_entry(line);
+        let sensitive = after_secret_label || entry || is_assignment(line) || label;
+        // An entry such as `Wi-Fi : Soleil2024` holds its own value.
+        after_secret_label = label && !entry;
         in_secret_list = label || (in_secret_list && sensitive);
         if sensitive {
             continue;
@@ -513,13 +557,21 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// A line of a list such as `Bureau - Corvina`, `Bureau : Corvina` or
-/// `Bureau Corvina`: an entry and its value, rather than a sentence.
+/// A line of a list such as `Bureau - Corvina`, `Bureau : Corvina`,
+/// `Bureau Corvina`, `- Bureau Corvina` or `2. Bureau Corvina`: an entry
+/// and its value, rather than a sentence.
 fn is_list_entry(line: &str) -> bool {
     let line = line.trim();
-    [" - ", " – ", " — ", ":", "\t", " | "]
-        .iter()
-        .any(|separator| line.contains(separator))
+    let digits = line.trim_start_matches(|c: char| c.is_ascii_digit());
+    let after_marker = if digits.len() < line.len() {
+        digits.strip_prefix(['.', ')'])
+    } else {
+        line.strip_prefix(['-', '*', '•', '–', '—'])
+    };
+    after_marker.is_some_and(|rest| rest.starts_with(char::is_whitespace))
+        || [" - ", " – ", " — ", ":", "\t", " | "]
+            .iter()
+            .any(|separator| line.contains(separator))
         || (line.split_whitespace().count() <= 3 && line.starts_with(char::is_uppercase))
 }
 
@@ -1281,6 +1333,61 @@ mod tests {
             "",
             false,
         ),
+        // Door codes, PINs and Wi-Fi keys with no listed label (round 47).
+        ("com.apple.Notes", "", "Code : 4512B\n", "", false),
+        ("com.apple.Notes", "", "Code: 1234\n", "", false),
+        ("com.apple.Notes", "", "Le code est 4512, ", "", false),
+        ("com.apple.Notes", "", "Door code: 4512\n", "", false),
+        ("com.apple.Notes", "", "Gate code 4512\n", "", false),
+        ("com.apple.Notes", "", "Alarm code: 1234\n", "", false),
+        ("com.apple.Notes", "", "Access code: 482913\n", "", false),
+        ("com.apple.Notes", "", "PIN 1234\n", "", false),
+        ("com.apple.Messages", "", "My PIN is 1234, ", "", false),
+        ("com.apple.Notes", "", "PIN number: 1234\n", "", false),
+        ("com.apple.Notes", "", "Wifi : Soleil2024\n", "", false),
+        ("com.apple.Mail", "", "Wi-Fi: Bluebird2024\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Code interphone : 4512B\n",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Code bâtiment : 4512\n", "", false),
+        ("com.apple.Notes", "", "Code garage : 1234\n", "", false),
+        ("com.apple.Notes", "", "Mon code PIN est 1234, ", "", false),
+        ("com.apple.Notes", "", "Zip code: 94103\n", "", true),
+        (
+            "com.apple.Notes",
+            "",
+            "Code promo : BIENVENUE10\n",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "The code review is on Monday. ",
+            "",
+            true,
+        ),
+        // A blank line under the label of a list longer than the excerpt
+        // (round 47).
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe\n\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n\
+             Banque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\nBanque : Soleil2024\n",
+            "",
+            false,
+        ),
     ];
 
     /// Every text the name finder was checked on, and the names it gives.
@@ -1358,6 +1465,24 @@ mod tests {
         (
             "Code porte : 4589B\nGarage – Corvina\nask Amaya",
             &["Amaya"],
+        ),
+        // Numbered and bulleted entries, and a blank line under the label
+        // (round 47).
+        (
+            "Mots de passe\n1. Banque Soleil2024\n2. Netflix Lune2023\n3. Gmail Etoile99",
+            &[],
+        ),
+        (
+            "Mots de passe\n- Banque Soleil2024\n- Netflix Lune2023\n- Gmail Etoile99",
+            &[],
+        ),
+        (
+            "Passwords\n• Bank Bluebird7\n• Netflix Corvina\n• Gmail Zephyr42",
+            &[],
+        ),
+        (
+            "Mots de passe\n\nBanque Soleil2024\nNetflix Lune2023\n\nmerci Ingrid",
+            &["Ingrid"],
         ),
     ];
 

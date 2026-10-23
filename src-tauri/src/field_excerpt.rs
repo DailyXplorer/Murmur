@@ -142,18 +142,31 @@ pub fn read_field(
 }
 
 /// The byte where the paragraph holding the excerpt's earliest possible
-/// start begins, after the last blank line before it; 0 without one.
+/// start begins, after the last blank line before it; 0 without one. The
+/// one-line paragraphs right above it are headings of it and start it.
 fn paragraph_start(text: &str, cursor: usize) -> usize {
     let excerpt_start = byte_offset(text, cursor.saturating_sub(EXCERPT_BEFORE_UNITS));
-    let mut paragraph = 0;
+    // A paragraph's first byte and its number of lines.
+    let mut paragraph = (0, 0);
+    let mut above = Vec::new();
     let mut line = 0;
     for (newline, _) in text[..excerpt_start].match_indices('\n') {
-        if text[line..newline].trim().is_empty() {
-            paragraph = newline + 1;
+        if !text[line..newline].trim().is_empty() {
+            paragraph.1 += 1;
+        } else if paragraph.1 > 0 {
+            above.push(paragraph);
+            paragraph = (newline + 1, 0);
+        } else {
+            paragraph.0 = newline + 1;
         }
         line = newline + 1;
     }
-    paragraph
+    above
+        .iter()
+        .rev()
+        .take_while(|&&(_, lines)| lines == 1)
+        .last()
+        .map_or(paragraph.0, |&(start, _)| start)
 }
 
 /// Enough of the field for `cut` and for the paragraph it starts in, and
