@@ -430,6 +430,7 @@ mod tests {
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
     }
 
+    #[cfg(unix)]
     fn days_ago(now: DateTime<Utc>, days: i64) -> String {
         (now - chrono::TimeDelta::days(days))
             .format("%Y%m%d-%H%M%S")
