@@ -806,13 +806,17 @@ mod tests {
         assert_eq!(script.requests.lock().unwrap().len(), 4);
     }
 
+    /// Codex was reached: the summary does not say it could not be.
     #[test]
-    fn a_lasting_server_failure_still_fails_the_summary() {
-        let script = Script::new((0..4).map(|_| failed(FailureKind::ServerError)).collect());
-        assert_eq!(
-            run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
-            SummaryEnd::Failed(SummaryError::Network)
-        );
+    fn a_lasting_server_failure_or_cut_reply_fails_as_codex_trouble() {
+        for kind in [FailureKind::ServerError, FailureKind::ConnectionDropped] {
+            let script = Script::new((0..4).map(|_| failed(kind)).collect());
+            assert_eq!(
+                run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+                SummaryEnd::Failed(SummaryError::Server),
+                "{kind:?}"
+            );
+        }
     }
 
     #[test]
@@ -1166,6 +1170,7 @@ mod tests {
             SummaryError::SignedOut,
             SummaryError::RateLimited,
             SummaryError::Network,
+            SummaryError::Server,
             SummaryError::Timeout,
             SummaryError::TooLong,
             SummaryError::Empty,

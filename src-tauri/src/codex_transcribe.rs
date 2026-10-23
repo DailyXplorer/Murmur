@@ -508,6 +508,17 @@ mod tests {
         assert_eq!(request_timeout(five_minutes, 0), alone);
     }
 
+    /// A dictation sent while meeting pieces upload shares the uplink with
+    /// them, so its timeout counts them.
+    #[test]
+    fn an_upload_counts_the_uploads_already_in_flight() {
+        let meeting_pieces: Vec<Upload> = (0..3).map(|_| Upload::begin()).collect();
+        let dictation = Upload::begin();
+        // Other tests may be uploading too.
+        assert!(dictation.sharing >= 4, "{}", dictation.sharing);
+        drop(meeting_pieces);
+    }
+
     #[test]
     fn soft_limit_is_reached_after_about_thirteen_minutes() {
         let samples_per_minute = 60 * SAMPLE_RATE as usize;

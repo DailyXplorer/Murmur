@@ -1264,6 +1264,26 @@ mod tests {
         }
     }
 
+    /// Meetings set aside at launch are deleted 30 days later, so the user
+    /// is told the library was reset.
+    #[test]
+    fn a_library_reset_at_launch_is_told() {
+        let damaged = tempfile::tempdir().unwrap();
+        std::fs::write(damaged.path().join("meetings.db"), b"not a database").unwrap();
+        std::fs::create_dir_all(damaged.path().join("meetings").join("1")).unwrap();
+        assert!(Library::open(damaged.path()).unwrap().reset, "damaged");
+
+        let gone = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(gone.path().join("meetings").join("3")).unwrap();
+        assert!(Library::open(gone.path()).unwrap().reset, "deleted");
+
+        let first_launch = tempfile::tempdir().unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
+        // A folder no meeting points to, in a library that opened.
+        std::fs::create_dir_all(first_launch.path().join("meetings").join("9")).unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
+    }
+
     #[test]
     fn the_meetings_queued_or_processing_are_busy() {
         let queue = ProcessingQueue::new(false);
