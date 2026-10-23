@@ -22,6 +22,7 @@ use log::{info, warn};
 use serde::Deserialize;
 use std::io::Cursor;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
@@ -145,6 +146,30 @@ pub fn upload_size_for_samples(sample_count: usize) -> usize {
     44 + sample_count * WAV_BYTES_PER_SAMPLE
 }
 
+/// Uploads to Codex under way, from dictations and meeting pieces alike:
+/// they share the uplink.
+static UPLOADS_IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+
+/// One upload under way, until dropped.
+struct Upload {
+    /// Uploads under way as this one started, itself included.
+    sharing: usize,
+}
+
+impl Upload {
+    fn begin() -> Self {
+        Self {
+            sharing: UPLOADS_IN_FLIGHT.fetch_add(1, Ordering::SeqCst) + 1,
+        }
+    }
+}
+
+impl Drop for Upload {
+    fn drop(&mut self) {
+        UPLOADS_IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 fn request_timeout(upload_bytes: usize, uploads_at_once: usize) -> Duration {
     let bytes_on_the_uplink = upload_bytes as u64 * uploads_at_once.max(1) as u64;
     Duration::from_secs(
@@ -161,7 +186,8 @@ pub async fn transcribe(
 }
 
 /// `transcribe` against `url`, with the session in `auth_path` (the Codex
-/// default when `None`), while `uploads_at_once` requests share the uplink.
+/// default when `None`), while `uploads_at_once` requests share the uplink,
+/// or more if more uploads are already under way.
 pub(crate) async fn transcribe_at(
     url: &str,
     auth_path: Option<&Path>,
@@ -199,7 +225,8 @@ async fn transcribe_with_quota(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
-    let timeout = request_timeout(wav.len(), uploads_at_once);
+    let upload = Upload::begin();
+    let timeout = request_timeout(wav.len(), uploads_at_once.max(upload.sharing));
     let auth_path = match auth_path {
         Some(path) => path.to_path_buf(),
         None => codex_auth::auth_path()?,
