@@ -31,6 +31,12 @@
     "overlayCopy": "Copy",
     "overlayCopied": "Copied",
     "overlayNotPasted": "There was no text field to paste into.",
+    "callRecordQuestion": "Record this meeting?",
+    "callRecord": "Record",
+    "callNotNow": "Not now",
+    "callStopQuestion": "The call ended. Stop recording?",
+    "callStop": "Stop",
+    "callKeepRecording": "Keep recording",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",
@@ -328,6 +334,10 @@
       "meetingsToggle": {
         "label": "Meetings",
         "description": "Record meetings from your microphone and system audio. Adds a Meetings page, a shortcut and a menu bar item."
+      },
+      "meetingCallPrompt": {
+        "label": "Offer to record calls",
+        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it, and offer to stop when it ends. Murmur never records without a click."
       },
       "meetingsAudio": {
         "title": "Delete meeting audio",

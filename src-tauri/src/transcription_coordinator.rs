@@ -3,6 +3,7 @@ use crate::dictation_gesture::{Gesture, Intent, Key};
 use crate::managers::audio::AudioRecordingManager;
 use crate::{OperationId, ProcessingOperation};
 use log::{debug, error, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
@@ -16,6 +17,14 @@ const MAX_RECORDING_DURATION: Duration =
     Duration::from_secs(crate::audio_toolkit::constants::MAX_RECORDING_SECONDS);
 /// How long before the recording cap the user is told it will stop.
 pub(crate) const LIMIT_WARNING_LEAD: Duration = Duration::from_secs(60);
+
+/// Whether a dictation records, waits to start or is being processed. The
+/// call watcher shows no prompt meanwhile.
+static DICTATING: AtomicBool = AtomicBool::new(false);
+
+pub fn dictating() -> bool {
+    DICTATING.load(Ordering::Relaxed)
+}
 
 /// A press that arrived while the prior recording still owns the recorder.
 /// Keep the user input and retry it after the trailing stop completes instead
@@ -267,6 +276,11 @@ struct Worker {
 impl Worker {
     fn run(mut self, rx: Receiver<Command>) {
         loop {
+            // Every change of stage comes back here before the next wait.
+            DICTATING.store(
+                !matches!(self.stage, Stage::Idle) || self.pending_start.is_some(),
+                Ordering::Relaxed,
+            );
             // Check deadlines before receiving so a continuously busy
             // channel cannot postpone the hard recording limit.
             let now = Instant::now();

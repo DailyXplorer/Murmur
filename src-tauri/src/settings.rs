@@ -356,6 +356,10 @@ pub struct AppSettings {
     pub meeting_capture_mode: MeetingCaptureMode,
     #[serde(default)]
     pub meeting_audio_retention: MeetingAudioRetention,
+    /// Offers to record when a call app starts using the microphone, and to
+    /// stop when the call ends. Only while meetings are on.
+    #[serde(default = "default_meeting_call_prompt")]
+    pub meeting_call_prompt: bool,
     /// Which engine transcribes dictations.
     #[serde(default)]
     pub transcription_engine: Engine,
@@ -385,6 +389,10 @@ impl AppSettings {
 }
 
 fn default_meetings_enabled() -> bool {
+    true
+}
+
+fn default_meeting_call_prompt() -> bool {
     true
 }
 
@@ -604,6 +612,7 @@ pub fn get_default_settings() -> AppSettings {
         meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
         meeting_audio_retention: MeetingAudioRetention::default(),
+        meeting_call_prompt: default_meeting_call_prompt(),
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
@@ -1504,6 +1513,20 @@ mod tests {
             serde_json::to_value(MeetingCaptureMode::SystemOnly).unwrap(),
             "system_only"
         );
+    }
+
+    #[test]
+    fn settings_saved_before_call_prompts_offer_them() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_call_prompt");
+
+        assert!(parse_stored_settings(&stored).0.meeting_call_prompt);
+        assert!(get_default_settings().meeting_call_prompt);
+        stored["meeting_call_prompt"] = serde_json::json!(false);
+        assert!(!parse_stored_settings(&stored).0.meeting_call_prompt);
     }
 
     #[test]

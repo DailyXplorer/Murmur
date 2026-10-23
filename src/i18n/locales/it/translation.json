@@ -31,6 +31,12 @@
     "overlayCopy": "Copia",
     "overlayCopied": "Copiato",
     "overlayNotPasted": "Non c’era un campo di testo in cui incollare.",
+    "callRecordQuestion": "Registrare questa riunione?",
+    "callRecord": "Registra",
+    "callNotNow": "Non ora",
+    "callStopQuestion": "La chiamata è terminata. Interrompere la registrazione?",
+    "callStop": "Interrompi",
+    "callKeepRecording": "Continua a registrare",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",
@@ -328,6 +334,10 @@
       "meetingsToggle": {
         "label": "Riunioni",
         "description": "Registra le riunioni dal microfono e dall'audio di sistema. Aggiunge una pagina Riunioni, una scorciatoia e una voce nella barra dei menu."
+      },
+      "meetingCallPrompt": {
+        "label": "Proponi di registrare le chiamate",
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla e proponi di interrompere quando finisce. Murmur non registra mai senza un clic."
       },
       "meetingsAudio": {
         "title": "Elimina l'audio delle riunioni",

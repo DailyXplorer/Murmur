@@ -35,6 +35,8 @@ declare global {
       copyCalls(): number;
       /** Capsule sizes the copy pill asked its window to fit, oldest first. */
       copyFits(): Array<{ width: number; height: number }>;
+      /** The call prompt's answers, oldest first. */
+      callAnswers(): Array<{ prompt: string; accept: boolean }>;
     };
   }
 }

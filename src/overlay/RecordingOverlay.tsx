@@ -10,7 +10,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import "./RecordingOverlay.css";
-import { commands } from "@/bindings";
+import { type CallPrompt, commands } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import {
   approach,
@@ -31,7 +31,18 @@ type View =
   | { kind: "transcribing" }
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
+  | { kind: "call"; labels: CallLabels }
   | { kind: "meeting"; startedAtMs: number };
+
+/** Payload of `show-overlay-call`, from `overlay::CallPromptLabels`. */
+interface CallLabels {
+  prompt: CallPrompt;
+  /** The call app's name. */
+  app: string;
+  question: string;
+  accept: string;
+  decline: string;
+}
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
@@ -90,8 +101,8 @@ const RecordingOverlay: React.FC = () => {
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
-  const copyBodyRef = useRef<HTMLSpanElement>(null);
-  const copyId = useId();
+  const noticeBodyRef = useRef<HTMLSpanElement>(null);
+  const noticeId = useId();
 
   useEffect(() => {
     let isUnmounted = false;
@@ -147,6 +158,12 @@ const RecordingOverlay: React.FC = () => {
     // the pill is clicked.
     void listen<CopyLabels>("show-overlay-copy", (event) => {
       setView({ kind: "copy", labels: event.payload, copied: false });
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
+    // A call app took the microphone, or its call ended while recording.
+    void listen<CallLabels>("show-overlay-call", (event) => {
+      setView({ kind: "call", labels: event.payload });
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
@@ -208,14 +225,15 @@ const RecordingOverlay: React.FC = () => {
 
   const copyShowing = view.kind === "copy";
 
-  // The copy pill's body sizes itself from its text, whatever font renders
-  // it, and the window is fitted to it: only the webview can measure it.
-  // The backend opens each notice at a default size, so every copy view,
-  // even one replacing a showing pill, observes and reports again.
-  const copyView = view.kind === "copy" ? view : null;
+  // The copy pill's and the call prompt's bodies size themselves from their
+  // text, whatever font renders it, and the window is fitted to them: only
+  // the webview can measure them. The backend opens each notice at a
+  // default size, so every such view, even one replacing a showing one,
+  // observes and reports again.
+  const fittedView = view.kind === "copy" || view.kind === "call" ? view : null;
   useLayoutEffect(() => {
-    const body = copyBodyRef.current;
-    if (!copyView || !body) return;
+    const body = noticeBodyRef.current;
+    if (!fittedView || !body) return;
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands
@@ -226,7 +244,7 @@ const RecordingOverlay: React.FC = () => {
     });
     observer.observe(body);
     return () => observer.disconnect();
-  }, [copyView]);
+  }, [fittedView]);
 
   // The pill opens as the rest capsule and grows to fit its body. CSS cannot
   // transition to an auto size, so the fitted size is measured before the
@@ -281,18 +299,18 @@ const RecordingOverlay: React.FC = () => {
           type="button"
           dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
-          aria-labelledby={`${copyId}-action`}
-          aria-describedby={`${copyId}-note`}
+          aria-labelledby={`${noticeId}-action`}
+          aria-describedby={`${noticeId}-note`}
           onClick={copyAgain}
         >
-          <span ref={copyBodyRef} className="ov-copy-body">
-            <span id={`${copyId}-note`} className="ov-copy-note">
+          <span ref={noticeBodyRef} className="ov-copy-body">
+            <span id={`${noticeId}-note`} className="ov-copy-note">
               {view.labels.note}
             </span>
             <span className="ov-copy-action">
               <Icon size={14} weight="bold" aria-hidden="true" />
               <span className="ov-copy-label">
-                <span id={`${copyId}-action`} aria-live="polite">
+                <span id={`${noticeId}-action`} aria-live="polite">
                   {view.copied ? view.labels.copied : view.labels.copy}
                 </span>
                 <span className="ov-copy-label-spare" aria-hidden="true">
@@ -302,6 +320,53 @@ const RecordingOverlay: React.FC = () => {
             </span>
           </span>
         </button>
+      </div>
+    );
+  }
+
+  if (view.kind === "call") {
+    const { labels } = view;
+    const answer = (accept: boolean) => {
+      void commands
+        .answerCallPrompt(labels.prompt, accept)
+        .catch((error: unknown) => {
+          console.warn("Answering the call prompt failed:", error);
+        });
+    };
+    return (
+      <div className={`ov-stage ${position}`}>
+        <div
+          role="alertdialog"
+          dir="auto"
+          className={`ov-capsule ov-call ${labels.prompt}`}
+          aria-labelledby={`${noticeId}-question`}
+          aria-describedby={`${noticeId}-app`}
+        >
+          <span ref={noticeBodyRef} className="ov-call-body">
+            <span className="ov-call-text">
+              <span id={`${noticeId}-question`} className="ov-call-question">
+                {labels.question}
+              </span>
+              <span id={`${noticeId}-app`} className="ov-call-app">
+                {labels.app}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="ov-call-button"
+              onClick={() => answer(false)}
+            >
+              {labels.decline}
+            </button>
+            <button
+              type="button"
+              className="ov-call-button accept"
+              onClick={() => answer(true)}
+            >
+              {labels.accept}
+            </button>
+          </span>
+        </div>
       </div>
     );
   }

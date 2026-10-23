@@ -65,6 +65,9 @@ enum Notice {
         text: String,
         write: ClipboardWriter,
     },
+    /// Asks whether to record a call, or to stop once it ended. The call
+    /// watcher hides it.
+    Call,
 }
 
 /// Puts a copy notice's text on the clipboard.
@@ -96,6 +99,27 @@ struct CopyNoticeLabels {
     copied: String,
     /// Says there was no text field to paste into.
     note: String,
+}
+
+/// The question a call prompt asks; its answer names it back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum CallPrompt {
+    /// "Record this meeting?"
+    Record,
+    /// "The call ended. Stop recording?"
+    Stop,
+}
+
+/// Payload of `show-overlay-call`.
+#[derive(Clone, serde::Serialize)]
+struct CallPromptLabels {
+    prompt: CallPrompt,
+    /// The call app's name.
+    app: String,
+    question: String,
+    accept: String,
+    decline: String,
 }
 
 /// Whether a dictation owns the overlay (recording or transcribing).
@@ -356,15 +380,65 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWr
     true
 }
 
-/// Fits the copy notice's window to the capsule the webview measured, so a
-/// note that wraps further in a wider fallback font still shows whole, and
-/// the window, which takes clicks while the notice shows, stays close to it.
+/// Asks about a call, with "Record" and "Not now" or, once the call ended
+/// while recording, "Stop" and "Keep recording". It shows even with the
+/// overlay off: the call prompt has a setting of its own. The panel never
+/// takes the focus from the call.
+pub fn show_call_prompt(app_handle: &AppHandle, prompt: CallPrompt, app: &str) {
+    let strings = get_tray_translations(Some(settings::get_settings(app_handle).app_language));
+    let (question, accept, decline) = match prompt {
+        CallPrompt::Record => (
+            strings.call_record_question,
+            strings.call_record,
+            strings.call_not_now,
+        ),
+        CallPrompt::Stop => (
+            strings.call_stop_question,
+            strings.call_stop,
+            strings.call_keep_recording,
+        ),
+    };
+    let labels = CallPromptLabels {
+        prompt,
+        app: app.to_string(),
+        question,
+        accept,
+        decline,
+    };
+    *notice() = Some(Notice::Call);
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "call",
+            COPY_OVERLAY_WIDTH,
+            COPY_OVERLAY_HEIGHT,
+            true,
+        ) {
+            let _ = window.emit("show-overlay-call", labels);
+        }
+    });
+}
+
+/// Hides the call prompt, if it still shows: a dictation or an error may
+/// have replaced it.
+pub fn hide_call_prompt(app_handle: &AppHandle) {
+    if matches!(*notice(), Some(Notice::Call)) {
+        dismiss_notice(app_handle);
+    }
+}
+
+/// Fits the copy notice's or the call prompt's window to the capsule the
+/// webview measured, so a note that wraps further in a wider fallback font
+/// still shows whole, and the window, which takes clicks while the notice
+/// shows, stays close to it.
 #[tauri::command]
 #[specta::specta]
 pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        if !matches!(*notice(), Some(Notice::Copy { .. })) {
+        if !matches!(*notice(), Some(Notice::Copy { .. } | Notice::Call)) {
             return;
         }
         let Some(window) = handle.get_webview_window("recording_overlay") else {
@@ -589,11 +663,23 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
-    if let Some(pill) = meeting_pill() {
-        present_meeting_pill(app_handle, pill);
-        return;
+    settle_overlay(app_handle);
+}
+
+/// Leaves the overlay as it is when no dictation or notice holds it: the
+/// meeting pill, or hidden, so a prompt that held it never stays behind.
+fn settle_overlay(app_handle: &AppHandle) {
+    let style = settings::get_settings(app_handle).overlay_style;
+    match resting_pill(meeting_pill(), style) {
+        Some(pill) => present_meeting_pill(app_handle, pill),
+        None => fade_out_overlay(app_handle),
     }
-    fade_out_overlay(app_handle);
+}
+
+/// The meeting pill shows while a meeting records, unless the overlay is
+/// off.
+fn resting_pill(pill: Option<MeetingPill>, style: OverlayStyle) -> Option<MeetingPill> {
+    pill.filter(|_| style != OverlayStyle::None)
 }
 
 /// Shows the meeting pill unless a dictation or a notice is on screen; it
@@ -609,7 +695,7 @@ pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64) {
         return;
     }
     if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
-        present_meeting_pill(app_handle, pill);
+        settle_overlay(app_handle);
     }
 }
 
@@ -625,9 +711,6 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
 }
 
 fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
-    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
-        return;
-    }
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -696,6 +779,14 @@ mod tests {
         assert!(is_point_within((-1, 1239), &position, &size));
         assert!(!is_point_within((0, 0), &position, &size));
         assert!(!is_point_within((-1, 1240), &position, &size));
+    }
+
+    #[test]
+    fn with_the_overlay_off_a_prompt_over_a_meeting_leaves_nothing_on_screen() {
+        let pill = MeetingPill { started_at_ms: 1 };
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::None), None);
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::Minimal), Some(pill));
+        assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
     }
 
     #[test]

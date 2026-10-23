@@ -384,6 +384,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     local_models::init(app_handle);
     engine::local::init(app_handle);
     meetings::init(app_handle, true);
+    meetings::call_watch::sync(app_handle);
     app_handle.manage(tray::CurrentTrayIconState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -706,6 +707,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::change_meeting_capture_mode_setting,
             commands::meetings::change_meeting_audio_retention_setting,
             commands::meetings::get_meetings_storage,
+            commands::meetings::change_meeting_call_prompt_setting,
+            commands::meetings::answer_call_prompt,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

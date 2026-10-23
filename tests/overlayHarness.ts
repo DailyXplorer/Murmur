@@ -20,6 +20,7 @@ export async function openOverlay(
     const pendingSettings: Array<(settings: unknown) => void> = [];
     let copyCalls = 0;
     const copyFits: Array<{ width: number; height: number }> = [];
+    const callAnswers: Array<{ prompt: string; accept: boolean }> = [];
     let nextId = 1;
 
     window.overlayHarness = {
@@ -33,6 +34,7 @@ export async function openOverlay(
       },
       copyCalls: () => copyCalls,
       copyFits: () => copyFits,
+      callAnswers: () => callAnswers,
     };
 
     window.__TAURI_INTERNALS__ = {
@@ -43,6 +45,8 @@ export async function openOverlay(
           handler?: number;
           width?: number;
           height?: number;
+          prompt?: string;
+          accept?: boolean;
         },
       ) => {
         if (command === "plugin:event|listen") {
@@ -62,6 +66,13 @@ export async function openOverlay(
         }
         if (command === "fit_copy_notice") {
           copyFits.push({ width: args?.width ?? 0, height: args?.height ?? 0 });
+          return Promise.resolve(null);
+        }
+        if (command === "answer_call_prompt") {
+          callAnswers.push({
+            prompt: args?.prompt ?? "",
+            accept: args?.accept ?? false,
+          });
           return Promise.resolve(null);
         }
         throw new Error(`Unexpected Tauri command: ${command}`);
@@ -95,13 +106,18 @@ export const dispatch = (page: Page, event: string, payload?: unknown) =>
     [event, payload] as const,
   );
 
+/** How many capsule sizes were sent so far, for `fitCopyWindow`. */
+export const fitCount = (page: Page) =>
+  page.evaluate(() => window.overlayHarness.copyFits().length);
+
 /** Resizes the page the way `fit_copy_notice` resizes the overlay window:
- * the last capsule size the copy pill measured plus CARD_MARGIN around it. */
-export async function fitCopyWindow(page: Page) {
+ * the last capsule size the copy pill or call prompt measured plus
+ * CARD_MARGIN around it, once more than `earlier` sizes were sent. */
+export async function fitCopyWindow(page: Page, earlier = 0) {
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect
     .poll(() => page.evaluate(() => window.overlayHarness.copyFits().length))
-    .toBeGreaterThan(0);
+    .toBeGreaterThan(earlier);
   const capsule = await page.evaluate(() => {
     const fits = window.overlayHarness.copyFits();
     return fits[fits.length - 1];

@@ -5,6 +5,7 @@ import {
   entranceFinished,
   ERROR_WINDOW,
   fitCopyWindow,
+  fitCount,
   openOverlay,
   RECORDING_WINDOW,
 } from "./overlayHarness";
@@ -95,6 +96,46 @@ test.describe("meeting pill screenshots", () => {
       await page.screenshot({
         path: `${outputDir}/overlay-meeting-pill-3h20-${theme}.png`,
       });
+    });
+  }
+});
+
+test.describe("call prompt screenshots", () => {
+  test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`en ${theme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await openOverlay(page);
+      await page.evaluate(
+        (background) => (document.body.style.background = background),
+        DESKTOP[theme],
+      );
+      await page.evaluate(() => document.fonts.ready);
+      const tray = trayStrings("en");
+      for (const [prompt, question, accept, decline] of [
+        ["record", tray.callRecordQuestion, tray.callRecord, tray.callNotNow],
+        ["stop", tray.callStopQuestion, tray.callStop, tray.callKeepRecording],
+      ] as const) {
+        const earlier = await fitCount(page);
+        await dispatch(page, "show-overlay-call", {
+          prompt,
+          app: "Zoom",
+          question,
+          accept,
+          decline,
+        });
+        await expect(
+          page.getByRole("alertdialog", { name: question }),
+        ).toBeVisible();
+        await entranceFinished(page);
+        await fitCopyWindow(page, earlier);
+        await page.mouse.move(0, 0);
+        await page.screenshot({
+          path: `${outputDir}/overlay-call-${prompt}-en-${theme}.png`,
+        });
+      }
     });
   }
 });

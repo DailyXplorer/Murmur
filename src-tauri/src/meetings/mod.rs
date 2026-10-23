@@ -6,6 +6,8 @@ pub mod align;
 pub mod analysis;
 pub mod archive;
 pub mod bleed;
+pub mod call_watch;
+pub mod calls;
 pub mod cap;
 pub mod capture;
 pub mod chunking;
@@ -89,6 +91,8 @@ pub struct MeetingCapabilities {
     pub system_audio: SystemAudioSupport,
     /// Telling speakers apart on device.
     pub analysis: AnalysisSupport,
+    /// Telling that a call started, for the call prompt.
+    pub call_detection: bool,
 }
 
 /// Recorded meetings wait here and are processed one at a time, in order.
