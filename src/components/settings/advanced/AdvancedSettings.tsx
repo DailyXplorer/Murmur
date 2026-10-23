@@ -22,7 +22,8 @@ export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
   const experimentalEnabled = getSetting("experimental_enabled") || false;
-  const meetingsEnabled = !isWindows && (getSetting("meetings_enabled") ?? true);
+  const meetingsEnabled =
+    !isWindows && (getSetting("meetings_enabled") ?? true);
 
   return (
     <SettingsPage label={t("sidebar.advanced")}>

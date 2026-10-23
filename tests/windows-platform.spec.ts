@@ -8,9 +8,6 @@ const openWindows = async (page: Page) => {
 const nav = (page: Page, name: string) =>
   page.getByRole("navigation").getByRole("button", { name, exact: true });
 
-const commandsCalled = (page: Page) =>
-  page.evaluate(() => window.settingsPages.calls.map((call) => call.command));
-
 const transcribeShortcut = (page: Page) =>
   page.getByRole("button", { name: "Transcribe Shortcut: Press keys..." });
 
@@ -23,20 +20,29 @@ test.describe("Windows build", () => {
     await expect(page.getByText(/update/i)).toHaveCount(0);
 
     await nav(page, "Transcription").click();
-    await expect(page.getByText("AI Cleanup and Formatting")).toBeVisible();
-    await expect(page.getByText("Cleanup Engine")).toHaveCount(0);
-    await expect(page.getByText("Transcription service")).toHaveCount(0);
-    await expect(page.getByText("Antigravity")).toHaveCount(0);
-    await expect(page.getByText("Names From the Active Window")).toHaveCount(0);
+    await expect(page.getByText("Cleanup and formatting")).toBeVisible();
+    await expect(page.getByText("Context from the active window")).toHaveCount(
+      0,
+    );
+    // The local engine is named after the PC, never a Mac.
+    await expect(page.getByText("On this PC", { exact: true })).toBeVisible();
+    await expect(page.getByText(/\bMac\b/)).toHaveCount(0);
 
     await nav(page, "Advanced").click();
-    await expect(page.getByText("Show What's New")).toHaveCount(0);
+    await expect(page.getByText("Show what's new")).toHaveCount(0);
     await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 
-    const called = await commandsCalled(page);
-    expect(called).not.toContain("get_apple_intelligence_status");
-    expect(called).not.toContain("get_gemini_status");
+  test("credits only the speech model it downloads", async ({ page }) => {
+    await openWindows(page);
+    await nav(page, "About").click();
+    await page.getByRole("button", { name: "View licences" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("listitem")).toHaveCount(1);
+    await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).not.toContainText("Core ML");
   });
 
   test("names the Ctrl+Win default with Windows keys", async ({ page }) => {

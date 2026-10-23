@@ -1,3 +1,4 @@
+import "./macos-os";
 import ReactDOM from "react-dom/client";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { AppSettings } from "../../src/bindings";

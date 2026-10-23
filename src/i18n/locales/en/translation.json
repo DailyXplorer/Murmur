@@ -885,5 +885,66 @@
   "localModelPill": {
     "downloading": "Downloading the model… {{percent}}%",
     "preparing": "Preparing the model…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Transcribe on this PC",
+        "description": "Murmur turns your voice into text right on this PC. Your audio stays on it, and there's no quota.",
+        "alreadyHere": "The model is already on this PC."
+      },
+      "done": {
+        "preparing": "The model is getting ready for this PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Transcribed in the cloud: this language isn't supported on this PC.",
+          "cloud_limit_reached": "Transcribed on this PC: the ChatGPT limit was reached.",
+          "cloud_failed": "Transcribed on this PC: ChatGPT was unavailable."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "On this PC",
+            "description": "25 European languages. Your audio stays on this PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Preparing for this PC…",
+          "row": {
+            "reason": {
+              "disk": "Couldn't save it on this PC."
+            }
+          },
+          "failed": {
+            "disk": "The model couldn't be saved on this PC.",
+            "prepare_failed": "The model downloaded but couldn't load on this PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur and the Codex app share one ChatGPT session on this PC, so signing out here also signs out Codex."
+          },
+          "errors": {
+            "saveFailed": "Signed in, but the session couldn't be saved on this PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Speech recognition: Parakeet TDT 0.6B v3 by NVIDIA, CC BY 4.0, converted to 8-bit GGUF by handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Transcribe on this PC in 25 European languages. Your audio stays on this PC.",
+      "downloading": "Downloading… {{percent}}%. Murmur switches to this PC when it's done.",
+      "switched": "Now transcribing on this PC."
+    }
   }
 }

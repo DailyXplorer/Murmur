@@ -885,5 +885,66 @@
   "localModelPill": {
     "downloading": "Téléchargement du modèle… {{percent}} %",
     "preparing": "Préparation du modèle…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Transcrire sur ce PC",
+        "description": "Murmur transforme votre voix en texte directement sur ce PC. Votre audio y reste, et il n'y a pas de quota.",
+        "alreadyHere": "Le modèle est déjà sur ce PC."
+      },
+      "done": {
+        "preparing": "Le modèle se prépare pour ce PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Transcrit dans le cloud : cette langue n’est pas prise en charge sur ce PC.",
+          "cloud_limit_reached": "Transcrit sur ce PC : la limite ChatGPT était atteinte.",
+          "cloud_failed": "Transcrit sur ce PC : ChatGPT était indisponible."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "Sur ce PC",
+            "description": "25 langues européennes. Votre audio reste sur ce PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Préparation pour ce PC…",
+          "row": {
+            "reason": {
+              "disk": "Enregistrement impossible."
+            }
+          },
+          "failed": {
+            "disk": "Le modèle n’a pas pu être enregistré sur ce PC.",
+            "prepare_failed": "Le modèle a été téléchargé mais n’a pas pu se charger sur ce PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur et l’app Codex partagent une même session ChatGPT sur ce PC : vous déconnecter ici déconnecte aussi Codex."
+          },
+          "errors": {
+            "saveFailed": "Connecté, mais la session n’a pas pu être enregistrée sur ce PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Reconnaissance vocale : Parakeet TDT 0.6B v3 par NVIDIA, CC BY 4.0, converti en GGUF 8 bits par handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Transcrivez sur ce PC dans 25 langues européennes. Votre audio reste sur ce PC.",
+      "downloading": "Téléchargement… {{percent}} %. Murmur passera sur ce PC une fois terminé.",
+      "switched": "La transcription se fait maintenant sur ce PC."
+    }
   }
 }

@@ -885,5 +885,66 @@
   "localModelPill": {
     "downloading": "Download del modello… {{percent}}%",
     "preparing": "Preparazione del modello…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Trascrivi su questo PC",
+        "description": "Murmur trasforma la tua voce in testo direttamente su questo PC. L'audio resta sul PC e non ci sono limiti di utilizzo.",
+        "alreadyHere": "Il modello è già su questo PC."
+      },
+      "done": {
+        "preparing": "Il modello si sta preparando per questo PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo PC.",
+          "cloud_limit_reached": "Trascritto su questo PC: era stato raggiunto il limite di ChatGPT.",
+          "cloud_failed": "Trascritto su questo PC: ChatGPT non era disponibile."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "Su questo PC",
+            "description": "25 lingue europee. Il tuo audio resta su questo PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Preparazione per questo PC…",
+          "row": {
+            "reason": {
+              "disk": "Salvataggio non riuscito."
+            }
+          },
+          "failed": {
+            "disk": "Impossibile salvare il modello su questo PC.",
+            "prepare_failed": "Il modello è stato scaricato ma non si è caricato su questo PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur e l'app Codex condividono una sola sessione ChatGPT su questo PC, quindi uscire qui fa uscire anche da Codex."
+          },
+          "errors": {
+            "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Riconoscimento vocale: Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0, convertito in GGUF a 8 bit da handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Trascrivi su questo PC in 25 lingue europee. Il tuo audio resta su questo PC.",
+      "downloading": "Download in corso… {{percent}}%. Al termine Murmur passerà a questo PC.",
+      "switched": "Ora la trascrizione avviene su questo PC."
+    }
   }
 }

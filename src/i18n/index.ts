@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import { locale } from "@tauri-apps/plugin-os";
 import { LANGUAGE_METADATA } from "./languages";
 import { commands } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 
 const localeModules = import.meta.glob<{ default: Record<string, unknown> }>(
   "./locales/*/translation.json",
@@ -66,6 +67,17 @@ i18n.use(initReactI18next).init({
     useSuspense: false,
   },
 });
+
+// Where the macOS text says "this Mac", the Windows build says "this PC":
+// each locale's `windows` subtree replaces those keys there.
+if (isWindows) {
+  for (const [langCode, { translation }] of Object.entries(resources)) {
+    const overrides = translation.windows;
+    if (overrides && typeof overrides === "object") {
+      i18n.addResourceBundle(langCode, "translation", overrides, true, true);
+    }
+  }
+}
 
 export const syncLanguageFromSettings = async () => {
   try {

@@ -885,5 +885,66 @@
   "localModelPill": {
     "downloading": "Baixando o modelo… {{percent}}%",
     "preparing": "Preparando o modelo…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Transcrever neste PC",
+        "description": "O Murmur transforma sua voz em texto diretamente neste PC. Seu áudio fica nele, e não há cota.",
+        "alreadyHere": "O modelo já está neste PC."
+      },
+      "done": {
+        "preparing": "O modelo está sendo preparado para este PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Transcrito na nuvem: este idioma não é compatível neste PC.",
+          "cloud_limit_reached": "Transcrito neste PC: o limite do ChatGPT foi atingido.",
+          "cloud_failed": "Transcrito neste PC: o ChatGPT estava indisponível."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "Neste PC",
+            "description": "25 idiomas europeus. Seu áudio fica neste PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Preparando para este PC…",
+          "row": {
+            "reason": {
+              "disk": "Não foi possível salvar."
+            }
+          },
+          "failed": {
+            "disk": "Não foi possível salvar o modelo neste PC.",
+            "prepare_failed": "O modelo foi baixado, mas não carregou neste PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "O Murmur e o app Codex compartilham uma única sessão do ChatGPT neste PC, então sair aqui também desconecta o Codex."
+          },
+          "errors": {
+            "saveFailed": "Sessão iniciada, mas não foi possível salvá-la neste PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Reconhecimento de fala: Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0, convertido para GGUF de 8 bits por handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Transcreva neste PC em 25 idiomas europeus. Seu áudio fica neste PC.",
+      "downloading": "Baixando… {{percent}}%. O Murmur passa para este PC quando terminar.",
+      "switched": "Agora a transcrição é feita neste PC."
+    }
   }
 }

@@ -885,5 +885,66 @@
   "localModelPill": {
     "downloading": "Modell wird geladen… {{percent}} %",
     "preparing": "Modell wird vorbereitet…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Auf diesem PC transkribieren",
+        "description": "Murmur wandelt Ihre Stimme direkt auf diesem PC in Text um. Ihr Audio bleibt auf dem PC, und es gibt kein Kontingent.",
+        "alreadyHere": "Das Modell ist bereits auf diesem PC."
+      },
+      "done": {
+        "preparing": "Das Modell wird für diesen PC vorbereitet."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "In der Cloud transkribiert: Diese Sprache wird auf diesem PC nicht unterstützt.",
+          "cloud_limit_reached": "Auf diesem PC transkribiert: Das ChatGPT-Limit war erreicht.",
+          "cloud_failed": "Auf diesem PC transkribiert: ChatGPT war nicht verfügbar."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "Auf diesem PC",
+            "description": "25 europäische Sprachen. Dein Audio bleibt auf diesem PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Wird für diesen PC vorbereitet…",
+          "row": {
+            "reason": {
+              "disk": "Speichern fehlgeschlagen."
+            }
+          },
+          "failed": {
+            "disk": "Das Modell konnte nicht auf diesem PC gespeichert werden.",
+            "prepare_failed": "Das Modell wurde geladen, startet aber nicht auf diesem PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur und die Codex-App teilen sich auf diesem PC eine ChatGPT-Sitzung. Wenn du dich hier abmeldest, wird auch Codex abgemeldet."
+          },
+          "errors": {
+            "saveFailed": "Angemeldet, aber die Sitzung konnte auf diesem PC nicht gespeichert werden."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Spracherkennung: Parakeet TDT 0.6B v3 von NVIDIA, CC BY 4.0, nach 8-Bit-GGUF konvertiert von handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Transkribiere auf diesem PC in 25 europäischen Sprachen. Dein Audio bleibt auf diesem PC.",
+      "downloading": "Wird geladen… {{percent}} %. Danach wechselt Murmur auf diesen PC.",
+      "switched": "Es wird jetzt auf diesem PC transkribiert."
+    }
   }
 }
