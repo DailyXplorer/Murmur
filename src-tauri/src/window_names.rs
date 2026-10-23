@@ -351,20 +351,23 @@ const SECRET_WORDS: [&str; 32] = [
 
 /// Short labels that name a secret only right before its value, as in
 /// `PIN: 1234` or `OpenAI key: sk-…`: "the key point" holds none.
-const VALUE_LABELS: [&str; 13] = [
-    "key", "keys", "pin", "pass", "pwd", "pw", "login", "cle", "cles", "code", "codes", "wifi",
-    "wi-fi",
+const VALUE_LABELS: [&str; 14] = [
+    "key", "keys", "pin", "pass", "pwd", "pw", "login", "logins", "cle", "cles", "code", "codes",
+    "wifi", "wi-fi",
 ];
 
 /// Words that name a secret when a value with a digit follows within two
-/// words, as in `PIN 1234` or "le code est 4512".
+/// words, not counting `NUMBER_FILLERS`, as in `PIN 1234` or "le code
+/// c'est le 4512".
 const NUMBER_LABELS: [&str; 3] = ["pin", "code", "codes"];
+const NUMBER_FILLERS: [&str; 9] = ["c", "est", "le", "la", "de", "is", "was", "for", "the"];
 
 /// Codes next to these words are no secret: "Code postal", "Zip code".
 const PUBLIC_CODES: [&str; 4] = ["postal", "zip", "promo", "source"];
 
 /// French names a secret first and what it opens after it, within three
-/// words: "Clé Wi-Fi", "Clé de sécurité", "Code de la porte".
+/// words: "Clé Wi-Fi", "Clé de sécurité", "Code de la porte", and any
+/// `wpa…` such as "Clé WPA2".
 const FRENCH_SECRET_HEADS: [&str; 4] = ["cle", "cles", "code", "codes"];
 const FRENCH_SECRET_OBJECTS: [&str; 18] = [
     "wifi",
@@ -387,7 +390,8 @@ const FRENCH_SECRET_OBJECTS: [&str; 18] = [
     "carte",
 ];
 
-/// English names what a code opens first: "Door code", "Alarm code".
+/// English names what a code opens first, "Door code", or after `for`,
+/// "The code for the gate".
 const ENGLISH_CODE_OBJECTS: [&str; 6] = ["door", "gate", "alarm", "access", "lockbox", "security"];
 
 fn mentions_secret(line: &str) -> bool {
@@ -400,8 +404,8 @@ fn mentions_secret(line: &str) -> bool {
 
 /// A `VALUE_LABELS` word or "PIN code" right before a colon, a
 /// `NUMBER_LABELS` word before a digit, a French secret head or an English
-/// code object, in whole words of the `folded` line. A code next to a
-/// `PUBLIC_CODES` word counts for none of them.
+/// code object before or after the code, in whole words of the `folded`
+/// line. A code next to a `PUBLIC_CODES` word counts for none of them.
 fn names_a_secret(folded: &str) -> bool {
     fn words(text: &str) -> Vec<&str> {
         text.split(|c: char| c.is_whitespace() || c == '\'')
@@ -425,6 +429,7 @@ fn names_a_secret(folded: &str) -> bool {
             .any(|near| PUBLIC_CODES.contains(near))
             && words[at + 1..]
                 .iter()
+                .filter(|next| !NUMBER_FILLERS.contains(next))
                 .take(2)
                 .any(|next| next.chars().any(|c| c.is_ascii_digit()))
     };
@@ -432,17 +437,22 @@ fn names_a_secret(folded: &str) -> bool {
         || words.iter().enumerate().any(|(at, word)| {
             (NUMBER_LABELS.contains(word) && numbered(at))
                 || (FRENCH_SECRET_HEADS.contains(word)
-                    && words[at + 1..]
-                        .iter()
-                        .take(3)
-                        .any(|next| FRENCH_SECRET_OBJECTS.contains(next)))
+                    && words[at + 1..].iter().take(3).any(|next| {
+                        FRENCH_SECRET_OBJECTS.contains(next) || next.starts_with("wpa")
+                    }))
         })
         || words.windows(2).any(|pair| {
             ENGLISH_CODE_OBJECTS.contains(&pair[0]) && matches!(pair[1], "code" | "codes")
         })
+        || (0..words.len()).any(|at| match &words[at..] {
+            ["code" | "codes", "for", "the", object, ..]
+            | ["code" | "codes", "for", object, ..] => ENGLISH_CODE_OBJECTS.contains(object),
+            _ => false,
+        })
 }
 
-/// Lowercase, without French accents, and with `’` as `'`.
+/// Lowercase, without French accents, with `’` as `'` and the
+/// non-breaking hyphens as `-`.
 fn folded(line: &str) -> String {
     line.to_lowercase()
         .chars()
@@ -454,6 +464,7 @@ fn folded(line: &str) -> String {
             'ù' | 'û' | 'ü' => 'u',
             'ç' => 'c',
             '’' => '\'',
+            '\u{2010}'..='\u{2012}' => '-',
             c => c,
         })
         .collect()
@@ -494,8 +505,8 @@ fn has_user_option(line: &str) -> bool {
 /// addresses and @handles. Most frequent first, at most 50. Lines that
 /// assign a value or mention a password, token, secret or API key are
 /// skipped, and so is the line after them, where a label's value sits, and
-/// every entry of the list they head, up to a sentence or a blank line
-/// other than one right under the label.
+/// every entry of the list they head, across blank lines, up to a line that
+/// reads as a sentence.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -517,7 +528,6 @@ pub fn candidate_names(text: &str) -> Vec<String> {
     let mut in_secret_list = false;
     for line in text.lines() {
         if line.trim().is_empty() {
-            in_secret_list &= after_secret_label;
             continue;
         }
         let label = mentions_secret(line);
@@ -561,19 +571,23 @@ pub fn candidate_names(text: &str) -> Vec<String> {
 }
 
 /// A line of a list such as `Bureau - Corvina`, `Bureau : Corvina`,
-/// `Bureau Corvina`, `- Bureau Corvina` or `2. Bureau Corvina`: an entry
-/// and its value, rather than a sentence.
+/// `Bureau Corvina`, `- Bureau Corvina`, `2. Bureau Corvina`, `2- Bureau
+/// Corvina`, a lone `monChat2020` or a passphrase such as `Correct Horse
+/// Battery Staple`: an entry and its value, rather than a sentence.
 fn is_list_entry(line: &str) -> bool {
     let line = line.trim();
     let digits = line.trim_start_matches(|c: char| c.is_ascii_digit());
     let after_marker = if digits.len() < line.len() {
-        digits.strip_prefix(['.', ')'])
+        digits.strip_prefix(['.', ')', '-', '/'])
     } else {
         line.strip_prefix(['-', '*', '•', '–', '—'])
     };
+    let words = line.split_whitespace().count();
     after_marker.is_some_and(|rest| rest.starts_with(char::is_whitespace))
         || has_separator(line)
-        || (line.split_whitespace().count() <= 3 && line.starts_with(char::is_uppercase))
+        || words == 1
+        || (line.starts_with(char::is_uppercase)
+            && (words <= 3 || (words <= 6 && !line.ends_with(['.', '!', '?']))))
 }
 
 fn has_separator(line: &str) -> bool {
@@ -1403,6 +1417,85 @@ mod tests {
             "",
             false,
         ),
+        // Door codes and PINs said as people text them, `WPA2` and a
+        // non-breaking hyphen (round 48).
+        ("com.apple.Messages", "", "Le code c’est 4512B ", "", false),
+        ("com.apple.Messages", "", "Le code, c'est 4512 ", "", false),
+        ("com.apple.Messages", "", "Le code est le 4512, ", "", false),
+        ("com.apple.Messages", "", "Le PIN c’est 1234 ", "", false),
+        (
+            "com.apple.Mail",
+            "",
+            "The code for the gate is 4512, ",
+            "",
+            false,
+        ),
+        ("com.apple.Notes", "", "Code for the gate: Bluebird\n", "", false),
+        ("com.apple.Notes", "", "Clé WPA2 : Soleil2024\n", "", false),
+        ("com.apple.Notes", "", "Wi\u{2011}Fi : Soleil2024\n", "", false),
+        (
+            "com.apple.Notes",
+            "",
+            "Le code de la route a changé en 2024. ",
+            "",
+            true,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "C'est le code source de la version 2. ",
+            "",
+            true,
+        ),
+        // A heading above a paragraph of two lines or more, with a list
+        // longer than the excerpt under it (round 48).
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe\nMis à jour en mars\n\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n\
+             Gmail : Hunter2-xyz\nBanque : Azerty-993\nGmail : Hunter2-xyz\nBanque : Azerty-993\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Passwords\n\nAll my accounts.\nUpdate yearly.\n\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n\
+             Gmail: Hunter2-xyz\nBanque: Azerty-993\nGmail: Hunter2-xyz\nBanque: Azerty-993\n",
+            "",
+            false,
+        ),
+        (
+            "com.apple.Notes",
+            "",
+            "Mots de passe\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\nGmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n\
+             Gmail\nHunter2-xyz\n\nBanque\nAzerty-993\n\n",
+            "",
+            false,
+        ),
     ];
 
     /// Every text the name finder was checked on, and the names it gives.
@@ -1508,6 +1601,30 @@ mod tests {
         ),
         (
             "Mots de passe\n- Netflix :\nmonChat2020\n- Wi-Fi : Soleil2024\nmerci Ingrid",
+            &["Ingrid"],
+        ),
+        // Dashed and slashed numbers, lone values, long passphrases, a
+        // blank line between groups and a `Logins` label (round 48).
+        (
+            "Mots de passe\n1- Banque Soleil2024\n2- Netflix Lune2023\n3- Gmail Etoile99",
+            &[],
+        ),
+        (
+            "Mots de passe\n1/ Banque Soleil2024\n2/ Netflix Lune2023\n3/ Gmail Etoile99",
+            &[],
+        ),
+        ("Mots de passe\nNetflix\nmonChat2020\nGmail\nEtoile99", &[]),
+        (
+            "Mots de passe\nGmail Etoile99\nNetflix\nCorrect Horse Battery Staple",
+            &[],
+        ),
+        (
+            "Mots de passe\nBanque Soleil2024\n\nNetflix Lune2023\nGmail Etoile99",
+            &[],
+        ),
+        ("Logins :\nNetflix Lune2023\nGmail Etoile99", &[]),
+        (
+            "Mots de passe\nBanque Soleil2024\n\nNetflix Lune2023\n\nmerci Ingrid",
             &["Ingrid"],
         ),
     ];

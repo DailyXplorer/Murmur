@@ -7,11 +7,8 @@ use std::time::Instant;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
-/// UTF-16 units before the insertion point that always hold the excerpt: a
-/// unit is at least half a char.
-const EXCERPT_BEFORE_UNITS: usize = 2 * MAX_BEFORE_CHARS + 2;
-/// How far before the insertion point the paragraph the excerpt starts in
-/// is read, for the label of a long list above it.
+/// How far before the insertion point the field is read and checked, for
+/// the label of a long list above the excerpt.
 const CHECK_BEFORE_UNITS: usize = 2_000;
 
 /// A selection or insertion point in UTF-16 code units, as Accessibility reports it.
@@ -108,9 +105,9 @@ pub trait FocusedText {
 /// The excerpt around the focused element's selection. Never reads a secure
 /// field, and never guesses the cursor: no selection range, no excerpt.
 /// Each read may take a hung app's whole messaging timeout, so none starts
-/// after `deadline`. None when `withheld` holds for the text the excerpt is
-/// cut from, from the start of the paragraph it begins in: a label the cut
-/// leaves out still marks the values it keeps.
+/// after `deadline`. None when `withheld` holds for all the text read, up
+/// to `CHECK_BEFORE_UNITS` before the cursor: a label the cut leaves out
+/// still marks the values it keeps, however its list is laid out.
 pub fn read_field(
     focused: &impl FocusedText,
     deadline: Instant,
@@ -121,15 +118,12 @@ pub fn read_field(
         return None;
     }
     let selection = focused.selection()?;
-    let (text, offset, checked) = match window_around(focused, selection, in_time) {
-        Some((text, offset)) => {
-            let checked = paragraph_start(&text, selection.start.saturating_sub(offset));
-            (text, offset, checked)
-        }
-        None if in_time() => (focused.value()?, 0, 0),
+    let (text, offset) = match window_around(focused, selection, in_time) {
+        Some(window) => window,
+        None if in_time() => (focused.value()?, 0),
         None => return None,
     };
-    if withheld(&text[checked..]) {
+    if withheld(&text) {
         return None;
     }
     cut(
@@ -141,36 +135,8 @@ pub fn read_field(
     )
 }
 
-/// The byte where the paragraph holding the excerpt's earliest possible
-/// start begins, after the last blank line before it; 0 without one. The
-/// one-line paragraphs right above it are headings of it and start it.
-fn paragraph_start(text: &str, cursor: usize) -> usize {
-    let excerpt_start = byte_offset(text, cursor.saturating_sub(EXCERPT_BEFORE_UNITS));
-    // A paragraph's first byte and its number of lines.
-    let mut paragraph = (0, 0);
-    let mut above = Vec::new();
-    let mut line = 0;
-    for (newline, _) in text[..excerpt_start].match_indices('\n') {
-        if !text[line..newline].trim().is_empty() {
-            paragraph.1 += 1;
-        } else if paragraph.1 > 0 {
-            above.push(paragraph);
-            paragraph = (newline + 1, 0);
-        } else {
-            paragraph.0 = newline + 1;
-        }
-        line = newline + 1;
-    }
-    above
-        .iter()
-        .rev()
-        .take_while(|&&(_, lines)| lines == 1)
-        .last()
-        .map_or(paragraph.0, |&(start, _)| start)
-}
-
-/// Enough of the field for `cut` and for the paragraph it starts in, and
-/// where it starts. A window that does not start at the field's start holds
+/// Enough of the field for `cut` and for the check before it, and where it
+/// starts. A window that does not start at the field's start holds
 /// more than the limit, so `cut` drops its partial first word.
 fn window_around(
     focused: &impl FocusedText,
