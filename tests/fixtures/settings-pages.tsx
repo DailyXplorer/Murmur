@@ -18,6 +18,7 @@ import type {
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
+  ProcessingError,
   SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
@@ -39,6 +40,8 @@ declare global {
       resolveSignIn: () => void;
       /** What the backend's last update check found. */
       emitUpdateStatus: (available: string | null) => Promise<void>;
+      /** The update found is no longer offered by the next check. */
+      withdrawUpdate: () => void;
     };
   }
 }
@@ -51,11 +54,26 @@ const meetingsEnabled = params.get("meetings") !== "0";
 const systemAudioSilent = params.get("systemAudioSilent") === "1";
 const systemAudioPermission = params.get("systemAudioPermission") ?? "granted";
 const audioBytes = Number(params.get("audioBytes") ?? 34_600_000);
+/** The space the meetings' folders take, and what was set aside next to them. */
+const meetingsStorageBytes = Number(
+  params.get("storageBytes") ?? 1_234_000_000,
+);
+const setAsideBytes = Number(params.get("setAsideBytes") ?? 0);
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
+/** Why the failed meeting failed; `parts_failed` by default. */
+const meetingError = (params.get("meetingError") ??
+  "parts_failed") as ProcessingError;
+/**
+ * `offline=1`: Codex could not be reached, and the queue waits for the
+ * connection: the failed meeting, and a ready one whose summary is pending.
+ */
+const offline = params.get("offline") === "1";
 const analysis = params.get("analysis") ?? "available";
-/** `failed` or `pending`; ready by default. */
+/** `0`: a Mac that cannot tell a call started (Intel, or before macOS 14). */
+const callDetection = params.get("callDetection") !== "0";
+/** `failed` (rate limited), `server` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
 const processingStage = (params.get("stage") ?? "transcribing") as MeetingStage;
@@ -92,12 +110,23 @@ const styleRefused = params.get("styleRefused") === "1";
 const cardShown = params.get("card") === "1";
 /** `history=fallback`: entries transcribed by the engine not chosen. */
 const historyFallback = params.get("history") === "fallback";
+/** `history=fails`: the first load fails, a retry reads the entries. */
+let historyFails = params.get("history") === "fails";
 /** `localFallback=1`: part of a meeting was transcribed on this Mac. */
 const localFallbackMs = params.get("localFallback") === "1" ? 12 * 60_000 : 0;
 /** The updater finds a new version, which the footer offers. */
 const updateAvailable = params.get("update") === "1";
 /** `missedUpdate=1`: a check finds a new version the footer never heard of. */
 const missedUpdate = params.get("missedUpdate") === "1";
+let updateWithdrawn = false;
+const UPDATE = {
+  body: "",
+  currentVersion: "1.3.7",
+  date: null,
+  rawJson: {},
+  rid: 1,
+  version: "1.9.0",
+};
 /** The download as the manifest gives it, on Intel (`unsupported`) or Apple silicon. */
 const MODEL_BYTES = analysis === "unsupported" ? 739_508_576 : 505_044_208;
 const failed = (reason: DownloadFailure, kept_bytes = 0): LocalModelStatus => ({
@@ -230,6 +259,8 @@ const SETTINGS: AppSettings = {
   local_model_download_wanted: false,
   local_stt_card_dismissed: !cardShown,
   log_level: "info",
+  meeting_audio_retention: "keep",
+  meeting_call_prompt: true,
   meeting_capture_mode: "both",
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
@@ -424,10 +455,13 @@ const summaryOf = (item: MeetingListItem) => {
       summary_status: "pending" as const,
     };
   }
-  return meetingSummary === "failed"
+  return meetingSummary === "failed" || meetingSummary === "server"
     ? {
         summary: null,
-        summary_error: "rate_limited" as const,
+        summary_error:
+          meetingSummary === "server"
+            ? ("server" as const)
+            : ("rate_limited" as const),
         summary_status: "failed" as const,
       }
     : {
@@ -446,9 +480,11 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
   audio: item.id === 3 ? "compressed" : "tracks",
   audio_bytes: item.id === 3 ? audioBytes : 0,
   system_audio_silent: item.id === 3 && systemAudioSilent,
-  error: item.status === "failed" ? "parts_failed" : null,
+  error: item.status === "failed" ? meetingError : null,
   held_until_ms:
     item.status === "processing" || queuedForSummary(item) ? heldUntilMs : null,
+  waiting_for_connection:
+    offline && (item.status === "failed" || queuedForSummary(item)),
   local_fallback_ms: item.id === 3 ? localFallbackMs : 0,
   speakers:
     item.id === 3
@@ -660,7 +696,13 @@ const handleAccountCommand = (
 };
 
 const RESPONSES: Record<string, unknown> = {
+  change_meeting_audio_retention_setting: null,
+  change_meeting_call_prompt_setting: null,
   change_meeting_capture_mode_setting: null,
+  get_meetings_storage: {
+    audio_bytes: meetingsStorageBytes,
+    set_aside_bytes: setAsideBytes,
+  },
   change_meetings_enabled_setting: null,
   copy_meeting_markdown: null,
   discard_meeting: null,
@@ -671,7 +713,11 @@ const RESPONSES: Record<string, unknown> = {
   download_local_model: null,
   cancel_local_model_download: null,
   delete_local_model: null,
-  get_meeting_capabilities: { analysis, system_audio: systemAudio },
+  get_meeting_capabilities: {
+    analysis,
+    system_audio: systemAudio,
+    call_detection: callDetection,
+  },
   get_meeting_runtime: MEETING_RUNTIME,
   get_system_audio_permission: systemAudioPermission,
   open_system_audio_privacy_settings: null,
@@ -712,16 +758,7 @@ const RESPONSES: Record<string, unknown> = {
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
   "plugin:macos-permissions|check_microphone_permission": !showOnboarding,
   "plugin:os|locale": language,
-  "plugin:updater|check": updateAvailable
-    ? {
-        body: "",
-        currentVersion: "1.3.7",
-        date: null,
-        rawJson: {},
-        rid: 1,
-        version: "1.9.0",
-      }
-    : null,
+  "plugin:updater|check": updateAvailable ? UPDATE : null,
 };
 
 window.settingsPages = {
@@ -749,6 +786,9 @@ window.settingsPages = {
     signIn = null;
   },
   emitUpdateStatus: (available) => emit("update-status", { available }),
+  withdrawUpdate: () => {
+    updateWithdrawn = true;
+  },
 };
 
 mockIPC(
@@ -792,6 +832,14 @@ mockIPC(
       onEvent.onmessage({ data: { contentLength: 100 }, event: "Started" });
       onEvent.onmessage({ data: { chunkLength: 42 }, event: "Progress" });
       return new Promise(() => {});
+    }
+    if (command === "plugin:updater|check" && updateWithdrawn) return null;
+    if (command === "check_for_updates" && updateWithdrawn) {
+      return { available: null };
+    }
+    if (command === "get_history_entries" && historyFails) {
+      historyFails = false;
+      return Promise.reject("database disk image is malformed");
     }
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {

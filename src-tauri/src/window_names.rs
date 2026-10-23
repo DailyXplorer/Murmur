@@ -77,22 +77,15 @@ pub fn collect() -> WindowContext {
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
     crate::accessibility::frontmost_app()
-        .map(|(pid, bundle_id, app)| read_app(reads, pid, &bundle_id, &app, started))
+        .map(|(pid, app)| read_app(reads, pid, &app, started))
         .unwrap_or_default()
 }
 
 /// The focused field first, then the focused window with what is left of
 /// the budget that began at `started`.
-fn read_app(
-    reads: ContextReads,
-    pid: i32,
-    bundle_id: &str,
-    app: &Element,
-    started: Instant,
-) -> WindowContext {
+fn read_app(reads: ContextReads, pid: i32, app: &Element, started: Instant) -> WindowContext {
     read_window(
         reads,
-        bundle_id,
         || {
             crate::accessibility::focus_in(pid, app)
                 .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
@@ -105,29 +98,35 @@ fn read_app(
     )
 }
 
-/// Runs only the reads `reads` asks for. Without the window text, a code
-/// app's other panes are not checked for assignments; the excerpt still is.
+/// Runs only the reads `reads` asks for.
 fn read_window(
     reads: ContextReads,
-    bundle_id: &str,
     field: impl FnOnce() -> Option<FieldExcerpt>,
     window_text: impl FnOnce() -> String,
 ) -> WindowContext {
     let field = if reads.field { field() } else { None };
-    let text = if reads.names {
-        window_text()
+    let names = if reads.names {
+        names_in(field.as_ref(), &window_text())
     } else {
-        String::new()
+        Vec::new()
     };
-    let context = window_context(bundle_id, &text, field);
-    WindowContext {
-        names: if reads.names {
-            context.names
-        } else {
-            Vec::new()
-        },
-        field: context.field,
+    WindowContext { names, field }
+}
+
+/// Names in the excerpt come first: they are next to what the user is
+/// writing.
+fn names_in(field: Option<&FieldExcerpt>, window_text: &str) -> Vec<String> {
+    let excerpt = field
+        .map(|field| format!("{}\n{}", field.before, field.after))
+        .unwrap_or_default();
+    let mut names = candidate_names(&excerpt);
+    for name in candidate_names(window_text) {
+        if !names.contains(&name) {
+            names.push(name);
+        }
     }
+    names.truncate(MAX_NAMES);
+    names
 }
 
 impl FocusedText for Element {
@@ -179,119 +178,9 @@ fn window_text(window: Element, started: Instant) -> String {
     text
 }
 
-/// Terminals and code editors, where a `.env` file or a shell `export` may
-/// be on screen.
-const CODE_APPS: [&str; 18] = [
-    "com.apple.Terminal",
-    "com.googlecode.iterm2",
-    "dev.warp.Warp-Stable",
-    "net.kovidgoyal.kitty",
-    "org.alacritty",
-    "com.github.wez.wezterm",
-    "com.mitchellh.ghostty",
-    "co.zeit.hyper",
-    "com.microsoft.VSCode",
-    "com.microsoft.VSCodeInsiders",
-    "com.vscodium",
-    "com.todesktop.230313mzl4w4u92",
-    "dev.zed.Zed",
-    "com.sublimetext.4",
-    "com.apple.dt.Xcode",
-    "com.panic.Nova",
-    "com.barebones.bbedit",
-    "com.apple.TextEdit",
-];
-const CODE_APP_PREFIXES: [&str; 1] = ["com.jetbrains."];
-
-fn is_code_app(bundle_id: &str) -> bool {
-    CODE_APPS
-        .iter()
-        .any(|known| known.eq_ignore_ascii_case(bundle_id))
-        || CODE_APP_PREFIXES
-            .iter()
-            .any(|prefix| bundle_id.starts_with(prefix))
-}
-
-/// A terminal or editor with any `KEY=value` line may be showing a `.env`
-/// file or a shell session, so it gives no names and no excerpt at all.
-/// Elsewhere an excerpt with a line that assigns a value or mentions a
-/// password, token, secret or API key is dropped. Names in the excerpt come
-/// first: they are next to what the user is writing.
-fn window_context(
-    bundle_id: &str,
-    window_text: &str,
-    field: Option<FieldExcerpt>,
-) -> WindowContext {
-    let excerpt = field
-        .as_ref()
-        .map(|field| format!("{}\n{}", field.before, field.after))
-        .unwrap_or_default();
-    let assigns = excerpt
-        .lines()
-        .chain(window_text.lines())
-        .any(is_assignment);
-    if is_code_app(bundle_id) && assigns {
-        return WindowContext::default();
-    }
-    let mut names = candidate_names(&excerpt);
-    for name in candidate_names(window_text) {
-        if !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    names.truncate(MAX_NAMES);
-    let secret = excerpt
-        .lines()
-        .any(|line| is_assignment(line) || mentions_secret(line));
-    WindowContext {
-        names,
-        field: field.filter(|_| !secret),
-    }
-}
-
-/// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
-fn is_assignment(line: &str) -> bool {
-    let line = line.trim();
-    let line = line.strip_prefix("export ").unwrap_or(line);
-    let Some((key, value)) = line.split_once('=') else {
-        return false;
-    };
-    let key = key.trim_end();
-    key.chars()
-        .next()
-        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
-        && key
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
-        && !value.trim().is_empty()
-        && !value.starts_with('=')
-}
-
-const SECRET_WORDS: [&str; 12] = [
-    "password",
-    "passwd",
-    "passcode",
-    "passphrase",
-    "token",
-    "secret",
-    "api key",
-    "api_key",
-    "api-key",
-    "apikey",
-    "private key",
-    "credential",
-];
-
-fn mentions_secret(line: &str) -> bool {
-    let line = line.to_lowercase();
-    SECRET_WORDS.iter().any(|word| line.contains(word))
-}
-
 /// Words that look like names: capitalised but not merely sentence case,
 /// never seen in lowercase in the same text, plus the name parts of email
-/// addresses and @handles. Most frequent first, at most 50. Lines that
-/// assign a value or mention a password, token, secret or API key are
-/// skipped, and so is the line after them, where a label's value sits.
+/// addresses and @handles. Most frequent first, at most 50.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -309,15 +198,7 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         counts.entry(name).or_insert((0, order)).0 += 1;
     };
 
-    let mut after_secret_label = false;
     for line in text.lines() {
-        let sensitive = after_secret_label || is_assignment(line) || mentions_secret(line);
-        if !line.trim().is_empty() {
-            after_secret_label = mentions_secret(line);
-        }
-        if sensitive {
-            continue;
-        }
         let mut sentence_start = true;
         for token in line.split_whitespace() {
             if let Some(parts) = address_names(token) {
@@ -374,10 +255,11 @@ fn is_name(word: &str, sentence_start: bool) -> bool {
     inner_capital || !sentence_start
 }
 
-/// Passwords, API keys and hashes rather than words. Written names mix
-/// letters and digits at most once ("GPT-4o", "iPhone15"), switch case at
-/// most twice ("McDonald", "DeepSeek"), have vowels, and stay short unless
-/// they are hyphenated words.
+/// Generated strings such as keys and hashes rather than words, which would
+/// crowd real names out of the hints. Written names mix letters and digits
+/// at most once ("GPT-4o", "iPhone15"), switch case at most twice
+/// ("McDonald", "DeepSeek"), have vowels, and stay short unless they are
+/// hyphenated words.
 fn looks_generated(word: &str) -> bool {
     let segments: Vec<&str> = word
         .split(['-', '\'', '&', '.'])
@@ -525,8 +407,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_secrets_are_not_names() {
-        for secret in [
+    fn generated_tokens_are_not_names() {
+        for token in [
             // Generated passwords.
             "Xk9mPq2vLr7T",
             "Tr0ub4dor&3",
@@ -543,8 +425,8 @@ mod tests {
             "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         ] {
             assert!(
-                candidate_names(&format!("see {secret} here")).is_empty(),
-                "accepted {secret}"
+                candidate_names(&format!("see {token} here")).is_empty(),
+                "accepted {token}"
             );
         }
     }
@@ -576,22 +458,6 @@ mod tests {
         ] {
             assert!(!looks_generated(word), "rejected {word}");
         }
-    }
-
-    #[test]
-    fn values_next_to_secret_labels_are_skipped() {
-        assert_eq!(
-            candidate_names("Wi-Fi password: Bluebird\nshared with Corvina\nthanks to Ingrid"),
-            vec!["Ingrid"]
-        );
-        assert_eq!(
-            candidate_names("API key\nZephyrine\nmeet Tobias"),
-            vec!["Tobias"]
-        );
-        assert_eq!(
-            candidate_names("STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya"),
-            vec!["Amaya"]
-        );
     }
 
     /// `PENDING` is shared by every dictation, so its tests take turns.
@@ -671,7 +537,6 @@ mod tests {
                 let field_log = Arc::clone(&log);
                 let context = read_window(
                     reads,
-                    "com.apple.Notes",
                     move || {
                         field_log.lock().unwrap().push("field");
                         excerpt()
@@ -703,49 +568,85 @@ mod tests {
     }
 
     #[test]
-    fn terminals_and_editors_showing_assignments_give_no_names() {
-        let text = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        let context = |bundle_id, text| window_context(bundle_id, text, None).names;
-        assert!(context("com.apple.Terminal", text).is_empty());
-        assert!(context("com.jetbrains.intellij", text).is_empty());
-        assert_eq!(context("com.apple.Notes", text), names(&["Ingrid"]));
+    fn the_excerpt_and_names_are_sent_as_read() {
+        let all = ContextReads {
+            names: true,
+            field: true,
+        };
+        let context = read_window(
+            all,
+            || field("Code porte : 4512B\n", ""),
+            || "Wi-Fi password: Bluebird\nshared with Corvina".to_string(),
+        );
         assert_eq!(
-            context("com.microsoft.VSCode", "written by Ingrid"),
-            names(&["Ingrid"])
+            context,
+            WindowContext {
+                names: names(&["Wi-Fi", "Corvina"]),
+                field: field("Code porte : 4512B\n", ""),
+            }
         );
     }
 
-    #[test]
-    fn a_code_app_showing_assignments_gives_no_excerpt_either() {
-        let window = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        let excerpt = field("thanks to Ingrid for ", "");
-        assert_eq!(
-            window_context("com.apple.Terminal", window, excerpt.clone()),
-            WindowContext::default()
-        );
-        assert_eq!(
-            window_context("com.apple.Notes", window, excerpt.clone()).field,
-            excerpt
-        );
-    }
+    /// Every text the name finder was checked on, and the names it gives.
+    /// Add rows; never change one to make a fix pass.
+    const NAMES_CORPUS: &[(&str, &[&str])] = &[
+        (
+            "Thanks for the update. I spoke with Ingrid and Tobias yesterday.\nShipping is on track.",
+            &["Ingrid", "Tobias"],
+        ),
+        ("File\nEdit\nView\nSearch messages", &[]),
+        (
+            "Open the Settings page. the settings are saved with Murmur.",
+            &["Murmur"],
+        ),
+        (
+            "GitHub and iPhone users. macOS ships soon.",
+            &["GitHub", "iPhone", "macOS"],
+        ),
+        (
+            "reply to jane.doe@example.com or ping @kai_dev today",
+            &["Jane", "Doe", "kai_dev"],
+        ),
+        ("see the PDF and 2024 and www.Example.com now", &[]),
+        ("meet Zed then Amaya then Zed again", &["Zed", "Amaya"]),
+        ("see Xk9mPq2vLr7T here", &[]),
+        ("see Tr0ub4dor&3 here", &[]),
+        ("see hGqWzKpLxV here", &[]),
+        ("see Xkqzvbnm here", &[]),
+        ("see aB3dE5fG7hJ9kL1mN0pQ here", &[]),
+        ("see Z7kQ2mN9xR4bL1vT8cW3 here", &[]),
+        ("see dGhpcyBpcyBhIHNlY3JldA== here", &[]),
+        ("see Deadbeef0042 here", &[]),
+        ("see Fa3c9e1b7d5a here", &[]),
+        ("see AKIAIOSFODNN7EXAMPLE here", &[]),
+        ("see wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY here", &[]),
+        (
+            "met McDonald, O'Brien, Jean-Luc, Schwarzschild and Strzelczyk about iPhone15, \
+             GPT-4o, OpenAI and DeepSeek",
+            &[
+                "McDonald",
+                "O'Brien",
+                "Jean-Luc",
+                "Schwarzschild",
+                "Strzelczyk",
+                "iPhone15",
+                "GPT-4o",
+                "OpenAI",
+                "DeepSeek",
+            ],
+        ),
+    ];
 
     #[test]
-    fn an_excerpt_with_a_secret_line_is_dropped() {
-        for (before, after) in [
-            ("Wi-Fi password: Bluebird\nsee you ", ""),
-            ("Hi Ingrid, ", " here is my API key for staging"),
-            ("STRIPE_KEY=Moonlight\n", ""),
-            ("export ADMIN = Corvina\nthen ", "run it"),
-            ("the token is ", ""),
-        ] {
-            let context = window_context("com.apple.Notes", "", field(before, after));
-            assert_eq!(context.field, None, "{before:?} {after:?}");
-        }
-        let clean = field("Thanks for the draft, Priya. ", "");
-        assert_eq!(
-            window_context("com.apple.Notes", "", clean.clone()).field,
-            clean
-        );
+    fn names_corpus() {
+        let wrong: Vec<String> = NAMES_CORPUS
+            .iter()
+            .filter(|(text, expected)| candidate_names(text) != names(expected))
+            .map(|(text, expected)| {
+                format!("{text:?}: {:?}, not {expected:?}", candidate_names(text))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     /// Measures every read on each regular app running, without bringing
@@ -856,7 +757,7 @@ mod tests {
                 .map(|window| window_text(window, started));
             let before = window.map_or("no window".to_string(), |text| {
                 let elapsed = started.elapsed().as_millis();
-                let names = window_context(&bundle_id, &text, None).names.len();
+                let names = names_in(None, &text).len();
                 format!("{}, {names}, {elapsed}", text.chars().count())
             });
 
@@ -865,7 +766,7 @@ mod tests {
                 names: true,
                 field: true,
             };
-            let context = read_app(all, pid, &bundle_id, &app, started);
+            let context = read_app(all, pid, &app, started);
             let elapsed = started.elapsed().as_millis();
             let excerpt = context.field.as_ref().map_or(0, |field| {
                 field.before.chars().count() + field.after.chars().count()
@@ -933,13 +834,9 @@ mod tests {
 
     #[test]
     fn names_in_the_excerpt_come_before_the_window_names() {
-        let context = window_context(
-            "com.apple.Mail",
-            "meet Tobias and Siobhán today",
-            field("Dear Siobhán and Priya, ", "with Ingrid"),
-        );
+        let excerpt = field("Dear Siobhán and Priya, ", "with Ingrid");
         assert_eq!(
-            context.names,
+            names_in(excerpt.as_ref(), "meet Tobias and Siobhán today"),
             names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
     }

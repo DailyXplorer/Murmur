@@ -87,6 +87,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Without a certificate the build is signed ad hoc, and macOS drops
+      # the Accessibility and Microphone grants of everyone who updates.
+      - name: Refuse to release without a signing certificate
+        if: inputs.release-id && env.HAS_APPLE_CERTIFICATE != 'true' && env.HAS_STABLE_CERTIFICATE != 'true'
+        shell: bash
+        run: |
+          echo "::error::A release needs APPLE_CERTIFICATE or the MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD and MACOS_SIGNING_IDENTITY secrets. None is set, so the build would be signed ad hoc."
+          exit 1
+
       - name: Get version from tauri.conf.json
         id: get-version
         shell: bash
@@ -245,7 +254,6 @@ jobs:
           args: ${{ inputs.build-args }}
 
       - name: Verify macOS dylib bundling
-        if: inputs.target == 'x86_64-apple-darwin'
         shell: bash
         run: |
           APP=$(find src-tauri/target -name "*.app" -type d | head -1)

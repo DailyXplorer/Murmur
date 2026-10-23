@@ -8,7 +8,9 @@ use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
 use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringGetCharacters, CFStringRef};
+use core_foundation::url::CFURL;
 use std::ffi::c_void;
+use std::time::{Duration, Instant};
 
 type AXUIElementRef = CFTypeRef;
 const AX_SUCCESS: i32 = 0;
@@ -201,9 +203,20 @@ impl Element {
             .map(|text| utf16_string(&text))
     }
 
+    /// A URL attribute such as AXURL.
+    pub fn url(&self, name: &str) -> Option<String> {
+        let url = self.attribute(name)?.downcast::<CFURL>()?;
+        Some(utf16_string(&url.get_string()))
+    }
+
     pub fn children(&self) -> Vec<Element> {
+        self.elements("AXChildren")
+    }
+
+    /// An attribute holding a list of elements, such as AXWindows.
+    pub fn elements(&self, name: &str) -> Vec<Element> {
         let Some(array) = self
-            .attribute("AXChildren")
+            .attribute(name)
             .and_then(|value| value.downcast::<CFArray<*const c_void>>())
         else {
             return Vec::new();
@@ -278,8 +291,8 @@ fn utf16_string(text: &CFString) -> String {
 }
 
 /// The frontmost app other than Murmur, unless it is a password manager:
-/// its pid, bundle identifier and application element.
-pub fn frontmost_app() -> Option<(i32, String, Element)> {
+/// its pid and application element.
+pub fn frontmost_app() -> Option<(i32, Element)> {
     let application = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = application.processIdentifier();
     if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
@@ -292,13 +305,47 @@ pub fn frontmost_app() -> Option<(i32, String, Element)> {
     if is_password_app(&bundle_id) {
         return None;
     }
-    Some((pid, bundle_id, Element::application(pid)?))
+    Some((pid, Element::application(pid)?))
+}
+
+/// The titles of `app`'s windows, which browsers name after their front tab.
+pub fn window_titles(app: &Element) -> Vec<String> {
+    app.elements("AXWindows")
+        .iter()
+        .filter_map(|window| window.string("AXTitle"))
+        .collect()
+}
+
+/// The address of the page in `app`'s front window: the AXURL of the first
+/// web area, breadth first, past the toolbar. The search gives up after 150
+/// elements or 0.2 s.
+pub fn front_page_url(app: &Element) -> Option<String> {
+    const MAX_NODES: usize = 150;
+    const BUDGET: Duration = Duration::from_millis(200);
+    let started = Instant::now();
+    let window = app
+        .element("AXFocusedWindow")
+        .or_else(|| app.element("AXMainWindow"))?;
+    let mut queue = std::collections::VecDeque::from([window]);
+    let mut visited = 0;
+    while let Some(element) = queue.pop_front() {
+        visited += 1;
+        if visited > MAX_NODES || started.elapsed() > BUDGET {
+            return None;
+        }
+        match element.string("AXRole").as_deref() {
+            Some("AXWebArea") => return element.url("AXURL"),
+            Some("AXToolbar") => {}
+            _ => queue.extend(element.children()),
+        }
+    }
+    None
 }
 
 /// The keyboard focus anywhere on screen, when it is a readable, non-secure
 /// element of an app that is not a password manager.
 pub fn focused_text_element() -> Option<Element> {
-    let (pid, _, _) = frontmost_app()?;
+    let (pid, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
 }
@@ -404,7 +451,7 @@ pub fn keyboard_focus() -> FocusedField {
 }
 
 fn focused_element() -> Option<FocusedElement> {
-    let (pid, _, _) = frontmost_app()?;
+    let (pid, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid)).then(|| FocusedElement {
         role: focused.string("AXRole"),

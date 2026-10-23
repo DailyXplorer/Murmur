@@ -86,6 +86,88 @@ public func murmurSystemAudioPermission() -> Int32 {
     audioCapturePermission()
 }
 
+/// Where the Mac plays sound, for the echo filter: the default output's
+/// transport type, its data source on the output side (0 when it has none),
+/// and 1 in `hasInput` when it also has input streams, as a headset does.
+/// Returns 1 when there is no default output. The device's name is not read:
+/// it can hold the owner's name.
+@_cdecl("murmur_output_route")
+public func murmurOutputRoute(
+    _ transport: UnsafeMutablePointer<UInt32>,
+    _ dataSource: UnsafeMutablePointer<UInt32>,
+    _ hasInput: UnsafeMutablePointer<Int32>
+) -> Int32 {
+    guard let device = defaultOutputDevice() else { return 1 }
+    transport.pointee = property(device, kAudioDevicePropertyTransportType, as: UInt32.self) ?? 0
+    dataSource.pointee = property(
+        device, kAudioDevicePropertyDataSource, scope: kAudioObjectPropertyScopeOutput,
+        as: UInt32.self) ?? 0
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyStreams,
+        mScope: kAudioObjectPropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMain)
+    var size: UInt32 = 0
+    let inputs = AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr && size > 0
+    hasInput.pointee = inputs ? 1 : 0
+    return ok
+}
+
+/// The processes other than Murmur whose audio input runs now, for call
+/// detection: one "pid<TAB>bundle id" line each, written into `buffer` with
+/// a closing NUL when it fits. Returns the length of the whole list, or -1
+/// before macOS 14, whose Core Audio does not tell.
+@_cdecl("murmur_mic_users")
+public func murmurMicUsers(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int32) -> Int32 {
+    guard #available(macOS 14.0, *) else { return -1 }
+    let own = getpid()
+    let list = processObjects().compactMap { object -> String? in
+        guard property(object, kAudioProcessPropertyIsRunningInput, as: UInt32.self) == 1,
+              let pid = property(object, kAudioProcessPropertyPID, as: pid_t.self), pid != own
+        else { return nil }
+        return "\(pid)\t\(processBundleID(object) ?? "")\n"
+    }.joined()
+    let bytes = Array(list.utf8)
+    if let buffer, bytes.count < Int(capacity) {
+        bytes.withUnsafeBufferPointer { source in
+            source.withMemoryRebound(to: CChar.self) { source in
+                buffer.update(from: source.baseAddress!, count: bytes.count)
+            }
+        }
+        buffer[bytes.count] = 0
+    }
+    return Int32(clamping: bytes.count)
+}
+
+/// Every process Core Audio knows of (macOS 14).
+@available(macOS 14.0, *)
+private func processObjects() -> [AudioObjectID] {
+    var address = processListAddress
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr, size > 0
+    else { return [] }
+    var objects = [AudioObjectID](
+        repeating: AudioObjectID(kAudioObjectUnknown),
+        count: Int(size) / MemoryLayout<AudioObjectID>.size)
+    guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &objects) == noErr
+    else { return [] }
+    return Array(objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
+}
+
+@available(macOS 14.0, *)
+private func processBundleID(_ object: AudioObjectID) -> String? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyBundleID,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var bundleID: Unmanaged<CFString>?
+    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &bundleID) == noErr,
+          let bundleID
+    else { return nil }
+    return bundleID.takeRetainedValue() as String
+}
+
 private let permissionGranted: Int32 = 0
 private let permissionDenied: Int32 = 1
 private let permissionUnknown: Int32 = 2
@@ -464,7 +546,7 @@ private var defaultOutputAddress = AudioObjectPropertyAddress(
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMain)
 
-private func defaultOutputUID() -> String? {
+private func defaultOutputDevice() -> AudioObjectID? {
     var address = defaultOutputAddress
     var device = AudioObjectID(kAudioObjectUnknown)
     var size = UInt32(MemoryLayout<AudioObjectID>.size)
@@ -472,13 +554,17 @@ private func defaultOutputUID() -> String? {
         AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr,
         device != kAudioObjectUnknown
     else { return nil }
+    return device
+}
 
+private func defaultOutputUID() -> String? {
+    guard let device = defaultOutputDevice() else { return nil }
     var uidAddress = AudioObjectPropertyAddress(
         mSelector: kAudioDevicePropertyDeviceUID,
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain)
     var uid: Unmanaged<CFString>?
-    size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
     guard AudioObjectGetPropertyData(device, &uidAddress, 0, nil, &size, &uid) == noErr,
           let uid
     else { return nil }
@@ -504,17 +590,18 @@ private func otherProcessPlaysOutput() -> Bool {
     else { return false }
     let own = getpid()
     return objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size).contains { object in
-        processProperty(object, kAudioProcessPropertyIsRunningOutput, as: UInt32.self) == 1
-            && processProperty(object, kAudioProcessPropertyPID, as: pid_t.self) != own
+        property(object, kAudioProcessPropertyIsRunningOutput, as: UInt32.self) == 1
+            && property(object, kAudioProcessPropertyPID, as: pid_t.self) != own
     }
 }
 
-private func processProperty<T>(
-    _ object: AudioObjectID, _ selector: AudioObjectPropertySelector, as _: T.Type
+private func property<T>(
+    _ object: AudioObjectID, _ selector: AudioObjectPropertySelector,
+    scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal, as _: T.Type
 ) -> T? {
     var address = AudioObjectPropertyAddress(
         mSelector: selector,
-        mScope: kAudioObjectPropertyScopeGlobal,
+        mScope: scope,
         mElement: kAudioObjectPropertyElementMain)
     var size = UInt32(MemoryLayout<T>.size)
     let value = UnsafeMutablePointer<T>.allocate(capacity: 1)

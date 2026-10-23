@@ -111,6 +111,12 @@ const APP_COMMANDS: &[&str] = &[
     "open_system_audio_privacy_settings",
     "change_meetings_enabled_setting",
     "change_meeting_capture_mode_setting",
+    "change_meeting_audio_retention_setting",
+    "get_meetings_storage",
+    "change_meeting_call_prompt_setting",
+    "answer_call_prompt",
+    "fit_call_prompt",
+    "get_call_prompt",
 ];
 
 fn main() {
@@ -190,12 +196,14 @@ fn generate_tray_translations() {
 }
 
 /// Compiles each Swift bridge in `swift/` into a static library: the meeting
-/// system-audio tap and the meeting audio compression. They need Apple
-/// silicon, so Intel builds get Rust's stubs instead.
+/// system-audio tap and the meeting audio compression. The tap needs Apple
+/// silicon, so Intel builds get Rust's stubs for it; compression only needs
+/// AudioToolbox, which Intel Macs have too.
 fn build_swift_bridges() {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
+    // The tap comes first: Intel builds skip it.
     const BRIDGES: [(&str, &str, &str); 2] = [
         (
             "swift/meeting_audio.swift",
@@ -214,9 +222,11 @@ fn build_swift_bridges() {
     println!("cargo:rerun-if-env-changed=SDKROOT");
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
-    if target_os != "macos" || target_arch != "aarch64" {
-        return;
-    }
+    let (bridges, swift_target) = match (target_os.as_str(), target_arch.as_str()) {
+        ("macos", "aarch64") => (&BRIDGES[..], "arm64-apple-macosx11.0"),
+        ("macos", "x86_64") => (&BRIDGES[1..], "x86_64-apple-macosx11.0"),
+        _ => return,
+    };
 
     let xcrun = |args: &[&str]| -> String {
         let output = Command::new("xcrun")
@@ -236,11 +246,23 @@ fn build_swift_bridges() {
     let swiftc = xcrun(&["--sdk", "macosx", "--find", "swiftc"]);
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
 
-    for (source, module, library) in BRIDGES {
+    for &(source, module, library) in bridges {
         let object = out_dir.join(format!("{library}.o"));
         let status = Command::new(&swiftc)
             .args(["-parse-as-library", "-swift-version", "5", "-O", "-c"])
-            .args(["-target", "arm64-apple-macosx11.0", "-sdk", &sdk])
+            .args(["-target", swift_target, "-sdk", &sdk])
+            // The bridges use no Swift concurrency, but Foundation's import
+            // still asks to link it. Below macOS 12 that is
+            // `@rpath/libswift_Concurrency.dylib`, which the bundle does not
+            // ship.
+            .args([
+                "-Xfrontend",
+                "-disable-autolink-library",
+                "-Xfrontend",
+                "swift_Concurrency",
+                "-Xfrontend",
+                "-disable-autolinking-runtime-compatibility-concurrency",
+            ])
             .arg("-module-name")
             .arg(module)
             .arg(source)
@@ -276,9 +298,6 @@ fn build_swift_bridges() {
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=framework=CoreAudio");
     println!("cargo:rustc-link-lib=framework=AudioToolbox");
-    // macOS 11 has no Swift concurrency runtime: it is weak so the app still
-    // launches there.
-    println!("cargo:rustc-link-arg=-Wl,-weak-lswift_Concurrency");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
 

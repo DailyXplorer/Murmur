@@ -43,12 +43,15 @@ import { LocalModelPill } from "./components/LocalModelPill";
  * cleanup can run) → finish (on this Mac only) → done. `returning`: setup
  * was finished before, and a permission went missing since; granting it
  * again leads back to the app. `engine` is the one chosen in the model
- * step; the cloud makes the account required. */
+ * step; the cloud makes the account required. `cloudAccount`: the cloud
+ * chosen at the finish step without an account; the engine changes once
+ * signed in, and Back leads to the finish step again. */
 type OnboardingState =
   | { kind: "model"; status: LocalModelStatus }
   | { kind: "permissions"; returning: true }
   | { kind: "permissions"; returning: false; engine: Engine }
   | { kind: "account"; engine: Engine }
+  | { kind: "cloudAccount" }
   | { kind: "style"; next: "finish" | "done" }
   | { kind: "finish" }
   | { kind: "done" };
@@ -69,6 +72,7 @@ type FailureKind =
   | "timeout"
   | "rate_limited"
   | "server_error"
+  | "connection_dropped"
   | "session_expired"
   | "signed_out"
   | "too_large"
@@ -89,6 +93,7 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   timeout: "tray.errorTimeout",
   rate_limited: "tray.errorRateLimited",
   server_error: "tray.errorServer",
+  connection_dropped: "tray.errorServer",
   session_expired: "tray.errorSessionExpired",
   signed_out: "tray.errorSignedOut",
   too_large: "tray.errorTooLarge",
@@ -405,16 +410,24 @@ function App() {
     return true;
   };
 
-  /** From the finish step, after the download stopped. */
-  const handleUseCloud = async () => {
+  const switchToCloud = async (): Promise<boolean> => {
     if (!(await saveEngine("cloud"))) {
       toast.error(t("settings.transcription.engine.error"));
-      return;
+      return false;
     }
+    setOnboardingState({ kind: "done" });
+    return true;
+  };
+
+  /** From the finish step, after the download stopped. Without an account
+   * the engine stays on this Mac until the user signs in. */
+  const handleUseCloud = async () => {
     const auth = await commands.getCodexAuthStatus().catch(() => null);
-    setOnboardingState(
-      auth?.signed_in ? { kind: "done" } : { kind: "account", engine: "cloud" },
-    );
+    if (auth?.signed_in) {
+      await switchToCloud();
+    } else {
+      setOnboardingState({ kind: "cloudAccount" });
+    }
   };
 
   const toaster = (
@@ -471,6 +484,14 @@ function App() {
           optional={onboardingState.engine === "local"}
         />
       </>
+    );
+  } else if (onboardingState.kind === "cloudAccount") {
+    content = (
+      <ProviderOnboarding
+        onComplete={switchToCloud}
+        optional={false}
+        onBack={() => setOnboardingState({ kind: "finish" })}
+      />
     );
   } else if (onboardingState.kind === "style") {
     content = (

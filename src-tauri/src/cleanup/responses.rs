@@ -138,8 +138,9 @@ pub async fn complete(
             ))?,
         };
         let Some(chunk) = chunk else {
+            // Codex was reached: see `FailureKind::from_transport`.
             return Err(CompletionError::failed(
-                FailureKind::Network,
+                FailureKind::ConnectionDropped,
                 "cleanup stream ended before completion",
             ));
         };

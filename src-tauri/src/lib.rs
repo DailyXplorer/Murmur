@@ -385,6 +385,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     local_models::init(app_handle);
     engine::local::init(app_handle);
     meetings::init(app_handle, true);
+    meetings::call_watch::sync(app_handle);
     app_handle.manage(tray::CurrentTrayIconState::new());
     updates::init(app_handle);
 
@@ -453,6 +454,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
     utils::create_recording_overlay(app_handle);
+    if meetings::call_watch::supported() {
+        utils::create_call_prompt(app_handle);
+    }
 }
 
 #[tauri::command]
@@ -708,6 +712,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::open_system_audio_privacy_settings,
             commands::meetings::change_meetings_enabled_setting,
             commands::meetings::change_meeting_capture_mode_setting,
+            commands::meetings::change_meeting_audio_retention_setting,
+            commands::meetings::get_meetings_storage,
+            commands::meetings::change_meeting_call_prompt_setting,
+            commands::meetings::answer_call_prompt,
+            overlay::fit_call_prompt,
+            overlay::get_call_prompt,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,

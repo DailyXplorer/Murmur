@@ -410,6 +410,32 @@ mod tests {
         );
     }
 
+    /// Codex answered: a stream a proxy cuts every time must not pass for an
+    /// offline Mac, or a meeting summary waits for the connection for ever.
+    #[test]
+    fn a_stream_cut_before_completion_is_no_network_failure() {
+        let endpoint = serve_once(Some(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: 0\r\n\
+             connection: close\r\n\r\n"
+                .to_string(),
+        ));
+        let operation = ProcessingOperation::new(OperationId(12));
+        let result = tauri::async_runtime::block_on(ask_for_cleanup(
+            &endpoint,
+            &session(),
+            "gpt-6-luna",
+            "hello there",
+            &PromptContext::default(),
+            &operation,
+        ));
+        match result {
+            Err(CompletionError::Failed { kind, .. }) => {
+                assert_eq!(kind, FailureKind::ConnectionDropped)
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
     #[test]
     fn an_answer_to_a_dictated_question_is_discarded() {
         let endpoint = serve_once(Some(sse_reply(

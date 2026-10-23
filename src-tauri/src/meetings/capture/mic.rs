@@ -99,6 +99,10 @@ impl Track for MicCapture {
         self.heard.lost(Instant::now())
     }
 
+    fn dropped_ms(&self) -> u64 {
+        self.writer.dropped_ms()
+    }
+
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.supervisor.join();

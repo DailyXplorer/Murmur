@@ -21,6 +21,12 @@ pub trait Runtime: Send + Sync + 'static {
 
 /// A loaded model. Dropping it releases its memory.
 pub trait Loaded: Send {
+    /// Newer model files landed on disk since this model loaded, such as
+    /// the optional one that boosts custom words.
+    fn outdated(&self) -> bool {
+        false
+    }
+
     /// Transcribes one piece of 16 kHz mono audio, short enough for one pass,
     /// listening for `terms` where the runtime can.
     fn transcribe<'a>(
@@ -93,8 +99,13 @@ impl Session {
 
     async fn ensure_loaded(self: &Arc<Self>, slot: &mut Slot) -> anyhow::Result<()> {
         self.touch();
-        if slot.loaded.is_some() {
-            return Ok(());
+        match &slot.loaded {
+            Some(loaded) if loaded.outdated() => {
+                log::info!("Newer local model files are on disk: loading them");
+                slot.loaded = None;
+            }
+            Some(_) => return Ok(()),
+            None => {}
         }
         let started = std::time::Instant::now();
         slot.loaded = Some(self.runtime.load().await?);
@@ -178,6 +189,8 @@ mod tests {
         released: AtomicUsize,
         running: AtomicUsize,
         peak: AtomicUsize,
+        /// Bumped when newer model files land on disk.
+        on_disk: AtomicUsize,
     }
 
     /// Each run takes `run_for`; a run of `fail` audio fails.
@@ -189,6 +202,7 @@ mod tests {
     struct FakeModel {
         counts: Arc<Counts>,
         run_for: Duration,
+        loaded_from: usize,
     }
 
     impl Runtime for FakeRuntime {
@@ -197,12 +211,17 @@ mod tests {
             let model = FakeModel {
                 counts: Arc::clone(&self.counts),
                 run_for: self.run_for,
+                loaded_from: self.counts.on_disk.load(Ordering::SeqCst),
             };
             Box::pin(async move { Ok(Box::new(model) as Box<dyn Loaded>) })
         }
     }
 
     impl Loaded for FakeModel {
+        fn outdated(&self) -> bool {
+            self.counts.on_disk.load(Ordering::SeqCst) > self.loaded_from
+        }
+
         fn transcribe<'a>(
             &'a mut self,
             samples: &'a [f32],
@@ -312,6 +331,19 @@ mod tests {
         assert_eq!(second.unwrap(), "8 samples");
         assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
         assert_eq!(counts.loads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_model_outdated_on_disk_is_loaded_again_by_the_next_dictation() {
+        let (session, counts, _) = session(Duration::from_millis(100));
+        session.warm().await.unwrap();
+        // The custom-word model finished downloading.
+        counts.on_disk.fetch_add(1, Ordering::SeqCst);
+        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
+        assert_eq!(counts.released.load(Ordering::SeqCst), 1);
+        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 2, "loaded again");
     }
 
     #[tokio::test(start_paused = true)]

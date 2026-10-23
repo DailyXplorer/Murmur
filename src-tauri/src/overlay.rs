@@ -98,6 +98,35 @@ struct CopyNoticeLabels {
     note: String,
 }
 
+/// The call prompt's own panel, beside the overlay.
+const CALL_PROMPT_WINDOW: &str = "call_prompt";
+/// The call prompt sits this much further from the screen edge than the
+/// overlay, clear of its tallest capsule, a four-line error: a dictation
+/// shows beside it.
+const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
+
+/// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
+#[derive(Clone, serde::Serialize, specta::Type)]
+pub struct CallPromptLabels {
+    /// The call app's name.
+    app: String,
+    question: String,
+    accept: String,
+    decline: String,
+    /// The overlay's side of the screen, which the prompt sits on too.
+    position: OverlayPosition,
+}
+
+/// The call prompt showing. Its page asks for it once it listens, so a
+/// prompt shown while the page still loaded is not lost.
+static CALL_PROMPT: Mutex<Option<CallPromptLabels>> = Mutex::new(None);
+
+fn call_prompt() -> MutexGuard<'static, Option<CallPromptLabels>> {
+    CALL_PROMPT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Whether a dictation owns the overlay (recording or transcribing).
 static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
 /// The meeting pill, while a meeting records. Dictation and error capsules
@@ -356,6 +385,133 @@ pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWr
     true
 }
 
+/// Creates the call prompt's panel, hidden. It takes clicks whenever it
+/// shows.
+pub fn create_call_prompt(app_handle: &AppHandle) {
+    if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
+        .url(WebviewUrl::App("src/overlay/call.html".into()))
+        .title("Call")
+        .level(PanelLevel::Status)
+        .size(tauri::Size::Logical(tauri::LogicalSize {
+            width: COPY_OVERLAY_WIDTH,
+            height: COPY_OVERLAY_HEIGHT,
+        }))
+        .has_shadow(false)
+        .transparent(true)
+        .no_activate(true)
+        .corner_radius(0.0)
+        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        .with_window(|w| {
+            w.decorations(false)
+                .transparent(true)
+                .focusable(false)
+                .accept_first_mouse(true)
+        })
+        .collection_behavior(
+            CollectionBehavior::new()
+                .can_join_all_spaces()
+                .full_screen_auxiliary(),
+        )
+        .build()
+        .map(|panel| panel.hide())
+    {
+        log::error!("Failed to create the call prompt panel: {}", e);
+    }
+}
+
+/// Asks whether to record the call `app` started, with "Record" and "Not
+/// now", in a panel of its own: a dictation, an error or the meeting pill
+/// never hides it. It shows even with the overlay off: the call prompt has
+/// a setting of its own. The panel never takes the focus from the call.
+pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
+    let settings = settings::get_settings(app_handle);
+    let strings = get_tray_translations(Some(settings.app_language));
+    let labels = CallPromptLabels {
+        app: app.to_string(),
+        question: strings.call_record_question,
+        accept: strings.call_record,
+        decline: strings.call_not_now,
+        position: settings.overlay_position,
+    };
+    *call_prompt() = Some(labels.clone());
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
+            return;
+        };
+        place_call_prompt(&handle, &window, COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT);
+        let _ = window.show();
+        let _ = handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
+    });
+}
+
+pub fn hide_call_prompt(app_handle: &AppHandle) {
+    *call_prompt() = None;
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let _ = window.hide();
+            let _ = handle.emit_to(CALL_PROMPT_WINDOW, "hide-overlay-call", ());
+        }
+    });
+}
+
+fn place_call_prompt(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+    if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
+        let y = match settings::get_settings(app_handle).overlay_position {
+            OverlayPosition::Top => y + CALL_PROMPT_OFFSET,
+            OverlayPosition::Bottom => y - CALL_PROMPT_OFFSET,
+        };
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+    }
+}
+
+/// The call prompt showing, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn get_call_prompt() -> Option<CallPromptLabels> {
+    call_prompt().clone()
+}
+
+/// Moves the call prompt showing to the overlay's new side.
+fn update_call_prompt_position(app_handle: &AppHandle) {
+    let position = settings::get_settings(app_handle).overlay_position;
+    let labels = {
+        let mut prompt = call_prompt();
+        let Some(labels) = prompt.as_mut() else {
+            return;
+        };
+        labels.position = position;
+        labels.clone()
+    };
+    if let Some(window) = app_handle.get_webview_window(CALL_PROMPT_WINDOW) {
+        let (width, height) = current_overlay_logical_size(&window)
+            .unwrap_or((COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT));
+        place_call_prompt(app_handle, &window, width, height);
+        let _ = app_handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
+    }
+}
+
+/// Fits the call prompt's window to the capsule the webview measured, as
+/// `fit_copy_notice` does the copy notice's.
+#[tauri::command]
+#[specta::specta]
+pub fn fit_call_prompt(app: AppHandle, width: f64, height: f64) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let (width, height) = fitted_window_size(&handle, width, height);
+            place_call_prompt(&handle, &window, width, height);
+        }
+    });
+}
+
 /// Fits the copy notice's window to the capsule the webview measured, so a
 /// note that wraps further in a wider fallback font still shows whole, and
 /// the window, which takes clicks while the notice shows, stays close to it.
@@ -370,20 +526,25 @@ pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
         let Some(window) = handle.get_webview_window("recording_overlay") else {
             return;
         };
-        let work_area = get_monitor_with_cursor(&handle).map(|monitor| {
-            let scale = monitor.scale_factor();
-            let area = monitor.work_area().size;
-            (area.width as f64 / scale, area.height as f64 / scale)
-        });
-        let (width, height) = copy_window_size(
-            (width, height),
-            work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
-        );
+        let (width, height) = fitted_window_size(&handle, width, height);
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
         if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
             let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         }
     });
+}
+
+/// `copy_window_size` on the screen under the cursor.
+fn fitted_window_size(app_handle: &AppHandle, width: f64, height: f64) -> (f64, f64) {
+    let work_area = get_monitor_with_cursor(app_handle).map(|monitor| {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area().size;
+        (area.width as f64 / scale, area.height as f64 / scale)
+    });
+    copy_window_size(
+        (width, height),
+        work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
+    )
 }
 
 /// The copy notice's window around a measured capsule: CARD_MARGIN on each
@@ -572,6 +733,7 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
 }
 
 fn update_overlay_position_on_main(app_handle: &AppHandle) {
+    update_call_prompt_position(app_handle);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));
@@ -589,11 +751,23 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
-    if let Some(pill) = meeting_pill() {
-        present_meeting_pill(app_handle, pill);
-        return;
+    settle_overlay(app_handle);
+}
+
+/// Leaves the overlay as it is when no dictation or notice holds it: the
+/// meeting pill, or hidden, so a prompt that held it never stays behind.
+fn settle_overlay(app_handle: &AppHandle) {
+    let style = settings::get_settings(app_handle).overlay_style;
+    match resting_pill(meeting_pill(), style) {
+        Some(pill) => present_meeting_pill(app_handle, pill),
+        None => fade_out_overlay(app_handle),
     }
-    fade_out_overlay(app_handle);
+}
+
+/// The meeting pill shows while a meeting records, unless the overlay is
+/// off.
+fn resting_pill(pill: Option<MeetingPill>, style: OverlayStyle) -> Option<MeetingPill> {
+    pill.filter(|_| style != OverlayStyle::None)
 }
 
 /// Shows the meeting pill unless a dictation or a notice is on screen; it
@@ -607,7 +781,7 @@ pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
     if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
-        present_meeting_pill(app_handle, pill);
+        settle_overlay(app_handle);
     }
 }
 
@@ -623,9 +797,6 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
 }
 
 fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
-    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
-        return;
-    }
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -694,6 +865,17 @@ mod tests {
         assert!(is_point_within((-1, 1239), &position, &size));
         assert!(!is_point_within((0, 0), &position, &size));
         assert!(!is_point_within((-1, 1240), &position, &size));
+    }
+
+    #[test]
+    fn with_the_overlay_off_a_prompt_over_a_meeting_leaves_nothing_on_screen() {
+        let pill = MeetingPill {
+            started_at_ms: 1,
+            stops_at_ms: 2,
+        };
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::None), None);
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::Minimal), Some(pill));
+        assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
     }
 
     #[test]

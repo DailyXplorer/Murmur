@@ -19,6 +19,13 @@ const openTranscript = async (page: Page, query = "") => {
 
 const summary = (page: Page) => page.getByRole("region", { name: "Summary" });
 
+test("a meeting shows no part label and no part links", async ({ page }) => {
+  await openMeeting(page, /Point hebdo produit/);
+  await expect(page.getByRole("tab", { name: "Summary" })).toBeVisible();
+  await expect(page.getByText(/\bpart \d+\b/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^See part/ })).toHaveCount(0);
+});
+
 const callsTo = (page: Page, command: string) =>
   page.evaluate(
     (name) =>
@@ -483,6 +490,18 @@ test("a failed summary shows why, and Retry writes it", async ({ page }) => {
   await expect(alert).toHaveCount(0);
 });
 
+test("a summary a server error stopped says so in one line", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=server");
+  const alert = page.locator("article [role=alert]");
+  await expect(alert).toHaveText(
+    /^Couldn't write the summary\. Try again later\.Retry$/,
+  );
+  await expect(alert).not.toContainText("Codex");
+  await expect(alert.getByRole("button")).toHaveCount(1);
+});
+
 test("a summary on its way says so", async ({ page }) => {
   await openMeeting(page, /Point hebdo produit/, "&summary=pending");
   await expect(page.locator("article [role=status]")).toContainText(
@@ -667,6 +686,49 @@ test("a meeting with failed parts shows them in place and retries them", async (
   await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
   // After the gap, the remote speaker is named again.
   await expect(bubbles(page).nth(6)).toContainText("Speaker 2");
+});
+
+test("a meeting that could not reach Codex says it goes on by itself, and Retry now sends it", async ({
+  page,
+}) => {
+  await openMeeting(
+    page,
+    /Point hebdo produit/,
+    "&meetingFailed=1&meetingError=offline&offline=1",
+  );
+  const banner = page.locator("article [role=status]").first();
+  await expect(banner).toContainText(
+    "Waiting for a connection. Murmur will continue automatically once you're back online.",
+  );
+  await banner.getByRole("button", { name: "Retry now" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
+});
+
+test("a failed offline meeting no longer queued still offers Retry now", async ({
+  page,
+}) => {
+  await openMeeting(
+    page,
+    /Point hebdo produit/,
+    "&meetingFailed=1&meetingError=offline",
+  );
+  const alert = page.locator("article [role=alert]");
+  await expect(alert).toContainText("Waiting for a connection.");
+  await alert.getByRole("button", { name: "Retry now" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
+});
+
+test("a summary waiting for the connection says so instead of writing", async ({
+  page,
+}) => {
+  await openMeeting(page, /Point hebdo produit/, "&summary=pending&offline=1");
+  await expect(page.locator("article [role=status]").first()).toContainText(
+    "Waiting for a connection.",
+  );
+  await page.getByRole("tab", { name: "Summary" }).click();
+  await expect(page.getByText("Writing the summary…")).toHaveCount(0);
+  await page.getByRole("button", { name: "Retry now" }).click();
+  await expect.poll(() => callsTo(page, "retry_meeting")).toEqual([{ id: 3 }]);
 });
 
 test("an interrupted recording can be transcribed, and Back returns to the list", async ({

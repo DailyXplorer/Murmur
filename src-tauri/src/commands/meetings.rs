@@ -3,10 +3,12 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::meetings::coordinator::MeetingRuntime;
+use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
 use crate::settings::{
-    get_settings, write_settings, AppSettings, MeetingCaptureMode, ShortcutBinding,
+    get_settings, write_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
+    ShortcutBinding,
 };
 use crate::user_alert::{self, Alert};
 
@@ -203,6 +205,7 @@ pub fn get_meeting_capabilities() -> MeetingCapabilities {
     MeetingCapabilities {
         system_audio: meetings::capture::system::support(),
         analysis: meetings::helper::support(),
+        call_detection: meetings::call_watch::supported(),
     }
 }
 
@@ -329,8 +332,26 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
         }
         None => {}
     }
+    meetings::call_watch::sync(&app);
     crate::utils::update_tray_menu(&app, None);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = get_settings(&app);
+    settings.meeting_call_prompt = enabled;
+    write_settings(&app, settings);
+    meetings::call_watch::sync(&app);
+    Ok(())
+}
+
+/// The call prompt's buttons: "Record" when `accept`, else "Not now".
+#[tauri::command]
+#[specta::specta]
+pub fn answer_call_prompt(app: AppHandle, accept: bool) {
+    meetings::call_watch::answer(&app, accept);
 }
 
 fn with_capture_mode(mut settings: AppSettings, mode: MeetingCaptureMode) -> AppSettings {
@@ -346,6 +367,32 @@ pub fn change_meeting_capture_mode_setting(
 ) -> Result<(), String> {
     write_settings(&app, with_capture_mode(get_settings(&app), mode));
     Ok(())
+}
+
+/// Takes effect at the next daily pass, or at the next launch.
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_audio_retention_setting(
+    app: AppHandle,
+    retention: MeetingAudioRetention,
+) -> Result<(), String> {
+    let mut settings = get_settings(&app);
+    settings.meeting_audio_retention = retention;
+    write_settings(&app, settings);
+    Ok(())
+}
+
+/// Measured on disk, off the main thread: uncompressed tracks count too.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_meetings_storage(app: AppHandle) -> Result<MeetingsStorage, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || meetings::paths::storage(&app_data))
+        .await
+        .map_err(|error| format!("Measuring the meetings failed: {error}"))
 }
 
 #[cfg(test)]

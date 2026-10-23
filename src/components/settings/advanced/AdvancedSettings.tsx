@@ -8,6 +8,8 @@ import { AutostartToggle } from "../AutostartToggle";
 import { ShowTrayIcon } from "../ShowTrayIcon";
 import { ExperimentalToggle } from "../ExperimentalToggle";
 import { MeetingsToggle } from "../MeetingsToggle";
+import { MeetingsAudioRetention } from "../MeetingsAudioRetention";
+import { MeetingCallPrompt } from "../MeetingCallPrompt";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
 import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
@@ -19,6 +21,7 @@ export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
   const experimentalEnabled = getSetting("experimental_enabled") || false;
+  const meetingsEnabled = getSetting("meetings_enabled") ?? true;
 
   return (
     <SettingsPage label={t("sidebar.advanced")}>
@@ -28,6 +31,8 @@ export const AdvancedSettings: React.FC = () => {
         <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
         <MeetingsToggle descriptionMode="tooltip" grouped={true} />
+        {meetingsEnabled && <MeetingCallPrompt />}
+        {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.updates")}>

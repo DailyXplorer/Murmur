@@ -6,6 +6,8 @@ pub mod align;
 pub mod analysis;
 pub mod archive;
 pub mod bleed;
+pub mod call_watch;
+pub mod calls;
 pub mod cap;
 pub mod capture;
 pub mod chunking;
@@ -14,11 +16,16 @@ pub mod export;
 pub mod helper;
 pub mod merge;
 pub mod models;
+pub mod offline;
 pub mod paths;
+pub mod power;
 pub mod processor;
 pub mod protocol;
 pub mod rename;
+pub mod retention;
 pub mod save_panel;
+#[cfg(test)]
+mod soak;
 pub mod speakers;
 pub mod spread;
 pub mod store;
@@ -28,8 +35,8 @@ pub mod track_audio;
 pub mod transcribe;
 pub mod wav_recovery;
 
-use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -40,8 +47,9 @@ use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
+use crate::local_models::LocalModelState;
 use crate::managers::history::DatabaseStartup;
-use crate::settings::get_settings;
+use crate::settings::{get_settings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
 use analysis::HelperAnalyzer;
@@ -50,6 +58,7 @@ use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
 use helper::AnalysisSupport;
 use models::Models;
+use offline::{CodexHost, OfflineHold, Reachability};
 use processor::{MeetingProgress, ProcessEvents, Processor};
 use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
@@ -83,14 +92,21 @@ pub struct MeetingCapabilities {
     pub system_audio: SystemAudioSupport,
     /// Telling speakers apart on device.
     pub analysis: AnalysisSupport,
+    /// Telling that a call started, for the call prompt.
+    pub call_detection: bool,
 }
 
 /// Recorded meetings wait here and are processed one at a time, in order.
-/// After a rate-limited meeting the queue holds: only meetings the user
-/// asked for go through, ahead of the others.
+/// After a rate-limited meeting, or one that could not reach Codex, the
+/// queue holds: only meetings the user asked for go through, ahead of the
+/// others. While only the connection holds it and this Mac's model is
+/// ready, the meetings that model can still transcribe go through too.
 struct ProcessingQueue {
     state: Mutex<QueueState>,
     changed: tokio::sync::Notify,
+    reachability: Box<dyn Reachability>,
+    /// Whether this Mac's model is ready.
+    local_ready: Box<dyn Fn() -> bool + Send + Sync>,
 }
 
 struct QueueState {
@@ -101,6 +117,22 @@ struct QueueState {
     /// time, as Codex counts its cap: `Instant` stops while the Mac sleeps.
     held_until: Option<SystemTime>,
     rate_limit: RateLimitHold,
+    /// Holds the queue, as the rate-limit hold does, until the connection
+    /// is back.
+    offline: OfflineHold,
+    /// The meeting taken last went past the offline hold on this Mac's
+    /// model.
+    local_pass: bool,
+}
+
+/// What the worker does next.
+#[derive(Debug, PartialEq, Eq)]
+enum Next {
+    Process(i64),
+    /// See whether the connection is back.
+    CheckConnection,
+    /// Until a hold ends (`None`: nothing to wait for but a new meeting).
+    Wait(Option<SystemTime>),
 }
 
 struct Queued {
@@ -109,21 +141,38 @@ struct Queued {
     /// rate-limit hold lets through: pressing it is how the user says Codex
     /// may have freed up.
     asked: bool,
+    /// Only Codex can do what is left: a run had this Mac's model, or the
+    /// transcript is complete and only the summary is left.
+    codex_only: bool,
 }
 
 impl QueueState {
-    /// The meeting to process now or, when none may go, the end of the hold
-    /// (`None`: nothing to wait for but a new meeting).
-    fn take_next(&mut self, now: SystemTime) -> Result<i64, Option<SystemTime>> {
+    fn held(&self) -> bool {
+        self.held_until.is_some() || self.offline.holds()
+    }
+
+    fn goes_through(&self, queued: &Queued, local_ready: bool) -> bool {
+        !self.held()
+            || queued.asked
+            || (self.held_until.is_none() && local_ready && !queued.codex_only)
+    }
+
+    /// The meeting to process now or, when none may go, what to wait for.
+    fn take_next(&mut self, now: SystemTime, local_ready: bool) -> Next {
         self.held_until = self.held_until.filter(|until| now < *until);
-        let index = match self.held_until {
-            Some(_) => self.queued.iter().position(|queued| queued.asked),
-            None => (!self.queued.is_empty()).then_some(0),
-        };
-        match index.and_then(|index| self.queued.remove(index)) {
-            Some(queued) => Ok(queued.id),
-            None => Err(self.held_until),
+        let index = self
+            .queued
+            .iter()
+            .position(|queued| self.goes_through(queued, local_ready));
+        if let Some(queued) = index.and_then(|index| self.queued.remove(index)) {
+            self.local_pass = self.held() && !queued.asked;
+            return Next::Process(queued.id);
         }
+        if self.offline.due(now) {
+            return Next::CheckConnection;
+        }
+        let ends = [self.held_until, self.offline.retry_at()];
+        Next::Wait(ends.into_iter().flatten().min())
     }
 }
 
@@ -135,10 +184,14 @@ impl ProcessingQueue {
             paused,
             held_until: None,
             rate_limit: RateLimitHold::default(),
+            offline: OfflineHold::default(),
+            local_pass: false,
         };
         Self {
             state: Mutex::new(state),
             changed: tokio::sync::Notify::new(),
+            reachability: Box::new(CodexHost::new()),
+            local_ready: Box::new(|| false),
         }
     }
 
@@ -149,22 +202,40 @@ impl ProcessingQueue {
     }
 
     fn enqueue(&self, id: i64) {
-        self.push(id, false);
+        self.push(id, false, false);
     }
 
     /// Queues a meeting the user just asked for, which a rate-limit hold
     /// does not keep waiting. Already queued, it keeps its place in line
     /// and goes through the hold.
     fn enqueue_asked(&self, id: i64) {
-        self.push(id, true);
+        self.push(id, true, false);
     }
 
-    fn push(&self, id: i64, asked: bool) {
+    /// Queues a meeting that an offline hold may keep waiting for the
+    /// connection. `codex_only`: this Mac's model cannot do what is left.
+    fn requeue(&self, id: i64, codex_only: bool) {
+        self.push(id, false, codex_only);
+    }
+
+    /// Meetings waiting for the connection may go on with this Mac's model.
+    fn local_model_ready(&self) {
+        self.changed.notify_one();
+    }
+
+    fn push(&self, id: i64, asked: bool, codex_only: bool) {
         {
             let mut state = self.state();
             match state.queued.iter_mut().find(|queued| queued.id == id) {
-                Some(queued) => queued.asked |= asked,
-                None => state.queued.push_back(Queued { id, asked }),
+                Some(queued) => {
+                    queued.asked |= asked;
+                    queued.codex_only |= codex_only;
+                }
+                None => state.queued.push_back(Queued {
+                    id,
+                    asked,
+                    codex_only,
+                }),
             }
         }
         // `notify_one` keeps a permit, so a worker between its check and its
@@ -176,24 +247,31 @@ impl ProcessingQueue {
     /// so after a sleep only a fresh look sees that the hold has ended.
     const RECHECK: Duration = Duration::from_secs(60);
 
-    /// Waits for the next meeting to process, past any rate-limit hold.
+    /// Waits for the next meeting to process, past any rate-limit hold and
+    /// until the connection is back after Codex could not be reached.
     async fn next(&self) -> i64 {
         loop {
             let changed = self.changed.notified();
             let now = SystemTime::now();
-            let held_until = match self.state().take_next(now) {
-                Ok(id) => return id,
-                Err(held_until) => held_until,
-            };
-            match held_until {
-                Some(until) => {
+            let local_ready = (self.local_ready)();
+            let next = self.state().take_next(now, local_ready);
+            match next {
+                Next::Process(id) => return id,
+                Next::CheckConnection => {
+                    let online = self.reachability.online().await;
+                    if online {
+                        info!("The connection is back; meetings waiting for it go on");
+                    }
+                    self.state().offline.checked(online, SystemTime::now());
+                }
+                Next::Wait(Some(until)) => {
                     let left = until.duration_since(now).unwrap_or_default();
                     tokio::select! {
                         () = tokio::time::sleep(left.min(Self::RECHECK)) => {}
                         () = changed => {}
                     }
                 }
-                None => changed.await,
+                Next::Wait(None) => changed.await,
             }
         }
     }
@@ -210,13 +288,27 @@ impl ProcessingQueue {
     /// about its cap.
     fn codex_said(&self, verdict: CodexVerdict) -> Option<Duration> {
         let mut state = self.state();
+        let local_pass = std::mem::take(&mut state.local_pass);
         match verdict {
             CodexVerdict::RateLimited => {
+                // A refusal is an answer: the connection works.
+                state.offline.reset();
                 let wait = state.rate_limit.rate_limited();
                 state.held_until = Some(SystemTime::now() + wait);
                 Some(wait)
             }
+            CodexVerdict::Unreachable => {
+                let now = SystemTime::now();
+                match state.offline.retry_at() {
+                    // The hold already waits for the connection: a meeting
+                    // this Mac's model took past it leaves the next check
+                    // where it was.
+                    Some(at) if local_pass => Some(at.duration_since(now).unwrap_or_default()),
+                    _ => Some(state.offline.unreachable(now)),
+                }
+            }
             CodexVerdict::Answered => {
+                state.offline.reset();
                 state.rate_limit.reset();
                 state.held_until = None;
                 None
@@ -254,8 +346,30 @@ impl ProcessingQueue {
             .then_some(left)
     }
 
+    /// Whether queued meeting `id` waits for the connection to come back.
+    fn offline_for(&self, id: i64) -> bool {
+        let local_ready = (self.local_ready)();
+        let state = self.state();
+        state.offline.holds()
+            && state
+                .queued
+                .iter()
+                .any(|queued| queued.id == id && !state.goes_through(queued, local_ready))
+    }
+
     fn queued(&self) -> Vec<i64> {
         self.state().queued.iter().map(|queued| queued.id).collect()
+    }
+
+    /// The meetings queued or in progress, which may still read their audio.
+    fn busy(&self) -> HashSet<i64> {
+        let state = self.state();
+        state
+            .queued
+            .iter()
+            .map(|queued| queued.id)
+            .chain(state.current.as_ref().map(|(id, _)| *id))
+            .collect()
     }
 
     /// Stops processing meeting `id`. What was saved stays, and processing
@@ -335,7 +449,19 @@ fn spawn_processing(
     root: PathBuf,
     models: Arc<Models>,
 ) -> Arc<ProcessingQueue> {
-    let queue = Arc::new(ProcessingQueue::new(!get_settings(app).meetings_enabled));
+    let mut queue = ProcessingQueue::new(!get_settings(app).meetings_enabled);
+    let ready = Arc::clone(&models);
+    queue.local_ready = Box::new(move || ready.is_ready());
+    let queue = Arc::new(queue);
+    let mut model_state = models.subscribe();
+    let waking = Arc::clone(&queue);
+    tauri::async_runtime::spawn(async move {
+        while model_state.changed().await.is_ok() {
+            if *model_state.borrow_and_update() == LocalModelState::Ready {
+                waking.local_model_ready();
+            }
+        }
+    });
     let worker = Arc::clone(&queue);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -347,7 +473,10 @@ fn spawn_processing(
             if !worker.begin(id, &operation) {
                 continue;
             }
+            // Its view stops saying it waits for a hold or the connection.
+            AppEvents(app.clone()).updated(id);
             let language = get_settings(&app).selected_language;
+            let local_tried = models.is_ready();
             let processor = Processor {
                 store: Arc::clone(&store),
                 root: root.clone(),
@@ -356,8 +485,7 @@ fn spawn_processing(
                     auth_path: None,
                 }),
                 // Its own engine, released with the run.
-                local: models
-                    .is_ready()
+                local: local_tried
                     .then(|| crate::engine::local::engine(&app, Box::new(|| false)))
                     .flatten()
                     .map(|engine| {
@@ -390,8 +518,18 @@ fn spawn_processing(
             worker.end();
             // While held, the meetings still queued wait as they are,
             // unfailed.
-            if let Some(wait) = worker.codex_said(codex) {
-                info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+            match (codex, worker.codex_said(codex)) {
+                (CodexVerdict::Unreachable, Some(wait)) => {
+                    info!(
+                        "Meeting {id}: Codex is out of reach; checking the connection again in {wait:?}"
+                    );
+                    // It goes on with the others once the connection is back.
+                    worker.requeue(id, local_tried || codex_only(&store, id));
+                }
+                (_, Some(wait)) => {
+                    info!("Meeting {id}: Codex is rate limiting; holding the queue for {wait:?}");
+                }
+                (_, None) => {}
             }
             // A hold that starts or lifts changes what their views say.
             if codex != CodexVerdict::Unknown {
@@ -457,28 +595,121 @@ impl Notifier for AppNotifier {
 
 type AppCoordinator = Coordinator<DeviceCapture, AppNotifier, SystemClock>;
 
-pub struct MeetingsManager {
-    app: AppHandle,
-    coordinator: Mutex<AppCoordinator>,
-    runtime: Arc<Mutex<MeetingRuntime>>,
-    store: Arc<MeetingsStore>,
-    queue: Arc<ProcessingQueue>,
-    root: PathBuf,
-    models: Arc<Models>,
+/// Queues the meetings a quit (or turning meetings off) left mid-way.
+fn queue_waiting(queue: &ProcessingQueue, store: &MeetingsStore) {
+    match store.waiting_for_processing() {
+        Ok(ids) => ids
+            .into_iter()
+            .for_each(|id| queue.requeue(id, codex_only(store, id))),
+        Err(error) => error!("Failed to list meetings to process: {error}"),
+    }
 }
 
-impl MeetingsManager {
-    /// Opens the library, marks meetings a crash cut off as interrupted and
-    /// resumes processing the ones a quit left mid-way.
-    pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
-        let app_data = app.path().app_data_dir()?;
-        let root: PathBuf = app_data.join("meetings");
+/// Meeting `id` waits for its summary only, which this Mac's model cannot
+/// write.
+fn codex_only(store: &MeetingsStore, id: i64) -> bool {
+    store.get(id).ok().flatten().is_some_and(|meeting| {
+        meeting.status == store::MeetingStatus::Ready
+            && meeting.summary_status == store::SummaryStatus::Pending
+    })
+}
+
+/// Deletes finished meeting `id`'s audio and the analysis made from it.
+fn delete_audio(store: &MeetingsStore, root: &Path, id: i64) -> Result<(), String> {
+    if !store.delete_audio(id).map_err(|error| error.to_string())? {
+        return Err(format!("Meeting {id} is not finished"));
+    }
+    paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
+        .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
+        .map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+}
+
+/// Deletes the audio `retention` has kept long enough at `now_ms`, except
+/// that of the `busy` meetings, and returns whose went.
+fn sweep_audio(
+    store: &MeetingsStore,
+    root: &Path,
+    retention: MeetingAudioRetention,
+    now_ms: i64,
+    busy: &HashSet<i64>,
+) -> Vec<i64> {
+    let meetings = match store.with_audio() {
+        Ok(meetings) => meetings,
+        Err(error) => {
+            error!("Failed to list the meetings that have audio: {error}");
+            return Vec::new();
+        }
+    };
+    retention::audio_to_delete(&meetings, now_ms, retention)
+        .into_iter()
+        .filter(|id| !busy.contains(id))
+        .filter(|id| match delete_audio(store, root, *id) {
+            Ok(()) => true,
+            Err(error) => {
+                error!("Meeting {id}: {error}");
+                false
+            }
+        })
+        .collect()
+}
+
+/// Applies the audio retention at launch, then once a day. The hourly look
+/// reads the wall clock, which goes on while the Mac sleeps.
+fn spawn_audio_retention(app: &AppHandle) {
+    const DAY: Duration = Duration::from_secs(24 * 3600);
+    const LOOK: Duration = Duration::from_secs(3600);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut last: Option<SystemTime> = None;
+        loop {
+            let due = last.is_none_or(|last| {
+                SystemTime::now()
+                    .duration_since(last)
+                    .map_or(true, |since| since >= DAY)
+            });
+            if due && get_settings(&app).meetings_enabled {
+                if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+                    let manager = Arc::clone(&manager);
+                    let swept = tauri::async_runtime::spawn_blocking(move || {
+                        manager.apply_audio_retention()
+                    });
+                    if let Err(error) = swept.await {
+                        error!("Meeting audio retention failed: {error}");
+                    }
+                    last = Some(SystemTime::now());
+                }
+            }
+            tokio::time::sleep(LOOK).await;
+        }
+    });
+}
+
+/// The meetings library as a launch finds it.
+struct Library {
+    store: MeetingsStore,
+    root: PathBuf,
+    /// Meetings a crash cut off before this launch, left to process.
+    recovered: Vec<i64>,
+    /// The database was damaged or gone, and the meetings it listed were
+    /// set aside, to be deleted 30 days later.
+    reset: bool,
+}
+
+impl Library {
+    /// Opens the library in `app_data`, sets aside what no meeting points
+    /// to, and marks meetings a crash cut off as interrupted.
+    fn open(app_data: &Path) -> anyhow::Result<Self> {
+        let root = app_data.join("meetings");
         std::fs::create_dir_all(&root)?;
         let now = chrono::Utc::now();
-        let (store, startup) = MeetingsStore::open(app_data.join("meetings.db"), now);
+        let database = app_data.join("meetings.db");
+        let had_database = database.exists();
+        let (store, startup) = MeetingsStore::open(database, now);
         info!("Meetings database: {startup:?}");
+        let mut reset = false;
         match &startup {
             DatabaseStartup::Reset { moved_to } => {
+                reset = true;
                 if let Err(error) = paths::set_aside_recordings(&root, moved_to) {
                     error!("Failed to set aside the recordings of the reset library: {error}");
                 }
@@ -496,19 +727,63 @@ impl MeetingsManager {
                     .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));
                 match moved {
                     Ok(0) => {}
-                    Ok(count) => warn!(
-                        "Moved {count} meeting folder(s) no meeting points to into {}",
-                        aside.display()
-                    ),
+                    Ok(count) => {
+                        warn!(
+                            "Moved {count} meeting folder(s) no meeting points to into {}",
+                            aside.display()
+                        );
+                        reset = !had_database;
+                    }
                     Err(error) => error!("Failed to set aside orphan meeting folders: {error}"),
                 }
             }
             DatabaseStartup::Unavailable => {}
         }
-        match store.recover_interrupted(&root) {
-            Ok(0) => {}
-            Ok(count) => info!("Recovered {count} interrupted meeting(s)"),
-            Err(error) => error!("Failed to recover interrupted meetings: {error}"),
+        match paths::purge_set_asides(app_data, now) {
+            0 => {}
+            count => {
+                info!("Deleted {count} meeting folder(s) or file(s) set aside over 30 days ago")
+            }
+        }
+        let recovered = store
+            .recover_interrupted(&root)
+            .inspect_err(|error| error!("Failed to recover interrupted meetings: {error}"))
+            .unwrap_or_default();
+        if !recovered.is_empty() {
+            info!("Recovered interrupted meeting(s) {recovered:?}");
+        }
+        Ok(Self {
+            store,
+            root,
+            recovered,
+            reset,
+        })
+    }
+}
+
+pub struct MeetingsManager {
+    app: AppHandle,
+    coordinator: Mutex<AppCoordinator>,
+    runtime: Arc<Mutex<MeetingRuntime>>,
+    store: Arc<MeetingsStore>,
+    queue: Arc<ProcessingQueue>,
+    root: PathBuf,
+    models: Arc<Models>,
+    /// Meetings a crash cut off before this launch, left to process.
+    recovered: Vec<i64>,
+}
+
+impl MeetingsManager {
+    /// Opens the library and marks meetings a crash cut off as interrupted.
+    pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
+        let Library {
+            store,
+            root,
+            recovered,
+            reset,
+        } = Library::open(&app.path().app_data_dir()?)?;
+        if reset {
+            user_alert::show(app, Alert::MeetingsReset);
         }
         let store = Arc::new(store);
         let models = app
@@ -536,6 +811,7 @@ impl MeetingsManager {
             queue,
             root,
             models,
+            recovered,
         })
     }
 
@@ -634,6 +910,7 @@ impl MeetingsManager {
         meeting.held_until_ms = self.queue.held_for(id).map(|left| {
             chrono::Utc::now().timestamp_millis() + i64::try_from(left.as_millis()).unwrap_or(0)
         });
+        meeting.waiting_for_connection = self.queue.offline_for(id);
         Ok(meeting)
     }
 
@@ -678,8 +955,9 @@ impl MeetingsManager {
         if self.detail(id)?.audio == store::AudioState::Deleted {
             return Err(format!("Meeting {id} has no audio left"));
         }
+        // The daily retention may delete the audio after the check above.
         if !self.store.reopen(id).map_err(|error| error.to_string())? {
-            return Err(format!("Meeting {id} is not finished"));
+            return Err(format!("Meeting {id} is not finished or has no audio left"));
         }
         // A summary still being written is of the analysis that goes.
         self.queue.cancel(id);
@@ -712,17 +990,27 @@ impl MeetingsManager {
     /// Deletes a finished meeting's audio and the analysis made from it; the
     /// transcript and the summary stay.
     pub fn delete_audio(&self, id: i64) -> Result<(), String> {
-        if !self
-            .store
-            .delete_audio(id)
-            .map_err(|error| error.to_string())?
-        {
-            return Err(format!("Meeting {id} is not finished"));
-        }
-        let result = paths::remove_meeting_files(&self.root, id, &paths::AUDIO_FILES)
-            .and_then(|()| paths::remove_meeting_files(&self.root, id, &[analysis::ANALYSIS_FILE]));
+        let result = delete_audio(&self.store, &self.root, id);
         self.updated(id);
-        result.map_err(|error| format!("Cannot delete the meeting audio: {error}"))
+        result
+    }
+
+    /// Deletes the audio the retention the user chose has kept long enough.
+    /// A meeting queued or processing keeps it until it is done.
+    fn apply_audio_retention(&self) {
+        let retention = get_settings(&self.app).meeting_audio_retention;
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let deleted = sweep_audio(
+            &self.store,
+            &self.root,
+            retention,
+            now_ms,
+            &self.queue.busy(),
+        );
+        if !deleted.is_empty() {
+            info!("Deleted the audio of meeting(s) {deleted:?}, kept as long as chosen");
+        }
+        deleted.into_iter().for_each(|id| self.updated(id));
     }
 
     /// Transcribes a finished meeting again from its audio, and writes its
@@ -746,10 +1034,7 @@ impl MeetingsManager {
     /// meetings off) left mid-way.
     pub fn resume_processing(&self) {
         self.queue.resume();
-        match self.store.waiting_for_processing() {
-            Ok(ids) => ids.into_iter().for_each(|id| self.queue.enqueue(id)),
-            Err(error) => error!("Failed to list meetings to process: {error}"),
-        }
+        queue_waiting(&self.queue, &self.store);
     }
 
     /// The summary or the transcript as Markdown, and the file name to save
@@ -835,10 +1120,18 @@ pub fn init(app: &AppHandle, at_startup: bool) {
     }
     match MeetingsManager::new(app) {
         Ok(manager) => {
+            // Meetings turned off keep the interrupted ones until the user
+            // processes them, or turns meetings back on.
             if at_startup && get_settings(app).meetings_enabled {
                 manager.resume_processing();
+                // One notification, however many a crash cut off.
+                let count = manager.recovered.len();
+                if count > 0 {
+                    user_alert::show(app, Alert::MeetingsRecovered { count });
+                }
             }
             app.manage(Arc::new(manager));
+            spawn_audio_retention(app);
         }
         Err(error) => error!("Failed to initialize meetings: {error}"),
     }
@@ -912,6 +1205,113 @@ mod tests {
             let taken = crate::shortcut::tauri_impl::parse_shortcut(taken).unwrap();
             assert_ne!(default, taken);
         }
+    }
+
+    /// A processed meeting with a transcript, a summary and compressed audio,
+    /// started `days_ago` days before `now_ms`.
+    fn processed(store: &MeetingsStore, root: &Path, now_ms: i64, days_ago: i64) -> i64 {
+        let started = now_ms - days_ago * 24 * 3600 * 1000;
+        let id = store
+            .insert_recording(started, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(id, started + 60_000, 60_000)
+            .unwrap();
+        let me = store::MeetingSpeaker {
+            key: "me".into(),
+            name: "Me".into(),
+            default_name: "Me".into(),
+            color_index: 0,
+        };
+        let turn = store::MeetingTurn {
+            speaker_key: "me".into(),
+            start_ms: 0,
+            end_ms: 1_000,
+            text: "Kept.".into(),
+            low_confidence: false,
+        };
+        store
+            .save_transcript(
+                id,
+                &[me],
+                &[turn],
+                store::SpeakerAnalysis::NoModels,
+                None,
+                None,
+            )
+            .unwrap();
+        store.finish_processing(id, None).unwrap();
+        assert!(store.save_summary(id, None, "Notes.").unwrap());
+        assert!(store.audio_compressed(id, 10).unwrap());
+        let dir = paths::fresh_meeting_dir(root, id, now_ms).unwrap();
+        std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
+        std::fs::write(dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
+        id
+    }
+
+    #[test]
+    fn retention_deletes_old_audio_and_keeps_the_text_and_busy_meetings() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("meetings");
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let old = processed(&store, &root, now_ms, 8);
+        let recent = processed(&store, &root, now_ms, 6);
+        let queued = processed(&store, &root, now_ms, 8);
+
+        let swept =
+            |retention| sweep_audio(&store, &root, retention, now_ms, &HashSet::from([queued]));
+        assert!(swept(MeetingAudioRetention::Keep).is_empty());
+        assert_eq!(swept(MeetingAudioRetention::Days7), [old]);
+        assert!(swept(MeetingAudioRetention::Days7).is_empty());
+
+        let meeting = store.get(old).unwrap().unwrap();
+        assert_eq!(meeting.audio, store::AudioState::Deleted);
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+        assert_eq!(meeting.turns.len(), 1);
+        let files = paths::meeting_dir(&root, old);
+        assert!(!files.join(paths::AUDIO_FILE).exists());
+        assert!(!files.join(analysis::ANALYSIS_FILE).exists());
+        for kept in [recent, queued] {
+            let meeting = store.get(kept).unwrap().unwrap();
+            assert_eq!(meeting.audio, store::AudioState::Compressed);
+            let files = paths::meeting_dir(&root, kept);
+            assert!(files.join(paths::AUDIO_FILE).exists());
+        }
+    }
+
+    /// Meetings set aside at launch are deleted 30 days later, so the user
+    /// is told the library was reset.
+    #[test]
+    fn a_library_reset_at_launch_is_told() {
+        let damaged = tempfile::tempdir().unwrap();
+        std::fs::write(damaged.path().join("meetings.db"), b"not a database").unwrap();
+        std::fs::create_dir_all(damaged.path().join("meetings").join("1")).unwrap();
+        assert!(Library::open(damaged.path()).unwrap().reset, "damaged");
+
+        let gone = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(gone.path().join("meetings").join("3")).unwrap();
+        assert!(Library::open(gone.path()).unwrap().reset, "deleted");
+
+        let first_launch = tempfile::tempdir().unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
+        // A folder no meeting points to, in a library that opened.
+        std::fs::create_dir_all(first_launch.path().join("meetings").join("9")).unwrap();
+        assert!(!Library::open(first_launch.path()).unwrap().reset);
+    }
+
+    #[test]
+    fn the_meetings_queued_or_processing_are_busy() {
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(3);
+        queue.enqueue(4);
+        let id = queue.state().take_next(SystemTime::now(), false);
+        assert_eq!(id, Next::Process(3));
+        assert!(queue.begin(3, &operation(1)));
+
+        assert_eq!(queue.busy(), HashSet::from([3, 4]));
+        queue.end();
+        assert_eq!(queue.busy(), HashSet::from([4]));
     }
 
     fn operation(id: u64) -> ProcessingOperation {
@@ -1130,6 +1530,202 @@ mod tests {
         assert_eq!(next_within(&queue, NOW), Some(1));
         queue.enqueue(1);
         assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    /// A connection check that answers what `online` says.
+    #[derive(Clone, Default)]
+    struct FakeConnection {
+        online: Arc<std::sync::atomic::AtomicBool>,
+        checks: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Reachability for FakeConnection {
+        fn online(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
+            use std::sync::atomic::Ordering;
+            self.checks.fetch_add(1, Ordering::SeqCst);
+            let online = self.online.load(Ordering::SeqCst);
+            Box::pin(async move { online })
+        }
+    }
+
+    impl FakeConnection {
+        fn set_online(&self, online: bool) {
+            self.online
+                .store(online, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        fn checks(&self) -> usize {
+            self.checks.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    fn queue_with(connection: &FakeConnection) -> ProcessingQueue {
+        let mut queue = ProcessingQueue::new(false);
+        queue.reachability = Box::new(connection.clone());
+        queue
+    }
+
+    /// The offline hold's wait is over, as if the run ended long ago.
+    fn connection_due(queue: &ProcessingQueue) {
+        queue
+            .state()
+            .offline
+            .checked(false, SystemTime::now() - AN_HOUR);
+    }
+
+    #[test]
+    fn while_codex_is_out_of_reach_only_meetings_asked_for_go_through() {
+        let connection = FakeConnection::default();
+        let queue = queue_with(&connection);
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(60))
+        );
+        queue.enqueue(1);
+        queue.enqueue_asked(2);
+        assert!(queue.offline_for(1));
+        assert!(!queue.offline_for(2), "goes through the hold");
+        assert_eq!(next_within(&queue, NOW), Some(2));
+        assert_eq!(next_within(&queue, A_MOMENT), None, "1 still waits");
+        // The wait is not over: the connection is not checked yet.
+        assert_eq!(connection.checks(), 0);
+    }
+
+    #[test]
+    fn the_queue_goes_on_once_a_check_finds_the_connection_back() {
+        let connection = FakeConnection::default();
+        let queue = queue_with(&connection);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        connection_due(&queue);
+        assert_eq!(next_within(&queue, A_MOMENT), None, "still offline");
+        assert_eq!(connection.checks(), 1);
+        assert!(queue.offline_for(1));
+
+        connection.set_online(true);
+        connection_due(&queue);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        assert_eq!(connection.checks(), 2);
+        assert!(!queue.state().offline.holds());
+    }
+
+    #[test]
+    fn each_unreachable_meeting_in_a_row_doubles_the_wait_until_codex_answers() {
+        let queue = queue_with(&FakeConnection::default());
+        let minutes = || {
+            queue
+                .codex_said(CodexVerdict::Unreachable)
+                .map(|wait| wait.as_secs() / 60)
+        };
+        let waits: Vec<_> = (0..6).map(|_| minutes()).collect();
+        assert_eq!(waits, [1, 2, 4, 8, 15, 15].map(Some));
+        assert_eq!(queue.codex_said(CodexVerdict::Answered), None);
+        assert!(!queue.state().offline.holds());
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(60))
+        );
+        // A rate limit is an answer too: the connection works.
+        queue.codex_said(CodexVerdict::RateLimited);
+        assert!(!queue.state().offline.holds());
+    }
+
+    #[test]
+    fn offline_with_the_local_model_ready_new_meetings_still_go_through() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        assert!(!queue.offline_for(1));
+        assert_eq!(next_within(&queue, NOW), Some(1));
+
+        // This Mac transcribed meeting 2 already: only Codex can finish it.
+        queue.requeue(2, true);
+        assert!(queue.offline_for(2));
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+        // Meeting 3 was held before the model was ready.
+        queue.requeue(3, false);
+        assert_eq!(next_within(&queue, NOW), Some(3));
+    }
+
+    #[test]
+    fn a_meeting_the_local_model_takes_past_the_hold_leaves_the_next_check_as_it_was() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        let check = queue.state().offline.retry_at();
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        let wait = queue.codex_said(CodexVerdict::Unreachable);
+        assert!(
+            wait.is_some_and(|wait| wait <= Duration::from_secs(60)),
+            "{wait:?}"
+        );
+        assert_eq!(queue.state().offline.retry_at(), check);
+        // A run the hold did not let through still counts.
+        assert_eq!(
+            queue.codex_said(CodexVerdict::Unreachable),
+            Some(Duration::from_secs(120))
+        );
+    }
+
+    #[test]
+    fn offline_a_meeting_left_with_only_its_summary_waits_for_the_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let untranscribed = store
+            .insert_recording(1_000, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(untranscribed, 61_000, 60_000)
+            .unwrap();
+        let transcribed = store
+            .insert_recording(100_000, store::MeetingTracks::Mic)
+            .unwrap();
+        store
+            .finish_recording(transcribed, 160_000, 60_000)
+            .unwrap();
+        store.begin_processing(transcribed).unwrap();
+        store.finish_processing(transcribed, None).unwrap();
+
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue_waiting(&queue, &store);
+        assert!(!queue.offline_for(untranscribed), "this Mac transcribes it");
+        assert!(
+            queue.offline_for(transcribed),
+            "only Codex can summarise it"
+        );
+    }
+
+    #[test]
+    fn a_rate_limit_holds_meetings_even_with_the_local_model_ready() {
+        let mut queue = queue_with(&FakeConnection::default());
+        queue.local_ready = Box::new(|| true);
+        queue.codex_said(CodexVerdict::RateLimited);
+        queue.enqueue(1);
+        assert_eq!(next_within(&queue, A_MOMENT), None);
+    }
+
+    #[test]
+    fn the_local_model_becoming_ready_wakes_the_meetings_waiting_offline() {
+        let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut queue = queue_with(&FakeConnection::default());
+        let flag = Arc::clone(&ready);
+        queue.local_ready = Box::new(move || flag.load(std::sync::atomic::Ordering::SeqCst));
+        let queue = Arc::new(queue);
+        queue.codex_said(CodexVerdict::Unreachable);
+        queue.enqueue(1);
+        let waking = Arc::clone(&queue);
+        let model = std::thread::spawn(move || {
+            std::thread::sleep(A_MOMENT);
+            ready.store(true, std::sync::atomic::Ordering::SeqCst);
+            waking.local_model_ready();
+        });
+        // Well before the next connection check, a minute away.
+        assert_eq!(next_within(&queue, NOW), Some(1));
+        model.join().unwrap();
     }
 
     #[test]

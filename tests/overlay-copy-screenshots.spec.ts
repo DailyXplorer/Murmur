@@ -5,6 +5,7 @@ import {
   entranceFinished,
   ERROR_WINDOW,
   fitCopyWindow,
+  openCallPrompt,
   openOverlay,
 } from "./overlayHarness";
 
@@ -67,6 +68,40 @@ test.describe("local engine error screenshots", () => {
         }
       });
     }
+  }
+});
+
+test.describe("call prompt screenshots", () => {
+  test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`en ${theme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await openCallPrompt(page);
+      await page.evaluate(
+        (background) => (document.body.style.background = background),
+        DESKTOP[theme],
+      );
+      await page.evaluate(() => document.fonts.ready);
+      const tray = trayStrings("en");
+      await dispatch(page, "show-overlay-call", {
+        app: "Zoom",
+        question: tray.callRecordQuestion,
+        accept: tray.callRecord,
+        decline: tray.callNotNow,
+        position: "bottom",
+      });
+      await expect(
+        page.getByRole("alertdialog", { name: tray.callRecordQuestion }),
+      ).toBeVisible();
+      await entranceFinished(page);
+      await fitCopyWindow(page);
+      await page.mouse.move(0, 0);
+      await page.screenshot({
+        path: `${outputDir}/overlay-call-record-en-${theme}.png`,
+      });
+    });
   }
 });
 

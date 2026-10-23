@@ -97,8 +97,8 @@ const RecordingOverlay: React.FC = () => {
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
-  const copyBodyRef = useRef<HTMLSpanElement>(null);
-  const copyId = useId();
+  const noticeBodyRef = useRef<HTMLSpanElement>(null);
+  const noticeId = useId();
 
   useEffect(() => {
     let isUnmounted = false;
@@ -218,12 +218,12 @@ const RecordingOverlay: React.FC = () => {
 
   // The copy pill's body sizes itself from its text, whatever font renders
   // it, and the window is fitted to it: only the webview can measure it.
-  // The backend opens each notice at a default size, so every copy view,
-  // even one replacing a showing pill, observes and reports again.
-  const copyView = view.kind === "copy" ? view : null;
+  // The backend opens each notice at a default size, so every such view,
+  // even one replacing a showing one, observes and reports again.
+  const fittedView = view.kind === "copy" ? view : null;
   useLayoutEffect(() => {
-    const body = copyBodyRef.current;
-    if (!copyView || !body) return;
+    const body = noticeBodyRef.current;
+    if (!fittedView || !body) return;
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands
@@ -234,7 +234,7 @@ const RecordingOverlay: React.FC = () => {
     });
     observer.observe(body);
     return () => observer.disconnect();
-  }, [copyView]);
+  }, [fittedView]);
 
   // The pill opens as the rest capsule and grows to fit its body. CSS cannot
   // transition to an auto size, so the fitted size is measured before the
@@ -292,18 +292,18 @@ const RecordingOverlay: React.FC = () => {
           type="button"
           dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
-          aria-labelledby={`${copyId}-action`}
-          aria-describedby={`${copyId}-note`}
+          aria-labelledby={`${noticeId}-action`}
+          aria-describedby={`${noticeId}-note`}
           onClick={copyAgain}
         >
-          <span ref={copyBodyRef} className="ov-copy-body">
-            <span id={`${copyId}-note`} className="ov-copy-note">
+          <span ref={noticeBodyRef} className="ov-copy-body">
+            <span id={`${noticeId}-note`} className="ov-copy-note">
               {view.labels.note}
             </span>
             <span className="ov-copy-action">
               <Icon size={14} weight="bold" aria-hidden="true" />
               <span className="ov-copy-label">
-                <span id={`${copyId}-action`} aria-live="polite">
+                <span id={`${noticeId}-action`} aria-live="polite">
                   {view.copied ? view.labels.copied : view.labels.copy}
                 </span>
                 <span className="ov-copy-label-spare" aria-hidden="true">

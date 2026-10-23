@@ -18,6 +18,8 @@ const MIN_PAUSE_FRAMES: usize = 8;
 const QUIETEST_FRAMES: usize = 5;
 /// Less speech than 200 ms is no speech.
 const MIN_SPEECH_FRAMES: usize = 10;
+/// 100 ms of unbroken speech is a word, however short; a click is shorter.
+const MIN_WORD_FRAMES: usize = 5;
 
 /// The noise floor: the 10th percentile of the frames that hold any signal.
 fn noise_floor(levels: &[f32]) -> f32 {
@@ -92,13 +94,40 @@ fn cut_frame(levels: &[f32], quiet_below: f32, first: usize, max_frames: usize) 
 /// Whether a clip holds no speech, judged by the threshold meetings use. The
 /// engine is not run on it: a recogniser fed silence invents words.
 pub fn is_silent(samples: &[f32]) -> bool {
+    speech_level(&frame_levels(samples)).is_none()
+}
+
+/// The level speech reaches in a clip, `None` when it holds no speech.
+fn speech_level(levels: &[f32]) -> Option<f32> {
+    let threshold = speech_threshold(levels)?;
+    let speech = levels.iter().filter(|level| **level >= threshold).count();
+    (speech >= MIN_SPEECH_FRAMES).then_some(threshold)
+}
+
+/// `split_at_pauses`, keeping only the pieces with speech: none for a silent
+/// clip, and never the pause a dictation ends on, which the cut leaves on
+/// its own, even with a click or a breath in it. A piece is judged by the
+/// whole clip's speech level, since its own noise floor would make room
+/// noise look like speech, and needs as much speech as a whole clip or one
+/// short word, such as a last "Oui." the cut left alone.
+pub fn speech_pieces(samples: &[f32], max_len: usize) -> Vec<Range<usize>> {
     let levels = frame_levels(samples);
-    match speech_threshold(&levels) {
-        None => true,
-        Some(threshold) => {
-            levels.iter().filter(|level| **level >= threshold).count() < MIN_SPEECH_FRAMES
-        }
-    }
+    let Some(threshold) = speech_level(&levels) else {
+        return Vec::new();
+    };
+    split_at_pauses(samples, max_len)
+        .into_iter()
+        .filter(|piece| {
+            let speech: Vec<bool> = levels[piece.start / FRAME..piece.end.div_ceil(FRAME)]
+                .iter()
+                .map(|level| *level >= threshold)
+                .collect();
+            speech.iter().filter(|frame| **frame).count() >= MIN_SPEECH_FRAMES
+                || speech
+                    .windows(MIN_WORD_FRAMES)
+                    .any(|run| run.iter().all(|frame| *frame))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -258,6 +287,37 @@ mod tests {
             (100, SPEECH),
             (1_400, ROOM)
         ])));
+    }
+
+    #[test]
+    fn a_click_in_the_closing_pause_does_not_make_it_speech() {
+        let max_len = samples_for_ms(14_500);
+        let ending = |last: (usize, f32)| {
+            let mut segments = talking(13_000);
+            segments.extend([(1_000, ROOM), last, (1_600, ROOM)]);
+            clip(&segments)
+        };
+        // 40 ms of a click or a breath, well over the speech threshold.
+        let click = ending((40, -30.0));
+        let pieces = speech_pieces(&click, max_len);
+        assert_eq!(pieces.len(), 1, "{pieces:?}");
+        assert!(at_ms(pieces[0].end) < 14_500, "{pieces:?}");
+        // A last word of 400 ms after the pause is kept.
+        let word = ending((400, SPEECH));
+        assert_eq!(speech_pieces(&word, max_len).len(), 2);
+    }
+
+    #[test]
+    fn a_short_word_alone_in_its_piece_is_kept() {
+        let max_len = samples_for_ms(14_500);
+        // A clipped "Oui." of 160 ms after the closing pause.
+        let mut segments = talking(13_000);
+        segments.extend([(1_000, ROOM), (160, SPEECH), (1_600, ROOM)]);
+        assert_eq!(speech_pieces(&clip(&segments), max_len).len(), 2);
+        // An "OK" of 170 ms alone in a long silence.
+        let mut segments = talking(13_000);
+        segments.extend([(5_000, ROOM), (170, SPEECH), (5_000, ROOM)]);
+        assert_eq!(speech_pieces(&clip(&segments), max_len).len(), 2);
     }
 
     #[test]

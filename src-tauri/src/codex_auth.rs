@@ -518,21 +518,26 @@ async fn refresh_to_completion(
     })
 }
 
+/// Connects within the transcription's limit, so a connection that never
+/// opens reads as the network being down, not as a slow answer.
+fn refresh_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(crate::codex_transcribe::user_agent())
+        .connect_timeout(crate::codex_transcribe::CONNECT_TIMEOUT)
+        .timeout(REFRESH_TIMEOUT)
+}
+
 async fn request_refresh(
     endpoint: &str,
     refresh_token: &str,
     reason: RefreshReason,
 ) -> Result<RefreshResponse, RefreshFailure> {
-    let client = reqwest::Client::builder()
-        .user_agent(crate::codex_transcribe::user_agent())
-        .timeout(REFRESH_TIMEOUT)
-        .build()
-        .map_err(|error| {
-            RefreshFailure::Transient(TranscriptionError::new(
-                FailureKind::Other,
-                format!("failed to build refresh HTTP client: {error}"),
-            ))
-        })?;
+    let client = refresh_client().build().map_err(|error| {
+        RefreshFailure::Transient(TranscriptionError::new(
+            FailureKind::Other,
+            format!("failed to build refresh HTTP client: {error}"),
+        ))
+    })?;
     let response = client
         .post(endpoint)
         .json(&refresh_request_body(refresh_token, reason))
@@ -775,6 +780,26 @@ mod tests {
 
     fn expiring_token() -> String {
         jwt(serde_json::json!({"exp": now().timestamp() + 60}))
+    }
+
+    /// Offline, an expired token's refresh must say the network is down, or
+    /// a meeting gives up on its pieces instead of waiting for it.
+    #[tokio::test(start_paused = true)]
+    async fn a_refresh_that_never_connects_is_a_network_failure() {
+        let error = refresh_client()
+            .dns_resolver(crate::transcription_error::tests::SilentDns)
+            .no_proxy()
+            .build()
+            .unwrap()
+            .post("https://murmur.invalid/oauth/token")
+            .send()
+            .await
+            .unwrap_err();
+        assert_eq!(
+            FailureKind::from_transport(&error),
+            FailureKind::Network,
+            "{error}"
+        );
     }
 
     #[test]

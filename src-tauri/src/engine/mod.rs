@@ -203,7 +203,16 @@ where
                 fallback.engine.as_str(),
                 fallback.fallback
             );
-            Ok((run(fallback.engine).await?, fallback))
+            match run(fallback.engine).await {
+                Ok(text) => Ok((text, fallback)),
+                // Codex's error says what the user can do: sign in again,
+                // or wait for the limit.
+                Err(local) if source.engine == Engine::Cloud => {
+                    log::warn!("Local transcription failed too: {local:#}");
+                    Err(error)
+                }
+                Err(cloud) => Err(cloud),
+            }
         }
     }
 }
@@ -481,6 +490,22 @@ mod tests {
         );
         assert!(result.is_err());
         assert_eq!(asked, [Engine::Cloud, Engine::Local]);
+    }
+
+    /// The Codex error says what the user can do about it; a failed run on
+    /// this Mac after it says nothing more.
+    #[test]
+    fn a_failed_fallback_keeps_the_codex_error() {
+        for kind in [FailureKind::SessionExpired, FailureKind::RateLimited] {
+            let (result, asked) = dictate(
+                Engine::Cloud,
+                when(READY, ACCOUNT, "fr"),
+                Err(FailureKind::Other),
+                Err(kind),
+            );
+            assert_eq!(TranscriptionError::kind_of(&result.unwrap_err()), kind);
+            assert_eq!(asked, [Engine::Cloud, Engine::Local]);
+        }
     }
 
     #[test]

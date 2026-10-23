@@ -127,6 +127,22 @@ const ProcessingBanner: React.FC<{
       </div>
     );
   }
+  // Its transcript or its summary: either way it goes on by itself.
+  if (meeting.waiting_for_connection) {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
+      >
+        <p className="flex-1 text-sm">
+          {t("meetings.processing.errors.offline")}
+        </p>
+        <Button onClick={onProcessNow}>
+          {t("meetings.processing.retryNow")}
+        </Button>
+      </div>
+    );
+  }
   if (meeting.status === "processing") {
     const fraction =
       progress && progress.chunks_total > 0
@@ -187,7 +203,9 @@ const ProcessingBanner: React.FC<{
           <Button onClick={onRetry}>
             {meeting.status === "interrupted"
               ? t("meetings.processing.process")
-              : t("meetings.processing.retry")}
+              : meeting.error === "offline"
+                ? t("meetings.processing.retryNow")
+                : t("meetings.processing.retry")}
           </Button>
         )}
       </div>

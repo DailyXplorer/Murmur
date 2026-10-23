@@ -105,6 +105,9 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
 
       if (!update) {
         console.log("No update available during install attempt");
+        setUpdateAvailable(false);
+        // The tray shows the backend's status, which still has the update.
+        void commands.checkForUpdates();
         return;
       }
 

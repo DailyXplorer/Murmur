@@ -4,6 +4,7 @@
 //! `TRANSCRIBE_FEATURE_VOCABULARY`, so its `RunOptions.vocabulary` is dropped.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Session};
 
@@ -42,12 +43,15 @@ struct CpuModel {
     cancel: CancelToken,
 }
 
-/// Stops the run on its thread when the request is abandoned.
-struct AbortOnDrop(Option<CancelToken>);
+/// Stops the run on its thread when the request is abandoned. `abandoned`
+/// tells a run that has not taken the session yet, as the token is reset
+/// when it does.
+struct AbortOnDrop(Option<(CancelToken, Arc<AtomicBool>)>);
 
 impl Drop for AbortOnDrop {
     fn drop(&mut self) {
-        if let Some(cancel) = &self.0 {
+        if let Some((cancel, abandoned)) = &self.0 {
+            abandoned.store(true, Ordering::SeqCst);
             cancel.cancel();
         }
     }
@@ -63,12 +67,17 @@ impl Loaded for CpuModel {
         let cancel = self.cancel.clone();
         let samples = samples.to_vec();
         Box::pin(async move {
-            let mut abort = AbortOnDrop(Some(cancel.clone()));
+            let abandoned = Arc::new(AtomicBool::new(false));
+            let mut abort = AbortOnDrop(Some((cancel.clone(), Arc::clone(&abandoned))));
             let text = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
                 let mut session = session
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 cancel.reset();
+                // Read after the reset: a later abandon cancels the run.
+                if abandoned.load(Ordering::SeqCst) {
+                    anyhow::bail!("Local transcription abandoned");
+                }
                 Ok(session.run(&samples, &RunOptions::default())?.text)
             })
             .await??;

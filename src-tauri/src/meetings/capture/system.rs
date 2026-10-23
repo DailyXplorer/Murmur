@@ -9,6 +9,7 @@ use std::ffi::c_void;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use super::route::RouteFacts;
 use super::{Feeder, TrackWriter};
 use crate::meetings::coordinator::Track;
 
@@ -38,6 +39,35 @@ mod bridge {
         pub fn murmur_system_tap_interrupted() -> i32;
         /// 0 allowed, 1 denied, 2 not asked yet or unknown.
         pub fn murmur_system_audio_permission() -> i32;
+        /// 0 with the default output's facts written, 1 when there is none.
+        pub fn murmur_output_route(
+            transport: *mut u32,
+            data_source: *mut u32,
+            has_input: *mut i32,
+        ) -> i32;
+    }
+}
+
+/// The default output, as Core Audio describes it now. `None` when there is
+/// none, and on Intel, which records no system audio to compare with.
+pub fn output_route_facts() -> Option<RouteFacts> {
+    #[cfg(target_arch = "aarch64")]
+    {
+        let (mut transport, mut data_source, mut has_input) = (0u32, 0u32, 0i32);
+        // SAFETY: the three pointers are to locals that outlive the call,
+        // which only writes them.
+        let code = unsafe {
+            bridge::murmur_output_route(&mut transport, &mut data_source, &mut has_input)
+        };
+        (code == 0).then_some(RouteFacts {
+            transport,
+            data_source: (data_source != 0).then_some(data_source),
+            has_input: has_input == 1,
+        })
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        None
     }
 }
 
@@ -151,6 +181,10 @@ impl Track for SystemCapture {
         return unsafe { bridge::murmur_system_tap_interrupted() } == 1;
         #[cfg(not(target_arch = "aarch64"))]
         false
+    }
+
+    fn dropped_ms(&self) -> u64 {
+        self.writer.dropped_ms()
     }
 
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {

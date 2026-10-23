@@ -115,4 +115,10 @@ permissions = [
   "allow-open-system-audio-privacy-settings",
   "allow-change-meetings-enabled-setting",
   "allow-change-meeting-capture-mode-setting",
+  "allow-change-meeting-audio-retention-setting",
+  "allow-get-meetings-storage",
+  "allow-change-meeting-call-prompt-setting",
+  "allow-answer-call-prompt",
+  "allow-fit-call-prompt",
+  "allow-get-call-prompt",
 ]

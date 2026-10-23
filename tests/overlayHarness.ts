@@ -5,21 +5,37 @@ const CARD_MARGIN = 16;
 export const RECORDING_WINDOW = { width: 158, height: 62 };
 export const ERROR_WINDOW = { width: 312, height: 116 };
 
-/** Opens the overlay page with Tauri's event bridge mocked. */
+/** Opens the overlay page, or the call prompt's with `fixture`, with
+ * Tauri's event bridge mocked; `readyOn` is an event the page listens to,
+ * or `null` not to wait. `callPrompt` is what `get_call_prompt` answers. */
 export async function openOverlay(
   page: Page,
   {
     holdSettings = false,
     copyError,
-  }: { holdSettings?: boolean; copyError?: string } = {},
+    fixture = "recording-overlay-listeners",
+    readyOn = "mic-level",
+    callPrompt = null,
+  }: {
+    holdSettings?: boolean;
+    copyError?: string;
+    fixture?: string;
+    readyOn?: string | null;
+    callPrompt?: unknown;
+  } = {},
 ) {
-  const options = { hold: holdSettings, copyRejection: copyError };
-  await page.addInitScript(({ hold, copyRejection }) => {
+  const options = {
+    hold: holdSettings,
+    copyRejection: copyError,
+    shownPrompt: callPrompt,
+  };
+  await page.addInitScript(({ hold, copyRejection, shownPrompt }) => {
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
     let copyCalls = 0;
     const copyFits: Array<{ width: number; height: number }> = [];
+    const callAnswers: boolean[] = [];
     let nextId = 1;
 
     window.overlayHarness = {
@@ -33,6 +49,7 @@ export async function openOverlay(
       },
       copyCalls: () => copyCalls,
       copyFits: () => copyFits,
+      callAnswers: () => callAnswers,
     };
 
     window.__TAURI_INTERNALS__ = {
@@ -43,6 +60,7 @@ export async function openOverlay(
           handler?: number;
           width?: number;
           height?: number;
+          accept?: boolean;
         },
       ) => {
         if (command === "plugin:event|listen") {
@@ -60,9 +78,16 @@ export async function openOverlay(
           if (copyRejection) return Promise.reject(copyRejection);
           return Promise.resolve(null);
         }
-        if (command === "fit_copy_notice") {
+        if (command === "fit_copy_notice" || command === "fit_call_prompt") {
           copyFits.push({ width: args?.width ?? 0, height: args?.height ?? 0 });
           return Promise.resolve(null);
+        }
+        if (command === "answer_call_prompt") {
+          callAnswers.push(args?.accept ?? false);
+          return Promise.resolve(null);
+        }
+        if (command === "get_call_prompt") {
+          return Promise.resolve(shownPrompt);
         }
         throw new Error(`Unexpected Tauri command: ${command}`);
       },
@@ -81,13 +106,21 @@ export async function openOverlay(
     };
   }, options);
 
-  await page.goto("/tests/fixtures/recording-overlay-listeners.html");
+  await page.goto(`/tests/fixtures/${fixture}.html`);
+  if (readyOn === null) return;
   await expect
     .poll(() =>
-      page.evaluate(() => window.overlayHarness.dispatch("mic-level", [0])),
+      page.evaluate(
+        (event) => window.overlayHarness.dispatch(event, [0]),
+        readyOn,
+      ),
     )
     .toBe(1);
 }
+
+/** Opens the call prompt's own window. */
+export const openCallPrompt = (page: Page) =>
+  openOverlay(page, { fixture: "call-prompt", readyOn: "hide-overlay-call" });
 
 export const dispatch = (page: Page, event: string, payload?: unknown) =>
   page.evaluate(
@@ -95,8 +128,9 @@ export const dispatch = (page: Page, event: string, payload?: unknown) =>
     [event, payload] as const,
   );
 
-/** Resizes the page the way `fit_copy_notice` resizes the overlay window:
- * the last capsule size the copy pill measured plus CARD_MARGIN around it. */
+/** Resizes the page the way `fit_copy_notice` and `fit_call_prompt` resize
+ * their windows: the last capsule size the copy pill or call prompt
+ * measured plus CARD_MARGIN around it. */
 export async function fitCopyWindow(page: Page) {
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect

@@ -953,6 +953,55 @@ async changeMeetingCaptureModeSetting(mode: MeetingCaptureMode) : Promise<Result
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+/**
+ * Takes effect at the next daily pass, or at the next launch.
+ */
+async changeMeetingAudioRetentionSetting(retention: MeetingAudioRetention) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_audio_retention_setting", { retention }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Measured on disk, off the main thread: uncompressed tracks count too.
+ */
+async getMeetingsStorage() : Promise<Result<MeetingsStorage, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meetings_storage") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_call_prompt_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The call prompt's buttons: "Record" when `accept`, else "Not now".
+ */
+async answerCallPrompt(accept: boolean) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { accept });
+},
+/**
+ * Fits the call prompt's window to the capsule the webview measured, as
+ * `fit_copy_notice` does the copy notice's.
+ */
+async fitCallPrompt(width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("fit_call_prompt", { width, height });
+},
+/**
+ * The call prompt showing, if any.
+ */
+async getCallPrompt() : Promise<CallPromptLabels | null> {
+    return await TAURI_INVOKE("get_call_prompt");
 }
 }
 
@@ -1051,7 +1100,12 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; 
+meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
+/**
+ * Offers to record when a call app starts using the microphone. Only
+ * while meetings are on.
+ */
+meeting_call_prompt?: boolean; 
 /**
  * Which engine transcribes dictations.
  */
@@ -1088,6 +1142,18 @@ export type AudioState =
 "deleted"
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+/**
+ * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
+ */
+export type CallPromptLabels = { 
+/**
+ * The call app's name.
+ */
+app: string; question: string; accept: string; decline: string; 
+/**
+ * The overlay's side of the screen, which the prompt sits on too.
+ */
+position: OverlayPosition }
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
@@ -1243,11 +1309,21 @@ size_bytes: number;
  */
 kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+/**
+ * How long a processed meeting keeps its audio. Its transcript and summary
+ * stay either way. The names are spelled out: serde and the TypeScript
+ * bindings split `Days7` differently.
+ */
+export type MeetingAudioRetention = "keep" | "days7" | "days30" | "days90"
 export type MeetingCapabilities = { system_audio: SystemAudioSupport; 
 /**
  * Telling speakers apart on device.
  */
-analysis: AnalysisSupport }
+analysis: AnalysisSupport; 
+/**
+ * Telling that a call started, for the call prompt.
+ */
+call_detection: boolean }
 /**
  * Which sources a meeting records. Without system audio support (before
  * macOS 14.4, or on Intel) every mode records the microphone only; the
@@ -1277,6 +1353,11 @@ system_audio_silent: boolean;
  * waiting. Only the processing queue knows; the store never sets it.
  */
 held_until_ms: number | null; 
+/**
+ * This queued meeting waits for the connection to reach Codex. Only the
+ * processing queue knows; the store never sets it.
+ */
+waiting_for_connection: boolean; 
 /**
  * How much of the recorded audio this Mac transcribed because Codex
  * refused it. "Transcribe again" sends it all to Codex once more.
@@ -1345,6 +1426,18 @@ export type MeetingTracks = "both" | "system" | "mic"
 export type MeetingTurn = { speaker_key: string; start_ms: number; end_ms: number; text: string; low_confidence: boolean }
 export type MeetingsPage = { meetings: MeetingListItem[]; has_more: boolean }
 /**
+ * The disk space meetings take, in bytes.
+ */
+export type MeetingsStorage = { 
+/**
+ * The meetings' folders: their tracks, compressed or not.
+ */
+audio_bytes: number; 
+/**
+ * What was set aside next to the library, deleted after 30 days.
+ */
+set_aside_bytes: number }
+/**
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
@@ -1372,6 +1465,11 @@ export type ProcessingError =
  * No track could be read.
  */
 "no_audio" | 
+/**
+ * Codex could not be reached: processing goes on by itself once the
+ * connection is back.
+ */
+"offline" | 
 /**
  * Processing stopped on an unexpected error.
  */
@@ -1422,9 +1520,13 @@ export type SummaryError =
  */
 "signed_out" | "rate_limited" | 
 /**
- * Codex could not be reached, or answered with an error.
+ * Codex could not be reached.
  */
-"network" | "timeout" | 
+"network" | 
+/**
+ * Codex answered with a server error, or its reply was cut off.
+ */
+"server" | "timeout" | 
 /**
  * The reply ran past its length cap.
  */

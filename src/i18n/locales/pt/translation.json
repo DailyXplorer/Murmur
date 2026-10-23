@@ -32,6 +32,9 @@
     "overlayCopy": "Copiar",
     "overlayCopied": "Copiado",
     "overlayNotPasted": "Não havia campo de texto para colar.",
+    "callRecordQuestion": "Gravar esta reunião?",
+    "callRecord": "Gravar",
+    "callNotNow": "Agora não",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
     "startMeeting": "Iniciar reunião",
     "stopMeeting": "Parar reunião",
@@ -45,7 +48,12 @@
     "meetingSystemAudioInterrupted": "O áudio do sistema parou após a mudança da saída de som. O Murmur continua tentando recuperá-lo; seu microfone continua sendo gravado.",
     "meetingMicrophoneInterrupted": "O microfone parou de gravar. O Murmur continua tentando recuperá-lo; verifique se ele ainda está conectado.",
     "meetingMicrophoneDenied": "O acesso ao microfone está desativado, então a reunião não grava sua voz. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Microfone.",
-    "meetingSystemAudioDenied": "A gravação de áudio do sistema está desativada, então a reunião não grava os outros participantes. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema."
+    "meetingSystemAudioDenied": "A gravação de áudio do sistema está desativada, então a reunião não grava os outros participantes. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema.",
+    "meetingRecovered": "Uma reunião foi interrompida porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito.",
+    "meetingsRecovered": "{{count}} reuniões foram interrompidas porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito.",
+    "meetingsReset": "A sua lista de reuniões estava danificada e foi redefinida. As gravações ficam guardadas por 30 dias.",
+    "meetingPausedWhileAsleep": "Seu Mac entrou em repouso durante a reunião. Nada foi gravado entre {{from}} e {{to}}.",
+    "meetingAudioDropped": "Parte do áudio da reunião foi perdida porque o Mac estava muito ocupado."
   },
   "sidebar": {
     "general": "Geral",
@@ -131,7 +139,8 @@
       "completionFailed": "Não foi possível concluir a configuração. Atualize o estado e tente novamente.",
       "optionalTitle": "Conectar o ChatGPT (opcional)",
       "optionalDescription": "Conecte sua conta do ChatGPT para a limpeza com IA (remove hesitações e corrige a gramática) e para os idiomas que o modelo local não cobre.",
-      "skip": "Pular"
+      "skip": "Pular",
+      "back": "Voltar"
     },
     "model": {
       "title": "Transcrever neste Mac",
@@ -324,6 +333,23 @@
       "meetingsToggle": {
         "label": "Reuniões",
         "description": "Grave reuniões pelo microfone e pelo áudio do sistema. Adiciona uma página de reuniões, um atalho e um item na barra de menus."
+      },
+      "meetingCallPrompt": {
+        "label": "Oferecer gravar chamadas",
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique."
+      },
+      "meetingsAudio": {
+        "title": "Apagar o áudio das reuniões",
+        "description": "Apaga o áudio das reuniões processadas após o prazo escolhido, para poupar espaço. As transcrições e os resumos são mantidos.",
+        "textKept": "As transcrições e os resumos são mantidos.",
+        "used": "O áudio das reuniões ocupa {{size}}.",
+        "usedWithSetAside": "O áudio das reuniões ocupa {{size}}, mais {{setAside}} de gravações não listadas, apagadas após 30 dias.",
+        "options": {
+          "keep": "Nunca",
+          "days7": "Após 7 dias",
+          "days30": "Após 30 dias",
+          "days90": "Após 90 dias"
+        }
       }
     },
     "history": {
@@ -331,6 +357,7 @@
       "openFolder": "Abrir pasta",
       "loading": "Carregando histórico...",
       "empty": "Nenhuma transcrição ainda. Comece a gravar para construir seu histórico!",
+      "loadError": "Não foi possível carregar o seu histórico.",
       "copyToClipboard": "Copiar transcrição para área de transferência",
       "save": "Salvar transcrição",
       "unsave": "Remover dos salvos",
@@ -402,6 +429,7 @@
         "description": "Exclui transcrições antigas e o áudio delas. Entradas salvas são mantidas.",
         "never": "Nunca",
         "preserveLimit": "Manter as últimas {{count}}",
+        "preserveLimit_one": "Manter as últimas {{count}}",
         "days3": "Após 3 dias",
         "weeks2": "Após 2 semanas",
         "months3": "Após 3 meses",
@@ -675,12 +703,14 @@
       "interrupted": "A gravação foi interrompida. O que foi gravado ainda pode ser transcrito.",
       "process": "Transcrever",
       "retry": "Tentar novamente",
+      "retryNow": "Tentar novamente agora",
       "retryError": "Não foi possível tentar o processamento novamente.",
       "errors": {
         "signed_out": "Entre com o ChatGPT e tente novamente.",
         "rate_limited": "O Codex está limitando as solicitações agora. Tente mais tarde.",
         "parts_failed": "Algumas partes não puderam ser transcritas.",
         "no_audio": "Não foi possível ler a gravação.",
+        "offline": "Aguardando conexão. O Murmur continua sozinho assim que você voltar a ficar online.",
         "other": "O processamento parou inesperadamente."
       }
     },
@@ -692,7 +722,7 @@
     },
     "models": {
       "title": "Deteção de participantes",
-      "description": "Modelos locais distinguem os participantes. São transferidos uma vez (cerca de 480 MB) e este passo não envia áudio para lado nenhum.",
+      "description": "Modelos locais distinguem os participantes. São transferidos uma vez ({{size}}) e este passo não envia áudio para lado nenhum.",
       "missing": "Não transferidos",
       "downloading": "A transferir… {{percent}}%",
       "preparing": "A preparar os modelos para este Mac…",
@@ -811,6 +841,7 @@
         "signed_out": "Entre com o ChatGPT e tente de novo.",
         "rate_limited": "O Codex está limitando as solicitações agora. Tente de novo mais tarde.",
         "network": "Não foi possível acessar o Codex. Verifique a conexão e tente de novo.",
+        "server": "Não foi possível escrever o resumo. Tente de novo mais tarde.",
         "timeout": "O Codex demorou demais para responder.",
         "too_long": "O resumo ficou longo demais.",
         "empty": "O Codex retornou um resumo vazio.",

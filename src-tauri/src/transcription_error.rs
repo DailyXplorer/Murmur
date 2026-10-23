@@ -14,11 +14,16 @@ const RETRY_BACKOFF: [Duration; MAX_RETRIES as usize] =
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureKind {
-    /// The service could not be reached, or the connection dropped mid-request.
+    /// The service could not be reached.
     Network,
     Timeout,
     RateLimited,
     ServerError,
+    /// Codex was reached, but the connection broke before its answer, as
+    /// behind a proxy that cuts large uploads. Retried and shown like
+    /// `ServerError`; a meeting piece then goes to this Mac's model, as
+    /// after a timeout.
+    ConnectionDropped,
     /// The session expired and could not be refreshed: the user must sign in.
     SessionExpired,
     /// No usable session on disk.
@@ -48,11 +53,19 @@ impl FailureKind {
         }
     }
 
+    /// Only a connection that never opened is `Network`, even when it timed
+    /// out (no answer to DNS, the SYN or the TLS handshake, as on a Wi-Fi
+    /// with no Internet): the service was never reached. One dropped after
+    /// it opened is `ConnectionDropped`: a proxy that cuts every large
+    /// request would otherwise pass for an offline Mac, and a meeting would
+    /// wait for the connection for ever.
     pub fn from_transport(error: &reqwest::Error) -> Self {
-        if error.is_timeout() {
+        if error.is_connect() {
+            Self::Network
+        } else if error.is_timeout() {
             Self::Timeout
         } else {
-            Self::Network
+            Self::ConnectionDropped
         }
     }
 }
@@ -62,7 +75,10 @@ impl FailureKind {
 pub fn retry_delay(kind: FailureKind, attempt: u32) -> Option<Duration> {
     let transient = matches!(
         kind,
-        FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError
+        FailureKind::Network
+            | FailureKind::Timeout
+            | FailureKind::ServerError
+            | FailureKind::ConnectionDropped
     );
     if !transient {
         return None;
@@ -102,7 +118,7 @@ impl fmt::Display for TranscriptionError {
 impl std::error::Error for TranscriptionError {}
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -122,6 +138,7 @@ mod tests {
             FailureKind::Network,
             FailureKind::Timeout,
             FailureKind::ServerError,
+            FailureKind::ConnectionDropped,
         ] {
             assert_eq!(retry_delay(kind, 0), Some(Duration::from_millis(500)));
             assert_eq!(retry_delay(kind, 1), Some(Duration::from_millis(1500)));
@@ -141,6 +158,73 @@ mod tests {
         ] {
             assert_eq!(retry_delay(kind, 0), None, "{kind:?} must not retry");
         }
+    }
+
+    fn quick_client_builder() -> reqwest::ClientBuilder {
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(100))
+            .timeout(Duration::from_millis(1000))
+            .no_proxy()
+    }
+
+    fn quick_client() -> reqwest::Client {
+        quick_client_builder().build().unwrap()
+    }
+
+    /// A DNS server that never answers, as on a Wi-Fi with no Internet behind
+    /// it. Local, so the test does not depend on how the network treats an
+    /// unreachable address.
+    pub(crate) struct SilentDns;
+
+    impl reqwest::dns::Resolve for SilentDns {
+        fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+            Box::pin(std::future::pending())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_connection_that_never_opens_is_a_network_failure() {
+        let error = quick_client_builder()
+            .dns_resolver(SilentDns)
+            .build()
+            .unwrap()
+            .get("https://murmur.invalid/")
+            .send()
+            .await
+            .unwrap_err();
+        assert!(error.is_connect() && error.is_timeout(), "{error}");
+        assert_eq!(FailureKind::from_transport(&error), FailureKind::Network);
+    }
+
+    #[tokio::test]
+    async fn an_answer_that_never_comes_is_a_timeout() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let _socket = listener.accept().await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        });
+        let error = quick_client().get(url).send().await.unwrap_err();
+        assert!(!error.is_connect() && error.is_timeout(), "{error}");
+        assert_eq!(FailureKind::from_transport(&error), FailureKind::Timeout);
+    }
+
+    /// Codex was reached: a proxy that cuts the request every time must not
+    /// pass for an offline Mac, which waits for the connection for ever.
+    #[tokio::test]
+    async fn a_connection_dropped_after_it_opened_is_no_network_failure() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            drop(socket);
+        });
+        let error = quick_client().get(url).send().await.unwrap_err();
+        assert!(!error.is_connect() && !error.is_timeout(), "{error}");
+        assert_eq!(
+            FailureKind::from_transport(&error),
+            FailureKind::ConnectionDropped
+        );
     }
 
     #[test]

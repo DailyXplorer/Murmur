@@ -32,6 +32,9 @@
     "overlayCopy": "Kopieren",
     "overlayCopied": "Kopiert",
     "overlayNotPasted": "Es gab kein Textfeld zum Einfügen.",
+    "callRecordQuestion": "Dieses Meeting aufnehmen?",
+    "callRecord": "Aufnehmen",
+    "callNotNow": "Nicht jetzt",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",
@@ -45,7 +48,12 @@
     "meetingSystemAudioInterrupted": "Der Systemton wurde nach einem Wechsel der Audioausgabe unterbrochen. Murmur versucht weiter, ihn wiederherzustellen; dein Mikrofon wird weiter aufgenommen.",
     "meetingMicrophoneInterrupted": "Das Mikrofon nimmt nicht mehr auf. Murmur versucht weiter, es wiederherzustellen; prüfe, ob es noch verbunden ist.",
     "meetingMicrophoneDenied": "Der Mikrofonzugriff ist aus, daher nimmt das Meeting deine Stimme nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
-    "meetingSystemAudioDenied": "Die Systemaudioaufnahme ist aus, daher nimmt das Meeting die anderen Teilnehmer nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme."
+    "meetingSystemAudioDenied": "Die Systemaudioaufnahme ist aus, daher nimmt das Meeting die anderen Teilnehmer nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme.",
+    "meetingRecovered": "Ein Meeting wurde unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
+    "meetingsRecovered": "{{count}} Meetings wurden unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
+    "meetingsReset": "Deine Meeting-Liste war beschädigt und wurde zurückgesetzt. Ihre Aufnahmen werden 30 Tage lang aufbewahrt.",
+    "meetingPausedWhileAsleep": "Dein Mac war während des Meetings im Ruhezustand. Von {{from}} bis {{to}} wurde nichts aufgenommen.",
+    "meetingAudioDropped": "Ein Teil des Meeting-Audios ging verloren, weil der Mac zu ausgelastet war."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -131,7 +139,8 @@
       "completionFailed": "Die Einrichtung konnte nicht abgeschlossen werden. Aktualisiere den Status und versuche es erneut.",
       "optionalTitle": "ChatGPT verbinden (optional)",
       "optionalDescription": "Verbinden Sie Ihr ChatGPT-Konto für die KI-Bereinigung (entfernt Füllwörter und korrigiert die Grammatik) und für Sprachen, die das lokale Modell nicht abdeckt.",
-      "skip": "Überspringen"
+      "skip": "Überspringen",
+      "back": "Zurück"
     },
     "model": {
       "title": "Auf diesem Mac transkribieren",
@@ -324,6 +333,23 @@
       "meetingsToggle": {
         "label": "Meetings",
         "description": "Nimm Meetings über dein Mikrofon und den Systemton auf. Fügt eine Meetings-Seite, einen Kurzbefehl und einen Eintrag in der Menüleiste hinzu."
+      },
+      "meetingCallPrompt": {
+        "label": "Aufnahme von Anrufen anbieten",
+        "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf."
+      },
+      "meetingsAudio": {
+        "title": "Meeting-Audio löschen",
+        "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",
+        "textKept": "Transkripte und Zusammenfassungen bleiben erhalten.",
+        "used": "Meeting-Audio belegt {{size}}.",
+        "usedWithSetAside": "Meeting-Audio belegt {{size}}, dazu {{setAside}} nicht aufgeführte Aufnahmen, die nach 30 Tagen gelöscht werden.",
+        "options": {
+          "keep": "Nie",
+          "days7": "Nach 7 Tagen",
+          "days30": "Nach 30 Tagen",
+          "days90": "Nach 90 Tagen"
+        }
       }
     },
     "history": {
@@ -331,6 +357,7 @@
       "openFolder": "Ordner öffnen",
       "loading": "Verlauf wird geladen...",
       "empty": "Noch keine Transkriptionen. Starte eine Aufnahme, um deinen Verlauf aufzubauen!",
+      "loadError": "Dein Verlauf konnte nicht geladen werden.",
       "copyToClipboard": "Transkription in Zwischenablage kopieren",
       "save": "Transkription speichern",
       "unsave": "Aus Gespeicherten entfernen",
@@ -402,6 +429,7 @@
         "description": "Löscht alte Transkriptionen samt Audio. Gespeicherte Einträge bleiben erhalten.",
         "never": "Nie",
         "preserveLimit": "Neueste {{count}} behalten",
+        "preserveLimit_one": "Neueste {{count}} behalten",
         "days3": "Nach 3 Tagen",
         "weeks2": "Nach 2 Wochen",
         "months3": "Nach 3 Monaten",
@@ -675,12 +703,14 @@
       "interrupted": "Die Aufnahme wurde unterbrochen. Das Aufgenommene kann trotzdem transkribiert werden.",
       "process": "Transkribieren",
       "retry": "Erneut versuchen",
+      "retryNow": "Jetzt erneut versuchen",
       "retryError": "Die Verarbeitung konnte nicht neu gestartet werden.",
       "errors": {
         "signed_out": "Melde dich mit ChatGPT an und versuche es erneut.",
         "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
         "parts_failed": "Einige Teile konnten nicht transkribiert werden.",
         "no_audio": "Die Aufnahme konnte nicht gelesen werden.",
+        "offline": "Warte auf eine Verbindung. Murmur macht von selbst weiter, sobald du wieder online bist.",
         "other": "Die Verarbeitung wurde unerwartet beendet."
       }
     },
@@ -692,7 +722,7 @@
     },
     "models": {
       "title": "Sprechererkennung",
-      "description": "Lokale Modelle unterscheiden die Teilnehmenden. Sie werden einmal geladen (etwa 480 MB), und dieser Schritt sendet kein Audio.",
+      "description": "Lokale Modelle unterscheiden die Teilnehmenden. Sie werden einmal geladen ({{size}}), und dieser Schritt sendet kein Audio.",
       "missing": "Nicht geladen",
       "downloading": "Wird geladen… {{percent}} %",
       "preparing": "Modelle werden für diesen Mac vorbereitet…",
@@ -811,6 +841,7 @@
         "signed_out": "Melde dich mit ChatGPT an und versuche es erneut.",
         "rate_limited": "Codex begrenzt gerade die Anfragen. Versuche es später erneut.",
         "network": "Codex ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
+        "server": "Die Zusammenfassung konnte nicht geschrieben werden. Versuche es später erneut.",
         "timeout": "Codex hat zu lange für die Antwort gebraucht.",
         "too_long": "Die Zusammenfassung ist zu lang geworden.",
         "empty": "Codex hat eine leere Zusammenfassung geliefert.",

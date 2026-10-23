@@ -137,3 +137,29 @@ for (const theme of THEMES) {
     ).toEqual([]);
   });
 }
+
+test("an update withdrawn before it installs no longer shows as available", async ({
+  page,
+}) => {
+  await open(page, "update=1", "light");
+  const pill = page.getByRole("button", { name: "Update available" });
+  await expect(pill).toBeVisible();
+  await page.evaluate(() => window.settingsPages.withdrawUpdate());
+
+  await pill.click();
+
+  await expect(pill).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Check for updates" }),
+  ).toBeVisible();
+  // The backend's status, which the tray shows, learns it too.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls.some(
+          ({ command }) => command === "check_for_updates",
+        ),
+      ),
+    )
+    .toBe(true);
+});

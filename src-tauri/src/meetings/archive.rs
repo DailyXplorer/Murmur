@@ -2,7 +2,8 @@
 //! (about 29 MB an hour), instead of its WAV tracks (about 115 MB an hour
 //! each): the microphone on the first channel and system audio on the
 //! second. Transcribing the meeting again decodes the tracks back. The work
-//! happens in `swift/meeting_archive.swift`.
+//! happens in `swift/meeting_archive.swift`, built for Apple silicon and
+//! Intel alike.
 
 use anyhow::{anyhow, bail, Result};
 use std::path::{Path, PathBuf};
@@ -14,7 +15,6 @@ use super::store::{AudioState, MeetingTracks, MeetingsStore};
 /// little longer or shorter than the tracks.
 const DURATION_TOLERANCE_MS: u64 = 1_000;
 
-#[cfg(target_arch = "aarch64")]
 mod bridge {
     use std::ffi::c_char;
 
@@ -34,7 +34,6 @@ mod bridge {
 }
 
 /// Mirrors the status codes in `swift/meeting_archive.swift`.
-#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 fn status(code: i32) -> Result<()> {
     match code {
         0 => Ok(()),
@@ -46,7 +45,6 @@ fn status(code: i32) -> Result<()> {
     }
 }
 
-#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 fn c_path(path: &Path) -> Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
     std::ffi::CString::new(path.as_os_str().as_bytes())
@@ -66,18 +64,10 @@ pub fn track_files(tracks: MeetingTracks) -> Vec<&'static str> {
 
 /// The length of an audio file in milliseconds.
 pub fn duration_ms(path: &Path) -> Result<u64> {
-    #[cfg(target_arch = "aarch64")]
-    {
-        let path = c_path(path)?;
-        // SAFETY: `path` is a NUL-terminated string alive for the call.
-        let duration = unsafe { bridge::murmur_audio_duration_ms(path.as_ptr()) };
-        u64::try_from(duration).map_err(|_| anyhow!("Cannot read the meeting audio length"))
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        let _ = path;
-        bail!("Compressed meeting audio needs Apple silicon")
-    }
+    let path = c_path(path)?;
+    // SAFETY: `path` is a NUL-terminated string alive for the call.
+    let duration = unsafe { bridge::murmur_audio_duration_ms(path.as_ptr()) };
+    u64::try_from(duration).map_err(|_| anyhow!("Cannot read the meeting audio length"))
 }
 
 /// Encodes `inputs` (one or two WAV tracks) into the AAC file `output`.
@@ -85,28 +75,20 @@ pub fn encode(inputs: &[PathBuf], output: &Path) -> Result<()> {
     if inputs.is_empty() || inputs.len() > 2 {
         bail!("A meeting has one or two tracks");
     }
-    #[cfg(target_arch = "aarch64")]
-    {
-        let first = c_path(&inputs[0])?;
-        let second = inputs.get(1).map(|path| c_path(path)).transpose()?;
-        let output = c_path(output)?;
-        // SAFETY: every pointer is a NUL-terminated string alive for the
-        // call, or null for a missing second track.
-        status(unsafe {
-            bridge::murmur_encode_m4a(
-                first.as_ptr(),
-                second
-                    .as_ref()
-                    .map_or(std::ptr::null(), |path| path.as_ptr()),
-                output.as_ptr(),
-            )
-        })
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        let _ = output;
-        bail!("Compressed meeting audio needs Apple silicon")
-    }
+    let first = c_path(&inputs[0])?;
+    let second = inputs.get(1).map(|path| c_path(path)).transpose()?;
+    let output = c_path(output)?;
+    // SAFETY: every pointer is a NUL-terminated string alive for the
+    // call, or null for a missing second track.
+    status(unsafe {
+        bridge::murmur_encode_m4a(
+            first.as_ptr(),
+            second
+                .as_ref()
+                .map_or(std::ptr::null(), |path| path.as_ptr()),
+            output.as_ptr(),
+        )
+    })
 }
 
 /// Decodes the AAC file `input` into one WAV per channel, `outputs` in
@@ -115,27 +97,19 @@ pub fn decode(input: &Path, outputs: &[PathBuf]) -> Result<()> {
     if outputs.is_empty() || outputs.len() > 2 {
         bail!("A meeting has one or two tracks");
     }
-    #[cfg(target_arch = "aarch64")]
-    {
-        let input = c_path(input)?;
-        let first = c_path(&outputs[0])?;
-        let second = outputs.get(1).map(|path| c_path(path)).transpose()?;
-        // SAFETY: as in `encode`.
-        status(unsafe {
-            bridge::murmur_decode_m4a(
-                input.as_ptr(),
-                first.as_ptr(),
-                second
-                    .as_ref()
-                    .map_or(std::ptr::null(), |path| path.as_ptr()),
-            )
-        })
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        let _ = input;
-        bail!("Compressed meeting audio needs Apple silicon")
-    }
+    let input = c_path(input)?;
+    let first = c_path(&outputs[0])?;
+    let second = outputs.get(1).map(|path| c_path(path)).transpose()?;
+    // SAFETY: as in `encode`.
+    status(unsafe {
+        bridge::murmur_decode_m4a(
+            input.as_ptr(),
+            first.as_ptr(),
+            second
+                .as_ref()
+                .map_or(std::ptr::null(), |path| path.as_ptr()),
+        )
+    })
 }
 
 fn wav_duration_ms(path: &Path) -> Result<u64> {
@@ -201,7 +175,7 @@ pub fn restore(dir: &Path, tracks: MeetingTracks) -> Result<()> {
 
 /// Stage E: compresses the audio of a transcribed meeting once, then
 /// deletes its tracks. The tracks stay when compression fails, and it is
-/// tried again at the next launch.
+/// tried again at the next launch, up to the store's limit.
 pub fn archive(store: &MeetingsStore, root: &Path, id: i64) -> Result<()> {
     let Some(meeting) = store.get(id)? else {
         return Ok(());
@@ -215,7 +189,11 @@ pub fn archive(store: &MeetingsStore, root: &Path, id: i64) -> Result<()> {
             if !files.iter().any(|file| dir.join(file).exists()) {
                 return Ok(());
             }
-            let bytes = compress(&dir, meeting.tracks)?;
+            let bytes = compress(&dir, meeting.tracks).inspect_err(|_| {
+                if let Err(error) = store.compress_failed(id) {
+                    log::error!("Meeting {id}: cannot count the failed compression: {error}");
+                }
+            })?;
             if store.audio_compressed(id, bytes)? {
                 log::info!(
                     "Meeting {id}: audio compressed to {} KB",
@@ -242,7 +220,32 @@ mod tests {
         assert_eq!(track_files(MeetingTracks::Mic), [MIC_TRACK]);
     }
 
-    #[cfg(target_arch = "aarch64")]
+    #[test]
+    fn audio_that_cannot_be_compressed_is_tried_three_times_then_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let root = dir.path().join("meetings");
+        let id = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        store.finish_recording(id, 3_000, 3_000).unwrap();
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        store.save_summary(id, None, "Notes.").unwrap();
+        let meeting_dir = paths::meeting_dir(&root, id);
+        std::fs::create_dir_all(&meeting_dir).unwrap();
+        std::fs::write(meeting_dir.join(MIC_TRACK), b"not audio").unwrap();
+
+        for launch in 1..=3 {
+            assert_eq!(store.waiting_for_processing().unwrap(), [id], "{launch}");
+            assert!(archive(&store, &root, id).is_err());
+        }
+
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+        assert!(meeting_dir.join(MIC_TRACK).exists());
+        assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Tracks);
+    }
+
+    /// Intel Macs run these under Rosetta with
+    /// `cargo test --target x86_64-apple-darwin`.
     mod on_device {
         use super::*;
         use crate::meetings::store::{MeetingStatus, MeetingTracks};

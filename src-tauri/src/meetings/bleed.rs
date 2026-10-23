@@ -4,7 +4,9 @@
 //! says the same words at the same moment, at least as loud. Only the
 //! clauses that echo go, each judged on its own words: a reply Codex set off
 //! with punctuation in the same sentence stays, whatever surrounds it. The
-//! user talking over someone says different words, so it is kept.
+//! user talking over someone says different words, so it is kept. Without
+//! the on-device models (declined, or the analysis failed) the system
+//! sentences are only placed to a few seconds, and the match is stricter.
 
 use std::ops::Range;
 
@@ -14,12 +16,47 @@ use super::chunking::FRAME_MS;
 use super::merge::{Track, Unit};
 use super::tokens::{Token, CLOSERS};
 
-/// An echo is heard while the system track plays it, so a microphone
-/// sentence is compared only with the system words said at the same time,
-/// give or take this much for the word times.
-const SLACK_MS: u64 = 300;
-/// Share of the sentence's words found in the system track.
-const MIN_OVERLAP: f32 = 0.6;
+/// How the system words were timed, which sets how near and how alike a
+/// microphone sentence must be to echo them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WordTimes {
+    /// Heard by the on-device recogniser, each to a fraction of a second.
+    Heard,
+    /// Without the on-device models: each system sentence spread over the
+    /// track's speech (`spread`), as the microphone's are, which is good to
+    /// a few seconds. A sentence then goes only when more of it, and a
+    /// longer one, matches.
+    Placed,
+}
+
+impl WordTimes {
+    /// An echo is heard while the system track plays it, so a microphone
+    /// sentence is compared only with the system words said at the same
+    /// time, give or take this much for the times.
+    fn slack_ms(self) -> u64 {
+        match self {
+            Self::Heard => 300,
+            Self::Placed => 2_500,
+        }
+    }
+
+    /// Share of the sentence's words found in the system track.
+    fn min_overlap(self) -> f32 {
+        match self {
+            Self::Heard => 0.6,
+            Self::Placed => 0.8,
+        }
+    }
+
+    /// Shorter sentences ("Oui merci.") are too common to judge.
+    fn min_words(self) -> usize {
+        match self {
+            Self::Heard => 3,
+            Self::Placed => 4,
+        }
+    }
+}
+
 /// Of two copies of a word in a microphone sentence, the one said nearer the
 /// system word is its echo: in "à dix heures, dix heures", the user repeats
 /// the remote side's words. Small, so it only settles such ties.
@@ -41,8 +78,6 @@ const ROOM_MS: u64 = 300;
 const MIN_MS_PER_WEIGHT: u64 = 40;
 /// The slowest the user is taken to speak, per character of a word.
 const MAX_MS_PER_WEIGHT: u64 = 100;
-/// Shorter sentences ("Oui.") are too common to judge.
-const MIN_WORDS: usize = 3;
 /// Shorter clauses ("Oui,", "okay,") are too common to judge: they stay.
 const MIN_CLAUSE_WORDS: usize = 2;
 /// The system track must be no quieter than the microphone by more than this.
@@ -64,9 +99,9 @@ pub fn mean_level(levels: &[f32], start_ms: u64, end_ms: u64) -> Option<f32> {
 }
 
 /// Whether `[start_ms, end_ms)` overlaps `[from_ms, to_ms)` within
-/// `SLACK_MS`.
-fn during(from_ms: u64, to_ms: u64, start_ms: u64, end_ms: u64) -> bool {
-    start_ms < to_ms + SLACK_MS && end_ms + SLACK_MS > from_ms
+/// `slack_ms`.
+fn during(from_ms: u64, to_ms: u64, start_ms: u64, end_ms: u64, slack_ms: u64) -> bool {
+    start_ms < to_ms + slack_ms && end_ms + slack_ms > from_ms
 }
 
 /// When each token of `unit` before the first word the on-device
@@ -153,6 +188,7 @@ fn echoes(
     chunk_start_ms: u64,
     transcribed: &[(u64, u64)],
     system_words: &[TimedWord],
+    times: WordTimes,
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> Vec<Echo> {
@@ -161,6 +197,7 @@ fn echoes(
         chunk_start_ms,
         transcribed,
         system_words,
+        times,
         mic_levels,
         system_levels,
     ) else {
@@ -284,6 +321,7 @@ fn echoed_words(
     chunk_start_ms: u64,
     transcribed: &[(u64, u64)],
     system_words: &[TimedWord],
+    times: WordTimes,
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> Option<Vec<Heard>> {
@@ -294,7 +332,7 @@ fn echoed_words(
         .filter(|(_, token)| !token.key.is_empty())
         .map(|(index, token)| (index, token.key.as_str()))
         .unzip();
-    if keys.len() < MIN_WORDS {
+    if keys.len() < times.min_words() {
         return None;
     }
     let lead = lead_times(unit, chunk_start_ms);
@@ -305,7 +343,7 @@ fn echoed_words(
             .get(index)
             .copied()
             .unwrap_or((unit.start_ms, unit.end_ms));
-        during(from_ms, to_ms, word.start_ms, word.end_ms)
+        during(from_ms, to_ms, word.start_ms, word.end_ms, times.slack_ms())
     };
     let nearby: Vec<&TimedWord> = system_words
         .iter()
@@ -358,7 +396,7 @@ fn echoed_words(
             _ => None,
         })
         .collect();
-    if (same.len() as f32) < MIN_OVERLAP * keys.len() as f32 {
+    if (same.len() as f32) < times.min_overlap() * keys.len() as f32 {
         return None;
     }
     let loud_enough = match (
@@ -411,11 +449,13 @@ fn around(unit: Unit, echoes: &[Echo]) -> Vec<Unit> {
 /// Returns how many echoes were removed. An echo is removed only where the
 /// system track has its own transcript: a reply too short to send to Codex,
 /// or a piece that failed, would otherwise be lost. `mic_chunk_starts` are
-/// where the microphone track was cut into the pieces sent to Codex.
+/// where the microphone track was cut into the pieces sent to Codex, and
+/// `times` how `system_words` were timed.
 pub fn remove_echoes(
     units: &mut Vec<Unit>,
     mic_chunk_starts: &[u64],
     system_words: &[TimedWord],
+    times: WordTimes,
     mic_levels: &[f32],
     system_levels: &[f32],
 ) -> usize {
@@ -441,6 +481,7 @@ pub fn remove_echoes(
                 chunk_start_ms,
                 &transcribed,
                 system_words,
+                times,
                 mic_levels,
                 system_levels,
             )
@@ -490,7 +531,16 @@ mod tests {
     /// Whether `unit` echoes the system sentence of all the words in `system`.
     fn is_echo(unit: &Unit, system: &[TimedWord], mic_levels: &[f32], levels: &[f32]) -> bool {
         let sentence = (system[0].start_ms, system[system.len() - 1].end_ms);
-        !echoes(unit, 0, &[sentence], system, mic_levels, levels).is_empty()
+        !echoes(
+            unit,
+            0,
+            &[sentence],
+            system,
+            WordTimes::Heard,
+            mic_levels,
+            levels,
+        )
+        .is_empty()
     }
 
     /// 20 s of levels: `db` everywhere.
@@ -508,7 +558,14 @@ mod tests {
         said.track = Track::System;
         let mut units = vec![said, unit, mic("Moi je préfère lundi.", 6_000, 7_000)];
         assert_eq!(
-            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(
+                &mut units,
+                &[],
+                &system,
+                WordTimes::Heard,
+                &flat(-40.0),
+                &flat(-30.0)
+            ),
             1
         );
         assert_eq!(units.len(), 2);
@@ -523,7 +580,14 @@ mod tests {
         assert!(is_echo(&unit, &system, &flat(-40.0), &flat(-30.0)));
         let mut units = vec![unit, Unit::placeholder(Track::System, 0, 600_000)];
         assert_eq!(
-            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(
+                &mut units,
+                &[],
+                &system,
+                WordTimes::Heard,
+                &flat(-40.0),
+                &flat(-30.0)
+            ),
             0
         );
         assert_eq!(units.len(), 2);
@@ -569,7 +633,14 @@ mod tests {
         unit.track = Track::System;
         let mut units = vec![unit];
         assert_eq!(
-            remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0)),
+            remove_echoes(
+                &mut units,
+                &[],
+                &system,
+                WordTimes::Heard,
+                &flat(-40.0),
+                &flat(-30.0)
+            ),
             0
         );
     }
@@ -1497,6 +1568,7 @@ mod tests {
                     &mut units,
                     &[mic_ms],
                     &system,
+                    WordTimes::Heard,
                     &flat(mic_db),
                     &flat(system_db),
                 );
@@ -1530,7 +1602,14 @@ mod tests {
                 5_400,
             ),
         ];
-        remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0));
+        remove_echoes(
+            &mut units,
+            &[],
+            &system,
+            WordTimes::Heard,
+            &flat(-40.0),
+            &flat(-30.0),
+        );
         let mic_times: Vec<(u64, u64)> = units[1..]
             .iter()
             .map(|unit| (unit.start_ms, unit.end_ms))
@@ -1554,9 +1633,95 @@ mod tests {
                 6_100,
             ),
         ];
-        remove_echoes(&mut units, &[], &system, &flat(-40.0), &flat(-30.0));
+        remove_echoes(
+            &mut units,
+            &[],
+            &system,
+            WordTimes::Heard,
+            &flat(-40.0),
+            &flat(-30.0),
+        );
         let left: Vec<String> = units[1..].iter().map(|unit| join(&unit.tokens)).collect();
         assert_eq!(left, ["Sure, I'll wait,"]);
+    }
+
+    /// The words of the system sentence `text`, placed without the
+    /// on-device models: each over the whole sentence.
+    fn placed(text: &str, start_ms: u64, end_ms: u64) -> Vec<TimedWord> {
+        tokenize(text)
+            .into_iter()
+            .filter(|token| !token.key.is_empty())
+            .map(|token| TimedWord {
+                key: token.key,
+                start_ms,
+                end_ms,
+            })
+            .collect()
+    }
+
+    /// The microphone sentences left once the echoes of the system sentence
+    /// `said`, placed at `[start_ms, end_ms)`, are removed from `units`.
+    fn left_with_placed_times(
+        said: &str,
+        (start_ms, end_ms): (u64, u64),
+        mut units: Vec<Unit>,
+        mic_db: f32,
+    ) -> Vec<String> {
+        let mut system = mic(said, start_ms, end_ms);
+        system.track = Track::System;
+        units.insert(0, system);
+        remove_echoes(
+            &mut units,
+            &[0],
+            &placed(said, start_ms, end_ms),
+            WordTimes::Placed,
+            &flat(mic_db),
+            &flat(-30.0),
+        );
+        units
+            .iter()
+            .filter(|unit| unit.track == Track::Mic)
+            .map(|unit| join(&unit.tokens))
+            .collect()
+    }
+
+    /// Each track's sentences are spread over its own speech, so the echo
+    /// lands a second or two away from what the system track said.
+    #[test]
+    fn an_echo_placed_a_second_away_is_removed_without_heard_words() {
+        let left = left_with_placed_times(
+            "On valide le budget jeudi prochain.",
+            (2_000, 4_400),
+            vec![
+                mic("Moi je préfère lundi.", 0, 1_500),
+                mic("On valide le budget jeudi prochain.", 5_600, 8_000),
+            ],
+            -40.0,
+        );
+        assert_eq!(left, ["Moi je préfère lundi."]);
+    }
+
+    #[test]
+    fn talking_over_someone_is_kept_without_heard_words() {
+        let left = left_with_placed_times(
+            "On valide le budget jeudi prochain.",
+            (2_000, 4_400),
+            vec![mic("Attends, je ne suis pas d'accord.", 2_500, 4_500)],
+            -20.0,
+        );
+        assert_eq!(left, ["Attends, je ne suis pas d'accord."]);
+    }
+
+    /// "On se rappelle." is what the user may well say back.
+    #[test]
+    fn a_three_word_echo_is_kept_without_heard_words() {
+        let left = left_with_placed_times(
+            "On se rappelle.",
+            (2_000, 3_000),
+            vec![mic("On se rappelle.", 2_000, 3_000)],
+            -40.0,
+        );
+        assert_eq!(left, ["On se rappelle."]);
     }
 
     #[test]

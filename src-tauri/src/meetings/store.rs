@@ -12,13 +12,23 @@ use specta::Type;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use super::capture::route::OutputRoute;
 use super::chunking::ChunkPlan;
 use super::merge::Track;
 use super::paths;
+use super::retention::MeetingAudio;
 use super::summary::{named_title, SummaryError};
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::managers::history::{open_or_reset_database, DatabaseStartup};
+
+/// Attempts at compressing a meeting's audio before its tracks are kept as
+/// they are: a file that fails this often fails for good.
+const MAX_COMPRESS_FAILURES: i64 = 3;
+
+/// A meeting a crash cut off with less audio than this has nothing to
+/// transcribe.
+const MIN_RECOVERED_MS: u64 = 1_000;
 
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
@@ -94,6 +104,21 @@ fn migrations() -> Migrations<'static> {
             "CREATE TABLE meeting_last_id (id INTEGER NOT NULL);
     INSERT INTO meeting_last_id SELECT COALESCE(MAX(id), 0) FROM meetings;",
         ),
+        // Audio the track writers could not keep up with, recorded as silence.
+        M::up("ALTER TABLE meetings ADD COLUMN dropped_ms INTEGER NOT NULL DEFAULT 0;"),
+        // Failed attempts to compress the tracks; past a few, they stay.
+        M::up("ALTER TABLE meetings ADD COLUMN compress_failures INTEGER NOT NULL DEFAULT 0;"),
+        // Time the Mac slept while the meeting recorded, which holds no audio.
+        M::up("ALTER TABLE meetings ADD COLUMN slept_ms INTEGER NOT NULL DEFAULT 0;"),
+        // Unused: an unreleased build split a long meeting into linked rows.
+        // Migrations only append, so the columns stay.
+        M::up(
+            "ALTER TABLE meetings ADD COLUMN previous_id INTEGER;
+    ALTER TABLE meetings ADD COLUMN part INTEGER NOT NULL DEFAULT 1;",
+        ),
+        // Where the meeting played sound (`OutputRoute`); NULL for meetings
+        // recorded before it was read.
+        M::up("ALTER TABLE meetings ADD COLUMN output_route TEXT;"),
     ])
 }
 
@@ -280,6 +305,9 @@ pub enum ProcessingError {
     PartsFailed,
     /// No track could be read.
     NoAudio,
+    /// Codex could not be reached: processing goes on by itself once the
+    /// connection is back.
+    Offline,
     /// Processing stopped on an unexpected error.
     Other,
 }
@@ -291,6 +319,7 @@ impl ProcessingError {
             Self::RateLimited => "rate_limited",
             Self::PartsFailed => "parts_failed",
             Self::NoAudio => "no_audio",
+            Self::Offline => "offline",
             Self::Other => "other",
         }
     }
@@ -301,6 +330,7 @@ impl ProcessingError {
             "rate_limited" => Some(Self::RateLimited),
             "parts_failed" => Some(Self::PartsFailed),
             "no_audio" => Some(Self::NoAudio),
+            "offline" => Some(Self::Offline),
             "other" => Some(Self::Other),
             _ => None,
         }
@@ -431,6 +461,9 @@ pub struct MeetingDetail {
     /// When a Codex rate-limit hold stops keeping this queued meeting
     /// waiting. Only the processing queue knows; the store never sets it.
     pub held_until_ms: Option<i64>,
+    /// This queued meeting waits for the connection to reach Codex. Only the
+    /// processing queue knows; the store never sets it.
+    pub waiting_for_connection: bool,
     /// How much of the recorded audio this Mac transcribed because Codex
     /// refused it. "Transcribe again" sends it all to Codex once more.
     pub local_fallback_ms: i64,
@@ -591,8 +624,10 @@ impl MeetingsStore {
     /// At startup no meeting can still be recording: one that is was cut off
     /// by a crash or a forced quit. Its track headers are repaired so the
     /// audio is readable, and it is marked interrupted with the duration the
-    /// tracks hold. Returns how many meetings were recovered.
-    pub fn recover_interrupted(&self, root: &Path) -> Result<usize> {
+    /// tracks hold, to be processed like any other; with less than a second
+    /// of audio there is nothing to process, and it fails with `NoAudio`.
+    /// Returns the meetings left to process.
+    pub fn recover_interrupted(&self, root: &Path) -> Result<Vec<i64>> {
         let conn = self.connection()?;
         let cut_off = conn
             .prepare("SELECT id, capture_mode FROM meetings WHERE status = 'recording'")?
@@ -600,6 +635,7 @@ impl MeetingsStore {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut recovered = Vec::with_capacity(cut_off.len());
         for (id, tracks) in &cut_off {
             let dir = paths::meeting_dir(root, *id);
             let tracks = MeetingTracks::from_db(tracks).unwrap_or(MeetingTracks::Both);
@@ -617,28 +653,87 @@ impl MeetingsStore {
             .max()
             .unwrap_or(0);
             let duration_ms = samples * 1000 / u64::from(TARGET_SAMPLE_RATE);
+            if duration_ms < MIN_RECOVERED_MS {
+                conn.execute(
+                    "UPDATE meetings SET status = 'failed', error_kind = ?3, duration_ms = ?2
+                     WHERE id = ?1",
+                    params![id, duration_ms as i64, ProcessingError::NoAudio.as_db()],
+                )?;
+                continue;
+            }
             conn.execute(
                 "UPDATE meetings SET status = 'interrupted', duration_ms = ?2 WHERE id = ?1",
                 params![id, duration_ms as i64],
             )?;
+            recovered.push(*id);
         }
-        Ok(cut_off.len())
+        Ok(recovered)
     }
 
-    /// Meetings to process, oldest first: those a quit left mid-way, and
-    /// transcribed ones still waiting for their summary or compressed audio.
+    /// Meetings to process, oldest first: those a quit left mid-way, those a
+    /// crash cut off, those that waited for the connection, and transcribed
+    /// ones still waiting for their summary or compressed audio. Audio that
+    /// failed to compress `MAX_COMPRESS_FAILURES` times keeps its tracks
+    /// instead of being tried at every launch.
     pub fn waiting_for_processing(&self) -> Result<Vec<i64>> {
         Ok(self
             .connection()?
             .prepare(
                 "SELECT id FROM meetings
-                 WHERE status = 'processing'
+                 WHERE status IN ('processing', 'interrupted')
+                    OR (status = 'failed' AND error_kind = 'offline')
                     OR (status = 'ready' AND (summary_status = 'pending'
-                        OR (audio_file IS NULL AND audio_deleted = 0)))
+                        OR (audio_file IS NULL AND audio_deleted = 0
+                            AND compress_failures < ?1)))
                  ORDER BY id",
             )?
-            .query_map([], |row| row.get(0))?
+            .query_map(params![MAX_COMPRESS_FAILURES], |row| row.get(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// One more attempt to compress the audio of meeting `id` failed.
+    pub fn compress_failed(&self, id: i64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET compress_failures = compress_failures + 1 WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    /// Notes how much audio the recording of meeting `id` dropped.
+    pub fn set_dropped_ms(&self, id: i64, dropped_ms: u64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET dropped_ms = ?2 WHERE id = ?1",
+            params![id, i64::try_from(dropped_ms).unwrap_or(i64::MAX)],
+        )?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn dropped_ms(&self, id: i64) -> Result<i64> {
+        Ok(self.connection()?.query_row(
+            "SELECT dropped_ms FROM meetings WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?)
+    }
+
+    /// Notes that the Mac slept `slept_ms` more while meeting `id` recorded.
+    pub fn add_slept_ms(&self, id: i64, slept_ms: u64) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET slept_ms = slept_ms + ?2 WHERE id = ?1",
+            params![id, i64::try_from(slept_ms).unwrap_or(i64::MAX)],
+        )?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn slept_ms(&self, id: i64) -> Result<i64> {
+        Ok(self.connection()?.query_row(
+            "SELECT slept_ms FROM meetings WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?)
     }
 
     pub fn get(&self, id: i64) -> Result<Option<MeetingDetail>> {
@@ -749,6 +844,7 @@ impl MeetingsStore {
             audio_bytes,
             system_audio_silent,
             held_until_ms: None,
+            waiting_for_connection: false,
             local_fallback_ms,
         }))
     }
@@ -781,6 +877,28 @@ impl MeetingsStore {
             )
             .optional()?
             .unwrap_or(false))
+    }
+
+    /// Notes where meeting `id` played sound while it recorded.
+    pub fn set_output_route(&self, id: i64, route: OutputRoute) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE meetings SET output_route = ?2 WHERE id = ?1",
+            params![id, route.as_str()],
+        )?;
+        Ok(())
+    }
+
+    pub fn output_route(&self, id: i64) -> Result<OutputRoute> {
+        let name: Option<String> = self
+            .connection()?
+            .query_row(
+                "SELECT output_route FROM meetings WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(OutputRoute::parse(name.as_deref()))
     }
 
     /// Saves the summary, and the title it gives the meeting unless the
@@ -829,6 +947,41 @@ impl MeetingsStore {
             params![id, paths::AUDIO_FILE, bytes as i64],
         )?;
         Ok(updated > 0)
+    }
+
+    /// Every meeting that still has audio, as retention weighs it.
+    pub fn with_audio(&self) -> Result<Vec<MeetingAudio>> {
+        let conn = self.connection()?;
+        let rows = conn
+            .prepare(
+                "SELECT id, started_at_ms, status, summary_status, audio_file
+                 FROM meetings WHERE audio_deleted = 0",
+            )?
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, started_at_ms, status, summary, audio_file)| {
+                Some(MeetingAudio {
+                    id,
+                    started_at_ms,
+                    status: MeetingStatus::from_db(&status)?,
+                    summary: SummaryStatus::from_db(&summary),
+                    audio: match audio_file {
+                        Some(_) => AudioState::Compressed,
+                        None => AudioState::Tracks,
+                    },
+                })
+            })
+            .collect())
     }
 
     /// Marks a finished meeting's audio deleted; its text stays. Returns
@@ -891,11 +1044,12 @@ impl MeetingsStore {
     }
 
     /// Makes a finished meeting wait for processing again, to tell its
-    /// speakers apart anew. Returns false when it is not finished.
+    /// speakers apart anew. Returns false when it is not finished or has no
+    /// audio.
     pub fn reopen(&self, id: i64) -> Result<bool> {
         let updated = self.connection()?.execute(
             "UPDATE meetings SET status = 'processing', stage = NULL
-             WHERE id = ?1 AND status IN ('ready', 'failed')",
+             WHERE id = ?1 AND status IN ('ready', 'failed') AND audio_deleted = 0",
             params![id],
         )?;
         Ok(updated > 0)
@@ -1320,7 +1474,7 @@ mod tests {
         write_track(&track_dir.join(paths::MIC_TRACK), 32_000);
         write_track(&track_dir.join(paths::SYSTEM_TRACK), 31_840);
 
-        assert_eq!(store.recover_interrupted(&root).unwrap(), 1);
+        assert_eq!(store.recover_interrupted(&root).unwrap(), [crashed]);
 
         assert_eq!(status_of(&store, crashed), Some(MeetingStatus::Interrupted));
         assert_eq!(status_of(&store, finished), Some(MeetingStatus::Processing));
@@ -1331,7 +1485,37 @@ mod tests {
             let reader = hound::WavReader::open(track_dir.join(file)).unwrap();
             assert!(reader.duration() >= 31_840);
         }
-        assert_eq!(store.recover_interrupted(&root).unwrap(), 0);
+        assert!(store.recover_interrupted(&root).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_meeting_cut_off_by_a_crash_is_processed_at_the_next_launch() {
+        let (dir, store) = store();
+        let root = dir.path().join("meetings");
+        let crashed = store.insert_recording(0, MeetingTracks::Mic).unwrap();
+        write_track(
+            &paths::meeting_dir(&root, crashed).join(paths::MIC_TRACK),
+            32_000,
+        );
+        assert_eq!(store.recover_interrupted(&root).unwrap(), [crashed]);
+        assert_eq!(store.waiting_for_processing().unwrap(), [crashed]);
+        assert!(store.begin_processing(crashed).unwrap());
+    }
+
+    #[test]
+    fn a_meeting_that_waited_for_the_connection_is_processed_at_the_next_launch() {
+        let (_dir, store) = store();
+        let offline = recorded(&store);
+        let parts_failed = recorded(&store);
+        for (id, error) in [
+            (offline, ProcessingError::Offline),
+            (parts_failed, ProcessingError::PartsFailed),
+        ] {
+            store.begin_processing(id).unwrap();
+            store.finish_processing(id, Some(error)).unwrap();
+            assert_eq!(store.get(id).unwrap().unwrap().error, Some(error));
+        }
+        assert_eq!(store.waiting_for_processing().unwrap(), [offline]);
     }
 
     #[test]
@@ -1365,14 +1549,28 @@ mod tests {
     }
 
     #[test]
-    fn a_meeting_cut_off_before_any_audio_is_recovered_with_no_duration() {
+    fn a_meeting_cut_off_with_under_a_second_of_audio_fails_without_a_run() {
         let (dir, store) = store();
-        let id = store.insert_recording(0, MeetingTracks::System).unwrap();
-        assert_eq!(store.recover_interrupted(dir.path()).unwrap(), 1);
-        let page = store.list(None, 1).unwrap();
-        assert_eq!(page.meetings[0].id, id);
-        assert_eq!(page.meetings[0].status, MeetingStatus::Interrupted);
-        assert_eq!(page.meetings[0].duration_ms, 0);
+        let root = dir.path().join("meetings");
+        let empty = store.insert_recording(0, MeetingTracks::System).unwrap();
+        let short = store.insert_recording(1, MeetingTracks::Mic).unwrap();
+        write_track(
+            &paths::meeting_dir(&root, short).join(paths::MIC_TRACK),
+            15_000,
+        );
+        assert!(store.recover_interrupted(&root).unwrap().is_empty());
+        let page = store.list(None, 2).unwrap();
+        for meeting in &page.meetings {
+            assert_eq!(meeting.status, MeetingStatus::Failed);
+        }
+        assert_eq!(page.meetings[0].duration_ms, 937);
+        assert_eq!(page.meetings[1].id, empty);
+        assert_eq!(page.meetings[1].duration_ms, 0);
+        for id in [empty, short] {
+            let meeting = store.get(id).unwrap().unwrap();
+            assert_eq!(meeting.error, Some(ProcessingError::NoAudio));
+        }
+        assert!(store.waiting_for_processing().unwrap().is_empty());
     }
 
     fn recorded(store: &MeetingsStore) -> i64 {
@@ -1647,6 +1845,19 @@ mod tests {
     }
 
     #[test]
+    fn a_meeting_whose_audio_went_is_not_reopened() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        store.begin_processing(id).unwrap();
+        store.finish_processing(id, None).unwrap();
+        // The daily retention sweep, between Reanalyze's check and `reopen`.
+        assert!(store.delete_audio(id).unwrap());
+
+        assert!(!store.reopen(id).unwrap());
+        assert_eq!(store.get(id).unwrap().unwrap().status, MeetingStatus::Ready);
+    }
+
+    #[test]
     fn a_meeting_can_be_renamed_and_given_back_its_default_name() {
         let (_dir, store) = store();
         let id = recorded(&store);
@@ -1767,6 +1978,79 @@ mod tests {
         assert!(!store.audio_compressed(id, 4_200).unwrap());
         assert!(store.waiting_for_processing().unwrap().is_empty());
         assert!(!store.retranscribe(id).unwrap());
+    }
+
+    #[test]
+    fn audio_that_failed_to_compress_three_times_is_no_longer_requeued() {
+        let (_dir, store) = store();
+        let id = ready(&store);
+        store.save_summary(id, None, "Notes.").unwrap();
+        for _ in 0..2 {
+            store.compress_failed(id).unwrap();
+        }
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+
+        store.compress_failed(id).unwrap();
+        assert!(store.waiting_for_processing().unwrap().is_empty());
+        // The tracks stay: the meeting plays and transcribes again.
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        assert!(store.retranscribe(id).unwrap());
+        assert_eq!(store.waiting_for_processing().unwrap(), [id]);
+    }
+
+    #[test]
+    fn the_audio_a_recording_dropped_is_kept_with_the_meeting() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.dropped_ms(id).unwrap(), 0);
+        store.set_dropped_ms(id, 1_250).unwrap();
+        assert_eq!(store.dropped_ms(id).unwrap(), 1_250);
+    }
+
+    #[test]
+    fn a_meeting_keeps_where_it_played_sound() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.output_route(id).unwrap(), OutputRoute::Unknown);
+        store.set_output_route(id, OutputRoute::Headphones).unwrap();
+        assert_eq!(store.output_route(id).unwrap(), OutputRoute::Headphones);
+    }
+
+    #[test]
+    fn each_sleep_during_a_recording_adds_to_the_time_asleep() {
+        let (_dir, store) = store();
+        let id = recorded(&store);
+        assert_eq!(store.slept_ms(id).unwrap(), 0);
+        store.add_slept_ms(id, 1_200_000).unwrap();
+        store.add_slept_ms(id, 30_000).unwrap();
+        assert_eq!(store.slept_ms(id).unwrap(), 1_230_000);
+    }
+
+    #[test]
+    fn a_row_marked_as_a_later_part_reads_as_a_meeting_of_its_own() {
+        let (_dir, store) = store();
+        let first = recorded(&store);
+        let second = recorded(&store);
+        store
+            .connection()
+            .unwrap()
+            .execute(
+                "UPDATE meetings SET previous_id = ?1, part = 2 WHERE id = ?2",
+                params![first, second],
+            )
+            .unwrap();
+
+        for id in [first, second] {
+            let detail = serde_json::to_value(store.get(id).unwrap().unwrap()).unwrap();
+            for key in ["part", "previous_id", "next_id"] {
+                assert!(detail.get(key).is_none(), "meeting {id} has {key}");
+            }
+        }
+        for item in store.list(None, 10).unwrap().meetings {
+            let item = serde_json::to_value(item).unwrap();
+            assert!(item.get("part").is_none(), "{item}");
+        }
     }
 
     #[test]
@@ -1929,8 +2213,17 @@ mod tests {
         store.rename(edited, Some("Notes sur [[s1]]")).unwrap();
         // The library as 1.7.6 left it.
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch("DROP TABLE meeting_last_id; PRAGMA user_version = 6;")
-            .unwrap();
+        conn.execute_batch(
+            "DROP TABLE meeting_last_id;
+             ALTER TABLE meetings DROP COLUMN dropped_ms;
+             ALTER TABLE meetings DROP COLUMN compress_failures;
+             ALTER TABLE meetings DROP COLUMN slept_ms;
+             ALTER TABLE meetings DROP COLUMN previous_id;
+             ALTER TABLE meetings DROP COLUMN part;
+             ALTER TABLE meetings DROP COLUMN output_route;
+             PRAGMA user_version = 6;",
+        )
+        .unwrap();
         drop(conn);
 
         let (store, startup) = MeetingsStore::open(path, now());

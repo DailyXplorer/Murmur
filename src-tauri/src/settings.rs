@@ -222,6 +222,22 @@ pub enum MeetingCaptureMode {
     MicOnly,
 }
 
+/// How long a processed meeting keeps its audio. Its transcript and summary
+/// stay either way. The names are spelled out: serde and the TypeScript
+/// bindings split `Days7` differently.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+pub enum MeetingAudioRetention {
+    #[default]
+    #[serde(rename = "keep")]
+    Keep,
+    #[serde(rename = "days7")]
+    Days7,
+    #[serde(rename = "days30")]
+    Days30,
+    #[serde(rename = "days90")]
+    Days90,
+}
+
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// makes every field, including ones added later, fall back to its
 /// `get_default_settings()` value when missing from a stored settings object,
@@ -338,6 +354,12 @@ pub struct AppSettings {
     pub meetings_enabled: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
+    #[serde(default)]
+    pub meeting_audio_retention: MeetingAudioRetention,
+    /// Offers to record when a call app starts using the microphone. Only
+    /// while meetings are on.
+    #[serde(default = "default_meeting_call_prompt")]
+    pub meeting_call_prompt: bool,
     /// Which engine transcribes dictations.
     #[serde(default)]
     pub transcription_engine: Engine,
@@ -367,6 +389,10 @@ impl AppSettings {
 }
 
 fn default_meetings_enabled() -> bool {
+    true
+}
+
+fn default_meeting_call_prompt() -> bool {
     true
 }
 
@@ -585,6 +611,8 @@ pub fn get_default_settings() -> AppSettings {
         overlay_style: default_overlay_style(),
         meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
+        meeting_audio_retention: MeetingAudioRetention::default(),
+        meeting_call_prompt: default_meeting_call_prompt(),
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
@@ -933,6 +961,16 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
             let map = merged
                 .as_object_mut()
                 .expect("merged settings stay an object");
+            // The default keeps 5 dictations: an unknown period deletes
+            // none, as after a damaged file.
+            if key == "recording_retention_period" {
+                map.insert(
+                    key.clone(),
+                    serde_json::to_value(RecordingRetentionPeriod::Never)
+                        .expect("a retention period serializes"),
+                );
+                continue;
+            }
             match previous {
                 Some(previous) => map.insert(key.clone(), previous),
                 None => map.remove(key),
@@ -1216,6 +1254,22 @@ mod tests {
         assert_eq!(salvaged.sound_theme, default_sound_theme());
     }
 
+    /// The default keeps only the latest 5 dictations, so an unknown period
+    /// must not fall back to it and delete the rest of the history.
+    #[test]
+    fn salvage_of_an_unknown_retention_period_deletes_no_history() {
+        let mut stored = default_settings_json();
+        stored["recording_retention_period"] = serde_json::json!("years1");
+        stored["history_limit"] = serde_json::json!(5);
+        assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
+
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(
+            salvaged.recording_retention_period,
+            RecordingRetentionPeriod::Never
+        );
+    }
+
     /// Gemini and Apple Intelligence were removed, so Codex is the only
     /// service. A store that chose either, or a value no build knows, keeps
     /// every other setting and is rewritten without the old choice.
@@ -1485,6 +1539,54 @@ mod tests {
             serde_json::to_value(MeetingCaptureMode::SystemOnly).unwrap(),
             "system_only"
         );
+    }
+
+    #[test]
+    fn settings_saved_before_call_prompts_offer_them() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_call_prompt");
+
+        assert!(parse_stored_settings(&stored).0.meeting_call_prompt);
+        assert!(get_default_settings().meeting_call_prompt);
+        stored["meeting_call_prompt"] = serde_json::json!(false);
+        assert!(!parse_stored_settings(&stored).0.meeting_call_prompt);
+    }
+
+    #[test]
+    fn settings_saved_before_audio_retention_keep_meeting_audio() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_audio_retention");
+
+        let (settings, _) = parse_stored_settings(&stored);
+
+        assert_eq!(
+            settings.meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        assert_eq!(
+            get_default_settings().meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        // The values the settings page sends, as `src/bindings.ts` types them.
+        for (sent, retention) in [
+            ("keep", MeetingAudioRetention::Keep),
+            ("days7", MeetingAudioRetention::Days7),
+            ("days30", MeetingAudioRetention::Days30),
+            ("days90", MeetingAudioRetention::Days90),
+        ] {
+            stored["meeting_audio_retention"] = serde_json::json!(sent);
+            assert_eq!(
+                parse_stored_settings(&stored).0.meeting_audio_retention,
+                retention
+            );
+            assert_eq!(serde_json::to_value(retention).unwrap(), sent);
+        }
     }
 
     #[test]

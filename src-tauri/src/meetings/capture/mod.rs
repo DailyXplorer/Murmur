@@ -9,13 +9,14 @@
 //! means the same moment in both files.
 
 pub mod mic;
+pub mod route;
 pub mod system;
 
 use std::fs::{File, OpenOptions};
 use std::io::BufWriter;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -35,6 +36,10 @@ const BYTES_PER_SAMPLE: u64 = 2;
 /// How often the header is rewritten, which bounds what a crash can lose
 /// track of (`wav_recovery` restores the rest from the file length).
 const HEADER_FLUSH_INTERVAL: Duration = Duration::from_secs(5);
+/// How often the track is forced to the disk (`F_FULLFSYNC` on macOS), which
+/// bounds what a power cut can lose. A slow sync only delays the writer: the
+/// queue holds several seconds.
+const SYNC_INTERVAL: Duration = Duration::from_secs(10);
 /// Audio callbacks deliver every few milliseconds; this holds several seconds.
 const QUEUE_CHUNKS: usize = 1024;
 
@@ -68,9 +73,15 @@ enum Message {
 }
 
 /// Hands mono audio from a capture callback to its writer. It never blocks:
-/// a full queue drops the chunk, and the gap is filled with silence.
+/// a full queue drops the chunk, counts it, and the gap is filled with
+/// silence.
 #[derive(Clone)]
-pub struct Feeder(SyncSender<Message>);
+pub struct Feeder {
+    sender: SyncSender<Message>,
+    /// Microseconds of audio dropped, so chunks shorter than a millisecond
+    /// still add up.
+    dropped_us: Arc<AtomicU64>,
+}
 
 impl Feeder {
     /// Called from the capture callback as the chunk arrives, which stamps it.
@@ -78,42 +89,73 @@ impl Feeder {
         self.push_at(data, sample_rate, Instant::now());
     }
 
-    fn push_at(&self, data: Vec<f32>, sample_rate: u32, captured: Instant) {
-        if sample_rate > 0 && !data.is_empty() {
-            let _ = self.0.try_send(Message::Samples {
-                data,
-                sample_rate,
-                captured,
-            });
+    pub(crate) fn push_at(&self, data: Vec<f32>, sample_rate: u32, captured: Instant) {
+        if sample_rate == 0 || data.is_empty() {
+            return;
+        }
+        let length = data.len() as u64;
+        let sent = self.sender.try_send(Message::Samples {
+            data,
+            sample_rate,
+            captured,
+        });
+        // A disconnected writer failed already, and stops the meeting.
+        if let Err(TrySendError::Full(_)) = sent {
+            self.dropped_us.fetch_add(
+                length * 1_000_000 / u64::from(sample_rate),
+                Ordering::Relaxed,
+            );
         }
     }
 }
 
+/// Forces what was written of the track to the disk.
+type SyncHook = Box<dyn FnMut(&File) -> std::io::Result<()> + Send>;
+
 pub struct TrackWriter {
     sender: SyncSender<Message>,
     failed: Arc<AtomicBool>,
+    dropped_us: Arc<AtomicU64>,
     thread: JoinHandle<Result<u64, String>>,
 }
 
 impl TrackWriter {
     /// Creates the WAV at `path`; `origin` is when the meeting started.
     pub fn create(path: &Path, origin: Instant) -> Result<Self, String> {
+        Self::with_sync(path, origin, SYNC_INTERVAL, Box::new(File::sync_data))
+    }
+
+    fn with_sync(
+        path: &Path,
+        origin: Instant,
+        sync_interval: Duration,
+        sync: SyncHook,
+    ) -> Result<Self, String> {
         let spec = hound::WavSpec {
             channels: 1,
             sample_rate: TARGET_SAMPLE_RATE,
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,
         };
-        let wav = hound::WavWriter::create(path, spec)
-            .map_err(|error| format!("Cannot create {}: {error}", path.display()))?;
+        let cannot_create =
+            |error: &dyn std::fmt::Display| format!("Cannot create {}: {error}", path.display());
+        let file = File::create(path).map_err(|error| cannot_create(&error))?;
+        let handle = file.try_clone().map_err(|error| cannot_create(&error))?;
+        let wav = hound::WavWriter::new(BufWriter::new(file), spec)
+            .map_err(|error| cannot_create(&error))?;
         let (sender, receiver) = mpsc::sync_channel(QUEUE_CHUNKS);
         let path = path.to_path_buf();
         let failed = Arc::new(AtomicBool::new(false));
         let thread_failed = Arc::clone(&failed);
+        let disk = Disk {
+            file: handle,
+            interval: sync_interval,
+            sync,
+        };
         let thread = std::thread::Builder::new()
             .name("meeting-track-writer".into())
             .spawn(move || {
-                let result = write_track(wav, &path, receiver, origin);
+                let result = write_track(wav, &path, receiver, origin, disk);
                 if let Err(error) = &result {
                     log::error!("Meeting track writer failed: {error}");
                     thread_failed.store(true, Ordering::SeqCst);
@@ -124,17 +166,26 @@ impl TrackWriter {
         Ok(Self {
             sender,
             failed,
+            dropped_us: Arc::default(),
             thread,
         })
     }
 
     pub fn feeder(&self) -> Feeder {
-        Feeder(self.sender.clone())
+        Feeder {
+            sender: self.sender.clone(),
+            dropped_us: Arc::clone(&self.dropped_us),
+        }
     }
 
     /// The file can no longer be written (for example, the disk is full).
     pub fn failed(&self) -> bool {
         self.failed.load(Ordering::SeqCst)
+    }
+
+    /// Audio the writer could not keep up with, recorded as silence.
+    pub fn dropped_ms(&self) -> u64 {
+        self.dropped_us.load(Ordering::Relaxed) / 1_000
     }
 
     /// Writes what is queued, pads or cuts the track to exactly `duration`,
@@ -152,11 +203,26 @@ impl TrackWriter {
 
 type Wav = hound::WavWriter<BufWriter<File>>;
 
+/// The track's file as the disk sees it.
+struct Disk {
+    /// A second handle on the file the WAV writer owns.
+    file: File,
+    interval: Duration,
+    sync: SyncHook,
+}
+
+impl Disk {
+    fn sync(&mut self) -> Result<(), String> {
+        (self.sync)(&self.file).map_err(|error| format!("Cannot sync the track: {error}"))
+    }
+}
+
 fn write_track(
     mut wav: Wav,
     path: &Path,
     receiver: Receiver<Message>,
     origin: Instant,
+    mut disk: Disk,
 ) -> Result<u64, String> {
     let mut resampler: Option<(u32, FrameResampler)> = None;
     let mut written = 0u64;
@@ -164,6 +230,7 @@ fn write_track(
     // sample lands on the meeting timeline.
     let mut placed = 0f64;
     let mut last_flush = Instant::now();
+    let mut last_sync = Instant::now();
     loop {
         match receiver.recv_timeout(Duration::from_millis(250)) {
             Ok(Message::Samples {
@@ -219,18 +286,25 @@ fn write_track(
                     truncate(path, written, total)?;
                     written = total;
                 }
+                disk.sync()?;
                 return Ok(written);
             }
             Err(RecvTimeoutError::Timeout) => {}
             // The capture was dropped without finishing: keep what was written.
             Err(RecvTimeoutError::Disconnected) => {
                 wav.finalize().map_err(|error| error.to_string())?;
+                disk.sync()?;
                 return Ok(written);
             }
         }
-        if last_flush.elapsed() >= HEADER_FLUSH_INTERVAL {
+        let sync_due = last_sync.elapsed() >= disk.interval;
+        if sync_due || last_flush.elapsed() >= HEADER_FLUSH_INTERVAL {
             wav.flush().map_err(|error| error.to_string())?;
             last_flush = Instant::now();
+        }
+        if sync_due {
+            disk.sync()?;
+            last_sync = Instant::now();
         }
     }
 }
@@ -331,6 +405,15 @@ impl CaptureBackend for DeviceCapture {
     /// when the tap starts.
     fn system_audio_denied(&self) -> bool {
         system::permission() == system::SystemAudioPermission::Denied
+    }
+
+    fn keep_awake(&self) -> Option<Box<dyn Send>> {
+        let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
+        Some(Box::new(guard))
+    }
+
+    fn output_route(&self) -> route::OutputRoute {
+        route::OutputRoute::of(system::output_route_facts())
     }
 }
 
@@ -554,6 +637,101 @@ mod tests {
             "two seconds of audio end at sample {last}"
         );
         assert_eq!(samples.len(), 48_000);
+    }
+
+    /// Stamps `count` chunks of 10 ms at 16 kHz, a loud constant, one after
+    /// the other from the meeting start.
+    fn push_chunks(feeder: &Feeder, origin: Instant, from: usize, count: usize) {
+        for index in from..from + count {
+            let captured = origin + Duration::from_millis(10 * (index as u64 + 1));
+            feeder.push_at(vec![0.5; 160], 16_000, captured);
+        }
+    }
+
+    #[test]
+    fn audio_a_full_queue_cannot_take_is_counted_as_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(MIC_TRACK);
+        let origin = Instant::now();
+        // The writer stalls in its first sync until the gate closes, as on a
+        // disk that stops answering, so the queue fills up behind it.
+        let (gate, stalled) = mpsc::channel::<()>();
+        let writer = TrackWriter::with_sync(
+            &path,
+            origin,
+            Duration::ZERO,
+            Box::new(move |_| {
+                let _ = stalled.recv();
+                Ok(())
+            }),
+        )
+        .unwrap();
+        let feeder = writer.feeder();
+        push_chunks(&feeder, origin, 0, 1);
+        std::thread::sleep(Duration::from_millis(300));
+        push_chunks(&feeder, origin, 1, QUEUE_CHUNKS + 100);
+        assert_eq!(writer.dropped_ms(), 1_000, "100 chunks of 10 ms");
+        drop(gate);
+
+        let pushed = (QUEUE_CHUNKS + 101) * 160;
+        writer
+            .finish(Duration::from_millis(10 * (QUEUE_CHUNKS as u64 + 101)))
+            .unwrap();
+
+        let (_, samples) = read(&path);
+        let written = samples.iter().filter(|s| s.abs() > 8_000).count();
+        assert_eq!((pushed - written) * 1_000 / 16_000, 1_000);
+        assert_eq!(samples.len(), pushed, "the gap is filled with silence");
+    }
+
+    #[test]
+    fn a_recording_track_is_synced_to_disk_at_each_interval() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SYSTEM_TRACK);
+        let origin = Instant::now();
+        let syncs = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = Arc::clone(&syncs);
+        // The writer wakes at least every 250 ms.
+        let interval = Duration::from_millis(600);
+        let writer = TrackWriter::with_sync(
+            &path,
+            origin,
+            interval,
+            Box::new(move |file| {
+                counted.fetch_add(1, Ordering::SeqCst);
+                file.sync_data()
+            }),
+        )
+        .unwrap();
+        push_chunks(&writer.feeder(), origin, 0, 10);
+
+        std::thread::sleep(interval * 2);
+        assert!(syncs.load(Ordering::SeqCst) >= 1, "synced while recording");
+        let before = syncs.load(Ordering::SeqCst);
+        writer.finish(Duration::from_secs(1)).unwrap();
+        assert!(syncs.load(Ordering::SeqCst) > before, "synced once closed");
+        assert_eq!(read(&path).1.len(), 16_000);
+    }
+
+    #[test]
+    fn a_track_that_cannot_be_synced_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let origin = Instant::now();
+        let writer = TrackWriter::with_sync(
+            &dir.path().join(MIC_TRACK),
+            origin,
+            Duration::ZERO,
+            Box::new(|_| Err(std::io::Error::other("input/output error"))),
+        )
+        .unwrap();
+        push_chunks(&writer.feeder(), origin, 0, 1);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !writer.failed() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(writer.failed());
+        assert!(writer.finish(Duration::from_secs(1)).is_err());
     }
 
     #[test]

@@ -7,6 +7,7 @@ use crate::meetings::coordinator::MeetingAlert;
 use crate::settings::{get_settings, SettingsRecovery};
 use crate::transcription_error::FailureKind;
 use crate::tray_i18n::{get_tray_translations, TrayStrings};
+use chrono::TimeZone;
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 
@@ -28,6 +29,13 @@ pub enum Alert {
     HistoryReset,
     SettingsRecovered(SettingsRecovery),
     Meeting(MeetingAlert),
+    /// At launch: meetings a crash cut off are being processed.
+    MeetingsRecovered {
+        count: usize,
+    },
+    /// At launch: the meetings library was damaged or deleted, and its
+    /// meetings were set aside.
+    MeetingsReset,
 }
 
 impl Alert {
@@ -42,13 +50,14 @@ impl Alert {
         )
     }
 
-    fn message(&self, strings: &TrayStrings) -> String {
+    /// The text in `language`, whose `strings` the caller looked up.
+    fn message(&self, strings: &TrayStrings, language: &str) -> String {
         match self {
             Self::Transcription(kind) => match kind {
                 FailureKind::Network => &strings.error_network,
                 FailureKind::Timeout => &strings.error_timeout,
                 FailureKind::RateLimited => &strings.error_rate_limited,
-                FailureKind::ServerError => &strings.error_server,
+                FailureKind::ServerError | FailureKind::ConnectionDropped => &strings.error_server,
                 FailureKind::SessionExpired => &strings.error_session_expired,
                 FailureKind::SignedOut => &strings.error_signed_out,
                 FailureKind::TooLarge => &strings.error_too_large,
@@ -88,10 +97,32 @@ impl Alert {
                 MeetingAlert::MicrophoneInterrupted => &strings.meeting_microphone_interrupted,
                 MeetingAlert::MicrophoneDenied => &strings.meeting_microphone_denied,
                 MeetingAlert::SystemAudioDenied => &strings.meeting_system_audio_denied,
+                MeetingAlert::AudioDropped => &strings.meeting_audio_dropped,
+                MeetingAlert::PausedWhileAsleep { from_ms, to_ms } => {
+                    return strings
+                        .meeting_paused_while_asleep
+                        .replace("{{from}}", &clock_time(*from_ms, language))
+                        .replace("{{to}}", &clock_time(*to_ms, language))
+                }
             }
             .clone(),
+            Self::MeetingsRecovered { count: 1 } => strings.meeting_recovered.clone(),
+            Self::MeetingsRecovered { count } => strings
+                .meetings_recovered
+                .replace("{{count}}", &count.to_string()),
+            Self::MeetingsReset => strings.meetings_reset.clone(),
         }
     }
+}
+
+/// The time of day on this Mac: "3:42 PM" in English, "15:42" otherwise.
+fn clock_time(unix_ms: i64, language: &str) -> String {
+    let Some(time) = chrono::Local.timestamp_millis_opt(unix_ms).single() else {
+        return String::new();
+    };
+    let english = language.to_lowercase().starts_with("en");
+    time.format(if english { "%-I:%M %p" } else { "%H:%M" })
+        .to_string()
 }
 
 /// "option+space" becomes "Option+Space".
@@ -110,8 +141,9 @@ fn display_shortcut(shortcut: &str) -> String {
 }
 
 pub fn show(app: &AppHandle, alert: Alert) {
-    let strings = get_tray_translations(Some(get_settings(app).app_language));
-    let message = alert.message(&strings);
+    let language = get_settings(app).app_language;
+    let strings = get_tray_translations(Some(language.clone()));
+    let message = alert.message(&strings, &language);
     if alert.belongs_in_overlay() && crate::overlay::show_error_overlay(app, message.clone()) {
         return;
     }
@@ -148,7 +180,7 @@ mod tests {
         ];
         let messages: std::collections::HashSet<_> = kinds
             .iter()
-            .map(|kind| Alert::Transcription(*kind).message(&strings))
+            .map(|kind| Alert::Transcription(*kind).message(&strings, "en"))
             .collect();
         assert_eq!(messages.len(), kinds.len());
         assert!(messages.iter().all(|message| !message.is_empty()));
@@ -169,10 +201,15 @@ mod tests {
             MeetingAlert::MicrophoneInterrupted,
             MeetingAlert::MicrophoneDenied,
             MeetingAlert::SystemAudioDenied,
+            MeetingAlert::PausedWhileAsleep {
+                from_ms: 1_760_000_000_000,
+                to_ms: 1_760_001_200_000,
+            },
+            MeetingAlert::AudioDropped,
         ];
         let messages: std::collections::HashSet<_> = alerts
             .iter()
-            .map(|alert| Alert::Meeting(*alert).message(&strings))
+            .map(|alert| Alert::Meeting(*alert).message(&strings, "fr"))
             .collect();
         assert_eq!(messages.len(), alerts.len());
         assert!(alerts
@@ -181,12 +218,54 @@ mod tests {
     }
 
     #[test]
+    fn recovered_meetings_are_told_in_one_notification_with_their_count() {
+        for language in ["en", "fr", "es", "de", "it", "pt"] {
+            let strings = get_tray_translations(Some(language.to_string()));
+            let one = Alert::MeetingsRecovered { count: 1 }.message(&strings, language);
+            let three = Alert::MeetingsRecovered { count: 3 }.message(&strings, language);
+            assert!(!one.is_empty() && !one.contains("{{"), "{language}: {one}");
+            assert!(
+                three.contains('3') && !three.contains("{{"),
+                "{language}: {three}"
+            );
+            assert_ne!(one, three);
+            assert!(!Alert::MeetingsRecovered { count: 1 }.belongs_in_overlay());
+        }
+    }
+
+    #[test]
+    fn a_sleep_during_a_meeting_is_told_with_the_times_nothing_was_recorded() {
+        let from = chrono::Local
+            .with_ymd_and_hms(2026, 10, 22, 14, 5, 0)
+            .unwrap()
+            .timestamp_millis();
+        let alert = Alert::Meeting(MeetingAlert::PausedWhileAsleep {
+            from_ms: from,
+            to_ms: from + 20 * 60_000,
+        });
+        assert_eq!(
+            alert.message(&get_tray_translations(Some("en".to_string())), "en"),
+            "Your Mac slept during the meeting. Nothing was recorded from 2:05 PM to 2:25 PM."
+        );
+        let french = alert.message(&get_tray_translations(Some("fr".to_string())), "fr");
+        assert!(french.contains("de 14:05 à 14:25"), "{french}");
+        for language in ["es", "de", "it", "pt"] {
+            let message =
+                alert.message(&get_tray_translations(Some(language.to_string())), language);
+            assert!(
+                message.contains("14:05") && message.contains("14:25") && !message.contains("{{"),
+                "{language}: {message}"
+            );
+        }
+    }
+
+    #[test]
     fn shortcut_message_names_the_shortcut() {
         let strings = get_tray_translations(Some("en".to_string()));
         let message = Alert::ShortcutUnavailable {
             shortcut: "option+space".to_string(),
         }
-        .message(&strings);
+        .message(&strings, "en");
         assert!(message.contains("Option+Space"), "{message}");
         assert!(!message.contains("{{"));
     }
