@@ -72,6 +72,7 @@ type FailureKind =
   | "timeout"
   | "rate_limited"
   | "server_error"
+  | "connection_dropped"
   | "session_expired"
   | "signed_out"
   | "too_large"
@@ -92,6 +93,7 @@ const FAILURE_MESSAGE_KEYS: Record<FailureKind, string> = {
   timeout: "tray.errorTimeout",
   rate_limited: "tray.errorRateLimited",
   server_error: "tray.errorServer",
+  connection_dropped: "tray.errorServer",
   session_expired: "tray.errorSessionExpired",
   signed_out: "tray.errorSignedOut",
   too_large: "tray.errorTooLarge",

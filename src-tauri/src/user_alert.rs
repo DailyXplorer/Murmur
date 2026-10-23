@@ -54,7 +54,7 @@ impl Alert {
                 FailureKind::Network => &strings.error_network,
                 FailureKind::Timeout => &strings.error_timeout,
                 FailureKind::RateLimited => &strings.error_rate_limited,
-                FailureKind::ServerError => &strings.error_server,
+                FailureKind::ServerError | FailureKind::ConnectionDropped => &strings.error_server,
                 FailureKind::SessionExpired => &strings.error_session_expired,
                 FailureKind::SignedOut => &strings.error_signed_out,
                 FailureKind::TooLarge => &strings.error_too_large,
