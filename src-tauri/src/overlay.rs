@@ -2,6 +2,7 @@ use crate::input;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
 use crate::tray_i18n::get_tray_translations;
+use crate::ProcessingOperation;
 use block2::RcBlock;
 use objc2_app_kit::NSEventMask;
 use std::cell::RefCell;
@@ -418,22 +419,30 @@ pub fn show_copy_notice(
     true
 }
 
-/// Holds the microphone warning as the notice, unless the copy pill shows:
-/// it carries the warning already, and its Copy must keep its text.
-fn hold_mic_lost_notice(notice: &mut Option<Notice>) -> bool {
-    if matches!(notice, Some(Notice::Copy { .. })) {
+/// Holds the microphone warning as `operation`'s notice, unless the copy
+/// pill shows: it carries the warning already, and its Copy must keep its
+/// text. A cancelled operation holds nothing: a newer dictation may own the
+/// overlay since its cancel.
+fn hold_mic_lost_notice(notice: &mut Option<Notice>, operation: &ProcessingOperation) -> bool {
+    if matches!(notice, Some(Notice::Copy { .. })) || operation.is_cancelled() {
         return false;
     }
     *notice = Some(Notice::MicLost);
     true
 }
 
-/// Says the microphone went away during the dictation, in a pill shown and
-/// dismissed like the copy pill, without its action. Nothing shows when the
-/// overlay is disabled.
-pub fn show_mic_lost_notice(app_handle: &AppHandle) {
+/// Says the microphone went away during `operation`'s dictation, in a pill
+/// shown and dismissed like the copy pill, without its action. Nothing shows
+/// when the overlay is disabled or the operation was cancelled.
+pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperation) {
     let settings = settings::get_settings(app_handle);
-    if settings.overlay_style == OverlayStyle::None || !hold_mic_lost_notice(&mut notice()) {
+    if settings.overlay_style == OverlayStyle::None {
+        return;
+    }
+    // Held until the pill is queued, so a recording that starts after the
+    // cancel check queues its own state after it, with a later generation.
+    let mut held = notice();
+    if !hold_mic_lost_notice(&mut held, operation) {
         return;
     }
     let message = get_tray_translations(Some(settings.app_language)).overlay_mic_disconnected;
@@ -450,6 +459,7 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle) {
             let _ = window.emit("show-overlay-warning", message);
         }
     });
+    drop(held);
     dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME, true);
 }
 
@@ -996,7 +1006,7 @@ mod tests {
         let (mut notice, pasteboard) = copy_pill("the dictated text");
 
         assert!(!dictation_takes_overlay(&mut notice, "transcribing"));
-        assert!(!hold_mic_lost_notice(&mut notice));
+        assert!(!hold_mic_lost_notice(&mut notice, &operation(1)));
 
         assert_eq!(click_copy(&notice), Ok(()));
         assert_eq!(pasteboard.lock().unwrap().as_slice(), ["the dictated text"]);
@@ -1010,7 +1020,10 @@ mod tests {
     #[test]
     fn the_microphone_warning_is_fitted_and_dismissed_like_the_copy_pill() {
         let mut notice = Some(Notice::Error);
-        assert!(hold_mic_lost_notice(&mut notice), "it replaces an error");
+        assert!(
+            hold_mic_lost_notice(&mut notice, &operation(1)),
+            "it replaces an error"
+        );
         assert!(matches!(notice, Some(Notice::MicLost)));
 
         assert!(notice.as_ref().is_some_and(Notice::is_fitted));
@@ -1028,5 +1041,58 @@ mod tests {
             "a dictation still replaces an error"
         );
         assert!(error.is_none());
+    }
+
+    fn operation(id: u64) -> ProcessingOperation {
+        ProcessingOperation::new(crate::OperationId(id))
+    }
+
+    #[test]
+    fn a_dictation_cancelled_during_its_history_save_leaves_the_next_ones_overlay() {
+        let overlay = Arc::new(Mutex::new(None::<Notice>));
+        let old = operation(1);
+        let (saving_tx, saving_rx) = std::sync::mpsc::channel();
+        let (saved_tx, saved_rx) = std::sync::mpsc::channel::<()>();
+        let pipeline = {
+            let overlay = Arc::clone(&overlay);
+            let old = old.clone();
+            std::thread::spawn(move || {
+                // Its text came back empty with the microphone lost: it
+                // passed the cancel check and now saves its history row.
+                assert!(!old.is_cancelled());
+                saving_tx.send(()).unwrap();
+                saved_rx.recv().unwrap();
+                hold_mic_lost_notice(&mut overlay.lock().unwrap(), &old)
+            })
+        };
+
+        saving_rx.recv().unwrap();
+        // The user cancels; nothing was pasted, so the coordinator is idle
+        // at once and the next dictation starts.
+        assert!(old.cancel());
+        assert!(dictation_takes_overlay(
+            &mut overlay.lock().unwrap(),
+            "recording"
+        ));
+        saved_tx.send(()).unwrap();
+
+        assert!(!pipeline.join().unwrap(), "the old warning is not shown");
+        let mut overlay = overlay.lock().unwrap();
+        assert!(overlay.is_none());
+        assert!(
+            dictation_takes_overlay(&mut overlay, "transcribing"),
+            "the new dictation still shows its transcribing state"
+        );
+    }
+
+    #[test]
+    fn a_cancel_after_the_paste_keeps_the_microphone_warning() {
+        // Text already pasted cannot be taken back, so its warning stands.
+        let pasted = operation(1);
+        assert!(pasted.try_enter_paste().is_some());
+        assert!(!pasted.cancel());
+        let mut notice = None;
+        assert!(hold_mic_lost_notice(&mut notice, &pasted));
+        assert!(matches!(notice, Some(Notice::MicLost)));
     }
 }
