@@ -446,6 +446,10 @@ pub(crate) async fn paste(
     operation: ProcessingOperation,
     mic_lost: bool,
 ) -> Result<PasteOutcome, String> {
+    // Windows has no Accessibility-based copy pill; its warning is shown by
+    // the dictation pipeline after pasting instead.
+    #[cfg(target_os = "windows")]
+    let _ = mic_lost;
     if operation.cancellation_requested() {
         return Ok(PasteOutcome::Cancelled);
     }
