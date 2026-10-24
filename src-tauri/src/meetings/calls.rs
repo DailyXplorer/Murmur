@@ -55,6 +55,11 @@ pub enum Browser {
     EdgeBeta,
     Brave,
     Helium,
+    Vivaldi,
+    Opera,
+    Chromium,
+    Dia,
+    Comet,
     Firefox,
 }
 
@@ -72,6 +77,11 @@ impl Browser {
             Self::EdgeBeta => "com.microsoft.edgemac.Beta",
             Self::Brave => "com.brave.Browser",
             Self::Helium => "net.imput.helium",
+            Self::Vivaldi => "com.vivaldi.Vivaldi",
+            Self::Opera => "com.operasoftware.Opera",
+            Self::Chromium => "org.chromium.Chromium",
+            Self::Dia => "company.thebrowser.dia",
+            Self::Comet => "ai.perplexity.comet",
             Self::Firefox => "org.mozilla.firefox",
         }
     }
@@ -94,7 +104,7 @@ pub enum MicApp {
     Browser(Browser),
 }
 
-const MIC_APPS: [(&str, MicApp); 22] = [
+const MIC_APPS: [(&str, MicApp); 27] = [
     ("us.zoom.xos", MicApp::Call(CallApp::Zoom)),
     ("com.microsoft.teams2", MicApp::Call(CallApp::Teams)),
     ("com.microsoft.teams", MicApp::Call(CallApp::Teams)),
@@ -114,6 +124,11 @@ const MIC_APPS: [(&str, MicApp); 22] = [
     ("com.microsoft.edgemac", MicApp::Browser(Browser::Edge)),
     ("com.brave.Browser", MicApp::Browser(Browser::Brave)),
     ("net.imput.helium", MicApp::Browser(Browser::Helium)),
+    ("com.vivaldi.Vivaldi", MicApp::Browser(Browser::Vivaldi)),
+    ("com.operasoftware.Opera", MicApp::Browser(Browser::Opera)),
+    ("org.chromium.Chromium", MicApp::Browser(Browser::Chromium)),
+    ("company.thebrowser.dia", MicApp::Browser(Browser::Dia)),
+    ("ai.perplexity.comet", MicApp::Browser(Browser::Comet)),
     ("org.mozilla.firefox", MicApp::Browser(Browser::Firefox)),
     // Firefox's pages run in this process.
     (
@@ -742,39 +757,89 @@ mod tests {
             mic_app("com.google.Chrome.beta.helper"),
             Some(MicApp::Browser(Browser::ChromeBeta))
         );
-        assert_eq!(
-            mic_app("net.imput.helium.helper"),
-            Some(MicApp::Browser(Browser::Helium))
-        );
+        for (bundle_id, browser) in [
+            ("net.imput.helium.helper", Browser::Helium),
+            ("com.vivaldi.Vivaldi.helper", Browser::Vivaldi),
+            ("com.operasoftware.Opera.helper", Browser::Opera),
+            ("org.chromium.Chromium.helper", Browser::Chromium),
+            ("company.thebrowser.dia.helper", Browser::Dia),
+            ("ai.perplexity.comet.helper", Browser::Comet),
+            // Dia's id must not fall back to Arc's, nor Arc's to Dia's.
+            ("company.thebrowser.Browser.helper", Browser::Arc),
+        ] {
+            assert_eq!(
+                mic_app(bundle_id),
+                Some(MicApp::Browser(browser)),
+                "{bundle_id}"
+            );
+        }
+    }
+
+    const TITLES_ONLY_CHROMIUM_BROWSERS: [&str; 6] = [
+        "net.imput.helium",
+        "com.vivaldi.Vivaldi",
+        "com.operasoftware.Opera",
+        "org.chromium.Chromium",
+        "company.thebrowser.dia",
+        "ai.perplexity.comet",
+    ];
+
+    #[test]
+    fn a_meet_call_in_another_chromium_browser_prompts_from_its_window_titles() {
+        for bundle_id in TITLES_ONLY_CHROMIUM_BROWSERS {
+            // The browser takes the microphone in its helper, with Chrome open
+            // too.
+            let users = [user(500, &format!("{bundle_id}.helper"))];
+            let windows = [
+                ("com.google.Chrome", "Voice memo"),
+                (bundle_id, "Meet - abc-defg-hij"),
+            ];
+            let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+                assert!(!browser.reads_url(), "{bundle_id}: titles only, as Arc");
+                // Same exact app-selection predicate as call_watch::browser_call.
+                windows.iter().find_map(|(running_id, title)| {
+                    (*running_id == browser.bundle_id())
+                        .then(|| meeting_title(title))
+                        .flatten()
+                })
+            });
+            assert_eq!(calls, [CallApp::GoogleMeet], "{bundle_id}");
+
+            // A meeting window in Chrome must not turn this browser's
+            // microphone use into a call.
+            let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+                (browser.bundle_id() == "com.google.Chrome")
+                    .then(|| meeting_title("Meet - abc-defg-hij"))
+                    .flatten()
+            });
+            assert_eq!(calls, [], "{bundle_id}");
+        }
     }
 
     #[test]
-    fn a_meet_call_in_helium_prompts_from_its_window_titles() {
-        // Helium takes the microphone in its helper, with Chrome open too.
-        let users = [user(500, "net.imput.helium.helper")];
-        let windows = [
-            ("com.google.Chrome", "Voice memo"),
-            ("net.imput.helium", "Meet - abc-defg-hij"),
-        ];
-        let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
-            assert!(!browser.reads_url(), "titles only, as Arc, Edge and Brave");
-            // Same exact app-selection predicate as call_watch::browser_call.
-            windows.iter().find_map(|(running_id, title)| {
-                (*running_id == browser.bundle_id())
-                    .then(|| meeting_title(title))
-                    .flatten()
-            })
+    fn chromium_browsers_on_the_mic_together_keep_separate_cached_calls() {
+        let users: Vec<_> = TITLES_ONLY_CHROMIUM_BROWSERS
+            .iter()
+            .map(|bundle_id| user(500, &format!("{bundle_id}.helper")))
+            .collect();
+        let mut browser_calls = BTreeMap::new();
+        let mut reads = Vec::new();
+        let calls = calls_on_mic(&users, OWN_PID, &mut browser_calls, |browser| {
+            reads.push(browser.bundle_id());
+            Some(CallApp::GoogleMeet)
         });
+        assert_eq!(reads, TITLES_ONLY_CHROMIUM_BROWSERS);
         assert_eq!(calls, [CallApp::GoogleMeet]);
+        assert_eq!(browser_calls.len(), TITLES_ONLY_CHROMIUM_BROWSERS.len());
 
-        // A meeting window in Chrome must not turn Helium's microphone use
-        // into a call.
-        let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
-            (browser.bundle_id() == "com.google.Chrome")
-                .then(|| meeting_title("Meet - abc-defg-hij"))
-                .flatten()
-        });
-        assert_eq!(calls, []);
+        // Only the first one left on the microphone keeps its call.
+        assert_eq!(
+            calls_on_mic(&users[..1], OWN_PID, &mut browser_calls, |_| {
+                panic!("a cached call was read again")
+            }),
+            [CallApp::GoogleMeet]
+        );
+        assert_eq!(browser_calls.len(), 1);
     }
 
     #[test]
