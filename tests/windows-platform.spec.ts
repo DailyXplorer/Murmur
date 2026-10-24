@@ -34,6 +34,16 @@ test.describe("Windows build", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
+  test("previews no macOS release notes on the Debug page", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Debug").click();
+
+    await expect(page.getByText("Log level", { exact: true })).toBeVisible();
+    await expect(page.getByText("Preview what's new")).toHaveCount(0);
+  });
+
   test("credits only the speech model it downloads", async ({ page }) => {
     await openWindows(page);
     await nav(page, "About").click();

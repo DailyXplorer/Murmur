@@ -5,8 +5,8 @@
 #   desktop-overlay.png       the desktop while a dictation is toggled on
 #   murmur.log                the app log
 # Fails when the install is not per-user, lacks the Visual C++ runtime beside
-# the app, the app loads that runtime from elsewhere, quits, or the log shows
-# a panic.
+# the app, the app loads that runtime from elsewhere, quits, the settings
+# window goes past the work area (under the taskbar), or the log shows a panic.
 param(
     [Parameter(Mandatory)] [string] $Installer,
     [Parameter(Mandatory)] [string] $OutputDir
@@ -53,6 +53,18 @@ function Save-Window([System.Diagnostics.Process] $Process, [string] $Name) {
     $rect = New-Object Native+RECT
     [Native]::GetWindowRect($window, [ref] $rect) | Out-Null
     Save-Region $Name ([System.Drawing.Rectangle]::FromLTRB($rect.Left, $rect.Top, $rect.Right, $rect.Bottom))
+}
+
+function Assert-InsideWorkArea([System.Diagnostics.Process] $Process) {
+    $window = $Process.MainWindowHandle
+    $rect = New-Object Native+RECT
+    [Native]::GetWindowRect($window, [ref] $rect) | Out-Null
+    $area = [System.Windows.Forms.Screen]::FromHandle($window).WorkingArea
+    Write-Host "Window ($($rect.Left), $($rect.Top), $($rect.Right), $($rect.Bottom)) in work area $area"
+    if ($rect.Left -lt $area.Left -or $rect.Top -lt $area.Top -or
+        $rect.Right -gt $area.Right -or $rect.Bottom -gt $area.Bottom) {
+        throw 'The settings window goes past the work area'
+    }
 }
 
 $logFile = Join-Path $env:LOCALAPPDATA 'com.dailyxplorer.murmur\logs\murmur.log'
@@ -124,6 +136,7 @@ try {
 
     $murmur = Start-Murmur
     Save-Window $murmur 'settings-window.png'
+    Assert-InsideWorkArea $murmur
 
     # A second instance forwards the toggle to the running one, then quits.
     # Without a microphone on the runner, the overlay reports it.
