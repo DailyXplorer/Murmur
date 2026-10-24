@@ -96,7 +96,7 @@ const AccessibilityPermissions: React.FC = () => {
               type="button"
               disabled={isRepairing}
               onClick={handleButtonClick}
-              className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-logo-primary disabled:cursor-wait disabled:opacity-50 transition-colors"
+              className="min-h-control rounded-md px-2 font-medium underline underline-offset-2 hover:text-accent-text disabled:cursor-wait disabled:opacity-50 transition-colors"
             >
               {t("accessibility.openSettings")}
             </button>

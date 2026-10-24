@@ -1,10 +1,30 @@
+//! Transcription through the ChatGPT `transcribe` endpoint with the local
+//! Codex session.
+//!
+//! The same session draws on two dictation quotas, neither documented. A
+//! request that names itself as Codex (`originator`, `OAI-Product-Sku`)
+//! counts against the Codex dictation quota, which can run out while the
+//! account's general Codex usage is low. Without those headers the request
+//! counts against ChatGPT's own dictation quota. Requests go as Codex first;
+//! when the server answers that the Codex dictation quota is spent, the same
+//! audio is resent at once without the Codex headers, and every request in
+//! the process skips the Codex identity for `CODEX_QUOTA_BACKOFF`. When
+//! ChatGPT's quota is spent during that window, the window closes and the
+//! audio is resent as Codex. Each request switches identity at most once.
+//!
+//! The endpoint takes no vocabulary: for a ChatGPT session, Codex sends only
+//! the `file` part, and its `prompt` goes to the API-key endpoint alone
+//! (<https://github.com/openai/codex/blob/4e119a3b38e4a4decfccb003acecabc4614142b6/codex-rs/tui/src/voice.rs#L787-L834>).
+
 use anyhow::{anyhow, Context, Result};
 use hound::WavSpec;
-use log::warn;
+use log::{info, warn};
 use serde::Deserialize;
 use std::io::Cursor;
 use std::path::Path;
-use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, SystemTime};
 
 use crate::codex_auth::{self, Session};
 use crate::transcription_error::{retry_delay, FailureKind, TranscriptionError};
@@ -27,6 +47,9 @@ pub const UPLOAD_SOFT_LIMIT_BYTES: usize = 25 * 1024 * 1024;
 /// shared by the uploads that run at once.
 const BASE_REQUEST_TIMEOUT_SECS: u64 = 60;
 const TIMEOUT_BYTES_PER_EXTRA_SECOND: u64 = 64 * 1024;
+/// For the TCP and TLS handshakes: about three round trips, so a link of a
+/// second or more of round-trip time still connects.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Deserialize)]
 struct TranscribeJson {
@@ -36,7 +59,83 @@ struct TranscribeJson {
 
 enum RequestError {
     Cancelled,
+    /// The dictation quota of the request's identity is spent.
+    DictationQuotaSpent(TranscriptionError),
     Failed(TranscriptionError),
+}
+
+/// Which dictation quota a request counts against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RequestIdentity {
+    Codex,
+    ChatGpt,
+}
+
+impl RequestIdentity {
+    fn headers(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            Self::Codex => &[
+                ("originator", "Codex Desktop"),
+                ("OAI-Product-Sku", "CODEX"),
+            ],
+            Self::ChatGpt => &[],
+        }
+    }
+}
+
+/// The server gives no reset time for the Codex dictation quota. For an hour
+/// no dictation first pays the known 429, and a reset is still noticed
+/// within the hour.
+const CODEX_QUOTA_BACKOFF: Duration = Duration::from_secs(60 * 60);
+
+/// When the Codex dictation quota was found spent. Shared by every request
+/// in the process, dictations and parallel meeting uploads.
+struct DictationQuota {
+    codex_spent_at: Mutex<Option<SystemTime>>,
+}
+
+static DICTATION_QUOTA: DictationQuota = DictationQuota {
+    codex_spent_at: Mutex::new(None),
+};
+
+impl DictationQuota {
+    fn identity(&self, now: SystemTime) -> RequestIdentity {
+        if codex_window_open(*self.spent_at(), now) {
+            RequestIdentity::ChatGpt
+        } else {
+            RequestIdentity::Codex
+        }
+    }
+
+    /// Remembers the spent Codex quota. True when no window was running, so
+    /// the parallel requests that all hit the quota report it once.
+    fn codex_spent(&self, now: SystemTime) -> bool {
+        let mut spent_at = self.spent_at();
+        if codex_window_open(*spent_at, now) {
+            return false;
+        }
+        *spent_at = Some(now);
+        true
+    }
+
+    fn codex_available(&self) {
+        *self.spent_at() = None;
+    }
+
+    fn spent_at(&self) -> std::sync::MutexGuard<'_, Option<SystemTime>> {
+        self.codex_spent_at
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Wall-clock time, so the window also runs out while the Mac sleeps. A
+/// clock set back before the window opened ends it.
+fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
+    spent_at.is_some_and(|spent_at| {
+        now.duration_since(spent_at)
+            .is_ok_and(|elapsed| elapsed < CODEX_QUOTA_BACKOFF)
+    })
 }
 
 pub fn auth_status() -> CodexAuthStatus {
@@ -45,6 +144,30 @@ pub fn auth_status() -> CodexAuthStatus {
 
 pub fn upload_size_for_samples(sample_count: usize) -> usize {
     44 + sample_count * WAV_BYTES_PER_SAMPLE
+}
+
+/// Uploads to Codex under way, from dictations and meeting pieces alike:
+/// they share the uplink.
+static UPLOADS_IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+
+/// One upload under way, until dropped.
+struct Upload {
+    /// Uploads under way as this one started, itself included.
+    sharing: usize,
+}
+
+impl Upload {
+    fn begin() -> Self {
+        Self {
+            sharing: UPLOADS_IN_FLIGHT.fetch_add(1, Ordering::SeqCst) + 1,
+        }
+    }
+}
+
+impl Drop for Upload {
+    fn drop(&mut self) {
+        UPLOADS_IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 fn request_timeout(upload_bytes: usize, uploads_at_once: usize) -> Duration {
@@ -63,7 +186,8 @@ pub async fn transcribe(
 }
 
 /// `transcribe` against `url`, with the session in `auth_path` (the Codex
-/// default when `None`), while `uploads_at_once` requests share the uplink.
+/// default when `None`), while `uploads_at_once` requests share the uplink,
+/// or more if more uploads are already under way.
 pub(crate) async fn transcribe_at(
     url: &str,
     auth_path: Option<&Path>,
@@ -71,6 +195,27 @@ pub(crate) async fn transcribe_at(
     language: Option<&str>,
     uploads_at_once: usize,
     operation: &ProcessingOperation,
+) -> Result<String> {
+    transcribe_with_quota(
+        url,
+        auth_path,
+        samples,
+        language,
+        uploads_at_once,
+        operation,
+        &DICTATION_QUOTA,
+    )
+    .await
+}
+
+async fn transcribe_with_quota(
+    url: &str,
+    auth_path: Option<&Path>,
+    samples: &[f32],
+    language: Option<&str>,
+    uploads_at_once: usize,
+    operation: &ProcessingOperation,
+    quota: &DictationQuota,
 ) -> Result<String> {
     if samples.is_empty() {
         return Ok(String::new());
@@ -80,7 +225,8 @@ pub(crate) async fn transcribe_at(
     }
 
     let wav = pcm_f32_to_wav_bytes(samples)?;
-    let timeout = request_timeout(wav.len(), uploads_at_once);
+    let upload = Upload::begin();
+    let timeout = request_timeout(wav.len(), uploads_at_once.max(upload.sharing));
     let auth_path = match auth_path {
         Some(path) => path.to_path_buf(),
         None => codex_auth::auth_path()?,
@@ -91,6 +237,8 @@ pub(crate) async fn transcribe_at(
         _ = operation.cancelled() => return Err(anyhow!("Codex transcription cancelled")),
         session = codex_auth::session_for_request(&auth_path) => session?,
     };
+    let mut identity = quota.identity(SystemTime::now());
+    let mut switched_identity = false;
     let mut recovered_from_unauthorized = false;
     let mut retries = 0;
 
@@ -99,10 +247,37 @@ pub(crate) async fn transcribe_at(
             return Err(anyhow!("Codex transcription cancelled"));
         }
         let result =
-            transcribe_with_session_at(url, &session, &wav, language, timeout, operation).await;
+            transcribe_with_session_at(url, &session, identity, &wav, language, timeout, operation)
+                .await;
         let error = match result {
             Ok(text) => return Ok(text),
             Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
+            Err(RequestError::DictationQuotaSpent(error)) => {
+                if identity == RequestIdentity::Codex && quota.codex_spent(SystemTime::now()) {
+                    info!(
+                        "Codex dictation quota reached; using ChatGPT dictation quota for the next {} min",
+                        CODEX_QUOTA_BACKOFF.as_secs() / 60
+                    );
+                }
+                if switched_identity {
+                    error
+                } else {
+                    // The other quota is a separate count, so resend at once
+                    // and outside the retry budget.
+                    switched_identity = true;
+                    identity = match identity {
+                        RequestIdentity::Codex => RequestIdentity::ChatGpt,
+                        RequestIdentity::ChatGpt => {
+                            info!(
+                                "ChatGPT dictation quota reached; trying the Codex dictation quota again"
+                            );
+                            quota.codex_available();
+                            RequestIdentity::Codex
+                        }
+                    };
+                    continue;
+                }
+            }
             Err(RequestError::Failed(error)) => error,
         };
 
@@ -135,6 +310,7 @@ pub(crate) async fn transcribe_at(
 async fn transcribe_with_session_at(
     url: &str,
     session: &Session,
+    identity: RequestIdentity,
     wav: &[u8],
     language: Option<&str>,
     timeout: Duration,
@@ -143,7 +319,7 @@ async fn transcribe_with_session_at(
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
     let client = reqwest::Client::builder()
         .user_agent(user_agent())
-        .connect_timeout(Duration::from_secs(10))
+        .connect_timeout(CONNECT_TIMEOUT)
         .timeout(timeout)
         .build()
         .map_err(|error| {
@@ -171,10 +347,11 @@ async fn transcribe_with_session_at(
     let mut request = client
         .post(url)
         .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("originator", "Codex Desktop")
-        .header("OAI-Product-Sku", "CODEX")
         .multipart(form);
 
+    for (name, value) in identity.headers() {
+        request = request.header(*name, *value);
+    }
     if let Some(account_id) = session.account_id.as_deref() {
         request = request.header("ChatGPT-Account-Id", account_id);
     }
@@ -198,13 +375,34 @@ async fn transcribe_with_session_at(
     if !status.is_success() {
         let kind = FailureKind::from_status(status.as_u16());
         let excerpt: String = body.chars().take(200).collect();
-        return Err(failed(
+        let error = TranscriptionError::new(
             kind,
             format!("Codex transcription failed with HTTP {status}: {excerpt}"),
-        ));
+        );
+        return Err(if is_dictation_quota_spent(status.as_u16(), &body) {
+            RequestError::DictationQuotaSpent(error)
+        } else {
+            RequestError::Failed(error)
+        });
     }
 
     parse_transcript(&body).map_err(|error| failed(FailureKind::Other, error.to_string()))
+}
+
+/// A spent dictation quota answers 429 with
+/// `{"detail":"Codex dictation usage limit reached"}`; other 429s are
+/// short-term rate limits.
+fn is_dictation_quota_spent(status: u16, body: &str) -> bool {
+    status == 429
+        && serde_json::from_str::<serde_json::Value>(body)
+            .ok()
+            .as_ref()
+            .and_then(|json| json.get("detail")?.as_str())
+            .is_some_and(|detail| {
+                detail
+                    .to_ascii_lowercase()
+                    .contains("dictation usage limit")
+            })
 }
 
 fn parse_transcript(body: &str) -> Result<String> {
@@ -337,6 +535,17 @@ mod tests {
         assert_eq!(request_timeout(five_minutes, 0), alone);
     }
 
+    /// A dictation sent while meeting pieces upload shares the uplink with
+    /// them, so its timeout counts them.
+    #[test]
+    fn an_upload_counts_the_uploads_already_in_flight() {
+        let meeting_pieces: Vec<Upload> = (0..3).map(|_| Upload::begin()).collect();
+        let dictation = Upload::begin();
+        // Other tests may be uploading too.
+        assert!(dictation.sharing >= 4, "{}", dictation.sharing);
+        drop(meeting_pieces);
+    }
+
     #[test]
     fn soft_limit_is_reached_after_about_thirteen_minutes() {
         let samples_per_minute = 60 * SAMPLE_RATE as usize;
@@ -372,6 +581,7 @@ mod tests {
         match tauri::async_runtime::block_on(transcribe_with_session_at(
             &endpoint,
             &session,
+            RequestIdentity::Codex,
             b"wav",
             None,
             request_timeout(3, 1),
@@ -402,6 +612,269 @@ mod tests {
         );
     }
 
+    const CODEX_QUOTA_SPENT: (&str, &str) = (
+        "429 Too Many Requests",
+        r#"{"detail":"Codex dictation usage limit reached"}"#,
+    );
+    const CHATGPT_QUOTA_SPENT: (&str, &str) = (
+        "429 Too Many Requests",
+        r#"{"detail":"Dictation usage limit reached"}"#,
+    );
+    const TRANSCRIBED: (&str, &str) = ("200 OK", r#"{"text":"Hello"}"#);
+
+    /// Answers one connection per reply, in order, and sends back each
+    /// request's head, lowercased.
+    fn serve(replies: &'static [(&'static str, &'static str)]) -> (String, mpsc::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let (heads_tx, heads_rx) = mpsc::channel();
+        thread::spawn(move || {
+            use std::io::Write;
+            for (status_line, body) in replies {
+                let (mut peer, _) = listener.accept().unwrap();
+                heads_tx.send(read_request_head(&mut peer)).unwrap();
+                let _ = write!(
+                    peer,
+                    "HTTP/1.1 {status_line}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        (endpoint, heads_rx)
+    }
+
+    fn read_request_head(peer: &mut std::net::TcpStream) -> String {
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 4096];
+        loop {
+            let read = peer.read(&mut buffer).unwrap();
+            request.extend_from_slice(&buffer[..read]);
+            let text = String::from_utf8_lossy(&request).to_ascii_lowercase();
+            let Some(end) = text.find("\r\n\r\n") else {
+                assert!(read > 0, "request ended before its head");
+                continue;
+            };
+            let head = &text[..end];
+            let body_length = head
+                .lines()
+                .find_map(|line| line.strip_prefix("content-length:"))
+                .and_then(|length| length.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            if read == 0 || request.len() >= end + 4 + body_length {
+                return head.to_string();
+            }
+        }
+    }
+
+    fn signed_in(directory: &Path) -> std::path::PathBuf {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+        let token = format!(
+            "header.{}.signature",
+            URL_SAFE_NO_PAD.encode(
+                serde_json::json!({"exp": chrono::Utc::now().timestamp() + 3600}).to_string()
+            )
+        );
+        let path = directory.join("auth.json");
+        std::fs::write(
+            &path,
+            serde_json::json!({"tokens": {"access_token": token, "refresh_token": "rt"}})
+                .to_string(),
+        )
+        .unwrap();
+        path
+    }
+
+    fn quota() -> DictationQuota {
+        DictationQuota {
+            codex_spent_at: Mutex::new(None),
+        }
+    }
+
+    fn codex_quota_spent_at(at: SystemTime) -> DictationQuota {
+        let quota = quota();
+        assert!(quota.codex_spent(at));
+        quota
+    }
+
+    fn dictate(endpoint: &str, auth_path: &Path, quota: &DictationQuota) -> Result<String> {
+        let operation = ProcessingOperation::new(OperationId(9));
+        tauri::async_runtime::block_on(transcribe_with_quota(
+            endpoint,
+            Some(auth_path),
+            &[0.1; 160],
+            None,
+            1,
+            &operation,
+            quota,
+        ))
+    }
+
+    fn sent_as_codex(head: &str) -> bool {
+        head.contains("\r\noriginator: codex desktop")
+            && head.contains("\r\noai-product-sku: codex")
+    }
+
+    fn sent_as_chatgpt(head: &str) -> bool {
+        head.contains("\r\nauthorization: bearer ")
+            && !head.contains("\r\noriginator:")
+            && !head.contains("\r\noai-product-sku:")
+    }
+
+    #[test]
+    fn spent_codex_dictation_quota_resends_on_the_chatgpt_quota() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (endpoint, heads) = serve(&[CODEX_QUOTA_SPENT, TRANSCRIBED]);
+        let quota = quota();
+
+        assert_eq!(dictate(&endpoint, &auth_path, &quota).unwrap(), "Hello");
+        let heads: Vec<String> = heads.try_iter().collect();
+        assert_eq!(heads.len(), 2);
+        assert!(sent_as_codex(&heads[0]), "first try as Codex: {}", heads[0]);
+        assert!(
+            sent_as_chatgpt(&heads[1]),
+            "resent as ChatGPT: {}",
+            heads[1]
+        );
+
+        let (endpoint, heads) = serve(&[TRANSCRIBED]);
+        assert_eq!(dictate(&endpoint, &auth_path, &quota).unwrap(), "Hello");
+        let head = heads.recv().unwrap();
+        assert!(sent_as_chatgpt(&head), "next dictation skips Codex: {head}");
+    }
+
+    #[test]
+    fn other_rate_limits_keep_the_codex_identity() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (endpoint, heads) = serve(&[("429 Too Many Requests", r#"{"detail":"nope"}"#)]);
+
+        let error = dictate(&endpoint, &auth_path, &quota()).unwrap_err();
+        assert_eq!(
+            TranscriptionError::kind_of(&error),
+            FailureKind::RateLimited
+        );
+        let heads: Vec<String> = heads.try_iter().collect();
+        assert_eq!(heads.len(), 1);
+        assert!(sent_as_codex(&heads[0]), "{}", heads[0]);
+    }
+
+    #[test]
+    fn a_remembered_codex_quota_goes_straight_to_chatgpt_until_it_ends() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+
+        let (endpoint, heads) = serve(&[TRANSCRIBED]);
+        let spent = codex_quota_spent_at(SystemTime::now());
+        assert_eq!(dictate(&endpoint, &auth_path, &spent).unwrap(), "Hello");
+        let head = heads.recv().unwrap();
+        assert!(sent_as_chatgpt(&head), "{head}");
+
+        let (endpoint, heads) = serve(&[TRANSCRIBED]);
+        let ended = codex_quota_spent_at(SystemTime::now() - CODEX_QUOTA_BACKOFF);
+        assert_eq!(dictate(&endpoint, &auth_path, &ended).unwrap(), "Hello");
+        let head = heads.recv().unwrap();
+        assert!(sent_as_codex(&head), "{head}");
+    }
+
+    #[test]
+    fn the_codex_quota_is_skipped_for_one_backoff() {
+        let quota = quota();
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        assert!(quota.codex_spent(start));
+        // A parallel upload hitting the same quota does not restart the window.
+        assert!(!quota.codex_spent(start + Duration::from_secs(1)));
+        // Windows clocks count in 100 ns steps: a nanosecond earlier is
+        // the same instant there.
+        let last = start + CODEX_QUOTA_BACKOFF - Duration::from_micros(1);
+        assert_eq!(quota.identity(last), RequestIdentity::ChatGpt);
+        assert_eq!(
+            quota.identity(start + CODEX_QUOTA_BACKOFF),
+            RequestIdentity::Codex
+        );
+    }
+
+    #[test]
+    fn a_clock_set_back_ends_the_codex_quota_window() {
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        let quota = codex_quota_spent_at(start);
+        let set_back = start - Duration::from_secs(1);
+        assert_eq!(quota.identity(set_back), RequestIdentity::Codex);
+        assert!(quota.codex_spent(set_back), "a new window opens");
+        assert_eq!(quota.identity(set_back), RequestIdentity::ChatGpt);
+    }
+
+    #[test]
+    fn only_a_dictation_usage_limit_429_is_a_spent_quota() {
+        let codex = CODEX_QUOTA_SPENT.1;
+        assert!(is_dictation_quota_spent(429, codex));
+        assert!(is_dictation_quota_spent(
+            429,
+            r#"{"detail":"DICTATION USAGE LIMIT reached"}"#
+        ));
+        assert!(!is_dictation_quota_spent(403, codex));
+        assert!(!is_dictation_quota_spent(429, r#"{"detail":"nope"}"#));
+        assert!(!is_dictation_quota_spent(429, "dictation usage limit"));
+    }
+
+    #[test]
+    fn both_dictation_quotas_spent_is_rate_limited() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (endpoint, heads) = serve(&[CODEX_QUOTA_SPENT, CHATGPT_QUOTA_SPENT]);
+
+        let error = dictate(&endpoint, &auth_path, &quota()).unwrap_err();
+        assert_eq!(
+            TranscriptionError::kind_of(&error),
+            FailureKind::RateLimited
+        );
+        assert!(error.to_string().contains("Dictation usage limit reached"));
+        let heads: Vec<String> = heads.try_iter().collect();
+        assert_eq!(heads.len(), 2);
+        assert!(sent_as_chatgpt(&heads[1]), "{}", heads[1]);
+    }
+
+    #[test]
+    fn a_spent_chatgpt_quota_goes_back_to_codex() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (endpoint, heads) = serve(&[CHATGPT_QUOTA_SPENT, TRANSCRIBED]);
+        let quota = codex_quota_spent_at(SystemTime::now());
+
+        assert_eq!(dictate(&endpoint, &auth_path, &quota).unwrap(), "Hello");
+        let heads: Vec<String> = heads.try_iter().collect();
+        assert_eq!(heads.len(), 2);
+        assert!(sent_as_chatgpt(&heads[0]), "{}", heads[0]);
+        assert!(sent_as_codex(&heads[1]), "resent as Codex: {}", heads[1]);
+
+        let (endpoint, heads) = serve(&[TRANSCRIBED]);
+        assert_eq!(dictate(&endpoint, &auth_path, &quota).unwrap(), "Hello");
+        let head = heads.recv().unwrap();
+        assert!(sent_as_codex(&head), "the window is cleared: {head}");
+    }
+
+    #[test]
+    fn both_quotas_spent_from_chatgpt_reopens_the_window() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (endpoint, heads) = serve(&[CHATGPT_QUOTA_SPENT, CODEX_QUOTA_SPENT]);
+        let quota = codex_quota_spent_at(SystemTime::now());
+
+        let error = dictate(&endpoint, &auth_path, &quota).unwrap_err();
+        assert_eq!(
+            TranscriptionError::kind_of(&error),
+            FailureKind::RateLimited
+        );
+        let heads: Vec<String> = heads.try_iter().collect();
+        assert_eq!(heads.len(), 2);
+        assert!(sent_as_codex(&heads[1]), "{}", heads[1]);
+
+        let (endpoint, heads) = serve(&[TRANSCRIBED]);
+        assert_eq!(dictate(&endpoint, &auth_path, &quota).unwrap(), "Hello");
+        let head = heads.recv().unwrap();
+        assert!(sent_as_chatgpt(&head), "the window is open again: {head}");
+    }
+
     #[test]
     fn unreachable_service_is_a_network_failure() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -415,6 +888,7 @@ mod tests {
         match tauri::async_runtime::block_on(transcribe_with_session_at(
             &endpoint,
             &session,
+            RequestIdentity::Codex,
             b"wav",
             None,
             request_timeout(3, 1),
@@ -468,6 +942,7 @@ mod tests {
             transcribe_with_session_at(
                 &endpoint,
                 &session,
+                RequestIdentity::Codex,
                 b"test wav",
                 None,
                 request_timeout(8, 1),

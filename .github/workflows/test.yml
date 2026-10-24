@@ -23,12 +23,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: 1.96.0
           components: clippy
@@ -39,7 +39,7 @@ jobs:
 
       # build.rs builds the meetings helper with SwiftPM (FluidAudio).
       - name: Cache the meetings helper build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src-tauri/swift/MurmurMeetingsHelper/.build
           key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
@@ -58,18 +58,32 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
-      # Without models, analysis must report them missing and never download.
-      # The helper quits when its stdin closes, as when Murmur quits, so
-      # stdin is held open.
+      # Without models, analysis and the first load must report them missing
+      # and never download: Murmur downloads them itself. The helper quits
+      # when its stdin closes, as when Murmur quits, so stdin is held open.
       - name: Check the meetings helper stays offline
         working-directory: src-tauri
         shell: bash
         run: |
-          out=$(binaries/murmur-meetings-helper-aarch64-apple-darwin analyze --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600))
+          helper=binaries/murmur-meetings-helper-aarch64-apple-darwin
+          out=$("$helper" analyze --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600))
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
           grep -q '"type":"done"' <<<"$out"
+          if out=$("$helper" prepare --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+            echo "prepare succeeded without models" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
+          if out=$("$helper" serve --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+            echo "serve started without models" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q '"code":"model_missing"' <<<"$out"
           test ! -e "$RUNNER_TEMP/no-models/parakeet-tdt-0.6b-v3"
+          test ! -e "$RUNNER_TEMP/no-models/speaker-diarization"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.22.2 --locked
@@ -80,11 +94,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # RUSTSEC-2026-0235 is present only through rust_decimal's inactive
-          # optional rkyv feature. Fail before ignoring it if that ever changes
-          # for either architecture we ship.
+          # RUSTSEC-2026-0235 affects rkyv 0.7, present only through
+          # rust_decimal's inactive optional rkyv feature. ferrous-opencc uses
+          # rkyv 0.8, which is patched from 0.8.17. Fail before ignoring it if
+          # rkyv 0.7 ever becomes reachable for either architecture we ship.
           for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            if ! dependency_tree="$(cargo tree --locked --target "$target" --invert rkyv 2>&1)"; then
+            if ! dependency_tree="$(cargo tree --locked --target "$target" --invert rkyv@0.7 2>&1)"; then
               echo "$dependency_tree" >&2
               exit 1
             fi

@@ -13,6 +13,9 @@ pub struct Token {
     pub key: String,
     pub sentence_end: bool,
     pub gap: Gap,
+    /// When the on-device recogniser heard the word on its track; `None`
+    /// when its time is only estimated.
+    pub heard_ms: Option<(u64, u64)>,
 }
 
 /// What came between a word and the one before it in the text Codex wrote.
@@ -36,7 +39,7 @@ const SENTENCE_ENDS: [char; 7] = ['.', '?', '!', '…', '。', '？', '！'];
 const CJK_SENTENCE_ENDS: [char; 3] = ['。', '？', '！'];
 /// Closing marks that may follow a sentence end: `"Oui."`, `(voilà.)` or
 /// `「好的。」`.
-const CLOSERS: [char; 12] = [
+pub(crate) const CLOSERS: [char; 12] = [
     '"', '\'', '’', '”', '»', ')', ']', '」', '』', '）', '】', '》',
 ];
 
@@ -49,8 +52,36 @@ pub fn key(word: &str) -> String {
         .collect()
 }
 
+/// Titles written before a name, as in "M. Dupont".
+const TITLES: [&str; 10] = [
+    "m", "mme", "mlle", "dr", "mr", "mrs", "ms", "prof", "pr", "st",
+];
+
 fn ends_sentence(word: &str) -> bool {
     word.trim_end_matches(CLOSERS).ends_with(SENTENCE_ENDS)
+}
+
+/// A closing mark written apart, as French spaces `« On verra. »`. A
+/// straight quote is left out: it may as well open the next sentence.
+fn is_lone_closer(word: &str) -> bool {
+    word.chars()
+        .all(|c| CLOSERS.contains(&c) && c != '"' && c != '\'')
+}
+
+/// Opening marks that may precede a title: `(M. Dupont)` or `«M. le maire`.
+const OPENERS: [char; 5] = ['(', '[', '«', '"', '“'];
+
+/// A title ends no sentence: a name or "le directeur" follows it. It is
+/// written with one capital, so "a PR." and "3 m." still end one.
+pub(crate) fn is_title(word: &str) -> bool {
+    word.trim_start_matches(OPENERS)
+        .strip_suffix('.')
+        .is_some_and(|title| {
+            let mut letters = title.chars();
+            letters.next().is_some_and(char::is_uppercase)
+                && letters.all(char::is_lowercase)
+                && TITLES.contains(&title.to_lowercase().as_str())
+        })
 }
 
 /// The words of `text`. CJK text, written without spaces, is also split
@@ -66,10 +97,18 @@ pub fn tokenize(text: &str) -> Vec<Token> {
             };
             tokens.push(Token {
                 key: key(word),
-                sentence_end: ends_sentence(word),
+                sentence_end: ends_sentence(word) && !is_title(word),
                 text: word.to_string(),
                 gap,
+                heard_ms: None,
             });
+        }
+    }
+    for index in 1..tokens.len() {
+        // The sentence ends after the closing mark, not before it.
+        if tokens[index - 1].sentence_end && is_lone_closer(&tokens[index].text) {
+            tokens[index - 1].sentence_end = false;
+            tokens[index].sentence_end = true;
         }
     }
     tokens
@@ -173,6 +212,7 @@ mod tests {
         assert_eq!(key("c’est"), key("c'est"));
         assert_eq!(key("C'est-à-dire"), "cestadire");
         assert_eq!(key("2030,"), "2030");
+        assert_eq!(key("你好。"), "你好");
     }
 
     #[test]
@@ -197,23 +237,106 @@ mod tests {
         );
     }
 
-    #[test]
-    fn text_splits_into_sentences_without_losing_words() {
-        let text = "  Bonjour à tous.  On commence ?\nOui, allons-y et puis";
-        assert_eq!(
-            texts(&sentences(text)),
-            ["Bonjour à tous.", "On commence ?", "Oui, allons-y et puis"]
-        );
-        assert!(sentences("   ").is_empty());
-    }
+    /// Every transcript the sentence splitter has been checked on, with the
+    /// sentences it must give. Text after the last stop is a sentence too.
+    /// Add a row for each new case; never edit an old one to make a change
+    /// pass.
+    const CORPUS: &[(&str, &[&str])] = &[
+        ("   ", &[]),
+        (
+            "  Bonjour à tous.  On commence ?\nOui, allons-y et puis",
+            &["Bonjour à tous.", "On commence ?", "Oui, allons-y et puis"],
+        ),
+        (
+            "Oui. Vraiment ? Non ! Bon… (voilà.) « Et » puis",
+            &[
+                "Oui.",
+                "Vraiment ?",
+                "Non !",
+                "Bon…",
+                "(voilà.)",
+                "« Et » puis",
+            ],
+        ),
+        // A closing mark written apart stays with its sentence.
+        (
+            "« On verra. » D'accord. Il a dit (oui. ) puis « Et » non. \
+             J'ai vu M. Dupont et Mme. Martin. Dr. Who. Il est là.",
+            &[
+                "« On verra. »",
+                "D'accord.",
+                "Il a dit (oui. )",
+                "puis « Et » non.",
+                "J'ai vu M. Dupont et Mme. Martin.",
+                "Dr. Who.",
+                "Il est là.",
+            ],
+        ),
+        (
+            "Il a dit « oui. » ) puis non.",
+            &["Il a dit « oui. » )", "puis non."],
+        ),
+        // A straight quote may open the next sentence as well as close one.
+        (
+            "C'est fini. \" Bonjour \" dit-il.",
+            &["C'est fini.", "\" Bonjour \" dit-il."],
+        ),
+        // A title never ends a sentence, whatever follows it.
+        (
+            "J'ai parlé à M. le directeur hier. (M. Dupont) et «Mme. la présidente» aussi.",
+            &[
+                "J'ai parlé à M. le directeur hier.",
+                "(M. Dupont) et «Mme. la présidente» aussi.",
+            ],
+        ),
+        ("Bonjour M. merci", &["Bonjour M. merci"]),
+        (
+            "M. de Gaulle a parlé. Bon.",
+            &["M. de Gaulle a parlé.", "Bon."],
+        ),
+        (
+            "Il a dit «M. le maire arrive». Bon.",
+            &["Il a dit «M. le maire arrive».", "Bon."],
+        ),
+        (
+            "I met Ms. Smith and Prof. Jones today. Then we left.",
+            &["I met Ms. Smith and Prof. Jones today.", "Then we left."],
+        ),
+        (
+            "J'ai vu le Pr. Martin. Il va bien.",
+            &["J'ai vu le Pr. Martin.", "Il va bien."],
+        ),
+        // An acronym or a unit before a full stop is no title.
+        (
+            "I opened a PR. Then we left.",
+            &["I opened a PR.", "Then we left."],
+        ),
+        (
+            "We ran 3 m. Then we left.",
+            &["We ran 3 m.", "Then we left."],
+        ),
+        // CJK text splits after each full stop, closing mark included.
+        (
+            "你好。我们开始吧！好的",
+            &["你好。", "我们开始吧！", "好的"],
+        ),
+        (
+            "我们开会吧。今天讨论预算。",
+            &["我们开会吧。", "今天讨论预算。"],
+        ),
+        ("「好的。」我们走吧。", &["「好的。」", "我们走吧。"]),
+    ];
 
     #[test]
-    fn cjk_text_splits_after_each_full_stop() {
-        assert_eq!(
-            texts(&sentences("你好。我们开始吧！好的")),
-            ["你好。", "我们开始吧！", "好的"]
-        );
-        assert_eq!(key("你好。"), "你好");
+    fn sentence_corpus() {
+        let failures: Vec<String> = CORPUS
+            .iter()
+            .filter_map(|(text, expected)| {
+                let got = texts(&sentences(text));
+                (got != *expected).then(|| format!("{text:?}: got {got:?}, want {expected:?}"))
+            })
+            .collect();
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 
     #[test]

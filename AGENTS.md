@@ -29,16 +29,14 @@ bun run build      # Build frontend (TypeScript + Vite)
 bun run preview    # Preview built frontend
 ```
 
-**Linting and Formatting (run before committing):**
+**Checks (run before pushing):**
 
 ```bash
-bun run lint              # ESLint for frontend
-bun run lint:fix          # ESLint with auto-fix
-bun run format            # Prettier + cargo fmt
-bun run format:check      # Check formatting without changes
-bun run format:frontend   # Prettier only
-bun run format:backend    # cargo fmt only
+bun run check             # CI code-quality job: audit, translations, macOS guard, versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
+bun run test:playwright   # UI changes. This is the Playwright CI job.
 ```
+
+From `src-tauri` on macOS, Rust behavior changes also need `cargo test --locked`. The macOS CI job runs that, plus Clippy with `-D warnings`.
 
 **Model Setup:** Transcription uses the Codex / ChatGPT session already on the machine (`~/.codex/auth.json`). No local model download is required.
 
@@ -65,8 +63,11 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 - `signal_handle.rs` - `send_transcription_input()` reusable function
 - `cleanup/` - AI cleanup prompt and the Codex responses client
 - `dictionary/` - Learned words and the post-paste correction watcher
-- `meetings/` - Meeting recording, on by default (`meetings_enabled`, switch in Advanced): microphone and system audio (Core Audio process tap in `swift/meeting_audio.swift`) streamed to two WAVs, the 3-hour cap, a low-disk warning at start (`coordinator.rs`), and the `meetings.db` library. A system track of pure digital zeros while the mic has speech and another app played sound (polled from Core Audio's per-process output state, `system_played`) flags the meeting (`system_audio_silent`), since that is what a denied System Audio Recording permission produces. A denied microphone is read from macOS at start (`microphone_denied`, alert `MicrophoneDenied`), never guessed from zeros, which a muted input gives too; each processing run logs its stage timings (`Meeting N timings:`). After a meeting stops, `processor.rs` splits each track at pauses (`chunking.rs`), sends the pieces to Codex (`transcribe.rs`, at most 3 at a time, resumable), and interleaves both tracks into the transcript (`spread.rs`, `merge.rs`). Once the transcript is complete, Codex writes the title and summary (`summary.rs`, people as `[[key]]` markers so a rename needs no rewrite), and the tracks are compressed into one `audio.m4a` (`archive.rs`, `swift/meeting_archive.swift`). Meanwhile `murmur-meetings-helper` (`swift/MurmurMeetingsHelper`, FluidAudio, a separate process; `helper.rs`, `protocol.rs`, models in `models.rs`) times the words heard on device and tells speakers apart, on system audio when the remote side was heard speaking there, else on the microphone (`analysis.rs`); `align/` places the Codex words at those times, `speakers.rs` gives each word its speaker and `bleed.rs` drops remote voices the microphone echoed. Without the models, or on Intel, each track keeps one speaker
-- `window_names.rs`, `accessibility.rs` - Name hints read from the frontmost window
+- `engine/` - Which engine transcribes a dictation: a pure `route`/`reroute` table (Local or Cloud, one fallback at most, History records why) and `local/`, Parakeet on this Mac. `local/session.rs` loads the model when a recording starts, runs one request at a time and releases it after 10 idle minutes (never while recording); long dictations are cut at pauses (`audio_toolkit/pauses.rs`) into pieces of one pass. Apple silicon runs it in the meetings helper's long-lived `serve` mode (`local/fluid.rs`, one WAV per request in `app_cache/local-stt`), Intel Macs on the CPU with transcribe.cpp (`local/cpu.rs`, the only `[target.'cfg(…)']` section `check:macos-only` allows). On Apple silicon the helper boosts the custom words with FluidAudio's CTC keyword spotting (`local/boost.rs`; the CTC model is an optional `local_models` source, fetched after the others are ready); Intel and Codex take no vocabulary. Debug builds fail the local run with `MURMUR_FORCE_LOCAL_FAILURE`
+- `local_models/` - The on-device speech models shared by dictation and meetings: a manifest pinned to Hugging Face commits with every file's SHA-256 (`pinned.rs`, written by `scripts/generate-model-manifest.ts`), a resumable downloader, and the `Missing → Downloading → Preparing → Ready` state behind the `*_local_model*` commands. Apple silicon keeps them in `app_data/meetings/models` as FluidAudio expects and loads them once with the helper's `prepare`; folders an earlier version downloaded are checked file by file
+- `meetings/` - Meeting recording, on by default (`meetings_enabled`, switch in Advanced): microphone and system audio (Core Audio process tap in `swift/meeting_audio.swift`) streamed to two WAVs (synced to disk every 10 s; audio a full writer queue drops is counted in `dropped_ms`), the 3-hour cap (`cap.rs`, warned 5 minutes before; the `previous_id` and `part` columns of an unreleased build stay unused), a low-disk warning at start and a clean stop when a write fails (`coordinator.rs`), a power assertion that keeps an idle Mac awake while recording (`power.rs`; a lid closed still sleeps it, which is noticed on waking, told in a notification and counted in `slept_ms`), a notification once the writers dropped more than 2 s, and the `meetings.db` library. What a reset or an orphan sweep set aside next to it (`meetings.orphaned-*`, `meetings.corrupt-*`, `meetings.db.corrupt-*`) is deleted after 30 days, read from the name, and `meeting_audio_retention` (off by default) deletes the audio of processed meetings after 7, 30 or 90 days, at launch and once a day (`retention.rs`). A system track of pure digital zeros while the mic has speech and another app played sound (polled from Core Audio's per-process output state, `system_played`) flags the meeting (`system_audio_silent`), since that is what a denied System Audio Recording permission produces. A denied microphone is read from macOS at start (`microphone_denied`, alert `MicrophoneDenied`), never guessed from zeros, which a muted input gives too; each processing run logs its stage timings (`Meeting N timings:`). After a meeting stops, `processor.rs` splits each track at pauses (`chunking.rs`), sends the pieces to Codex (`transcribe.rs`, at most 3 at a time, resumable; after about 5 minutes without a connection the pieces left go to the local model when it is ready, else the queue waits and checks the connection, `offline.rs`; a meeting a crash cut off is processed at the next launch), and interleaves both tracks into the transcript (`spread.rs`, `merge.rs`). Once the transcript is complete, Codex writes the title and summary (`summary.rs`, people as `[[key]]` markers so a rename needs no rewrite), and the tracks are compressed into one `audio.m4a` (`archive.rs`, `swift/meeting_archive.swift`, on Intel too; after 3 failures the WAVs stay and are no longer requeued). Meanwhile `murmur-meetings-helper` (`swift/MurmurMeetingsHelper`, FluidAudio, a separate process; `helper.rs`, `protocol.rs`, the shared `local_models`, fetched with a meeting unless declined, `models.rs`) times the words heard on device and tells speakers apart, on system audio when the remote side was heard speaking there, else on the microphone (`analysis.rs`); `align/` places the Codex words at those times, `speakers.rs` gives each word its speaker and `bleed.rs` drops remote voices the microphone echoed. Without the models, or on Intel, each track keeps one speaker. Without the models `bleed.rs` still runs, on the sentences as placed by the levels, with a stricter match. Where the meeting played sound is read from the default output each second (`capture/route.rs`, `output_route`): a meeting on headphones throughout keeps every microphone word. When a call app (Zoom, Teams, Slack, FaceTime, Webex, Discord, or a browser on a meeting page, read through Accessibility) holds the microphone for 3 s, a panel of its own beside the overlay asks whether to record it, until it is answered, a meeting starts, or the call has left the microphone for 15 s (`calls.rs`, pure; `call_watch.rs` polls Core Audio's per-process input each second, macOS 14 on Apple silicon; setting `meeting_call_prompt`). It never starts or stops a meeting by itself, and a dictation never hides it. `scripts/echo-probe` measures macOS voice processing on speakers (it plays sound; not shipped)
+- `window_names.rs`, `accessibility.rs`, `field_excerpt.rs` - Name hints and the text around the cursor, read from the frontmost window for cleanup
+- `updates/` - Automatic update checks while `update_checks_enabled` is on: at launch, every 4 hours and after the Mac wakes (`schedule.rs`, a wake is wall-clock time `Instant` did not see), one check at a time (`checks.rs`). The result is the one update status the tray item and the settings footer show (`update-status` event). Nothing downloads until the user clicks the footer's "Update available"
 - `utils.rs` - Tray, window, and application helpers
 
 ### Frontend Structure (src/)
@@ -90,7 +91,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → Codex or Gemini transcription → dictionary → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste → correction learning (`dictionary/`)
+**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste → correction learning (`dictionary/`)
 
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
 
@@ -141,8 +142,7 @@ src/i18n/
 ├── languages.ts       # Language metadata
 └── locales/
     ├── en/translation.json  # English (source)
-    ├── de/, es/, fr/, ja/, ru/, zh/, ...
-    └── ...
+    └── fr/, es/, de/, it/, pt/
 ```
 
 For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
@@ -194,9 +194,39 @@ Access debug features with `Cmd+Shift+D`.
 
 See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 
-## Contributor workflow
+## No-go
 
-- Pull requests should explain the change, its boundaries, and the exact checks run. Include screenshots or recordings for visible changes.
-- Use [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md) for bug reports.
-- Follow [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) for translation changes and [CONTRIBUTING.md](CONTRIBUTING.md) for the general workflow.
-- Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). Focus the message on why the change is needed.
+- Do not edit `src/bindings.ts` by hand. It is generated.
+- Do not remove the `compile_error!` at the top of `src-tauri/src/lib.rs`. `main` is macOS-only. Windows work stays on `beta`.
+- Do not add a Windows target, a `target_os` cfg, or a Windows CI job on `main`.
+- Do not create GitHub labels.
+- Do not silence a check with `#[allow]`, `eslint-disable`, a skipped test, or `--no-verify` unless the pull request explains why.
+- Do not ask CodeRabbit to push commits. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled.
+- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together. Do not update one of them alone.
+- Do not reformat or refactor files the change does not need.
+
+## Checks before pushing
+
+Run `bun run check` before pushing. It is the CI `code quality` job. On macOS it also runs Clippy.
+
+For a UI change, also run `bun run test:playwright`. For Rust behavior, from `src-tauri` run `cargo test --locked`.
+
+For a change to how meetings record or process, also run the 3-hour soak on a Mac with the models downloaded: from `src-tauri`, `cargo test --locked meetings_soak -- --ignored --nocapture` (about half an hour, headless). It rewrites `src/meetings/soak-report.md`.
+
+`bun install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs the fast subset. Let it run. If you skip it, say why in the pull request.
+
+## Pull requests
+
+- Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why. Branch the same way: `feat/short-description`.
+- Body: `## Summary` (why, and the issue link), `## Changes`, `## Testing` (`bun run check` and anything else you ran). Visible UI changes include screenshots or recordings.
+- Open an issue before a large pull request (a new feature, or a change across several modules).
+- User-facing JSX text goes through i18next. Add the English key and keep the other locales in sync.
+- Use the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) and the [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml). Translation rules are in [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md). The human workflow is [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Review rounds
+
+Address every review comment in one pass, then push once. A real bug fix in that pass includes a test that fails before the fix. A style comment does not need a commit.
+
+A completed round is a review, then your fix. After two completed rounds, stop when the next review arrives. Summarize what is still open and wait for a maintainer. If the same comment comes back after a fix, reply on the thread instead of applying it again.
+
+The `review loop` workflow may comment and apply the `review-loop` label. That label is created the first time it is needed. It means a maintainer decides. Do not start another fix round because of it.

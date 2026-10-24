@@ -4,10 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
-  CleanupEngine,
+  DictationStyle,
+  Engine,
+  MeetingAudioRetention,
   MeetingCaptureMode,
   Result,
-  TranscriptionProvider,
 } from "@/bindings";
 import { commands } from "@/bindings";
 
@@ -26,7 +27,7 @@ interface SettingsStore {
     key: K,
     value: Settings[K],
   ) => Promise<boolean>;
-  resetSetting: (key: keyof Settings) => Promise<void>;
+  resetSetting: (key: keyof Settings) => Promise<boolean>;
   refreshSettings: () => Promise<void>;
   refreshAudioDevices: () => Promise<void>;
   refreshOutputDevices: () => Promise<void>;
@@ -250,8 +251,6 @@ const settingUpdaters: {
     commands.updateRecordingRetentionPeriod(value as string),
   selected_language: (value) =>
     commands.changeSelectedLanguageSetting(value as string),
-  transcription_provider: (value) =>
-    commands.changeTranscriptionProviderSetting(value as TranscriptionProvider),
   overlay_position: (value) =>
     commands.changeOverlayPositionSetting(value as string),
   debug_mode: (value) => commands.changeDebugModeSetting(value as boolean),
@@ -286,8 +285,8 @@ const settingUpdaters: {
   overlay_style: (value) => commands.changeOverlayStyleSetting(value as string),
   ai_cleanup_enabled: (value) =>
     commands.changeAiCleanupSetting(value as boolean),
-  cleanup_engine: (value) =>
-    commands.changeCleanupEngineSetting(value as CleanupEngine),
+  dictation_style: (value) =>
+    commands.changeDictationStyleSetting(value as DictationStyle),
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),
@@ -299,6 +298,14 @@ const settingUpdaters: {
     commands.changeMeetingsEnabledSetting(value as boolean),
   meeting_capture_mode: (value) =>
     commands.changeMeetingCaptureModeSetting(value as MeetingCaptureMode),
+  meeting_audio_retention: (value) =>
+    commands.changeMeetingAudioRetentionSetting(value as MeetingAudioRetention),
+  meeting_call_prompt: (value) =>
+    commands.changeMeetingCallPromptSetting(value as boolean),
+  transcription_engine: (value) =>
+    commands.changeTranscriptionEngineSetting(value as Engine),
+  local_stt_card_dismissed: (value) =>
+    commands.changeLocalSttCardDismissedSetting(value as boolean),
 };
 
 interface SettingWriteState {
@@ -526,9 +533,10 @@ export const useSettingsStore = create<SettingsStore>()(
       if (defaultSettings) {
         const defaultValue = defaultSettings[key];
         if (defaultValue !== undefined) {
-          await get().updateSetting(key, defaultValue as any);
+          return get().updateSetting(key, defaultValue as any);
         }
       }
+      return true;
     },
 
     updateBinding: async (id, binding) => {

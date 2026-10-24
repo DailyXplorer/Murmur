@@ -1,34 +1,22 @@
 import type { AppCategory, HeatmapDay } from "@/bindings";
 
-export type EquivalenceUnit = "emails" | "pages" | "stories" | "novels";
+/** The typing speed `minutes_saved` is measured against (`stats::TYPING_WPM`). */
+export const TYPING_WPM = 40;
 
-interface EquivalenceTier {
-  unit: EquivalenceUnit;
-  wordsPerUnit: number;
-  below: number;
+export interface TimeSaved {
+  unit: "minutes" | "hours" | "hoursMinutes";
+  hours: number;
+  minutes: number;
 }
 
-const EQUIVALENCE_TIERS: readonly EquivalenceTier[] = [
-  { unit: "emails", wordsPerUnit: 100, below: 3_000 },
-  { unit: "pages", wordsPerUnit: 300, below: 30_000 },
-  { unit: "stories", wordsPerUnit: 7_500, below: 90_000 },
-  { unit: "novels", wordsPerUnit: 90_000, below: Infinity },
-];
-
-export interface WordEquivalence {
-  unit: EquivalenceUnit;
-  amount: number;
-}
-
-/** A relatable size for a word count, or `null` before the first dictation. */
-export const wordEquivalence = (words: number): WordEquivalence | null => {
-  if (words <= 0) return null;
-  const tier =
-    EQUIVALENCE_TIERS.find(({ below }) => words < below) ??
-    EQUIVALENCE_TIERS[EQUIVALENCE_TIERS.length - 1];
-  const raw = words / tier.wordsPerUnit;
-  const amount = raw < 10 ? Math.round(raw * 10) / 10 : Math.round(raw);
-  return { unit: tier.unit, amount: Math.max(amount, 0.1) };
+/** Minutes below two hours, then hours with any leftover minutes. */
+export const timeSaved = (totalMinutes: number): TimeSaved => {
+  if (totalMinutes < 120) {
+    return { unit: "minutes", hours: 0, minutes: totalMinutes };
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { unit: minutes === 0 ? "hours" : "hoursMinutes", hours, minutes };
 };
 
 export const CATEGORY_LABEL_KEYS: Record<AppCategory, string> = {

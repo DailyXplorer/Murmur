@@ -1,6 +1,10 @@
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -26,12 +30,20 @@ type View =
   | { kind: "recording"; live: boolean }
   | { kind: "transcribing" }
   | { kind: "error"; message: string }
+  | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
   started_at_ms: number;
   stops_at_ms: number;
+}
+
+/** Payload of `show-overlay-copy`, from `overlay::CopyNoticeLabels`. */
+interface CopyLabels {
+  copy: string;
+  copied: string;
+  note: string;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -59,6 +71,12 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
 
 const CENTER = (BAR_COUNT - 1) / 2;
 
+// The window renders no text until its first message, so without this the
+// font would still be loading when the copy pill measures its fitted size.
+void document.fonts
+  .load('1em "Instrument Sans Variable"')
+  .catch(() => undefined);
+
 const reducedMotionQuery = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 );
@@ -78,6 +96,9 @@ const RecordingOverlay: React.FC = () => {
   const levelsRef = useRef<number[]>([]);
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const noticeBodyRef = useRef<HTMLSpanElement>(null);
+  const noticeId = useId();
 
   useEffect(() => {
     let isUnmounted = false;
@@ -128,6 +149,13 @@ const RecordingOverlay: React.FC = () => {
     // shown when the overlay is off.
     void listen<string>("show-overlay-error", (event) => {
       setView({ kind: "error", message: event.payload });
+    }).then(storeUnlistener, () => undefined);
+
+    // No text field had the focus; the text goes on the clipboard only when
+    // the pill is clicked.
+    void listen<CopyLabels>("show-overlay-copy", (event) => {
+      setView({ kind: "copy", labels: event.payload, copied: false });
+      refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
     void listen("hide-overlay", () => {
@@ -186,6 +214,49 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
+  const copyShowing = view.kind === "copy";
+
+  // The copy pill's body sizes itself from its text, whatever font renders
+  // it, and the window is fitted to it: only the webview can measure it.
+  // The backend opens each notice at a default size, so every such view,
+  // even one replacing a showing one, observes and reports again.
+  const fittedView = view.kind === "copy" ? view : null;
+  useLayoutEffect(() => {
+    const body = noticeBodyRef.current;
+    if (!fittedView || !body) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const [box] = entry.borderBoxSize;
+      commands
+        .fitCopyNotice(box.inlineSize, box.blockSize)
+        .catch((error: unknown) => {
+          console.warn("Fitting the copy pill's window failed:", error);
+        });
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [fittedView]);
+
+  // The pill opens as the rest capsule and grows to fit its body. CSS cannot
+  // transition to an auto size, so the fitted size is measured before the
+  // first paint and the growth runs towards it. The body keeps its own size
+  // and is clipped meanwhile, so the note never rewraps as the pill grows.
+  useLayoutEffect(() => {
+    const pill = copyRef.current;
+    if (!copyShowing || !pill || reducedMotion) return;
+    const style = getComputedStyle(pill);
+    const growth = pill.animate(
+      [
+        {
+          width: style.getPropertyValue("--ov-rest-w"),
+          height: style.getPropertyValue("--ov-h"),
+        },
+        { width: `${pill.offsetWidth}px`, height: `${pill.offsetHeight}px` },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => growth.cancel();
+  }, [copyShowing, reducedMotion]);
+
   if (view.kind === "hidden") return null;
 
   if (view.kind === "meeting") {
@@ -195,6 +266,53 @@ const RecordingOverlay: React.FC = () => {
           startedAtMs={view.startedAtMs}
           stopsAtMs={view.stopsAtMs}
         />
+      </div>
+    );
+  }
+
+  if (view.kind === "copy") {
+    const copyAgain = () => {
+      void commands
+        .copyNoticeAgain()
+        .then((result) => {
+          if (result.status !== "ok") throw result.error;
+          setView((current) =>
+            current.kind === "copy" ? { ...current, copied: true } : current,
+          );
+        })
+        .catch((error: unknown) => {
+          console.warn("Copying the dictation again failed:", error);
+        });
+    };
+    const Icon = view.copied ? CheckIcon : CopyIcon;
+    return (
+      <div className={`ov-stage ${position}`}>
+        <button
+          ref={copyRef}
+          type="button"
+          dir="auto"
+          className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
+          aria-labelledby={`${noticeId}-action`}
+          aria-describedby={`${noticeId}-note`}
+          onClick={copyAgain}
+        >
+          <span ref={noticeBodyRef} className="ov-copy-body">
+            <span id={`${noticeId}-note`} className="ov-copy-note">
+              {view.labels.note}
+            </span>
+            <span className="ov-copy-action">
+              <Icon size={14} weight="bold" aria-hidden="true" />
+              <span className="ov-copy-label">
+                <span id={`${noticeId}-action`} aria-live="polite">
+                  {view.copied ? view.labels.copied : view.labels.copy}
+                </span>
+                <span className="ov-copy-label-spare" aria-hidden="true">
+                  {view.copied ? view.labels.copy : view.labels.copied}
+                </span>
+              </span>
+            </span>
+          </span>
+        </button>
       </div>
     );
   }

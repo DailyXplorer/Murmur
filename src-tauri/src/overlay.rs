@@ -1,18 +1,23 @@
 use crate::settings;
-use crate::settings::OverlayStyle;
+use crate::settings::{OverlayPosition, OverlayStyle};
+use crate::tray_i18n::get_tray_translations;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use tauri::WebviewUrl;
 
 #[cfg(target_os = "macos")]
 use crate::input;
 #[cfg(target_os = "macos")]
-use crate::settings::OverlayPosition;
+use block2::RcBlock;
 #[cfg(target_os = "macos")]
-use tauri::{PhysicalPosition, PhysicalSize};
+use objc2_app_kit::NSEventMask;
+#[cfg(target_os = "macos")]
+use std::cell::RefCell;
+#[cfg(target_os = "macos")]
+use std::ptr::NonNull;
 #[cfg(target_os = "macos")]
 use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelBuilder, PanelLevel, StyleMask};
 
@@ -30,7 +35,8 @@ tauri_panel! {
 // RecordingOverlay.css. One window is reused for every state and resized in
 // `present_overlay_window`. The capsule sits CARD_MARGIN inside the window edge
 // that faces the screen edge, leaving room for its soft shadow; the window
-// ignores the mouse, so that margin never blocks clicks.
+// ignores the mouse except while the copy notice shows, so that margin never
+// blocks clicks.
 const CARD_MARGIN: f64 = 16.0;
 // Capsule: 30 high, 108 wide at rest, up to 126 at full voice level. The width
 // stays even so the centred capsule's edges sit on whole points.
@@ -40,14 +46,97 @@ const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
 // message fits in every locale whatever the fallback font.
 const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
-const ERROR_DISPLAY_TIME: std::time::Duration = std::time::Duration::from_secs(4);
+const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
+// Copy capsule: its note wraps, so only the webview knows its size; it
+// measures the capsule and `fit_copy_notice` fits the window to it. Until
+// then the window opens at the widest capsule with three lines of note.
+const COPY_OVERLAY_WIDTH: f64 = 560.0 + 2.0 * CARD_MARGIN;
+const COPY_OVERLAY_HEIGHT: f64 = 62.0 + 2.0 * CARD_MARGIN;
+const COPY_DISPLAY_TIME: Duration = Duration::from_secs(8);
+const COPY_HOVER_RECHECK: Duration = Duration::from_secs(1);
+const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
+#[cfg(target_os = "macos")]
+const ESCAPE_KEY_CODE: u16 = 53;
 
 /// Bumped by every show or hide request, so a delayed hide only applies when
 /// nothing replaced the overlay in the meantime.
 static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
-/// While an error message is on screen, routine hides (pipeline finished,
-/// cancel) leave it up; only its own timer or a new recording replaces it.
-static ERROR_SHOWING: AtomicBool = AtomicBool::new(false);
+
+/// A message that outlives the dictation that raised it. Routine hides
+/// (pipeline finished, cancel) leave it up; only its own timer, its dismissal
+/// or a new recording replaces it, and the meeting pill returns after it.
+enum Notice {
+    Error,
+    /// No text field had the focus; `write` puts the text on the clipboard
+    /// only if the user clicks Copy.
+    Copy {
+        text: String,
+        write: ClipboardWriter,
+    },
+}
+
+/// Puts a copy notice's text on the clipboard.
+pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+static NOTICE: Mutex<Option<Notice>> = Mutex::new(None);
+
+fn notice() -> MutexGuard<'static, Option<Notice>> {
+    NOTICE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn notice_showing() -> bool {
+    notice().is_some()
+}
+
+// Paths are spelled out because `tauri_panel!` imports these names itself.
+#[cfg(target_os = "macos")]
+type EscapeMonitor = objc2::rc::Retained<objc2::runtime::AnyObject>;
+
+#[cfg(target_os = "macos")]
+thread_local! {
+    /// The copy notice's Escape monitor, on the main thread.
+    static ESCAPE_MONITOR: RefCell<Option<EscapeMonitor>> = const { RefCell::new(None) };
+}
+
+/// Payload of `show-overlay-copy`.
+#[derive(Clone, serde::Serialize)]
+struct CopyNoticeLabels {
+    copy: String,
+    copied: String,
+    /// Says there was no text field to paste into.
+    note: String,
+}
+
+/// The call prompt's own panel, beside the overlay.
+const CALL_PROMPT_WINDOW: &str = "call_prompt";
+/// The call prompt sits this much further from the screen edge than the
+/// overlay, clear of its tallest capsule, a four-line error: a dictation
+/// shows beside it.
+const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
+
+/// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
+#[derive(Clone, serde::Serialize, specta::Type)]
+pub struct CallPromptLabels {
+    /// The call app's name.
+    app: String,
+    question: String,
+    accept: String,
+    decline: String,
+    /// The overlay's side of the screen, which the prompt sits on too.
+    position: OverlayPosition,
+}
+
+/// The call prompt showing. Its page asks for it once it listens, so a
+/// prompt shown while the page still loaded is not lost.
+static CALL_PROMPT: Mutex<Option<CallPromptLabels>> = Mutex::new(None);
+
+fn call_prompt() -> MutexGuard<'static, Option<CallPromptLabels>> {
+    CALL_PROMPT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Whether a dictation owns the overlay (recording or transcribing).
 static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
 /// The meeting pill, while a meeting records. Dictation and error capsules
@@ -70,9 +159,13 @@ static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
 // Distance from the screen edge to the visible capsule.
-#[cfg(target_os = "macos")]
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
+
+#[cfg(target_os = "windows")]
+fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
+    crate::window_placement::monitor_under_cursor(app_handle)
+}
 
 #[cfg(target_os = "macos")]
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
@@ -88,7 +181,7 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
                     (monitor.size().width as f64 / scale) as u32,
                     (monitor.size().height as f64 / scale) as u32,
                 );
-                if is_mouse_within_monitor(mouse_location, &pos, &size) {
+                if is_point_within(mouse_location, &pos, &size) {
                     return Some(monitor);
                 }
             }
@@ -98,26 +191,66 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     app_handle.primary_monitor().ok().flatten()
 }
 
-#[cfg(target_os = "macos")]
-fn is_mouse_within_monitor(
-    mouse_pos: (i32, i32),
-    monitor_pos: &PhysicalPosition<i32>,
-    monitor_size: &PhysicalSize<u32>,
+fn is_point_within(
+    point: (i32, i32),
+    origin: &PhysicalPosition<i32>,
+    size: &PhysicalSize<u32>,
 ) -> bool {
-    let (mouse_x, mouse_y) = mouse_pos;
-    let PhysicalPosition {
-        x: monitor_x,
-        y: monitor_y,
-    } = *monitor_pos;
-    let PhysicalSize {
-        width: monitor_width,
-        height: monitor_height,
-    } = *monitor_size;
+    let (x, y) = point;
+    x >= origin.x
+        && x < origin.x + size.width as i32
+        && y >= origin.y
+        && y < origin.y + size.height as i32
+}
 
-    mouse_x >= monitor_x
-        && mouse_x < (monitor_x + monitor_width as i32)
-        && mouse_y >= monitor_y
-        && mouse_y < (monitor_y + monitor_height as i32)
+/// The overlay never takes the focus, so the pointer is read from the system;
+/// the cursor and the window are both in physical pixels.
+#[cfg(target_os = "windows")]
+fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
+    let Some(window) = app_handle.get_webview_window("recording_overlay") else {
+        return false;
+    };
+    match (
+        app_handle.cursor_position(),
+        window.outer_position(),
+        window.outer_size(),
+    ) {
+        (Ok(pointer), Ok(origin), Ok(size)) => {
+            is_point_within((pointer.x as i32, pointer.y as i32), &origin, &size)
+        }
+        _ => false,
+    }
+}
+
+/// The panel never becomes key, so its webview gets no hover events; the
+/// pointer is read from the window server instead. Compared in points: tao
+/// scales the cursor by the primary display and the window by its own.
+#[cfg(target_os = "macos")]
+fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
+    let Some(window) = app_handle.get_webview_window("recording_overlay") else {
+        return false;
+    };
+    let Some(pointer) = input::get_cursor_position(app_handle) else {
+        return false;
+    };
+    match (
+        window.outer_position(),
+        window.outer_size(),
+        window.scale_factor(),
+    ) {
+        (Ok(origin), Ok(size), Ok(scale)) => is_point_within(
+            pointer,
+            &PhysicalPosition::new(
+                (origin.x as f64 / scale) as i32,
+                (origin.y as f64 / scale) as i32,
+            ),
+            &PhysicalSize::new(
+                (size.width as f64 / scale) as u32,
+                (size.height as f64 / scale) as u32,
+            ),
+        ),
+        _ => false,
+    }
 }
 
 /// Returns overlay position in logical coordinates (points on macOS).
@@ -158,16 +291,18 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
-/// Sizes and moves the overlay in one native call, in the destination
+/// Sizes and moves an overlay window in one native call, in the destination
 /// monitor's physical pixels: tao converts logical values with the scale of
-/// the monitor the window is leaving. Also keeps it above other topmost
-/// windows, which Windows may have raised over it since the last show.
+/// the monitor the window is leaving. `extra_gap` moves it further from the
+/// screen edge. Also keeps it above other topmost windows, which Windows may
+/// have raised over it since the last show.
 #[cfg(target_os = "windows")]
 fn place_overlay(
     app_handle: &AppHandle,
     window: &tauri::webview::WebviewWindow,
     width: f64,
     height: f64,
+    extra_gap: f64,
 ) {
     use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE};
 
@@ -178,7 +313,7 @@ fn place_overlay(
         monitor.work_area(),
         monitor.scale_factor(),
         (width, height),
-        OVERLAY_BOTTOM_OFFSET - CARD_MARGIN,
+        OVERLAY_BOTTOM_OFFSET - CARD_MARGIN + extra_gap,
         settings::get_settings(app_handle).overlay_position,
     );
     let hwnd = match window.hwnd() {
@@ -262,7 +397,14 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .no_activate(true)
         .corner_radius(0.0)
         .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-        .with_window(|w| w.decorations(false).transparent(true).focusable(false))
+        // The panel never becomes key, so without first-mouse the copy
+        // notice's first click would be swallowed.
+        .with_window(|w| {
+            w.decorations(false)
+                .transparent(true)
+                .focusable(false)
+                .accept_first_mouse(true)
+        })
         .collection_behavior(
             CollectionBehavior::new()
                 .can_join_all_spaces()
@@ -289,12 +431,13 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     }
 
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
-    ERROR_SHOWING.store(false, Ordering::SeqCst);
+    *notice() = None;
     DICTATION_SHOWING.store(true, Ordering::SeqCst);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) = present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        if let Some(window) =
+            present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
         {
             let _ = window.emit("show-overlay", state);
         }
@@ -308,25 +451,371 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
     if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
         return false;
     }
+    *notice() = Some(Notice::Error);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    ERROR_SHOWING.store(true, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) =
-            present_overlay_window(&handle, "error", ERROR_OVERLAY_WIDTH, ERROR_OVERLAY_HEIGHT)
-        {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "error",
+            ERROR_OVERLAY_WIDTH,
+            ERROR_OVERLAY_HEIGHT,
+            false,
+        ) {
             let _ = window.emit("show-overlay-error", message);
         }
     });
+    dismiss_notice_after(app_handle, generation, ERROR_DISPLAY_TIME, false);
+    true
+}
+
+/// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter) {
+    *notice() = Some(Notice::Copy { text, write });
+}
+
+/// Shows the copy pill, a short note and a "Copy" action, because no text
+/// field had the focus. A click hands the text to `write`, Escape dismisses
+/// it. Returns false when the overlay is disabled, so there is no pill to
+/// click. Only macOS Accessibility tells that no text field has the focus,
+/// so Windows never shows it.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+pub fn show_copy_notice(app_handle: &AppHandle, text: String, write: ClipboardWriter) -> bool {
+    let settings = settings::get_settings(app_handle);
+    if settings.overlay_style == OverlayStyle::None {
+        return false;
+    }
+    let strings = get_tray_translations(Some(settings.app_language));
+    let labels = CopyNoticeLabels {
+        copy: strings.overlay_copy,
+        copied: strings.overlay_copied,
+        note: strings.overlay_not_pasted,
+    };
+    hold_copy_notice(text, write);
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(ERROR_DISPLAY_TIME);
-        if OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
-            ERROR_SHOWING.store(false, Ordering::SeqCst);
-            hide_recording_overlay(&handle);
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "copy",
+            COPY_OVERLAY_WIDTH,
+            COPY_OVERLAY_HEIGHT,
+            true,
+        ) {
+            let _ = window.emit("show-overlay-copy", labels);
         }
     });
+    dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME, true);
     true
+}
+
+/// Creates the call prompt's panel, hidden. It takes clicks whenever it
+/// shows. Windows has no call detection, so no call prompt.
+#[cfg(target_os = "macos")]
+pub fn create_call_prompt(app_handle: &AppHandle) {
+    if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
+        .url(WebviewUrl::App("src/overlay/call.html".into()))
+        .title("Call")
+        .level(PanelLevel::Status)
+        .size(tauri::Size::Logical(tauri::LogicalSize {
+            width: COPY_OVERLAY_WIDTH,
+            height: COPY_OVERLAY_HEIGHT,
+        }))
+        .has_shadow(false)
+        .transparent(true)
+        .no_activate(true)
+        .corner_radius(0.0)
+        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        .with_window(|w| {
+            w.decorations(false)
+                .transparent(true)
+                .focusable(false)
+                .accept_first_mouse(true)
+        })
+        .collection_behavior(
+            CollectionBehavior::new()
+                .can_join_all_spaces()
+                .full_screen_auxiliary(),
+        )
+        .build()
+        .map(|panel| panel.hide())
+    {
+        log::error!("Failed to create the call prompt panel: {}", e);
+    }
+}
+
+/// Asks whether to record the call `app` started, with "Record" and "Not
+/// now", in a panel of its own: a dictation, an error or the meeting pill
+/// never hides it. It shows even with the overlay off: the call prompt has
+/// a setting of its own. The panel never takes the focus from the call.
+pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
+    let settings = settings::get_settings(app_handle);
+    let strings = get_tray_translations(Some(settings.app_language));
+    let labels = CallPromptLabels {
+        app: app.to_string(),
+        question: strings.call_record_question,
+        accept: strings.call_record,
+        decline: strings.call_not_now,
+        position: settings.overlay_position,
+    };
+    *call_prompt() = Some(labels.clone());
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
+            return;
+        };
+        place_call_prompt(&handle, &window, COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT);
+        let _ = window.show();
+        let _ = handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
+    });
+}
+
+pub fn hide_call_prompt(app_handle: &AppHandle) {
+    *call_prompt() = None;
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let _ = window.hide();
+            let _ = handle.emit_to(CALL_PROMPT_WINDOW, "hide-overlay-call", ());
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn place_call_prompt(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    place_overlay(app_handle, window, width, height, CALL_PROMPT_OFFSET);
+}
+
+#[cfg(target_os = "macos")]
+fn place_call_prompt(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+    if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
+        let y = match settings::get_settings(app_handle).overlay_position {
+            OverlayPosition::Top => y + CALL_PROMPT_OFFSET,
+            OverlayPosition::Bottom => y - CALL_PROMPT_OFFSET,
+        };
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+    }
+}
+
+/// The call prompt showing, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn get_call_prompt() -> Option<CallPromptLabels> {
+    call_prompt().clone()
+}
+
+/// Moves the call prompt showing to the overlay's new side.
+fn update_call_prompt_position(app_handle: &AppHandle) {
+    let position = settings::get_settings(app_handle).overlay_position;
+    let labels = {
+        let mut prompt = call_prompt();
+        let Some(labels) = prompt.as_mut() else {
+            return;
+        };
+        labels.position = position;
+        labels.clone()
+    };
+    if let Some(window) = app_handle.get_webview_window(CALL_PROMPT_WINDOW) {
+        let (width, height) = current_overlay_logical_size(&window)
+            .unwrap_or((COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT));
+        place_call_prompt(app_handle, &window, width, height);
+        let _ = app_handle.emit_to(CALL_PROMPT_WINDOW, "show-overlay-call", labels);
+    }
+}
+
+/// Fits the call prompt's window to the capsule the webview measured, as
+/// `fit_copy_notice` does the copy notice's.
+#[tauri::command]
+#[specta::specta]
+pub fn fit_call_prompt(app: AppHandle, width: f64, height: f64) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+            let (width, height) = fitted_window_size(&handle, width, height);
+            place_call_prompt(&handle, &window, width, height);
+        }
+    });
+}
+
+/// Fits the copy notice's window to the capsule the webview measured, so a
+/// note that wraps further in a wider fallback font still shows whole, and
+/// the window, which takes clicks while the notice shows, stays close to it.
+#[tauri::command]
+#[specta::specta]
+pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if !matches!(*notice(), Some(Notice::Copy { .. })) {
+            return;
+        }
+        let Some(window) = handle.get_webview_window("recording_overlay") else {
+            return;
+        };
+        let (width, height) = fitted_window_size(&handle, width, height);
+        #[cfg(target_os = "windows")]
+        place_overlay(&handle, &window, width, height, 0.0);
+        #[cfg(target_os = "macos")]
+        {
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+            if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
+                let _ =
+                    window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+            }
+        }
+    });
+}
+
+/// `copy_window_size` on the screen under the cursor.
+fn fitted_window_size(app_handle: &AppHandle, width: f64, height: f64) -> (f64, f64) {
+    let work_area = get_monitor_with_cursor(app_handle).map(|monitor| {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area().size;
+        (area.width as f64 / scale, area.height as f64 / scale)
+    });
+    copy_window_size(
+        (width, height),
+        work_area.unwrap_or((f64::INFINITY, f64::INFINITY)),
+    )
+}
+
+/// The copy notice's window around a measured capsule: CARD_MARGIN on each
+/// side, never smaller than the dictation window, and never taller or wider
+/// than the work area left below the top offset, so the capsule stays on
+/// screen whichever edge it sits at.
+fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
+    let fit = |measured: f64, least: f64, most: f64| {
+        let wanted = if measured.is_finite() {
+            measured.ceil() + 2.0 * CARD_MARGIN
+        } else {
+            least
+        };
+        wanted.min(most).max(least)
+    };
+    (
+        fit(capsule.0, OVERLAY_WIDTH, work_area.0),
+        fit(capsule.1, OVERLAY_HEIGHT, work_area.1 - OVERLAY_TOP_OFFSET),
+    )
+}
+
+/// Hands the copy notice's text to its writer, outside the notice lock.
+pub(crate) fn copy_held_notice() -> Result<(), String> {
+    let (text, write) = match &*notice() {
+        Some(Notice::Copy { text, write }) => (text.clone(), Arc::clone(write)),
+        _ => return Err("The copy notice is no longer showing".to_string()),
+    };
+    write(&text)
+}
+
+/// The copy pill's click: puts its text on the clipboard, then lets the pill
+/// read "Copied" for a moment before it hides.
+#[tauri::command]
+#[specta::specta]
+pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(copy_held_notice());
+    })
+    .map_err(|error| format!("Cannot reach the clipboard: {error}"))?;
+    receiver
+        .await
+        .map_err(|_| "The clipboard write did not run".to_string())??;
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME, false);
+    Ok(())
+}
+
+/// With `hover_holds`, the notice outlasts `delay` while the pointer is over
+/// it, so it does not vanish under a click on its way.
+fn dismiss_notice_after(
+    app_handle: &AppHandle,
+    generation: u64,
+    delay: Duration,
+    hover_holds: bool,
+) {
+    let handle = app_handle.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(delay);
+        while OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
+            if !(hover_holds && pointer_over_overlay(&handle)) {
+                dismiss_notice(&handle);
+                return;
+            }
+            std::thread::sleep(COPY_HOVER_RECHECK);
+        }
+    });
+}
+
+fn dismiss_notice(app_handle: &AppHandle) {
+    *notice() = None;
+    hide_recording_overlay(app_handle);
+}
+
+#[cfg(target_os = "macos")]
+fn dismiss_copy_notice(app_handle: &AppHandle) {
+    if matches!(*notice(), Some(Notice::Copy { .. })) {
+        dismiss_notice(app_handle);
+    }
+}
+
+/// While the copy notice shows, the overlay takes clicks; at any other time
+/// the mouse goes through it to the app below.
+#[cfg(target_os = "windows")]
+fn set_interactive(
+    _app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    interactive: bool,
+) {
+    let _ = window.set_ignore_cursor_events(!interactive);
+}
+
+/// While the copy notice shows, the overlay takes clicks and Escape; at any
+/// other time the mouse goes through it to the app below. Main thread only.
+#[cfg(target_os = "macos")]
+fn set_interactive(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    interactive: bool,
+) {
+    let _ = window.set_ignore_cursor_events(!interactive);
+    ESCAPE_MONITOR.with(|slot| {
+        let mut monitor = slot.borrow_mut();
+        if interactive && monitor.is_none() {
+            *monitor = add_escape_monitor(app_handle);
+        } else if !interactive {
+            if let Some(monitor) = monitor.take() {
+                unsafe { objc2_app_kit::NSEvent::removeMonitor(&monitor) };
+            }
+        }
+    });
+}
+
+/// The panel never becomes key, so Escape is watched globally, passively:
+/// the key still reaches the app that has the focus.
+#[cfg(target_os = "macos")]
+fn add_escape_monitor(app_handle: &AppHandle) -> Option<EscapeMonitor> {
+    let app = app_handle.clone();
+    let handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
+        if unsafe { event.as_ref() }.keyCode() == ESCAPE_KEY_CODE {
+            // Dismissing removes this monitor, so it runs outside the handler.
+            let app = app.clone();
+            std::thread::spawn(move || dismiss_copy_notice(&app));
+        }
+    });
+    objc2_app_kit::NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
+        NSEventMask::KeyDown,
+        &handler,
+    )
 }
 
 fn present_overlay_window(
@@ -334,17 +823,19 @@ fn present_overlay_window(
     state: &str,
     width: f64,
     height: f64,
+    interactive: bool,
 ) -> Option<tauri::webview::WebviewWindow> {
     let overlay_window = app_handle.get_webview_window("recording_overlay")?;
 
     #[cfg(target_os = "windows")]
     {
         let started = std::time::Instant::now();
-        place_overlay(app_handle, &overlay_window, width, height);
+        place_overlay(app_handle, &overlay_window, width, height, 0.0);
         let _ = overlay_window.show();
         // Showing can move a window that changed monitor back by tao's
         // stale scale; placing it again settles it.
-        place_overlay(app_handle, &overlay_window, width, height);
+        place_overlay(app_handle, &overlay_window, width, height, 0.0);
+        set_interactive(app_handle, &overlay_window, interactive);
         log::debug!("overlay '{}': place+show={:?}", state, started.elapsed());
     }
 
@@ -369,6 +860,7 @@ fn present_overlay_window(
         let show_started = std::time::Instant::now();
         let _ = overlay_window.show();
         let show_elapsed = show_started.elapsed();
+        set_interactive(app_handle, &overlay_window, interactive);
 
         log::debug!(
             "overlay '{}': set_size={:?} pos_calc={:?} set_pos={:?} show={:?}",
@@ -413,11 +905,12 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
 }
 
 fn update_overlay_position_on_main(app_handle: &AppHandle) {
+    update_call_prompt_position(app_handle);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));
         #[cfg(target_os = "windows")]
-        place_overlay(app_handle, &overlay_window, width, height);
+        place_overlay(app_handle, &overlay_window, width, height, 0.0);
         #[cfg(target_os = "macos")]
         if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
             let _ = overlay_window
@@ -429,18 +922,30 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 /// Hides the recording overlay window with fade-out animation, or brings the
 /// meeting pill back while a meeting records.
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
-    if ERROR_SHOWING.load(Ordering::SeqCst) {
+    if notice_showing() {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
-    if let Some(pill) = meeting_pill() {
-        present_meeting_pill(app_handle, pill);
-        return;
-    }
-    fade_out_overlay(app_handle);
+    settle_overlay(app_handle);
 }
 
-/// Shows the meeting pill unless a dictation or an error is on screen; it
+/// Leaves the overlay as it is when no dictation or notice holds it: the
+/// meeting pill, or hidden, so a prompt that held it never stays behind.
+fn settle_overlay(app_handle: &AppHandle) {
+    let style = settings::get_settings(app_handle).overlay_style;
+    match resting_pill(meeting_pill(), style) {
+        Some(pill) => present_meeting_pill(app_handle, pill),
+        None => fade_out_overlay(app_handle),
+    }
+}
+
+/// The meeting pill shows while a meeting records, unless the overlay is
+/// off.
+fn resting_pill(pill: Option<MeetingPill>, style: OverlayStyle) -> Option<MeetingPill> {
+    pill.filter(|_| style != OverlayStyle::None)
+}
+
+/// Shows the meeting pill unless a dictation or a notice is on screen; it
 /// appears when they hide.
 pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at_ms: i64) {
     let pill = MeetingPill {
@@ -450,8 +955,8 @@ pub fn show_meeting_overlay(app_handle: &AppHandle, started_at_ms: i64, stops_at
     *MEETING_PILL
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pill);
-    if !DICTATION_SHOWING.load(Ordering::SeqCst) && !ERROR_SHOWING.load(Ordering::SeqCst) {
-        present_meeting_pill(app_handle, pill);
+    if !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
+        settle_overlay(app_handle);
     }
 }
 
@@ -461,23 +966,17 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
         .is_some();
-    if was_showing
-        && !DICTATION_SHOWING.load(Ordering::SeqCst)
-        && !ERROR_SHOWING.load(Ordering::SeqCst)
-    {
+    if was_showing && !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
         fade_out_overlay(app_handle);
     }
 }
 
 fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
-    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
-        return;
-    }
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         if let Some(window) =
-            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT)
+            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
         {
             let _ = window.emit("show-overlay-meeting", pill);
         }
@@ -487,6 +986,9 @@ fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
 fn fade_out_overlay(app_handle: &AppHandle) {
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let handle = app_handle.clone();
+        let window = overlay_window.clone();
+        let _ = app_handle.run_on_main_thread(move || set_interactive(&handle, &window, false));
         let _ = overlay_window.emit("hide-overlay", ());
         let window_clone = overlay_window.clone();
         std::thread::spawn(move || {
@@ -525,7 +1027,7 @@ pub fn emit_levels(app_handle: &AppHandle, levels: &[f32]) {
     let _ = app_handle.emit_to("recording_overlay", "mic-level", levels);
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -534,9 +1036,40 @@ mod tests {
         let position = PhysicalPosition::new(-2560, -200);
         let size = PhysicalSize::new(2560, 1440);
 
-        assert!(is_mouse_within_monitor((-2560, -200), &position, &size));
-        assert!(is_mouse_within_monitor((-1, 1239), &position, &size));
-        assert!(!is_mouse_within_monitor((0, 0), &position, &size));
-        assert!(!is_mouse_within_monitor((-1, 1240), &position, &size));
+        assert!(is_point_within((-2560, -200), &position, &size));
+        assert!(is_point_within((-1, 1239), &position, &size));
+        assert!(!is_point_within((0, 0), &position, &size));
+        assert!(!is_point_within((-1, 1240), &position, &size));
+    }
+
+    #[test]
+    fn with_the_overlay_off_a_prompt_over_a_meeting_leaves_nothing_on_screen() {
+        let pill = MeetingPill {
+            started_at_ms: 1,
+            stops_at_ms: 2,
+        };
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::None), None);
+        assert_eq!(resting_pill(Some(pill), OverlayStyle::Minimal), Some(pill));
+        assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
+    }
+
+    #[test]
+    fn copy_window_wraps_the_measured_capsule_in_its_margins() {
+        let screen = (1440.0, 875.0);
+        assert_eq!(copy_window_size((300.4, 62.0), screen), (333.0, 94.0));
+        assert_eq!(copy_window_size((340.0, 30.0), screen), (372.0, 62.0));
+    }
+
+    #[test]
+    fn copy_window_stays_between_the_dictation_window_and_the_screen() {
+        let screen = (1440.0, 875.0);
+        let least = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
+        assert_eq!(copy_window_size((40.0, 12.0), screen), least);
+        assert_eq!(copy_window_size((-5.0, 0.0), screen), least);
+        assert_eq!(copy_window_size((f64::NAN, f64::INFINITY), screen), least);
+        assert_eq!(
+            copy_window_size((4000.0, 2000.0), screen),
+            (1440.0, 875.0 - OVERLAY_TOP_OFFSET)
+        );
     }
 }

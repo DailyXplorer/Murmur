@@ -1,6 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MIN_WINDOW } from "./windowSizes";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 
@@ -65,7 +66,7 @@ test("lists meetings newest first with their duration and status", async ({
   await expect(items.nth(1)).toContainText("1:12:05 · Ready");
   await expect(items.nth(2)).toContainText("09:41 · Interrupted");
   await expect(
-    page.getByRole("button", { name: "Start Meeting" }),
+    page.getByRole("button", { name: "Start meeting" }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => window.settingsPages.unhandledCommands),
@@ -77,14 +78,14 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   const items = page.getByRole("listitem");
   await expect(items).toHaveCount(3);
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Delete this meeting?");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(items).toHaveCount(3);
   expect(await calls(page)).not.toContain("delete_meeting");
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Delete" })
@@ -97,6 +98,32 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
     ),
   );
   expect(deleted?.args).toEqual({ id: 3 });
+});
+
+test("a double click on a meeting's trash leaves the confirmation open", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  const trash = page
+    .getByRole("listitem")
+    .nth(1)
+    .getByRole("button", { name: "Delete meeting" });
+
+  // The trash lies outside the dialog, so the second click lands on the
+  // backdrop that the first one put up.
+  const box = await trash.boundingBox();
+  if (!box) throw new Error("not laid out");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ clickCount: 1 });
+  await page.mouse.up({ clickCount: 1 });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete this meeting?");
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
+  await page.waitForTimeout(100);
+
+  await expect(dialog).toContainText("Delete this meeting?");
+  expect(await calls(page)).not.toContain("delete_meeting");
 });
 
 test("a list load already on its way does not bring a deleted meeting back", async ({
@@ -116,7 +143,7 @@ test("a list load already on its way does not bring a deleted meeting back", asy
   });
   await expect.poll(loads).toBeGreaterThan(before);
 
-  await items.nth(1).getByRole("button", { name: "Delete Meeting" }).click();
+  await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Delete" })
@@ -136,7 +163,7 @@ test("an update keeps every page of the list that is shown", async ({
   const items = page.getByRole("listitem");
   await expect(items).toHaveCount(50);
 
-  await page.getByRole("button", { name: "Show More" }).click();
+  await page.getByRole("button", { name: "Show more" }).click();
   await expect(items).toHaveCount(63);
 
   const loads = async () =>
@@ -147,12 +174,12 @@ test("an update keeps every page of the list that is shown", async ({
   await expect.poll(loads).toBeGreaterThan(before);
   await page.waitForTimeout(100);
   await expect(items).toHaveCount(63);
-  await expect(page.getByRole("button", { name: "Show More" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show more" })).toHaveCount(0);
 });
 
 test("the start button starts a meeting", async ({ page }) => {
   await openMeetings(page);
-  await page.getByRole("button", { name: "Start Meeting" }).click();
+  await page.getByRole("button", { name: "Start meeting" }).click();
   await expect.poll(() => calls(page)).toContain("start_meeting");
 });
 
@@ -165,12 +192,12 @@ test("a meeting in progress shows its time, can be stopped and cannot be deleted
   const live = page.getByRole("listitem").nth(0);
   await expect(live).toContainText("· Recording");
   await expect(
-    live.getByRole("button", { name: "Delete Meeting" }),
+    live.getByRole("button", { name: "Delete meeting" }),
   ).toBeDisabled();
 
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("dialog")).toContainText("Discard this meeting?");
-  await page.getByRole("button", { name: "Keep Recording" }).click();
+  await page.getByRole("button", { name: "Keep recording" }).click();
   expect(await calls(page)).not.toContain("discard_meeting");
 
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -243,11 +270,29 @@ test("without system audio support the sources are fixed to the microphone", asy
   await expect(
     page.getByText(/System audio needs macOS 14\.4 or later/),
   ).toBeVisible();
-  const sources = page.getByRole("button", { name: "Microphone Only" });
+  const sources = page.getByRole("button", { name: "Microphone only" });
   await expect(sources).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Open Settings" })).toHaveCount(
+  await expect(page.getByRole("button", { name: "Open settings" })).toHaveCount(
     0,
   );
+});
+
+test("a Mac that tells no speakers apart offers no speaker models, even with the dictation model", async ({
+  page,
+}) => {
+  await openMeetings(page, "&analysis=unsupported&models=ready");
+  await expect(
+    page.getByText(/Speaker detection needs a Mac with Apple silicon/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete models" })).toHaveCount(
+    0,
+  );
+
+  await openMeetings(page, "&analysis=os_too_old");
+  await expect(
+    page.getByText(/Speaker detection needs macOS 15 or later/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download" })).toHaveCount(0);
 });
 
 test("the page starts with the recording controls, and its buttons show text only", async ({
@@ -257,7 +302,7 @@ test("the page starts with the recording controls, and its buttons show text onl
   await expect(page.getByText(/Transcripts and summaries appear/)).toHaveCount(
     0,
   );
-  const start = page.getByRole("button", { name: "Start Meeting" });
+  const start = page.getByRole("button", { name: "Start meeting" });
   await expect(start).toBeVisible();
   await expect(start.locator("svg")).toHaveCount(0);
 
@@ -269,7 +314,7 @@ test("the page starts with the recording controls, and its buttons show text onl
 
 const speakerGroup = (page: Page) =>
   page.locator("section").filter({
-    has: page.getByRole("heading", { name: "Speaker Detection", exact: true }),
+    has: page.getByRole("heading", { name: "Speaker detection", exact: true }),
   });
 
 test("speaker detection has no licences button, in any state", async ({
@@ -304,10 +349,73 @@ test("the download progress sits in the models row, under its title", async ({
   expect(barBox.x + barBox.width).toBeLessThan(cancelBox.x);
 });
 
-test("the system audio row's title fits at the default window size in every language", async ({
+/** A double click whose second click lands once the button has turned into
+ * the next action, as it does in the app within a few milliseconds. */
+const doubleClickAcrossStates = async (
+  page: Page,
+  first: Locator,
+  second: Locator,
+) => {
+  const box = await first.boundingBox();
+  if (!box) throw new Error("not laid out");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ clickCount: 1 });
+  await page.mouse.up({ clickCount: 1 });
+  await expect(second).toBeVisible();
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
+};
+
+test("a double click on a speaker models button runs only its first action", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 680, height: 570 });
+  const actions = async () =>
+    (await calls(page)).filter(
+      (command) =>
+        command.includes("local_model") && command !== "get_local_model_status",
+    );
+
+  const button = (name: string) =>
+    speakerGroup(page).getByRole("button", { name, exact: true });
+
+  await openMeetings(page, "&models=missing");
+  await doubleClickAcrossStates(page, button("Download"), button("Cancel"));
+  expect(await actions()).toEqual(["download_local_model"]);
+
+  await openMeetings(page, "&models=ready");
+  await doubleClickAcrossStates(
+    page,
+    button("Delete models"),
+    button("Download"),
+  );
+  expect(await actions()).toEqual(["delete_local_model"]);
+});
+
+test("a double click on Start or Stop runs only its first action", async ({
+  page,
+}) => {
+  const actions = async () =>
+    (await calls(page)).filter((command) =>
+      ["start_meeting", "stop_meeting", "discard_meeting"].includes(command),
+    );
+  const start = page.getByRole("button", { name: "Start meeting" });
+  const stop = page.getByRole("button", { name: "Stop", exact: true });
+
+  await openMeetings(page, "&meeting=recording");
+  await doubleClickAcrossStates(page, stop, start);
+  await page.waitForTimeout(100);
+  expect(await actions()).toEqual(["stop_meeting"]);
+
+  await openMeetings(page);
+  await doubleClickAcrossStates(page, start, stop);
+  await page.waitForTimeout(100);
+  expect(await actions()).toEqual(["start_meeting"]);
+});
+
+test("the system audio row's title fits at the minimum window size in every language", async ({
+  page,
+}) => {
+  await page.setViewportSize(MIN_WINDOW);
   for (const { locale, page: meetings, title } of LOCALES) {
     await page.goto(`${fixture}?meetings=1&lang=${locale}`);
     await sidebarButton(page, meetings).click();
@@ -315,10 +423,11 @@ test("the system audio row's title fits at the default window size in every lang
     // Room left beside the title and its info button. macOS draws text a
     // little wider than this browser, so a bare fit is not enough.
     const room = await heading.evaluate((element) => {
-      const line = element.parentElement as HTMLElement;
+      const title = element as HTMLElement;
+      const line = title.parentElement as HTMLElement;
       const used = Array.from(line.children).reduce(
         (sum, child) => sum + (child as HTMLElement).offsetWidth,
-        element.scrollWidth - element.offsetWidth,
+        title.scrollWidth - title.offsetWidth,
       );
       return line.clientWidth - used;
     });
@@ -329,8 +438,8 @@ test("the system audio row's title fits at the default window size in every lang
 test("the speaker models' licences open from About", async ({ page }) => {
   await page.goto(fixture);
   await sidebarButton(page, "About").click();
-  await page.getByRole("button", { name: "View Licences" }).click();
-  const dialog = page.getByRole("dialog", { name: "Model Licences" });
+  await page.getByRole("button", { name: "View licences" }).click();
+  const dialog = page.getByRole("dialog", { name: "Model licences" });
   await expect(dialog).toContainText("pyannote, CC BY 4.0");
   await expect(dialog).toContainText("Murmur doesn't include them.");
 });

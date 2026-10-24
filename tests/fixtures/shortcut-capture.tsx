@@ -23,8 +23,22 @@ const SETTINGS: AppSettings = {
     transcribe: binding("transcribe", "Transcribe", "option+space"),
     cancel: binding("cancel", "Cancel", "escape"),
     paste_last: binding("paste_last", "Paste last", "ctrl+command+v"),
+    meeting_toggle: binding(
+      "meeting_toggle",
+      "Start or stop a meeting",
+      "ctrl+option+command+m",
+    ),
   },
 };
+
+// A few keys of the French AZERTY layout: the key a US keyboard calls "m"
+// types ",", and the key printed M is the one it calls ";".
+const AZERTY_LABELS = { a: "q", q: "a", m: ",", ";": "m", v: "v" };
+
+const bindings = SETTINGS.bindings;
+if (!bindings) {
+  throw new Error("Shortcut capture fixture is missing bindings");
+}
 
 declare global {
   interface Window {
@@ -40,6 +54,7 @@ const calls: string[] = [];
 mockIPC(
   (command, args) => {
     if (command === "get_shortcut_registration_errors") return {};
+    if (command === "get_key_labels") return AZERTY_LABELS;
     if (
       command === "suspend_all_bindings" ||
       command === "resume_all_bindings"
@@ -52,7 +67,7 @@ mockIPC(
       calls.push(`change_binding ${id} ${keys}`);
       return {
         success: true,
-        binding: { ...SETTINGS.bindings[id], current_binding: keys },
+        binding: { ...bindings[id], current_binding: keys },
         error: null,
       };
     }
@@ -64,7 +79,7 @@ mockIPC(
 const ShortcutCaptureFixture: React.FC = () => (
   <main className="min-h-screen bg-background px-8 py-10 text-text">
     <section className="mx-auto flex w-[720px] flex-col gap-4">
-      {Object.keys(SETTINGS.bindings).map((id) => (
+      {Object.keys(bindings).map((id) => (
         <div key={id} data-testid={`shortcut-${id}`}>
           <GlobalShortcutInput shortcutId={id} />
         </div>

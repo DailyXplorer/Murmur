@@ -15,7 +15,9 @@ src-tauri/gen
 # Generated files
 src/bindings.ts
 src-tauri/src/catalog/catalog.json
+src-tauri/src/meetings/soak-report.md
 
 # Misc
 .DS_Store
 *.log
+.github/CODEOWNERS

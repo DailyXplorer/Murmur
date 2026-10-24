@@ -51,7 +51,7 @@ impl Unit {
         }
     }
 
-    fn is_placeholder(&self) -> bool {
+    pub fn is_placeholder(&self) -> bool {
         self.speaker == PLACEHOLDER
     }
 }

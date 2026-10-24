@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "call-prompt",
+  "description": "Least-privilege capabilities for the call prompt",
+  "windows": ["call_prompt"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-answer-call-prompt",
+    "allow-fit-call-prompt",
+    "allow-get-call-prompt"
+  ]
+}

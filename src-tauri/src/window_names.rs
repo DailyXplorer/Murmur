@@ -1,15 +1,21 @@
-//! Proper names visible in the window the user dictates into, offered to the
-//! cleanup step as spelling hints. The window text is read through
-//! Accessibility on a background thread when dictation starts, reduced to
-//! candidate names locally, and dropped after use: only the names leave
+//! What the window the user dictates into offers the cleanup step: proper
+//! names visible in it, as spelling hints, and a short excerpt of the
+//! focused field around the insertion point. Both are read through
+//! Accessibility on a background thread when dictation starts, reduced
+//! locally, and dropped after use: only the names and the excerpt leave
 //! this module, and nothing is stored or logged.
 
+use crate::field_excerpt::FieldExcerpt;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
 use std::time::Duration;
 #[cfg(target_os = "macos")]
-use std::time::Instant;
+use {
+    crate::accessibility::Element,
+    crate::field_excerpt::{read_field, FocusedText, Utf16Range},
+    std::time::Instant,
+};
 
 const MAX_NAMES: usize = 50;
 const MAX_NAME_CHARS: usize = 40;
@@ -21,53 +27,155 @@ const MAX_NODES: usize = 1_500;
 const MAX_TEXT_CHARS: usize = 40_000;
 #[cfg(target_os = "macos")]
 const READ_BUDGET: Duration = Duration::from_millis(400);
+/// The field is read first, and a slow one must leave the window time.
+#[cfg(target_os = "macos")]
+const FIELD_BUDGET: Duration = Duration::from_millis(200);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
 
-static PENDING: Mutex<Option<Receiver<Vec<String>>>> = Mutex::new(None);
+/// What one dictation learned from the window it was started in.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct WindowContext {
+    pub names: Vec<String>,
+    pub field: Option<FieldExcerpt>,
+}
 
-/// Starts a dictation: reads the frontmost window when `enabled`, and
-/// always drops the names of an earlier dictation nobody claimed, such as
-/// one cancelled with Escape.
-pub fn capture(enabled: bool) {
+/// Which parts of the frontmost window a dictation reads.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ContextReads {
+    /// Names visible anywhere in the focused window.
+    pub names: bool,
+    /// The excerpt of the focused field around the insertion point.
+    pub field: bool,
+}
+
+static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
+
+/// Starts a dictation: reads what `reads` asks for from the frontmost
+/// window, and always drops the context of an earlier dictation nobody
+/// claimed, such as one cancelled with Escape.
+pub fn capture(reads: ContextReads) {
+    capture_with(reads, read_frontmost_window);
+}
+
+fn capture_with(
+    reads: ContextReads,
+    read: impl FnOnce(ContextReads) -> WindowContext + Send + 'static,
+) {
     let (sender, receiver) = mpsc::channel();
+    let reads_any = reads.names || reads.field;
     if let Ok(mut pending) = PENDING.lock() {
-        *pending = enabled.then_some(receiver);
+        *pending = reads_any.then_some(receiver);
     }
-    if !enabled {
+    if !reads_any {
         return;
     }
     std::thread::spawn(move || {
-        let names = read_frontmost_window()
-            .map(|(bundle_id, text)| names_in_window(&bundle_id, &text))
-            .unwrap_or_default();
-        let _ = sender.send(names);
+        let _ = sender.send(read(reads));
     });
 }
 
-/// The names captured for the dictation that is ending, if ready.
-pub fn collect() -> Vec<String> {
+/// The context captured for the dictation that is ending, if ready.
+pub fn collect() -> WindowContext {
     let receiver = PENDING.lock().ok().and_then(|mut pending| pending.take());
     receiver
         .and_then(|receiver| receiver.recv_timeout(COLLECT_WAIT).ok())
         .unwrap_or_default()
 }
 
-/// Reading another app's window text on Windows needs UI Automation, which
-/// this build does not have; the setting is off there (see `settings`).
+/// Reading another app's window on Windows needs UI Automation, which this
+/// build does not have; window names are off there (see `settings`).
 #[cfg(target_os = "windows")]
-fn read_frontmost_window() -> Option<(String, String)> {
-    None
+fn read_frontmost_window(_reads: ContextReads) -> WindowContext {
+    WindowContext::default()
 }
 
-/// The frontmost app's bundle identifier and the text of its focused window.
 #[cfg(target_os = "macos")]
-fn read_frontmost_window() -> Option<(String, String)> {
-    use crate::accessibility::frontmost_app;
-
+fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    let (_, bundle_id, app) = frontmost_app()?;
-    let window = app.element("AXFocusedWindow")?;
+    crate::accessibility::frontmost_app()
+        .map(|(pid, app)| read_app(reads, pid, &app, started))
+        .unwrap_or_default()
+}
+
+/// The focused field first, then the focused window with what is left of
+/// the budget that began at `started`.
+#[cfg(target_os = "macos")]
+fn read_app(reads: ContextReads, pid: i32, app: &Element, started: Instant) -> WindowContext {
+    read_window(
+        reads,
+        || {
+            crate::accessibility::focus_in(pid, app)
+                .and_then(|focused| read_field(&focused, started + FIELD_BUDGET))
+        },
+        || {
+            app.element("AXFocusedWindow")
+                .map(|window| window_text(window, started))
+                .unwrap_or_default()
+        },
+    )
+}
+
+/// Runs only the reads `reads` asks for.
+#[cfg(target_os = "macos")]
+fn read_window(
+    reads: ContextReads,
+    field: impl FnOnce() -> Option<FieldExcerpt>,
+    window_text: impl FnOnce() -> String,
+) -> WindowContext {
+    let field = if reads.field { field() } else { None };
+    let names = if reads.names {
+        names_in(field.as_ref(), &window_text())
+    } else {
+        Vec::new()
+    };
+    WindowContext { names, field }
+}
+
+/// Names in the excerpt come first: they are next to what the user is
+/// writing.
+#[cfg(target_os = "macos")]
+fn names_in(field: Option<&FieldExcerpt>, window_text: &str) -> Vec<String> {
+    let excerpt = field
+        .map(|field| format!("{}\n{}", field.before, field.after))
+        .unwrap_or_default();
+    let mut names = candidate_names(&excerpt);
+    for name in candidate_names(window_text) {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names.truncate(MAX_NAMES);
+    names
+}
+
+#[cfg(target_os = "macos")]
+impl FocusedText for Element {
+    fn is_secure(&self) -> bool {
+        Element::is_secure(self)
+    }
+
+    fn selection(&self) -> Option<Utf16Range> {
+        self.range("AXSelectedTextRange")
+    }
+
+    fn char_count(&self) -> Option<usize> {
+        usize::try_from(self.number("AXNumberOfCharacters")?).ok()
+    }
+
+    fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        Element::string_for_range(self, range)
+    }
+
+    fn value(&self) -> Option<String> {
+        self.string("AXValue")
+    }
+}
+
+/// The text of `window` and its descendants, breadth first, until the read
+/// budget that started at `started` runs out.
+#[cfg(target_os = "macos")]
+fn window_text(window: Element, started: Instant) -> String {
     let mut text = String::new();
     let mut queue = std::collections::VecDeque::from([window]);
     let mut visited = 0;
@@ -89,94 +197,12 @@ fn read_frontmost_window() -> Option<(String, String)> {
         }
         queue.extend(element.children());
     }
-    Some((bundle_id, text))
-}
-
-/// Terminals and code editors, where a `.env` file or a shell `export` may
-/// be on screen.
-const CODE_APPS: [&str; 18] = [
-    "com.apple.Terminal",
-    "com.googlecode.iterm2",
-    "dev.warp.Warp-Stable",
-    "net.kovidgoyal.kitty",
-    "org.alacritty",
-    "com.github.wez.wezterm",
-    "com.mitchellh.ghostty",
-    "co.zeit.hyper",
-    "com.microsoft.VSCode",
-    "com.microsoft.VSCodeInsiders",
-    "com.vscodium",
-    "com.todesktop.230313mzl4w4u92",
-    "dev.zed.Zed",
-    "com.sublimetext.4",
-    "com.apple.dt.Xcode",
-    "com.panic.Nova",
-    "com.barebones.bbedit",
-    "com.apple.TextEdit",
-];
-const CODE_APP_PREFIXES: [&str; 1] = ["com.jetbrains."];
-
-fn is_code_app(bundle_id: &str) -> bool {
-    CODE_APPS
-        .iter()
-        .any(|known| known.eq_ignore_ascii_case(bundle_id))
-        || CODE_APP_PREFIXES
-            .iter()
-            .any(|prefix| bundle_id.starts_with(prefix))
-}
-
-/// A terminal or editor with any `KEY=value` line may be showing a `.env`
-/// file or a shell session, so it gives no names at all.
-fn names_in_window(bundle_id: &str, text: &str) -> Vec<String> {
-    if is_code_app(bundle_id) && text.lines().any(is_assignment) {
-        return Vec::new();
-    }
-    candidate_names(text)
-}
-
-/// `KEY=value` or `export KEY=value`, as in a `.env` file or a shell.
-fn is_assignment(line: &str) -> bool {
-    let line = line.trim();
-    let line = line.strip_prefix("export ").unwrap_or(line);
-    let Some((key, value)) = line.split_once('=') else {
-        return false;
-    };
-    let key = key.trim_end();
-    key.chars()
-        .next()
-        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
-        && key
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
-        && !value.trim().is_empty()
-        && !value.starts_with('=')
-}
-
-const SECRET_WORDS: [&str; 12] = [
-    "password",
-    "passwd",
-    "passcode",
-    "passphrase",
-    "token",
-    "secret",
-    "api key",
-    "api_key",
-    "api-key",
-    "apikey",
-    "private key",
-    "credential",
-];
-
-fn mentions_secret(line: &str) -> bool {
-    let line = line.to_lowercase();
-    SECRET_WORDS.iter().any(|word| line.contains(word))
+    text
 }
 
 /// Words that look like names: capitalised but not merely sentence case,
 /// never seen in lowercase in the same text, plus the name parts of email
-/// addresses and @handles. Most frequent first, at most 50. Lines that
-/// assign a value or mention a password, token, secret or API key are
-/// skipped, and so is the line after them, where a label's value sits.
+/// addresses and @handles. Most frequent first, at most 50.
 pub fn candidate_names(text: &str) -> Vec<String> {
     let lowercase_words: std::collections::HashSet<String> = text
         .split_whitespace()
@@ -194,15 +220,7 @@ pub fn candidate_names(text: &str) -> Vec<String> {
         counts.entry(name).or_insert((0, order)).0 += 1;
     };
 
-    let mut after_secret_label = false;
     for line in text.lines() {
-        let sensitive = after_secret_label || is_assignment(line) || mentions_secret(line);
-        if !line.trim().is_empty() {
-            after_secret_label = mentions_secret(line);
-        }
-        if sensitive {
-            continue;
-        }
         let mut sentence_start = true;
         for token in line.split_whitespace() {
             if let Some(parts) = address_names(token) {
@@ -259,10 +277,11 @@ fn is_name(word: &str, sentence_start: bool) -> bool {
     inner_capital || !sentence_start
 }
 
-/// Passwords, API keys and hashes rather than words. Written names mix
-/// letters and digits at most once ("GPT-4o", "iPhone15"), switch case at
-/// most twice ("McDonald", "DeepSeek"), have vowels, and stay short unless
-/// they are hyphenated words.
+/// Generated strings such as keys and hashes rather than words, which would
+/// crowd real names out of the hints. Written names mix letters and digits
+/// at most once ("GPT-4o", "iPhone15"), switch case at most twice
+/// ("McDonald", "DeepSeek"), have vowels, and stay short unless they are
+/// hyphenated words.
 fn looks_generated(word: &str) -> bool {
     let segments: Vec<&str> = word
         .split(['-', '\'', '&', '.'])
@@ -410,8 +429,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_secrets_are_not_names() {
-        for secret in [
+    fn generated_tokens_are_not_names() {
+        for token in [
             // Generated passwords.
             "Xk9mPq2vLr7T",
             "Tr0ub4dor&3",
@@ -428,8 +447,8 @@ mod tests {
             "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         ] {
             assert!(
-                candidate_names(&format!("see {secret} here")).is_empty(),
-                "accepted {secret}"
+                candidate_names(&format!("see {token} here")).is_empty(),
+                "accepted {token}"
             );
         }
     }
@@ -463,40 +482,388 @@ mod tests {
         }
     }
 
-    #[test]
-    fn values_next_to_secret_labels_are_skipped() {
-        assert_eq!(
-            candidate_names("Wi-Fi password: Bluebird\nshared with Corvina\nthanks to Ingrid"),
-            vec!["Ingrid"]
-        );
-        assert_eq!(
-            candidate_names("API key\nZephyrine\nmeet Tobias"),
-            vec!["Tobias"]
-        );
-        assert_eq!(
-            candidate_names("STRIPE_KEY=Moonlight\nexport ADMIN = Corvina\nask Amaya"),
-            vec!["Amaya"]
-        );
+    /// `PENDING` is shared by every dictation, so its tests take turns.
+    static PENDING_TESTS: Mutex<()> = Mutex::new(());
+
+    fn names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    fn field(before: &str, after: &str) -> Option<FieldExcerpt> {
+        Some(FieldExcerpt {
+            before: before.to_string(),
+            after: after.to_string(),
+        })
     }
 
     #[test]
     fn a_dictation_started_with_names_off_drops_an_unclaimed_capture() {
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         let (sender, receiver) = mpsc::channel();
-        sender.send(vec!["Ingrid".to_string()]).unwrap();
+        sender
+            .send(WindowContext {
+                names: names(&["Ingrid"]),
+                field: field("Hi Ingrid, ", ""),
+            })
+            .unwrap();
         *PENDING.lock().unwrap() = Some(receiver);
-        capture(false);
-        assert_eq!(collect(), Vec::<String>::new());
+        capture(ContextReads::default());
+        assert_eq!(collect(), WindowContext::default());
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
-    fn terminals_and_editors_showing_assignments_give_no_names() {
-        let text = "DATABASE_URL=postgres://localhost\nwritten by Ingrid";
-        assert!(names_in_window("com.apple.Terminal", text).is_empty());
-        assert!(names_in_window("com.jetbrains.intellij", text).is_empty());
-        assert_eq!(names_in_window("com.apple.Notes", text), vec!["Ingrid"]);
+    fn each_read_runs_only_when_asked_for() {
+        use std::sync::Arc;
+
+        let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        let excerpt = || field("Hi Priya, ", "");
+        for (reads, expected_reads, expected) in [
+            (ContextReads::default(), vec![], WindowContext::default()),
+            (
+                ContextReads {
+                    names: true,
+                    field: false,
+                },
+                vec!["window"],
+                WindowContext {
+                    names: names(&["Ingrid"]),
+                    field: None,
+                },
+            ),
+            (
+                ContextReads {
+                    names: false,
+                    field: true,
+                },
+                vec!["field"],
+                WindowContext {
+                    names: Vec::new(),
+                    field: excerpt(),
+                },
+            ),
+            (
+                ContextReads {
+                    names: true,
+                    field: true,
+                },
+                vec!["field", "window"],
+                WindowContext {
+                    names: names(&["Priya", "Ingrid"]),
+                    field: excerpt(),
+                },
+            ),
+        ] {
+            let asked = Arc::new(Mutex::new(Vec::new()));
+            let log = Arc::clone(&asked);
+            capture_with(reads, move |reads| {
+                let field_log = Arc::clone(&log);
+                let context = read_window(
+                    reads,
+                    move || {
+                        field_log.lock().unwrap().push("field");
+                        excerpt()
+                    },
+                    || {
+                        log.lock().unwrap().push("window");
+                        "meet Ingrid today".to_string()
+                    },
+                );
+                log.lock().unwrap().push("done");
+                context
+            });
+            let started = Instant::now();
+            while !asked.lock().unwrap().contains(&"done")
+                && started.elapsed() < Duration::from_millis(200)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(collect(), expected, "{reads:?}");
+            let asked: Vec<_> = asked
+                .lock()
+                .unwrap()
+                .iter()
+                .copied()
+                .filter(|read| *read != "done")
+                .collect();
+            assert_eq!(asked, expected_reads, "{reads:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_excerpt_and_names_are_sent_as_read() {
+        let all = ContextReads {
+            names: true,
+            field: true,
+        };
+        let context = read_window(
+            all,
+            || field("Code porte : 4512B\n", ""),
+            || "Wi-Fi password: Bluebird\nshared with Corvina".to_string(),
+        );
         assert_eq!(
-            names_in_window("com.microsoft.VSCode", "written by Ingrid"),
-            vec!["Ingrid"]
+            context,
+            WindowContext {
+                names: names(&["Wi-Fi", "Corvina"]),
+                field: field("Code porte : 4512B\n", ""),
+            }
+        );
+    }
+
+    /// Every text the name finder was checked on, and the names it gives.
+    /// Add rows; never change one to make a fix pass.
+    const NAMES_CORPUS: &[(&str, &[&str])] = &[
+        (
+            "Thanks for the update. I spoke with Ingrid and Tobias yesterday.\nShipping is on track.",
+            &["Ingrid", "Tobias"],
+        ),
+        ("File\nEdit\nView\nSearch messages", &[]),
+        (
+            "Open the Settings page. the settings are saved with Murmur.",
+            &["Murmur"],
+        ),
+        (
+            "GitHub and iPhone users. macOS ships soon.",
+            &["GitHub", "iPhone", "macOS"],
+        ),
+        (
+            "reply to jane.doe@example.com or ping @kai_dev today",
+            &["Jane", "Doe", "kai_dev"],
+        ),
+        ("see the PDF and 2024 and www.Example.com now", &[]),
+        ("meet Zed then Amaya then Zed again", &["Zed", "Amaya"]),
+        ("see Xk9mPq2vLr7T here", &[]),
+        ("see Tr0ub4dor&3 here", &[]),
+        ("see hGqWzKpLxV here", &[]),
+        ("see Xkqzvbnm here", &[]),
+        ("see aB3dE5fG7hJ9kL1mN0pQ here", &[]),
+        ("see Z7kQ2mN9xR4bL1vT8cW3 here", &[]),
+        ("see dGhpcyBpcyBhIHNlY3JldA== here", &[]),
+        ("see Deadbeef0042 here", &[]),
+        ("see Fa3c9e1b7d5a here", &[]),
+        ("see AKIAIOSFODNN7EXAMPLE here", &[]),
+        ("see wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY here", &[]),
+        (
+            "met McDonald, O'Brien, Jean-Luc, Schwarzschild and Strzelczyk about iPhone15, \
+             GPT-4o, OpenAI and DeepSeek",
+            &[
+                "McDonald",
+                "O'Brien",
+                "Jean-Luc",
+                "Schwarzschild",
+                "Strzelczyk",
+                "iPhone15",
+                "GPT-4o",
+                "OpenAI",
+                "DeepSeek",
+            ],
+        ),
+    ];
+
+    #[test]
+    fn names_corpus() {
+        let wrong: Vec<String> = NAMES_CORPUS
+            .iter()
+            .filter(|(text, expected)| candidate_names(text) != names(expected))
+            .map(|(text, expected)| {
+                format!("{text:?}: {:?}, not {expected:?}", candidate_names(text))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// Measures every read on each regular app running, without bringing
+    /// any to the front, and writes a markdown table. Only lengths, counts,
+    /// roles and attribute names are recorded, never text.
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore]
+    fn coverage_of_running_apps() {
+        use crate::accessibility::{is_password_app, is_trusted};
+        use crate::field_excerpt::{MAX_AFTER_CHARS, MAX_BEFORE_CHARS};
+        use objc2_app_kit::{NSApplicationActivationPolicy, NSWorkspace};
+        use std::fmt::Write as _;
+
+        let out = std::env::var("MURMUR_COVERAGE_OUT")
+            .unwrap_or_else(|_| "/tmp/murmur-i153-coverage.md".to_string());
+        let chars = |text: Option<String>| {
+            text.map_or("-".to_string(), |text| text.chars().count().to_string())
+        };
+        let mut main = format!(
+            "# Window context coverage\n\n{} UTC, Accessibility trusted: {}\n\n\
+             Before: the window read at 71afa240 (window chars, names, ms). After: the \
+             production reader with names and field on (excerpt chars before/after the \
+             cursor, names, ms).\n\n\
+             | App | Before | After | Notes |\n|---|---|---|---|\n",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M"),
+            is_trusted()
+        );
+        let mut report = String::from(
+            "\n## Probe details\n\n\
+             (a) selection + AXStringForRange of the reader's window, (b) selection + AXValue, \
+             (c) AXSelectedText, (d) AXVisibleCharacterRange length, (e) BFS text of the nearest \
+             AXWebArea above the focus. Lengths in chars; `-` is a failed read.\n\n\
+             | app | focus role/subrole | secure | selection | (a) | (b) | (c) | (d) | (e) chars, ms \
+             | before: window chars, names, ms | after: excerpt chars, names, ms |\n\
+             |---|---|---|---|---|---|---|---|---|---|---|\n",
+        );
+        let mut attributes = String::from("\n## Attributes of the focused element\n");
+        let workspace = NSWorkspace::sharedWorkspace();
+        for running in workspace.runningApplications().iter() {
+            let pid = running.processIdentifier();
+            let bundle_id = running
+                .bundleIdentifier()
+                .map(|id| id.to_string())
+                .unwrap_or_default();
+            if running.activationPolicy() != NSApplicationActivationPolicy::Regular
+                || pid <= 0
+                || bundle_id.to_lowercase().contains("murmur")
+                || is_password_app(&bundle_id)
+            {
+                continue;
+            }
+            let Some(app) = Element::application(pid) else {
+                continue;
+            };
+            let focused = app.element("AXFocusedUIElement");
+            let role = focused.as_ref().map_or("no focus".to_string(), |focused| {
+                format!(
+                    "{}/{}",
+                    focused.string("AXRole").unwrap_or_default(),
+                    focused.string("AXSubrole").unwrap_or_default()
+                )
+            });
+            let secure = focused.as_ref().is_some_and(Element::is_secure);
+            let readable = focused.as_ref().filter(|_| !secure);
+            let selection = readable.and_then(|focused| focused.range("AXSelectedTextRange"));
+            let ranged = readable.zip(selection).and_then(|(focused, selection)| {
+                let count = FocusedText::char_count(focused)?;
+                let end = (selection.start + selection.len + 2 * MAX_AFTER_CHARS + 2).min(count);
+                let start = selection
+                    .start
+                    .saturating_sub(2 * MAX_BEFORE_CHARS + 2)
+                    .min(end);
+                focused.string_for_range(Utf16Range {
+                    start,
+                    len: end - start,
+                })
+            });
+            let value = readable
+                .filter(|_| selection.is_some())
+                .and_then(|focused| focused.string("AXValue"));
+            let selected = readable.and_then(|focused| focused.string("AXSelectedText"));
+            let visible = readable
+                .and_then(|focused| focused.range("AXVisibleCharacterRange"))
+                .map(|range| range.len.to_string());
+            let web_area = readable.and_then(|focused| {
+                let mut element = focused.clone();
+                for _ in 0..30 {
+                    if element.string("AXRole").as_deref() == Some("AXWebArea") {
+                        return Some(element);
+                    }
+                    element = element.element("AXParent")?;
+                }
+                None
+            });
+            let web_area = web_area.map_or("-".to_string(), |web_area| {
+                let started = Instant::now();
+                let text = window_text(web_area, started);
+                format!(
+                    "{}, {}",
+                    text.chars().count(),
+                    started.elapsed().as_millis()
+                )
+            });
+
+            let started = Instant::now();
+            let window = app
+                .element("AXFocusedWindow")
+                .map(|window| window_text(window, started));
+            let before = window.map_or("no window".to_string(), |text| {
+                let elapsed = started.elapsed().as_millis();
+                let names = names_in(None, &text).len();
+                format!("{}, {names}, {elapsed}", text.chars().count())
+            });
+
+            let started = Instant::now();
+            let all = ContextReads {
+                names: true,
+                field: true,
+            };
+            let context = read_app(all, pid, &app, started);
+            let elapsed = started.elapsed().as_millis();
+            let excerpt = context.field.as_ref().map_or(0, |field| {
+                field.before.chars().count() + field.after.chars().count()
+            });
+            let after = format!("{excerpt}, {}, {elapsed}", context.names.len());
+            let split = context.field.as_ref().map_or("0/0".to_string(), |field| {
+                format!(
+                    "{}/{}",
+                    field.before.chars().count(),
+                    field.after.chars().count()
+                )
+            });
+            let worked: Vec<&str> = [
+                ("selection", selection.is_some()),
+                ("AXStringForRange", ranged.is_some()),
+                ("AXValue", value.is_some()),
+                ("AXSelectedText", selected.is_some()),
+                ("AXVisibleCharacterRange", visible.is_some()),
+                ("web area", web_area != "-"),
+            ]
+            .into_iter()
+            .filter_map(|(read, ok)| ok.then_some(read))
+            .collect();
+            let app_name = running
+                .localizedName()
+                .map_or_else(|| bundle_id.clone(), |name| name.to_string());
+            writeln!(
+                main,
+                "| {app_name} | {before} | {split}, {}, {elapsed} | {role}{}; worked: {} |",
+                context.names.len(),
+                if secure { ", secure" } else { "" },
+                if worked.is_empty() {
+                    "none".to_string()
+                } else {
+                    worked.join(", ")
+                }
+            )
+            .unwrap();
+
+            writeln!(
+                report,
+                "| {bundle_id} | {role} | {secure} | {} | {} | {} | {} | {} | {web_area} | {before} | {after} |",
+                selection.map_or("-".to_string(), |selection| format!("len {}", selection.len)),
+                chars(ranged),
+                chars(value),
+                chars(selected),
+                visible.unwrap_or_else(|| "-".to_string()),
+            )
+            .unwrap();
+            if let Some(focused) = &focused {
+                writeln!(
+                    attributes,
+                    "\n- {bundle_id}: {}; parameterized: {}",
+                    focused.attribute_names(false).join(", "),
+                    focused.attribute_names(true).join(", ")
+                )
+                .unwrap();
+            }
+        }
+        main.push_str(&report);
+        main.push_str(&attributes);
+        std::fs::write(&out, &main).unwrap();
+        println!("{main}");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn names_in_the_excerpt_come_before_the_window_names() {
+        let excerpt = field("Dear Siobhán and Priya, ", "with Ingrid");
+        assert_eq!(
+            names_in(excerpt.as_ref(), "meet Tobias and Siobhán today"),
+            names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
     }
 }

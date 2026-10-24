@@ -10,8 +10,16 @@ export const formatDuration = (milliseconds: number): string => {
     : `${pad(minutes)}:${pad(seconds)}`;
 };
 
-/** "482 MB", or "351 kB" under a megabyte, in the locale's style. */
+/** "482 MB", "351 kB" under a megabyte or "1.2 GB" from a gigabyte on, in
+ * the locale's style. */
 export const formatSize = (bytes: number, locale: string): string => {
+  if (bytes >= 999_500_000) {
+    return new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: "gigabyte",
+      maximumFractionDigits: 1,
+    }).format(bytes / 1_000_000_000);
+  }
   const kilobytes = Math.round(bytes / 1_000);
   return new Intl.NumberFormat(locale, {
     style: "unit",

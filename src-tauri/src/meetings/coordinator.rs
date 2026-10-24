@@ -2,7 +2,7 @@
 //! notifications and time come in through traits, so the rules are tested
 //! without audio hardware or a running app.
 
-use log::{error, warn};
+use log::{error, info, warn};
 use serde::Serialize;
 use specta::Type;
 use std::fmt;
@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::cap::{cap_action, CapAction, CAP};
+use super::cap::{cap_action, slept, CapAction, CAP};
+use super::capture::route::OutputRoute;
 use super::capture::system::SystemAudioSupport;
 use super::merge::Track as Source;
 use super::paths;
@@ -24,6 +25,9 @@ pub trait Track: Send {
     /// The source stopped delivering audio and could not be brought back
     /// yet; the track records silence meanwhile.
     fn interrupted(&self) -> bool;
+    /// Audio the source delivered faster than the disk took it, recorded as
+    /// silence instead.
+    fn dropped_ms(&self) -> u64;
     /// Stops the source and pads the file to `duration`. Returns whether
     /// another app played sound while it recorded, which only system audio
     /// can tell.
@@ -38,11 +42,22 @@ pub trait CaptureBackend: Send {
     fn free_bytes(&self, dir: &Path) -> Option<u64>;
     /// macOS refuses Murmur the microphone, which then gives only silence.
     fn microphone_denied(&self) -> bool;
+    /// macOS refuses Murmur System Audio Recording: the tap still starts,
+    /// but records only silence.
+    fn system_audio_denied(&self) -> bool;
+    /// Keeps the Mac from sleeping on its own until the returned guard is
+    /// dropped. `None` when macOS refuses.
+    fn keep_awake(&self) -> Option<Box<dyn Send>>;
+    /// Where the Mac plays sound now.
+    fn output_route(&self) -> OutputRoute;
 }
 
 /// Below this much free space a meeting warns at start: three hours of both
 /// tracks take about 700 MB before they are compressed.
 pub const LOW_DISK_BYTES: u64 = 1_500_000_000;
+
+/// Audio the tracks dropped, summed, past which the user is told once.
+const DROPPED_ALERT_MS: u64 = 2_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeetingAlert {
@@ -63,8 +78,20 @@ pub enum MeetingAlert {
     /// The microphone permission is off, so the microphone track records
     /// silence; only Privacy & Security can turn it back on.
     MicrophoneDenied,
+    /// The System Audio Recording permission is off, so the system track
+    /// records silence; only Privacy & Security can turn it back on.
+    SystemAudioDenied,
     /// The meeting records, but the disk may fill before it ends.
     LowDiskSpace,
+    /// The Mac slept anyway (lid closed, battery low): nothing was recorded
+    /// between these two times.
+    PausedWhileAsleep {
+        from_ms: i64,
+        to_ms: i64,
+    },
+    /// The track writers fell behind for more than `DROPPED_ALERT_MS`; that
+    /// audio is silence in the recording.
+    AudioDropped,
 }
 
 pub trait Notifier: Send {
@@ -128,6 +155,22 @@ struct Active {
     warned: bool,
     /// The sources lost at the last tick, which the user was told about.
     interrupted: Vec<Source>,
+    /// `Instant` and wall-clock time of the last tick, which tell a sleep.
+    last_tick: (Instant, i64),
+    /// The user was told the tracks dropped audio.
+    dropped_told: bool,
+    /// Where this meeting played sound, over all of it, and at the last tick.
+    route: OutputRoute,
+    playing_on: OutputRoute,
+    /// Keeps the Mac awake until the meeting ends, however it ends.
+    _awake: Option<Box<dyn Send>>,
+}
+
+/// A recording whose end the database refused, on a full disk.
+struct Unclosed {
+    id: i64,
+    ended_at_ms: i64,
+    duration_ms: i64,
 }
 
 pub struct Coordinator<B, N, C> {
@@ -137,6 +180,8 @@ pub struct Coordinator<B, N, C> {
     store: Arc<MeetingsStore>,
     root: PathBuf,
     active: Option<Active>,
+    /// Tried again at each tick of their meeting until saved.
+    unclosed: Vec<Unclosed>,
 }
 
 impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
@@ -154,6 +199,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             store,
             root,
             active: None,
+            unclosed: Vec::new(),
         }
     }
 
@@ -250,6 +296,12 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             warn!("Meeting {id}: the microphone permission is off");
             self.notifier.alert(MeetingAlert::MicrophoneDenied);
         }
+        if system && self.backend.system_audio_denied() {
+            warn!("Meeting {id}: the System Audio Recording permission is off");
+            self.notifier.alert(MeetingAlert::SystemAudioDenied);
+        }
+        let route = self.backend.output_route();
+        info!("Meeting {id}: sound plays on {route:?}");
         self.active = Some(Active {
             id,
             started_at_ms,
@@ -258,6 +310,11 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             recorded,
             warned: false,
             interrupted: Vec::new(),
+            last_tick: (origin, started_at_ms),
+            dropped_told: false,
+            route,
+            playing_on: route,
+            _awake: self.backend.keep_awake(),
         });
         self.notifier.runtime_changed(&self.runtime());
         if self
@@ -276,7 +333,18 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         let active = self.active.take().ok_or(MeetingError::NotRecording)?;
         let duration = self.clock.now().saturating_duration_since(active.origin);
         let mut played = false;
-        for (_, track) in active.tracks {
+        let mut dropped_ms = 0;
+        for (source, track) in active.tracks {
+            let dropped = track.dropped_ms();
+            dropped_ms += dropped;
+            if dropped > 0 {
+                warn!(
+                    "Meeting {}: {source:?} track dropped {dropped} ms",
+                    active.id
+                );
+            } else {
+                info!("Meeting {}: {source:?} track dropped no audio", active.id);
+            }
             match track.finish(duration) {
                 Ok(heard) => played |= heard,
                 Err(error) => error!(
@@ -293,15 +361,62 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
                 );
             }
         }
+        if let Err(error) = self.store.set_output_route(active.id, active.route) {
+            error!(
+                "Meeting {}: cannot note where sound played: {error}",
+                active.id
+            );
+        }
+        if dropped_ms > 0 {
+            if let Err(error) = self.store.set_dropped_ms(active.id, dropped_ms) {
+                error!(
+                    "Meeting {}: cannot note the dropped audio: {error}",
+                    active.id
+                );
+            }
+        }
+        let unclosed = Unclosed {
+            id: active.id,
+            ended_at_ms: self.clock.unix_ms(),
+            duration_ms: duration.as_millis() as i64,
+        };
         let result = self
             .store
-            .finish_recording(active.id, self.clock.unix_ms(), duration.as_millis() as i64)
+            .finish_recording(unclosed.id, unclosed.ended_at_ms, unclosed.duration_ms)
             .map_err(storage);
         self.notifier.runtime_changed(&self.runtime());
-        if result.is_ok() {
-            self.notifier.recorded(active.id);
+        match &result {
+            Ok(()) => self.notifier.recorded(active.id),
+            Err(error) => {
+                error!("Meeting {}: cannot save its end: {error}", active.id);
+                self.unclosed.push(unclosed);
+            }
         }
         result.map(|()| active.id)
+    }
+
+    fn is_unclosed(&self, id: i64) -> bool {
+        self.unclosed.iter().any(|unclosed| unclosed.id == id)
+    }
+
+    /// Saves the end of meeting `id` the database refused. Returns whether
+    /// it is still unsaved.
+    fn retry_close(&mut self, id: i64) -> bool {
+        let Some(at) = self.unclosed.iter().position(|unclosed| unclosed.id == id) else {
+            return false;
+        };
+        let unclosed = &self.unclosed[at];
+        if self
+            .store
+            .finish_recording(id, unclosed.ended_at_ms, unclosed.duration_ms)
+            .is_err()
+        {
+            return true;
+        }
+        self.unclosed.remove(at);
+        info!("Meeting {id}: its end is saved");
+        self.notifier.recorded(id);
+        false
     }
 
     /// Ends recording `id` and deletes it. Any other meeting, recording or
@@ -321,15 +436,37 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
     }
 
     /// Called about once a second while meeting `id` records. Returns
-    /// whether it is still recording.
+    /// whether to call it again: the meeting records, or its end waits to
+    /// be saved.
     pub fn tick(&mut self, id: i64) -> bool {
+        if self.is_unclosed(id) {
+            return self.retry_close(id);
+        }
         let Some(active) = self.active.as_mut().filter(|active| active.id == id) else {
             return false;
         };
+        // Neither track records while the Mac sleeps, and both place audio
+        // by `Instant`, so they stay aligned and leave the time out.
+        let now = (self.clock.now(), self.clock.unix_ms());
+        let (last_instant, last_ms) = std::mem::replace(&mut active.last_tick, now);
+        if let Some(gap) = slept(
+            now.0.saturating_duration_since(last_instant),
+            now.1 - last_ms,
+        ) {
+            let gap_ms = gap.as_millis() as u64;
+            warn!("Meeting {id}: the Mac slept for {} s", gap.as_secs());
+            if let Err(error) = self.store.add_slept_ms(id, gap_ms) {
+                error!("Meeting {id}: cannot note the time asleep: {error}");
+            }
+            self.notifier.alert(MeetingAlert::PausedWhileAsleep {
+                from_ms: now.1 - gap_ms as i64,
+                to_ms: now.1,
+            });
+        }
         if active.tracks.iter().any(|(_, track)| track.failed()) {
             let _ = self.stop();
             self.notifier.alert(MeetingAlert::WriteFailed);
-            return false;
+            return self.is_unclosed(id);
         }
         let interrupted: Vec<Source> = active
             .tracks
@@ -348,6 +485,19 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             });
         }
         active.interrupted = interrupted;
+        let playing_on = self.backend.output_route();
+        if playing_on != active.playing_on {
+            info!("Meeting {id}: sound now plays on {playing_on:?}");
+            active.playing_on = playing_on;
+        }
+        active.route = active.route.and(playing_on);
+        // A disk too slow for a moment is not a full one: the meeting goes on.
+        let dropped_ms: u64 = active.tracks.iter().map(|(_, t)| t.dropped_ms()).sum();
+        if !active.dropped_told && dropped_ms > DROPPED_ALERT_MS {
+            active.dropped_told = true;
+            warn!("Meeting {id}: the tracks dropped {dropped_ms} ms so far");
+            self.notifier.alert(MeetingAlert::AudioDropped);
+        }
         // The cap counts wall-clock time, as the pill does: a Mac asleep
         // records nothing, but a meeting left running overnight stops on
         // waking. `Instant` stands still in sleep, so it only guards against
@@ -365,7 +515,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             CapAction::Stop => {
                 let _ = self.stop();
                 self.notifier.alert(MeetingAlert::StoppedAtLimit);
-                false
+                self.is_unclosed(id)
             }
         }
     }
@@ -377,7 +527,9 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         // The folder first: a meeting whose audio stays on disk stays listed,
         // so the user can delete it again.
         paths::remove_meeting_dir(&self.root, id).map_err(storage)?;
-        self.store.delete(id).map_err(storage)
+        self.store.delete(id).map_err(storage)?;
+        self.unclosed.retain(|unclosed| unclosed.id != id);
+        Ok(())
     }
 
     /// Removes a meeting that never got going.
@@ -417,6 +569,7 @@ mod tests {
         failed: Arc<AtomicBool>,
         interrupted: Arc<AtomicBool>,
         played: bool,
+        dropped_ms: u64,
     }
 
     impl Track for FakeTrack {
@@ -425,6 +578,9 @@ mod tests {
         }
         fn interrupted(&self) -> bool {
             self.interrupted.load(Ordering::SeqCst)
+        }
+        fn dropped_ms(&self) -> u64 {
+            self.dropped_ms
         }
         fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
             self.log
@@ -445,6 +601,22 @@ mod tests {
         /// Another app plays sound while system audio records.
         system_played: bool,
         microphone_denied: bool,
+        system_audio_denied: bool,
+        /// Audio each track dropped.
+        dropped_ms: u64,
+        /// When the Mac is kept awake.
+        awake: Log,
+        /// Where the Mac plays sound.
+        route: OutputRoute,
+    }
+
+    /// Holds the Mac awake until dropped.
+    struct FakeAwake(Log);
+
+    impl Drop for FakeAwake {
+        fn drop(&mut self) {
+            self.0.push("awake off");
+        }
     }
 
     impl FakeBackend {
@@ -463,6 +635,7 @@ mod tests {
                     &self.system_interrupted
                 }),
                 played: name == "system" && self.system_played,
+                dropped_ms: self.dropped_ms,
             }))
         }
     }
@@ -485,6 +658,16 @@ mod tests {
         }
         fn microphone_denied(&self) -> bool {
             self.microphone_denied
+        }
+        fn system_audio_denied(&self) -> bool {
+            self.system_audio_denied
+        }
+        fn keep_awake(&self) -> Option<Box<dyn Send>> {
+            self.awake.push("awake on");
+            Some(Box::new(FakeAwake(self.awake.clone())))
+        }
+        fn output_route(&self) -> OutputRoute {
+            self.route
         }
     }
 
@@ -541,6 +724,7 @@ mod tests {
         failed: Arc<AtomicBool>,
         mic_interrupted: Arc<AtomicBool>,
         system_interrupted: Arc<AtomicBool>,
+        awake: Log,
         root: PathBuf,
         _dir: tempfile::TempDir,
     }
@@ -555,6 +739,7 @@ mod tests {
         let failed = Arc::new(AtomicBool::new(false));
         let mic_interrupted = Arc::new(AtomicBool::new(false));
         let system_interrupted = Arc::new(AtomicBool::new(false));
+        let awake = Log::default();
         let clock = FakeClock {
             origin: Instant::now(),
             elapsed: Arc::default(),
@@ -571,6 +756,10 @@ mod tests {
             free_bytes: Some(100_000_000_000),
             system_played: false,
             microphone_denied: false,
+            system_audio_denied: false,
+            dropped_ms: 0,
+            awake: awake.clone(),
+            route: OutputRoute::Speakers,
         };
         Harness {
             coordinator: Coordinator::new(
@@ -586,6 +775,7 @@ mod tests {
             failed,
             mic_interrupted,
             system_interrupted,
+            awake,
             root,
             _dir: dir,
         }
@@ -637,6 +827,37 @@ mod tests {
         assert!(paths::meeting_dir(&h.root, id).is_dir());
     }
 
+    /// A full disk refuses the database write that ends the recording too:
+    /// the meeting is saved for processing once there is room, not left on
+    /// "Recording" until the next launch. Unix file modes stand in for the
+    /// full disk.
+    #[cfg(unix)]
+    #[test]
+    fn a_close_the_disk_refused_is_saved_once_it_has_room() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.clock.advance(Duration::from_secs(90));
+        let db = h._dir.path().join("meetings.db");
+        let writable = |yes: bool| {
+            let mode = if yes { 0o644 } else { 0o444 };
+            std::fs::set_permissions(&db, std::fs::Permissions::from_mode(mode)).unwrap();
+        };
+
+        writable(false);
+        assert!(h.coordinator.stop().is_err());
+        assert!(h.coordinator.tick(id), "the close is tried again");
+        writable(true);
+        h.log.take();
+        assert!(!h.coordinator.tick(id), "the close is done");
+
+        assert_eq!(h.log.take(), ["recorded"]);
+        assert_eq!(
+            statuses(&h.store),
+            [(MeetingStatus::Processing, MeetingTracks::Both, 90_000)]
+        );
+    }
+
     #[test]
     fn a_meeting_remembers_whether_another_app_played_sound() {
         let mut h = working();
@@ -648,6 +869,19 @@ mod tests {
 
         assert!(!h.store.system_played(quiet).unwrap());
         assert!(h.store.system_played(played).unwrap());
+    }
+
+    #[test]
+    fn a_meeting_keeps_how_much_audio_its_tracks_dropped() {
+        let mut h = working();
+        let clean = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        h.coordinator.backend.dropped_ms = 400;
+        let dropped = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+
+        assert_eq!(h.store.dropped_ms(clean).unwrap(), 0);
+        assert_eq!(h.store.dropped_ms(dropped).unwrap(), 800, "both tracks");
     }
 
     #[test]
@@ -695,6 +929,28 @@ mod tests {
         // System audio alone does not use the microphone.
         h.log.take();
         h.coordinator.start(MeetingCaptureMode::SystemOnly).unwrap();
+        assert!(!h.log.take().iter().any(|entry| entry.starts_with("alert")));
+    }
+
+    #[test]
+    fn a_denied_system_audio_permission_warns_at_start_and_the_meeting_records() {
+        let mut h = working();
+        h.coordinator.backend.system_audio_denied = true;
+        h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert_eq!(
+            h.log.take(),
+            [
+                "start mic",
+                "start system",
+                "alert SystemAudioDenied",
+                "recording Both"
+            ]
+        );
+        h.coordinator.stop().unwrap();
+
+        // The microphone alone does not use system audio.
+        h.log.take();
+        h.coordinator.start(MeetingCaptureMode::MicOnly).unwrap();
         assert!(!h.log.take().iter().any(|entry| entry.starts_with("alert")));
     }
 
@@ -834,6 +1090,69 @@ mod tests {
     }
 
     #[test]
+    fn the_meeting_stops_at_exactly_three_hours_as_one_recording() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.clock.advance(CAP - Duration::from_secs(1));
+        assert!(h.coordinator.tick(id));
+        h.log.take();
+
+        h.clock.advance(Duration::from_secs(1));
+        assert!(!h.coordinator.tick(id));
+
+        assert_eq!(
+            h.log.take(),
+            [
+                "finish mic 10800s",
+                "finish system 10800s",
+                "idle",
+                "recorded",
+                "alert StoppedAtLimit"
+            ]
+        );
+        assert_eq!(h.coordinator.runtime(), MeetingRuntime::Idle);
+        assert_eq!(
+            statuses(&h.store),
+            [(MeetingStatus::Processing, MeetingTracks::Both, 10_800_000)]
+        );
+        let folders = std::fs::read_dir(&h.root).unwrap().count();
+        assert_eq!(folders, 1, "no folder for a second recording");
+    }
+
+    #[test]
+    fn a_disk_nearly_full_while_recording_lets_the_meeting_go_on() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        h.clock.advance(Duration::from_secs(1));
+        h.coordinator.backend.free_bytes = Some(0);
+        assert!(h.coordinator.tick(id), "only a failed write stops it");
+        assert_eq!(h.log.take(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_meeting_is_on_headphones_only_when_it_never_played_on_speakers() {
+        let mut h = working();
+        h.coordinator.backend.route = OutputRoute::Headphones;
+        let worn = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(worn));
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.store.output_route(worn).unwrap(), OutputRoute::Headphones);
+
+        // Headphones taken off for a minute, then put back.
+        let mixed = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.backend.route = OutputRoute::Speakers;
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(mixed));
+        h.coordinator.backend.route = OutputRoute::Headphones;
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(mixed));
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.store.output_route(mixed).unwrap(), OutputRoute::Speakers);
+    }
+
+    #[test]
     fn time_asleep_counts_toward_the_cap_but_not_into_the_audio() {
         let mut h = working();
         let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
@@ -841,17 +1160,120 @@ mod tests {
 
         h.clock.advance(Duration::from_secs(3600));
         h.clock.sleep(Duration::from_secs(2 * 3600));
+        let woke = h.clock.unix_ms();
         assert!(!h.coordinator.tick(id));
         assert_eq!(
             h.log.take(),
             [
-                "finish mic 3600s",
-                "finish system 3600s",
-                "idle",
-                "recorded",
-                "alert StoppedAtLimit"
+                format!(
+                    "alert {:?}",
+                    MeetingAlert::PausedWhileAsleep {
+                        from_ms: woke - 2 * 3_600_000,
+                        to_ms: woke
+                    }
+                ),
+                "finish mic 3600s".to_string(),
+                "finish system 3600s".to_string(),
+                "idle".to_string(),
+                "recorded".to_string(),
+                "alert StoppedAtLimit".to_string()
             ]
         );
+        assert_eq!(h.store.slept_ms(id).unwrap(), 2 * 3_600_000);
+    }
+
+    #[test]
+    fn the_mac_is_kept_awake_while_a_meeting_records_and_only_then() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert_eq!(h.awake.take(), ["awake on"]);
+        assert!(h.coordinator.tick(id));
+        assert!(h.awake.take().is_empty());
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.awake.take(), ["awake off"]);
+
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.discard(id).unwrap();
+        assert_eq!(h.awake.take(), ["awake on", "awake off"]);
+
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.failed.store(true, Ordering::SeqCst);
+        assert!(!h.coordinator.tick(id));
+        assert_eq!(h.awake.take(), ["awake on", "awake off"]);
+    }
+
+    #[test]
+    fn a_meeting_that_cannot_start_never_keeps_the_mac_awake() {
+        let mut h = harness(SystemAudioSupport::Available, false, false);
+        assert!(h.coordinator.start(MeetingCaptureMode::Both).is_err());
+        assert!(h.awake.take().is_empty());
+    }
+
+    #[test]
+    fn each_sleep_during_a_meeting_is_told_once_with_its_times() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        let paused = |from_ms: i64, to_ms: i64| {
+            format!(
+                "alert {:?}",
+                MeetingAlert::PausedWhileAsleep { from_ms, to_ms }
+            )
+        };
+
+        h.clock.advance(Duration::from_secs(60));
+        assert!(h.coordinator.tick(id));
+        h.clock.advance(Duration::from_secs(1));
+        h.clock.sleep(Duration::from_secs(20 * 60));
+        let woke = h.clock.unix_ms();
+        assert!(h.coordinator.tick(id));
+        h.clock.advance(Duration::from_secs(1));
+        assert!(h.coordinator.tick(id));
+        assert_eq!(h.log.take(), [paused(woke - 20 * 60_000, woke)]);
+        assert_eq!(h.store.slept_ms(id).unwrap(), 20 * 60_000);
+
+        // Another sleep is news again, and adds to the time asleep.
+        h.clock.advance(Duration::from_secs(1));
+        h.clock.sleep(Duration::from_secs(30));
+        let woke = h.clock.unix_ms();
+        assert!(h.coordinator.tick(id));
+        assert_eq!(h.log.take(), [paused(woke - 30_000, woke)]);
+        assert_eq!(h.store.slept_ms(id).unwrap(), 20 * 60_000 + 30_000);
+
+        // The audio holds only the time awake.
+        h.coordinator.stop().unwrap();
+        assert_eq!(h.log.take()[0], "finish mic 63s");
+    }
+
+    #[test]
+    fn a_clock_correction_of_a_few_seconds_is_not_a_sleep() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        h.clock.advance(Duration::from_secs(1));
+        h.clock.sleep(Duration::from_secs(2));
+        assert!(h.coordinator.tick(id));
+        assert!(h.log.take().is_empty());
+        assert_eq!(h.store.slept_ms(id).unwrap(), 0);
+    }
+
+    #[test]
+    fn audio_dropped_past_two_seconds_is_told_once_and_the_meeting_records_on() {
+        let mut h = working();
+        // 1.8 s over both tracks: not worth a notification.
+        h.coordinator.backend.dropped_ms = 900;
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        assert!(h.coordinator.tick(id));
+        assert!(h.log.take().is_empty());
+        h.coordinator.stop().unwrap();
+
+        h.coordinator.backend.dropped_ms = 2_500;
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.log.take();
+        assert!(h.coordinator.tick(id));
+        assert!(h.coordinator.tick(id));
+        assert_eq!(h.log.take(), ["alert AudioDropped"]);
     }
 
     #[test]
@@ -938,13 +1360,16 @@ mod tests {
         std::fs::write(outside.path().join("keep.txt"), "keep").unwrap();
         std::os::unix::fs::symlink(outside.path(), paths::meeting_dir(&h.root, 1)).unwrap();
 
-        for _ in 0..2 {
-            let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
-            assert_eq!(id, 1);
-            let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, id)).unwrap();
-            assert!(dir.is_dir() && !dir.file_type().is_symlink());
-            h.coordinator.discard(id).unwrap();
-        }
+        let first = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert_eq!(first, 1);
+        let dir = std::fs::symlink_metadata(paths::meeting_dir(&h.root, first)).unwrap();
+        assert!(dir.is_dir() && !dir.file_type().is_symlink());
+        h.coordinator.discard(first).unwrap();
+
+        // A discarded id is never given again, so the next start is clear.
+        let next = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        assert!(next > first);
+        assert!(paths::meeting_dir(&h.root, next).is_dir());
         assert!(outside.path().join("keep.txt").exists());
     }
 

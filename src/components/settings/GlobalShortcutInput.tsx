@@ -4,6 +4,7 @@ import {
   getKeyName,
   formatKeyCombination,
   normalizeKey,
+  type KeyLabels,
 } from "../../lib/utils/keyboard";
 import { ResetButton } from "../ui/ResetButton";
 import {
@@ -56,7 +57,11 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [originalBinding, setOriginalBinding] = useState<string>("");
   const [registrationError, setRegistrationError] =
     useState<ShortcutRegistrationError>();
+  const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
+  // The optimistic update re-attaches the key listeners while the first
+  // combo is still being saved; a second combo then must not start another.
+  const committing = useRef(false);
 
   const bindings = getSetting("bindings") || {};
 
@@ -77,6 +82,21 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     };
   }, [shortcutId]);
 
+  // Shortcuts name physical keys after a US keyboard; show what the user's
+  // layout prints on them instead.
+  useEffect(() => {
+    let active = true;
+    commands
+      .getKeyLabels()
+      .then((labels) => {
+        if (active) setKeyLabels(labels);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => () => endCapture(shortcutId), [shortcutId, endCapture]);
 
   useEffect(() => {
@@ -94,6 +114,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     const commit = async (newShortcut: string) => {
       if (!bindings[editingShortcutId]) return;
+      committing.current = true;
       try {
         await updateBinding(editingShortcutId, newShortcut);
       } catch (error) {
@@ -116,6 +137,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
       // Re-registers all bindings (the one just committed is already
       // registered; re-registering it fails cleanly and is ignored)
+      committing.current = false;
       endCapture(editingShortcutId);
       setHeldModifiers([]);
       setOriginalBinding("");
@@ -128,6 +150,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (cleanup) return;
       if (e.repeat) return;
       e.preventDefault();
+      if (committing.current) return;
 
       const key = normalizeKey(getKeyName(e));
       const modifiers = modifiersHeld(e);
@@ -195,7 +218,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     if (heldModifiers.length === 0)
       return t("settings.general.shortcut.pressKeys");
 
-    return formatKeyCombination(heldModifiers.join("+"));
+    return formatKeyCombination(heldModifiers.join("+"), keyLabels);
   };
 
   const setShortcutRef = (id: string, ref: HTMLElement | null) => {
@@ -284,13 +307,13 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
               aria-label={`${translatedName}: ${t("settings.general.shortcut.pressKeys")}`}
               disabled={disabled || isUpdating(`binding_${shortcutId}`)}
               data-control="field"
-              className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} min-w-0 flex-1 cursor-pointer truncate hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary disabled:cursor-not-allowed disabled:opacity-50`}
+              className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} min-w-0 flex-1 cursor-pointer truncate hover:border-logo-primary hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-not-allowed disabled:opacity-50`}
               onClick={(event) => {
                 event.stopPropagation();
                 startRecording(shortcutId);
               }}
             >
-              {formatKeyCombination(binding.current_binding)}
+              {formatKeyCombination(binding.current_binding, keyLabels)}
             </button>
           )}
           <ResetButton

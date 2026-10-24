@@ -1,9 +1,16 @@
+mod transaction;
+
+#[cfg(all(test, target_os = "macos"))]
+pub(crate) use transaction::Transactions;
+
+use crate::engine::Engine;
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -198,24 +205,15 @@ pub enum AccentColor {
     Red,
 }
 
+/// How much AI cleanup reshapes the dictation. It applies only when cleanup
+/// runs; `Normal` is the cleanup Murmur had before styles existed.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum TranscriptionProvider {
+pub enum DictationStyle {
+    Formal,
     #[default]
-    Codex,
-    Gemini,
-}
-
-/// Which model runs AI cleanup. Apple's on-device model is free, offline
-/// and does not spend the user's Codex allowance, so it is the default.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum CleanupEngine {
-    #[cfg_attr(target_os = "macos", default)]
-    Apple,
-    // The only engine on Windows, which has no Apple Intelligence.
-    #[cfg_attr(target_os = "windows", default)]
-    Codex,
+    Normal,
+    Casual,
 }
 
 /// Which sources a meeting records. Without system audio support (before
@@ -228,6 +226,22 @@ pub enum MeetingCaptureMode {
     Both,
     SystemOnly,
     MicOnly,
+}
+
+/// How long a processed meeting keeps its audio. Its transcript and summary
+/// stay either way. The names are spelled out: serde and the TypeScript
+/// bindings split `Days7` differently.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+pub enum MeetingAudioRetention {
+    #[default]
+    #[serde(rename = "keep")]
+    Keep,
+    #[serde(rename = "days7")]
+    Days7,
+    #[serde(rename = "days30")]
+    Days30,
+    #[serde(rename = "days90")]
+    Days90,
 }
 
 /// The container-level `serde(default)` (backed by the `Default` impl below)
@@ -276,8 +290,6 @@ pub struct AppSettings {
     pub selected_output_device: Option<String>,
     #[serde(default = "default_selected_language")]
     pub selected_language: String,
-    #[serde(default)]
-    pub transcription_provider: TranscriptionProvider,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -324,11 +336,11 @@ pub struct AppSettings {
     /// reading promised data, so settlement waits a bounded window. macOS only.
     #[serde(default = "default_reliable_paste")]
     pub reliable_paste: bool,
-    /// AI cleanup and formatting of each transcript, by `cleanup_engine`.
+    /// AI cleanup and formatting of each transcript by the Codex session.
     #[serde(default = "default_ai_cleanup_enabled")]
     pub ai_cleanup_enabled: bool,
     #[serde(default)]
-    pub cleanup_engine: CleanupEngine,
+    pub dictation_style: DictationStyle,
     /// Dictionary words learned from corrections; each is also in `custom_words`.
     #[serde(default)]
     pub learned_words: Vec<crate::dictionary::LearnedWord>,
@@ -348,11 +360,47 @@ pub struct AppSettings {
     pub meetings_enabled: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
+    #[serde(default)]
+    pub meeting_audio_retention: MeetingAudioRetention,
+    /// Offers to record when a call app starts using the microphone. Only
+    /// while meetings are on.
+    #[serde(default = "default_meeting_call_prompt")]
+    pub meeting_call_prompt: bool,
+    /// Which engine transcribes dictations.
+    #[serde(default)]
+    pub transcription_engine: Engine,
+    /// The one-time card announcing local transcription was closed.
+    #[serde(default)]
+    pub local_stt_card_dismissed: bool,
+    /// The user asked for the local model, so its download resumes at launch.
+    #[serde(default)]
+    pub local_model_download_wanted: bool,
+    /// The user asked to dictate on this Mac as soon as the local model is
+    /// ready.
+    #[serde(default)]
+    pub switch_to_local_when_ready: bool,
+}
+
+impl AppSettings {
+    /// Moves dictation to this Mac if the user asked for it and the model is
+    /// ready. Returns whether it moved.
+    pub fn switch_to_local_if_asked(&mut self, model_ready: bool) -> bool {
+        let switch = self.switch_to_local_when_ready && model_ready;
+        if switch {
+            self.switch_to_local_when_ready = false;
+            self.transcription_engine = Engine::Local;
+        }
+        switch
+    }
 }
 
 /// On macOS only: see `restrict_to_windows`.
 fn default_meetings_enabled() -> bool {
     cfg!(target_os = "macos")
+}
+
+fn default_meeting_call_prompt() -> bool {
+    true
 }
 
 fn default_always_on_microphone() -> bool {
@@ -462,13 +510,16 @@ fn default_show_tray_icon() -> bool {
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 /// `push_to_talk` chose between hold and toggle; one shortcut now does both.
 /// The filler-removal keys are superseded by AI cleanup (see
-/// `parse_stored_settings`).
-const OBSOLETE_SETTINGS_KEYS: [&str; 5] = [
+/// `parse_stored_settings`). Gemini transcription and Apple Intelligence
+/// cleanup were removed: Codex does both, so their choice is dropped.
+const OBSOLETE_SETTINGS_KEYS: [&str; 7] = [
     "typing_tool",
     "external_script_path",
     "push_to_talk",
     "filler_word_removal_enabled",
     "custom_filler_words",
+    "transcription_provider",
+    "cleanup_engine",
 ];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
@@ -485,11 +536,10 @@ pub const DEFAULT_TRANSCRIBE_BINDING: &str = "option+space";
 pub const DEFAULT_TRANSCRIBE_BINDING: &str = "ctrl+super";
 
 /// Turns off what the Windows build does not offer: meetings (the system
-/// audio tap and the analysis helper are macOS code), Apple Intelligence
-/// cleanup, Gemini through Antigravity for macOS, window-name hints and the
-/// clamshell microphone (both read through macOS APIs), and update checks,
-/// as the Windows beta ships without an updater. Returns whether anything
-/// changed.
+/// audio tap and the analysis helper are macOS code), window-name hints and
+/// the clamshell microphone (both read through macOS APIs), and update
+/// checks, as the Windows beta ships without an updater. Returns whether
+/// anything changed.
 #[cfg(target_os = "windows")]
 fn restrict_to_windows(settings: &mut AppSettings) -> bool {
     let mut changed = false;
@@ -499,14 +549,6 @@ fn restrict_to_windows(settings: &mut AppSettings) -> bool {
     set(&mut settings.meetings_enabled);
     set(&mut settings.window_names_enabled);
     set(&mut settings.update_checks_enabled);
-    if settings.cleanup_engine != CleanupEngine::Codex {
-        settings.cleanup_engine = CleanupEngine::Codex;
-        changed = true;
-    }
-    if settings.transcription_provider != TranscriptionProvider::Codex {
-        settings.transcription_provider = TranscriptionProvider::Codex;
-        changed = true;
-    }
     if settings.clamshell_microphone.take().is_some() {
         changed = true;
     }
@@ -575,7 +617,6 @@ pub fn get_default_settings() -> AppSettings {
         clamshell_microphone: None,
         selected_output_device: None,
         selected_language: "auto".to_string(),
-        transcription_provider: TranscriptionProvider::default(),
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),
@@ -599,7 +640,7 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_after_ms: default_paste_delay_after_ms(),
         reliable_paste: default_reliable_paste(),
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
-        cleanup_engine: CleanupEngine::default(),
+        dictation_style: DictationStyle::default(),
         learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
         whisper_mode: false,
@@ -607,6 +648,12 @@ pub fn get_default_settings() -> AppSettings {
         overlay_style: default_overlay_style(),
         meetings_enabled: default_meetings_enabled(),
         meeting_capture_mode: MeetingCaptureMode::default(),
+        meeting_audio_retention: MeetingAudioRetention::default(),
+        meeting_call_prompt: default_meeting_call_prompt(),
+        transcription_engine: Engine::default(),
+        local_stt_card_dismissed: false,
+        local_model_download_wanted: false,
+        switch_to_local_when_ready: false,
     }
 }
 
@@ -646,6 +693,12 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
         if settings_value.get("ai_cleanup_enabled").is_none() {
             settings.ai_cleanup_enabled = filler_removal;
         }
+    }
+    // Users from before the local engine dictated with Codex; a fresh install
+    // gets its engine from onboarding.
+    if settings.onboarding_completed && settings_value.get("transcription_engine").is_none() {
+        settings.transcription_engine = Engine::Cloud;
+        updated = true;
     }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
@@ -720,8 +773,10 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
         updated = true;
     }
     if settings.history_limit > MAX_HISTORY_LIMIT {
-        warn!("Resetting out-of-range setting 'history_limit'");
-        settings.history_limit = default_history_limit();
+        // Clamp rather than reset: falling to the default would let the
+        // retention sweep delete all but the newest few dictations.
+        warn!("Clamping out-of-range setting 'history_limit'");
+        settings.history_limit = MAX_HISTORY_LIMIT;
         updated = true;
     }
     if !settings.reliable_paste {
@@ -793,6 +848,12 @@ fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
 /// Loads persisted settings, repairing invalid fields and obsolete values
 /// before returning them.
 pub fn get_settings(app: &AppHandle) -> AppSettings {
+    SETTINGS_TRANSACTIONS.read(|| read_settings(app))
+}
+
+// Only called while SETTINGS_TRANSACTIONS is held. Loading can itself write
+// a repaired value; it must not race with a mutation.
+fn read_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
@@ -948,6 +1009,16 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
             let map = merged
                 .as_object_mut()
                 .expect("merged settings stay an object");
+            // The default keeps 5 dictations: an unknown period deletes
+            // none, as after a damaged file.
+            if key == "recording_retention_period" {
+                map.insert(
+                    key.clone(),
+                    serde_json::to_value(RecordingRetentionPeriod::Never)
+                        .expect("a retention period serializes"),
+                );
+                continue;
+            }
             match previous {
                 Some(previous) => map.insert(key.clone(), previous),
                 None => map.remove(key),
@@ -961,45 +1032,76 @@ fn salvage_settings(stored: &serde_json::Value) -> AppSettings {
     })
 }
 
-pub fn write_settings(app: &AppHandle, mut settings: AppSettings) {
+static SETTINGS_TRANSACTIONS: transaction::Transactions = transaction::Transactions::new();
+
+/// Changes only the caller's owned fields on the latest settings. The whole
+/// load/change/commit is serialized, including load-time repairs. Keep `change`
+/// free of settings calls, application locks, events and native side effects.
+pub fn update_settings<T>(app: &AppHandle, change: impl FnOnce(&mut AppSettings) -> T) -> T {
+    let result = SETTINGS_TRANSACTIONS.update(
+        || Ok::<_, Infallible>(read_settings(app)),
+        |settings| Ok(change(settings)),
+        |settings| {
+            store_settings(app, settings);
+            Ok(())
+        },
+    );
+    match result {
+        Ok(value) => value,
+        Err(impossible) => match impossible {},
+    }
+}
+
+fn store_settings(app: &AppHandle, mut settings: AppSettings) {
     normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    let next = serde_json::to_value(&settings).expect("settings serialize to JSON");
+    if store.get("settings").as_ref() != Some(&next) {
+        store.set("settings", next);
+    }
 }
 
-/// Persist settings synchronously and restore the store cache if the write
-/// fails. Callers that need a transactional side effect should use this rather
-/// than the fire-and-forget write helper above.
-pub fn write_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
+/// Changes owned fields and persists synchronously. Mutation errors publish
+/// nothing. Saving and restoring the cache on failure share the same transaction
+/// lock, so rollback cannot erase a concurrent accepted change. The callback has
+/// the same no-side-effects restriction as `update_settings`.
+pub fn update_settings_checked<T>(
+    app: &AppHandle,
+    change: impl FnOnce(&mut AppSettings) -> Result<T, String>,
+) -> Result<T, String> {
+    SETTINGS_TRANSACTIONS.update(
+        || {
+            // Report initialization failure rather than panicking on this path.
+            app.store(SETTINGS_STORE_PATH)
+                .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
+            Ok(read_settings(app))
+        },
+        change,
+        |settings| store_settings_checked(app, settings),
+    )
+}
+
+fn store_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
     normalize_settings(&mut settings);
     let store = app
         .store(SETTINGS_STORE_PATH)
         .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
     let next = serde_json::to_value(&settings)
         .map_err(|error| format!("Failed to serialize settings: {error}"))?;
-    let previous = store.get("settings");
-
-    store.set("settings", next);
-    if let Err(write_error) = store.save() {
-        match previous {
-            Some(previous) => store.set("settings", previous),
+    transaction::persist_checked(
+        next,
+        || store.get("settings"),
+        |value| match value {
+            Some(value) => store.set("settings", value),
             None => {
                 store.delete("settings");
             }
-        }
-
-        return match store.save() {
-            Ok(()) => Err(format!("Failed to persist settings: {write_error}")),
-            Err(restore_error) => Err(format!(
-                "Failed to persist settings: {write_error}. Failed to restore the previous settings: {restore_error}"
-            )),
-        };
-    }
-
-    Ok(())
+        },
+        || store.save(),
+    )
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
@@ -1098,6 +1200,73 @@ mod tests {
         assert!(!path.exists());
     }
 
+    /// Users who finished onboarding before the local engine existed keep
+    /// the cloud engine, written down so a later default cannot move them.
+    #[test]
+    fn an_existing_user_without_an_engine_keeps_the_cloud() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("transcription_engine");
+        stored["onboarding_completed"] = serde_json::json!(true);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
+        assert!(updated, "the engine must be persisted");
+    }
+
+    #[test]
+    fn a_stored_engine_choice_is_kept() {
+        let mut stored = default_settings_json();
+        stored["onboarding_completed"] = serde_json::json!(true);
+        stored["transcription_engine"] = serde_json::json!("local");
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert!(!updated);
+    }
+
+    #[test]
+    fn a_new_install_gets_the_default_engine() {
+        let (settings, _) = parse_stored_settings(&serde_json::json!({}));
+        assert_eq!(
+            settings.transcription_engine,
+            get_default_settings().transcription_engine
+        );
+        assert!(!settings.local_stt_card_dismissed);
+        assert!(!settings.local_model_download_wanted);
+    }
+
+    #[test]
+    fn a_fresh_store_dictates_on_this_mac() {
+        let (settings, _) = parse_stored_settings(&serde_json::json!({}));
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert_eq!(get_default_settings().transcription_engine, Engine::Local);
+    }
+
+    #[test]
+    fn a_requested_switch_to_local_waits_for_the_model_and_happens_once() {
+        let mut settings = get_default_settings();
+        settings.transcription_engine = Engine::Cloud;
+        settings.switch_to_local_when_ready = true;
+
+        assert!(!settings.switch_to_local_if_asked(false));
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
+        assert!(settings.switch_to_local_when_ready, "still waiting");
+
+        assert!(settings.switch_to_local_if_asked(true));
+        assert_eq!(settings.transcription_engine, Engine::Local);
+        assert!(!settings.switch_to_local_when_ready);
+
+        // A later choice of the cloud is not undone by the next ready model.
+        settings.transcription_engine = Engine::Cloud;
+        assert!(!settings.switch_to_local_if_asked(true));
+        assert_eq!(settings.transcription_engine, Engine::Cloud);
+    }
+
     /// Every field must survive a partial store: a missing key must never fail
     /// the whole-settings parse. `json!({})` is the extreme case.
     #[test]
@@ -1109,10 +1278,6 @@ mod tests {
         assert_eq!(settings.window_names_enabled, cfg!(target_os = "macos"));
         assert!(!settings.whisper_mode);
         assert_eq!(settings.accent_color, AccentColor::Pink);
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
         // Bindings default to empty; the load path merges the real defaults in.
         assert!(settings.bindings.is_empty());
     }
@@ -1168,42 +1333,52 @@ mod tests {
         assert_eq!(salvaged.sound_theme, default_sound_theme());
     }
 
+    /// The default keeps only the latest 5 dictations, so an unknown period
+    /// must not fall back to it and delete the rest of the history.
     #[test]
-    fn transcription_provider_round_trips_and_defaults_to_codex() {
+    fn salvage_of_an_unknown_retention_period_deletes_no_history() {
+        let mut stored = default_settings_json();
+        stored["recording_retention_period"] = serde_json::json!("years1");
+        stored["history_limit"] = serde_json::json!(5);
+        assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
+
+        let salvaged = salvage_settings(&stored);
         assert_eq!(
-            serde_json::to_value(TranscriptionProvider::Gemini).unwrap(),
-            "gemini"
-        );
-        let settings: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
+            salvaged.recording_retention_period,
+            RecordingRetentionPeriod::Never
         );
     }
 
-    #[cfg(target_os = "macos")]
+    /// Gemini and Apple Intelligence were removed, so Codex is the only
+    /// service. A store that chose either, or a value no build knows, keeps
+    /// every other setting and is rewritten without the old choice.
     #[test]
-    fn cleanup_engine_defaults_to_apple_for_new_and_existing_users() {
-        assert_eq!(get_default_settings().cleanup_engine, CleanupEngine::Apple);
-        let mut existing = default_settings_json();
-        existing.as_object_mut().unwrap().remove("cleanup_engine");
-        existing["ai_cleanup_enabled"] = serde_json::json!(true);
-        let (settings, _) = parse_stored_settings(&existing);
-        assert_eq!(settings.cleanup_engine, CleanupEngine::Apple);
-        assert!(settings.ai_cleanup_enabled);
+    fn a_removed_provider_or_cleanup_engine_lands_on_codex() {
+        for (key, value) in [
+            ("transcription_provider", "gemini"),
+            ("transcription_provider", "codex"),
+            ("transcription_provider", "whisper"),
+            ("cleanup_engine", "apple"),
+            ("cleanup_engine", "codex"),
+            ("cleanup_engine", "cloud"),
+        ] {
+            let mut stored = default_settings_json();
+            stored[key] = serde_json::json!(value);
+            stored["selected_language"] = serde_json::json!("fr");
+            stored["onboarding_completed"] = serde_json::json!(true);
+            stored["ai_cleanup_enabled"] = serde_json::json!(false);
+            stored["custom_words"] = serde_json::json!(["Murmur"]);
 
-        existing["cleanup_engine"] = serde_json::json!("codex");
-        assert_eq!(
-            parse_stored_settings(&existing).0.cleanup_engine,
-            CleanupEngine::Codex
-        );
-        assert_eq!(serde_json::to_value(CleanupEngine::Apple).unwrap(), "apple");
+            let (settings, updated) = parse_stored_settings(&stored);
 
-        existing["cleanup_engine"] = serde_json::json!("cloud");
-        existing["selected_language"] = serde_json::json!("fr");
-        let (salvaged, _) = parse_stored_settings(&existing);
-        assert_eq!(salvaged.cleanup_engine, CleanupEngine::Apple);
-        assert_eq!(salvaged.selected_language, "fr");
+            assert!(updated, "{key}={value} must be rewritten");
+            assert_eq!(settings.selected_language, "fr", "{key}={value}");
+            assert!(settings.onboarding_completed, "{key}={value}");
+            assert!(!settings.ai_cleanup_enabled, "{key}={value}");
+            assert_eq!(settings.custom_words, ["Murmur"], "{key}={value}");
+            let rewritten = serde_json::to_value(&settings).unwrap();
+            assert!(rewritten.get(key).is_none(), "{key}={value}");
+        }
     }
 
     #[test]
@@ -1214,6 +1389,37 @@ mod tests {
 
         let salvaged = salvage_settings(&stored);
         assert_eq!(salvaged.accent_color, AccentColor::Pink);
+        assert_eq!(salvaged.selected_language, "fr");
+    }
+
+    #[test]
+    fn a_store_from_before_dictation_styles_gets_normal() {
+        let mut stored = default_settings_json();
+        stored.as_object_mut().unwrap().remove("dictation_style");
+        stored["onboarding_completed"] = serde_json::json!(true);
+        assert_eq!(
+            parse_stored_settings(&stored).0.dictation_style,
+            DictationStyle::Normal
+        );
+    }
+
+    #[test]
+    fn dictation_style_round_trips_and_an_unknown_one_falls_back_to_normal() {
+        for (style, name) in [
+            (DictationStyle::Formal, "formal"),
+            (DictationStyle::Normal, "normal"),
+            (DictationStyle::Casual, "casual"),
+        ] {
+            assert_eq!(serde_json::to_value(style).unwrap(), name);
+            let mut stored = default_settings_json();
+            stored["dictation_style"] = serde_json::json!(name);
+            assert_eq!(parse_stored_settings(&stored).0.dictation_style, style);
+        }
+        let mut stored = default_settings_json();
+        stored["dictation_style"] = serde_json::json!("shouty");
+        stored["selected_language"] = serde_json::json!("fr");
+        let salvaged = salvage_settings(&stored);
+        assert_eq!(salvaged.dictation_style, DictationStyle::Normal);
         assert_eq!(salvaged.selected_language, "fr");
     }
 
@@ -1331,11 +1537,6 @@ mod tests {
         assert!(!settings.meetings_enabled);
         assert!(!settings.window_names_enabled);
         assert!(!settings.update_checks_enabled);
-        assert_eq!(settings.cleanup_engine, CleanupEngine::Codex);
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
     }
 
     #[cfg(target_os = "windows")]
@@ -1345,8 +1546,6 @@ mod tests {
         stored["meetings_enabled"] = serde_json::json!(true);
         stored["window_names_enabled"] = serde_json::json!(true);
         stored["update_checks_enabled"] = serde_json::json!(true);
-        stored["cleanup_engine"] = serde_json::json!("apple");
-        stored["transcription_provider"] = serde_json::json!("gemini");
         stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
         stored["selected_language"] = serde_json::json!("fr");
 
@@ -1356,11 +1555,6 @@ mod tests {
         assert!(!settings.meetings_enabled);
         assert!(!settings.window_names_enabled);
         assert!(!settings.update_checks_enabled);
-        assert_eq!(settings.cleanup_engine, CleanupEngine::Codex);
-        assert_eq!(
-            settings.transcription_provider,
-            TranscriptionProvider::Codex
-        );
         assert!(settings.clamshell_microphone.is_none());
         assert_eq!(settings.selected_language, "fr");
         let (_, rewritten) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
@@ -1472,6 +1666,54 @@ mod tests {
     }
 
     #[test]
+    fn settings_saved_before_call_prompts_offer_them() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_call_prompt");
+
+        assert!(parse_stored_settings(&stored).0.meeting_call_prompt);
+        assert!(get_default_settings().meeting_call_prompt);
+        stored["meeting_call_prompt"] = serde_json::json!(false);
+        assert!(!parse_stored_settings(&stored).0.meeting_call_prompt);
+    }
+
+    #[test]
+    fn settings_saved_before_audio_retention_keep_meeting_audio() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_audio_retention");
+
+        let (settings, _) = parse_stored_settings(&stored);
+
+        assert_eq!(
+            settings.meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        assert_eq!(
+            get_default_settings().meeting_audio_retention,
+            MeetingAudioRetention::Keep
+        );
+        // The values the settings page sends, as `src/bindings.ts` types them.
+        for (sent, retention) in [
+            ("keep", MeetingAudioRetention::Keep),
+            ("days7", MeetingAudioRetention::Days7),
+            ("days30", MeetingAudioRetention::Days30),
+            ("days90", MeetingAudioRetention::Days90),
+        ] {
+            stored["meeting_audio_retention"] = serde_json::json!(sent);
+            assert_eq!(
+                parse_stored_settings(&stored).0.meeting_audio_retention,
+                retention
+            );
+            assert_eq!(serde_json::to_value(retention).unwrap(), sent);
+        }
+    }
+
+    #[test]
     fn a_stored_shortcut_the_hotkey_parser_rejects_is_reset_to_its_default() {
         let mut stored = default_settings_json();
         stored["bindings"]["cancel"]["current_binding"] = serde_json::json!("page up");
@@ -1535,7 +1777,7 @@ mod tests {
         stored["paste_delay_ms"] = serde_json::json!(u64::MAX);
         stored["paste_delay_after_ms"] = serde_json::json!(MAX_PASTE_DELAY_MS + 1);
         stored["extra_recording_buffer_ms"] = serde_json::json!(MAX_EXTRA_RECORDING_BUFFER_MS + 1);
-        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT + 1);
+        stored["history_limit"] = serde_json::json!(5000);
         stored["custom_words"] = serde_json::json!([
             "  Murmur   App  ",
             "Murmur App",
@@ -1555,7 +1797,8 @@ mod tests {
             default_paste_delay_after_ms()
         );
         assert_eq!(settings.extra_recording_buffer_ms, 0);
-        assert_eq!(settings.history_limit, default_history_limit());
+        // A limit saved before it was bounded keeps as many dictations as allowed.
+        assert_eq!(settings.history_limit, MAX_HISTORY_LIMIT);
         assert_eq!(
             settings.custom_words,
             vec!["Murmur App".to_string(), "valid <markup>".to_string()]

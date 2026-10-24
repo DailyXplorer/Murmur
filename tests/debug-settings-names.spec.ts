@@ -9,14 +9,14 @@ test("the Debug controls have translated names", async ({ page }) => {
 
   await expect(
     page.getByRole("button", {
-      name: "Reset: Clamshell Microphone",
+      name: "Reset: Clamshell microphone",
       exact: true,
     }),
   ).toBeVisible();
   const preview = page.getByRole("button", {
-    name: "Preview Sound Theme",
+    name: "Preview sound theme",
     exact: true,
   });
   await expect(preview).toBeVisible();
-  await expect(preview).toHaveAttribute("title", "Preview Sound Theme");
+  await expect(preview).toHaveAttribute("title", "Preview sound theme");
 });

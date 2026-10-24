@@ -2,18 +2,21 @@
   "tray": {
     "settings": "Impostazioni...",
     "checkUpdates": "Verifica aggiornamenti...",
+    "updateAvailable": "Aggiornamento disponibile",
     "copyLastTranscript": "Copia l'ultima trascrizione",
     "quit": "Esci",
     "cancel": "Annulla",
     "errorNetwork": "Impossibile raggiungere il servizio di trascrizione. Controlla la connessione.",
     "errorTimeout": "Il servizio di trascrizione ha impiegato troppo tempo. Riprova dalla cronologia.",
-    "errorRateLimited": "Troppe richieste. Attendi un momento, poi riprova dalla cronologia.",
+    "errorRateLimited": "Troppe richieste o limite di dettatura raggiunto. Riprova più tardi dalla cronologia.",
     "errorServer": "Il servizio di trascrizione ha dei problemi. Riprova dalla cronologia.",
-    "errorSessionExpired": "La sessione di Codex è scaduta. Apri Codex e accedi di nuovo.",
-    "errorSignedOut": "Non hai effettuato l'accesso a Codex. Apri Codex e accedi.",
-    "errorGeminiSessionExpired": "La sessione di Gemini in Antigravity è terminata. Apri Antigravity e accedi di nuovo.",
+    "errorSessionExpired": "La sessione di ChatGPT è scaduta. Accedi di nuovo nelle impostazioni di Murmur.",
+    "errorSignedOut": "Non hai effettuato l'accesso a ChatGPT. Accedi nelle impostazioni di Murmur.",
     "errorTooLarge": "Questa registrazione è troppo lunga per il servizio. Provane una più breve.",
     "errorTranscription": "Trascrizione non riuscita. Riprova dalla cronologia.",
+    "errorLocalNotReady": "Il modello locale non è ancora pronto. Controllalo nelle impostazioni di Murmur.",
+    "errorLocalFailed": "Trascrizione locale non riuscita. Riprova dalla cronologia.",
+    "errorLanguageNeedsCloud": "Questa lingua richiede il cloud. Collega ChatGPT o scegli un'altra lingua.",
     "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",
     "errorRecording": "Impossibile avviare la registrazione. Controlla il microfono.",
     "errorMicrophoneDenied": "L'accesso al microfono è disattivato. Consenti Murmur in Impostazioni di Sistema.",
@@ -27,6 +30,12 @@
     "noticeSettingsReset": "Le impostazioni erano danneggiate e sono state reimpostate. Nulla verrà eliminato dalla cronologia finché non imposti di nuovo un limite. Il file danneggiato è stato conservato accanto.",
     "warningRecordingLimit": "La registrazione si interrompe tra 1 minuto (limite di 15 minuti).",
     "pasteLastTranscript": "Incolla l'ultima trascrizione",
+    "overlayCopy": "Copia",
+    "overlayCopied": "Copiato",
+    "overlayNotPasted": "Non c’era un campo di testo in cui incollare.",
+    "callRecordQuestion": "Registrare questa riunione?",
+    "callRecord": "Registra",
+    "callNotNow": "Non ora",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",
@@ -39,7 +48,13 @@
     "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
     "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato.",
     "meetingMicrophoneInterrupted": "Il microfono ha smesso di registrare. Murmur continua a provare a ripristinarlo; verifica che sia ancora collegato.",
-    "meetingMicrophoneDenied": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Microfono."
+    "meetingMicrophoneDenied": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
+    "meetingSystemAudioDenied": "La registrazione dell'audio di sistema è disattivata, quindi la riunione non registra gli altri partecipanti. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Registrazione schermo e audio di sistema.",
+    "meetingRecovered": "Una riunione è stata interrotta perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
+    "meetingsRecovered": "{{count}} riunioni sono state interrotte perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
+    "meetingsReset": "Il tuo elenco delle riunioni era danneggiato ed è stato reimpostato. Le sue registrazioni sono conservate per 30 giorni.",
+    "meetingPausedWhileAsleep": "Il tuo Mac è andato in stop durante la riunione. Non è stato registrato nulla dalle {{from}} alle {{to}}.",
+    "meetingAudioDropped": "Parte dell'audio della riunione è andata persa perché il Mac era troppo occupato."
   },
   "sidebar": {
     "general": "Generale",
@@ -55,26 +70,19 @@
     "error": "Impossibile caricare le statistiche.",
     "wpm": {
       "title": "Parole al minuto",
-      "window": "Ultimi 30 giorni",
-      "empty": "Non ci sono ancora abbastanza dettature cronometrate",
       "formula": "Parole totali dettate negli ultimi 30 giorni divise per il tempo totale di registrazione di quelle dettature, in minuti. Le registrazioni più brevi di un secondo vengono ignorate."
     },
     "words": {
-      "title": "Parole totali",
-      "empty": "Inizia a dettare per vedere questo valore",
-      "equivalence": {
-        "emails": "≈ {{amount}} × un'email tipica",
-        "pages": "≈ {{amount}} × una pagina di libro",
-        "stories": "≈ {{amount}} × un racconto breve",
-        "novels": "≈ {{amount}} × un romanzo"
-      }
+      "title": "Parole totali"
     },
-    "fixes": {
-      "title": "Correzioni",
-      "description": "Nomi trascritti male che hai corretto dopo che Murmur ha incollato il testo, contati una volta per ogni parola imparata da Murmur, più le parole sostituite automaticamente dal tuo dizionario personalizzato.",
-      "descriptionWindows": "Parole sostituite automaticamente dal tuo dizionario personalizzato.",
-      "wordsCorrected": "Parole corrette: {{value}}",
-      "dictionaryFixes": "Correzioni del dizionario: {{value}}"
+    "timeSaved": {
+      "title": "Tempo risparmiato",
+      "value": {
+        "minutes": "{{minutes}} min",
+        "hours": "{{hours}} h",
+        "hoursMinutes": "{{hours}} h {{minutes}} min"
+      },
+      "formula": "Per ogni dettatura, il tempo necessario a digitarne le parole a {{wpm}} parole al minuto, meno il tempo passato a parlare, mai sotto zero."
     },
     "apps": {
       "title": "Utilizzo per app",
@@ -102,11 +110,11 @@
   },
   "onboarding": {
     "permissions": {
-      "title": "Permessi Richiesti",
+      "title": "Permessi richiesti",
       "description": "Murmur ha bisogno di alcuni permessi per funzionare correttamente.",
       "descriptionWindows": "Murmur ha bisogno dell'accesso al microfono per funzionare correttamente.",
       "microphone": {
-        "title": "Accesso al Microfono",
+        "title": "Accesso al microfono",
         "description": "Necessario per sentire la tua voce per la trascrizione."
       },
       "accessibility": {
@@ -115,7 +123,7 @@
         "action": "Consenti accesso",
         "waiting": "Attiva Murmur in Impostazioni di Sistema."
       },
-      "grant": "Concedi Permesso",
+      "grant": "Concedi permesso",
       "granted": "Concesso",
       "waiting": "In attesa...",
       "allGranted": "Tutto pronto!",
@@ -125,25 +133,39 @@
       }
     },
     "provider": {
-      "title": "Scegli un servizio di trascrizione",
-      "description": "Scegli un servizio configurato per completare la configurazione. Murmur rileva una configurazione locale, ma non verifica una connessione attiva.",
-      "antigravityDescription": "Usa la configurazione Antigravity rilevata su questo Mac.",
-      "experimental": "Sperimentale",
-      "configured": "Configurazione rilevata",
-      "selectionRequired": "Scegli un servizio di trascrizione configurato per continuare.",
+      "title": "Collega ChatGPT",
+      "description": "Accedi con il tuo account ChatGPT nel browser per completare la configurazione.",
+      "start": "Inizia",
       "retry": "Riprova",
       "continue": "Continua",
-      "providerChangeFailed": "Non è stato possibile salvare il servizio di trascrizione selezionato. Riprova.",
       "completionFailed": "Non è stato possibile completare la configurazione. Aggiorna lo stato e riprova.",
-      "openFailed": "Non è stato possibile aprire Antigravity.",
-      "installFailed": "Non è stato possibile aprire la pagina di download di Antigravity.",
-      "setupCodex": "Apri la configurazione di Codex",
-      "codexSetupFailed": "Impossibile aprire la configurazione di Codex."
+      "optionalTitle": "Collega ChatGPT (facoltativo)",
+      "optionalDescription": "Collega il tuo account ChatGPT per la pulizia con IA (toglie le esitazioni e corregge la grammatica) e per le lingue che il modello locale non copre.",
+      "skip": "Salta",
+      "back": "Indietro"
     },
-    "providerLabels": {
-      "codex": "Codex",
-      "antigravity": "Antigravity",
-      "unavailable": "Configurazione non rilevata"
+    "model": {
+      "title": "Trascrivi su questo Mac",
+      "description": "Murmur trasforma la tua voce in testo direttamente su questo Mac. L'audio resta sul Mac e non ci sono limiti di utilizzo.",
+      "download": "Serve un download una tantum di {{size}}.",
+      "alreadyHere": "Il modello è già su questo Mac.",
+      "languages": "Funziona in 25 lingue europee, tra cui italiano, inglese e francese.",
+      "downloadAndContinue": "Scarica e continua",
+      "useCloud": "Usa il cloud"
+    },
+    "done": {
+      "title": "Tutto pronto",
+      "ready": "Tieni premuta la scorciatoia e parla.",
+      "downloading": "Il modello è ancora in download ({{percent}}%).",
+      "preparing": "Il modello si sta preparando per questo Mac.",
+      "cloudMeanwhile": "Finché non è pronto, Murmur usa il cloud.",
+      "waitForIt": "Potrai dettare appena sarà pronto.",
+      "stoppedTitle": "Il download si è interrotto",
+      "start": "Inizia a usare Murmur"
+    },
+    "style": {
+      "title": "Scegli uno stile",
+      "description": "La pulizia scriverà le tue dettature in questo stile, che puoi cambiare quando vuoi."
     }
   },
   "settings": {
@@ -158,11 +180,11 @@
         "pressKeys": "Premi i tasti...",
         "bindings": {
           "transcribe": {
-            "name": "Scorciatoia Trascrizione",
+            "name": "Scorciatoia trascrizione",
             "description": "Tieni premuto per parlare e rilascia per terminare. Premi due volte per registrare a mani libere, poi premi una volta per fermare."
           },
           "cancel": {
-            "name": "Scorciatoia Annulla",
+            "name": "Scorciatoia annulla",
             "description": "La scorciatoia da tastiera per annullare la registrazione in corso."
           },
           "paste_last": {
@@ -193,27 +215,29 @@
         "appearance": "Aspetto"
       }
     },
-    "languageAutoOnly": "Antigravity rileva automaticamente la lingua. La selezione della lingua di Codex verrà mantenuta quando tornerai a Codex.",
     "sound": {
       "title": "Suono",
+      "defaultDevice": "Predefinito",
       "microphone": {
         "title": "Microfono",
         "description": "Scegli il microfono preferito",
         "placeholder": "Scegli microfono...",
-        "loading": "Caricamento..."
+        "loading": "Caricamento...",
+        "changeFailed": "Impossibile cambiare il microfono. Interrompi la dettatura in corso e riprova."
       },
       "channel": {
         "title": "Canale di ingresso",
         "description": "Seleziona il canale di ingresso da cui registrare. Usa questa opzione se l'interfaccia audio dispone di più ingressi.",
         "average": "Media di tutti i canali",
-        "channel": "Canale {{n}}"
+        "channel": "Canale {{n}}",
+        "changeFailed": "Impossibile cambiare il canale di ingresso. Interrompi la dettatura in corso e riprova."
       },
       "audioFeedback": {
-        "label": "Feedback Audio",
+        "label": "Feedback audio",
         "description": "Riproduci un suono quando la registrazione inizia e finisce"
       },
       "outputDevice": {
-        "title": "Dispositivo di Output",
+        "title": "Dispositivo di output",
         "description": "Scegli il dispositivo di output per il feedback audio",
         "placeholder": "Scegli dispositivo di output...",
         "loading": "Caricamento..."
@@ -234,7 +258,7 @@
         "storage": "Archiviazione"
       },
       "experimentalToggle": {
-        "label": "Funzionalità Sperimentali",
+        "label": "Funzionalità sperimentali",
         "description": "Abilita le funzionalità sperimentali ancora in fase di sviluppo."
       },
       "lazyStreamClose": {
@@ -242,7 +266,7 @@
         "description": "Mantiene lo stream del microfono aperto per 30 secondi dopo l'arresto della registrazione, riducendo la latenza per trascrizioni consecutive. Potrebbe degradare la qualità audio Bluetooth."
       },
       "startHidden": {
-        "label": "Avvia in Background",
+        "label": "Avvia in background",
         "description": "Avvia l'applicazione in background senza aprire la finestra."
       },
       "autostart": {
@@ -263,7 +287,7 @@
           }
         },
         "position": {
-          "title": "Posizione della Sovrimpressione",
+          "title": "Posizione della sovrimpressione",
           "description": "Dove compare l'overlay sullo schermo durante la registrazione e la trascrizione.",
           "options": {
             "bottom": "In basso",
@@ -272,7 +296,7 @@
         }
       },
       "pasteMethod": {
-        "title": "Metodo di Incollaggio",
+        "title": "Metodo di incollaggio",
         "description": "Scegli come viene inserito il testo. Diretto: simula l'input da tastiera. Nessuno: non incolla, aggiorna solo la cronologia/appunti.",
         "options": {
           "clipboard": "Appunti ({{modifier}}+V)",
@@ -281,7 +305,7 @@
         }
       },
       "clipboardHandling": {
-        "title": "Gestione Appunti",
+        "title": "Gestione appunti",
         "description": "Murmur incolla tramite gli appunti. \"Ripristina appunti precedenti\" rimette ciò che avevi copiato al termine della finestra di incollaggio di 8 secondi, a meno che nel frattempo tu non abbia copiato altro. \"Mantieni la trascrizione\" lascia la trascrizione negli appunti. Se l'incollaggio non riesce, Murmur mantiene la trascrizione negli appunti per recuperarla.",
         "options": {
           "dontModify": "Ripristina appunti precedenti",
@@ -306,12 +330,28 @@
         "remove": "Rimuovi {{word}}",
         "duplicate": "\"{{word}}\" esiste già",
         "learned": "Appresa",
-        "learnedFrom": "{{word}}: appresa quando hai corretto «{{heard}}»",
-        "learnedHint": "Quando correggi un nome scritto male subito dopo aver dettato, Murmur lo aggiunge qui come Appresa. Fai clic su una parola per rimuoverla."
+        "learnedFrom": "{{word}}: appresa quando hai corretto «{{heard}}»"
       },
       "meetingsToggle": {
         "label": "Riunioni",
         "description": "Registra le riunioni dal microfono e dall'audio di sistema. Aggiunge una pagina Riunioni, una scorciatoia e una voce nella barra dei menu."
+      },
+      "meetingCallPrompt": {
+        "label": "Proponi di registrare le chiamate",
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic."
+      },
+      "meetingsAudio": {
+        "title": "Elimina l'audio delle riunioni",
+        "description": "Elimina l'audio delle riunioni elaborate dopo il periodo scelto, per risparmiare spazio. Trascrizioni e riepiloghi vengono conservati.",
+        "textKept": "Trascrizioni e riepiloghi vengono conservati.",
+        "used": "L'audio delle riunioni occupa {{size}}.",
+        "usedWithSetAside": "L'audio delle riunioni occupa {{size}}, più {{setAside}} di registrazioni non elencate, eliminate dopo 30 giorni.",
+        "options": {
+          "keep": "Mai",
+          "days7": "Dopo 7 giorni",
+          "days30": "Dopo 30 giorni",
+          "days90": "Dopo 90 giorni"
+        }
       }
     },
     "history": {
@@ -319,6 +359,7 @@
       "openFolder": "Apri cartella",
       "loading": "Caricamento cronologia...",
       "empty": "Non ci sono ancora trascrizioni. Comincia a registrare per costruire la tua cronologia!",
+      "loadError": "Impossibile caricare la tua cronologia.",
       "copyToClipboard": "Copia la trascrizione negli appunti",
       "save": "Salva la trascrizione",
       "unsave": "Rimuovi dai salvataggi",
@@ -337,23 +378,30 @@
       "noSpeech": "Nessun parlato rilevato nella registrazione.",
       "cleanupFailed": "La pulizia IA non era disponibile, quindi è stata incollata la trascrizione grezza.",
       "showOriginal": "Mostra trascrizione originale",
-      "hideOriginal": "Nascondi trascrizione originale"
+      "hideOriginal": "Nascondi trascrizione originale",
+      "fallback": {
+        "model_not_ready": "Trascritto nel cloud: il modello locale non era pronto.",
+        "local_failed": "Trascritto nel cloud: la trascrizione locale non è riuscita.",
+        "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo Mac.",
+        "cloud_limit_reached": "Trascritto su questo Mac: era stato raggiunto il limite di ChatGPT.",
+        "cloud_failed": "Trascritto su questo Mac: ChatGPT non era disponibile."
+      }
     },
     "debug": {
       "title": "Debug",
       "logDirectory": {
-        "title": "Cartella dei Log",
+        "title": "Cartella dei log",
         "description": "Cartella dove vengono salvati i file di log"
       },
       "logLevel": {
-        "title": "Livello di Log",
+        "title": "Livello di log",
         "description": "Scegli il livello di dettaglio dei log"
       },
       "liveLogs": {
-        "title": "Log in Tempo Reale",
-        "description": "Trasmetti i log dell'applicazione in tempo reale per diagnosticare i problemi senza aprire il file di log. Vengono mostrati solo i log emessi mentre questo pannello è aperto; rispetta l'impostazione Livello di Log qui sopra.",
-        "live": "In Diretta",
-        "paused": "In Pausa",
+        "title": "Log in tempo reale",
+        "description": "Trasmetti i log dell'applicazione in tempo reale per diagnosticare i problemi senza aprire il file di log. Vengono mostrati solo i log emessi mentre questo pannello è aperto; rispetta l'impostazione Livello di log qui sopra.",
+        "live": "In diretta",
+        "paused": "In pausa",
         "pause": "Pausa",
         "resume": "Riprendi",
         "copied": "Copiato",
@@ -365,31 +413,32 @@
         "description": "Controlla automaticamente la disponibilità di nuove versioni di Murmur"
       },
       "soundTheme": {
-        "label": "Tema Sonoro",
+        "label": "Tema sonoro",
         "description": "Scegli un tema sonoro per il feedback di inizio e fine registrazione",
         "preview": "Ascolta il tema sonoro"
       },
       "wordCorrectionThreshold": {
-        "title": "Soglia di Correzione Parole",
+        "title": "Soglia di correzione parole",
         "description": "Sensibilità per la correzione delle parole personalizzate"
       },
       "historyLimit": {
-        "title": "Limite della Cronologia",
+        "title": "Limite della cronologia",
         "description": "Massimo numero di elementi da conservare nella cronologia",
         "entries": "elementi"
       },
       "recordingRetention": {
-        "title": "Eliminazione Automatica Registrazioni",
-        "description": "Elimina automaticamente le registrazioni vecchie per liberare spazio",
+        "title": "Eliminazione automatica cronologia",
+        "description": "Elimina le trascrizioni vecchie e il loro audio. Gli elementi salvati vengono conservati.",
         "never": "Mai",
         "preserveLimit": "Conserva le ultime {{count}}",
+        "preserveLimit_one": "Conserva le ultime {{count}}",
         "days3": "Dopo 3 giorni",
         "weeks2": "Dopo 2 settimane",
         "months3": "Dopo 3 mesi",
         "placeholder": "Seleziona periodo di conservazione..."
       },
       "alwaysOnMicrophone": {
-        "label": "Microfono Sempre Attivo",
+        "label": "Microfono sempre attivo",
         "description": "Tieni il microfono attivo per una risposta più rapida"
       },
       "clamshellMicrophone": {
@@ -401,7 +450,7 @@
         "description": "Silenzia l'audio di sistema durante la registrazione"
       },
       "appendTrailingSpace": {
-        "label": "Aggiungi Spazio Finale",
+        "label": "Aggiungi spazio finale",
         "description": "Aggiungi uno spazio dopo la trascrizione incollata"
       },
       "recordingBuffer": {
@@ -423,16 +472,16 @@
         "description": "Versione attuale di Murmur"
       },
       "appDataDirectory": {
-        "title": "Cartella Dati App",
+        "title": "Cartella dati app",
         "description": "Cartella in cui Murmur salva i dati"
       },
       "sourceCode": {
-        "title": "Codice Sorgente",
+        "title": "Codice sorgente",
         "description": "Vedi e contribuisci al codice sorgente",
         "button": "Vedi su GitHub"
       },
       "supportDevelopment": {
-        "title": "Supporta lo Sviluppo",
+        "title": "Supporta lo sviluppo",
         "description": "Aiutaci a sviluppare Murmur",
         "button": "Dona"
       },
@@ -441,58 +490,127 @@
         "description": "Mostra le note di rilascio dopo gli aggiornamenti di Murmur"
       },
       "modelLicences": {
-        "description": "Licenze dei modelli per il rilevamento dei partecipanti",
+        "description": "Licenze dei modelli vocali che funzionano sul dispositivo",
         "button": "Vedi licenze"
       }
     },
     "transcription": {
       "title": "Trascrizione",
-      "sessionTitle": "Codex",
-      "sessionDescription": "L'audio viene inviato allo stesso servizio di trascrizione cloud usato da Codex. Accedi all'app Codex se qui risulta disconnesso.",
       "checking": "Verifica della configurazione…",
       "statusUnavailable": "Stato non disponibile",
       "missing": "Non hai effettuato l'accesso",
-      "providerTitle": "Servizio di trascrizione",
-      "providerDescription": "Scegli il servizio di trascrizione per le nuove dettature.",
-      "notInstalled": "Antigravity non è installato",
-      "installAntigravity": "Installa",
-      "openAntigravity": "Apri Antigravity",
       "groups": {
-        "service": "Servizio",
         "processing": "Elaborazione del testo",
-        "output": "Output"
+        "output": "Output",
+        "engine": "Come trascrive Murmur"
       },
-      "sessionExpired": "Sessione scaduta, accedi di nuovo in Codex",
+      "sessionExpired": "Sessione scaduta, accedi di nuovo",
       "aiCleanup": {
-        "title": "Pulizia e formattazione con IA",
-        "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce né riscrive mai. Se non riesce o impiega troppo, viene incollata la trascrizione grezza."
+        "title": "Pulizia e formattazione",
+        "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
+        "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },
-      "cleanupEngine": {
-        "title": "Motore di pulizia",
-        "description": "Apple Intelligence funziona su questo Mac: gratuito, illimitato, offline e privato. Codex usa la tua sessione ChatGPT e ne consuma i limiti di utilizzo.",
+      "style": {
+        "title": "Stile di dettatura",
+        "description": "Formale: punteggiatura completa e forma scritta. Normale: punteggiatura più leggera, mantiene le tue parole. Informale: rilassato, come un messaggio in chat.",
+        "cleanupOff": "Gli stili si applicano solo con la pulizia attiva.",
+        "error": "Impossibile cambiare lo stile di dettatura.",
         "options": {
-          "apple": "Apple Intelligence (su questo Mac)",
-          "codex": "Codex (ChatGPT)"
-        },
-        "status": {
-          "title": "Apple Intelligence",
-          "description": "Se Apple Intelligence non può funzionare, Codex pulisce il testo se hai effettuato l’accesso; altrimenti viene incollata la trascrizione grezza.",
-          "available": "Pronto su questo Mac",
-          "deviceNotEligible": "Non supportato su questo Mac",
-          "appleIntelligenceNotEnabled": "Attiva Apple Intelligence in Impostazioni di Sistema",
-          "modelNotReady": "Download in corso, riprova più tardi",
-          "unsupportedOs": "Richiede macOS 26 o versioni successive",
-          "unavailable": "Non disponibile al momento",
-          "unsupportedLanguage": "Non disponibile in {{language}}"
+          "formal": "Formale",
+          "normal": "Normale",
+          "casual": "Informale"
         }
       },
       "windowNames": {
-        "title": "Nomi dalla finestra attiva",
-        "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia IA solo i nomi trovati, per scriverli correttamente. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
+        "title": "Contesto dalla finestra attiva",
+        "description": "Quando inizi a dettare, Murmur legge il testo della finestra in primo piano tramite Accessibilità e invia alla pulizia i nomi trovati, per scriverli correttamente. Invia anche un breve estratto del testo intorno al cursore. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
       },
       "whisperMode": {
         "title": "Modalità sussurro",
         "description": "Aumenta ulteriormente la sensibilità per una voce molto bassa e segnala alla pulizia IA che il parlato può essere debole. Silenzio e rumore di fondo non vengono mai amplificati."
+      },
+      "engine": {
+        "local": {
+          "title": "Su questo Mac",
+          "description": "25 lingue europee. Il tuo audio resta su questo Mac."
+        },
+        "cloud": {
+          "title": "Nel cloud",
+          "description": "Più lingue, usa i limiti del tuo account ChatGPT."
+        },
+        "os_too_old": "La trascrizione locale richiede macOS 15 o successivo.",
+        "unsupported": "La trascrizione locale richiede un Mac con Apple silicon.",
+        "error": "Impossibile cambiare il modo in cui Murmur trascrive."
+      },
+      "localModel": {
+        "missing": "Non scaricato",
+        "preparing": "Preparazione per questo Mac… (circa 15 secondi, solo la prima volta)",
+        "ready": "Pronto · {{size}}",
+        "row": {
+          "downloading": "Download · {{percent}}%",
+          "preparing": "Preparazione…",
+          "preparingNote": "Circa 15 secondi.",
+          "meetings": "Usato anche da Riunioni.",
+          "unavailable": "Non disponibile",
+          "needs": {
+            "os_too_old": "Serve macOS 15 o successivo.",
+            "unsupported": "Serve Apple silicon."
+          },
+          "stopped": "Download interrotto",
+          "noSpace": "Spazio insufficiente",
+          "loadFailed": "Impossibile caricare",
+          "reason": {
+            "no_internet": "Internet non disponibile.",
+            "server_unavailable": "Il server non risponde.",
+            "damaged": "File arrivato danneggiato.",
+            "not_enough_space": "Servono {{needed}}, liberi {{free}}.",
+            "disk": "Salvataggio non riuscito.",
+            "prepare_failed": "Scaricato, ma non si avvia."
+          }
+        },
+        "download": "Scarica ({{size}})",
+        "retry": "Riprova",
+        "delete": "Elimina",
+        "error": "Impossibile aggiornare il modello locale.",
+        "failed": {
+          "no_internet": "Nessuna connessione a internet. Il download riprenderà da dove si è fermato.",
+          "server_unavailable": "Il server di download non risponde. Riprova più tardi.",
+          "damaged": "Il file scaricato è danneggiato. Riprova.",
+          "not_enough_space": "Spazio insufficiente: servono {{needed}}, liberi {{free}}.",
+          "disk": "Impossibile salvare il modello su questo Mac.",
+          "prepare_failed": "Il modello è stato scaricato ma non si è caricato su questo Mac."
+        },
+        "deleteDialog": {
+          "title": "Eliminare il modello locale?",
+          "withAccount": "La dettatura userà il cloud finché non lo scaricherai di nuovo.",
+          "withoutAccount": "Non potrai dettare finché non lo scaricherai di nuovo o non collegherai ChatGPT.",
+          "meetings": "Le riunioni mostreranno un solo interlocutore per sorgente audio.",
+          "confirm": "Elimina modello"
+        }
+      },
+      "chatgpt": {
+        "title": "ChatGPT",
+        "optional": "Facoltativo: collegalo per la pulizia con IA e più lingue.",
+        "signedIn": "Accesso effettuato",
+        "signIn": "Accedi",
+        "signOut": "Esci",
+        "signOutFailed": "Impossibile uscire da ChatGPT.",
+        "waiting": "Completa l'accesso nel browser.",
+        "signOutDialog": {
+          "title": "Uscire da ChatGPT?",
+          "body": "Murmur e l'app Codex condividono una sola sessione ChatGPT su questo Mac, quindi uscire qui fa uscire anche da Codex."
+        },
+        "errors": {
+          "portBusy": "C'è già un altro accesso aperto, forse in Codex. Completalo o chiudilo, poi riprova.",
+          "timedOut": "Tempo scaduto per l'accesso. Riprova.",
+          "denied": "L'accesso è stato annullato nel browser.",
+          "notEntitled": "Codex non è attivo per questo spazio di lavoro ChatGPT. Chiedi al suo amministratore.",
+          "network": "Impossibile raggiungere OpenAI. Controlla la connessione e riprova.",
+          "rejected": "OpenAI non ha accettato l'accesso. Riprova.",
+          "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo Mac.",
+          "browserFailed": "Impossibile aprire il browser.",
+          "generic": "Accesso non riuscito. Riprova."
+        }
       }
     }
   },
@@ -500,7 +618,7 @@
     "checkingUpdates": "Controllo aggiornamenti...",
     "updateAvailableShort": "Aggiornamento disponibile",
     "upToDate": "Aggiornato",
-    "updateCheckingDisabled": "Controllo Aggiornamenti Disabilitato",
+    "updateCheckingDisabled": "Controllo aggiornamenti disabilitato",
     "downloading": "Download... {{progress}}%",
     "installing": "Installazione...",
     "preparing": "Preparazione...",
@@ -538,7 +656,7 @@
   },
   "transcriptionFailedAction": "Controlla il servizio di trascrizione",
   "appLanguage": {
-    "title": "Lingua Applicazione",
+    "title": "Lingua applicazione",
     "description": "Cambia la lingua dell'interfaccia di Murmur"
   },
   "theme": {
@@ -589,12 +707,14 @@
       "interrupted": "La registrazione è stata interrotta. Quanto registrato può comunque essere trascritto.",
       "process": "Trascrivi",
       "retry": "Riprova",
+      "retryNow": "Riprova ora",
       "retryError": "Impossibile riavviare l’elaborazione.",
       "errors": {
-        "signed_out": "Accedi a Codex, poi riprova.",
+        "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste in questo momento. Riprova più tardi.",
         "parts_failed": "Alcune parti non sono state trascritte.",
         "no_audio": "Impossibile leggere la registrazione.",
+        "offline": "In attesa di connessione. Murmur riprende da solo appena torni online.",
         "other": "L’elaborazione si è interrotta in modo imprevisto."
       }
     },
@@ -606,7 +726,7 @@
     },
     "models": {
       "title": "Rilevamento dei partecipanti",
-      "description": "Modelli locali distinguono i partecipanti. Si scaricano una volta (circa 480 MB) e questo passaggio non invia audio altrove.",
+      "description": "Modelli locali distinguono i partecipanti. Si scaricano una volta ({{size}}) e questo passaggio non invia audio altrove.",
       "missing": "Non scaricati",
       "downloading": "Download in corso… {{percent}}%",
       "preparing": "Preparazione dei modelli per questo Mac…",
@@ -621,7 +741,7 @@
       "licences": "Licenze dei modelli",
       "licencesNote": "I modelli vengono scaricati da Hugging Face al primo utilizzo. Murmur non li include.",
       "licence": {
-        "parakeet": "Parakeet TDT 0.6B v3 (tempi delle parole): NVIDIA, CC BY 4.0. Conversione Core ML di Fluid Inference.",
+        "parakeet": "Riconoscimento vocale: Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0. Convertito in Core ML da Fluid Inference (Apple silicon) e in GGUF a 8 bit da handy-computer (Mac Intel).",
         "diarization": "Diarizzazione Community-1: pyannote, CC BY 4.0, con WeSpeaker e BUT Speech@FIT. Conversione Core ML modificata di Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, licenza Apache 2.0."
       }
@@ -722,9 +842,10 @@
       "pending": "Il riepilogo viene scritto quando l'intera riunione è trascritta.",
       "retryError": "Impossibile riprovare il riepilogo.",
       "errors": {
-        "signed_out": "Accedi a Codex, poi riprova.",
+        "signed_out": "Accedi con ChatGPT, poi riprova.",
         "rate_limited": "Codex sta limitando le richieste. Riprova più tardi.",
         "network": "Impossibile raggiungere Codex. Controlla la connessione, poi riprova.",
+        "server": "Impossibile scrivere il riepilogo. Riprova più tardi.",
         "timeout": "Codex ha impiegato troppo tempo a rispondere.",
         "too_long": "Il riepilogo è risultato troppo lungo.",
         "empty": "Codex ha restituito un riepilogo vuoto.",
@@ -748,6 +869,82 @@
         "title": "Trascrivere di nuovo questa riunione?",
         "description": "Codex trascrive di nuovo la registrazione, e trascrizione e riepilogo vengono sostituiti. Un titolo che hai scelto resta."
       }
+    },
+    "localFallback": "Codex non è stato disponibile per {{duration}} di questa riunione, quindi quella parte è stata trascritta su questo Mac."
+  },
+  "localSttCard": {
+    "title": "Novità: trascrizione locale, senza limiti di quota.",
+    "description": "Trascrivi su questo Mac in 25 lingue europee. Il tuo audio resta su questo Mac.",
+    "useLocal": "Usa la trascrizione locale",
+    "downloading": "Download in corso… {{percent}}%. Al termine Murmur passerà a questo Mac.",
+    "dismiss": "Chiudi",
+    "error": "Impossibile avviare la trascrizione locale.",
+    "switched": "Ora la trascrizione avviene su questo Mac.",
+    "switchedDescription": "Puoi cambiarlo in {{section}}."
+  },
+  "localModelPill": {
+    "downloading": "Download del modello… {{percent}}%",
+    "preparing": "Preparazione del modello…"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Trascrivi su questo PC",
+        "description": "Murmur trasforma la tua voce in testo direttamente su questo PC. L'audio resta sul PC e non ci sono limiti di utilizzo.",
+        "alreadyHere": "Il modello è già su questo PC."
+      },
+      "done": {
+        "preparing": "Il modello si sta preparando per questo PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo PC.",
+          "cloud_limit_reached": "Trascritto su questo PC: era stato raggiunto il limite di ChatGPT.",
+          "cloud_failed": "Trascritto su questo PC: ChatGPT non era disponibile."
+        }
+      },
+      "transcription": {
+        "engine": {
+          "local": {
+            "title": "Su questo PC",
+            "description": "25 lingue europee. Il tuo audio resta su questo PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Preparazione per questo PC…",
+          "row": {
+            "reason": {
+              "disk": "Salvataggio non riuscito."
+            }
+          },
+          "failed": {
+            "disk": "Impossibile salvare il modello su questo PC.",
+            "prepare_failed": "Il modello è stato scaricato ma non si è caricato su questo PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur e l'app Codex condividono una sola sessione ChatGPT su questo PC, quindi uscire qui fa uscire anche da Codex."
+          },
+          "errors": {
+            "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Riconoscimento vocale: Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0, convertito in GGUF a 8 bit da handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Trascrivi su questo PC in 25 lingue europee. Il tuo audio resta su questo PC.",
+      "downloading": "Download in corso… {{percent}}%. Al termine Murmur passerà a questo PC.",
+      "switched": "Ora la trascrizione avviene su questo PC."
     }
   }
 }

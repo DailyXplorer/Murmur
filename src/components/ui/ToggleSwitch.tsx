@@ -8,6 +8,8 @@ interface ToggleSwitchProps {
   isUpdating?: boolean;
   label: string;
   description: string;
+  /** Shown under the label, in the text column. */
+  detail?: React.ReactNode;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   tooltipPosition?: "top" | "bottom";
@@ -20,6 +22,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   isUpdating = false,
   label,
   description,
+  detail,
   descriptionMode = "tooltip",
   grouped = false,
   tooltipPosition = "top",
@@ -28,6 +31,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
     <SettingContainer
       title={label}
       description={description}
+      detail={detail}
       descriptionMode={descriptionMode}
       grouped={grouped}
       disabled={disabled}
@@ -45,7 +49,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
           disabled={disabled || isUpdating}
           onChange={(e) => onChange(e.target.checked)}
         />
-        <div className="peer relative h-6 w-11 rounded-full bg-mid-gray/20 transition-colors duration-200 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-logo-primary peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-checked:bg-background-ui peer-checked:hover:bg-background-ui-hover peer-checked:active:bg-background-ui-active peer-checked:after:translate-x-full peer-disabled:opacity-50 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-(--knob-border) after:bg-white after:shadow-(--knob-shadow) after:transition-[translate] after:duration-200 after:content-[''] rtl:peer-checked:after:-translate-x-full" />
+        <div className="peer relative h-6 w-11 rounded-full bg-mid-gray/20 transition-colors duration-200 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-accent-text peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-checked:bg-background-ui peer-checked:hover:bg-background-ui-hover peer-checked:active:bg-background-ui-active peer-checked:after:translate-x-full peer-disabled:opacity-50 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-(--knob-border) after:bg-white after:shadow-(--knob-shadow) after:transition-[translate] after:duration-200 after:content-['']" />
         {isUpdating && (
           <div
             className="absolute inset-0 flex items-center justify-center"

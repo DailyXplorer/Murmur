@@ -1,7 +1,7 @@
 use crate::audio_feedback;
 use crate::audio_toolkit::audio::{list_input_devices, list_output_devices, AudioRecorder};
 use crate::managers::audio::{AudioRecordingManager, MicrophoneMode};
-use crate::settings::{get_settings, write_settings};
+use crate::settings::update_settings;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -83,14 +83,19 @@ pub async fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
     .map_err(|e| format!("audio task join failed: {}", e))?
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let selected_microphone = if device_name == "default" {
+/// The `"default"` entry clears the choice and follows the system device.
+fn chosen_device(device_name: String) -> Option<String> {
+    if device_name == "default" {
         None
     } else {
         Some(device_name)
-    };
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
+    let selected_microphone = chosen_device(device_name);
 
     // The manager holds the recording-state lock across the CoreAudio restart
     // and only persists a setting after the runtime switch succeeds. Run that
@@ -131,40 +136,36 @@ pub async fn get_available_output_devices() -> Result<Vec<AudioDevice>, String> 
 #[tauri::command]
 #[specta::specta]
 pub fn set_selected_output_device(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_output_device = if device_name == "default" {
-        None
-    } else {
-        Some(device_name)
-    };
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.selected_output_device = chosen_device(device_name);
+    });
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn play_test_sound(app: AppHandle, sound_type: String) {
-    let sound = match sound_type.as_str() {
-        "start" => audio_feedback::SoundType::Start,
-        "stop" => audio_feedback::SoundType::Stop,
-        _ => {
-            warn!("Unknown sound type: {}", sound_type);
-            return;
-        }
+    let Some(sound) = test_sound(&sound_type) else {
+        warn!("Unknown sound type: {}", sound_type);
+        return;
     };
     audio_feedback::play_test_sound(&app, sound);
+}
+
+fn test_sound(sound_type: &str) -> Option<audio_feedback::SoundType> {
+    match sound_type {
+        "start" => Some(audio_feedback::SoundType::Start),
+        "stop" => Some(audio_feedback::SoundType::Stop),
+        _ => None,
+    }
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.clamshell_microphone = if device_name == "default" {
-        None
-    } else {
-        Some(device_name)
-    };
-    write_settings(&app, settings);
+    update_settings(&app, |settings| {
+        settings.clamshell_microphone = chosen_device(device_name);
+    });
     Ok(())
 }
 
@@ -206,4 +207,28 @@ pub async fn set_selected_channel(app: AppHandle, channel: Option<u16>) -> Resul
         .await
         .map_err(|e| format!("audio task join failed: {e}"))?
         .map_err(|e| format!("Failed to update channel selection: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{chosen_device, test_sound};
+    use crate::audio_feedback::SoundType;
+
+    #[test]
+    fn the_default_entry_clears_the_device_and_a_name_is_kept() {
+        assert_eq!(chosen_device("default".to_string()), None);
+        assert_eq!(
+            chosen_device("MacBook Pro Microphone".to_string()).as_deref(),
+            Some("MacBook Pro Microphone")
+        );
+    }
+
+    #[test]
+    fn only_start_and_stop_are_test_sounds() {
+        assert!(matches!(test_sound("start"), Some(SoundType::Start)));
+        assert!(matches!(test_sound("stop"), Some(SoundType::Stop)));
+        for unknown in ["beep", ""] {
+            assert!(test_sound(unknown).is_none(), "{unknown:?}");
+        }
+    }
 }

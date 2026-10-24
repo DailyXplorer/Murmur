@@ -11,7 +11,8 @@
 //! another ("Q3" -> "Q4", "iOS" -> "macOS", "John" -> "Joan"): the
 //! transcript already held a name, so the user changed what they meant.
 //! Chinese and Japanese, written without spaces, are never learned: only a
-//! Latin term fixed inside them, which is cut out of the text around it.
+//! Latin term fixed inside them, which is cut out of the text around it. A
+//! possessive or a French elision kept on both sides is cut off the same way.
 
 use crate::insights::stats::is_cjk;
 use natural::phonetics::soundex;
@@ -80,30 +81,35 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         if !(1..=2).contains(&replaced.len()) || replacement.len() != 1 {
             continue;
         }
-        let word = core(replacement[0]);
-        let heard_as = replaced
+        let replaced_core = replaced
             .iter()
             .map(|w| core(w))
             .collect::<Vec<_>>()
             .join(" ");
-        let sentence_start = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
-        let heard_at_sentence_start = hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]);
-        let heard_a_term = replaced
-            .iter()
+        let replacement_core = core(replacement[0]);
+        let opens_sentence = hunk.new.start == 0 || ends_sentence(new[hunk.new.start - 1]);
+        let (heard_as, word) = without_clitics(&replaced_core, replacement_core, opens_sentence);
+        // A name after a stripped elision does not open the sentence: the
+        // capital of "D'Anthropic" is the user's, not the sentence's.
+        let sentence_start = replacement_core.starts_with(word) && opens_sentence;
+        let heard_at_sentence_start = replaced_core.starts_with(heard_as)
+            && (hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]));
+        let heard_a_term = heard_as
+            .split_whitespace()
             .enumerate()
-            .any(|(i, w)| looks_like_a_term(core(w), i == 0 && heard_at_sentence_start));
+            .any(|(i, w)| looks_like_a_term(w, i == 0 && heard_at_sentence_start));
         if looks_like_a_term(word, sentence_start)
             && !heard_a_term
-            && !said_on_purpose(&heard_as, word)
-            && sounds_alike(&heard_as, word)
-            && !only_inflected(&heard_as, word)
-            && !only_extended(&heard_as, word)
-            && !kept_elsewhere(&heard_as, &new)
+            && !said_on_purpose(heard_as, word)
+            && sounds_alike(heard_as, word)
+            && !only_inflected(heard_as, word)
+            && !only_extended(heard_as, word)
+            && !kept_elsewhere(heard_as, &new)
             && !learned.iter().any(|known| known.word == word)
         {
             learned.push(Correction {
                 word: word.to_string(),
-                heard_as,
+                heard_as: heard_as.to_string(),
             });
         }
         if learned.len() == MAX_LEARNED_PER_DICTATION {
@@ -198,6 +204,40 @@ fn core(word: &str) -> &str {
     word.trim_matches(|c: char| !c.is_alphanumeric())
 }
 
+/// French elisions, written against the next word: "d'Anthropic".
+pub(crate) const ELISIONS: [&str; 12] = [
+    "c", "d", "j", "l", "m", "n", "s", "t", "qu", "jusqu", "lorsqu", "puisqu",
+];
+
+/// A clitic on both sides is grammar around the name, not part of it:
+/// "clawd's" -> "Claude's" fixes "Claude", and "d'antropic" ->
+/// "d'Anthropic" fixes "Anthropic", also capitalised at sentence start
+/// ("D'Anthropic"). Inside a sentence a capital the heard side lacks belongs
+/// to the name: "D'Angelo", "L'Oréal". "O'Brien" stays whole: "o" is not an
+/// elision.
+fn without_clitics<'a>(heard: &'a str, word: &'a str, opens_sentence: bool) -> (&'a str, &'a str) {
+    let elided = |text: &'a str| {
+        text.split_once(['\'', '’'])
+            .filter(|(elision, _)| ELISIONS.contains(&elision.to_lowercase().as_str()))
+    };
+    let same_elision = |a: &str, b: &str| {
+        if opens_sentence {
+            a.eq_ignore_ascii_case(b)
+        } else {
+            a == b
+        }
+    };
+    let (heard, word) = match (elided(heard), elided(word)) {
+        (Some((a, heard)), Some((b, word))) if same_elision(a, b) => (heard, word),
+        _ => (heard, word),
+    };
+    let possessive = |text: &'a str| text.strip_suffix("'s").or_else(|| text.strip_suffix("’s"));
+    match (possessive(heard), possessive(word)) {
+        (Some(heard), Some(word)) => (heard, word),
+        _ => (heard, word),
+    }
+}
+
 fn letters(text: &str) -> String {
     text.chars()
         .filter(|c| c.is_alphanumeric())
@@ -256,12 +296,23 @@ fn sounds_alike(heard: &str, word: &str) -> bool {
         || (ascii_letters(&heard) && ascii_letters(&word) && soundex(&heard, &word))
 }
 
-/// Everyday English and French words and common first names, lowercase.
-fn is_common_word(word: &str) -> bool {
+/// Everyday English and French words, lowercase.
+pub(crate) fn is_everyday_word(word: &str) -> bool {
     static WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
     WORDS
         .get_or_init(|| include_str!("common_words.txt").lines().collect())
         .contains(word.to_lowercase().as_str())
+}
+
+/// Everyday words and common first names. A first name is kept apart from
+/// everyday words: it is what a custom spelling overrides ("Lucas" ->
+/// "Lukas").
+fn is_common_word(word: &str) -> bool {
+    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    is_everyday_word(word)
+        || NAMES
+            .get_or_init(|| include_str!("first_names.txt").lines().collect())
+            .contains(word.to_lowercase().as_str())
 }
 
 /// A misheard form made only of everyday words or first names is also
@@ -478,6 +529,61 @@ mod tests {
         assert_eq!(
             learned("時々clawdを使う", "時々Claudeを使う"),
             vec![pair("Claude", "clawd")]
+        );
+    }
+
+    #[test]
+    fn a_possessive_or_an_elision_on_both_sides_is_not_part_of_the_name() {
+        assert_eq!(
+            learned("I read clawd's answer.", "I read Claude's answer."),
+            vec![pair("Claude", "clawd")]
+        );
+        assert_eq!(
+            learned("I read clawd’s answer.", "I read Claude’s answer."),
+            vec![pair("Claude", "clawd")]
+        );
+        assert!(learned("I read the cloud's answer", "I read the Claude's answer").is_empty());
+        assert_eq!(
+            learned(
+                "le modèle d'antropic est bon",
+                "le modèle d'Anthropic est bon"
+            ),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("c'est l’antropic", "c'est l’Anthropic"),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned(
+                "D'antropic, je pense que oui",
+                "D'Anthropic, je pense que oui"
+            ),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("L'antropic a publié", "L'Anthropic a publié"),
+            vec![pair("Anthropic", "antropic")]
+        );
+        assert_eq!(
+            learned("ask o'brian today", "ask O'Brien today"),
+            vec![pair("O'Brien", "o'brian")]
+        );
+    }
+
+    #[test]
+    fn a_capital_elision_inside_a_sentence_is_part_of_the_name() {
+        assert_eq!(
+            learned("ask d'anjelo today", "ask D'Angelo today"),
+            vec![pair("D'Angelo", "d'anjelo")]
+        );
+        assert_eq!(
+            learned("chez l'oreal", "chez L'Oréal"),
+            vec![pair("L'Oréal", "l'oreal")]
+        );
+        assert_eq!(
+            learned("d'antropic, je pense", "D'Anthropic, je pense"),
+            vec![pair("Anthropic", "antropic")]
         );
     }
 

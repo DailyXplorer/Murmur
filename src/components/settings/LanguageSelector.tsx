@@ -54,7 +54,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   supportedLanguages,
   supportsLanguageDetection = true,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, resetSetting, isUpdating } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,19 +64,16 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const triggerId = useId();
   const menuId = useId();
   const isLanguageUpdating = isUpdating("selected_language");
-  const isAntigravity = getSetting("transcription_provider") === "gemini";
-  const isLanguageMenuOpen = isOpen && !isLanguageUpdating && !isAntigravity;
+  const isLanguageMenuOpen = isOpen && !isLanguageUpdating;
 
   // The persisted *intent* (auto | code). What's actually used/shown is the
   // effective value resolved against the transcription service capabilities.
   const intent = getSetting("selected_language") || "auto";
-  const selectedLanguage = isAntigravity
-    ? "auto"
-    : effectiveLanguage(
-        intent,
-        supportedLanguages ?? [],
-        supportsLanguageDetection,
-      );
+  const selectedLanguage = effectiveLanguage(
+    intent,
+    supportedLanguages ?? [],
+    supportsLanguageDetection,
+  );
 
   useEffect(() => {
     if (isLanguageMenuOpen && searchInputRef.current) {
@@ -85,11 +82,6 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   }, [isLanguageMenuOpen]);
 
   const availableLanguages = useMemo(() => {
-    if (isAntigravity) {
-      return SELECTABLE_LANGUAGES.filter(
-        (language) => language.value === "auto",
-      );
-    }
     if (!supportedLanguages || supportedLanguages.length === 0)
       return SELECTABLE_LANGUAGES;
     return SELECTABLE_LANGUAGES.filter((lang) =>
@@ -97,21 +89,42 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         ? supportsLanguageDetection
         : supportsLanguageCode(supportedLanguages, lang.value),
     );
-  }, [isAntigravity, supportedLanguages, supportsLanguageDetection]);
+  }, [supportedLanguages, supportsLanguageDetection]);
 
-  const filteredLanguages = useMemo(
-    () =>
-      availableLanguages.filter((language) =>
-        language.label.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [searchQuery, availableLanguages],
+  // Each language in the app's language, with the English name as the
+  // fallback for a code the browser cannot name ("jw").
+  const displayNames = useMemo(
+    () => new Intl.DisplayNames([i18n.language], { type: "language" }),
+    [i18n.language],
   );
+  const languageName = useCallback(
+    (code: string) => {
+      const englishName = getLanguageLabel(code);
+      if (code === "auto" || !englishName) {
+        return t("settings.general.language.auto");
+      }
+      const name = displayNames.of(code);
+      if (!name || name === code) return englishName;
+      return name.charAt(0).toLocaleUpperCase(i18n.language) + name.slice(1);
+    },
+    [displayNames, i18n.language, t],
+  );
+
+  const filteredLanguages = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return availableLanguages
+      .map((language) => ({ ...language, name: languageName(language.value) }))
+      .filter(
+        (language) =>
+          language.name.toLowerCase().includes(query) ||
+          language.label.toLowerCase().includes(query),
+      );
+  }, [searchQuery, availableLanguages, languageName]);
   const initialTabStopValue =
     filteredLanguages.find((language) => language.value === selectedLanguage)
       ?.value ?? filteredLanguages[0]?.value;
 
-  const selectedLanguageName =
-    getLanguageLabel(selectedLanguage) || t("settings.general.language.auto");
+  const selectedLanguageName = languageName(selectedLanguage);
 
   const handleLanguageSelect = async (languageCode: string) => {
     await updateSetting("selected_language", languageCode);
@@ -125,7 +138,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   };
 
   const handleToggle = () => {
-    if (isLanguageUpdating || isAntigravity) return;
+    if (isLanguageUpdating) return;
     setIsOpen(!isOpen);
   };
 
@@ -157,14 +170,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   return (
     <SettingContainer
       title={t("settings.general.language.title")}
-      description={
-        isAntigravity
-          ? t("settings.languageAutoOnly")
-          : t("settings.general.language.description")
-      }
+      description={t("settings.general.language.description")}
       descriptionMode={descriptionMode}
       grouped={grouped}
-      disabled={isAntigravity}
     >
       <div className="flex min-w-0 items-center space-x-1">
         <div className="relative min-w-0 flex-1">
@@ -174,12 +182,12 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             type="button"
             data-control="field"
             className={`${FIELD_SIZE_CLASSES} ${FIELD_SURFACE_CLASSES} flex w-full min-w-[200px] items-center justify-between transition-[background-color,border-color] duration-150 ${
-              isLanguageUpdating || isAntigravity
+              isLanguageUpdating
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-logo-primary/10 cursor-pointer hover:border-logo-primary"
             }`}
             onClick={handleToggle}
-            disabled={isLanguageUpdating || isAntigravity}
+            disabled={isLanguageUpdating}
             aria-haspopup="listbox"
             aria-expanded={isLanguageMenuOpen}
             aria-controls={isLanguageMenuOpen ? menuId : undefined}
@@ -232,13 +240,13 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     tabIndex={language.value === initialTabStopValue ? 0 : -1}
                     className={`min-h-control w-full px-3 py-1 text-sm font-normal text-start hover:bg-logo-primary/10 transition-colors duration-150 ${
                       selectedLanguage === language.value
-                        ? "bg-logo-primary/20 text-logo-primary"
+                        ? "bg-logo-primary/20 text-accent-text"
                         : ""
                     }`}
                     onClick={() => handleLanguageSelect(language.value)}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="truncate">{language.label}</span>
+                      <span className="truncate">{language.name}</span>
                     </div>
                   </button>
                 ))
@@ -249,7 +257,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <ResetButton
           className="shrink-0"
           onClick={handleReset}
-          disabled={isLanguageUpdating || isAntigravity}
+          disabled={isLanguageUpdating}
           ariaLabel={`${t("common.reset")}: ${t("settings.general.language.title")}`}
         />
       </div>

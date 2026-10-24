@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/instrument-sans/wght-italic.css";
+@import "./assets/fonts/faculty-glyphic/faculty-glyphic.css";
 @import "./styles/theme.css";
 
 /* `dark:` follows the theme chosen in Murmur (`data-theme`, see
@@ -22,6 +23,9 @@
   --font-sans:
     "Instrument Sans Variable", "Instrument Sans", ui-sans-serif, system-ui,
     sans-serif;
+  /* Page and section titles only; body text and controls stay sans. Faculty
+     Glyphic has one weight, so titles set in it use font-normal. */
+  --font-title: "Faculty Glyphic", ui-serif, Georgia, serif;
   --color-text: var(--color-text);
   --color-background: var(--color-background);
   --color-background-ui: var(--color-background-ui);
@@ -30,6 +34,7 @@
   --color-on-accent: var(--color-on-accent);
   --color-slider-track: var(--color-slider-track);
   --color-logo-primary: var(--color-logo-primary);
+  --color-accent-text: var(--color-accent-text);
   --color-logo-stroke: var(--color-logo-stroke);
   --color-text-stroke: var(--color-text-stroke);
   --color-mid-gray: var(--color-mid-gray);
@@ -40,9 +45,9 @@
 /* One size for every form control: fields, dropdown triggers, path fields and
    the buttons beside them (h-control, size-control), and one width for every
    text button (min-w-control-button), so buttons side by side match. It fits
-   the longest English label, "Open Codex setup", with room for WebKit drawing
-   text a little wider than Chromium; tests/button-widths.spec.ts checks every
-   label. Longer translations widen their button. */
+   every English label, with room for WebKit drawing text a little wider than
+   Chromium; tests/button-widths.spec.ts checks every label. Longer
+   translations widen their button. */
 @theme {
   --spacing-control: 2.5rem;
   --spacing-control-button: 10.5rem;

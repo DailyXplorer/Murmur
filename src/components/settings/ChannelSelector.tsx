@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Dropdown } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { commands } from "@/bindings";
@@ -48,7 +49,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = React.memo(
 
     const handleChannelSelect = async (value: string) => {
       const channel = value === "average" ? null : parseInt(value, 10);
-      await updateSetting("selected_channel", channel);
+      // Refused while a dictation records; the selection then reverts.
+      if (!(await updateSetting("selected_channel", channel))) {
+        toast.error(t("settings.sound.channel.changeFailed"));
+      }
     };
 
     const options = [

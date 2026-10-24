@@ -81,8 +81,10 @@ export const useTextSearch = (texts: string[]) => {
             if (isCurrent) currentMark.current = element;
           }}
           data-current={isCurrent || undefined}
-          className={`rounded-sm text-text ${
-            isCurrent ? "bg-logo-primary/60" : "bg-logo-primary/25"
+          className={`rounded-sm ${
+            isCurrent
+              ? "bg-background-ui text-on-accent"
+              : "bg-logo-primary/25 text-text"
           }`}
         >
           {text.slice(match.start, match.end)}
@@ -169,7 +171,7 @@ export const TabHeaderBar: React.FC<TabHeaderBarProps> = ({
           <span className="flex shrink-0 text-mid-gray" aria-hidden="true">
             {icon}
           </span>
-          <span className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-mid-gray tabular-nums">
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-mid-gray tabular-nums">
             {label}
           </span>
         </>

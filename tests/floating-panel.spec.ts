@@ -180,13 +180,21 @@ test.describe("floating settings panels", () => {
     await searchInput.press("Home");
     await expect(searchInput).toBeFocused();
     await expect
-      .poll(() => searchInput.evaluate((input) => input.selectionStart))
+      .poll(() =>
+        searchInput.evaluate((input) =>
+          input instanceof HTMLInputElement ? input.selectionStart : null,
+        ),
+      )
       .toBe(0);
 
     await searchInput.press("End");
     await expect(searchInput).toBeFocused();
     await expect
-      .poll(() => searchInput.evaluate((input) => input.selectionStart))
+      .poll(() =>
+        searchInput.evaluate((input) =>
+          input instanceof HTMLInputElement ? input.selectionStart : null,
+        ),
+      )
       .toBe("search text".length);
 
     await searchInput.press("ArrowUp");

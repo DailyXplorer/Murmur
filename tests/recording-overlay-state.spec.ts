@@ -1,96 +1,39 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import {
+  dispatch,
+  entranceFinished,
+  ERROR_WINDOW,
+  fitCopyWindow,
+  openCallPrompt,
+  openOverlay,
+  RECORDING_WINDOW,
+} from "./overlayHarness";
 
 const LOUD = Array(16).fill(0.9);
 
 const localesDir = fileURLToPath(
   new URL("../src/i18n/locales/", import.meta.url),
 );
-const errorStringsByLocale = readdirSync(localesDir).map((locale) => {
+const trayStringsByLocale = readdirSync(localesDir).map((locale) => {
   const { tray } = JSON.parse(
     readFileSync(`${localesDir}${locale}/translation.json`, "utf8"),
   ) as { tray: Record<string, string> };
+  return { locale, tray };
+});
+const errorStringsByLocale = trayStringsByLocale.map(({ locale, tray }) => {
   const messages = Object.entries(tray)
     .filter(([key]) => key.startsWith("error"))
     .map(([, text]) => text.replace("{{shortcut}}", "⌥ Space"));
   return { locale, messages };
 });
 
-// OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
-const RECORDING_WINDOW = { width: 158, height: 62 };
-const ERROR_WINDOW = { width: 312, height: 116 };
-
-async function openOverlay(page: Page, { holdSettings = false } = {}) {
-  await page.addInitScript((hold) => {
-    const callbacks = new Map<number, (event: unknown) => unknown>();
-    const listeners = new Map<number, string>();
-    const pendingSettings: Array<(settings: unknown) => void> = [];
-    let nextId = 1;
-
-    window.overlayHarness = {
-      dispatch: (event, payload) => {
-        const ids = [...listeners].filter(([, name]) => name === event);
-        ids.forEach(([id]) => callbacks.get(id)?.({ event, id, payload }));
-        return ids.length;
-      },
-      releaseSettings: () => {
-        pendingSettings.splice(0).forEach((resolve) => resolve({}));
-      },
-    };
-
-    window.__TAURI_INTERNALS__ = {
-      invoke: (
-        command: string,
-        args?: { event?: string; handler?: number },
-      ) => {
-        if (command === "plugin:event|listen") {
-          listeners.set(args?.handler ?? 0, args?.event ?? "");
-          return Promise.resolve(args?.handler);
-        }
-        if (command === "plugin:event|unlisten") return Promise.resolve();
-        if (command === "get_app_settings") {
-          if (!hold) return Promise.resolve({});
-          return new Promise((resolve) => pendingSettings.push(resolve));
-        }
-        throw new Error(`Unexpected Tauri command: ${command}`);
-      },
-      transformCallback: (callback: (event: unknown) => unknown) => {
-        const id = nextId++;
-        callbacks.set(id, callback);
-        return id;
-      },
-      unregisterCallback: (id: number) => callbacks.delete(id),
-    };
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
-      unregisterListener: (_event: string, id: number) => {
-        listeners.delete(id);
-        callbacks.delete(id);
-      },
-    };
-  }, holdSettings);
-
-  await page.goto("/tests/fixtures/recording-overlay-listeners.html");
-  await expect
-    .poll(() =>
-      page.evaluate(() => window.overlayHarness.dispatch("mic-level", [0])),
-    )
-    .toBe(1);
-}
-
-const dispatch = (page: Page, event: string, payload?: unknown) =>
-  page.evaluate(
-    ([name, value]) => window.overlayHarness.dispatch(name as string, value),
-    [event, payload] as const,
-  );
-
-// Drawn sizes include the capsule's pop-in scale until it ends.
-const entranceFinished = (page: Page) =>
-  page
-    .locator(".ov-capsule")
-    .evaluate((capsule) =>
-      Promise.all(capsule.getAnimations().map((entry) => entry.finished)),
-    );
+const COPY_LABELS = {
+  copy: "Copy",
+  copied: "Copied",
+  note: "There was no text field to paste into.",
+};
 
 const centerBarHeight = (page: Page) =>
   page
@@ -319,6 +262,298 @@ for (const { locale, messages } of errorStringsByLocale) {
   });
 }
 
+test("without a text field the pill says so and is one Copy button that confirms the copy", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay", "transcribing");
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+
+  const button = page.getByRole("button", { name: "Copy", exact: true });
+  await expect(button).toBeVisible();
+  await expect(button).toHaveAccessibleDescription(COPY_LABELS.note);
+  await expect(page.locator(".ov-stage button")).toHaveCount(1);
+  await expect(button.getByText(COPY_LABELS.note)).toBeVisible();
+  await expect(page.locator(".ov-wave")).toHaveCount(0);
+  const copyCalls = () =>
+    page.evaluate(() => window.overlayHarness.copyCalls());
+  expect(await copyCalls(), "the pill asks for no copy on its own").toBe(0);
+
+  await button.click();
+  const copied = page.getByRole("button", { name: "Copied", exact: true });
+  await expect(copied).toBeVisible();
+  await expect(copied).toHaveAccessibleDescription(COPY_LABELS.note);
+  await expect(copied.getByText(COPY_LABELS.note)).toBeVisible();
+  expect(await copyCalls()).toBe(1);
+});
+
+test("the copy pill widens from the rest capsule to fit its one-line note", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await page.evaluate(() => document.fonts.ready);
+  const sizes = await page.evaluate(
+    (labels) =>
+      new Promise<Array<[number, number]>>((resolve) => {
+        window.overlayHarness.dispatch("show-overlay-copy", labels);
+        const seen: Array<[number, number]> = [];
+        const start = performance.now();
+        requestAnimationFrame(function sample(now) {
+          const pill = document.querySelector<HTMLElement>(".ov-copy");
+          if (pill) seen.push([pill.offsetWidth, pill.offsetHeight]);
+          if (now - start < 900) requestAnimationFrame(sample);
+          else resolve(seen);
+        });
+      }),
+    COPY_LABELS,
+  );
+
+  expect(sizes.length, "the pill showed").toBeGreaterThan(10);
+  const widths = sizes.map(([width]) => width);
+  expect(widths[0], "width starts at rest").toBeLessThanOrEqual(112);
+  const final = widths[widths.length - 1];
+  expect(final, "width ends fitted to the note").toBeGreaterThan(180);
+  const steps = widths.slice(1).map((width, i) => width - widths[i]);
+  expect(Math.min(...steps), "width never shrinks").toBeGreaterThanOrEqual(0);
+  expect(Math.max(...steps), "width grows over frames").toBeLessThan(
+    (final - widths[0]) / 2,
+  );
+  expect(
+    new Set(sizes.map(([, height]) => height)),
+    "a one-line note keeps the capsule height throughout",
+  ).toEqual(new Set([30]));
+});
+
+test("a refused copy leaves the pill on Copy and says why in the log", async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "warning") warnings.push(message.text());
+  });
+  await openOverlay(page, {
+    copyError: "copy_notice_again not allowed on window recording_overlay",
+  });
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect
+    .poll(() => warnings.join("\n"))
+    .toContain("copy_notice_again not allowed");
+  await expect(
+    page.getByRole("button", { name: "Copy", exact: true }),
+  ).toBeVisible();
+});
+
+// The backend opens every copy notice at a default size, so a notice that
+// replaces a showing one must ask for its fit again.
+test("a copy notice that replaces a showing one fits its window again", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  const first = await fitCopyWindow(page);
+  const fits = () =>
+    page.evaluate(() => window.overlayHarness.copyFits().length);
+  const before = await fits();
+
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect.poll(fits).toBeGreaterThan(before);
+  expect(await fitCopyWindow(page)).toEqual(first);
+});
+
+test("the copy pill hides on request and gives way to a new recording", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await dispatch(page, "hide-overlay");
+  await expect(page.locator(".ov-stage")).toHaveCount(0);
+
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await dispatch(page, "show-overlay", "recording");
+  await expect(page.locator(".ov-stage button")).toHaveCount(0);
+  await expect(page.locator(".ov-wave")).toBeVisible();
+});
+
+// A system font standing in for Instrument Sans, should it fail to load, is
+// wider; this face and spacing are wider still, so the pill must size itself
+// from what it measures, not from widths that suit one font.
+const WIDE_FONT = `.ov-stage {
+  font-family: Verdana, "DejaVu Sans", sans-serif !important;
+  letter-spacing: 0.08em;
+}`;
+
+// The widest copy pill keeps its window, margins included, well inside a
+// 1280-px-wide screen.
+const WIDEST_PILL = 560;
+
+for (const { locale, tray } of trayStringsByLocale) {
+  for (const font of ["app font", "wide font"] as const) {
+    test(`the ${locale} copy pill fits its note and action in its window with the ${font}`, async ({
+      page,
+    }) => {
+      await openOverlay(page);
+      if (font === "wide font") await page.addStyleTag({ content: WIDE_FONT });
+      await page.evaluate(() => document.fonts.ready);
+      const labels = {
+        copy: tray.overlayCopy,
+        copied: tray.overlayCopied,
+        note: tray.overlayNotPasted,
+      };
+      expect(
+        labels.copy && labels.copied && labels.note,
+        "all three labels exist",
+      ).toBeTruthy();
+      if (font === "app font") {
+        expect(
+          await page.evaluate(() =>
+            [...document.fonts].some(
+              (face) =>
+                face.family.replace(/"/g, "") === "Instrument Sans Variable" &&
+                face.status === "loaded",
+            ),
+          ),
+          "Instrument Sans is loaded",
+        ).toBe(true);
+      }
+
+      await dispatch(page, "show-overlay-copy", labels);
+      const windows: Array<{ width: number; height: number }> = [];
+      for (const label of [labels.copy, labels.copied]) {
+        const button = page.getByRole("button", { name: label, exact: true });
+        await expect(button).toBeVisible();
+        await entranceFinished(page);
+        windows.push(await fitCopyWindow(page));
+        const fit = await button.evaluate(
+          (capsule: HTMLElement, texts) => {
+            const box = capsule.getBoundingClientRect();
+            const leaves = capsule.querySelectorAll<HTMLElement>(
+              "span:not(:has(span))",
+            );
+            const spans = [...leaves].filter((span) =>
+              texts.includes(span.textContent ?? ""),
+            );
+            const rects = spans.map((span) => span.getBoundingClientRect());
+            const note = spans[0];
+            const lineHeight = parseFloat(getComputedStyle(note).lineHeight);
+            const text = document.createRange();
+            text.selectNodeContents(note);
+            const lines = [...text.getClientRects()];
+            const action = capsule.querySelector(".ov-copy-action")!;
+            const actionBox = action.getBoundingClientRect();
+            const linesLeft = Math.min(...lines.map((line) => line.left));
+            const linesRight = Math.max(...lines.map((line) => line.right));
+            const gapToAction = actionBox.left - linesRight;
+            const noteInset = linesLeft - box.left;
+            const actionInset = box.right - actionBox.right;
+            const words = note.firstChild as Text;
+            const glyph = document.createRange();
+            const lineTexts: string[] = [];
+            let lineStart = 0;
+            let lineTop: number | null = null;
+            for (let i = 0; i < words.length; i++) {
+              glyph.setStart(words, i);
+              glyph.setEnd(words, i + 1);
+              const [rect] = glyph.getClientRects();
+              if (!rect || !words.data[i].trim()) continue;
+              if (lineTop !== null && rect.top > lineTop + lineHeight / 2) {
+                lineTexts.push(words.data.slice(lineStart, i).trim());
+                lineStart = i;
+              }
+              lineTop = rect.top;
+            }
+            return {
+              pillWidth: capsule.offsetWidth,
+              shown: spans.map((span) => span.textContent),
+              clipped:
+                capsule.scrollWidth > capsule.clientWidth ||
+                capsule.scrollHeight > capsule.clientHeight ||
+                rects.some(
+                  (rect) =>
+                    rect.right > box.right ||
+                    rect.left < box.left ||
+                    rect.top < box.top ||
+                    rect.bottom > box.bottom,
+                ),
+              insideWindow:
+                box.left >= 0 &&
+                box.right <= window.innerWidth &&
+                box.top >= 0 &&
+                box.bottom <= window.innerHeight,
+              noteLines: Math.round(rects[0].height / lineHeight),
+              gapToAction,
+              noteInset,
+              actionInset,
+              linesEndingInHyphen: lineTexts.filter((line) =>
+                /[-\u{2010}\u{2011}]$/u.test(line),
+              ),
+            };
+          },
+          [labels.note, label],
+        );
+        test.info().annotations.push({
+          type: "note lines",
+          description: `${label}: ${fit.noteLines}`,
+        });
+        expect(fit.pillWidth, `${label}: pill width`).toBeLessThanOrEqual(
+          WIDEST_PILL,
+        );
+        expect(
+          fit.noteLines,
+          `${label}: the note takes two lines at most`,
+        ).toBeLessThanOrEqual(2);
+        expect(
+          fit.gapToAction,
+          `${label}: note ends by the action`,
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          fit.gapToAction,
+          `${label}: note ends by the action`,
+        ).toBeLessThan(12);
+        expect(
+          fit.noteInset,
+          `${label}: note clears the rounded edge`,
+        ).toBeGreaterThanOrEqual(12);
+        expect(
+          Math.abs(fit.actionInset - fit.noteInset),
+          `${label}: the action is as far from its edge (${fit.actionInset}px) as the note from its edge (${fit.noteInset}px)`,
+        ).toBeLessThanOrEqual(1);
+        expect(fit, label).toEqual({
+          pillWidth: fit.pillWidth,
+          shown: [labels.note, label],
+          clipped: false,
+          insideWindow: true,
+          noteLines: fit.noteLines,
+          gapToAction: fit.gapToAction,
+          noteInset: fit.noteInset,
+          actionInset: fit.actionInset,
+          linesEndingInHyphen: [],
+        });
+        if (label === labels.copy) await button.click();
+      }
+      expect(windows[1], "keeps its size when it confirms").toEqual(windows[0]);
+    });
+  }
+}
+
+test("reduced motion shows the copy pill without any animation", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openOverlay(page);
+  await dispatch(page, "show-overlay-copy", COPY_LABELS);
+  const button = page.getByRole("button", { name: "Copy" });
+  await expect(button).toBeVisible();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+
+  await button.click();
+  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+});
+
 test("reduced motion shows static bars that ignore the voice", async ({
   page,
 }) => {
@@ -398,3 +633,152 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
   });
   await expect(page.locator(".ov-meeting")).toHaveText("3:00:00");
 });
+
+const callLabels = (tray: Record<string, string>) => ({
+  app: "Google Meet",
+  question: tray.callRecordQuestion,
+  accept: tray.callRecord,
+  decline: tray.callNotNow,
+  position: "bottom",
+});
+const englishTray = trayStringsByLocale.find(
+  ({ locale }) => locale === "en",
+)!.tray;
+const callAnswers = (page: Page) =>
+  page.evaluate(() => window.overlayHarness.callAnswers());
+
+test("a call prompt asks to record the meeting and sends back Record or Not now", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+
+  const prompt = page.getByRole("alertdialog", {
+    name: "Record this meeting?",
+  });
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toHaveAccessibleDescription("Google Meet");
+  expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
+
+  await prompt.getByRole("button", { name: "Record", exact: true }).click();
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  await prompt.getByRole("button", { name: "Not now", exact: true }).click();
+  expect(await callAnswers(page)).toEqual([true, false]);
+});
+
+test("a dictation, its error or the meeting pill never hide the call prompt", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  const prompt = page.getByRole("alertdialog", {
+    name: "Record this meeting?",
+  });
+  await expect(prompt).toBeVisible();
+
+  const heard = [
+    await dispatch(page, "show-overlay", "recording"),
+    await dispatch(page, "recording-ready"),
+    await dispatch(page, "show-overlay", "transcribing"),
+    await dispatch(page, "show-overlay-error", "Transcription failed."),
+    await dispatch(page, "show-overlay-copy", COPY_LABELS),
+    await dispatch(page, "hide-overlay"),
+    await dispatch(page, "show-overlay-meeting", {
+      started_at_ms: 0,
+      stops_at_ms: 10_800_000,
+    }),
+  ];
+  expect(heard, "the prompt's window hears none of the overlay's").toEqual(
+    Array(heard.length).fill(0),
+  );
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: "Record", exact: true }).click();
+  expect(await callAnswers(page)).toEqual([true]);
+});
+
+test("a call prompt shown before the page listened still appears", async ({
+  page,
+}) => {
+  await openOverlay(page, {
+    fixture: "call-prompt",
+    readyOn: null,
+    callPrompt: callLabels(englishTray),
+  });
+
+  await expect(
+    page.getByRole("alertdialog", { name: "Record this meeting?" }),
+  ).toBeVisible();
+});
+
+test("the call prompt sits on the overlay's side from its first frame", async ({
+  page,
+}) => {
+  // Settings never answer: the side comes with the prompt.
+  await openOverlay(page, {
+    fixture: "call-prompt",
+    readyOn: "hide-overlay-call",
+    holdSettings: true,
+  });
+  const stage = page.locator(".ov-stage");
+
+  await dispatch(page, "show-overlay-call", {
+    ...callLabels(englishTray),
+    position: "top",
+  });
+  await expect(stage).toHaveClass(/\btop\b/);
+
+  // The overlay was moved while the prompt showed.
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  await expect(stage).toHaveClass(/\bbottom\b/);
+});
+
+test("the call prompt closes when the call ends", async ({ page }) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+
+  await dispatch(page, "hide-overlay-call");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(await callAnswers(page)).toEqual([]);
+});
+
+for (const { locale, tray } of trayStringsByLocale) {
+  test(`the ${locale} call prompt fits its window, answers on one line`, async ({
+    page,
+  }) => {
+    await openCallPrompt(page);
+    await page.evaluate(() => document.fonts.ready);
+    const labels = callLabels(tray);
+    await dispatch(page, "show-overlay-call", labels);
+    const prompt = page.getByRole("alertdialog", { name: labels.question });
+    await expect(prompt).toBeVisible();
+    await entranceFinished(page);
+    const fitted = await fitCopyWindow(page);
+    expect(fitted.width, "within the widest notice").toBeLessThanOrEqual(
+      WIDEST_PILL + 32,
+    );
+    const layout = await prompt.evaluate((capsule) => {
+      const box = capsule.getBoundingClientRect();
+      const answers = [...capsule.querySelectorAll("button")].map((button) => {
+        const rect = button.getBoundingClientRect();
+        return {
+          inside: rect.left >= box.left && rect.right <= box.right,
+          oneLine: rect.height <= 28,
+        };
+      });
+      return {
+        inWindow:
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= window.innerWidth &&
+          box.bottom <= window.innerHeight,
+        answers,
+      };
+    });
+    expect(layout.inWindow, "capsule in its window").toBe(true);
+    expect(layout.answers, "answers").toEqual([
+      { inside: true, oneLine: true },
+      { inside: true, oneLine: true },
+    ]);
+  });
+}

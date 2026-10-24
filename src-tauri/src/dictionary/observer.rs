@@ -2,16 +2,11 @@
 //! there can teach the dictionary. The field's text stays in this thread's
 //! memory: it is never stored or logged, and only the corrected words leave.
 
-use super::learn::{self, Correction};
-use super::LearnedWord;
+use super::learn;
 use crate::accessibility::{focused_text_element, Element};
-use crate::insights::InsightsManager;
-use crate::settings::{self, MAX_CUSTOM_WORDS};
-use log::{error, info};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::AppHandle;
 
 const SETTLE_DELAY: Duration = Duration::from_millis(300);
 const POLL_INTERVAL: Duration = Duration::from_millis(750);
@@ -63,45 +58,9 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
         };
         let learned = learn::review(inserted.trim(), &edited);
         if !learned.is_empty() {
-            remember(&app, learned);
+            super::remember(&app, learned);
         }
     });
-}
-
-/// Adds learned words to the dictionary, tells the settings UI, and counts
-/// each new word once in Insights as a word the user corrected.
-fn remember(app: &AppHandle, corrections: Vec<Correction>) {
-    let mut value = settings::get_settings(app);
-    let mut added = 0;
-    for correction in corrections {
-        if value.custom_words.contains(&correction.word) {
-            continue;
-        }
-        if value.custom_words.len() >= MAX_CUSTOM_WORDS {
-            break;
-        }
-        value.custom_words.push(correction.word.clone());
-        value.learned_words.push(LearnedWord {
-            word: correction.word,
-            heard_as: correction.heard_as,
-        });
-        added += 1;
-    }
-    if added == 0 {
-        return;
-    }
-    settings::write_settings(app, value);
-    info!("Learned {added} dictionary word(s) from a correction");
-    let _ = app.emit(
-        "settings-changed",
-        serde_json::json!({"setting": "custom_words"}),
-    );
-    let Some(insights) = app.try_state::<Arc<InsightsManager>>() else {
-        return;
-    };
-    if let Err(e) = insights.record_correction(added) {
-        error!("Failed to record corrected words in insights: {e}");
-    }
 }
 
 /// What the user left in place of `inserted`: the last span two consecutive

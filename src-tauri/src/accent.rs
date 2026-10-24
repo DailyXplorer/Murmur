@@ -1,6 +1,8 @@
 use crate::settings::AccentColor;
 use tauri::image::Image;
 use tauri::AppHandle;
+#[cfg(target_os = "macos")]
+use {crate::settings, tauri::ActivationPolicy};
 
 const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 #[cfg(target_os = "macos")]
@@ -17,7 +19,7 @@ impl AccentColor {
         match self {
             Self::Pink => SOURCE_PINK_HUE,
             Self::Blue => 212.0,
-            Self::Green => 145.0,
+            Self::Green => 131.0,
             Self::Yellow => 47.0,
             Self::Orange => 25.0,
             Self::Red => 2.0,
@@ -48,6 +50,49 @@ pub fn apply_native_accent(app: &AppHandle, accent_color: AccentColor) -> Result
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockPresence {
+    Shown,
+    Hidden,
+}
+
+/// The only place Murmur changes its activation policy. Becoming Regular gives
+/// the app a new Dock tile with the bundle's pink icon, and AppKit does not draw
+/// the earlier `setApplicationIconImage` into it, so showing re-applies the accent.
+#[cfg(target_os = "macos")]
+pub fn set_dock_presence(app: &AppHandle, presence: DockPresence) {
+    #[allow(clippy::disallowed_methods)]
+    update_dock(
+        presence,
+        |policy| {
+            app.set_activation_policy(policy)
+                .map_err(|error| error.to_string())
+        },
+        || apply_native_accent(app, settings::get_settings(app).accent_color),
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn update_dock(
+    presence: DockPresence,
+    set_activation_policy: impl FnOnce(ActivationPolicy) -> Result<(), String>,
+    apply_accent: impl FnOnce() -> Result<(), String>,
+) {
+    let policy = match presence {
+        DockPresence::Shown => ActivationPolicy::Regular,
+        DockPresence::Hidden => ActivationPolicy::Accessory,
+    };
+    if let Err(error) = set_activation_policy(policy) {
+        log::error!("Failed to set the activation policy for {presence:?}: {error}");
+    }
+    if presence == DockPresence::Shown {
+        if let Err(error) = apply_accent() {
+            log::warn!("Failed to apply the accent icon to the Dock tile: {error}");
+        }
+    }
 }
 
 fn recolor_brand_image(source: Image<'_>, accent_color: AccentColor) -> Image<'static> {
@@ -220,7 +265,7 @@ mod tests {
         for (accent, expected_hue) in [
             (AccentColor::Pink, 325.0),
             (AccentColor::Blue, 212.0),
-            (AccentColor::Green, 145.0),
+            (AccentColor::Green, 131.0),
             (AccentColor::Yellow, 47.0),
             (AccentColor::Orange, 25.0),
             (AccentColor::Red, 2.0),
@@ -251,6 +296,43 @@ mod tests {
             let (_, saturation, _) = rgb_to_hsl(pixel[0], pixel[1], pixel[2]);
             pixel[3] > 0 && saturation > 0.5
         }));
+    }
+
+    #[cfg(target_os = "macos")]
+    fn dock_calls(presence: DockPresence) -> Vec<String> {
+        let calls = std::cell::RefCell::new(Vec::new());
+        update_dock(
+            presence,
+            |policy| {
+                let name = match policy {
+                    ActivationPolicy::Regular => "policy Regular",
+                    ActivationPolicy::Accessory => "policy Accessory",
+                    _ => "policy other",
+                };
+                calls.borrow_mut().push(name.to_string());
+                Ok(())
+            },
+            || {
+                calls.borrow_mut().push("accent icon".to_string());
+                Ok(())
+            },
+        );
+        calls.into_inner()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn showing_the_dock_tile_applies_the_accent_icon_last() {
+        assert_eq!(
+            dock_calls(DockPresence::Shown),
+            ["policy Regular", "accent icon"]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn hiding_the_dock_tile_only_changes_the_policy() {
+        assert_eq!(dock_calls(DockPresence::Hidden), ["policy Accessory"]);
     }
 
     #[cfg(target_os = "macos")]

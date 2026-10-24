@@ -69,8 +69,8 @@ pub struct InsightsSummary {
     pub total_words: u32,
     /// Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
     pub words_per_minute: Option<u32>,
-    pub words_corrected: u32,
-    pub dictionary_fixes: u32,
+    /// Against typing at [`stats::TYPING_WPM`], over the same dictations as `total_words`.
+    pub minutes_saved: u32,
     /// Non-empty categories, most used first.
     pub categories: Vec<CategoryUsage>,
     /// Dictations whose receiving app is known. Rows backfilled from history have none.
@@ -199,11 +199,10 @@ fn summary_with_conn<Tz: TimeZone>(
         stat: DictationStat,
         bundle_id: Option<String>,
         host: Option<String>,
-        dictionary_fixes: u32,
     }
     let rows = conn
         .prepare(
-            "SELECT created_at, word_count, speaking_ms, bundle_id, host, dictionary_fixes
+            "SELECT created_at, word_count, speaking_ms, bundle_id, host
              FROM dictations ORDER BY created_at",
         )?
         .query_map([], |row| {
@@ -215,15 +214,9 @@ fn summary_with_conn<Tz: TimeZone>(
                 },
                 bundle_id: row.get(3)?,
                 host: row.get(4)?,
-                dictionary_fixes: row.get(5)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    let words_corrected: u32 = conn.query_row(
-        "SELECT COALESCE(SUM(word_count), 0) FROM corrections",
-        [],
-        |row| row.get(0),
-    )?;
 
     let dictation_stats: Vec<DictationStat> = rows.iter().map(|r| r.stat).collect();
     let mut category_counts: BTreeMap<AppCategory, u32> = BTreeMap::new();
@@ -257,8 +250,7 @@ fn summary_with_conn<Tz: TimeZone>(
             &dictation_stats,
             now - stats::WPM_WINDOW_DAYS * 86_400,
         ),
-        words_corrected,
-        dictionary_fixes: rows.iter().map(|r| r.dictionary_fixes).sum(),
+        minutes_saved: stats::minutes_saved(&dictation_stats),
         categorized_dictations: categories.iter().map(|c| c.count).sum(),
         categories,
         apps_used: apps.len() as u32,
@@ -432,8 +424,12 @@ mod tests {
         migrate(&mut conn).unwrap();
         assert!(insert_correction(&conn, ts(2026, 10, 15, 9), 1).unwrap());
 
-        let summary = summary_with_conn(&conn, ts(2026, 10, 15, 12), &Paris).unwrap();
-        assert_eq!(summary.words_corrected, 1);
+        let words: u32 = conn
+            .query_row("SELECT SUM(word_count) FROM corrections", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(words, 1);
     }
 
     #[test]
@@ -475,7 +471,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_combines_fixes_categories_and_streaks() {
+    fn summary_combines_categories_and_streaks() {
         let conn = migrated();
         let now = ts(2026, 10, 15, 18);
         let dictation = |at, bundle_id, host, fixes| NewDictation {
@@ -515,8 +511,6 @@ mod tests {
 
         assert_eq!(summary.total_words, 120);
         assert_eq!(summary.words_per_minute, Some(150));
-        assert_eq!(summary.dictionary_fixes, 3);
-        assert_eq!(summary.words_corrected, 3);
         assert_eq!(
             summary.categories,
             [
@@ -544,12 +538,34 @@ mod tests {
     }
 
     #[test]
+    fn time_saved_covers_every_dictation_like_total_words() {
+        let conn = migrated();
+        let now = ts(2026, 10, 15, 18);
+        for at in [now - 90 * 86_400, now - 3_600] {
+            let dictation = NewDictation {
+                at,
+                words: 200,
+                speaking_ms: Some(60_000),
+                bundle_id: None,
+                host: None,
+                dictionary_fixes: 0,
+            };
+            insert_dictation(&conn, &dictation).unwrap();
+        }
+
+        let summary = summary_with_conn(&conn, now, &Paris).unwrap();
+
+        assert_eq!(summary.total_words, 400);
+        assert_eq!(summary.minutes_saved, 8);
+    }
+
+    #[test]
     fn empty_database_reports_zeroes() {
         let conn = migrated();
         let summary = summary_with_conn(&conn, ts(2026, 10, 15, 12), &Paris).unwrap();
         assert_eq!(summary.total_words, 0);
         assert_eq!(summary.words_per_minute, None);
-        assert_eq!(summary.words_corrected, 0);
+        assert_eq!(summary.minutes_saved, 0);
         assert!(summary.categories.is_empty());
         assert_eq!(summary.streaks, Streaks::default());
         assert!(summary.heatmap.iter().all(|d| d.count == 0 && d.level == 0));

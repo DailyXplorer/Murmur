@@ -5,6 +5,12 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use chrono::{DateTime, Utc};
+use serde::Serialize;
+use specta::Type;
+
+use super::retention;
+
 pub const MIC_TRACK: &str = "mic.wav";
 pub const SYSTEM_TRACK: &str = "system.wav";
 /// Both tracks, compressed, once processing is done.
@@ -89,9 +95,10 @@ pub fn remove_meeting_dir(root: &Path, id: i64) -> io::Result<()> {
     }
 }
 
-/// Gives new meeting `id` an empty folder. SQLite hands out the id of a
-/// deleted newest meeting again, and files still under it (a folder that
-/// failed to delete) belong to no meeting. When they cannot be deleted they
+/// Gives new meeting `id` an empty folder. Files already under it belong to
+/// no meeting: before ids stopped being reused, a deleted newest meeting
+/// whose folder failed to delete left them under the id the next meeting
+/// gets. When they cannot be deleted they
 /// are moved aside to `<id>.stale-<now_ms>`, which no meeting reads, so the
 /// same failure never blocks every later meeting.
 pub fn fresh_meeting_dir(root: &Path, id: i64, now_ms: i64) -> io::Result<PathBuf> {
@@ -163,6 +170,88 @@ pub fn set_aside_orphans(root: &Path, meetings: &HashSet<i64>, aside: &Path) -> 
         }
     }
     Ok(moved)
+}
+
+/// Deletes what was set aside next to the library (in `app_data`) more than
+/// 30 days before `now`. Only entries directly in `app_data` go, and never a
+/// symlink: a planted link can make no deletion reach outside the app's
+/// data. Returns how many went.
+pub fn purge_set_asides(app_data: &Path, now: DateTime<Utc>) -> usize {
+    let Ok(entries) = fs::read_dir(app_data) else {
+        return 0;
+    };
+    let names: Vec<String> = entries
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    let mut removed = 0;
+    for name in retention::expired_set_asides(names.iter().map(String::as_str), now) {
+        let path = app_data.join(&name);
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        let result = if metadata.file_type().is_symlink() {
+            continue;
+        } else if metadata.is_dir() {
+            // `remove_dir_all` does not follow symlinks inside the folder.
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+        match result {
+            Ok(()) => removed += 1,
+            Err(error) => log::warn!("Cannot delete {name}, set aside long ago: {error}"),
+        }
+    }
+    removed
+}
+
+/// The disk space meetings take, in bytes.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Default, Type)]
+pub struct MeetingsStorage {
+    /// The meetings' folders: their tracks, compressed or not.
+    pub audio_bytes: u64,
+    /// What was set aside next to the library, deleted after 30 days.
+    pub set_aside_bytes: u64,
+}
+
+/// The size of a file, or of everything in a folder. Symlinks count for
+/// nothing: what they point to is not the meetings'.
+fn size_of(path: &Path) -> u64 {
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return 0;
+    };
+    if metadata.is_dir() {
+        fs::read_dir(path).map_or(0, |entries| {
+            entries.flatten().map(|entry| size_of(&entry.path())).sum()
+        })
+    } else if metadata.is_file() {
+        metadata.len()
+    } else {
+        0
+    }
+}
+
+/// Measures the meetings under `app_data`. The speech models in
+/// `meetings/models` are dictation's too, and are not counted.
+pub fn storage(app_data: &Path) -> MeetingsStorage {
+    let root = app_data.join("meetings");
+    let set_aside_bytes = fs::read_dir(app_data).map_or(0, |entries| {
+        entries
+            .flatten()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(retention::is_set_aside)
+            })
+            .map(|entry| size_of(&entry.path()))
+            .sum()
+    });
+    MeetingsStorage {
+        audio_bytes: size_of(&root).saturating_sub(size_of(&root.join("models"))),
+        set_aside_bytes,
+    }
 }
 
 /// Deletes the named files of a meeting, those that exist. A symlink is
@@ -339,6 +428,88 @@ mod tests {
         remove_meeting_files(root.path(), 6, &AUDIO_FILES).unwrap();
 
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    fn days_ago(now: DateTime<Utc>, days: i64) -> String {
+        (now - chrono::TimeDelta::days(days))
+            .format("%Y%m%d-%H%M%S")
+            .to_string()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_real_folders_set_aside_over_30_days_ago_are_purged() {
+        let now = Utc::now();
+        let app_data = tempfile::tempdir().unwrap();
+        let old = app_data
+            .path()
+            .join(format!("meetings.orphaned-{}", days_ago(now, 31)));
+        let recent = app_data
+            .path()
+            .join(format!("meetings.orphaned-{}", days_ago(now, 29)));
+        let unparsable = app_data.path().join("meetings.orphaned-20261301-000000");
+        for dir in [&old, &recent, &unparsable] {
+            fs::create_dir_all(dir.join("7")).unwrap();
+            fs::write(dir.join("7").join(MIC_TRACK), b"audio").unwrap();
+        }
+        let old_db = app_data
+            .path()
+            .join(format!("meetings.db.corrupt-{}", days_ago(now, 40)));
+        fs::write(&old_db, b"db").unwrap();
+        fs::write(format!("{}-wal", old_db.display()), b"wal").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("keep.txt"), b"keep").unwrap();
+        let link = app_data
+            .path()
+            .join(format!("meetings.corrupt-{}", days_ago(now, 31)));
+        symlink(outside.path(), &link).unwrap();
+
+        assert_eq!(purge_set_asides(app_data.path(), now), 3);
+
+        assert!(!old.exists());
+        assert!(!old_db.exists());
+        assert!(recent.join("7").join(MIC_TRACK).exists());
+        assert!(unparsable.join("7").join(MIC_TRACK).exists());
+        assert!(fs::symlink_metadata(&link).is_ok());
+        assert!(outside.path().join("keep.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn storage_measures_the_meetings_and_what_was_set_aside_without_the_models() {
+        let app_data = tempfile::tempdir().unwrap();
+        let root = app_data.path().join("meetings");
+        fs::create_dir_all(root.join("1")).unwrap();
+        fs::create_dir_all(root.join("2")).unwrap();
+        fs::create_dir_all(root.join("models")).unwrap();
+        fs::write(root.join("1").join(AUDIO_FILE), vec![0; 300]).unwrap();
+        fs::write(root.join("2").join(MIC_TRACK), vec![0; 50]).unwrap();
+        fs::write(root.join("2").join(SYSTEM_TRACK), vec![0; 20]).unwrap();
+        fs::write(root.join("models").join("model.bin"), vec![0; 9_000]).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("big.bin"), vec![0; 5_000]).unwrap();
+        symlink(outside.path(), root.join("3")).unwrap();
+        let aside = app_data.path().join("meetings.orphaned-20261001-101500");
+        fs::create_dir_all(aside.join("4")).unwrap();
+        fs::write(aside.join("4").join(AUDIO_FILE), vec![0; 40]).unwrap();
+        fs::write(
+            app_data.path().join("meetings.db.corrupt-20261001-101500"),
+            vec![0; 6],
+        )
+        .unwrap();
+        fs::write(app_data.path().join("meetings.db"), vec![0; 1_000]).unwrap();
+        fs::write(app_data.path().join("history.db"), vec![0; 1_000]).unwrap();
+
+        assert_eq!(
+            storage(app_data.path()),
+            MeetingsStorage {
+                audio_bytes: 370,
+                set_aside_bytes: 46,
+            }
+        );
+        let empty = tempfile::tempdir().unwrap();
+        assert_eq!(storage(empty.path()), MeetingsStorage::default());
     }
 
     #[test]

@@ -6,12 +6,12 @@ import {
   commands,
   events,
   type MeetingDetail,
-  type MeetingModelsStatus,
+  type LocalModelStatus,
   type MeetingProgress,
   type MeetingStage,
   type SystemAudioPermission,
 } from "@/bindings";
-import { useMeetingModels } from "../../hooks/useMeetingModels";
+import { downloadPercent, useLocalModel } from "../../hooks/useLocalModel";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { AudioRow } from "./AudioRow";
@@ -46,6 +46,9 @@ export const formatMeetingDate = (milliseconds: number, locale: string) =>
     minute: "2-digit",
   }).format(new Date(milliseconds));
 
+/** The letters with Vietnamese tone marks, which Faculty Glyphic lacks. */
+const VIETNAMESE_TONES = /[Ạ-ỹ]/;
+
 /** A heading that edits in place: Enter or leaving saves, Escape reverts. */
 const TitleField: React.FC<{
   title: string | null;
@@ -61,9 +64,11 @@ const TitleField: React.FC<{
     if (editedFrom.current === null) setDraft(title ?? "");
   }, [title]);
 
+  const font = VIETNAMESE_TONES.test(draft) ? "font-sans" : "font-title";
+
   return (
     <input
-      className="w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[28px] font-semibold leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-logo-primary focus:outline-none"
+      className={`w-full truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 ${font} text-[28px] font-normal leading-tight text-text placeholder:text-text/50 hover:border-mid-gray/20 focus:border-accent-text focus:outline-none`}
       value={draft}
       placeholder={placeholder}
       maxLength={120}
@@ -118,6 +123,22 @@ const ProcessingBanner: React.FC<{
         </p>
         <Button onClick={onProcessNow}>
           {t("meetings.processing.processNow")}
+        </Button>
+      </div>
+    );
+  }
+  // Its transcript or its summary: either way it goes on by itself.
+  if (meeting.waiting_for_connection) {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border border-mid-gray/20 px-4 py-3"
+      >
+        <p className="flex-1 text-sm">
+          {t("meetings.processing.errors.offline")}
+        </p>
+        <Button onClick={onProcessNow}>
+          {t("meetings.processing.retryNow")}
         </Button>
       </div>
     );
@@ -182,7 +203,9 @@ const ProcessingBanner: React.FC<{
           <Button onClick={onRetry}>
             {meeting.status === "interrupted"
               ? t("meetings.processing.process")
-              : t("meetings.processing.retry")}
+              : meeting.error === "offline"
+                ? t("meetings.processing.retryNow")
+                : t("meetings.processing.retry")}
           </Button>
         )}
       </div>
@@ -194,9 +217,10 @@ const ProcessingBanner: React.FC<{
 /** Says why speakers were not told apart, and offers to do it now. */
 const SpeakerNotice: React.FC<{
   meeting: MeetingDetail;
-  models: MeetingModelsStatus | null;
+  models: LocalModelStatus | null;
   onSeparate: () => void;
-}> = ({ meeting, models, onSeparate }) => {
+  starting: boolean;
+}> = ({ meeting, models, onSeparate, starting }) => {
   const { t } = useTranslation();
   const analysis = meeting.speaker_analysis;
   if (
@@ -206,7 +230,7 @@ const SpeakerNotice: React.FC<{
     return null;
   }
   const download = async () => {
-    const result = await commands.downloadMeetingModels();
+    const result = await commands.downloadLocalModel();
     if (result.status === "error") toast.error(t("meetings.models.error"));
   };
   const state = models?.state;
@@ -214,7 +238,7 @@ const SpeakerNotice: React.FC<{
     switch (state?.state) {
       case "ready":
         return (
-          <Button onClick={onSeparate}>
+          <Button onClick={onSeparate} disabled={starting}>
             {t("meetings.speakers.separate")}
           </Button>
         );
@@ -229,7 +253,7 @@ const SpeakerNotice: React.FC<{
         return (
           <span className="text-sm text-text/60 tabular-nums">
             {t("meetings.models.downloading", {
-              percent: Math.round(state.fraction * 100),
+              percent: downloadPercent(models),
             })}
           </span>
         );
@@ -276,7 +300,7 @@ const SystemAudioNotice: React.FC = () => {
           {t("meetings.permission.silent")}{" "}
           <button
             type="button"
-            className="cursor-pointer rounded-sm font-medium text-text underline decoration-logo-primary decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+            className="cursor-pointer rounded-sm font-medium text-text underline decoration-accent-text decoration-2 underline-offset-2 [text-decoration-skip-ink:none] hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
             onClick={() => void commands.openSystemAudioPrivacySettings()}
           >
             {t("meetings.permission.open")}
@@ -302,7 +326,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
-  const models = useMeetingModels();
+  const models = useLocalModel();
 
   const load = useCallback(async () => {
     try {
@@ -351,6 +375,20 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     void load();
   };
 
+  // Separate speakers and the summary's Retry stay disabled until the
+  // meeting reloads in its new state: a second click would find the action
+  // already started and report it as failed.
+  const [starting, setStarting] = useState(false);
+  const startOnce = async (action: () => Promise<void>) => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      await action();
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const separate = async () => {
     const result = await commands.reanalyzeMeeting(id);
     if (result.status === "error") {
@@ -358,7 +396,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
       return;
     }
     setProgress(null);
-    void load();
+    await load();
   };
 
   const rename = async (title: string) => {
@@ -397,7 +435,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     const result = await commands.retryMeetingSummary(id);
     if (result.status === "error")
       toast.error(t("meetings.summary.retryError"));
-    void load();
+    await load();
   };
 
   return (
@@ -426,10 +464,24 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         <SpeakerNotice
           meeting={meeting}
           models={models}
-          onSeparate={() => void separate()}
+          onSeparate={() => void startOnce(separate)}
+          starting={starting}
         />
       )}
       {meeting.system_audio_silent && <SystemAudioNotice />}
+      {meeting.local_fallback_ms > 0 && (
+        <p className="px-1 text-xs text-text/60">
+          {t("meetings.localFallback", {
+            duration: new Intl.NumberFormat(i18n.language, {
+              style: "unit",
+              unit: "minute",
+              unitDisplay: "long",
+            }).format(
+              Math.max(1, Math.round(meeting.local_fallback_ms / 60_000)),
+            ),
+          })}
+        </p>
+      )}
       <Tabs<Tab>
         idPrefix={TABS_ID}
         label={t("meetings.view.tabs.label")}
@@ -446,7 +498,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
         aria-labelledby={tabId(TABS_ID, tab)}
       >
         {tab === "summary" ? (
-          <SummaryTab meeting={meeting} onRetry={() => void retrySummary()} />
+          <SummaryTab
+            meeting={meeting}
+            onRetry={() => void startOnce(retrySummary)}
+            retrying={starting}
+          />
         ) : (
           <TranscriptTab
             meeting={meeting}

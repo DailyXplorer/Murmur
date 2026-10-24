@@ -140,7 +140,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
                 {showName && (
                   <button
                     type="button"
-                    className="mt-3 cursor-pointer rounded-sm text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+                    className="mt-3 cursor-pointer rounded-sm text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
                     style={{ color: speakerColor(speaker?.color_index ?? 0) }}
                     title={t("meetings.transcript.renameSpeaker", { name })}
                     onClick={() => onRenameSpeaker(turn.speaker_key)}

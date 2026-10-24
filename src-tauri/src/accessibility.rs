@@ -3,13 +3,26 @@
 //! Murmur already holds for pasting; no screenshots, no Screen Recording.
 //! Secure text fields and password managers are never read.
 
+use crate::field_excerpt::Utf16Range;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
-use core_foundation::string::{CFString, CFStringRef};
+use core_foundation::number::CFNumber;
+use core_foundation::string::{CFString, CFStringGetCharacters, CFStringRef};
+use core_foundation::url::CFURL;
 use std::ffi::c_void;
+use std::time::{Duration, Instant};
 
 type AXUIElementRef = CFTypeRef;
 const AX_SUCCESS: i32 = 0;
+/// kAXValueCFRangeType.
+const AX_VALUE_CF_RANGE: u32 = 4;
+
+#[repr(C)]
+#[derive(Default)]
+struct CFRange {
+    location: isize,
+    length: isize,
+}
 /// A hung app must not stall a reader for the system default of seconds.
 const AX_TIMEOUT_SECONDS: f32 = 0.25;
 const SECURE_TEXT_FIELD: &str = "AXSecureTextField";
@@ -25,7 +38,33 @@ extern "C" {
         attribute: CFStringRef,
         value: *mut CFTypeRef,
     ) -> i32;
+    fn AXUIElementCopyParameterizedAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        parameter: CFTypeRef,
+        value: *mut CFTypeRef,
+    ) -> i32;
     fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
+    fn AXValueCreate(kind: u32, value: *const c_void) -> CFTypeRef;
+    fn AXValueGetTypeID() -> CFTypeID;
+    fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
+}
+
+#[cfg(test)]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXUIElementCopyAttributeNames(element: AXUIElementRef, names: *mut CFTypeRef) -> i32;
+    fn AXUIElementCopyParameterizedAttributeNames(
+        element: AXUIElementRef,
+        names: *mut CFTypeRef,
+    ) -> i32;
+}
+
+/// Whether this process may use Accessibility at all.
+#[cfg(test)]
+pub fn is_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
 }
 
 /// Bundle identifiers whose windows are never read.
@@ -83,6 +122,10 @@ impl Element {
         Self::from_create(unsafe { AXUIElementCreateSystemWide() })
     }
 
+    fn has(&self, name: &str) -> bool {
+        self.attribute(name).is_some()
+    }
+
     fn attribute(&self, name: &str) -> Option<CFType> {
         let name = CFString::new(name);
         let mut value: CFTypeRef = std::ptr::null();
@@ -100,12 +143,80 @@ impl Element {
     pub fn string(&self, name: &str) -> Option<String> {
         self.attribute(name)?
             .downcast::<CFString>()
-            .map(|value| value.to_string())
+            .map(|value| utf16_string(&value))
+    }
+
+    pub fn number(&self, name: &str) -> Option<i64> {
+        self.attribute(name)?.downcast::<CFNumber>()?.to_i64()
+    }
+
+    /// A range attribute such as AXSelectedTextRange.
+    pub fn range(&self, name: &str) -> Option<Utf16Range> {
+        let value = self.attribute(name)?;
+        if value.type_of() != unsafe { AXValueGetTypeID() } {
+            return None;
+        }
+        let mut range = CFRange::default();
+        let read = unsafe {
+            AXValueGetValue(
+                value.as_CFTypeRef(),
+                AX_VALUE_CF_RANGE,
+                (&mut range as *mut CFRange).cast(),
+            )
+        };
+        if !read {
+            return None;
+        }
+        Some(Utf16Range {
+            start: usize::try_from(range.location).ok()?,
+            len: usize::try_from(range.length).ok()?,
+        })
+    }
+
+    /// AXStringForRange: part of a text element's value.
+    pub fn string_for_range(&self, range: Utf16Range) -> Option<String> {
+        let range = CFRange {
+            location: isize::try_from(range.start).ok()?,
+            length: isize::try_from(range.len).ok()?,
+        };
+        let parameter =
+            unsafe { AXValueCreate(AX_VALUE_CF_RANGE, (&range as *const CFRange).cast()) };
+        if parameter.is_null() {
+            return None;
+        }
+        let parameter = unsafe { CFType::wrap_under_create_rule(parameter) };
+        let name = CFString::new("AXStringForRange");
+        let mut value: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            AXUIElementCopyParameterizedAttributeValue(
+                self.raw(),
+                name.as_concrete_TypeRef(),
+                parameter.as_CFTypeRef(),
+                &mut value,
+            )
+        };
+        if status != AX_SUCCESS || value.is_null() {
+            return None;
+        }
+        unsafe { CFType::wrap_under_create_rule(value) }
+            .downcast::<CFString>()
+            .map(|text| utf16_string(&text))
+    }
+
+    /// A URL attribute such as AXURL.
+    pub fn url(&self, name: &str) -> Option<String> {
+        let url = self.attribute(name)?.downcast::<CFURL>()?;
+        Some(utf16_string(&url.get_string()))
     }
 
     pub fn children(&self) -> Vec<Element> {
+        self.elements("AXChildren")
+    }
+
+    /// An attribute holding a list of elements, such as AXWindows.
+    pub fn elements(&self, name: &str) -> Vec<Element> {
         let Some(array) = self
-            .attribute("AXChildren")
+            .attribute(name)
             .and_then(|value| value.downcast::<CFArray<*const c_void>>())
         else {
             return Vec::new();
@@ -116,6 +227,37 @@ impl Element {
             .filter_map(|raw| {
                 let value = unsafe { CFType::wrap_under_get_rule(raw as CFTypeRef) };
                 Self::from_value(value)
+            })
+            .collect()
+    }
+
+    /// The names of the attributes the element answers, or of its
+    /// parameterized attributes.
+    #[cfg(test)]
+    pub fn attribute_names(&self, parameterized: bool) -> Vec<String> {
+        let mut names: CFTypeRef = std::ptr::null();
+        let status = unsafe {
+            if parameterized {
+                AXUIElementCopyParameterizedAttributeNames(self.raw(), &mut names)
+            } else {
+                AXUIElementCopyAttributeNames(self.raw(), &mut names)
+            }
+        };
+        if status != AX_SUCCESS || names.is_null() {
+            return Vec::new();
+        }
+        let Some(array) =
+            unsafe { CFType::wrap_under_create_rule(names) }.downcast::<CFArray<*const c_void>>()
+        else {
+            return Vec::new();
+        };
+        array
+            .get_all_values()
+            .into_iter()
+            .filter_map(|raw| {
+                unsafe { CFType::wrap_under_get_rule(raw as CFTypeRef) }
+                    .downcast::<CFString>()
+                    .map(|name| name.to_string())
             })
             .collect()
     }
@@ -132,9 +274,25 @@ impl Element {
     }
 }
 
+/// A range can cut an emoji in half, and `CFString::to_string` panics on the
+/// lone surrogate left over. Here it becomes U+FFFD, still one UTF-16 unit,
+/// so offsets into the field stay right.
+fn utf16_string(text: &CFString) -> String {
+    let len = text.char_len();
+    let mut units = vec![0u16; usize::try_from(len).unwrap_or(0)];
+    unsafe {
+        CFStringGetCharacters(
+            text.as_concrete_TypeRef(),
+            core_foundation::base::CFRange::init(0, len),
+            units.as_mut_ptr(),
+        );
+    }
+    String::from_utf16_lossy(&units)
+}
+
 /// The frontmost app other than Murmur, unless it is a password manager:
-/// its pid, bundle identifier and application element.
-pub fn frontmost_app() -> Option<(i32, String, Element)> {
+/// its pid and application element.
+pub fn frontmost_app() -> Option<(i32, Element)> {
     let application = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = application.processIdentifier();
     if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
@@ -147,13 +305,307 @@ pub fn frontmost_app() -> Option<(i32, String, Element)> {
     if is_password_app(&bundle_id) {
         return None;
     }
-    Some((pid, bundle_id, Element::application(pid)?))
+    Some((pid, Element::application(pid)?))
+}
+
+/// The titles of `app`'s windows, which browsers name after their front tab.
+pub fn window_titles(app: &Element) -> Vec<String> {
+    app.elements("AXWindows")
+        .iter()
+        .filter_map(|window| window.string("AXTitle"))
+        .collect()
+}
+
+/// The address of the page in `app`'s front window: the AXURL of the first
+/// web area, breadth first, past the toolbar. The search gives up after 150
+/// elements or 0.2 s.
+pub fn front_page_url(app: &Element) -> Option<String> {
+    const MAX_NODES: usize = 150;
+    const BUDGET: Duration = Duration::from_millis(200);
+    let started = Instant::now();
+    let window = app
+        .element("AXFocusedWindow")
+        .or_else(|| app.element("AXMainWindow"))?;
+    let mut queue = std::collections::VecDeque::from([window]);
+    let mut visited = 0;
+    while let Some(element) = queue.pop_front() {
+        visited += 1;
+        if visited > MAX_NODES || started.elapsed() > BUDGET {
+            return None;
+        }
+        match element.string("AXRole").as_deref() {
+            Some("AXWebArea") => return element.url("AXURL"),
+            Some("AXToolbar") => {}
+            _ => queue.extend(element.children()),
+        }
+    }
+    None
 }
 
 /// The keyboard focus anywhere on screen, when it is a readable, non-secure
 /// element of an app that is not a password manager.
 pub fn focused_text_element() -> Option<Element> {
-    let (pid, _, _) = frontmost_app()?;
+    let (pid, _) = frontmost_app()?;
     let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
     (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
+}
+
+/// The keyboard focus inside the app `pid`: the system-wide focus when it
+/// belongs to that app, else the app's own, which some apps answer only
+/// there. A secure field is returned as well; its reader must check.
+pub fn focus_in(pid: i32, app: &Element) -> Option<Element> {
+    Element::system_wide()
+        .and_then(|system| system.element("AXFocusedUIElement"))
+        .filter(|focused| focused.pid() == Some(pid))
+        .or_else(|| app.element("AXFocusedUIElement"))
+}
+
+/// What holds the keyboard when a dictation ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FocusedField {
+    TextField,
+    /// A list, a button, a PDF page: nothing that takes typed text.
+    NoTextField,
+    /// Accessibility cannot tell. Electron apps without their accessibility
+    /// tree report no focus at all, and pasting there works.
+    Unknown,
+}
+
+/// The role of the focused element and whether it takes text input.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FocusedElement {
+    pub role: Option<String>,
+    pub subrole: Option<String>,
+    pub accepts_text: bool,
+}
+
+/// Any one of these marks an element that takes text, whatever its role,
+/// such as a contenteditable web element reported as AXGroup.
+const TEXT_INPUT_ATTRIBUTES: [&str; 3] = [
+    "AXSelectedTextRange",
+    "AXInsertionPointLineNumber",
+    "AXEditableAncestor",
+];
+
+const TEXT_ROLES: [&str; 5] = [
+    "AXTextField",
+    "AXTextArea",
+    "AXComboBox",
+    SECURE_TEXT_FIELD,
+    "AXSearchField",
+];
+
+/// Tables, rows and cells are left out: a selected spreadsheet cell takes a
+/// paste without exposing any text attribute.
+const NON_TEXT_ROLES: [&str; 15] = [
+    "AXList",
+    "AXOutline",
+    "AXBrowser",
+    "AXScrollArea",
+    "AXImage",
+    "AXButton",
+    "AXCheckBox",
+    "AXRadioButton",
+    "AXPopUpButton",
+    "AXMenuButton",
+    "AXSlider",
+    "AXTabGroup",
+    "AXStaticText",
+    "AXLayoutArea",
+    "AXToolbar",
+];
+
+/// Finder's desktop answers AXSelectedTextRange and AXInsertionPointLineNumber
+/// without listing them, though nothing on it takes text.
+const NON_TEXT_SUBROLES: [&str; 1] = ["AXDesktop"];
+
+/// Only a role known to take no text is `NoTextField`; containers such as
+/// AXGroup, AXWebArea or AXWindow may hold an editor and stay `Unknown`.
+pub fn classify_focus(focused: Option<FocusedElement>) -> FocusedField {
+    let Some(focused) = focused else {
+        return FocusedField::Unknown;
+    };
+    let role = focused.role.as_deref();
+    let subrole = focused.subrole.as_deref();
+    let in_table = |table: &[&str], name: Option<&str>| name.is_some_and(|n| table.contains(&n));
+    if in_table(&NON_TEXT_SUBROLES, subrole) {
+        FocusedField::NoTextField
+    } else if focused.accepts_text || in_table(&TEXT_ROLES, role) || in_table(&TEXT_ROLES, subrole)
+    {
+        FocusedField::TextField
+    } else if in_table(&NON_TEXT_ROLES, role) {
+        FocusedField::NoTextField
+    } else {
+        FocusedField::Unknown
+    }
+}
+
+/// Reads the keyboard focus of the frontmost app. Only the role and the
+/// presence of text attributes are read, never the text, and password
+/// managers are left alone.
+pub fn keyboard_focus() -> FocusedField {
+    let focused = focused_element();
+    let field = classify_focus(focused.clone());
+    log::debug!("Keyboard focus {focused:?} reads as {field:?}");
+    field
+}
+
+fn focused_element() -> Option<FocusedElement> {
+    let (pid, _) = frontmost_app()?;
+    let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
+    (focused.pid() == Some(pid)).then(|| FocusedElement {
+        role: focused.string("AXRole"),
+        subrole: focused.string("AXSubrole"),
+        accepts_text: TEXT_INPUT_ATTRIBUTES
+            .iter()
+            .any(|attribute| focused.has(attribute)),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core_foundation::base::kCFAllocatorDefault;
+    use core_foundation::string::CFStringCreateWithCharacters;
+
+    #[test]
+    fn a_range_that_cuts_an_emoji_in_half_reads_as_a_replacement_character() {
+        let units = [0xDE00, u16::from(b'a')];
+        let text = unsafe {
+            CFString::wrap_under_create_rule(CFStringCreateWithCharacters(
+                kCFAllocatorDefault,
+                units.as_ptr(),
+                2,
+            ))
+        };
+        assert_eq!(utf16_string(&text), "\u{FFFD}a");
+    }
+
+    fn element(role: &str, accepts_text: bool) -> Option<FocusedElement> {
+        Some(FocusedElement {
+            role: Some(role.to_string()),
+            subrole: None,
+            accepts_text,
+        })
+    }
+
+    #[test]
+    fn a_known_password_app_matches_in_any_case() {
+        for bundle_id in [
+            "com.1password.1password",
+            "COM.APPLE.PASSWORDS",
+            "com.bitwarden.desktop",
+        ] {
+            assert!(is_password_app(bundle_id), "{bundle_id}");
+        }
+    }
+
+    #[test]
+    fn other_bundle_ids_are_no_password_app() {
+        for bundle_id in [
+            "com.apple.Safari",
+            "",
+            "com.1password",
+            "com.1password.1password.helper",
+        ] {
+            assert!(!is_password_app(bundle_id), "{bundle_id:?}");
+        }
+    }
+
+    #[test]
+    fn an_editable_element_is_a_text_field() {
+        for (focused, why) in [
+            (element("AXTextArea", false), "text area"),
+            (element("AXTextField", false), "text field"),
+            (element("AXComboBox", false), "combo box"),
+            (element("AXGroup", true), "contenteditable group"),
+            (element("AXWebArea", true), "editable web area"),
+            (element("AXList", true), "list that takes text"),
+            (element(SECURE_TEXT_FIELD, false), "secure field"),
+            (
+                Some(FocusedElement {
+                    role: Some("AXTextField".to_string()),
+                    subrole: Some("AXSearchField".to_string()),
+                    accepts_text: false,
+                }),
+                "search field",
+            ),
+            (
+                Some(FocusedElement {
+                    role: None,
+                    subrole: Some(SECURE_TEXT_FIELD.to_string()),
+                    accepts_text: false,
+                }),
+                "secure subrole",
+            ),
+        ] {
+            assert_eq!(classify_focus(focused), FocusedField::TextField, "{why}");
+        }
+    }
+
+    #[test]
+    fn a_non_editable_element_is_no_text_field() {
+        for role in ["AXList", "AXScrollArea", "AXButton", "AXLayoutArea"] {
+            assert_eq!(
+                classify_focus(element(role, false)),
+                FocusedField::NoTextField,
+                "{role}"
+            );
+        }
+    }
+
+    /// Roles the probe in #197 read from Finder and System Settings.
+    #[test]
+    fn finder_and_settings_focus_is_no_text_field() {
+        for (role, subrole, accepts_text, why) in [
+            ("AXGroup", Some("AXDesktop"), true, "Finder desktop"),
+            (
+                "AXScrollArea",
+                Some("AXDesktop"),
+                false,
+                "Finder desktop area",
+            ),
+            (
+                "AXOutline",
+                None,
+                false,
+                "Finder window or Settings sidebar",
+            ),
+        ] {
+            let focused = FocusedElement {
+                role: Some(role.to_string()),
+                subrole: subrole.map(str::to_string),
+                accepts_text,
+            };
+            assert_eq!(
+                classify_focus(Some(focused)),
+                FocusedField::NoTextField,
+                "{why}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unreadable_or_container_focus_is_unknown() {
+        assert_eq!(classify_focus(None), FocusedField::Unknown);
+        assert_eq!(
+            classify_focus(Some(FocusedElement::default())),
+            FocusedField::Unknown
+        );
+        for role in [
+            "AXGroup",
+            "AXWebArea",
+            "AXWindow",
+            "AXApplication",
+            "AXTable",
+            "AXCell",
+            "AXNew",
+        ] {
+            assert_eq!(
+                classify_focus(element(role, false)),
+                FocusedField::Unknown,
+                "{role}"
+            );
+        }
+    }
 }

@@ -1,30 +1,128 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::normalize_transcription_output;
 use crate::codex_transcribe;
-use crate::gemini_transcribe::{GeminiTranscriber, ShutdownReceipt};
-use crate::settings::{get_settings, TranscriptionProvider};
+use crate::engine::local::boost::boost_terms;
+use crate::engine::local::LocalEngine;
+use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
+use crate::local_models::LocalModels;
+use crate::settings::{get_settings, AppSettings};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
 use log::{debug, error, info};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// Final dictation text plus how many dictionary replacements produced it.
 #[derive(Debug, Default)]
 pub struct Transcript {
     pub text: String,
     pub dictionary_fixes: u32,
+    pub source: EngineUsed,
 }
 
-/// Routes audio through the selected cloud transcription provider.
-pub struct TranscriptionManager {
-    app_handle: AppHandle,
-    gemini: GeminiTranscriber,
+/// Transcribes `audio` with `engine`. `language` is the dictation setting.
+/// Only the local engine listens for `terms`: the Codex endpoint takes none.
+async fn run(
+    engine: Engine,
+    local: Option<&LocalEngine>,
+    audio: &[f32],
+    language: &str,
+    terms: &[String],
+    operation: &ProcessingOperation,
+) -> Result<String> {
+    match engine {
+        Engine::Cloud => {
+            let language = (language != "auto").then_some(language);
+            debug!(
+                "Sending {} samples to Codex transcription (language={:?})",
+                audio.len(),
+                language
+            );
+            codex_transcribe::transcribe(audio, language, operation)
+                .await
+                .inspect_err(|err| error!("Codex transcription failed: {err}"))
+        }
+        Engine::Local => {
+            let local = local.ok_or_else(|| anyhow::anyhow!("No local engine in this build"))?;
+            debug!(
+                "Transcribing {} samples on this Mac with {} boost term(s)",
+                audio.len(),
+                terms.len()
+            );
+            local.transcribe(audio, terms, operation).await
+        }
+    }
+}
+
+/// Settles a request that needs no engine: empty audio gives an empty
+/// transcript, a cancelled operation an error. `None` sends it on.
+fn settle_without_engine(
+    audio: &[f32],
+    operation: &ProcessingOperation,
+) -> Option<Result<Transcript>> {
+    if audio.is_empty() {
+        return Some(Ok(Transcript::default()));
+    }
+    if operation.is_cancelled() {
+        return Some(Err(anyhow::anyhow!("Transcription cancelled")));
+    }
+    None
+}
+
+/// The requests in flight, so that shutdown can cancel them.
+struct ActiveRequests {
     active_operations: Arc<Mutex<HashMap<u64, ProcessingOperation>>>,
     next_active_operation: AtomicU64,
     shutdown_requested: AtomicBool,
+}
+
+impl ActiveRequests {
+    fn new() -> Self {
+        Self {
+            active_operations: Arc::new(Mutex::new(HashMap::new())),
+            next_active_operation: AtomicU64::new(1),
+            shutdown_requested: AtomicBool::new(false),
+        }
+    }
+
+    /// Tracks `operation` until the guard drops. After shutdown the
+    /// operation is cancelled and refused.
+    fn register(&self, operation: &ProcessingOperation) -> Result<ActiveOperationGuard> {
+        let id = self.next_active_operation.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut operations) = self.active_operations.lock() {
+            operations.insert(id, operation.clone());
+        }
+        let guard = ActiveOperationGuard {
+            id,
+            active_operations: Arc::clone(&self.active_operations),
+        };
+        if self.shutdown_requested.load(Ordering::Acquire) {
+            operation.cancel();
+            return Err(anyhow::anyhow!("Transcription manager is shutting down"));
+        }
+        Ok(guard)
+    }
+
+    /// Cancels every active request and refuses new ones, without waiting.
+    fn shutdown(&self) {
+        self.shutdown_requested.store(true, Ordering::Release);
+        let active_operations = self
+            .active_operations
+            .lock()
+            .map(|operations| operations.values().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for operation in active_operations {
+            operation.cancel();
+        }
+    }
+}
+
+/// Sends audio to the local engine or Codex.
+pub struct TranscriptionManager {
+    app_handle: AppHandle,
+    requests: ActiveRequests,
 }
 
 struct ActiveOperationGuard {
@@ -45,10 +143,7 @@ impl TranscriptionManager {
     pub fn new(app_handle: &AppHandle) -> Self {
         Self {
             app_handle: app_handle.clone(),
-            gemini: GeminiTranscriber::new(),
-            active_operations: Arc::new(Mutex::new(HashMap::new())),
-            next_active_operation: AtomicU64::new(1),
-            shutdown_requested: AtomicBool::new(false),
+            requests: ActiveRequests::new(),
         }
     }
 
@@ -59,26 +154,19 @@ impl TranscriptionManager {
         audio: Vec<f32>,
         operation: ProcessingOperation,
     ) -> Result<String> {
-        let provider = get_settings(&self.app_handle).transcription_provider;
-        self.transcribe_with_provider(Arc::new(audio), operation, provider)
+        self.transcribe_samples(Arc::new(audio), operation)
             .await
             .map(|transcript| transcript.text)
     }
 
-    /// Runs a request against the provider chosen when that request starts.
-    /// UI changes while the network call is pending must not make downstream
-    /// output processing describe a different provider than the one used.
-    pub(crate) async fn transcribe_with_provider(
+    /// Transcribes shared samples and corrects them with the dictionary.
+    /// The local engine listens for the custom words.
+    pub(crate) async fn transcribe_samples(
         &self,
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
-        provider: TranscriptionProvider,
     ) -> Result<Transcript> {
-        let _active_operation = self.register_active_operation(operation.clone());
-        if self.shutdown_requested.load(Ordering::Acquire) {
-            operation.cancel();
-            return Err(anyhow::anyhow!("Transcription manager is shutting down"));
-        }
+        let _active_operation = self.requests.register(&operation)?;
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
             return Err(anyhow::anyhow!(
@@ -86,51 +174,41 @@ impl TranscriptionManager {
             ));
         }
 
-        if audio.is_empty() {
-            return Ok(Transcript::default());
-        }
-        if operation.is_cancelled() {
-            return Err(anyhow::anyhow!("Transcription cancelled"));
+        if let Some(settled) = settle_without_engine(&audio, &operation) {
+            return settled;
         }
 
         let settings = get_settings(&self.app_handle);
-        let language =
-            (settings.selected_language != "auto").then(|| settings.selected_language.clone());
-        // The saved WAV keeps the original level; only the upload is raised.
+        let conditions = self.conditions(&settings);
+        // The saved WAV keeps the original level; only the engine's input is
+        // raised.
         let audio = match normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode)) {
             Some(louder) => {
-                debug!("Raised the level of quiet speech before upload");
+                debug!("Raised the level of quiet speech before transcription");
                 Arc::new(louder)
             }
             None => audio,
         };
 
-        debug!(
-            "Sending {} samples to {:?} transcription (language={:?})",
-            audio.len(),
-            provider,
-            language
-        );
-
-        let text = match provider {
-            TranscriptionProvider::Codex => {
-                codex_transcribe::transcribe(audio.as_slice(), language.as_deref(), &operation)
-                    .await
-            }
-            TranscriptionProvider::Gemini => {
-                let gemini = self.gemini.clone();
-                let operation = operation.clone();
-                tauri::async_runtime::spawn_blocking(move || {
-                    gemini.transcribe(audio.as_slice(), &operation)
-                })
-                .await
-                .map_err(|error| anyhow::anyhow!("Gemini transcription worker panicked: {error}"))?
-            }
-        }
-        .map_err(|err| {
-            error!("{provider:?} transcription failed: {err}");
-            err
-        })?;
+        let local = self.app_handle.try_state::<Arc<LocalEngine>>();
+        let local = local.as_deref().map(Arc::as_ref);
+        let terms = boost_terms(&settings.custom_words);
+        let (text, source) = engine::transcribe(
+            settings.transcription_engine,
+            conditions,
+            || operation.is_cancelled(),
+            |engine| {
+                run(
+                    engine,
+                    local,
+                    &audio,
+                    conditions.language,
+                    &terms,
+                    &operation,
+                )
+            },
+        )
+        .await?;
 
         if operation.is_cancelled() {
             return Err(anyhow::anyhow!("Transcription cancelled"));
@@ -144,13 +222,46 @@ impl TranscriptionManager {
         );
 
         info!(
-            "{provider:?} transcription produced {} characters",
+            "The {} engine produced {} characters",
+            source.engine.as_str(),
             processed.len()
         );
         Ok(Transcript {
             text: processed,
             dictionary_fixes,
+            source,
         })
+    }
+
+    fn conditions<'a>(&self, settings: &'a AppSettings) -> Conditions<'a> {
+        let model_ready = self
+            .app_handle
+            .try_state::<Arc<LocalModels>>()
+            .is_some_and(|models| models.is_ready())
+            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+        Conditions {
+            model_ready,
+            signed_in: crate::codex_auth::auth_status().signed_in,
+            language: &settings.selected_language,
+        }
+    }
+
+    /// At the start of a recording: loads the local model when the dictation
+    /// will go to it, so the speaking time hides the load.
+    pub fn warm_if_local(&self) {
+        let settings = get_settings(&self.app_handle);
+        let route = engine::route(settings.transcription_engine, self.conditions(&settings));
+        if matches!(
+            route,
+            Route::Run(EngineUsed {
+                engine: Engine::Local,
+                ..
+            })
+        ) {
+            if let Some(local) = self.app_handle.try_state::<Arc<LocalEngine>>() {
+                local.warm();
+            }
+        }
     }
 
     /// Keeps CLI calls synchronous and independent of desktop cancellation.
@@ -159,45 +270,72 @@ impl TranscriptionManager {
         tauri::async_runtime::block_on(self.transcribe(audio, operation))
     }
 
-    /// Signals all active transports and starts off-main Gemini cleanup.
-    /// The returned receipt is required by callers that are about to end the
-    /// process, so a Murmur-owned local server is not orphaned on exit.
-    pub fn begin_shutdown(&self) -> ShutdownReceipt {
-        // This registry is independent of Gemini's runtime-state mutex.
-        // Exit can therefore interrupt Codex HTTP and a Gemini gRPC request
-        // before any provider cleanup tries to acquire that mutex.
-        self.shutdown_requested.store(true, Ordering::Release);
-        let active_operations = self
-            .active_operations
-            .lock()
-            .map(|operations| operations.values().cloned().collect::<Vec<_>>())
-            .unwrap_or_default();
-        for operation in active_operations {
-            operation.cancel();
-        }
-        self.gemini.begin_shutdown()
-    }
-
-    /// Releases provider resources without waiting. Tauri's terminal Exit
-    /// event uses this as a fallback; normal exit waits through the foreground
-    /// coordinator drain before reaching that event.
+    /// Cancels every active request and refuses new ones, without waiting.
     pub fn shutdown(&self) {
-        let _ = self.begin_shutdown();
+        self.requests.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{settle_without_engine, ActiveRequests};
+    use crate::{OperationId, ProcessingOperation};
+
+    fn operation() -> ProcessingOperation {
+        ProcessingOperation::new(OperationId(1))
     }
 
-    /// Bounded cleanup for non-AppKit callers such as the headless CLI worker.
-    pub fn shutdown_and_wait(&self, timeout: std::time::Duration) -> bool {
-        self.begin_shutdown().wait_bounded(timeout)
+    #[test]
+    fn empty_audio_gives_an_empty_transcript_before_any_engine() {
+        let settled = settle_without_engine(&[], &operation());
+        let transcript = settled.expect("settled").expect("empty transcript");
+        assert_eq!(transcript.text, "");
+        assert_eq!(transcript.dictionary_fixes, 0);
     }
 
-    fn register_active_operation(&self, operation: ProcessingOperation) -> ActiveOperationGuard {
-        let id = self.next_active_operation.fetch_add(1, Ordering::Relaxed);
-        if let Ok(mut operations) = self.active_operations.lock() {
-            operations.insert(id, operation);
-        }
-        ActiveOperationGuard {
-            id,
-            active_operations: Arc::clone(&self.active_operations),
-        }
+    #[test]
+    fn cancelled_audio_fails_before_any_engine() {
+        let cancelled = operation();
+        cancelled.cancel();
+        let settled = settle_without_engine(&[0.1, 0.2], &cancelled).expect("settled");
+        assert!(settled.is_err());
+    }
+
+    #[test]
+    fn live_audio_goes_on_to_an_engine() {
+        assert!(settle_without_engine(&[0.1, 0.2], &operation()).is_none());
+    }
+
+    #[test]
+    fn shutdown_cancels_a_request_in_flight() {
+        let requests = ActiveRequests::new();
+        let in_flight = operation();
+        let _guard = requests.register(&in_flight).expect("accepted");
+        assert!(!in_flight.is_cancelled());
+
+        requests.shutdown();
+        assert!(in_flight.is_cancelled());
+    }
+
+    #[test]
+    fn after_shutdown_the_next_request_fails_and_is_cancelled() {
+        let requests = ActiveRequests::new();
+        let before = operation();
+        assert!(requests.register(&before).is_ok());
+
+        requests.shutdown();
+        let next = operation();
+        assert!(requests.register(&next).is_err());
+        assert!(next.is_cancelled());
+    }
+
+    #[test]
+    fn shutdown_leaves_a_finished_request_alone() {
+        let requests = ActiveRequests::new();
+        let finished = operation();
+        drop(requests.register(&finished).expect("accepted"));
+
+        requests.shutdown();
+        assert!(!finished.is_cancelled());
     }
 }

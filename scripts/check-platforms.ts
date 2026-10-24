@@ -43,6 +43,7 @@ const obsoletePaths = [
   "src/components/ui/Badge.tsx",
   "src/components/ui/Select.tsx",
   "src/hooks/useOsType.ts",
+  "src/hooks/useMeetingModels.ts",
   "src-tauri/capabilities/default.json",
 ];
 
@@ -53,8 +54,23 @@ const requiredPaths = [
   "src-tauri/resources/tray.png",
   "src-tauri/capabilities/main.json",
   "src-tauri/capabilities/recording-overlay.json",
+  "src-tauri/capabilities/call-prompt.json",
   "src-tauri/permissions/default.toml",
   "src-tauri/tauri.windows.conf.json",
+  "src-tauri/src/engine/mod.rs",
+  "src-tauri/src/engine/parakeet_languages.rs",
+  "src-tauri/src/engine/local/mod.rs",
+  "src-tauri/src/engine/local/session.rs",
+  "src-tauri/src/engine/local/fluid.rs",
+  "src-tauri/src/engine/local/cpu.rs",
+  "src-tauri/src/audio_toolkit/pauses.rs",
+  "src-tauri/src/local_models/mod.rs",
+  "src-tauri/src/local_models/manifest.rs",
+  "src-tauri/src/local_models/pinned.rs",
+  "src-tauri/src/local_models/download.rs",
+  "src-tauri/src/local_models/verify.rs",
+  "src-tauri/src/commands/local_models.rs",
+  "src/hooks/useLocalModel.ts",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {
@@ -172,10 +188,7 @@ for (const dependency of [
     failures.push(`unused frontend dependency remains: ${dependency}`);
   }
 }
-for (const dependency of [
-  "@types/react-select",
-  "@typescript-eslint/eslint-plugin",
-]) {
+for (const dependency of ["@types/react-select"]) {
   if (dependency in packageJson.devDependencies) {
     failures.push(`unused frontend dependency remains: ${dependency}`);
   }
@@ -184,6 +197,34 @@ for (const dependency of [
 for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
   if (read(relativePath).includes('"onboardingDescriptionCodex"')) {
     failures.push(`obsolete translation remains: ${relativePath}`);
+  }
+}
+
+// Each Windows wording replaces a key the app has (see src/i18n/index.ts).
+type Translations = { [key: string]: string | Translations };
+function staleOverrides(
+  overrides: Translations,
+  base: Translations | string | undefined,
+  prefix: string,
+): string[] {
+  return Object.entries(overrides).flatMap(([key, value]) => {
+    const target = typeof base === "object" ? base[key] : undefined;
+    if (typeof value === "string") {
+      return typeof target === "string" ? [] : [`${prefix}${key}`];
+    }
+    return staleOverrides(value, target, `${prefix}${key}.`);
+  });
+}
+for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
+  const { windows, ...translations } = JSON.parse(
+    read(relativePath),
+  ) as Translations;
+  if (typeof windows !== "object") {
+    failures.push(`no Windows wording: ${relativePath}`);
+    continue;
+  }
+  for (const key of staleOverrides(windows, translations, "")) {
+    failures.push(`Windows wording for a missing key ${key}: ${relativePath}`);
   }
 }
 
@@ -204,6 +245,10 @@ const allowedCargoTargets = new Set([
   "unix",
   'target_os = "macos"',
   'target_os = "windows"',
+  // The CPU engine of Intel Macs and Windows, by architecture, and its
+  // Windows packaging.
+  'target_arch = "x86_64"',
+  'all(target_os = "windows", target_arch = "x86_64")',
 ]);
 for (const [, target] of cargoManifest.matchAll(
   /^\[target\.'cfg\((.*)\)'\.dependencies\]$/gm,
@@ -270,6 +315,20 @@ checkCapability(
     "os:allow-locale",
     "allow-get-app-settings",
     "allow-cancel-operation",
+    "allow-copy-notice-again",
+    "allow-fit-copy-notice",
+  ],
+);
+checkCapability(
+  "src-tauri/capabilities/call-prompt.json",
+  "call-prompt",
+  ["call_prompt"],
+  [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-answer-call-prompt",
+    "allow-fit-call-prompt",
+    "allow-get-call-prompt",
   ],
 );
 

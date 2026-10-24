@@ -462,4 +462,16 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn units_keep_only_the_times_the_recogniser_heard() {
+        // "heures," was placed between its neighbours, not heard.
+        let mut tokens = timed("Dix heures, parfait.", 5_000, 400);
+        tokens[0].token.heard_ms = Some((5_000, 5_400));
+        tokens[2].token.heard_ms = Some((5_800, 6_200));
+        let units = units(Track::Mic, tokens, &["me", "me", "me"].map(String::from));
+        let heard: Vec<Option<(u64, u64)>> =
+            units[0].tokens.iter().map(|token| token.heard_ms).collect();
+        assert_eq!(heard, [Some((5_000, 5_400)), None, Some((5_800, 6_200))]);
+    }
 }

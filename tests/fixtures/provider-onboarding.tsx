@@ -3,7 +3,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import type { AppSettings, TranscriptionProvider } from "../../src/bindings";
+import type {
+  AppSettings,
+  DictationStyle,
+  Engine,
+  LocalModelStatus,
+  SignInError,
+} from "../../src/bindings";
 import "../../src/App.css";
 
 type Deferred<T> = {
@@ -23,62 +29,81 @@ const createDeferred = <T,>(): Deferred<T> => {
 };
 
 const query = new URLSearchParams(window.location.search);
-const appLanguage = query.get("lang") === "fr" ? "fr" : "en";
-const configuredProvider: TranscriptionProvider =
-  query.get("provider") === "gemini" ? "gemini" : "codex";
+const appLanguage = query.get("lang") ?? "en";
 let codexConfigured = query.get("codex") === "configured";
-let geminiInstalled = ["configured", "installed"].includes(
-  query.get("gemini") ?? "",
-);
-let geminiConfigured = query.get("gemini") === "configured";
+/** A user who finished setup long ago and lost Accessibility since: the
+ * first check finds it missing, the next one finds it granted again. */
+const returning = query.get("returning") === "1";
+let accessibilityRevoked = returning;
+/** `permissions=missing`: Accessibility is never granted, so the
+ * permissions step stays on screen. */
+const permissionsMissing = query.get("permissions") === "missing";
+
+/** The manifest's download: Apple silicon, or `mac=intel`. */
+const MODEL_BYTES = query.get("mac") === "intel" ? 739_508_576 : 505_044_208;
+const MODELS = {
+  missing: { state: "missing" },
+  downloading: {
+    state: "downloading",
+    done_bytes: 191_916_799,
+    total_bytes: MODEL_BYTES,
+  },
+  preparing: { state: "preparing" },
+  ready: { state: "ready" },
+  failed: { state: "failed", reason: { kind: "no_internet" } },
+  // The default: a Mac without the local model gets today's Codex setup.
+  unsupported: { state: "unsupported", support: "os_too_old" },
+} satisfies Record<string, LocalModelStatus["state"]>;
+type ModelName = keyof typeof MODELS;
+const modelStatus = (name: ModelName): LocalModelStatus => ({
+  state: MODELS[name],
+  size_bytes: MODEL_BYTES,
+  kept_bytes: 0,
+});
+let model = modelStatus((query.get("model") as ModelName) ?? "unsupported");
+
+const setModel = (name: ModelName) => {
+  model = modelStatus(name);
+  return emit("local-model-status", model);
+};
+
 type CompletionFailureMode = "result" | "exception";
 
 let nextCompletionFailure: CompletionFailureMode | null = null;
-let nextSetupActionFailure: CompletionFailureMode | null = null;
 let failNextInitialization = false;
-let failNextProviderChange = false;
+/** The browser sign-in under way, as the backend runs it. */
+let signIn: Deferred<null> | null = null;
 const writes: string[] = [];
 const calls: string[] = [];
 
 type DeferredStatusRefresh = {
   codex: Deferred<{ signed_in: boolean; expired: boolean }>;
   codexConfigured: boolean;
-  gemini: Deferred<{ installed: boolean; signed_in: boolean }>;
-  geminiConfigured: boolean;
-  geminiInstalled: boolean;
-  requested: Set<"codex" | "gemini">;
+  requested: boolean;
 };
 
 const deferredStatusRefreshes: DeferredStatusRefresh[] = [];
 let activeDeferredStatusRefresh = 0;
 
 const deferStatusRefresh = (): number => {
-  const deferred: DeferredStatusRefresh = {
+  deferredStatusRefreshes.push({
     codex: createDeferred(),
     codexConfigured,
-    gemini: createDeferred(),
-    geminiConfigured,
-    geminiInstalled,
-    requested: new Set(),
-  };
-  deferredStatusRefreshes.push(deferred);
+    requested: false,
+  });
   return deferredStatusRefreshes.length - 1;
 };
 
-const deferredStatusResponse = (
-  provider: "codex" | "gemini",
-): Promise<
-  | { signed_in: boolean; expired: boolean }
-  | { installed: boolean; signed_in: boolean }
-> | null => {
-  const deferred = deferredStatusRefreshes[activeDeferredStatusRefresh];
-  if (!deferred || deferred.requested.has(provider)) return null;
+/** `slowStatus=1`: the first status check waits for `resolveStatusRefresh(0)`. */
+if (query.get("slowStatus") === "1") deferStatusRefresh();
 
-  deferred.requested.add(provider);
-  if (deferred.requested.size === 2) activeDeferredStatusRefresh += 1;
-  return provider === "codex"
-    ? deferred.codex.promise
-    : deferred.gemini.promise;
+const deferredStatusResponse = () => {
+  const deferred = deferredStatusRefreshes[activeDeferredStatusRefresh];
+  if (!deferred || deferred.requested) return null;
+
+  deferred.requested = true;
+  activeDeferredStatusRefresh += 1;
+  return deferred.codex.promise;
 };
 
 const resolveStatusRefresh = (index: number) => {
@@ -88,75 +113,50 @@ const resolveStatusRefresh = (index: number) => {
     signed_in: deferred.codexConfigured,
     expired: false,
   });
-  deferred.gemini.resolve({
-    installed: deferred.geminiInstalled,
-    signed_in: deferred.geminiConfigured,
-  });
 };
 
 const rejectStatusRefresh = (index: number) => {
   const deferred = deferredStatusRefreshes[index];
   if (!deferred) throw new Error(`Unknown deferred status refresh: ${index}`);
-  const error = new Error("Simulated provider status failure");
-  deferred.codex.reject(error);
-  deferred.gemini.reject(error);
+  deferred.codex.reject(new Error("Simulated provider status failure"));
 };
 
 let backendSettings: AppSettings = {
+  // `cleanup=on`: a connected account leads to the style step.
+  ai_cleanup_enabled: query.get("cleanup") === "on",
   app_language: appLanguage,
-  onboarding_completed: false,
+  dictation_style: (query.get("style") ?? "normal") as DictationStyle,
+  onboarding_completed: returning,
   selected_language: "fr",
-  transcription_provider: configuredProvider,
+  theme: (query.get("theme") ?? "light") as AppSettings["theme"],
+  transcription_engine: returning ? "cloud" : "local",
 };
 
-const updateProvider = (provider: unknown) => {
-  if (failNextProviderChange) {
-    failNextProviderChange = false;
-    throw new Error("The provider setting could not be saved");
-  }
-  if (provider !== "codex" && provider !== "gemini") {
-    throw new Error("Unexpected transcription provider");
-  }
-  backendSettings = { ...backendSettings, transcription_provider: provider };
-  writes.push(`provider:${provider}`);
-};
+const engines: Engine[] = [];
 
 mockIPC(
   (command, args) => {
     calls.push(command);
     switch (command) {
-      case "open_antigravity":
-      case "plugin:opener|open_url": {
-        const failure = nextSetupActionFailure;
-        nextSetupActionFailure = null;
-        if (failure === "result") {
-          return Promise.reject(
-            "The operating system refused to open this resource",
-          );
-        }
-        if (failure === "exception") {
-          throw new Error("The operating system refused to open this resource");
-        }
+      case "sign_in_with_chatgpt":
+        // As the backend: a new sign-in cancels the one under way.
+        signIn?.reject("cancelled");
+        signIn = createDeferred();
+        return signIn.promise;
+      case "cancel_chatgpt_sign_in":
+        signIn?.reject("cancelled");
+        signIn = null;
         return null;
-      }
       case "get_app_settings":
       case "get_default_settings":
         return { ...backendSettings };
       case "check_custom_sounds":
         return { start: false, stop: false };
       case "get_codex_auth_status": {
-        const response = deferredStatusResponse("codex");
+        const response = deferredStatusResponse();
         if (response) return response;
         return { signed_in: codexConfigured, expired: false };
       }
-      case "get_gemini_status": {
-        const response = deferredStatusResponse("gemini");
-        if (response) return response;
-        return { installed: geminiInstalled, signed_in: geminiConfigured };
-      }
-      case "change_transcription_provider_setting":
-        updateProvider(args?.provider);
-        return null;
       case "complete_onboarding": {
         const completionFailure = nextCompletionFailure;
         nextCompletionFailure = null;
@@ -168,20 +168,54 @@ mockIPC(
         if (completionFailure === "exception") {
           throw new Error("Configuration changed before setup completed");
         }
-        const provider = backendSettings.transcription_provider;
-        const providerIsConfigured =
-          provider === "codex" ? codexConfigured : geminiConfigured;
-        if (!providerIsConfigured) {
-          throw new Error("The selected provider is not configured");
+        // As the backend: a Mac that cannot run the local model finishes in
+        // the cloud, and the cloud needs a session.
+        const engine: Engine =
+          model.state.state === "unsupported"
+            ? "cloud"
+            : (backendSettings.transcription_engine ?? "local");
+        if (engine === "cloud" && !codexConfigured) {
+          throw new Error("No ChatGPT/Codex session was found");
         }
-        backendSettings = { ...backendSettings, onboarding_completed: true };
+        backendSettings = {
+          ...backendSettings,
+          onboarding_completed: true,
+          transcription_engine: engine,
+          local_stt_card_dismissed: true,
+        };
         writes.push("complete");
         return null;
       }
+      case "get_local_model_status":
+        return model;
+      case "change_transcription_engine_setting": {
+        const engine = (args as { engine: Engine }).engine;
+        backendSettings = { ...backendSettings, transcription_engine: engine };
+        engines.push(engine);
+        if (engine === "local" && model.state.state !== "ready") {
+          void setModel("downloading");
+        }
+        return null;
+      }
+      case "download_local_model":
+        void setModel("downloading");
+        return null;
+      case "change_dictation_style_setting":
+        backendSettings = {
+          ...backendSettings,
+          dictation_style: (args as { style: DictationStyle }).style,
+        };
+        return null;
       case "get_available_microphones":
       case "get_available_output_devices":
         return [];
       case "plugin:macos-permissions|check_accessibility_permission":
+        if (permissionsMissing) return false;
+        if (accessibilityRevoked) {
+          accessibilityRevoked = false;
+          return false;
+        }
+        return true;
       case "plugin:macos-permissions|check_microphone_permission":
         return true;
       case "get_microphone_authorization_status":
@@ -208,17 +242,22 @@ declare global {
       emitTranscriptionFailure: () => Promise<void>;
       deferStatusRefresh: () => number;
       failNextCompletion: (mode?: CompletionFailureMode) => void;
-      failNextSetupAction: (mode: CompletionFailureMode) => void;
       failNextInitialization: () => void;
-      failNextProviderChange: () => void;
+      /** The browser sign-in saved a session. */
+      resolveSignIn: () => void;
+      /** The sign-in ended with this `SignInError`, or `exception`: the
+       * IPC call itself threw. */
+      failSignIn: (error: SignInError | "exception") => void;
       calls: () => string[];
+      engine: () => Engine | undefined;
+      engines: () => Engine[];
       initializationError: () => string | null;
-      provider: () => TranscriptionProvider | undefined;
+      setModel: (name: ModelName) => Promise<void>;
       rejectStatusRefresh: (index: number) => void;
       resolveStatusRefresh: (index: number) => void;
       selectedLanguage: () => string | undefined;
       setCodexConfigured: (configured: boolean) => void;
-      setGeminiConfigured: (configured: boolean) => void;
+      style: () => DictationStyle | undefined;
       writes: () => string[];
     };
   }
@@ -236,28 +275,32 @@ window.providerOnboardingFixture = {
   failNextCompletion: (mode = "exception") => {
     nextCompletionFailure = mode;
   },
-  failNextSetupAction: (mode) => {
-    nextSetupActionFailure = mode;
-  },
   failNextInitialization: () => {
     failNextInitialization = true;
   },
-  failNextProviderChange: () => {
-    failNextProviderChange = true;
+  resolveSignIn: () => {
+    codexConfigured = true;
+    signIn?.resolve(null);
+    signIn = null;
+  },
+  failSignIn: (error) => {
+    signIn?.reject(
+      error === "exception" ? new Error("IPC channel closed") : error,
+    );
+    signIn = null;
   },
   calls: () => [...calls],
+  engine: () => backendSettings.transcription_engine,
+  engines: () => [...engines],
   initializationError: () => initializationError,
-  provider: () => backendSettings.transcription_provider,
+  setModel,
   rejectStatusRefresh,
   resolveStatusRefresh,
   selectedLanguage: () => backendSettings.selected_language,
   setCodexConfigured: (configured) => {
     codexConfigured = configured;
   },
-  setGeminiConfigured: (configured) => {
-    geminiInstalled = configured;
-    geminiConfigured = configured;
-  },
+  style: () => backendSettings.dictation_style,
   writes: () => [...writes],
 };
 

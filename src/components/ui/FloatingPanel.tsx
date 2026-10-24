@@ -21,7 +21,7 @@ interface FloatingPanelPosition {
 
 interface FloatingPanelProps {
   open: boolean;
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLElement | null>;
   onDismiss: () => void;
   children: React.ReactNode;
   className?: string;

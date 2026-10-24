@@ -10,7 +10,8 @@
 //!    device (`align`), or, when those cannot be trusted, its sentences are
 //!    spread over the moments the track holds speech (`spread`). Words then
 //!    go to their speaker (`speakers`), echoes of remote voices are taken off
-//!    the microphone (`bleed`), and both tracks are interleaved into bubbles
+//!    the microphone (`bleed`) unless the meeting played on headphones
+//!    throughout, and both tracks are interleaved into bubbles
 //!    (`merge`). Parts that failed show as placeholders, so the user gets
 //!    everything that worked.
 //! 3. Once the whole transcript is there, Codex writes the summary and the
@@ -29,7 +30,8 @@ use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
 use super::analysis::{diarized_track, Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
 use super::archive;
-use super::bleed::remove_echoes;
+use super::bleed::{remove_echoes, WordTimes};
+use super::capture::route::OutputRoute;
 use super::chunking::{
     plan_chunks, speech_threshold, split_chunk, system_audio_missing, voiced_ms,
 };
@@ -46,7 +48,8 @@ use super::summary::{self, Summarizer};
 use super::tokens::{sentences, tokenize};
 use super::track_audio::{self, TrackLevels};
 use super::transcribe::{
-    ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner, Transcriber,
+    unreachable, ChunkSource, CodexVerdict, Job, Outcome, RetryPolicy, RunEnd, RunObserver, Runner,
+    Transcriber,
 };
 use crate::chinese_script::in_chosen_script;
 use crate::transcription_error::FailureKind;
@@ -74,6 +77,8 @@ pub struct Processor {
     pub store: Arc<MeetingsStore>,
     pub root: PathBuf,
     pub transcriber: Arc<dyn Transcriber>,
+    /// Takes the pieces Codex refuses for good; `None` without a ready model.
+    pub local: Option<Arc<dyn Transcriber>>,
     pub analyzer: Arc<dyn Analyzer>,
     pub summarizer: Arc<dyn Summarizer>,
     pub policy: RetryPolicy,
@@ -166,20 +171,35 @@ struct Saver {
     done: AtomicU32,
     total: u32,
     rate_limited: AtomicBool,
+    /// A piece ran out of network retries.
+    unreachable: AtomicBool,
     /// Codex transcribed at least one piece in this run.
     answered: AtomicBool,
 }
 
 impl Saver {
     /// A piece that ran out of rate-limit budget holds the queue, whatever
-    /// else ended the run and however many pieces Codex answered first.
+    /// else ended the run and however many pieces Codex answered first; one
+    /// that ran out of network retries holds it until the connection is back.
     fn verdict(&self) -> CodexVerdict {
         if self.rate_limited.load(Ordering::SeqCst) {
             CodexVerdict::RateLimited
+        } else if self.unreachable.load(Ordering::SeqCst) {
+            CodexVerdict::Unreachable
         } else if self.answered.load(Ordering::SeqCst) {
             CodexVerdict::Answered
         } else {
             CodexVerdict::Unknown
+        }
+    }
+
+    /// Notes why Codex gave up on a piece, when that holds the queue. A
+    /// piece ends with a network failure only once its retries are spent.
+    fn codex_out(&self, kind: FailureKind) {
+        if kind == FailureKind::RateLimited {
+            self.rate_limited.store(true, Ordering::SeqCst);
+        } else if unreachable(kind) {
+            self.unreachable.store(true, Ordering::SeqCst);
         }
     }
 
@@ -202,10 +222,19 @@ impl RunObserver for Saver {
                 self.answered.store(true, Ordering::SeqCst);
                 self.store.chunk_done(self.id, job.track, job.idx, text)
             }
+            Outcome::DoneLocally { text, codex } => {
+                self.done.fetch_add(1, Ordering::SeqCst);
+                self.codex_out(*codex);
+                self.store.chunk_done_locally(
+                    self.id,
+                    job.track,
+                    job.idx,
+                    text,
+                    &format!("{codex:?}"),
+                )
+            }
             Outcome::Failed(kind) => {
-                if *kind == FailureKind::RateLimited {
-                    self.rate_limited.store(true, Ordering::SeqCst);
-                }
+                self.codex_out(*kind);
                 self.store
                     .chunk_failed(self.id, job.track, job.idx, &format!("{kind:?}"))
             }
@@ -286,7 +315,9 @@ impl Processor {
             .store
             .get(id)?
             .is_some_and(|meeting| meeting.status == MeetingStatus::Ready);
-        if ready && !operation.is_cancelled() {
+        // This Mac transcribed what Codex could not be reached for; the
+        // summary waits for the connection instead of spending its retries.
+        if ready && !operation.is_cancelled() && codex != CodexVerdict::Unreachable {
             codex = codex.max(self.finish(id, &operation, &mut stages).await?);
         }
         if !stages.is_empty() {
@@ -406,12 +437,20 @@ impl Processor {
                 .filter(|chunk| chunk.status != ChunkStatus::Silent)
                 .count() as u32,
             rate_limited: AtomicBool::new(false),
+            unreachable: AtomicBool::new(false),
             answered: AtomicBool::new(false),
         });
         saver.report(false);
         let source = Arc::new(TrackFiles(audio));
         let runner = Runner {
             transcriber: Arc::clone(&self.transcriber),
+            // Parakeet would write wrong text in other languages; their
+            // pieces wait for Codex instead.
+            local: self.local.clone().filter(|_| {
+                self.language
+                    .as_deref()
+                    .is_none_or(crate::engine::parakeet_languages::supports)
+            }),
             source: Arc::clone(&source) as Arc<dyn ChunkSource>,
             observer: Arc::clone(&saver) as Arc<dyn RunObserver>,
             policy: self.policy.clone(),
@@ -456,6 +495,7 @@ impl Processor {
             analysis.as_ref(),
             diarize,
             self.language.as_deref(),
+            self.store.output_route(id)?,
         );
         // A recorded track that could not be read leaves one side of the
         // conversation out: never a Ready meeting, nor a summary of half of
@@ -487,6 +527,8 @@ impl Processor {
             None
         } else if saver.rate_limited.load(Ordering::SeqCst) {
             Some(ProcessingError::RateLimited)
+        } else if end == RunEnd::Unreachable {
+            Some(ProcessingError::Offline)
         } else {
             Some(ProcessingError::PartsFailed)
         };
@@ -643,12 +685,14 @@ fn spread_chunk(text: &str, chunk: &ChunkRow, audio: &Audio) -> Vec<TimedToken> 
 
 /// The transcript, with Chinese in the script `language` chose. Pieces keep
 /// the script Codex wrote, so a transcript built again follows the choice.
+/// `route` is where the meeting played sound.
 fn build_transcript(
     chunks: &[ChunkRow],
     audio: &HashMap<Track, Audio>,
     analysis: Option<&Analysis>,
     diarize: Track,
     language: Option<&str>,
+    route: OutputRoute,
 ) -> Built {
     let words: HashMap<Track, Vec<TimedWord>> = analysis
         .map(|analysis| {
@@ -671,6 +715,9 @@ fn build_transcript(
     let mut units = Vec::new();
     let mut missing = false;
     let mut score = (0.0, 0);
+    // The system words as placed with Codex's text, for when none were
+    // heard on device.
+    let mut placed_system: Vec<TimedWord> = Vec::new();
     for track in [Track::System, Track::Mic] {
         let Some(track_audio) = audio.get(&track) else {
             continue;
@@ -703,21 +750,43 @@ fn build_transcript(
             }
             _ => vec![single_speaker(track, room_voices); stream.len()],
         };
+        if track == Track::System {
+            placed_system = stream
+                .iter()
+                .filter(|timed| !timed.token.key.is_empty())
+                .map(|timed| TimedWord {
+                    key: timed.token.key.clone(),
+                    start_ms: timed.start_ms,
+                    end_ms: timed.end_ms,
+                })
+                .collect();
+        }
         units.extend(speakers::units(track, stream, &keys));
     }
-    if let (Some(mic), Some(system), Some(system_words)) = (
-        audio.get(&Track::Mic),
-        audio.get(&Track::System),
-        words.get(&Track::System),
-    ) {
+    let (system_words, times) = match words.get(&Track::System) {
+        Some(heard) => (heard.as_slice(), WordTimes::Heard),
+        None => (placed_system.as_slice(), WordTimes::Placed),
+    };
+    if route == OutputRoute::Headphones {
+        log::info!("The meeting played on headphones: no echo to remove");
+    } else if let (Some(mic), Some(system)) = (audio.get(&Track::Mic), audio.get(&Track::System)) {
+        let mic_chunk_starts: Vec<u64> = chunks
+            .iter()
+            .filter(|chunk| chunk.track == Track::Mic)
+            .map(|chunk| chunk.start_ms)
+            .collect();
         let removed = remove_echoes(
             &mut units,
+            &mic_chunk_starts,
             system_words,
+            times,
             &mic.levels.levels,
             &system.levels.levels,
         );
         if removed > 0 {
-            log::info!("Removed {removed} microphone sentence(s) echoing system audio");
+            log::info!(
+                "Removed {removed} echo(es) of system audio from the microphone ({times:?} times)"
+            );
         }
     }
     let turns: Vec<MeetingTurn> = merge(units)
@@ -1003,6 +1072,8 @@ mod tests {
         events: Arc<Events>,
         /// The language chosen in Settings.
         language: Option<&'static str>,
+        /// This Mac's model, when it is ready.
+        local: Option<Arc<dyn Transcriber>>,
         _dir: tempfile::TempDir,
     }
 
@@ -1014,6 +1085,7 @@ mod tests {
             root: dir.path().join("meetings"),
             events: Arc::default(),
             language: None,
+            local: None,
             _dir: dir,
         }
     }
@@ -1063,6 +1135,7 @@ mod tests {
                 store: Arc::clone(&self.store),
                 root: self.root.clone(),
                 transcriber: codex,
+                local: self.local.clone(),
                 analyzer,
                 summarizer,
                 policy: RetryPolicy {
@@ -1201,6 +1274,101 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert!(meeting.turns[0].text.starts_with("Déjà fait."));
         assert_eq!(meeting.status, MeetingStatus::Ready);
+    }
+
+    #[test]
+    fn a_lost_connection_waits_offline_and_the_next_run_sends_only_what_is_left() {
+        let h = harness();
+        // 25 minutes of speech on one track: three pieces.
+        let id = h.meeting(MeetingTracks::Mic, 25 * 60);
+        let dir = paths::meeting_dir(&h.root, id);
+        track(&dir.join(paths::MIC_TRACK), 25 * 60, &[(0, 25 * 60)]);
+        // One piece goes through, then the connection drops.
+        let answered = Arc::new(AtomicBool::new(false));
+        let first = codex(move |seconds| {
+            if answered.swap(true, Ordering::SeqCst) {
+                Err(FailureKind::Network)
+            } else {
+                Ok(format!("Partie de {seconds} secondes."))
+            }
+        });
+        let summarizer = FakeSummarizer::answering(vec![]);
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&first),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Failed);
+        assert_eq!(meeting.error, Some(ProcessingError::Offline));
+        let done = |h: &Harness| {
+            h.store
+                .chunks(id)
+                .unwrap()
+                .iter()
+                .filter(|chunk| chunk.status == ChunkStatus::Done)
+                .count()
+        };
+        assert_eq!(done(&h), 1);
+
+        // The connection is back.
+        let second = codex(|seconds| Ok(format!("Partie de {seconds} secondes.")));
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&second),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::Answered);
+        assert_eq!(second.calls.lock().unwrap().len(), 2);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.error, None);
+        assert_eq!(meeting.turns[0].text.matches("Partie").count(), 3);
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(done(&h), 3);
+    }
+
+    #[test]
+    fn offline_a_ready_model_completes_the_transcript_and_the_summary_waits() {
+        let local = codex(|seconds| Ok(format!("Sur ce Mac, {seconds} secondes.")));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Err(FailureKind::Network)),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert!(meeting.local_fallback_ms > 0);
+        assert!(meeting
+            .turns
+            .iter()
+            .all(|turn| turn.text.contains("Sur ce Mac")));
+        // Not asked while Codex is out of reach, and written once it is back.
+        assert_eq!(summarizer.calls(), 0);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert!(h.store.waiting_for_processing().unwrap().contains(&id));
+        h.process_all(
+            id,
+            codex(|_| Ok("never".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        assert_eq!(summarizer.calls(), 1);
     }
 
     #[test]
@@ -1600,8 +1768,10 @@ mod tests {
             assert!(dir.join(paths::AUDIO_FILE).exists());
             assert!(!dir.join(paths::MIC_TRACK).exists());
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
-            // Without the archive bridge, the tracks still wait to be
-            // compressed.
+        }
+        // Windows has no archive bridge: the tracks still wait to be
+        // compressed.
+        if cfg!(target_os = "macos") {
             assert!(h.store.waiting_for_processing().unwrap().is_empty());
         }
     }
@@ -1723,6 +1893,94 @@ mod tests {
     }
 
     #[test]
+    fn a_summary_codex_cannot_reach_stays_pending_for_the_queue() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
+            kind: FailureKind::Network,
+            detail: String::new(),
+        })]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::Unreachable);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.summary_error, None);
+        // Compressed once the summary is settled.
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        assert!(h.store.waiting_for_processing().unwrap().contains(&id));
+    }
+
+    #[test]
+    fn an_offline_summary_after_rate_limited_local_fallback_stays_in_the_live_queue() {
+        use crate::meetings::{processing_finished, Next, ProcessingQueue};
+        use std::time::SystemTime;
+
+        let local = codex(|_| Ok("Sur ce Mac.".into()));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let queue = ProcessingQueue::new(false);
+        queue.enqueue(id);
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Process(id)
+        );
+        let summarizer = FakeSummarizer::answering(vec![Err(CompletionError::Failed {
+            kind: FailureKind::Network,
+            detail: String::new(),
+        })]);
+        let verdict = h.process_all(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&summarizer),
+        );
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+        assert_eq!(summarizer.calls(), 1);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.summary_status, SummaryStatus::Pending);
+        assert_eq!(meeting.audio, AudioState::Tracks);
+        let local_calls = local.calls.lock().unwrap().len();
+        assert!(local_calls > 0);
+
+        processing_finished(&queue, &h.store, id, verdict, true);
+        assert_eq!(queue.queued(), [id]);
+        assert!(queue.held_for(id).is_some());
+        let until = queue.state().held_until.unwrap();
+        assert_eq!(queue.state().take_next(until, true), Next::Process(id));
+
+        let cloud_again = codex(|_| panic!("completed chunks must not be sent again"));
+        let recovered = FakeSummarizer::answering(vec![Ok("# Recovered\nNotes.".into())]);
+        let verdict = h.process_all(
+            id,
+            Arc::clone(&cloud_again),
+            Arc::new(FakeAnalyzer::without_models()),
+            Arc::clone(&recovered),
+        );
+        processing_finished(&queue, &h.store, id, verdict, true);
+        assert_eq!(verdict, CodexVerdict::Answered);
+        assert!(queue.queued().is_empty());
+        assert_eq!(recovered.calls(), 1);
+        assert!(cloud_again.calls.lock().unwrap().is_empty());
+        assert_eq!(local.calls.lock().unwrap().len(), local_calls);
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+        // Windows has no archive bridge to compress it.
+        if cfg!(target_os = "macos") {
+            assert_eq!(meeting.audio, AudioState::Compressed);
+        }
+    }
+
+    #[test]
     fn a_meeting_codex_transcribes_says_codex_answered() {
         let h = harness();
         let id = spoken_meeting(&h);
@@ -1733,6 +1991,72 @@ mod tests {
             FakeSummarizer::answering(vec![Ok("Notes.".into())]),
         );
         assert_eq!(verdict, CodexVerdict::Answered);
+    }
+
+    #[test]
+    fn past_the_rate_limit_a_ready_model_fills_the_meeting_and_counts_its_time() {
+        let local = codex(|seconds| Ok(format!("Sur ce Mac, {seconds} secondes.")));
+        let h = Harness {
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let verdict = h.process_with(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+        );
+
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.error, None);
+        assert!(meeting
+            .turns
+            .iter()
+            .all(|turn| turn.text.contains("Sur ce Mac")));
+        let spoken_ms: i64 = h
+            .store
+            .chunks(id)
+            .unwrap()
+            .iter()
+            .filter(|chunk| chunk.status == ChunkStatus::Done)
+            .map(|chunk| (chunk.end_ms - chunk.start_ms) as i64)
+            .sum();
+        assert_eq!(local.calls.lock().unwrap().len(), 2);
+        assert!(spoken_ms > 0);
+        assert_eq!(meeting.local_fallback_ms, spoken_ms);
+        // Codex still limits: the meetings queued after this one wait.
+        assert_eq!(verdict, CodexVerdict::RateLimited);
+
+        // Transcribing again with Codex leaves nothing done on this Mac.
+        assert!(h.store.retranscribe(id).unwrap());
+        let h = Harness { local: None, ..h };
+        h.process(id, codex(|_| Ok("Par Codex.".into())));
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.status, MeetingStatus::Ready);
+        assert_eq!(meeting.local_fallback_ms, 0);
+    }
+
+    #[test]
+    fn past_the_rate_limit_a_language_the_model_lacks_waits_for_codex() {
+        let local = codex(|_| Ok("サンプル".into()));
+        let h = Harness {
+            language: Some("ja"),
+            local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+            ..harness()
+        };
+        let id = spoken_meeting(&h);
+        let verdict = h.process_with(
+            id,
+            codex(|_| Err(FailureKind::RateLimited)),
+            Arc::new(FakeAnalyzer::without_models()),
+        );
+
+        assert!(local.calls.lock().unwrap().is_empty());
+        let meeting = h.store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.error, Some(ProcessingError::RateLimited));
+        assert_eq!(meeting.local_fallback_ms, 0);
+        assert_eq!(verdict, CodexVerdict::RateLimited);
     }
 
     #[test]
@@ -1760,6 +2084,7 @@ mod tests {
             done: AtomicU32::new(0),
             total: 2,
             rate_limited: AtomicBool::new(false),
+            unreachable: AtomicBool::new(false),
             answered: AtomicBool::new(false),
         };
         let job = |track| Job {
@@ -1959,7 +2284,7 @@ mod tests {
             .filter(|(_, text)| *text != "Ding.")
             .map(|(key, _)| *key)
             .collect();
-        assert_eq!(room, ["s1", "s2"].into());
+        assert_eq!(room, std::collections::HashSet::from(["s1", "s2"]));
         let mac = turns.iter().find(|(_, text)| *text == "Ding.");
         assert_eq!(mac.map(|(key, _)| *key), Some("s3"));
         let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
@@ -1983,6 +2308,97 @@ mod tests {
     }
 
     const ROOM: f32 = -58.0;
+
+    /// The levels of a track of `seconds`: `quiet`, but for the given
+    /// `(from, to, db)` stretches, in milliseconds.
+    fn levels_of(seconds: u64, quiet: f32, sounds: &[(u64, u64, f32)]) -> Audio {
+        let levels: Vec<f32> = (0..seconds * 1_000 / chunking::FRAME_MS)
+            .map(|frame| {
+                let ms = frame * chunking::FRAME_MS;
+                sounds
+                    .iter()
+                    .find(|(from, to, _)| (*from..*to).contains(&ms))
+                    .map_or(quiet, |(_, _, db)| *db)
+            })
+            .collect();
+        Audio {
+            path: PathBuf::new(),
+            threshold: speech_threshold(&levels),
+            levels: TrackLevels {
+                duration_ms: seconds * 1_000,
+                levels,
+            },
+        }
+    }
+
+    /// A call on the built-in speakers, without the on-device models: the
+    /// user speaks from 1 to 4 s, the remote side from 6 to 9 s, and the
+    /// microphone hears it 15 dB lower. Codex writes the echo too.
+    fn echoed_call(route: OutputRoute) -> Vec<(String, String)> {
+        let audio = HashMap::from([
+            (
+                Track::Mic,
+                levels_of(20, -65.0, &[(1_000, 4_000, -20.0), (6_000, 9_000, -40.0)]),
+            ),
+            (
+                Track::System,
+                levels_of(20, DIGITAL_SILENCE_DBFS, &[(6_000, 9_000, -25.0)]),
+            ),
+        ]);
+        let piece = |track, text: &str| ChunkRow {
+            track,
+            idx: 0,
+            start_ms: 0,
+            end_ms: 20_000,
+            status: ChunkStatus::Done,
+            text: Some(text.to_string()),
+        };
+        let chunks = [
+            piece(Track::System, "On valide le budget jeudi prochain."),
+            piece(
+                Track::Mic,
+                "Moi je préfère lundi, vraiment. On valide le budget jeudi prochain.",
+            ),
+        ];
+        build_transcript(&chunks, &audio, None, Track::System, None, route)
+            .turns
+            .into_iter()
+            .map(|turn| (turn.speaker_key, turn.text))
+            .collect()
+    }
+
+    #[test]
+    fn an_echo_is_removed_without_words_heard_on_device() {
+        assert_eq!(
+            echoed_call(OutputRoute::Speakers),
+            [
+                (
+                    "me".to_string(),
+                    "Moi je préfère lundi, vraiment.".to_string()
+                ),
+                (
+                    "s1".to_string(),
+                    "On valide le budget jeudi prochain.".to_string()
+                ),
+            ]
+        );
+    }
+
+    /// On headphones the microphone hears no remote voice: whatever the
+    /// user said stays, even the remote side's words said back.
+    #[test]
+    fn nothing_is_taken_off_the_microphone_of_a_meeting_on_headphones() {
+        let turns = echoed_call(OutputRoute::Headphones);
+        let mine: Vec<&str> = turns
+            .iter()
+            .filter(|(key, _)| key == "me")
+            .map(|(_, text)| text.as_str())
+            .collect();
+        assert_eq!(
+            mine.join(" "),
+            "Moi je préfère lundi, vraiment. On valide le budget jeudi prochain."
+        );
+    }
 
     /// Without words heard on device, an hour-long call where the user
     /// presents and three remote participants ask questions for a few
@@ -2164,7 +2580,7 @@ mod tests {
     }
 
     /// Deleting a meeting cancels its run, maybe while the tracks are read;
-    /// the next meeting can get the same id, so nothing may be stored after.
+    /// nothing may be stored after.
     #[test]
     fn a_run_cancelled_while_reading_the_tracks_stores_nothing() {
         let h = harness();
@@ -2269,7 +2685,7 @@ mod tests {
 
     #[test]
     fn transcribing_again_offline_keeps_the_transcript_and_the_names() {
-        transcribing_again_while_codex_fails(FailureKind::Network, ProcessingError::PartsFailed);
+        transcribing_again_while_codex_fails(FailureKind::Network, ProcessingError::Offline);
     }
 
     /// A transcript with a part missing stays when transcribing it again

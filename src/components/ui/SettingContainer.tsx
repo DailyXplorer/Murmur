@@ -8,8 +8,6 @@ interface SettingContainerProps {
   children: React.ReactNode;
   /** Shown under the title and description, in the text column. */
   detail?: React.ReactNode;
-  /** A small label beside the title, such as "Experimental". */
-  badge?: React.ReactNode;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   layout?: "horizontal" | "stacked";
@@ -91,7 +89,7 @@ export const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
         type="button"
         aria-label={description}
         aria-describedby={visible ? tooltipId : undefined}
-        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:start-0 after:top-1/2 after:size-control after:-translate-y-1/2 hover:text-logo-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-logo-primary"
+        className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-mid-gray transition-colors duration-150 after:absolute after:start-0 after:top-1/2 after:size-control after:-translate-y-1/2 hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
         onMouseEnter={showTooltip}
         onMouseLeave={scheduleTooltipHide}
         onFocus={showTooltip}
@@ -120,7 +118,6 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   description,
   children,
   detail,
-  badge,
   descriptionMode = "tooltip",
   grouped = false,
   layout = "horizontal",
@@ -145,7 +142,6 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
               position={tooltipPosition}
             />
           )}
-          {badge}
         </div>
         {descriptionMode === "inline" && (
           <p
@@ -177,7 +173,6 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
               position={tooltipPosition}
             />
           )}
-          {badge}
         </div>
         {descriptionMode === "inline" && (
           <p

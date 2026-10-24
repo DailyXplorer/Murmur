@@ -1,9 +1,13 @@
+#[cfg(target_os = "macos")]
+use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
 use crate::operation::ProcessingOperation;
+#[cfg(target_os = "macos")]
+use crate::overlay::ClipboardWriter;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
 #[cfg(target_os = "macos")]
-use objc2_app_kit::NSWorkspace;
+use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -25,6 +29,11 @@ pub(crate) enum PasteOutcome {
     Skipped,
     /// The user selected PasteMethod::None; history may still be committed.
     IntentionalNone,
+    /// No text field had the keyboard focus, so the overlay offers to copy
+    /// the text; the clipboard is left alone until the user clicks Copy.
+    /// Only macOS Accessibility tells, so Windows never offers it.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
+    CopyOffered,
 }
 
 fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
@@ -63,6 +72,43 @@ fn complete_clipboard_only_output(
         }
     }
     PasteOutcome::IntentionalNone
+}
+
+/// Where no text field takes the paste, the overlay offers the text instead
+/// of a keystroke going nowhere. `show` gets the text and `write` for the
+/// pill's Copy click; nothing writes the clipboard before that click. With no
+/// pill to show, the offer is `Skipped`, so the caller's recovery keeps the
+/// text. Only macOS Accessibility tells that no text field has the focus.
+#[cfg(target_os = "macos")]
+fn offer_copy(
+    operation: &ProcessingOperation,
+    text: String,
+    write: ClipboardWriter,
+    show: impl FnOnce(String, ClipboardWriter) -> bool,
+) -> PasteOutcome {
+    let Some(_permit) = operation.try_enter_paste() else {
+        return PasteOutcome::Cancelled;
+    };
+    if show(text, write) {
+        PasteOutcome::CopyOffered
+    } else {
+        PasteOutcome::Skipped
+    }
+}
+
+/// Puts the text on the clipboard, after any pending guarded paste settles,
+/// so it stays there. Must run on the main thread.
+#[cfg(target_os = "macos")]
+pub(crate) fn copy_to_keep(app_handle: &AppHandle, text: &str) -> Result<(), String> {
+    crate::paste_tx::settle_pending();
+    write_text_to_clipboard(app_handle, text)
+}
+
+#[cfg(target_os = "macos")]
+async fn keyboard_focus() -> FocusedField {
+    tauri::async_runtime::spawn_blocking(crate::accessibility::keyboard_focus)
+        .await
+        .unwrap_or(FocusedField::Unknown)
 }
 
 #[cfg(target_os = "macos")]
@@ -127,14 +173,43 @@ impl FrontmostTarget {
     }
 }
 
+/// Spotlight, Raycast and Alfred take the keyboard in a non-activating panel
+/// while the app behind it stays frontmost, and a pid-targeted event goes to
+/// that app, not to the panel. The keyboard focus wins unless it is Murmur's
+/// own or Accessibility cannot tell.
+#[cfg(target_os = "macos")]
+fn keyboard_target_pid(frontmost: Option<i32>, focused: Option<i32>, own_pid: u32) -> Option<i32> {
+    focused
+        .filter(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
+        .or(frontmost)
+}
+
+/// The app that holds the keyboard, which every paste, typed text and Return
+/// is posted to.
 #[cfg(target_os = "macos")]
 pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
-    let application = NSWorkspace::sharedWorkspace().frontmostApplication()?;
+    let frontmost = NSWorkspace::sharedWorkspace().frontmostApplication();
+    let focused = Element::system_wide()
+        .and_then(|system| system.element("AXFocusedApplication"))
+        .and_then(|application| application.pid());
+    let pid = keyboard_target_pid(
+        frontmost.as_ref().map(|app| app.processIdentifier()),
+        focused,
+        std::process::id(),
+    )?;
+    let application = match frontmost {
+        Some(app) if app.processIdentifier() == pid => Some(app),
+        _ => NSRunningApplication::runningApplicationWithProcessIdentifier(pid),
+    };
     FrontmostTarget::new(
-        application.processIdentifier(),
-        application.bundleIdentifier().map(|id| id.to_string()),
+        pid,
         application
-            .launchDate()
+            .as_ref()
+            .and_then(|app| app.bundleIdentifier())
+            .map(|id| id.to_string()),
+        application
+            .as_ref()
+            .and_then(|app| app.launchDate())
             .map(|date| date.timeIntervalSinceReferenceDate()),
     )
 }
@@ -374,6 +449,19 @@ pub(crate) async fn paste(
 
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;
+    #[cfg(target_os = "macos")]
+    if matches!(paste_method, PasteMethod::CtrlV | PasteMethod::Direct)
+        && keyboard_focus().await == FocusedField::NoTextField
+    {
+        info!("No text field has the keyboard focus; offering a copy instead of pasting");
+        let app_for_copy = app_handle.clone();
+        return Ok(offer_copy(
+            &operation,
+            text,
+            Arc::new(move |text| copy_to_keep(&app_for_copy, text)),
+            |text, write| crate::overlay::show_copy_notice(&app_handle, text, write),
+        ));
+    }
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
@@ -536,6 +624,31 @@ mod tests {
         assert_eq!(FrontmostTarget::new(own_pid, None, None), None);
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn output_goes_to_the_app_that_holds_the_keyboard() {
+        const OWN: u32 = 7;
+        // (frontmost, focused, expected)
+        let cases = [
+            // Spotlight's panel over Slack: the panel holds the keyboard.
+            (Some(100), Some(200), Some(200)),
+            (Some(100), Some(100), Some(100)),
+            // No Accessibility answer, or Murmur's own window.
+            (Some(100), None, Some(100)),
+            (Some(100), Some(7), Some(100)),
+            (Some(100), Some(0), Some(100)),
+            (None, Some(200), Some(200)),
+            (None, None, None),
+        ];
+        for (frontmost, focused, expected) in cases {
+            assert_eq!(
+                keyboard_target_pid(frontmost, focused, OWN),
+                expected,
+                "frontmost {frontmost:?}, focused {focused:?}"
+            );
+        }
+    }
+
     #[test]
     fn frontmost_target_comparison_fails_closed() {
         let first = Some(target(42));
@@ -591,6 +704,67 @@ mod tests {
                 || panic!("history-only output must not touch the clipboard"),
             ),
             PasteOutcome::IntentionalNone
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn without_a_text_field_the_clipboard_is_written_only_when_copy_is_clicked() {
+        let clipboard = Arc::new(Mutex::new(Vec::<String>::new()));
+        let pasteboard = Arc::clone(&clipboard);
+        let write: ClipboardWriter = Arc::new(move |text| {
+            pasteboard.lock().unwrap().push(text.to_string());
+            Ok(())
+        });
+        let operation = ProcessingOperation::new(OperationId(14));
+
+        let outcome = offer_copy(&operation, "hello".into(), write, |text, write| {
+            crate::overlay::hold_copy_notice(text, write);
+            true
+        });
+        assert_eq!(outcome, PasteOutcome::CopyOffered);
+        assert!(!operation.cancel(), "the offer claimed the output");
+        assert!(
+            clipboard.lock().unwrap().is_empty(),
+            "nothing copied before the click"
+        );
+
+        crate::overlay::copy_held_notice().unwrap();
+        assert_eq!(clipboard.lock().unwrap().as_slice(), ["hello"]);
+    }
+
+    #[cfg(target_os = "macos")]
+    fn untouchable_clipboard() -> ClipboardWriter {
+        Arc::new(|_| panic!("the clipboard must not be written"))
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn without_the_overlay_the_offer_is_skipped_for_recovery() {
+        let outcome = offer_copy(
+            &ProcessingOperation::new(OperationId(15)),
+            "hello".into(),
+            untouchable_clipboard(),
+            |_, _| false,
+        );
+
+        assert_eq!(outcome, PasteOutcome::Skipped);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_cancelled_offer_never_shows() {
+        let cancelled = ProcessingOperation::new(OperationId(16));
+        assert!(cancelled.cancel());
+
+        assert_eq!(
+            offer_copy(
+                &cancelled,
+                "hello".into(),
+                untouchable_clipboard(),
+                |_, _| panic!("cancelled output must not show the copy pill")
+            ),
+            PasteOutcome::Cancelled
         );
     }
 

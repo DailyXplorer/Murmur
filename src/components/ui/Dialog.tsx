@@ -29,7 +29,7 @@ interface DialogProps {
   dismissible?: boolean;
   closeOnBackdrop?: boolean;
   showCloseButton?: boolean;
-  initialFocusRef?: React.RefObject<HTMLElement>;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   className?: string;
   contentClassName?: string;
   contentFades?: boolean;
@@ -157,8 +157,11 @@ export const Dialog: React.FC<DialogProps> = ({
 
   if (!open) return null;
 
+  // The rest of a double click on the button that opened the dialog lands on
+  // the backdrop when that button lies outside the panel.
   const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (
+      event.detail <= 1 &&
       dismissible &&
       closeOnBackdrop &&
       isTopmostLayer() &&

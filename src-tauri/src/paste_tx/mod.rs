@@ -204,9 +204,10 @@ pub(crate) fn same_pending<T>(current: Option<&Arc<T>>, candidate: &Arc<T>) -> b
 
 /// Settles a paste still inside its bounded lifetime. The promised data dies
 /// with the process and the saved clipboard lives only in its memory, so
-/// quitting without this leaves the user's copied content lost. Must run on
-/// the main thread.
-pub(crate) fn settle_before_exit() {
+/// quitting without this leaves the user's copied content lost; a clipboard
+/// write that must stay must also come after it, or the settlement could put
+/// the previous clipboard back over it. Must run on the main thread.
+pub(crate) fn settle_pending() {
     platform::flush_pending();
 }
 

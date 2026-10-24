@@ -38,8 +38,10 @@ test("opening a second shortcut field moves the capture to it", async ({
     ]);
 });
 
-const leaveWindow = {
-  "switching to another app": () => window.dispatchEvent(new Event("blur")),
+const leaveWindow: Record<string, () => void> = {
+  "switching to another app": () => {
+    window.dispatchEvent(new Event("blur"));
+  },
   "hiding the Settings window": () => {
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -47,7 +49,9 @@ const leaveWindow = {
     });
     document.dispatchEvent(new Event("visibilitychange"));
   },
-  "leaving the settings page": () => window.shortcutCapture.unmount(),
+  "leaving the settings page": () => {
+    window.shortcutCapture.unmount();
+  },
 };
 
 for (const [action, leave] of Object.entries(leaveWindow)) {
@@ -128,6 +132,32 @@ test("keys are sent in the spelling the shortcut parser accepts", async ({
       "resume_all_bindings",
       "suspend_all_bindings",
       "change_binding cancel numpadadd",
+      "resume_all_bindings",
+    ]);
+});
+
+test("a shortcut shows the keys the keyboard layout prints", async ({
+  page,
+}) => {
+  // On AZERTY the default meeting shortcut is on the "," key.
+  await expect(field(page, "meeting_toggle")).toHaveText(
+    "Ctrl + Option + Command + ,",
+  );
+  await expect(field(page, "paste_last")).toHaveText("Ctrl + Command + V");
+
+  // The key printed M is the one a US keyboard calls ";".
+  await field(page, "meeting_toggle").click();
+  await expect(capture(page, "meeting_toggle")).toBeVisible();
+  await page.keyboard.press("Control+Alt+Meta+Semicolon");
+
+  await expect(field(page, "meeting_toggle")).toHaveText(
+    "Ctrl + Option + Command + M",
+  );
+  await expect
+    .poll(() => calls(page))
+    .toEqual([
+      "suspend_all_bindings",
+      "change_binding meeting_toggle ctrl+option+command+;",
       "resume_all_bindings",
     ]);
 });

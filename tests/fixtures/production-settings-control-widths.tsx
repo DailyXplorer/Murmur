@@ -32,7 +32,7 @@ const TRANSCRIBE_BINDING: ShortcutBinding = {
   default_binding: "Alt+Space",
   description: "Record and transcribe",
   id: "transcribe",
-  name: "Transcribe Shortcut",
+  name: "Transcribe shortcut",
 };
 
 const TEST_SETTINGS: AppSettings = {
@@ -47,7 +47,6 @@ const TEST_SETTINGS: AppSettings = {
   paste_method: "ctrl_v",
   selected_language: "auto",
   selected_microphone: "Default",
-  transcription_provider: "gemini",
 };
 
 const ProductionSettingsControlWidthsFixture: React.FC = () => (
@@ -78,12 +77,6 @@ const ProductionSettingsControlWidthsFixture: React.FC = () => (
 const renderFixture = async () => {
   mockIPC((command) => {
     if (command === "get_codex_auth_status") return { signed_in: true };
-    if (command === "get_apple_intelligence_status") {
-      return "appleIntelligenceNotEnabled";
-    }
-    if (command === "get_gemini_status") {
-      return { installed: true, signed_in: true };
-    }
     throw new Error(`Unexpected Tauri command: ${command}`);
   });
 

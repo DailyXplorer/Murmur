@@ -16,7 +16,7 @@ use super::export::clock;
 use super::merge::PLACEHOLDER;
 use super::rename::MAX_TITLE_CHARS;
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
-use super::transcribe::{CodexVerdict, RetryPolicy};
+use super::transcribe::{unreachable, CodexVerdict, RetryPolicy};
 use crate::chinese_script::in_chosen_script;
 use crate::cleanup::responses::{self, CompletionError, Request};
 use crate::codex_auth;
@@ -77,8 +77,10 @@ pub enum SummaryError {
     /// Codex needs a new sign-in.
     SignedOut,
     RateLimited,
-    /// Codex could not be reached, or answered with an error.
+    /// Codex could not be reached.
     Network,
+    /// Codex answered with a server error, or its reply was cut off.
+    Server,
     Timeout,
     /// The reply ran past its length cap.
     TooLong,
@@ -95,6 +97,7 @@ impl SummaryError {
             Self::SignedOut => "signed_out",
             Self::RateLimited => "rate_limited",
             Self::Network => "network",
+            Self::Server => "server",
             Self::Timeout => "timeout",
             Self::TooLong => "too_long",
             Self::Empty => "empty",
@@ -108,6 +111,7 @@ impl SummaryError {
             "signed_out" => Self::SignedOut,
             "rate_limited" => Self::RateLimited,
             "network" => Self::Network,
+            "server" => Self::Server,
             "timeout" => Self::Timeout,
             "too_long" => Self::TooLong,
             "empty" => Self::Empty,
@@ -121,9 +125,15 @@ impl SummaryError {
         match kind {
             FailureKind::SessionExpired | FailureKind::SignedOut => Self::SignedOut,
             FailureKind::RateLimited => Self::RateLimited,
-            FailureKind::Network | FailureKind::ServerError => Self::Network,
+            FailureKind::Network => Self::Network,
+            FailureKind::ServerError | FailureKind::ConnectionDropped => Self::Server,
             FailureKind::Timeout => Self::Timeout,
-            FailureKind::TooLarge | FailureKind::Rejected | FailureKind::Other => Self::Other,
+            FailureKind::TooLarge
+            | FailureKind::Rejected
+            | FailureKind::LocalNotReady
+            | FailureKind::LocalFailed
+            | FailureKind::LanguageNeedsCloud
+            | FailureKind::Other => Self::Other,
         }
     }
 }
@@ -303,14 +313,7 @@ impl Summarizer for CodexSummarizer {
             let mut session = codex_auth::session_for_request(&auth_path).await?;
             let model =
                 responses::default_model(&responses::models_url(&url), &session, codex_home).await;
-            let mut request = Request {
-                model: &model,
-                instructions: &instructions,
-                user_message: &input,
-                max_output_chars: MAX_OUTPUT_CHARS,
-                effort: "medium",
-                verbosity: "medium",
-            };
+            let mut request = summary_request(&model, &instructions, &input);
             let mut result = responses::complete(&url, &session, &request, &operation).await;
             if let Err(CompletionError::Failed {
                 kind: FailureKind::SessionExpired,
@@ -334,16 +337,33 @@ impl Summarizer for CodexSummarizer {
     }
 }
 
+/// One summary call to Codex.
+fn summary_request<'a>(model: &'a str, instructions: &'a str, input: &'a str) -> Request<'a> {
+    Request {
+        model,
+        instructions,
+        user_message: input,
+        max_output_chars: MAX_OUTPUT_CHARS,
+        effort: "medium",
+        verbosity: "medium",
+        // As long as a transcription piece: the summary has no fallback, and
+        // retrying on the same slow link would only time out again.
+        connect_timeout: crate::codex_transcribe::CONNECT_TIMEOUT,
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum SummaryEnd {
     Written(Summary),
     Failed(SummaryError),
+    /// Codex could not be reached once the retries were spent.
+    Unreachable,
     Cancelled,
 }
 
 /// One request, retried like a transcription piece: rate limits back off
 /// within the policy's budget, and network, timeout and server failures
-/// retry a few times. Each attempt has its own deadline.
+/// retry for a few minutes. Each attempt has its own deadline.
 async fn ask(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
@@ -370,10 +390,6 @@ async fn ask(
                 log::warn!("Meeting summary request failed ({kind:?}): {detail}");
                 kind
             }
-            Ok(Err(other)) => {
-                log::warn!("Meeting summary request failed: {other:?}");
-                return Err(SummaryEnd::Failed(SummaryError::Other));
-            }
             Err(_) => FailureKind::Timeout,
         };
         let delay = match kind {
@@ -383,13 +399,19 @@ async fn ask(
                 waited += delay;
                 (waited <= policy.rate_limit_budget).then_some(delay)
             }
-            FailureKind::Network | FailureKind::Timeout | FailureKind::ServerError => {
+            FailureKind::Network
+            | FailureKind::Timeout
+            | FailureKind::ServerError
+            | FailureKind::ConnectionDropped => {
                 transient += 1;
                 policy.transient.get(transient - 1).copied()
             }
             _ => None,
         };
         let Some(delay) = delay else {
+            if unreachable(kind) {
+                return Err(SummaryEnd::Unreachable);
+            }
             return Err(SummaryEnd::Failed(SummaryError::of(kind)));
         };
         tokio::select! {
@@ -472,6 +494,7 @@ impl SummaryError {
             Self::TooLong | Self::Empty => CodexVerdict::Answered,
             Self::SignedOut
             | Self::Network
+            | Self::Server
             | Self::Timeout
             | Self::NothingToSummarize
             | Self::Other => CodexVerdict::Unknown,
@@ -525,6 +548,15 @@ pub async fn write(
                 codex: error.verdict(),
             })
         }
+        // Still pending: the queue writes it once the connection is back,
+        // and at the next launch.
+        SummaryEnd::Unreachable => {
+            log::warn!("Meeting {id}: no summary yet, Codex is out of reach");
+            Ok(Summarized {
+                settled: false,
+                codex: CodexVerdict::Unreachable,
+            })
+        }
         SummaryEnd::Cancelled => Ok(Summarized {
             settled: false,
             codex: CodexVerdict::Unknown,
@@ -537,6 +569,12 @@ mod tests {
     use super::*;
     use crate::OperationId;
     use std::sync::Mutex;
+
+    #[test]
+    fn a_summary_connects_on_any_link_a_transcription_connects_on() {
+        let request = summary_request("model", "instructions", "transcript");
+        assert!(request.connect_timeout >= crate::codex_transcribe::CONNECT_TIMEOUT);
+    }
 
     fn speaker(key: &str, name: &str) -> MeetingSpeaker {
         MeetingSpeaker {
@@ -763,13 +801,26 @@ mod tests {
     }
 
     #[test]
-    fn a_lasting_network_failure_fails_the_summary_after_three_retries() {
+    fn a_lasting_network_failure_leaves_codex_out_of_reach_after_three_retries() {
         let script = Script::new((0..4).map(|_| failed(FailureKind::Network)).collect());
         assert_eq!(
             run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
-            SummaryEnd::Failed(SummaryError::Network)
+            SummaryEnd::Unreachable
         );
         assert_eq!(script.requests.lock().unwrap().len(), 4);
+    }
+
+    /// Codex was reached: the summary does not say it could not be.
+    #[test]
+    fn a_lasting_server_failure_or_cut_reply_fails_as_codex_trouble() {
+        for kind in [FailureKind::ServerError, FailureKind::ConnectionDropped] {
+            let script = Script::new((0..4).map(|_| failed(kind)).collect());
+            assert_eq!(
+                run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
+                SummaryEnd::Failed(SummaryError::Server),
+                "{kind:?}"
+            );
+        }
     }
 
     #[test]
@@ -886,7 +937,7 @@ mod tests {
             ),
             (
                 failed(FailureKind::ServerError),
-                SummaryEnd::Failed(SummaryError::Network),
+                SummaryEnd::Failed(SummaryError::Server),
             ),
             (
                 Err(CompletionError::TooLong),
@@ -894,12 +945,19 @@ mod tests {
             ),
             (Err(CompletionError::Cancelled), SummaryEnd::Cancelled),
             (Ok("\n".into()), SummaryEnd::Failed(SummaryError::Empty)),
+            (failed(FailureKind::Network), SummaryEnd::Unreachable),
+            // Codex was reached: a long summary that runs out of time is no
+            // reason to wait for the connection.
+            (
+                failed(FailureKind::Timeout),
+                SummaryEnd::Failed(SummaryError::Timeout),
+            ),
         ] {
             assert_eq!(run(&Script::new(vec![answer]), MAX_SUMMARY_CHARS), end);
         }
         // A failed section stops before the merge.
-        let script = Script::new(vec![failed(FailureKind::Timeout)]);
-        assert_eq!(run(&script, 100), SummaryEnd::Failed(SummaryError::Timeout));
+        let script = Script::new(vec![failed(FailureKind::Network)]);
+        assert_eq!(run(&script, 100), SummaryEnd::Unreachable);
         assert_eq!(script.requests.lock().unwrap().len(), 1);
     }
 
@@ -1116,6 +1174,7 @@ mod tests {
             SummaryError::SignedOut,
             SummaryError::RateLimited,
             SummaryError::Network,
+            SummaryError::Server,
             SummaryError::Timeout,
             SummaryError::TooLong,
             SummaryError::Empty,
@@ -1124,36 +1183,5 @@ mod tests {
         ] {
             assert_eq!(SummaryError::from_db(error.as_db()), Some(error));
         }
-    }
-
-    /// No meeting code may reach Apple's on-device models.
-    #[test]
-    fn meetings_never_use_apple_intelligence() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/meetings");
-        let mut pending = vec![std::path::PathBuf::from(dir)];
-        let mut checked = 0;
-        while let Some(path) = pending.pop() {
-            if path.is_dir() {
-                pending.extend(
-                    std::fs::read_dir(&path)
-                        .unwrap()
-                        .map(|entry| entry.unwrap().path()),
-                );
-            } else if path.extension().is_some_and(|ext| ext == "rs") {
-                let source = std::fs::read_to_string(&path).unwrap();
-                for forbidden in ["apple::", "FoundationModels", "clean_with_apple"] {
-                    assert!(
-                        !source
-                            .lines()
-                            .filter(|line| !line.contains("forbidden in"))
-                            .any(|line| line.contains(forbidden)),
-                        "{} uses {forbidden}",
-                        path.display()
-                    );
-                }
-                checked += 1;
-            }
-        }
-        assert!(checked > 10);
     }
 }

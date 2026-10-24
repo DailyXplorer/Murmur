@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod constants;
 pub mod gain;
+pub mod pauses;
 pub mod text;
 
 pub use audio::{
