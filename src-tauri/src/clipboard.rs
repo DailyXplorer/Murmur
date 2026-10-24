@@ -438,10 +438,13 @@ async fn wait_or_cancel(delay: Duration, operation: &ProcessingOperation) -> boo
     }
 }
 
+/// `mic_lost` puts the microphone warning on the copy pill, when one is
+/// offered.
 pub(crate) async fn paste(
     text: String,
     app_handle: AppHandle,
     operation: ProcessingOperation,
+    mic_lost: bool,
 ) -> Result<PasteOutcome, String> {
     if operation.cancellation_requested() {
         return Ok(PasteOutcome::Cancelled);
@@ -459,7 +462,7 @@ pub(crate) async fn paste(
             &operation,
             text,
             Arc::new(move |text| copy_to_keep(&app_for_copy, text)),
-            |text, write| crate::overlay::show_copy_notice(&app_handle, text, write),
+            |text, write| crate::overlay::show_copy_notice(&app_handle, text, write, mic_lost),
         ));
     }
     let text = if settings.append_trailing_space {

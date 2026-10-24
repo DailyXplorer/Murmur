@@ -33,6 +33,7 @@
     "overlayCopy": "Copier",
     "overlayCopied": "Copié",
     "overlayNotPasted": "Il n’y avait pas de champ de texte où coller.",
+    "overlayMicDisconnected": "L'enregistrement s'est arrêté : votre micro s'est déconnecté.",
     "callRecordQuestion": "Enregistrer cette réunion ?",
     "callRecord": "Enregistrer",
     "callNotNow": "Pas maintenant",
