@@ -54,6 +54,7 @@ pub enum Browser {
     Edge,
     EdgeBeta,
     Brave,
+    Helium,
     Firefox,
 }
 
@@ -70,6 +71,7 @@ impl Browser {
             Self::Edge => "com.microsoft.edgemac",
             Self::EdgeBeta => "com.microsoft.edgemac.Beta",
             Self::Brave => "com.brave.Browser",
+            Self::Helium => "net.imput.helium",
             Self::Firefox => "org.mozilla.firefox",
         }
     }
@@ -92,7 +94,7 @@ pub enum MicApp {
     Browser(Browser),
 }
 
-const MIC_APPS: [(&str, MicApp); 21] = [
+const MIC_APPS: [(&str, MicApp); 22] = [
     ("us.zoom.xos", MicApp::Call(CallApp::Zoom)),
     ("com.microsoft.teams2", MicApp::Call(CallApp::Teams)),
     ("com.microsoft.teams", MicApp::Call(CallApp::Teams)),
@@ -111,6 +113,7 @@ const MIC_APPS: [(&str, MicApp); 21] = [
     ("company.thebrowser.Browser", MicApp::Browser(Browser::Arc)),
     ("com.microsoft.edgemac", MicApp::Browser(Browser::Edge)),
     ("com.brave.Browser", MicApp::Browser(Browser::Brave)),
+    ("net.imput.helium", MicApp::Browser(Browser::Helium)),
     ("org.mozilla.firefox", MicApp::Browser(Browser::Firefox)),
     // Firefox's pages run in this process.
     (
@@ -681,6 +684,7 @@ mod tests {
             ("com.google.Chrome.canary", CallApp::Zoom),
             ("com.microsoft.edgemac", CallApp::Webex),
             ("com.microsoft.edgemac.Beta", CallApp::Discord),
+            ("net.imput.helium", CallApp::Slack),
         ];
         let users: Vec<_> = editions
             .iter()
@@ -738,6 +742,39 @@ mod tests {
             mic_app("com.google.Chrome.beta.helper"),
             Some(MicApp::Browser(Browser::ChromeBeta))
         );
+        assert_eq!(
+            mic_app("net.imput.helium.helper"),
+            Some(MicApp::Browser(Browser::Helium))
+        );
+    }
+
+    #[test]
+    fn a_meet_call_in_helium_prompts_from_its_window_titles() {
+        // Helium takes the microphone in its helper, with Chrome open too.
+        let users = [user(500, "net.imput.helium.helper")];
+        let windows = [
+            ("com.google.Chrome", "Voice memo"),
+            ("net.imput.helium", "Meet - abc-defg-hij"),
+        ];
+        let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+            assert!(!browser.reads_url(), "titles only, as Arc, Edge and Brave");
+            // Same exact app-selection predicate as call_watch::browser_call.
+            windows.iter().find_map(|(running_id, title)| {
+                (*running_id == browser.bundle_id())
+                    .then(|| meeting_title(title))
+                    .flatten()
+            })
+        });
+        assert_eq!(calls, [CallApp::GoogleMeet]);
+
+        // A meeting window in Chrome must not turn Helium's microphone use
+        // into a call.
+        let calls = calls_on_mic(&users, OWN_PID, &mut BTreeMap::new(), |browser| {
+            (browser.bundle_id() == "com.google.Chrome")
+                .then(|| meeting_title("Meet - abc-defg-hij"))
+                .flatten()
+        });
+        assert_eq!(calls, []);
     }
 
     #[test]
