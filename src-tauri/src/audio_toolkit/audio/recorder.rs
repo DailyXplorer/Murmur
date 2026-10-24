@@ -778,6 +778,91 @@ mod tests {
         worker.join().expect("join consumer");
     }
 
+    /// A consumer that found a recording's start and stop both queued when
+    /// it first ran.
+    struct Stopping {
+        sample_tx: mpsc::Sender<AudioChunk>,
+        cmd_tx: mpsc::Sender<Cmd>,
+        reply: mpsc::Receiver<Capture>,
+        stop_flag: Arc<AtomicBool>,
+        worker: thread::JoinHandle<()>,
+    }
+
+    impl Stopping {
+        /// `in_flight` is already sent by the callback when the consumer
+        /// starts.
+        fn with(in_flight: Option<Vec<f32>>) -> Self {
+            let (sample_tx, sample_rx) = mpsc::channel();
+            let (cmd_tx, cmd_rx) = mpsc::channel();
+            let (ready_tx, _ready_rx) = mpsc::channel();
+            cmd_tx
+                .send(Cmd::Start(Instant::now(), ready_tx))
+                .expect("start");
+            let reply = stop(&cmd_tx);
+            if let Some(samples) = in_flight {
+                sample_tx.send(AudioChunk::Samples(samples)).expect("chunk");
+            }
+            let stop_flag = Arc::new(AtomicBool::new(false));
+            let consumer_flag = Arc::clone(&stop_flag);
+            let worker = thread::spawn(move || {
+                run_consumer(
+                    16_000,
+                    sample_rx,
+                    cmd_rx,
+                    None,
+                    consumer_flag,
+                    Instant::now(),
+                );
+            });
+            Self {
+                sample_tx,
+                cmd_tx,
+                reply,
+                stop_flag,
+                worker,
+            }
+        }
+
+        fn shut_down(self) {
+            self.cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+            drop(self.sample_tx);
+            self.worker.join().expect("join consumer");
+        }
+    }
+
+    #[test]
+    fn a_microphone_lost_after_a_first_chunk_the_stop_took_is_reported() {
+        let consumer = Stopping::with(Some(vec![0.1; 4_800]));
+
+        // The stop takes the stream's first chunk, then the device goes
+        // away: no EndOfStream follows.
+        let capture = consumer.reply.recv().expect("reply");
+
+        assert_eq!(capture.samples.len(), 4_800);
+        assert!(capture.mic_lost, "the stop says the microphone was lost");
+        consumer.shut_down();
+    }
+
+    #[test]
+    fn a_microphone_lost_after_a_first_chunk_drained_by_the_stop_is_reported() {
+        let consumer = Stopping::with(None);
+
+        // The stop waits for the stream's end; the first chunk comes in
+        // meanwhile, then the device goes away.
+        while !consumer.stop_flag.load(Ordering::Relaxed) {
+            thread::yield_now();
+        }
+        consumer
+            .sample_tx
+            .send(AudioChunk::Samples(vec![0.1; 4_800]))
+            .expect("chunk");
+        let capture = consumer.reply.recv().expect("reply");
+
+        assert_eq!(capture.samples.len(), 4_800);
+        assert!(capture.mic_lost, "the stop says the microphone was lost");
+        consumer.shut_down();
+    }
+
     #[test]
     fn a_microphone_cpal_reported_gone_before_any_audio_is_reported_lost() {
         let (sample_tx, cmd_tx, _, worker) = spawn_consumer();
@@ -953,6 +1038,7 @@ fn run_consumer(
                     if let Some(AudioChunk::Samples(raw)) =
                         pending.take().filter(|_| !capture_limit_logged)
                     {
+                        first_chunk_arrived = true;
                         frame_resampler.push(&raw, &mut |frame: &[f32]| {
                             if append_recording_frame(frame, true, &mut processed_samples)
                                 && !capture_limit_logged
@@ -971,6 +1057,7 @@ fn run_consumer(
                     loop {
                         match sample_rx.recv_timeout(Duration::from_secs(2)) {
                             Ok(AudioChunk::Samples(remaining)) => {
+                                first_chunk_arrived = true;
                                 if !capture_limit_logged {
                                     frame_resampler.push(&remaining, &mut |frame: &[f32]| {
                                         if append_recording_frame(
