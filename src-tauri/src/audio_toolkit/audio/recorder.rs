@@ -19,8 +19,17 @@ use crate::audio_toolkit::{
 
 enum Cmd {
     Start(Instant, mpsc::Sender<()>),
-    Stop(mpsc::Sender<Vec<f32>>),
+    Stop(mpsc::Sender<Capture>),
     Shutdown,
+}
+
+/// What a stop hands back.
+#[derive(Default)]
+pub struct Capture {
+    pub samples: Vec<f32>,
+    /// The microphone went away before the stop, so the samples end where
+    /// it did.
+    pub mic_lost: bool,
 }
 
 enum AudioChunk {
@@ -342,12 +351,19 @@ impl AudioRecorder {
         Ok(ready_rx)
     }
 
-    pub fn stop(&self) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+    /// A device cpal reported gone before its first chunk sent nothing the
+    /// consumer could miss, so its report counts too.
+    pub fn stop(&self) -> Result<Capture, Box<dyn std::error::Error>> {
         let (resp_tx, resp_rx) = mpsc::channel();
         if let Some(tx) = &self.cmd_tx {
             tx.send(Cmd::Stop(resp_tx))?;
         }
-        Ok(resp_rx.recv()?)
+        let mut capture = resp_rx.recv()?;
+        capture.mic_lost |= self
+            .health
+            .as_ref()
+            .is_some_and(|health| health.failed.load(Ordering::Relaxed));
+        Ok(capture)
     }
 
     /// True when the active capture stream must be rebuilt.
@@ -580,7 +596,7 @@ fn append_recording_frame(samples: &[f32], recording: bool, out_buf: &mut Vec<f3
 mod tests {
     use super::{
         append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
-        run_consumer, AudioRecorder, Cmd, StreamHealth, STALL,
+        run_consumer, AudioChunk, AudioRecorder, Capture, Cmd, StreamHealth, STALL,
     };
     use std::{
         sync::{
@@ -682,6 +698,113 @@ mod tests {
         assert!(stopped.is_ok(), "shutdown waited for an audio sample");
     }
 
+    /// A consumer at the target rate, fed by the test in place of cpal's
+    /// callback.
+    fn spawn_consumer() -> (
+        mpsc::Sender<AudioChunk>,
+        mpsc::Sender<Cmd>,
+        Arc<AtomicBool>,
+        thread::JoinHandle<()>,
+    ) {
+        let (sample_tx, sample_rx) = mpsc::channel();
+        let (cmd_tx, cmd_rx) = mpsc::channel();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let consumer_flag = Arc::clone(&stop_flag);
+        let worker = thread::spawn(move || {
+            run_consumer(
+                16_000,
+                sample_rx,
+                cmd_rx,
+                None,
+                consumer_flag,
+                Instant::now(),
+            );
+        });
+        (sample_tx, cmd_tx, stop_flag, worker)
+    }
+
+    /// Starts a recording and returns once its first chunk is captured.
+    fn record_one_chunk(sample_tx: &mpsc::Sender<AudioChunk>, cmd_tx: &mpsc::Sender<Cmd>) {
+        let (ready_tx, ready_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Start(Instant::now(), ready_tx))
+            .expect("start");
+        sample_tx
+            .send(AudioChunk::Samples(vec![0.1; 4_800]))
+            .expect("chunk");
+        ready_rx.recv().expect("the chunk was captured");
+    }
+
+    fn stop(cmd_tx: &mpsc::Sender<Cmd>) -> mpsc::Receiver<Capture> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        cmd_tx.send(Cmd::Stop(reply_tx)).expect("stop");
+        reply_rx
+    }
+
+    #[test]
+    fn a_microphone_lost_mid_recording_is_reported_with_the_audio_before_it() {
+        let (sample_tx, cmd_tx, _, worker) = spawn_consumer();
+        record_one_chunk(&sample_tx, &cmd_tx);
+
+        // The device went away: its callback never runs again, so the stop
+        // gets no EndOfStream.
+        let capture = stop(&cmd_tx).recv().expect("reply");
+
+        assert!(capture.mic_lost, "the stop says the microphone was lost");
+        assert_eq!(capture.samples.len(), 4_800, "the audio before it is kept");
+        cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+    }
+
+    #[test]
+    fn a_recording_stopped_by_the_user_reports_no_lost_microphone() {
+        let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+        record_one_chunk(&sample_tx, &cmd_tx);
+
+        let reply = stop(&cmd_tx);
+        // As cpal's callback does: the next call after the stop flag is set
+        // ends the stream.
+        while !stop_flag.load(Ordering::Relaxed) {
+            thread::yield_now();
+        }
+        sample_tx.send(AudioChunk::EndOfStream).expect("end");
+        let capture = reply.recv().expect("reply");
+
+        assert!(!capture.mic_lost);
+        assert_eq!(capture.samples.len(), 4_800);
+        cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+    }
+
+    #[test]
+    fn a_microphone_cpal_reported_gone_before_any_audio_is_reported_lost() {
+        let (sample_tx, cmd_tx, _, worker) = spawn_consumer();
+        let mut recorder = AudioRecorder::new().expect("recorder");
+        recorder.cmd_tx = Some(cmd_tx);
+        let health = Arc::new(StreamHealth::new(Instant::now()));
+        recorder.health = Some(Arc::clone(&health));
+
+        // A Bluetooth microphone can take seconds to deliver its first
+        // chunk: a stop before it is no sign of a lost device.
+        recorder.start().expect("start");
+        let slow = recorder.stop().expect("stop");
+        assert!(slow.samples.is_empty());
+        assert!(!slow.mic_lost, "a slow microphone is not a lost one");
+
+        // cpal's disconnect listener fired before the first chunk.
+        recorder.start().expect("start");
+        health.failed.store(true, Ordering::Relaxed);
+        let lost = recorder.stop().expect("stop");
+        assert!(lost.samples.is_empty());
+        assert!(lost.mic_lost);
+
+        recorder.close().expect("close");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+    }
+
     #[test]
     fn detects_access_is_denied() {
         assert!(is_microphone_access_denied("Access is denied"));
@@ -757,8 +880,9 @@ fn run_consumer(
 
     // First-chunk arrival exposes the play()->samples-flowing gap; the
     // first-captured log confirms capture begins with the chunk in flight
-    // when Cmd::Start lands.
-    let mut first_chunk_logged = false;
+    // when Cmd::Start lands. Once the stream has delivered, a stop that gets
+    // no EndOfStream back means its callbacks stopped: the device is gone.
+    let mut first_chunk_arrived = false;
     let mut awaiting_first_captured_chunk: Option<Instant> = None;
     let mut capture_ready_tx: Option<mpsc::Sender<()>> = None;
 
@@ -843,6 +967,7 @@ fn run_consumer(
                     // The cpal callback sees the stop flag, sends EndOfStream, and goes
                     // silent — guaranteeing every captured sample is in the channel
                     // ahead of the sentinel.
+                    let mut mic_lost = false;
                     loop {
                         match sample_rx.recv_timeout(Duration::from_secs(2)) {
                             Ok(AudioChunk::Samples(remaining)) => {
@@ -865,6 +990,7 @@ fn run_consumer(
                             Ok(AudioChunk::EndOfStream) => break,
                             Err(_) => {
                                 log::warn!("Timed out waiting for EndOfStream from audio callback");
+                                mic_lost = first_chunk_arrived;
                                 break;
                             }
                         }
@@ -881,7 +1007,10 @@ fn run_consumer(
                         });
                     }
 
-                    let _ = reply_tx.send(std::mem::take(&mut processed_samples));
+                    let _ = reply_tx.send(Capture {
+                        samples: std::mem::take(&mut processed_samples),
+                        mic_lost,
+                    });
 
                     // Resume the audio callback so the consumer loop can continue
                     // receiving chunks (important for always-on microphone mode).
@@ -901,8 +1030,8 @@ fn run_consumer(
         };
 
         let chunk_ms = raw.len() as f64 * 1000.0 / in_sample_rate as f64;
-        if !first_chunk_logged {
-            first_chunk_logged = true;
+        if !first_chunk_arrived {
+            first_chunk_arrived = true;
             log::debug!(
                 "first audio chunk arrived {:?} after stream start ({:.1}ms of audio)",
                 stream_running_at.elapsed(),

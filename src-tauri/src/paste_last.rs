@@ -53,7 +53,8 @@ pub(crate) fn spawn(app: &AppHandle, operation: ProcessingOperation) {
             user_alert::show(&app, Alert::NothingToPaste);
             return;
         };
-        match crate::clipboard::paste(text.clone(), app.clone(), operation).await {
+        // Nothing is recorded, so no microphone can go away.
+        match crate::clipboard::paste(text.clone(), app.clone(), operation, false).await {
             Ok(
                 PasteOutcome::Injected
                 | PasteOutcome::CopyOffered
