@@ -4,8 +4,9 @@
 #   settings-window.png       the settings window once onboarding is done
 #   desktop-overlay.png       the desktop while a dictation is toggled on
 #   murmur.log                the app log
-# Fails when the install is not per-user, the app quits, or the log shows a
-# panic.
+# Fails when the install is not per-user, lacks the Visual C++ runtime beside
+# the app, the app loads that runtime from elsewhere, quits, or the log shows
+# a panic.
 param(
     [Parameter(Mandatory)] [string] $Installer,
     [Parameter(Mandatory)] [string] $OutputDir
@@ -99,8 +100,20 @@ try {
     Write-Host "Installed DLLs: $($dlls -join ', ')"
     if ($dlls -notcontains 'transcribe.dll') { throw 'The installer shipped no transcribe.dll' }
     if (-not ($dlls | Where-Object { $_ -like 'ggml-cpu*' })) { throw 'The installer shipped no CPU module' }
+    # The Visual C++ runtime, for a PC without the redistributable.
+    foreach ($required in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'vcomp140.dll') {
+        if ($dlls -notcontains $required) { throw "The installer shipped no $required" }
+    }
 
     $murmur = Start-Murmur
+    # The runner has the redistributable in System32: the app must load the
+    # runtime from its own folder all the same.
+    $murmur.Refresh()
+    $runtime = $murmur.Modules | Where-Object { $_.ModuleName -match '^(msvcp140|vcruntime140|vcomp140)' }
+    $runtime | ForEach-Object { Write-Host "Loaded $($_.FileName)" }
+    if (-not ($runtime | Where-Object ModuleName -eq 'vcruntime140.dll')) { throw 'Murmur loaded no vcruntime140.dll' }
+    $outside = $runtime | Where-Object { (Split-Path $_.FileName) -ne $installDir }
+    if ($outside) { throw "Murmur loaded the Visual C++ runtime from outside its folder: $($outside.FileName -join ', ')" }
     Save-Desktop 'desktop-first-launch.png'
     Stop-Murmur $murmur
 

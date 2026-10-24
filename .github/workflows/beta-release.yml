@@ -62,6 +62,11 @@ jobs:
             echo "tag=v${version}-beta.${number}"
           } >> "$GITHUB_OUTPUT"
 
+      # Murmur then starts on a PC without the Visual C++ Redistributable.
+      - name: Locate the Visual C++ runtime
+        shell: pwsh
+        run: ./.github/scripts/windows-vc-runtime.ps1
+
       - name: Build the installer
         run: bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis
 
@@ -97,7 +102,7 @@ jobs:
             echo
             echo "1. Download \`${asset}\` below and run it."
             echo "2. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
-            echo "3. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one."
+            echo "3. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one. Nothing else to install: the Visual C++ runtime comes with Murmur."
             echo
             echo "SHA-256 of \`${asset}\`: \`${checksum}\`"
           } > notes.md

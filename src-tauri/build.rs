@@ -124,6 +124,8 @@ fn main() {
     build_swift_bridges();
     build_meetings_helper();
     stage_transcribe_libs();
+    // After stage_transcribe_libs, which empties transcribe-libs/.
+    stage_vc_runtime();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
     let attributes = embed_windows_manifest(attributes);
@@ -185,6 +187,54 @@ fn stage_transcribe_libs() {
             copy_dlls(&module_dir) > 0,
             "no backend modules in {}",
             module_dir.display()
+        );
+    }
+}
+
+/// Copies the Visual C++ runtime DLLs into `transcribe-libs/`, so Murmur
+/// starts on a PC without the Visual C++ Redistributable, as Handy does. The
+/// app and transcribe.cpp link it dynamically, and Windows loads a DLL from
+/// the app's folder first. `MURMUR_VC_REDIST_DIRS` names the redist folders
+/// of the Visual Studio that compiled them (`.github/scripts/windows-vc-runtime.ps1`);
+/// without it, as in a local build, nothing is copied.
+fn stage_vc_runtime() {
+    use std::path::PathBuf;
+
+    println!("cargo:rerun-if-env-changed=MURMUR_VC_REDIST_DIRS");
+    let Some(redist_dirs) = std::env::var_os("MURMUR_VC_REDIST_DIRS") else {
+        return;
+    };
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        return;
+    }
+    let dest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("transcribe-libs");
+    std::fs::create_dir_all(&dest).expect("transcribe-libs/ is writable");
+    let mut copied = Vec::new();
+    for dir in std::env::split_paths(&redist_dirs) {
+        for path in std::fs::read_dir(&dir)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()))
+            .map(|entry| entry.expect("the directory entry is readable").path())
+        {
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let runtime = ["msvcp140", "vcruntime140", "vcomp140"]
+                .iter()
+                .any(|family| name.starts_with(family));
+            if runtime && name.ends_with(".dll") {
+                std::fs::copy(&path, dest.join(&name)).expect("the DLL can be copied");
+                copied.push(name);
+            }
+        }
+    }
+    // An installer without them would ship an app that cannot start on a PC
+    // without the redistributable.
+    for required in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
+        assert!(
+            copied.iter().any(|name| name == required),
+            "no {required} in MURMUR_VC_REDIST_DIRS"
         );
     }
 }
