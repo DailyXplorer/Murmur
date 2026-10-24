@@ -452,7 +452,7 @@ impl ShortcutAction for TranscribeAction {
                 if samples.is_empty() {
                     debug!("Recording produced no audio samples; skipping persistence");
                     if mic_lost {
-                        show_mic_lost_notice(&ah);
+                        show_mic_lost_notice(&ah, &operation);
                     }
                 } else {
                     // Save WAV concurrently with transcription
@@ -562,8 +562,10 @@ impl ShortcutAction for TranscribeAction {
                                         source,
                                     );
                                 }
+                                // A cancel during the save leaves the
+                                // overlay to the dictation after it.
                                 if mic_lost {
-                                    show_mic_lost_notice(&ah);
+                                    show_mic_lost_notice(&ah, &operation);
                                 }
                             } else {
                                 // `clipboard::paste` owns its native
@@ -601,7 +603,7 @@ impl ShortcutAction for TranscribeAction {
                                                     | crate::clipboard::PasteOutcome::IntentionalNone
                                             )
                                         {
-                                            show_mic_lost_notice(&ah);
+                                            show_mic_lost_notice(&ah, &operation);
                                         }
                                         outcome != crate::clipboard::PasteOutcome::Skipped
                                     }
