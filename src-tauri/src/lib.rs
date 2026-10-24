@@ -241,17 +241,13 @@ fn centered_window_origin(
     objc2_foundation::NSPoint::new(x, y)
 }
 
-/// The frame size that fits a window of `size` in `visible`, a screen's frame
-/// without the menu bar and Dock, never smaller than `min`. All are frame sizes.
-#[cfg(target_os = "macos")]
-fn fitted_window_size(
-    visible: objc2_foundation::NSSize,
-    size: objc2_foundation::NSSize,
-    min: objc2_foundation::NSSize,
-) -> objc2_foundation::NSSize {
-    objc2_foundation::NSSize::new(
-        size.width.min(visible.width).max(min.width),
-        size.height.min(visible.height).max(min.height),
+/// The (width, height) that fits a window of `size` in `visible`, the screen
+/// without the menu bar and Dock or the taskbar, never smaller than `min`.
+/// All include the title bar and borders, in one unit.
+fn fitted_window_size(visible: (f64, f64), size: (f64, f64), min: (f64, f64)) -> (f64, f64) {
+    (
+        size.0.min(visible.0).max(min.0),
+        size.1.min(visible.1).max(min.1),
     )
 }
 
@@ -288,12 +284,15 @@ fn center_settings_window_on_pointer_screen(
             .or_else(|| NSScreen::mainScreen(mtm));
         if let Some(screen) = screen {
             let visible = screen.visibleFrame();
+            let frame = native_window.frame().size;
             // tao stores min_inner_size as the frame's minSize, title bar included.
-            let size = fitted_window_size(
-                visible.size,
-                native_window.frame().size,
-                native_window.minSize(),
+            let min = native_window.minSize();
+            let (width, height) = fitted_window_size(
+                (visible.size.width, visible.size.height),
+                (frame.width, frame.height),
+                (min.width, min.height),
             );
+            let size = objc2_foundation::NSSize::new(width, height);
             let origin = centered_window_origin(visible, size);
             native_window.setFrame_display(objc2_foundation::NSRect::new(origin, size), true);
         }
@@ -303,7 +302,9 @@ fn center_settings_window_on_pointer_screen(
 }
 
 /// Centers the settings window in the work area of the monitor under the
-/// pointer, as the macOS build does with its screens.
+/// pointer, as the macOS build does with its screens. A window too tall or
+/// wide for that work area, such as 1024x768 less the taskbar, shrinks to
+/// fit, never below its minimum size.
 #[cfg(target_os = "windows")]
 fn center_settings_window_on_pointer_screen(
     main_window: &tauri::WebviewWindow,
@@ -314,13 +315,17 @@ fn center_settings_window_on_pointer_screen(
     let Some(monitor) = window_placement::monitor_under_cursor(main_window.app_handle()) else {
         return Ok(());
     };
-    // The window may still sit on a monitor with another scale; its size on
-    // the destination is its logical size at the destination's scale.
-    let size = main_window
-        .outer_size()?
-        .to_logical::<f64>(main_window.scale_factor()?)
-        .to_physical::<u32>(monitor.scale_factor());
-    let position = window_placement::centered_in(monitor.work_area(), size);
+    // The window may still sit on a monitor with another scale; its sizes on
+    // the destination are its logical sizes at the destination's scale.
+    let scale = main_window.scale_factor()?;
+    let (inner_size, position) = window_placement::fitted_and_centered(
+        monitor.work_area(),
+        monitor.scale_factor(),
+        main_window.outer_size()?.to_logical(scale),
+        main_window.inner_size()?.to_logical(scale),
+        SETTINGS_WINDOW_MIN_SIZE,
+    );
+    main_window.set_size(inner_size)?;
     main_window.set_position(position)
 }
 
@@ -1081,9 +1086,8 @@ mod headless_guard_tests {
     #[cfg(target_os = "macos")]
     mod settings_window {
         use super::super::{
-            centered_window_origin, fitted_window_size, screen_containing,
-            settings_window_collection_behavior, settings_window_needs_order_out,
-            SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE,
+            centered_window_origin, screen_containing, settings_window_collection_behavior,
+            settings_window_needs_order_out, SETTINGS_WINDOW_SIZE,
         };
         use objc2_foundation::{NSPoint, NSRect, NSSize};
 
@@ -1145,40 +1149,6 @@ mod headless_guard_tests {
         }
 
         #[test]
-        fn settings_window_keeps_its_default_size_on_a_large_screen() {
-            let visible = NSSize::new(1512.0, 879.0);
-            let size = fitted_window_size(
-                visible,
-                frame(SETTINGS_WINDOW_SIZE),
-                frame(SETTINGS_WINDOW_MIN_SIZE),
-            );
-            assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
-        }
-
-        #[test]
-        fn settings_window_shrinks_to_a_small_screen() {
-            // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
-            let visible = NSSize::new(1280.0, 705.0);
-            let size = fitted_window_size(
-                visible,
-                frame(SETTINGS_WINDOW_SIZE),
-                frame(SETTINGS_WINDOW_MIN_SIZE),
-            );
-            assert_eq!(size, NSSize::new(SETTINGS_WINDOW_SIZE.0, 705.0));
-        }
-
-        #[test]
-        fn settings_window_never_shrinks_below_its_minimum() {
-            let visible = NSSize::new(600.0, 500.0);
-            let size = fitted_window_size(
-                visible,
-                frame(SETTINGS_WINDOW_SIZE),
-                frame(SETTINGS_WINDOW_MIN_SIZE),
-            );
-            assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
-        }
-
-        #[test]
         fn the_screen_under_the_pointer_is_the_one_containing_it() {
             let screens = [
                 rect(0.0, 0.0, 1512.0, 982.0),
@@ -1193,6 +1163,47 @@ mod headless_guard_tests {
                 Some(0)
             );
             assert_eq!(screen_containing(&screens, NSPoint::new(-5.0, 10.0)), None);
+        }
+    }
+
+    /// The settings window's size on a screen, the same on macOS and Windows.
+    mod settings_window_size {
+        use super::super::{fitted_window_size, SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE};
+
+        /// The frame size of a content size, with a macOS 28-point title bar.
+        fn frame(content: (f64, f64)) -> (f64, f64) {
+            (content.0, content.1 + 28.0)
+        }
+
+        #[test]
+        fn settings_window_keeps_its_default_size_on_a_large_screen() {
+            let size = fitted_window_size(
+                (1512.0, 879.0),
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, frame(SETTINGS_WINDOW_SIZE));
+        }
+
+        #[test]
+        fn settings_window_shrinks_to_a_small_screen() {
+            // A 13" 1280x800 screen less a 25-point menu bar and a 70-point Dock.
+            let size = fitted_window_size(
+                (1280.0, 705.0),
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, (SETTINGS_WINDOW_SIZE.0, 705.0));
+        }
+
+        #[test]
+        fn settings_window_never_shrinks_below_its_minimum() {
+            let size = fitted_window_size(
+                (600.0, 500.0),
+                frame(SETTINGS_WINDOW_SIZE),
+                frame(SETTINGS_WINDOW_MIN_SIZE),
+            );
+            assert_eq!(size, frame(SETTINGS_WINDOW_MIN_SIZE));
         }
     }
 

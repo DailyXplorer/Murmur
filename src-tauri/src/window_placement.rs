@@ -4,7 +4,7 @@
 //! window moving between monitors of different scales lands where intended.
 
 use crate::settings::OverlayPosition;
-use tauri::{AppHandle, Monitor, PhysicalPosition, PhysicalRect, PhysicalSize};
+use tauri::{AppHandle, LogicalSize, Monitor, PhysicalPosition, PhysicalRect, PhysicalSize};
 
 /// The monitor holding the cursor, else the primary one.
 pub fn monitor_under_cursor(app: &AppHandle) -> Option<Monitor> {
@@ -30,6 +30,30 @@ pub fn centered_in(
     PhysicalPosition::new(
         center(area.position.x, area.size.width, size.width),
         center(area.position.y, area.size.height, size.height),
+    )
+}
+
+/// The inner size and position of a window of `outer` and `inner` logical
+/// size moved to a monitor of `scale` with work area `area`: its outer size
+/// fitted to the area, its inner size never under `min_inner`, centered.
+pub fn fitted_and_centered(
+    area: &PhysicalRect<i32, u32>,
+    scale: f64,
+    outer: LogicalSize<f64>,
+    inner: LogicalSize<f64>,
+    min_inner: (f64, f64),
+) -> (LogicalSize<f64>, PhysicalPosition<i32>) {
+    let border = (outer.width - inner.width, outer.height - inner.height);
+    let visible = area.size.to_logical::<f64>(scale);
+    let (width, height) = crate::fitted_window_size(
+        (visible.width, visible.height),
+        (outer.width, outer.height),
+        (min_inner.0 + border.0, min_inner.1 + border.1),
+    );
+    let size = LogicalSize::new(width, height).to_physical::<u32>(scale);
+    (
+        LogicalSize::new(width - border.0, height - border.1),
+        centered_in(area, size),
     )
 }
 
@@ -96,6 +120,56 @@ mod tests {
             centered_in(&area, PhysicalSize::new(680, 570)),
             PhysicalPosition::new(100, 50)
         );
+    }
+
+    /// The settings window at its default size, with Windows 11 borders: 8
+    /// pixels left, right and bottom, and a 31-pixel title bar.
+    fn settings_window() -> (LogicalSize<f64>, LogicalSize<f64>) {
+        (
+            LogicalSize::new(796.0, 759.0),
+            LogicalSize::new(780.0, 720.0),
+        )
+    }
+
+    const MIN_INNER: (f64, f64) = (680.0, 570.0);
+
+    #[test]
+    fn the_settings_window_fits_above_the_taskbar_of_a_1024x768_screen() {
+        // The CI runner's desktop, taskbar 48 pixels high.
+        let (outer, inner) = settings_window();
+        let (size, position) =
+            fitted_and_centered(&rect(0, 0, 1024, 720), 1.0, outer, inner, MIN_INNER);
+        assert_eq!(size, LogicalSize::new(780.0, 681.0));
+        assert_eq!(position, PhysicalPosition::new(114, 0));
+    }
+
+    #[test]
+    fn the_settings_window_fits_a_150_percent_monitor_in_its_logical_size() {
+        // 1920x1080 at 150% is 1280x720 logical; the taskbar takes 72 pixels.
+        let (outer, inner) = settings_window();
+        let (size, position) =
+            fitted_and_centered(&rect(0, 0, 1920, 1008), 1.5, outer, inner, MIN_INNER);
+        assert_eq!(size, LogicalSize::new(780.0, 633.0));
+        assert_eq!(position, PhysicalPosition::new(363, 0));
+    }
+
+    #[test]
+    fn the_settings_window_keeps_its_size_on_a_large_monitor() {
+        let (outer, inner) = settings_window();
+        let (size, position) =
+            fitted_and_centered(&rect(0, 0, 1920, 1032), 1.0, outer, inner, MIN_INNER);
+        assert_eq!(size, inner);
+        assert_eq!(position, PhysicalPosition::new(562, 136));
+    }
+
+    #[test]
+    fn the_settings_window_never_shrinks_below_its_minimum() {
+        let (outer, inner) = settings_window();
+        let (size, position) =
+            fitted_and_centered(&rect(0, 0, 800, 560), 1.0, outer, inner, MIN_INNER);
+        assert_eq!(size, LogicalSize::new(780.0, 570.0));
+        // Too tall still: the title bar stays inside the work area.
+        assert_eq!(position, PhysicalPosition::new(2, 0));
     }
 
     #[test]
