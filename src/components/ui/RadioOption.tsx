@@ -32,7 +32,7 @@ export const RadioOption = <T extends string>({
       checked={checked}
       disabled={disabled}
       onChange={() => onSelect(value)}
-      className="mt-0.5 size-4 shrink-0 accent-logo-primary disabled:opacity-50 dark:[color-scheme:dark]"
+      className="mt-0.5 size-4 shrink-0 cursor-[inherit] appearance-none rounded-full border border-mid-gray/40 bg-mid-gray/20 transition-shadow duration-200 checked:border-transparent checked:bg-white checked:shadow-[inset_0_0_0_4px_var(--color-background-ui),var(--knob-shadow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
     />
     <span className={`min-w-0 ${disabled ? "opacity-50" : ""}`}>
       <span className="block text-sm font-medium">{title}</span>
