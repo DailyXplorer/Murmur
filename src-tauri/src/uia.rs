@@ -54,8 +54,8 @@ pub struct Automation {
 impl Automation {
     pub fn new() -> windows::core::Result<Self> {
         let apartment = Apartment::enter()?;
-        // Two clients created at the same moment fail one of them with
-        // E_FAIL, so creation takes turns.
+        // While another thread creates a client, CreateCacheRequest fails
+        // with E_FAIL, so creation takes turns.
         static CREATING: Mutex<()> = Mutex::new(());
         let _turn = CREATING.lock().unwrap_or_else(PoisonError::into_inner);
         // SAFETY: COM is initialised on this thread, and each call returns
