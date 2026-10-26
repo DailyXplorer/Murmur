@@ -145,6 +145,17 @@ impl Automation {
         .map(Element)
     }
 
+    /// `element` with its properties fetched again, in one call to the app.
+    /// A reader that keeps an element across polls reads through this: the
+    /// field may have become a password field since it was found.
+    pub fn refreshed(&self, element: &Element) -> Option<Element> {
+        // SAFETY: `element` is a live element of this client; returns an
+        // owned interface or an error.
+        unsafe { element.0.BuildUpdatedCache(&self.cache) }
+            .ok()
+            .map(Element)
+    }
+
     /// Whether `a` and `b` are the same element of the app, compared by
     /// runtime id.
     pub fn same(&self, a: &Element, b: &Element) -> bool {

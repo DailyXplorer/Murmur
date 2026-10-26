@@ -166,10 +166,12 @@ impl Fields for crate::uia::Automation {
         crate::uia::Automation::same(self, a, b)
     }
 
-    /// Line breaks as the dictation wrote them: Windows fields hold `\r\n`
-    /// or `\r` for each `\n` pasted.
+    /// Read as the field is now, so one hidden as a password since the
+    /// watch found it is never asked, as macOS checks the role on every
+    /// read. Line breaks as the dictation wrote them: Windows fields hold
+    /// `\r\n` or `\r` for each `\n` pasted.
     fn text(&self, field: &Self::Field, max: usize) -> Option<String> {
-        field
+        self.refreshed(field)?
             .text(max)
             .map(|text| text.replace("\r\n", "\n").replace('\r', "\n"))
     }
