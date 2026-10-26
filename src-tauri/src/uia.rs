@@ -24,13 +24,11 @@ const TIMEOUT_MS: u32 = 250;
 struct Apartment(PhantomData<*const ()>);
 
 impl Apartment {
-    fn enter() -> Option<Self> {
+    fn enter() -> windows::core::Result<Self> {
         // SAFETY: plain call. It fails on a thread already in a
         // single-threaded apartment, which is then left as it was.
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
-            .ok()
-            .ok()?;
-        Some(Self(PhantomData))
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok()?;
+        Ok(Self(PhantomData))
     }
 }
 
@@ -53,21 +51,21 @@ pub struct Automation {
 }
 
 impl Automation {
-    pub fn new() -> Option<Self> {
+    pub fn new() -> windows::core::Result<Self> {
         let apartment = Apartment::enter()?;
         // SAFETY: COM is initialised on this thread, and each call returns
         // an owned interface or an error.
         unsafe {
             let automation: IUIAutomation2 =
-                CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).ok()?;
-            automation.SetConnectionTimeout(TIMEOUT_MS).ok()?;
-            automation.SetTransactionTimeout(TIMEOUT_MS).ok()?;
-            let cache = automation.CreateCacheRequest().ok()?;
-            cache.AddProperty(UIA_ControlTypePropertyId).ok()?;
-            cache.AddProperty(UIA_ValueValuePropertyId).ok()?;
-            cache.AddPattern(UIA_ValuePatternId).ok()?;
-            let any = automation.CreateTrueCondition().ok()?;
-            Some(Self {
+                CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)?;
+            automation.SetConnectionTimeout(TIMEOUT_MS)?;
+            automation.SetTransactionTimeout(TIMEOUT_MS)?;
+            let cache = automation.CreateCacheRequest()?;
+            cache.AddProperty(UIA_ControlTypePropertyId)?;
+            cache.AddProperty(UIA_ValueValuePropertyId)?;
+            cache.AddPattern(UIA_ValuePatternId)?;
+            let any = automation.CreateTrueCondition()?;
+            Ok(Self {
                 automation,
                 cache,
                 any,

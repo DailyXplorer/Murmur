@@ -17,10 +17,17 @@ pub fn current() -> Option<DictationTarget> {
     }
     let path = crate::foreground::process_image_path(foreground.pid)?;
     let bundle_id = crate::foreground::executable_name(&path)?;
-    let host = super::categories::is_browser(&bundle_id)
-        .then(crate::uia::Automation::new)
-        .flatten()
-        .and_then(|automation| browser::tab_host(&automation, foreground.window));
+    let host = if super::categories::is_browser(&bundle_id) {
+        match crate::uia::Automation::new() {
+            Ok(automation) => browser::tab_host(&automation, foreground.window),
+            Err(e) => {
+                log::debug!("UI Automation is unavailable for the browser's tab: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
     Some(DictationTarget { bundle_id, host })
 }
 
