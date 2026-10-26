@@ -42,6 +42,8 @@ mod transcription_coordinator;
 mod transcription_error;
 mod tray;
 mod tray_i18n;
+#[cfg(target_os = "windows")]
+mod uia;
 mod updates;
 mod user_alert;
 mod utils;

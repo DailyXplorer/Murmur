@@ -4,6 +4,7 @@
 
 pub mod categories;
 pub mod frontmost;
+pub mod host;
 pub mod stats;
 
 use anyhow::Result;
