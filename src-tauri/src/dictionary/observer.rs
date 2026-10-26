@@ -357,7 +357,9 @@ mod tests {
         use crate::uia::test_fields::{self, requests, Read, PLAIN_TEXT};
         use crate::uia::test_window::{child, TestWindow};
         use crate::uia::{Automation, Element};
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::mpsc::{self, Sender};
+        use std::sync::Arc;
         use windows::core::HSTRING;
         use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
         use windows::Win32::System::LibraryLoader::LoadLibraryW;
@@ -556,6 +558,41 @@ mod tests {
                 Some(PLAIN_TEXT)
             );
             assert!(requests(false, Read::Text) > 0);
+        }
+
+        /// A password shown in clear when the watch starts, then hidden by
+        /// its eye button: the same element, which now says it is a
+        /// password field, is never asked for its text again.
+        #[test]
+        fn a_field_that_becomes_a_password_field_is_no_longer_read() {
+            let window = test_fields::open();
+            let field = window.handles[1];
+            let (reads, read) = mpsc::channel();
+            let stopped = Arc::new(AtomicBool::new(false));
+            let watching = {
+                let stopped = Arc::clone(&stopped);
+                std::thread::spawn(move || {
+                    let fields = TestField {
+                        automation: Automation::new().expect("UI Automation client"),
+                        field,
+                        reads,
+                    };
+                    watch(&fields, PLAIN_TEXT, || !stopped.load(Ordering::SeqCst))
+                })
+            };
+            let shown = read.recv().expect("the field before it is hidden");
+            test_fields::mask_plain_field();
+            let requested = [requests(false, Read::Value), requests(false, Read::Text)];
+            let hidden = read.recv().expect("the poll after it is hidden");
+            stopped.store(true, Ordering::SeqCst);
+            let corrections = watching.join().unwrap();
+            assert_eq!(
+                [requests(false, Read::Value), requests(false, Read::Text)],
+                requested,
+                "requests once the field is a password field"
+            );
+            assert_eq!((shown.as_deref(), hidden), (Some(PLAIN_TEXT), None));
+            assert!(corrections.is_empty());
         }
     }
 }

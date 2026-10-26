@@ -3,7 +3,7 @@
 //! its text by Value and by text pattern, and counts how often it is asked.
 
 use super::test_window::{child, instance, TestWindow};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Once;
 use windows::core::{implement, Error, IUnknown, Ref, Result, BOOL, BSTR, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{
@@ -55,6 +55,16 @@ pub fn requests(secure: bool, read: Read) -> usize {
     REQUESTS[usize::from(secure)][read as usize].load(Ordering::SeqCst)
 }
 
+/// Whether the plain field now says it is a password field, as a sign-in
+/// form's password shown in clear does once its eye button hides it.
+static MASKED: AtomicBool = AtomicBool::new(false);
+
+/// Makes the plain field a password field from now on. Its requests are
+/// still counted as the plain field's.
+pub fn mask_plain_field() {
+    MASKED.store(true, Ordering::SeqCst);
+}
+
 /// A window holding the password field, then the plain one, in `handles`.
 /// Test windows take turns, so the counts are this window's alone.
 pub fn open() -> TestWindow {
@@ -63,6 +73,7 @@ pub fn open() -> TestWindow {
         for request in REQUESTS.iter().flatten() {
             request.store(0, Ordering::SeqCst);
         }
+        MASKED.store(false, Ordering::SeqCst);
         vec![
             child(window, SECRET_FIELD, "Password", WINDOW_STYLE::default()).0 as isize,
             child(window, PLAIN_FIELD, "Message", WINDOW_STYLE::default()).0 as isize,
@@ -121,7 +132,7 @@ impl IRawElementProviderSimple_Impl for FieldProvider_Impl {
             unsafe {
                 let inner = &mut *variant.Anonymous.Anonymous;
                 inner.vt = VT_BOOL;
-                inner.Anonymous.boolVal = if self.secure {
+                inner.Anonymous.boolVal = if self.secure || MASKED.load(Ordering::SeqCst) {
                     VARIANT_TRUE
                 } else {
                     VARIANT_FALSE
