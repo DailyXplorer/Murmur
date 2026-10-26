@@ -114,8 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <nav
       aria-label={t("tray.settings")}
-      className={`flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2${
-        isWindows ? " shrink-0 overflow-y-auto" : ""
+      className={`flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2 ${
+        isWindows ? "shrink-0 overflow-y-auto" : ""
       }`}
     >
       <MurmurTextLogo
@@ -123,8 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={isWindows ? "my-4 shrink-0" : "m-4"}
       />
       <div
-        className={`flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-2${
-          isWindows ? " shrink-0" : ""
+        className={`flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-1 ${
+          isWindows ? "shrink-0" : ""
         }`}
       >
         {availableSections.map((sectionId) => {
