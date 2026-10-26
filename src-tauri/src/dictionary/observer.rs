@@ -353,6 +353,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     mod uia {
         use super::*;
+        use crate::uia::test_fields::{self, requests, Read, PLAIN_TEXT};
         use crate::uia::test_window::{child, TestWindow};
         use crate::uia::{Automation, Element};
         use std::sync::mpsc::{self, Sender};
@@ -360,8 +361,7 @@ mod tests {
         use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
         use windows::Win32::System::LibraryLoader::LoadLibraryW;
         use windows::Win32::UI::WindowsAndMessaging::{
-            SendMessageW, ES_AUTOHSCROLL, ES_MULTILINE, ES_PASSWORD, WINDOW_STYLE, WM_SETTEXT,
-            WS_BORDER,
+            SendMessageW, ES_AUTOHSCROLL, ES_MULTILINE, WINDOW_STYLE, WM_SETTEXT, WS_BORDER,
         };
 
         /// The rich edit control of Msftedit.dll, as in Windows 11's Notepad.
@@ -524,14 +524,37 @@ mod tests {
             }
         }
 
+        /// The password field would give its text by Value and by text
+        /// pattern, and counts each request; the plain field beside it
+        /// shows that both are counted.
         #[test]
-        fn a_password_field_teaches_nothing() {
-            let window = field_window("EDIT", ES_PASSWORD as u32, INSERTED);
-            let automation = Automation::new().expect("UI Automation client");
-            assert!(automation.window(window.handles[0]).unwrap().is_secure());
+        fn a_password_fields_text_is_never_requested() {
+            let window = test_fields::open();
             let (corrections, reads) = learned(&window, &[CORRECTED]);
+            let automation = Automation::new().expect("UI Automation client");
+            let secret = automation.window(window.handles[0]).unwrap();
+            let document = secret.document_text(MAX_FIELD_CHARS);
+            assert_eq!(
+                [requests(true, Read::Value), requests(true, Read::Text)],
+                [0, 0],
+                "the password field's text"
+            );
+            assert!(secret.is_secure());
             assert!(corrections.is_empty());
             assert_eq!(reads, [None], "nothing read, and the watch ended");
+            assert_eq!(document, None);
+
+            let plain = automation.window(window.handles[1]).unwrap();
+            assert_eq!(
+                Fields::text(&automation, &plain, MAX_FIELD_CHARS).as_deref(),
+                Some(PLAIN_TEXT)
+            );
+            assert!(requests(false, Read::Value) > 0);
+            assert_eq!(
+                plain.document_text(MAX_FIELD_CHARS).as_deref(),
+                Some(PLAIN_TEXT)
+            );
+            assert!(requests(false, Read::Text) > 0);
         }
     }
 }

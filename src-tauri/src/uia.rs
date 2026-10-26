@@ -376,6 +376,9 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+pub mod test_fields;
+
 /// Win32 windows for UI Automation tests, each served by a thread of its
 /// own as an app serves its windows.
 #[cfg(test)]
