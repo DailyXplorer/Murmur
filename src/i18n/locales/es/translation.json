@@ -202,7 +202,8 @@
           "set": "Error al configurar el atajo: {{error}}",
           "reset": "Error al restablecer el atajo al valor original",
           "registrationFailed": "Otra aplicación usa este atajo. Elija uno diferente.",
-          "usedByAnotherAction": "Otra acción de Murmur usa este atajo. Elija uno diferente."
+          "usedByAnotherAction": "Otra acción de Murmur usa este atajo. Elija uno diferente.",
+          "unusableKey": "Esta tecla no se puede usar en un atajo en Windows. Elija otra."
         }
       },
       "language": {

@@ -202,7 +202,8 @@
           "set": "Errore nella configurazione della scorciatoia: {{error}}",
           "reset": "Errore nella reinizializzazione della scorciatoia al valore originale",
           "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa.",
-          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa."
+          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa.",
+          "unusableKey": "Questo tasto non può essere usato in una scorciatoia su Windows. Scegline un altro."
         }
       },
       "language": {

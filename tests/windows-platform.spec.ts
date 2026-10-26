@@ -169,6 +169,46 @@ test.describe("Windows build", () => {
         .toEqual({ id: "paste_last", binding });
     }
   });
+
+  test("refuses a key no Windows shortcut can fire on", async ({ page }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+    );
+    const pasteLast = page.getByRole("button", {
+      name: "Paste last transcription: Press keys...",
+    });
+    const before = await pasteLast.textContent();
+    const refused = page.getByText(
+      "This key can't be used in a shortcut on Windows. Choose a different one.",
+    );
+
+    // The "!" key.
+    await pasteLast.click();
+    await page.keyboard.press("Control+Slash");
+    await expect(refused).toHaveCount(1);
+    await expect(pasteLast).toHaveText(before ?? "");
+
+    // The "<" key, which Playwright's US keyboard lacks.
+    await pasteLast.click();
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: "IntlBackslash",
+          key: "<",
+          ctrlKey: true,
+        }),
+      ),
+    );
+    await expect(refused).toHaveCount(2);
+    await expect(pasteLast).toHaveText(before ?? "");
+    expect(
+      await page.evaluate(() =>
+        window.settingsPages.calls.some(
+          (call) => call.command === "change_binding",
+        ),
+      ),
+    ).toBe(false);
+  });
 });
 
 test("leaves a gap between the logo divider and the first tab on Windows", async ({

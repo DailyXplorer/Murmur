@@ -202,7 +202,8 @@
           "set": "Failed to set shortcut: {{error}}",
           "reset": "Failed to reset shortcut to original value",
           "registrationFailed": "Another app is using this shortcut. Choose a different one.",
-          "usedByAnotherAction": "Another Murmur action uses this shortcut. Choose a different one."
+          "usedByAnotherAction": "Another Murmur action uses this shortcut. Choose a different one.",
+          "unusableKey": "This key can't be used in a shortcut on Windows. Choose a different one."
         }
       },
       "language": {

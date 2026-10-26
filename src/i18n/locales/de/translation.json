@@ -202,7 +202,8 @@
           "set": "Tastenkürzel konnte nicht gesetzt werden: {{error}}",
           "reset": "Tastenkürzel konnte nicht auf Originalwert zurückgesetzt werden",
           "registrationFailed": "Eine andere App verwendet dieses Kürzel. Wähle ein anderes.",
-          "usedByAnotherAction": "Eine andere Murmur-Aktion verwendet dieses Kürzel. Wähle ein anderes."
+          "usedByAnotherAction": "Eine andere Murmur-Aktion verwendet dieses Kürzel. Wähle ein anderes.",
+          "unusableKey": "Diese Taste kann unter Windows nicht in einem Kürzel verwendet werden. Wähle eine andere."
         }
       },
       "language": {

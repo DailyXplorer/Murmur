@@ -37,10 +37,11 @@ async getKeyLabels() : Promise<Partial<{ [key in string]: string }>> {
 },
 /**
  * The name to record for a key the user presses, keyed by the name of the
- * physical key, so the shortcut fires on that key. Only keys whose name
- * changes are listed: none on macOS, which registers the physical key.
+ * physical key, so the shortcut fires on that key, and the keys no shortcut
+ * can fire on. Only keys whose name changes are listed: none on macOS, which
+ * registers the physical key.
  */
-async getRecordedKeyNames() : Promise<Partial<{ [key in string]: string }>> {
+async getRecordedKeyNames() : Promise<RecordedKeys> {
     return await TAURI_INVOKE("get_recorded_key_names");
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
@@ -1483,6 +1484,21 @@ export type ProcessingError =
  * Processing stopped on an unexpected error.
  */
 "other"
+/**
+ * What the recorder saves for the physical keys of the active layout.
+ */
+export type RecordedKeys = { 
+/**
+ * The name of the virtual key under each physical key whose name
+ * differs, keyed by the physical key's name.
+ */
+names: Partial<{ [key in string]: string }>; 
+/**
+ * The physical keys whose virtual key no shortcut name registers, such
+ * as the "!" key on AZERTY: saved under their own name, a shortcut would
+ * fire on another key.
+ */
+unusable: string[] }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**

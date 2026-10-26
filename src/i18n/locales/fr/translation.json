@@ -202,7 +202,8 @@
           "set": "Échec de la définition du raccourci : {{error}}",
           "reset": "Échec de la réinitialisation du raccourci à sa valeur d'origine",
           "registrationFailed": "Une autre application utilise ce raccourci. Choisissez-en un autre.",
-          "usedByAnotherAction": "Une autre action de Murmur utilise ce raccourci. Choisissez-en un autre."
+          "usedByAnotherAction": "Une autre action de Murmur utilise ce raccourci. Choisissez-en un autre.",
+          "unusableKey": "Cette touche ne peut pas servir dans un raccourci sous Windows. Choisissez-en une autre."
         }
       },
       "language": {
