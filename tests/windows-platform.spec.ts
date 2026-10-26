@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const openWindows = async (page: Page) => {
   await page.goto("/tests/fixtures/settings-pages.html?platform=windows");
@@ -7,6 +7,55 @@ const openWindows = async (page: Page) => {
 
 const nav = (page: Page, name: string) =>
   page.getByRole("navigation").getByRole("button", { name, exact: true });
+
+// Scroll offsets/client dimensions are integer CSS pixels while the app's
+// 15px root font produces fractional row edges. Allow at most one CSS pixel
+// at a scrollport edge, not a percentage that could hide a control's label.
+const expectWithinScrollports = async (control: Locator) => {
+  await expect(control).toBeVisible();
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const clip = {
+          left: 0,
+          top: 0,
+          right: innerWidth,
+          bottom: innerHeight,
+        };
+        for (
+          let parent = element.parentElement;
+          parent;
+          parent = parent.parentElement
+        ) {
+          const style = getComputedStyle(parent);
+          const rect = parent.getBoundingClientRect();
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+            clip.left = Math.max(clip.left, rect.left + parent.clientLeft);
+            clip.right = Math.min(
+              clip.right,
+              rect.left + parent.clientLeft + parent.clientWidth,
+            );
+          }
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+            clip.top = Math.max(clip.top, rect.top + parent.clientTop);
+            clip.bottom = Math.min(
+              clip.bottom,
+              rect.top + parent.clientTop + parent.clientHeight,
+            );
+          }
+        }
+        return Math.max(
+          clip.left - bounds.left,
+          bounds.right - clip.right,
+          clip.top - bounds.top,
+          bounds.bottom - clip.bottom,
+          0,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(1);
+};
 
 const transcribeShortcut = (page: Page) =>
   page.getByRole("button", { name: "Transcribe Shortcut: Press keys..." });
@@ -104,7 +153,8 @@ for (const viewport of [
     for (const section of ["About", "Debug", "General", "Advanced"]) {
       const button = nav(page, section);
       await button.scrollIntoViewIfNeeded();
-      await expect(button).toBeInViewport({ ratio: 1 });
+      await expectWithinScrollports(button);
+      await expect(button.locator("span")).toBeInViewport({ ratio: 1 });
       if (section === "About" && viewport.height === 313) {
         expect(
           await page
@@ -121,7 +171,7 @@ for (const viewport of [
       .last()
       .locator("..");
     await lastSetting.scrollIntoViewIfNeeded();
-    await expect(lastSetting).toBeInViewport({ ratio: 1 });
+    await expectWithinScrollports(lastSetting);
     await lastSetting.click();
     await expect(page.getByText("v1.3.7", { exact: true })).toBeInViewport({
       ratio: 1,
