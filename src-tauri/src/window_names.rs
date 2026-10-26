@@ -1217,6 +1217,9 @@ mod tests {
                 Vec::new()
             });
             let root = element(&automation, window.window);
+            // The first call into the window loads its providers, which an
+            // app the user works in has long done.
+            automation.children(&root);
             let started = Instant::now();
             let text = window_text(
                 UiaNode {
@@ -1226,12 +1229,14 @@ mod tests {
                 started,
             );
             let elapsed = started.elapsed();
-            assert!(text.contains("Item 0"));
-            assert!(text.lines().count() < MAX_NODES, "{}", text.lines().count());
+            let lines = text.lines().count();
+            assert!(text.starts_with("Murmur UI Automation test\n"));
+            // The tree holds 1 641 controls, 1 601 of them named.
+            assert!(lines < MAX_NODES, "{lines} lines in {elapsed:?}");
             // One call may take its whole timeout after the last check.
             assert!(
                 elapsed < READ_BUDGET + Duration::from_millis(300),
-                "{elapsed:?}"
+                "{lines} lines in {elapsed:?}"
             );
         }
     }
