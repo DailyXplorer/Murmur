@@ -907,6 +907,9 @@
         }
       },
       "transcription": {
+        "windowNames": {
+          "description": "Quando inizi a dettare, Murmur legge il testo della finestra attiva tramite l'accessibilità di Windows (UI Automation) e invia alla pulizia i nomi trovati, per scriverli correttamente. Invia anche un breve estratto del testo intorno al cursore. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
+        },
         "engine": {
           "local": {
             "title": "Su questo PC",

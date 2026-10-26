@@ -6,19 +6,60 @@
 use std::marker::PhantomData;
 use std::sync::{Mutex, PoisonError};
 
+use crate::field_excerpt::SelectionText;
+use crate::foreground::ForegroundWindow;
+use windows::core::BOOL;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
 };
 use windows::Win32::UI::Accessibility::{
     CUIAutomation8, IUIAutomation2, IUIAutomationCacheRequest, IUIAutomationCondition,
-    IUIAutomationElement, IUIAutomationValuePattern, TreeScope_Children, UIA_ControlTypePropertyId,
-    UIA_ValuePatternId, UIA_ValueValuePropertyId, UIA_CONTROLTYPE_ID,
+    IUIAutomationElement, IUIAutomationTextPattern, IUIAutomationTextPattern2,
+    IUIAutomationTextRange, IUIAutomationValuePattern, TextPatternRangeEndpoint_End,
+    TextPatternRangeEndpoint_Start, TextUnit_Character, TreeScope_Children,
+    UIA_ControlTypePropertyId, UIA_IsPasswordPropertyId, UIA_NamePropertyId,
+    UIA_ProcessIdPropertyId, UIA_TextPattern2Id, UIA_TextPatternId, UIA_ValuePatternId,
+    UIA_ValueValuePropertyId, UIA_CONTROLTYPE_ID,
 };
 
 /// How long one call waits for an app, as `AX_TIMEOUT_SECONDS` on macOS.
 /// Windows otherwise waits 2 s to connect and 20 s for an answer.
 const TIMEOUT_MS: u32 = 250;
+
+/// Executables whose windows are never read, as `PASSWORD_APPS` on macOS,
+/// and the Windows credential prompt.
+const PASSWORD_APPS: [&str; 10] = [
+    "1password.exe",
+    "bitwarden.exe",
+    "keepass.exe",
+    "keepassxc.exe",
+    "enpass.exe",
+    "nordpass.exe",
+    "proton pass.exe",
+    "dashlane.exe",
+    "keeper.exe",
+    "credentialuibroker.exe",
+];
+
+/// `executable` is a file name such as `foreground::executable_name` gives.
+pub fn is_password_app(executable: &str) -> bool {
+    PASSWORD_APPS
+        .iter()
+        .any(|known| known.eq_ignore_ascii_case(executable))
+}
+
+/// The foreground window, unless it is Murmur's or a password manager's,
+/// or its executable cannot be told.
+pub fn frontmost_app() -> Option<ForegroundWindow> {
+    let foreground = crate::foreground::window()?;
+    if foreground.pid == std::process::id() {
+        return None;
+    }
+    let path = crate::foreground::process_image_path(foreground.pid)?;
+    let executable = crate::foreground::executable_name(&path)?;
+    (!is_password_app(&executable)).then_some(foreground)
+}
 
 /// This thread in COM's multithreaded apartment, left on drop. Not `Send`:
 /// it must be dropped on the thread that entered.
@@ -41,7 +82,8 @@ impl Drop for Apartment {
 }
 
 /// A UI Automation client for the calling thread. Each element it returns
-/// carries its control type and value, fetched in the call that found it.
+/// carries its name, control type, value, process and whether it is a
+/// password field, fetched in the call that found it.
 pub struct Automation {
     automation: IUIAutomation2,
     cache: IUIAutomationCacheRequest,
@@ -68,6 +110,9 @@ impl Automation {
             let cache = automation.CreateCacheRequest()?;
             cache.AddProperty(UIA_ControlTypePropertyId)?;
             cache.AddProperty(UIA_ValueValuePropertyId)?;
+            cache.AddProperty(UIA_NamePropertyId)?;
+            cache.AddProperty(UIA_IsPasswordPropertyId)?;
+            cache.AddProperty(UIA_ProcessIdPropertyId)?;
             cache.AddPattern(UIA_ValuePatternId)?;
             let any = automation.CreateTrueCondition()?;
             Ok(Self {
@@ -79,7 +124,17 @@ impl Automation {
         }
     }
 
-    /// The top-level window `window`, a handle from `foreground::window`.
+    /// The keyboard focus, when it is in the process `pid`. A password field
+    /// is returned as well; its reader must check.
+    pub fn focus_in(&self, pid: u32) -> Option<Element> {
+        // SAFETY: returns an owned interface or an error.
+        let focused = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok()?;
+        // SAFETY: reads the cached property.
+        let focused_pid = unsafe { focused.CachedProcessId() }.ok()?;
+        (u32::try_from(focused_pid).ok() == Some(pid)).then_some(Element(focused))
+    }
+
+    /// The window `window`, such as a handle from `foreground::window`.
     pub fn window(&self, window: isize) -> Option<Element> {
         // SAFETY: a stale handle only makes the call fail.
         unsafe {
@@ -134,11 +189,112 @@ impl Element {
         }
         .map(|value| value.to_string())
     }
+
+    pub fn name(&self) -> Option<String> {
+        // SAFETY: reads the cached property.
+        unsafe { self.0.CachedName() }
+            .ok()
+            .map(|name| name.to_string())
+    }
+
+    /// A password field, or one that cannot tell.
+    pub fn is_secure(&self) -> bool {
+        // SAFETY: reads the cached property.
+        unsafe { self.0.CachedIsPassword() }.map_or(true, BOOL::as_bool)
+    }
+
+    /// The first selection of the element's text, else its caret, which
+    /// Chromium gives only through the second text pattern.
+    fn text_selection(&self) -> Option<IUIAutomationTextRange> {
+        // SAFETY: each call asks the app and returns an owned interface or
+        // an error; `active` is a live local.
+        unsafe {
+            if let Ok(text) = self
+                .0
+                .GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+            {
+                return first_selection(&text).or_else(|| {
+                    let mut active = BOOL::default();
+                    text.GetCaretRange(&mut active).ok()
+                });
+            }
+            let text = self
+                .0
+                .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+                .ok()?;
+            first_selection(&text)
+        }
+    }
+}
+
+fn first_selection(text: &IUIAutomationTextPattern) -> Option<IUIAutomationTextRange> {
+    // SAFETY: each call returns an owned interface or an error.
+    unsafe {
+        let selections = text.GetSelection().ok()?;
+        if selections.Length().ok()? < 1 {
+            return None;
+        }
+        selections.GetElement(0).ok()
+    }
+}
+
+/// The text of the focused field next to its selection, as the shared
+/// excerpt reader asks for it. Each read is one call to the app.
+impl SelectionText for Element {
+    type Selection = IUIAutomationTextRange;
+
+    fn is_secure(&self) -> bool {
+        Element::is_secure(self)
+    }
+
+    fn selection(&self) -> Option<IUIAutomationTextRange> {
+        self.text_selection()
+    }
+
+    fn before(&self, selection: &IUIAutomationTextRange, max: usize) -> Option<String> {
+        let count = i32::try_from(max).ok()?;
+        // SAFETY: each call returns an owned interface or an error.
+        unsafe {
+            let range = selection.Clone().ok()?;
+            range
+                .MoveEndpointByRange(
+                    TextPatternRangeEndpoint_End,
+                    selection,
+                    TextPatternRangeEndpoint_Start,
+                )
+                .ok()?;
+            range
+                .MoveEndpointByUnit(TextPatternRangeEndpoint_Start, TextUnit_Character, -count)
+                .ok()?;
+            // Uncapped: a cap would keep the start, away from the cursor.
+            // The range itself holds at most `max` chars.
+            range.GetText(-1).ok().map(|text| text.to_string())
+        }
+    }
+
+    fn after(&self, selection: &IUIAutomationTextRange, max: usize) -> Option<String> {
+        let count = i32::try_from(max).ok()?;
+        // SAFETY: each call returns an owned interface or an error.
+        unsafe {
+            let range = selection.Clone().ok()?;
+            range
+                .MoveEndpointByRange(
+                    TextPatternRangeEndpoint_Start,
+                    selection,
+                    TextPatternRangeEndpoint_End,
+                )
+                .ok()?;
+            range
+                .MoveEndpointByUnit(TextPatternRangeEndpoint_End, TextUnit_Character, count)
+                .ok()?;
+            range.GetText(count).ok().map(|text| text.to_string())
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Automation;
+    use super::{is_password_app, Automation};
     use std::sync::{Arc, Barrier};
 
     #[test]
@@ -155,6 +311,151 @@ mod tests {
             .collect();
         for thread in threads {
             thread.join().unwrap().expect("UI Automation client");
+        }
+    }
+
+    #[test]
+    fn password_managers_match_by_executable_in_any_case() {
+        for executable in [
+            "1password.exe",
+            "Bitwarden.exe",
+            "KeePassXC.exe",
+            "proton pass.exe",
+            "CredentialUIBroker.exe",
+        ] {
+            assert!(is_password_app(executable), "{executable}");
+        }
+        for executable in ["chrome.exe", "notepad.exe", "keepass", "1password"] {
+            assert!(!is_password_app(executable), "{executable}");
+        }
+    }
+}
+
+/// Win32 windows for UI Automation tests, each served by a thread of its
+/// own as an app serves its windows.
+#[cfg(test)]
+pub mod test_window {
+    use std::sync::{mpsc, Once};
+    use std::thread::JoinHandle;
+    use windows::core::{w, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::System::Threading::GetCurrentThreadId;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+        PostThreadMessageW, RegisterClassW, MSG, WINDOW_EX_STYLE, WINDOW_STYLE, WM_QUIT, WNDCLASSW,
+        WS_CHILD, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    };
+
+    /// A class that draws nothing, for the top-level window and containers.
+    pub const PLAIN: &str = "MurmurUiaTestWindow";
+    const PLAIN_CLASS: PCWSTR = w!("MurmurUiaTestWindow");
+
+    unsafe extern "system" fn window_proc(
+        window: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        unsafe { DefWindowProcW(window, message, wparam, lparam) }
+    }
+
+    fn instance() -> HINSTANCE {
+        // SAFETY: the module handle of this executable.
+        HINSTANCE(unsafe { GetModuleHandleW(PCWSTR::null()) }.unwrap().0)
+    }
+
+    /// A visible child window of `parent`; call it on the window's thread.
+    pub fn child(parent: HWND, class: &str, text: &str, style: WINDOW_STYLE) -> HWND {
+        // SAFETY: `parent` is a live window of this thread.
+        unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                &HSTRING::from(class),
+                &HSTRING::from(text),
+                WS_CHILD | WS_VISIBLE | style,
+                10,
+                10,
+                440,
+                24,
+                Some(parent),
+                None,
+                Some(instance()),
+                None,
+            )
+        }
+        .unwrap()
+    }
+
+    pub struct TestWindow {
+        pub window: isize,
+        /// What `build` returned.
+        pub handles: Vec<isize>,
+        thread_id: u32,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl TestWindow {
+        /// A top-level window whose children `build` creates on the
+        /// window's thread, returning the handles a test needs.
+        pub fn open(build: impl FnOnce(HWND) -> Vec<isize> + Send + 'static) -> Self {
+            let (sender, receiver) = mpsc::channel();
+            let thread = std::thread::spawn(move || {
+                // SAFETY: registers this test's class once, then creates
+                // and serves windows owned by this thread.
+                unsafe {
+                    static REGISTER: Once = Once::new();
+                    REGISTER.call_once(|| {
+                        RegisterClassW(&WNDCLASSW {
+                            lpfnWndProc: Some(window_proc),
+                            hInstance: instance(),
+                            lpszClassName: PLAIN_CLASS,
+                            ..Default::default()
+                        });
+                    });
+                    let window = CreateWindowExW(
+                        WINDOW_EX_STYLE::default(),
+                        PLAIN_CLASS,
+                        w!("Murmur UI Automation test"),
+                        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                        0,
+                        0,
+                        480,
+                        160,
+                        None,
+                        None,
+                        Some(instance()),
+                        None,
+                    )
+                    .unwrap();
+                    let handles = build(window);
+                    sender
+                        .send((window.0 as isize, handles, GetCurrentThreadId()))
+                        .unwrap();
+                    let mut message = MSG::default();
+                    while GetMessageW(&mut message, None, 0, 0).0 > 0 {
+                        DispatchMessageW(&message);
+                    }
+                    let _ = DestroyWindow(window);
+                }
+            });
+            let (window, handles, thread_id) = receiver.recv().unwrap();
+            Self {
+                window,
+                handles,
+                thread_id,
+                thread: Some(thread),
+            }
+        }
+    }
+
+    impl Drop for TestWindow {
+        fn drop(&mut self) {
+            // SAFETY: posts to the window thread's own queue.
+            let _ = unsafe { PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0)) };
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
         }
     }
 }

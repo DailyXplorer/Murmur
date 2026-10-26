@@ -907,6 +907,9 @@
         }
       },
       "transcription": {
+        "windowNames": {
+          "description": "Beim Start des Diktats liest Murmur über die Barrierefreiheit von Windows (UI Automation) den Text des aktiven Fensters und sendet die gefundenen Namen an die Bereinigung, damit sie richtig geschrieben werden. Außerdem sendet Murmur einen kurzen Auszug des Textes rund um den Cursor. Nichts wird gespeichert. Passwortfelder und Passwortmanager werden nie gelesen."
+        },
         "engine": {
           "local": {
             "title": "Auf diesem PC",

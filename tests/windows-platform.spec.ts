@@ -70,9 +70,6 @@ test.describe("Windows build", () => {
 
     await nav(page, "Transcription").click();
     await expect(page.getByText("Cleanup and formatting")).toBeVisible();
-    await expect(page.getByText("Context from the active window")).toHaveCount(
-      0,
-    );
     // The local engine is named after the PC, never a Mac.
     await expect(page.getByText("On this PC", { exact: true })).toBeVisible();
     await expect(page.getByText(/\bMac\b/)).toHaveCount(0);
@@ -81,6 +78,35 @@ test.describe("Windows build", () => {
     await expect(page.getByText("Show what's new")).toHaveCount(0);
     await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("offers context from the active window, read through UI Automation", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Transcription").click();
+
+    const context = page.getByRole("checkbox", {
+      name: "Context from the active window",
+    });
+    await expect(context).toBeChecked();
+    await expect(
+      page.getByRole("button", {
+        name: /^When you start dictating, Murmur reads the text of the active window through Windows accessibility \(UI Automation\)/,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText(/through Accessibility/)).toHaveCount(0);
+
+    await context.uncheck({ force: true });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.settingsPages.calls
+            .filter((call) => call.command === "change_window_names_setting")
+            .map((call) => call.args),
+        ),
+      )
+      .toEqual([{ enabled: false }]);
   });
 
   test("previews no macOS release notes on the Debug page", async ({

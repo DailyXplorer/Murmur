@@ -1,6 +1,7 @@
 //! The text of the focused field on each side of the insertion point, cut
 //! to a short excerpt on word boundaries. Platform-free: the reads go
-//! through `FocusedText`, which the Accessibility element implements.
+//! through `FocusedText`, which the Accessibility element implements, or
+//! `SelectionText`, which the UI Automation element implements.
 
 use std::fmt;
 use std::time::Instant;
@@ -87,6 +88,7 @@ fn first_words(text: &str, max: usize) -> &str {
 }
 
 /// The reads `read_field` needs from the focused element.
+#[cfg(any(target_os = "macos", test))]
 pub trait FocusedText {
     fn is_secure(&self) -> bool;
     /// AXSelectedTextRange.
@@ -103,6 +105,7 @@ pub trait FocusedText {
 /// field, and never guesses the cursor: no selection range, no excerpt.
 /// Each read may take a hung app's whole messaging timeout, so none starts
 /// after `deadline`.
+#[cfg(any(target_os = "macos", test))]
 pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<FieldExcerpt> {
     let in_time = || Instant::now() < deadline;
     if focused.is_secure() || !in_time() {
@@ -126,6 +129,7 @@ pub fn read_field(focused: &impl FocusedText, deadline: Instant) -> Option<Field
 /// Just enough of the field for `cut`, and where it starts. A UTF-16 unit
 /// is at least half a char, so a window that does not start at the field's
 /// start holds more than the limit and `cut` drops its partial first word.
+#[cfg(any(target_os = "macos", test))]
 fn window_around(
     focused: &impl FocusedText,
     selection: Utf16Range,
@@ -151,6 +155,45 @@ fn window_around(
         len: end - start,
     })?;
     Some((text, start))
+}
+
+/// The reads `read_around_selection` needs from a focused field that gives
+/// the text next to its selection but not the selection's offset, as UI
+/// Automation's text ranges do.
+#[cfg(any(target_os = "windows", test))]
+pub trait SelectionText {
+    type Selection;
+    fn is_secure(&self) -> bool;
+    /// The selection, or the insertion point as an empty selection.
+    fn selection(&self) -> Option<Self::Selection>;
+    /// At most `max` chars just before the selection.
+    fn before(&self, selection: &Self::Selection, max: usize) -> Option<String>;
+    /// At most `max` chars just after the selection.
+    fn after(&self, selection: &Self::Selection, max: usize) -> Option<String>;
+}
+
+/// The excerpt around the focused element's selection, as `read_field`
+/// gives it: never from a secure field, never without a selection or
+/// insertion point, and no read starts after `deadline`. Each side is read
+/// with twice its limit, so `cut` drops a word the read cut through.
+#[cfg(any(target_os = "windows", test))]
+pub fn read_around_selection(
+    focused: &impl SelectionText,
+    deadline: Instant,
+) -> Option<FieldExcerpt> {
+    let in_time = || Instant::now() < deadline;
+    if focused.is_secure() || !in_time() {
+        return None;
+    }
+    let selection = focused.selection()?;
+    let before = in_time()
+        .then(|| focused.before(&selection, 2 * MAX_BEFORE_CHARS + 2))
+        .flatten()?;
+    let after = in_time()
+        .then(|| focused.after(&selection, 2 * MAX_AFTER_CHARS + 2))
+        .flatten()?;
+    let start = before.encode_utf16().count();
+    cut(&(before + &after), Utf16Range { start, len: 0 })
 }
 
 #[cfg(test)]
@@ -406,6 +449,88 @@ mod tests {
 
         let late = Fake::new(text, at(22));
         assert_eq!(read_field(&late, Instant::now()), None);
+        assert!(late.reads.borrow().is_empty(), "{:?}", late.reads.borrow());
+    }
+
+    /// The Fake as UI Automation shows it: text on each side of the
+    /// selection, without offsets.
+    impl SelectionText for Fake {
+        type Selection = Utf16Range;
+        fn is_secure(&self) -> bool {
+            self.secure
+        }
+        fn selection(&self) -> Option<Utf16Range> {
+            FocusedText::selection(self)
+        }
+        fn before(&self, selection: &Utf16Range, max: usize) -> Option<String> {
+            self.reads.borrow_mut().push("before");
+            std::thread::sleep(self.delay);
+            let before = &self.text[..byte_offset(&self.text, selection.start)];
+            let skip = before.chars().count().saturating_sub(max);
+            Some(before.chars().skip(skip).collect())
+        }
+        fn after(&self, selection: &Utf16Range, max: usize) -> Option<String> {
+            self.reads.borrow_mut().push("after");
+            let end = byte_offset(&self.text, selection.start + selection.len);
+            Some(self.text[end..].chars().take(max).collect())
+        }
+    }
+
+    #[test]
+    fn the_text_on_each_side_gives_the_same_excerpt_as_the_whole_field() {
+        let texts = [
+            "The quick brown fox jumps over the lazy dog, again and again. ".repeat(40),
+            "😀 Café crème, 日本語 テキスト ok. ".repeat(60),
+            "short field".to_string(),
+        ];
+        for text in &texts {
+            let units = text.encode_utf16().count();
+            for start in (0..=units).step_by(37) {
+                for len in [0, 5] {
+                    let selection = Utf16Range { start, len };
+                    let fake = Fake::new(text, selection);
+                    assert_eq!(
+                        read_around_selection(&fake, later()),
+                        cut(text, selection),
+                        "start {start} len {len}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_secure_field_or_no_selection_reads_no_text() {
+        let secure = Fake {
+            secure: true,
+            ..Fake::new("hunter2 is my password", at(7))
+        };
+        assert_eq!(read_around_selection(&secure, later()), None);
+        assert!(secure.reads.borrow().is_empty(), "{:?}", secure.reads);
+
+        let no_selection = Fake {
+            selection: None,
+            ..Fake::new("Hello there", at(0))
+        };
+        assert_eq!(read_around_selection(&no_selection, later()), None);
+        assert_eq!(*no_selection.reads.borrow(), vec!["selection"]);
+    }
+
+    #[test]
+    fn no_side_is_read_once_the_budget_is_spent() {
+        let text = "Thanks for the draft. See you";
+        let slow = Fake {
+            delay: Duration::from_millis(30),
+            ..Fake::new(text, at(22))
+        };
+        assert_eq!(
+            read_around_selection(&slow, Instant::now() + Duration::from_millis(10)),
+            None
+        );
+        assert_eq!(*slow.reads.borrow(), vec!["selection", "before"]);
+
+        let late = Fake::new(text, at(22));
+        assert_eq!(read_around_selection(&late, Instant::now()), None);
         assert!(late.reads.borrow().is_empty(), "{:?}", late.reads.borrow());
     }
 }

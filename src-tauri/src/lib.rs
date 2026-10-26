@@ -19,8 +19,6 @@ mod commands;
 mod dictation_gesture;
 mod dictionary;
 mod engine;
-// Windows reads no field (see `window_names`); only the excerpt type is used.
-#[cfg_attr(target_os = "windows", allow(dead_code))]
 mod field_excerpt;
 #[cfg(target_os = "windows")]
 mod foreground;
@@ -47,8 +45,6 @@ mod uia;
 mod updates;
 mod user_alert;
 mod utils;
-// Windows reads no window, so finds no names in it (see `window_names`).
-#[cfg_attr(target_os = "windows", allow(dead_code))]
 mod window_names;
 #[cfg(target_os = "windows")]
 mod window_placement;

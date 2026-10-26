@@ -5,7 +5,6 @@ import { commands, type AnalysisSupport, type Engine } from "@/bindings";
 import { useCodexStatus } from "@/components/transcription/providerStatus";
 import { useLocalModel } from "@/hooks/useLocalModel";
 import { useSettings } from "@/hooks/useSettings";
-import { isWindows } from "@/lib/platform";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { RadioOption } from "../../ui/RadioOption";
@@ -116,7 +115,7 @@ export const TranscriptionSettings: React.FC = () => {
           needsAccount={noAccount}
         />
         <DictationStyleSetting noAccount={noAccount} />
-        {!isWindows && <WindowNames descriptionMode="tooltip" grouped={true} />}
+        <WindowNames descriptionMode="tooltip" grouped={true} />
         <WhisperMode descriptionMode="tooltip" grouped={true} />
         <CustomWords descriptionMode="tooltip" grouped={true} />
         <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
