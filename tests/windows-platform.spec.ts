@@ -182,14 +182,25 @@ test.describe("Windows build", () => {
       "This key can't be used in a shortcut on Windows. Choose a different one.",
     );
 
-    // The "!" key, then the "<" key.
-    for (const [index, code] of ["Slash", "IntlBackslash"].entries()) {
-      await pasteLast.click();
-      await page.keyboard.press(`Control+${code}`);
+    // The "!" key.
+    await pasteLast.click();
+    await page.keyboard.press("Control+Slash");
+    await expect(refused).toHaveCount(1);
+    await expect(pasteLast).toHaveText(before ?? "");
 
-      await expect(refused).toHaveCount(index + 1);
-      await expect(pasteLast).toHaveText(before ?? "");
-    }
+    // The "<" key, which Playwright's US keyboard lacks.
+    await pasteLast.click();
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: "IntlBackslash",
+          key: "<",
+          ctrlKey: true,
+        }),
+      ),
+    );
+    await expect(refused).toHaveCount(2);
+    await expect(pasteLast).toHaveText(before ?? "");
     expect(
       await page.evaluate(() =>
         window.settingsPages.calls.some(

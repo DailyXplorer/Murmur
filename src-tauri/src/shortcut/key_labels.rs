@@ -219,7 +219,7 @@ pub fn names(virtual_key: impl Fn(u16) -> Option<u16>) -> RecordedKeys {
                 keys.names.insert(physical.to_string(), name.to_string());
             }
             Some(_) => {}
-            None => {}
+            None => keys.unusable.push(physical.to_string()),
         }
     }
     keys

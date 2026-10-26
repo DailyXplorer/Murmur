@@ -181,6 +181,12 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
         cancelRecording();
         return;
       }
+      // Saved under its own name, the shortcut would fire on another key.
+      if (recordedKeys.current.unusable.includes(pressed)) {
+        toast.error(t("settings.general.shortcut.errors.unusableKey"));
+        cancelRecording();
+        return;
+      }
       void commit([...modifiers, key].join("+"));
     };
 

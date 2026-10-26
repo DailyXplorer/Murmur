@@ -202,7 +202,8 @@
           "set": "Falha ao definir atalho: {{error}}",
           "reset": "Falha ao redefinir atalho para o valor original",
           "registrationFailed": "Outro aplicativo está usando este atalho. Escolha um diferente.",
-          "usedByAnotherAction": "Outra ação do Murmur está usando este atalho. Escolha um diferente."
+          "usedByAnotherAction": "Outra ação do Murmur está usando este atalho. Escolha um diferente.",
+          "unusableKey": "Esta tecla não pode ser usada em um atalho no Windows. Escolha outra."
         }
       },
       "language": {
