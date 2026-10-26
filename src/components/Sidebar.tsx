@@ -116,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       className="flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2"
     >
       <MurmurTextLogo width={120} className="m-4" />
-      <div className="flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-2">
+      <div className="flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-1">
         {availableSections.map((sectionId) => {
           const section = SECTIONS_CONFIG[sectionId];
           const Icon = section.icon;
