@@ -299,7 +299,6 @@ impl ShortcutAction for TranscribeAction {
                     "Recording request accepted in {:?}; waiting for first microphone samples",
                     recording_start_time.elapsed()
                 );
-                #[cfg(target_os = "macos")]
                 crate::dictionary::stop_observing();
                 crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
@@ -589,7 +588,6 @@ impl ShortcutAction for TranscribeAction {
                                         return;
                                     }
                                     Ok(outcome) => {
-                                        #[cfg(target_os = "macos")]
                                         if outcome == crate::clipboard::PasteOutcome::Injected {
                                             crate::dictionary::watch_pasted_text(
                                                 &ah,

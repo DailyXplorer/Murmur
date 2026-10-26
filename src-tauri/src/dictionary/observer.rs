@@ -2,8 +2,7 @@
 //! there can teach the dictionary. The field's text stays in this thread's
 //! memory: it is never stored or logged, and only the corrected words leave.
 
-use super::learn;
-use crate::accessibility::{focused_text_element, Element};
+use super::learn::{self, Correction};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -28,39 +27,66 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
     let generation = GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(SETTLE_DELAY);
-        let Some(field) = focused_text_element() else {
+        let Some(fields) = platform_fields() else {
             return;
         };
-        let Some(before) = read(&field) else {
-            return;
-        };
-        if !before.contains(inserted.trim()) {
-            return;
-        }
-
-        let started = Instant::now();
-        let mut still_focused = true;
-        let snapshots = std::iter::from_fn(|| {
-            if !still_focused || started.elapsed() >= WATCH_WINDOW {
-                return None;
-            }
-            std::thread::sleep(POLL_INTERVAL);
-            if GENERATION.load(Ordering::Acquire) != generation {
-                return None;
-            }
-            still_focused = focused_text_element().is_some_and(|focused| focused == field);
-            read(&field)
+        let learned = watch(&fields, &inserted, || {
+            GENERATION.load(Ordering::Acquire) == generation
         });
-
-        let Some(edited) = settled_edit(&before, &inserted, snapshots) else {
-            return;
-        };
-        let learned = learn::review(inserted.trim(), &edited);
         if !learned.is_empty() {
             super::remember(&app, learned);
         }
     });
+}
+
+/// The fields of the frontmost app, as the platform's accessibility API
+/// shows them.
+trait Fields {
+    type Field;
+    /// The keyboard focus of the frontmost app, unless it is a password
+    /// field or the app is Murmur or a password manager.
+    fn focused(&self) -> Option<Self::Field>;
+    fn same(&self, a: &Self::Field, b: &Self::Field) -> bool;
+    /// The field's whole text. None for a password field, or one holding
+    /// more than `max` chars (UTF-16 units on Windows).
+    fn text(&self, field: &Self::Field, max: usize) -> Option<String>;
+}
+
+/// The corrections the user makes to `inserted` in the focused field
+/// within the watch window, while `current` holds and the field keeps the
+/// focus.
+fn watch<F: Fields>(fields: &F, inserted: &str, current: impl Fn() -> bool) -> Vec<Correction> {
+    std::thread::sleep(SETTLE_DELAY);
+    let Some(field) = fields.focused() else {
+        return Vec::new();
+    };
+    let read = |field: &F::Field| fields.text(field, MAX_FIELD_CHARS);
+    let Some(before) = read(&field) else {
+        return Vec::new();
+    };
+    if !before.contains(inserted.trim()) {
+        return Vec::new();
+    }
+
+    let started = Instant::now();
+    let mut still_focused = true;
+    let snapshots = std::iter::from_fn(|| {
+        if !still_focused || started.elapsed() >= WATCH_WINDOW {
+            return None;
+        }
+        std::thread::sleep(POLL_INTERVAL);
+        if !current() {
+            return None;
+        }
+        still_focused = fields
+            .focused()
+            .is_some_and(|focused| fields.same(&focused, &field));
+        read(&field)
+    });
+
+    settled_edit(&before, inserted, snapshots)
+        .map(|edited| learn::review(inserted.trim(), &edited))
+        .unwrap_or_default()
 }
 
 /// What the user left in place of `inserted`: the last span two consecutive
@@ -87,18 +113,68 @@ fn settled_edit(
     Some(stable)
 }
 
-fn read(field: &Element) -> Option<String> {
-    if field.is_secure() {
-        return None;
+#[cfg(target_os = "macos")]
+struct Accessibility;
+
+#[cfg(target_os = "macos")]
+fn platform_fields() -> Option<Accessibility> {
+    Some(Accessibility)
+}
+
+#[cfg(target_os = "macos")]
+impl Fields for Accessibility {
+    type Field = crate::accessibility::Element;
+
+    fn focused(&self) -> Option<Self::Field> {
+        crate::accessibility::focused_text_element()
     }
-    field
-        .string("AXValue")
-        .filter(|value| value.chars().count() <= MAX_FIELD_CHARS)
+
+    fn same(&self, a: &Self::Field, b: &Self::Field) -> bool {
+        a == b
+    }
+
+    fn text(&self, field: &Self::Field, max: usize) -> Option<String> {
+        if field.is_secure() {
+            return None;
+        }
+        field
+            .string("AXValue")
+            .filter(|value| value.chars().count() <= max)
+    }
+}
+
+/// A client of this thread, which the watch runs on.
+#[cfg(target_os = "windows")]
+fn platform_fields() -> Option<crate::uia::Automation> {
+    crate::uia::Automation::new()
+        .map_err(|e| log::debug!("UI Automation is unavailable for learning: {e}"))
+        .ok()
+}
+
+#[cfg(target_os = "windows")]
+impl Fields for crate::uia::Automation {
+    type Field = crate::uia::Element;
+
+    fn focused(&self) -> Option<Self::Field> {
+        let app = crate::uia::frontmost_app()?;
+        self.focus_in(app.pid)
+            .filter(|focused| !focused.is_secure())
+    }
+
+    fn same(&self, _: &Self::Field, _: &Self::Field) -> bool {
+        false
+    }
+
+    // RED: Windows reads no field yet.
+    fn text(&self, _: &Self::Field, _: usize) -> Option<String> {
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
 
     fn learned(before: &str, inserted: &str, snapshots: &[&str]) -> Vec<(String, String)> {
         let snapshots = snapshots.iter().map(|snapshot| snapshot.to_string());
@@ -170,5 +246,270 @@ mod tests {
     fn a_field_emptied_before_any_edit_teaches_nothing() {
         let inserted = "I talked to clawd about it";
         assert!(learned(inserted, inserted, &["", "I talked to Claude about it"]).is_empty());
+    }
+
+    const INSERTED: &str = "I talked to clawd about it";
+    const CORRECTED: &str = "I talked to Claude about it";
+
+    fn claude() -> Vec<Correction> {
+        vec![Correction {
+            word: "Claude".to_string(),
+            heard_as: "clawd".to_string(),
+        }]
+    }
+
+    /// Field 1's text and which field holds the focus, one step for each
+    /// time the watch looks at the focus.
+    struct Timeline {
+        steps: Vec<(Option<u8>, &'static str)>,
+        step: Cell<usize>,
+    }
+
+    impl Timeline {
+        fn new(steps: &[(Option<u8>, &'static str)]) -> Self {
+            Self {
+                steps: steps.to_vec(),
+                step: Cell::new(0),
+            }
+        }
+    }
+
+    impl Fields for Timeline {
+        type Field = u8;
+
+        fn focused(&self) -> Option<u8> {
+            let step = self.step.get();
+            self.step.set(step + 1);
+            self.steps.get(step)?.0
+        }
+
+        fn same(&self, a: &u8, b: &u8) -> bool {
+            a == b
+        }
+
+        fn text(&self, field: &u8, _: usize) -> Option<String> {
+            let (_, text) = self.steps.get(self.step.get().checked_sub(1)?)?;
+            (*field == 1).then(|| text.to_string())
+        }
+    }
+
+    #[test]
+    fn the_watch_learns_a_correction_in_the_focused_field() {
+        let fields = Timeline::new(&[
+            (Some(1), INSERTED),
+            (Some(1), CORRECTED),
+            (Some(1), CORRECTED),
+            (Some(1), ""),
+        ]);
+        assert_eq!(watch(&fields, INSERTED, || true), claude());
+    }
+
+    #[test]
+    fn the_watch_ends_when_the_focus_leaves_the_field() {
+        let fields = Timeline::new(&[
+            (Some(1), INSERTED),
+            (Some(2), INSERTED),
+            (Some(1), CORRECTED),
+            (Some(1), CORRECTED),
+            (Some(1), ""),
+        ]);
+        assert!(watch(&fields, INSERTED, || true).is_empty());
+    }
+
+    #[test]
+    fn the_next_dictation_ends_the_watch() {
+        let fields = Timeline::new(&[
+            (Some(1), INSERTED),
+            (Some(1), INSERTED),
+            (Some(1), CORRECTED),
+            (Some(1), CORRECTED),
+            (Some(1), ""),
+        ]);
+        let polls = Cell::new(0);
+        let current = || {
+            polls.set(polls.get() + 1);
+            polls.get() < 2
+        };
+        assert!(watch(&fields, INSERTED, current).is_empty());
+    }
+
+    #[test]
+    fn a_field_without_the_dictation_is_not_watched() {
+        let fields = Timeline::new(&[
+            (Some(1), "Something else"),
+            (Some(1), CORRECTED),
+            (Some(1), CORRECTED),
+        ]);
+        assert!(watch(&fields, INSERTED, || true).is_empty());
+        assert_eq!(fields.step.get(), 1, "one look, then the watch ended");
+    }
+
+    /// The watch on real Win32 controls, in windows this test opens, so no
+    /// foreground window is needed. The test plays the user: it changes
+    /// the field between the watch's reads.
+    #[cfg(target_os = "windows")]
+    mod uia {
+        use super::*;
+        use crate::uia::test_window::{child, TestWindow};
+        use crate::uia::{Automation, Element};
+        use std::sync::mpsc::{self, Sender};
+        use windows::core::HSTRING;
+        use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+        use windows::Win32::System::LibraryLoader::LoadLibraryW;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SendMessageW, ES_AUTOHSCROLL, ES_MULTILINE, ES_PASSWORD, WINDOW_STYLE, WM_SETTEXT,
+            WS_BORDER,
+        };
+
+        /// The rich edit control of Msftedit.dll, as in Windows 11's Notepad.
+        const RICH_EDIT: &str = "RICHEDIT50W";
+
+        fn field_window(class: &'static str, style: u32, text: &'static str) -> TestWindow {
+            if class == RICH_EDIT {
+                // SAFETY: loads a system library that registers the class.
+                unsafe { LoadLibraryW(windows::core::w!("Msftedit.dll")) }.expect("Msftedit.dll");
+            }
+            TestWindow::open(move |window| {
+                let style = WINDOW_STYLE(style) | WS_BORDER;
+                vec![child(window, class, text, style).0 as isize]
+            })
+        }
+
+        fn set_text(field: isize, text: &str) {
+            let text = HSTRING::from(text);
+            // SAFETY: the field is a live window, whose thread pumps
+            // messages; the text outlives the call.
+            unsafe {
+                SendMessageW(
+                    HWND(field as *mut _),
+                    WM_SETTEXT,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(text.as_ptr() as isize)),
+                )
+            };
+        }
+
+        /// The test field as the focus, read and compared by the production
+        /// client. Each read is told to the test.
+        struct TestField {
+            automation: Automation,
+            field: isize,
+            reads: Sender<Option<String>>,
+        }
+
+        impl Fields for TestField {
+            type Field = Element;
+
+            fn focused(&self) -> Option<Element> {
+                self.automation.window(self.field)
+            }
+
+            fn same(&self, a: &Element, b: &Element) -> bool {
+                Fields::same(&self.automation, a, b)
+            }
+
+            fn text(&self, field: &Element, max: usize) -> Option<String> {
+                let text = Fields::text(&self.automation, field, max);
+                let _ = self.reads.send(text.clone());
+                text
+            }
+        }
+
+        /// Watches the field in `window` and changes it to each of `edits`
+        /// in turn, once the watch has read the field before them and read
+        /// each earlier edit twice, which settles it. Also returns every
+        /// read.
+        fn learned(window: &TestWindow, edits: &[&str]) -> (Vec<Correction>, Vec<Option<String>>) {
+            let field = window.handles[0];
+            let (reads, read) = mpsc::channel();
+            let watching = std::thread::spawn(move || {
+                let fields = TestField {
+                    automation: Automation::new().expect("UI Automation client"),
+                    field,
+                    reads,
+                };
+                watch(&fields, INSERTED, || true)
+            });
+            let mut seen = vec![read.recv().expect("the field before any edit")];
+            for (index, edit) in edits.iter().enumerate() {
+                set_text(field, edit);
+                if index + 1 == edits.len() {
+                    break;
+                }
+                while seen
+                    .iter()
+                    .rev()
+                    .take(2)
+                    .filter(|text| text.as_deref() == Some(*edit))
+                    .count()
+                    < 2
+                {
+                    seen.push(
+                        read.recv()
+                            .expect("the watch ended before the edit settled"),
+                    );
+                }
+            }
+            let corrections = watching.join().unwrap();
+            seen.extend(read.try_iter());
+            (corrections, seen)
+        }
+
+        #[test]
+        fn a_word_corrected_in_a_field_is_learned_once() {
+            for (class, style) in [
+                ("EDIT", ES_AUTOHSCROLL as u32),
+                ("EDIT", (ES_MULTILINE | ES_AUTOHSCROLL) as u32),
+                (RICH_EDIT, (ES_MULTILINE | ES_AUTOHSCROLL) as u32),
+            ] {
+                let window = field_window(class, style, INSERTED);
+                let (corrections, _) = learned(&window, &[CORRECTED, ""]);
+                assert_eq!(corrections, claude(), "{class} {style:#x}");
+            }
+        }
+
+        #[test]
+        fn a_field_keeps_the_line_breaks_of_the_dictation() {
+            let automation = Automation::new().expect("UI Automation client");
+            for class in ["EDIT", RICH_EDIT] {
+                let window = field_window(
+                    class,
+                    (ES_MULTILINE | ES_AUTOHSCROLL) as u32,
+                    "Dear Ingrid,\r\nthanks",
+                );
+                let field = automation.window(window.handles[0]).unwrap();
+                assert_eq!(
+                    Fields::text(&automation, &field, MAX_FIELD_CHARS).as_deref(),
+                    Some("Dear Ingrid,\nthanks"),
+                    "{class}"
+                );
+            }
+        }
+
+        #[test]
+        fn a_field_longer_than_the_limit_is_not_read() {
+            let automation = Automation::new().expect("UI Automation client");
+            for class in ["EDIT", RICH_EDIT] {
+                let window = field_window(class, (ES_MULTILINE | ES_AUTOHSCROLL) as u32, INSERTED);
+                let field = automation.window(window.handles[0]).unwrap();
+                let len = INSERTED.len();
+                assert_eq!(
+                    Fields::text(&automation, &field, len).as_deref(),
+                    Some(INSERTED),
+                    "{class}"
+                );
+                assert_eq!(Fields::text(&automation, &field, len - 1), None, "{class}");
+            }
+        }
+
+        #[test]
+        fn a_password_field_teaches_nothing() {
+            let window = field_window("EDIT", ES_PASSWORD as u32, INSERTED);
+            let automation = Automation::new().expect("UI Automation client");
+            assert!(automation.window(window.handles[0]).unwrap().is_secure());
+            let (corrections, reads) = learned(&window, &[CORRECTED]);
+            assert!(corrections.is_empty());
+            assert_eq!(reads, [None], "nothing read, and the watch ended");
+        }
     }
 }
