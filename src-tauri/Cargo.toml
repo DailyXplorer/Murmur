@@ -136,6 +136,11 @@ tempfile = "3"
 chrono-tz = "0.10"
 tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread", "test-util"] }
 
+# `#[implement]`, behind a test's own UI Automation provider, names this
+# crate. The version `windows` already pulls in.
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+windows-core = "0.61.2"
+
 [profile.release]
 lto = true
 codegen-units = 1

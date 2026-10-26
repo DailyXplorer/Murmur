@@ -1041,13 +1041,26 @@ mod tests {
     mod uia {
         use super::*;
         use crate::field_excerpt::{cut, read_around_selection, Utf16Range};
-        use crate::uia::test_window::{child, TestWindow, PLAIN};
+        use crate::uia::test_window::{child, instance, TestWindow, PLAIN};
         use crate::uia::{Automation, Element};
-        use windows::core::w;
-        use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Once;
+        use windows::core::{implement, w, Error, IUnknown, Result, BOOL, BSTR, HSTRING, PCWSTR};
+        use windows::Win32::Foundation::{
+            E_NOTIMPL, HWND, LPARAM, LRESULT, VARIANT_FALSE, VARIANT_TRUE, WPARAM,
+        };
         use windows::Win32::System::LibraryLoader::LoadLibraryW;
+        use windows::Win32::System::Variant::{VARIANT, VT_BOOL};
+        use windows::Win32::UI::Accessibility::{
+            IRawElementProviderSimple, IRawElementProviderSimple_Impl, IValueProvider,
+            IValueProvider_Impl, ProviderOptions, ProviderOptions_ServerSideProvider,
+            UIA_IsPasswordPropertyId, UIA_ValuePatternId, UIA_ValueValuePropertyId,
+            UiaHostProviderFromHwnd, UiaReturnRawElementProvider, UiaRootObjectId, UIA_PATTERN_ID,
+            UIA_PROPERTY_ID,
+        };
         use windows::Win32::UI::WindowsAndMessaging::{
-            SendMessageW, ES_AUTOHSCROLL, ES_PASSWORD, WINDOW_STYLE, WS_BORDER,
+            DefWindowProcW, RegisterClassW, SendMessageW, ES_AUTOHSCROLL, ES_PASSWORD,
+            WINDOW_STYLE, WM_GETOBJECT, WNDCLASSW, WNDPROC, WS_BORDER,
         };
 
         const EM_SETSEL: u32 = 0x00B1;
@@ -1150,6 +1163,161 @@ mod tests {
             );
             assert!(text.contains("Amaya"), "the label is read");
             assert!(!text.contains("hunter2") && !text.contains("Corvina"));
+        }
+
+        /// Classes of fields served by `FieldProvider`, an app's own UI
+        /// Automation provider, which counts how often each is asked for
+        /// its Value.
+        const SECRET_FIELD: &str = "MurmurUiaTestSecretField";
+        const PLAIN_FIELD: &str = "MurmurUiaTestPlainField";
+        /// Value requests of the plain field, then of the password field.
+        static VALUE_REQUESTS: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0)];
+
+        fn value_requests(secure: bool) -> usize {
+            VALUE_REQUESTS[usize::from(secure)].load(Ordering::SeqCst)
+        }
+
+        #[implement(IRawElementProviderSimple)]
+        struct FieldProvider {
+            window: isize,
+            secure: bool,
+        }
+
+        impl IRawElementProviderSimple_Impl for FieldProvider_Impl {
+            fn ProviderOptions(&self) -> Result<ProviderOptions> {
+                Ok(ProviderOptions_ServerSideProvider)
+            }
+
+            fn GetPatternProvider(&self, pattern: UIA_PATTERN_ID) -> Result<IUnknown> {
+                if pattern != UIA_ValuePatternId {
+                    // S_OK and no pattern.
+                    return Err(Error::empty());
+                }
+                let value: IValueProvider = FieldValue {
+                    secure: self.secure,
+                }
+                .into();
+                Ok(value.into())
+            }
+
+            fn GetPropertyValue(&self, property: UIA_PROPERTY_ID) -> Result<VARIANT> {
+                let mut variant = VARIANT::default();
+                if property == UIA_ValueValuePropertyId {
+                    VALUE_REQUESTS[usize::from(self.secure)].fetch_add(1, Ordering::SeqCst);
+                } else if property == UIA_IsPasswordPropertyId {
+                    // SAFETY: writes a VT_BOOL variant's tag and value.
+                    unsafe {
+                        let inner = &mut *variant.Anonymous.Anonymous;
+                        inner.vt = VT_BOOL;
+                        inner.Anonymous.boolVal = if self.secure {
+                            VARIANT_TRUE
+                        } else {
+                            VARIANT_FALSE
+                        };
+                    }
+                }
+                // Empty: UI Automation asks the Value pattern or the window.
+                Ok(variant)
+            }
+
+            fn HostRawElementProvider(&self) -> Result<IRawElementProviderSimple> {
+                // SAFETY: the provider's own window.
+                unsafe { UiaHostProviderFromHwnd(HWND(self.window as *mut _)) }
+            }
+        }
+
+        #[implement(IValueProvider)]
+        struct FieldValue {
+            secure: bool,
+        }
+
+        impl IValueProvider_Impl for FieldValue_Impl {
+            fn SetValue(&self, _: &PCWSTR) -> Result<()> {
+                Err(E_NOTIMPL.into())
+            }
+
+            fn Value(&self) -> Result<BSTR> {
+                VALUE_REQUESTS[usize::from(self.secure)].fetch_add(1, Ordering::SeqCst);
+                Ok(BSTR::from(if self.secure {
+                    "hunter2 Corvina"
+                } else {
+                    "Dear Ingrid"
+                }))
+            }
+
+            fn IsReadOnly(&self) -> Result<BOOL> {
+                Ok(true.into())
+            }
+        }
+
+        unsafe extern "system" fn field_proc<const SECURE: bool>(
+            window: HWND,
+            message: u32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            if message == WM_GETOBJECT && lparam.0 as i32 == UiaRootObjectId {
+                let provider: IRawElementProviderSimple = FieldProvider {
+                    window: window.0 as isize,
+                    secure: SECURE,
+                }
+                .into();
+                // SAFETY: answers this window's own WM_GETOBJECT.
+                return unsafe { UiaReturnRawElementProvider(window, wparam, lparam, &provider) };
+            }
+            // SAFETY: the default handling of this window's message.
+            unsafe { DefWindowProcW(window, message, wparam, lparam) }
+        }
+
+        fn register_provider_fields() {
+            static REGISTER: Once = Once::new();
+            REGISTER.call_once(|| {
+                let classes: [(&str, WNDPROC); 2] = [
+                    (SECRET_FIELD, Some(field_proc::<true>)),
+                    (PLAIN_FIELD, Some(field_proc::<false>)),
+                ];
+                for (class, window_proc) in classes {
+                    let class = HSTRING::from(class);
+                    // SAFETY: registers a class whose procedure lives as
+                    // long as the test executable; the name is copied.
+                    unsafe {
+                        RegisterClassW(&WNDCLASSW {
+                            lpfnWndProc: window_proc,
+                            hInstance: instance(),
+                            lpszClassName: PCWSTR(class.as_ptr()),
+                            ..Default::default()
+                        })
+                    };
+                }
+            });
+        }
+
+        #[test]
+        fn a_password_fields_value_is_never_requested() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = TestWindow::open(|window| {
+                register_provider_fields();
+                vec![
+                    child(window, SECRET_FIELD, "Password", WINDOW_STYLE::default()).0 as isize,
+                    child(window, PLAIN_FIELD, "Message", WINDOW_STYLE::default()).0 as isize,
+                ]
+            });
+            let secret = element(&automation, window.handles[0]);
+            let secure = secret.is_secure();
+            let value = secret.value();
+            let excerpt = read_around_selection(&secret, later());
+            let text = window_text(
+                UiaNode {
+                    automation: &automation,
+                    element: element(&automation, window.window),
+                },
+                Instant::now(),
+            );
+            assert_eq!(value_requests(true), 0, "the password field's Value");
+            assert!(secure);
+            assert_eq!((value, excerpt), (None, None));
+            assert!(text.contains("Dear Ingrid"), "the other field is read");
+            assert!(value_requests(false) > 0);
         }
 
         #[test]

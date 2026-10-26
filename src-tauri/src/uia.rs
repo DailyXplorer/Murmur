@@ -360,7 +360,7 @@ pub mod test_window {
         unsafe { DefWindowProcW(window, message, wparam, lparam) }
     }
 
-    fn instance() -> HINSTANCE {
+    pub fn instance() -> HINSTANCE {
         // SAFETY: the module handle of this executable.
         HINSTANCE(unsafe { GetModuleHandleW(PCWSTR::null()) }.unwrap().0)
     }
