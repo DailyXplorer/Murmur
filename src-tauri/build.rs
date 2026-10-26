@@ -3,6 +3,7 @@ const APP_COMMANDS: &[&str] = &[
     "reset_binding",
     "get_shortcut_registration_errors",
     "get_key_labels",
+    "get_recorded_key_names",
     "change_audio_feedback_setting",
     "change_audio_feedback_volume_setting",
     "change_sound_theme_setting",
