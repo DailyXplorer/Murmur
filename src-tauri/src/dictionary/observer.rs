@@ -443,7 +443,7 @@ mod tests {
                     .iter()
                     .rev()
                     .take(2)
-                    .filter(|text| text.as_deref() == Some(*edit))
+                    .filter(|text| text.as_deref().map(str::trim_end) == Some(*edit))
                     .count()
                     < 2
                 {
@@ -471,10 +471,15 @@ mod tests {
             }
         }
 
+        /// A rich edit's document ends with a paragraph mark, which reads
+        /// as a last line break.
         #[test]
         fn a_field_keeps_the_line_breaks_of_the_dictation() {
             let automation = Automation::new().expect("UI Automation client");
-            for class in ["EDIT", RICH_EDIT] {
+            for (class, expected) in [
+                ("EDIT", "Dear Ingrid,\nthanks"),
+                (RICH_EDIT, "Dear Ingrid,\nthanks\n"),
+            ] {
                 let window = field_window(
                     class,
                     (ES_MULTILINE | ES_AUTOHSCROLL) as u32,
@@ -483,22 +488,27 @@ mod tests {
                 let field = automation.window(window.handles[0]).unwrap();
                 assert_eq!(
                     Fields::text(&automation, &field, MAX_FIELD_CHARS).as_deref(),
-                    Some("Dear Ingrid,\nthanks"),
+                    Some(expected),
                     "{class}"
                 );
             }
         }
 
+        /// The edit gives its Value, the rich edit its text pattern.
         #[test]
         fn a_field_longer_than_the_limit_is_not_read() {
             let automation = Automation::new().expect("UI Automation client");
-            for class in ["EDIT", RICH_EDIT] {
+            for (class, value) in [("EDIT", Some(INSERTED)), (RICH_EDIT, None)] {
                 let window = field_window(class, (ES_MULTILINE | ES_AUTOHSCROLL) as u32, INSERTED);
                 let field = automation.window(window.handles[0]).unwrap();
-                let len = INSERTED.len();
+                let read_value = field.value().filter(|value| !value.is_empty());
+                assert_eq!(read_value.as_deref(), value, "{class}");
+                let whole = Fields::text(&automation, &field, MAX_FIELD_CHARS).unwrap();
+                assert_eq!(whole.trim_end(), INSERTED, "{class}");
+                let len = whole.encode_utf16().count();
                 assert_eq!(
                     Fields::text(&automation, &field, len).as_deref(),
-                    Some(INSERTED),
+                    Some(whole.as_str()),
                     "{class}"
                 );
                 assert_eq!(Fields::text(&automation, &field, len - 1), None, "{class}");
