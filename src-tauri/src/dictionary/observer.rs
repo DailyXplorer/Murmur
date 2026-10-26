@@ -161,13 +161,16 @@ impl Fields for crate::uia::Automation {
             .filter(|focused| !focused.is_secure())
     }
 
-    fn same(&self, _: &Self::Field, _: &Self::Field) -> bool {
-        false
+    fn same(&self, a: &Self::Field, b: &Self::Field) -> bool {
+        crate::uia::Automation::same(self, a, b)
     }
 
-    // RED: Windows reads no field yet.
-    fn text(&self, _: &Self::Field, _: usize) -> Option<String> {
-        None
+    /// Line breaks as the dictation wrote them: Windows fields hold `\r\n`
+    /// or `\r` for each `\n` pasted.
+    fn text(&self, field: &Self::Field, max: usize) -> Option<String> {
+        field
+            .text(max)
+            .map(|text| text.replace("\r\n", "\n").replace('\r', "\n"))
     }
 }
 

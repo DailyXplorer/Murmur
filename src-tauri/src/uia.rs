@@ -145,6 +145,13 @@ impl Automation {
         .map(Element)
     }
 
+    /// Whether `a` and `b` are the same element of the app, compared by
+    /// runtime id.
+    pub fn same(&self, a: &Element, b: &Element) -> bool {
+        // SAFETY: both are live elements of this client.
+        unsafe { self.automation.CompareElements(&a.0, &b.0) }.is_ok_and(BOOL::as_bool)
+    }
+
     /// The children of `element` in the raw tree. Empty when it has none or
     /// the app did not answer within the timeout.
     pub fn children(&self, element: &Element) -> Vec<Element> {
@@ -206,6 +213,35 @@ impl Element {
     pub fn is_secure(&self) -> bool {
         // SAFETY: reads the cached property.
         unsafe { self.0.CachedIsPassword() }.map_or(true, BOOL::as_bool)
+    }
+
+    /// The whole text of a field, from its Value, else from its text
+    /// pattern, which documents give instead. None when it holds more than
+    /// `max` UTF-16 units: the text pattern stops after `max + 1`. A password
+    /// field is never asked.
+    pub fn text(&self, max: usize) -> Option<String> {
+        if self.is_secure() {
+            return None;
+        }
+        let text = match self.value().filter(|value| !value.is_empty()) {
+            Some(value) => value,
+            None => {
+                let limit = i32::try_from(max).ok()?.checked_add(1)?;
+                // SAFETY: each call asks the app and returns an owned
+                // interface or an error.
+                unsafe {
+                    self.0
+                        .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+                        .ok()?
+                        .DocumentRange()
+                        .ok()?
+                        .GetText(limit)
+                        .ok()?
+                        .to_string()
+                }
+            }
+        };
+        (text.encode_utf16().count() <= max).then_some(text)
     }
 
     /// The first selection of the element's text, else its caret, which
