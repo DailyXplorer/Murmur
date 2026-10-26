@@ -88,7 +88,7 @@ libc = "0.2"
 # sign-in's PKCE challenge.
 sha2 = "0.10"
 # The ChatGPT sign-in: PKCE verifier and state, and the callback's query.
-getrandom = "0.3"
+getrandom = "0.4"
 url = "2"
 
 # Parakeet on the CPU of Intel Macs; Apple silicon runs it in the meetings
