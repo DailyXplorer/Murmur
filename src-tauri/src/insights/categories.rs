@@ -152,9 +152,27 @@ pub const BROWSER_BUNDLE_IDS: &[&str] = &[
     "app.zen-browser.zen",
 ];
 
+/// The same browsers by lower-cased executable name.
+#[cfg(target_os = "windows")]
+pub const BROWSER_EXECUTABLES: &[&str] = &[
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "opera.exe",
+    "vivaldi.exe",
+    "arc.exe",
+    "zen.exe",
+];
+
 #[cfg(target_os = "macos")]
 pub fn is_browser(bundle_id: &str) -> bool {
     BROWSER_BUNDLE_IDS.contains(&bundle_id)
+}
+
+#[cfg(target_os = "windows")]
+pub fn is_browser(executable: &str) -> bool {
+    BROWSER_EXECUTABLES.contains(&executable)
 }
 
 fn bundle_matches(pattern: &str, bundle_id: &str) -> bool {
@@ -278,5 +296,44 @@ mod tests {
         assert!(is_browser("com.apple.Safari"));
         assert!(is_browser("com.google.Chrome"));
         assert!(!is_browser("com.apple.mail"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn known_windows_browsers_are_queried_for_a_host() {
+        for executable in ["chrome.exe", "msedge.exe", "firefox.exe", "zen.exe"] {
+            assert!(is_browser(executable), "{executable}");
+        }
+        assert!(!is_browser("outlook.exe"));
+        assert!(!is_browser("code.exe"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_web_host_overrides_a_windows_browser() {
+        let cases = [
+            ("chrome.exe", Some("github.com"), AppCategory::Coding),
+            ("chrome.exe", Some("mail.google.com"), AppCategory::Emails),
+            (
+                "msedge.exe",
+                Some("outlook.office.com"),
+                AppCategory::Emails,
+            ),
+            ("firefox.exe", Some("claude.ai"), AppCategory::AiPrompts),
+            (
+                "brave.exe",
+                Some("app.slack.com"),
+                AppCategory::WorkMessages,
+            ),
+            ("chrome.exe", Some("example.com"), AppCategory::Other),
+            ("chrome.exe", None, AppCategory::Other),
+        ];
+        for (executable, host, expected) in cases {
+            assert_eq!(
+                categorize(executable, host),
+                expected,
+                "{executable} {host:?}"
+            );
+        }
     }
 }
