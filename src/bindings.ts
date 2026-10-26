@@ -372,9 +372,10 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
 }
 },
 /**
- * Fits the copy notice's window to the capsule the webview measured, so a
- * note that wraps further in a wider fallback font still shows whole, and
- * the window, which takes clicks while the notice shows, stays close to it.
+ * Fits a fitted pill's window, the copy pill's or the microphone
+ * warning's, to the capsule the webview measured, so a note that wraps
+ * further in a wider fallback font still shows whole, and the window, which
+ * takes clicks while the pill shows, stays close to it.
  */
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });

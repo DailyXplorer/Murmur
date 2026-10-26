@@ -33,6 +33,7 @@
     "overlayCopy": "Kopieren",
     "overlayCopied": "Kopiert",
     "overlayNotPasted": "Es gab kein Textfeld zum Einfügen.",
+    "overlayMicDisconnected": "Die Aufnahme wurde vorzeitig beendet: Dein Mikrofon wurde getrennt.",
     "callRecordQuestion": "Dieses Meeting aufnehmen?",
     "callRecord": "Aufnehmen",
     "callNotNow": "Nicht jetzt",

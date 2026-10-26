@@ -31,6 +31,7 @@ type View =
   | { kind: "transcribing" }
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
+  | { kind: "warning"; message: string }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
@@ -44,6 +45,8 @@ interface CopyLabels {
   copy: string;
   copied: string;
   note: string;
+  /** Says the microphone went away during the dictation, when it did. */
+  warning: string | null;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -67,6 +70,25 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
       <span>{formatDuration(elapsed)}</span>
     </div>
   );
+};
+
+/** A balanced paragraph that wraps keeps the width it wrapped at, wider than
+ * its lines; narrowed to its longest line, the pill hugs its text and its
+ * padding stays even on both sides. */
+const hugWrappedLines = (body: HTMLElement) => {
+  for (const text of body.querySelectorAll<HTMLElement>(".ov-copy-note")) {
+    text.style.width = "";
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const lines = [...range.getClientRects()];
+    if (new Set(lines.map((line) => Math.round(line.top))).size < 2) continue;
+    const left = Math.min(...lines.map((line) => line.left));
+    const right = Math.max(...lines.map((line) => line.right));
+    // Line boxes are drawn sizes, scaled by the pill's pop-in; offsetWidth
+    // is the laid-out one.
+    const scale = text.getBoundingClientRect().width / text.offsetWidth;
+    text.style.width = `${Math.ceil((right - left) / scale)}px`;
+  }
 };
 
 const CENTER = (BAR_COUNT - 1) / 2;
@@ -96,7 +118,6 @@ const RecordingOverlay: React.FC = () => {
   const levelsRef = useRef<number[]>([]);
   const capsuleRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
-  const copyRef = useRef<HTMLButtonElement>(null);
   const noticeBodyRef = useRef<HTMLSpanElement>(null);
   const noticeId = useId();
 
@@ -158,6 +179,13 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
+    // The microphone went away during a dictation that pasted its text, or
+    // had none: the warning shows alone, the way the copy pill does.
+    void listen<string>("show-overlay-warning", (event) => {
+      setView({ kind: "warning", message: event.payload });
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
     void listen("hide-overlay", () => {
       setView({ kind: "hidden" });
     }).then(storeUnlistener, () => undefined);
@@ -214,16 +242,21 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  const copyShowing = view.kind === "copy";
-
-  // The copy pill's body sizes itself from its text, whatever font renders
-  // it, and the window is fitted to it: only the webview can measure it.
-  // The backend opens each notice at a default size, so every such view,
-  // even one replacing a showing one, observes and reports again.
-  const fittedView = view.kind === "copy" ? view : null;
+  // The copy pill's body, and the warning pill's, sizes itself from its
+  // text, whatever font renders it, and the window is fitted to it: only the
+  // webview can measure it. The backend opens each notice at a default size,
+  // so every such view, even one replacing a showing one, observes and
+  // reports again.
+  const fittedView =
+    view.kind === "copy" || view.kind === "warning" ? view : null;
+  const pillShowing = fittedView !== null;
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
+    // The copy pill without the warning keeps the width it had before.
+    if (fittedView.kind === "warning" || fittedView.labels.warning) {
+      hugWrappedLines(body);
+    }
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands
@@ -241,8 +274,8 @@ const RecordingOverlay: React.FC = () => {
   // first paint and the growth runs towards it. The body keeps its own size
   // and is clipped meanwhile, so the note never rewraps as the pill grows.
   useLayoutEffect(() => {
-    const pill = copyRef.current;
-    if (!copyShowing || !pill || reducedMotion) return;
+    const pill = noticeBodyRef.current?.parentElement;
+    if (!pillShowing || !pill || reducedMotion) return;
     const style = getComputedStyle(pill);
     const growth = pill.animate(
       [
@@ -255,7 +288,7 @@ const RecordingOverlay: React.FC = () => {
       { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     return () => growth.cancel();
-  }, [copyShowing, reducedMotion]);
+  }, [pillShowing, reducedMotion]);
 
   if (view.kind === "hidden") return null;
 
@@ -285,21 +318,40 @@ const RecordingOverlay: React.FC = () => {
         });
     };
     const Icon = view.copied ? CheckIcon : CopyIcon;
+    const { warning } = view.labels;
+    const note = (
+      <span id={`${noticeId}-note`} className="ov-copy-note">
+        {view.labels.note}
+      </span>
+    );
     return (
       <div className={`ov-stage ${position}`}>
         <button
-          ref={copyRef}
           type="button"
           dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
           aria-labelledby={`${noticeId}-action`}
-          aria-describedby={`${noticeId}-note`}
+          aria-describedby={
+            warning
+              ? `${noticeId}-warning ${noticeId}-note`
+              : `${noticeId}-note`
+          }
           onClick={copyAgain}
         >
           <span ref={noticeBodyRef} className="ov-copy-body">
-            <span id={`${noticeId}-note`} className="ov-copy-note">
-              {view.labels.note}
-            </span>
+            {warning ? (
+              <span className="ov-copy-text">
+                <span
+                  id={`${noticeId}-warning`}
+                  className="ov-copy-note ov-copy-warning"
+                >
+                  {warning}
+                </span>
+                {note}
+              </span>
+            ) : (
+              note
+            )}
             <span className="ov-copy-action">
               <Icon size={14} weight="bold" aria-hidden="true" />
               <span className="ov-copy-label">
@@ -313,6 +365,18 @@ const RecordingOverlay: React.FC = () => {
             </span>
           </span>
         </button>
+      </div>
+    );
+  }
+
+  if (view.kind === "warning") {
+    return (
+      <div className={`ov-stage ${position}`}>
+        <div className="ov-capsule ov-warning" role="status" dir="auto">
+          <span ref={noticeBodyRef} className="ov-copy-body">
+            <span className="ov-copy-note ov-copy-warning">{view.message}</span>
+          </span>
+        </div>
       </div>
     );
   }
