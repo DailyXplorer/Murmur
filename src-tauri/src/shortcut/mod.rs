@@ -119,32 +119,33 @@ pub async fn get_key_labels(app: AppHandle) -> HashMap<String, String> {
 #[tauri::command]
 #[specta::specta]
 /// The name to record for a key the user presses, keyed by the name of the
-/// physical key, so the shortcut fires on that key. Only keys whose name
-/// changes are listed: none on macOS, which registers the physical key.
-pub async fn get_recorded_key_names(app: AppHandle) -> HashMap<String, String> {
+/// physical key, so the shortcut fires on that key, and the keys no shortcut
+/// can fire on. Only keys whose name changes are listed: none on macOS, which
+/// registers the physical key.
+pub async fn get_recorded_key_names(app: AppHandle) -> key_labels::RecordedKeys {
     read_keyboard_layout(&app, key_labels::read_names).await
 }
 
 /// Runs `read` on the main thread, where the layout APIs answer. Empty when
 /// the layout cannot be read.
-async fn read_keyboard_layout(
+async fn read_keyboard_layout<T: Default + Send + 'static>(
     app: &AppHandle,
-    read: fn() -> Result<HashMap<String, String>, String>,
-) -> HashMap<String, String> {
+    read: fn() -> Result<T, String>,
+) -> T {
     let (sender, receiver) = tokio::sync::oneshot::channel();
     if let Err(error) = app.run_on_main_thread(move || {
         let _ = sender.send(read());
     }) {
         warn!("Cannot read the keyboard layout: {error}");
-        return HashMap::new();
+        return T::default();
     }
     match receiver.await {
         Ok(Ok(keys)) => keys,
         Ok(Err(error)) => {
             warn!("Cannot read the keyboard layout: {error}");
-            HashMap::new()
+            T::default()
         }
-        Err(_) => HashMap::new(),
+        Err(_) => T::default(),
     }
 }
 

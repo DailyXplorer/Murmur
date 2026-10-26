@@ -14,7 +14,11 @@ import {
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import { useShortcutCaptureStore } from "../../stores/shortcutCaptureStore";
-import { commands, type ShortcutRegistrationError } from "@/bindings";
+import {
+  commands,
+  type RecordedKeys,
+  type ShortcutRegistrationError,
+} from "@/bindings";
 import { isWindows } from "@/lib/platform";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
@@ -60,7 +64,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
   // The name to save for a pressed key, by the key's own name: on Windows,
   // the virtual key the layout puts there, which the shortcut fires on.
-  const recordedKeyNames = useRef<KeyLabels>({});
+  const recordedKeys = useRef<RecordedKeys>({ names: {}, unusable: [] });
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
   // The optimistic update re-attaches the key listeners while the first
   // combo is still being saved; a second combo then must not start another.
@@ -97,8 +101,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       .catch(() => undefined);
     commands
       .getRecordedKeyNames()
-      .then((names) => {
-        if (active) recordedKeyNames.current = names;
+      .then((keys) => {
+        if (active) recordedKeys.current = keys;
       })
       .catch(() => undefined);
     return () => {
@@ -162,7 +166,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (committing.current) return;
 
       const pressed = normalizeKey(getKeyName(e));
-      const key = recordedKeyNames.current[pressed] ?? pressed;
+      const key = recordedKeys.current.names[pressed] ?? pressed;
       const modifiers = modifiersHeld(e);
       if (MODIFIER_KEYS.has(key)) {
         setHeldModifiers(modifiers);

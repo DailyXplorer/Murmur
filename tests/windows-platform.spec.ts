@@ -169,6 +169,35 @@ test.describe("Windows build", () => {
         .toEqual({ id: "paste_last", binding });
     }
   });
+
+  test("refuses a key no Windows shortcut can fire on", async ({ page }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+    );
+    const pasteLast = page.getByRole("button", {
+      name: "Paste last transcription: Press keys...",
+    });
+    const before = await pasteLast.textContent();
+    const refused = page.getByText(
+      "This key can't be used in a shortcut on Windows. Choose a different one.",
+    );
+
+    // The "!" key, then the "<" key.
+    for (const [index, code] of ["Slash", "IntlBackslash"].entries()) {
+      await pasteLast.click();
+      await page.keyboard.press(`Control+${code}`);
+
+      await expect(refused).toHaveCount(index + 1);
+      await expect(pasteLast).toHaveText(before ?? "");
+    }
+    expect(
+      await page.evaluate(() =>
+        window.settingsPages.calls.some(
+          (call) => call.command === "change_binding",
+        ),
+      ),
+    ).toBe(false);
+  });
 });
 
 // Logical client sizes derived from physical work areas and native borders.

@@ -10,6 +10,8 @@
 //! sees physical keys, so it also needs the name of the virtual key under
 //! each of them ([`read_names`]).
 
+use serde::Serialize;
+use specta::Type;
 use std::collections::HashMap;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -121,10 +123,11 @@ const LAYOUT_KEYS: [(&str, u16); 47] = [
     ("'", VK_OEM_7.0),
 ];
 
-/// The same keys as physical keys: the name the recorder gives each one (what
-/// it types on a US keyboard), with its scan code.
+/// The same keys as physical keys, and the key between left Shift and Z on
+/// ISO keyboards: the name the recorder gives each one (what it types on a US
+/// keyboard, else its key code), with its scan code.
 #[cfg(target_os = "windows")]
-const PHYSICAL_KEYS: [(&str, u16); 47] = [
+const PHYSICAL_KEYS: [(&str, u16); 48] = [
     ("1", 0x02),
     ("2", 0x03),
     ("3", 0x04),
@@ -172,7 +175,20 @@ const PHYSICAL_KEYS: [(&str, u16); 47] = [
     (",", 0x33),
     (".", 0x34),
     ("/", 0x35),
+    ("intlbackslash", 0x56),
 ];
+
+/// What the recorder saves for the physical keys of the active layout.
+#[derive(Serialize, Type, Debug, Default)]
+pub struct RecordedKeys {
+    /// The name of the virtual key under each physical key whose name
+    /// differs, keyed by the physical key's name.
+    pub names: HashMap<String, String>,
+    /// The physical keys whose virtual key no shortcut name registers, such
+    /// as the "!" key on AZERTY: saved under their own name, a shortcut would
+    /// fire on another key.
+    pub unusable: Vec<String>,
+}
 
 /// The label of each layout key, from `typed`: what the active layout types
 /// on a virtual key code. A key it types nothing printable on keeps its name.
@@ -187,20 +203,26 @@ pub fn labels(typed: impl Fn(u16) -> Option<char>) -> HashMap<String, String> {
         .collect()
 }
 
-/// The name of the virtual key under each physical key whose name differs,
-/// from `virtual_key`: the layout's virtual key on a scan code. On AZERTY the
-/// key a US keyboard calls "q" is the A key. A physical key whose virtual key
-/// no shortcut can name is left out, and keeps its own name.
+/// What the recorder saves for each physical key, from `virtual_key`: the
+/// layout's virtual key on a scan code. On AZERTY the key a US keyboard calls
+/// "q" is the A key, and no shortcut name registers the "!" key's virtual key.
+/// A scan code the layout puts no virtual key on keeps its own name.
 #[cfg(target_os = "windows")]
-pub fn names(virtual_key: impl Fn(u16) -> Option<u16>) -> HashMap<String, String> {
-    PHYSICAL_KEYS
-        .iter()
-        .filter_map(|&(physical, scan_code)| {
-            let key = virtual_key(scan_code)?;
-            let &(name, _) = LAYOUT_KEYS.iter().find(|&&(_, code)| code == key)?;
-            (name != physical).then(|| (physical.to_string(), name.to_string()))
-        })
-        .collect()
+pub fn names(virtual_key: impl Fn(u16) -> Option<u16>) -> RecordedKeys {
+    let mut keys = RecordedKeys::default();
+    for &(physical, scan_code) in &PHYSICAL_KEYS {
+        let Some(key) = virtual_key(scan_code) else {
+            continue;
+        };
+        match LAYOUT_KEYS.iter().find(|&&(_, code)| code == key) {
+            Some(&(name, _)) if name != physical => {
+                keys.names.insert(physical.to_string(), name.to_string());
+            }
+            Some(_) => {}
+            None => {}
+        }
+    }
+    keys
 }
 
 /// The label of each layout key on the active layout. Call it on the main
@@ -215,8 +237,8 @@ pub fn read() -> Result<HashMap<String, String>, String> {
 
 /// macOS registers the physical key, so every recorded key keeps its name.
 #[cfg(target_os = "macos")]
-pub fn read_names() -> Result<HashMap<String, String>, String> {
-    Ok(HashMap::new())
+pub fn read_names() -> Result<RecordedKeys, String> {
+    Ok(RecordedKeys::default())
 }
 
 /// The label of each layout key on the active layout. Call it on the main
@@ -230,7 +252,7 @@ pub fn read() -> Result<HashMap<String, String>, String> {
 /// so that a shortcut fires on the key the user pressed. Call it on the main
 /// thread, as [`read`].
 #[cfg(target_os = "windows")]
-pub fn read_names() -> Result<HashMap<String, String>, String> {
+pub fn read_names() -> Result<RecordedKeys, String> {
     active_layout().map(names_on)
 }
 
@@ -259,7 +281,7 @@ fn labels_on(layout: HKL) -> HashMap<String, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn names_on(layout: HKL) -> HashMap<String, String> {
+fn names_on(layout: HKL) -> RecordedKeys {
     names(|scan_code| {
         // SAFETY: plain lookup in a loaded keyboard layout.
         let key = unsafe { MapVirtualKeyExW(u32::from(scan_code), MAPVK_VSC_TO_VK, Some(layout)) };
@@ -336,8 +358,9 @@ mod tests {
             0x27 => Some(VK_M.0),
             0x32 => Some(VK_OEM_COMMA.0),
             0x34 => Some(VK_OEM_2.0),
-            // The "!" key, which no shortcut name reaches.
+            // The "!" and "<" keys, which no shortcut name reaches.
             0x35 => Some(VK_OEM_8.0),
+            0x56 => Some(VK_OEM_102.0),
             _ => None,
         }
     }
@@ -358,7 +381,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn a_physical_key_is_recorded_as_the_virtual_key_on_it() {
-        let names = names(azerty_keys);
+        let names = names(azerty_keys).names;
         assert_eq!(names["q"], "a");
         assert_eq!(names["a"], "q");
         assert_eq!(names[";"], "m");
@@ -368,6 +391,13 @@ mod tests {
         assert!(!names.contains_key("1"));
         assert!(!names.contains_key("/"));
         assert!(!names.contains_key("k"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_physical_key_no_shortcut_name_registers_is_unusable() {
+        // A key the layout puts no virtual key on ("k" here) is not refused.
+        assert_eq!(names(azerty_keys).unusable, ["/", "intlbackslash"]);
     }
 
     /// The layouts this session has loaded.
@@ -381,20 +411,26 @@ mod tests {
         layouts
     }
 
+    /// The labels and recorded keys of a layout that ships with Windows, by
+    /// its layout id.
+    #[cfg(target_os = "windows")]
+    fn read_layout(id: windows::core::PCWSTR) -> (HashMap<String, String>, RecordedKeys) {
+        let loaded = loaded_layouts();
+        // SAFETY: the shell is not told, and the layout is unloaded below
+        // unless the user already had it.
+        let layout = unsafe { LoadKeyboardLayoutW(id, KLF_NOTELLSHELL) }.expect("the layout loads");
+        let read = (labels_on(layout), names_on(layout));
+        if !loaded.contains(&layout) {
+            // SAFETY: `layout` was loaded above and is not active anywhere.
+            let _ = unsafe { UnloadKeyboardLayout(layout) };
+        }
+        read
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     fn the_french_layout_labels_and_names_its_keys() {
-        let loaded = loaded_layouts();
-        // SAFETY: kbdfr.dll ships with Windows; the shell is not told, and
-        // the layout is unloaded below unless the user already had it.
-        let french = unsafe { LoadKeyboardLayoutW(windows::core::w!("0000040C"), KLF_NOTELLSHELL) }
-            .expect("the French layout loads");
-        let labels = labels_on(french);
-        let names = names_on(french);
-        if !loaded.contains(&french) {
-            // SAFETY: `french` was loaded above and is not active anywhere.
-            let _ = unsafe { UnloadKeyboardLayout(french) };
-        }
+        let (labels, keys) = read_layout(windows::core::w!("0000040C"));
 
         assert_eq!(labels["1"], "&");
         assert_eq!(labels["a"], "a");
@@ -402,11 +438,36 @@ mod tests {
         assert_eq!(labels["/"], ":");
         // A dead key shows its accent.
         assert_eq!(labels["]"], "^");
+        let names = keys.names;
         assert_eq!(names["q"], "a");
         assert_eq!(names["a"], "q");
         assert_eq!(names[";"], "m");
         assert_eq!(names["m"], ",");
         assert!(!names.contains_key("1"));
         assert!(!names.contains_key("/"));
+        // The "!" key and the "<" key.
+        assert_eq!(keys.unusable, ["/", "intlbackslash"]);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_uk_layout_refuses_its_backquote_key() {
+        let (_, keys) = read_layout(windows::core::w!("00000809"));
+
+        // The key left of 1 types "`" there too, on a virtual key no shortcut
+        // name registers.
+        assert_eq!(keys.unusable, ["`"]);
+        // The "\" key between left Shift and Z registers as "\".
+        assert_eq!(keys.names["intlbackslash"], "\\");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_us_layout_records_every_key_under_its_name() {
+        let (_, keys) = read_layout(windows::core::w!("00000409"));
+
+        assert!(keys.names.is_empty(), "{:?}", keys.names);
+        // The ISO key a US keyboard lacks.
+        assert_eq!(keys.unusable, ["intlbackslash"]);
     }
 }

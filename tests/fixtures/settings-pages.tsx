@@ -202,8 +202,12 @@ const transcribeBinding = windows ? "ctrl+super" : "option+space";
 const azerty = params.get("keyboard") === "azerty";
 // What the layout types on a few virtual keys, by the name they register as.
 const AZERTY_LABELS = { "1": "&", a: "a", q: "q", m: "m", ",": ",", "/": ":" };
-// The virtual key under a few physical keys, by the physical key's US name.
-const AZERTY_RECORDED_NAMES = { q: "a", a: "q", ";": "m", m: ",", ".": "/" };
+// The virtual key under a few physical keys, by the physical key's US name,
+// and the "!" and "<" keys, whose virtual keys no shortcut registers.
+const AZERTY_RECORDED_KEYS = {
+  names: { q: "a", a: "q", ";": "m", m: ",", ".": "/" },
+  unusable: ["/", "intlbackslash"],
+};
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -763,7 +767,9 @@ const RESPONSES: Record<string, unknown> = {
   get_microphone_channels: 1,
   get_shortcut_registration_errors: {},
   get_key_labels: azerty ? AZERTY_LABELS : {},
-  get_recorded_key_names: azerty ? AZERTY_RECORDED_NAMES : {},
+  get_recorded_key_names: azerty
+    ? AZERTY_RECORDED_KEYS
+    : { names: {}, unusable: [] },
   initialize_enigo: null,
   initialize_shortcuts: null,
   is_laptop: true,
