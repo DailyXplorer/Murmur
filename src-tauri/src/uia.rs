@@ -175,7 +175,7 @@ impl Automation {
 }
 
 /// An element read with the client's cache request: these getters make no
-/// call to the app, except `value`.
+/// call to the app, except the reads of its text.
 pub struct Element(IUIAutomationElement);
 
 impl Element {
@@ -184,16 +184,20 @@ impl Element {
         unsafe { self.0.CachedControlType() }.ok()
     }
 
+    /// The element, to ask for its text, unless it is a password field or
+    /// cannot tell. Every read of an element's text goes through here, as
+    /// macOS checks the role before it reads AXValue.
+    fn readable(&self) -> Option<&IUIAutomationElement> {
+        (!self.is_secure()).then_some(&self.0)
+    }
+
     /// The Value pattern's value, when the element has one, in one call to
-    /// the app. A password field is never asked, as macOS checks the role
-    /// before it reads AXValue.
+    /// the app. None for a password field, which is never asked.
     pub fn value(&self) -> Option<String> {
-        if self.is_secure() {
-            return None;
-        }
+        let element = self.readable()?;
         // SAFETY: reads the cached pattern, then asks the app for its value.
         unsafe {
-            self.0
+            element
                 .GetCachedPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId)
                 .ok()?
                 .CurrentValue()
@@ -230,14 +234,12 @@ impl Element {
     /// units, so the app never sends a long document whole. None when it
     /// holds more than `max`, and for a password field.
     pub fn document_text(&self, max: usize) -> Option<String> {
-        if self.is_secure() {
-            return None;
-        }
+        let element = self.readable()?;
         let limit = i32::try_from(max).ok()?.checked_add(1)?;
         // SAFETY: each call asks the app and returns an owned interface or
         // an error.
         let text = unsafe {
-            self.0
+            element
                 .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
                 .ok()?
                 .DocumentRange()
@@ -251,20 +253,19 @@ impl Element {
     /// The first selection of the element's text, else its caret, which
     /// Chromium gives only through the second text pattern.
     fn text_selection(&self) -> Option<IUIAutomationTextRange> {
+        let element = self.readable()?;
         // SAFETY: each call asks the app and returns an owned interface or
         // an error; `active` is a live local.
         unsafe {
-            if let Ok(text) = self
-                .0
-                .GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+            if let Ok(text) =
+                element.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
             {
                 return first_selection(&text).or_else(|| {
                     let mut active = BOOL::default();
                     text.GetCaretRange(&mut active).ok()
                 });
             }
-            let text = self
-                .0
+            let text = element
                 .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
                 .ok()?;
             first_selection(&text)

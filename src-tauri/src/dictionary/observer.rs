@@ -43,8 +43,8 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
 /// shows them.
 trait Fields {
     type Field;
-    /// The keyboard focus of the frontmost app, unless it is a password
-    /// field or the app is Murmur or a password manager.
+    /// The keyboard focus of the frontmost app, unless the app is Murmur
+    /// or a password manager.
     fn focused(&self) -> Option<Self::Field>;
     fn same(&self, a: &Self::Field, b: &Self::Field) -> bool;
     /// The field's whole text. None for a password field, or one holding
@@ -155,10 +155,11 @@ fn platform_fields() -> Option<crate::uia::Automation> {
 impl Fields for crate::uia::Automation {
     type Field = crate::uia::Element;
 
+    /// A password field is returned as well: `uia` never asks it for its
+    /// text.
     fn focused(&self) -> Option<Self::Field> {
         let app = crate::uia::frontmost_app()?;
         self.focus_in(app.pid)
-            .filter(|focused| !focused.is_secure())
     }
 
     fn same(&self, a: &Self::Field, b: &Self::Field) -> bool {
