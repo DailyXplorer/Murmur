@@ -35,7 +35,8 @@ pub fn centered_in(
 
 /// The inner size and position of a window of `outer` and `inner` logical
 /// size moved to a monitor of `scale` with work area `area`: its outer size
-/// fitted to the area, its inner size never under `min_inner`, centered.
+/// fitted to the area and centered. The preferred minimum yields to the
+/// available client area on small screens; the Windows UI scrolls there.
 pub fn fitted_and_centered(
     area: &PhysicalRect<i32, u32>,
     scale: f64,
@@ -45,6 +46,13 @@ pub fn fitted_and_centered(
 ) -> (LogicalSize<f64>, PhysicalPosition<i32>) {
     let border = (outer.width - inner.width, outer.height - inner.height);
     let visible = area.size.to_logical::<f64>(scale);
+    // A minimum larger than the work area would hide controls under the
+    // taskbar. Keep it on ordinary screens, but lower it to the available
+    // client area when necessary (never to a zero or negative size).
+    let min_inner = (
+        min_inner.0.min((visible.width - border.0).max(1.0)),
+        min_inner.1.min((visible.height - border.1).max(1.0)),
+    );
     let (width, height) = crate::fitted_window_size(
         (visible.width, visible.height),
         (outer.width, outer.height),
@@ -163,13 +171,42 @@ mod tests {
     }
 
     #[test]
-    fn the_settings_window_never_shrinks_below_its_minimum() {
+    fn the_settings_window_minimum_yields_to_a_smaller_work_area() {
         let (outer, inner) = settings_window();
         let (size, position) =
             fitted_and_centered(&rect(0, 0, 800, 560), 1.0, outer, inner, MIN_INNER);
-        assert_eq!(size, LogicalSize::new(780.0, 570.0));
-        // Too tall still: the title bar stays inside the work area.
+        assert_eq!(size, LogicalSize::new(780.0, 521.0));
+        // The entire window, including its title bar, fits.
         assert_eq!(position, PhysicalPosition::new(2, 0));
+    }
+
+    #[test]
+    fn settings_fit_small_work_areas_at_each_scale_and_monitor_origin() {
+        let (outer, inner) = settings_window();
+        for scale in [1.0, 1.25, 1.5] {
+            let taskbar = (48.0 * scale) as u32;
+            for area in [
+                rect(0, 0, 1366, 768 - taskbar),
+                rect(0, taskbar as i32, 1366, 768 - taskbar),
+                rect(taskbar as i32, 0, 1024 - taskbar, 768),
+                rect(-1366, -768, 1366, 768 - taskbar),
+                rect(1920, 0, 1024, 768 - taskbar),
+                rect(0, 0, 1024, 600 - taskbar),
+            ] {
+                let (size, position) = fitted_and_centered(&area, scale, outer, inner, MIN_INNER);
+                let actual = LogicalSize::new(size.width + 16.0, size.height + 39.0)
+                    .to_physical::<u32>(scale);
+                assert!(size.width > 0.0 && size.height > 0.0);
+                assert!(position.x >= area.position.x && position.y >= area.position.y);
+                assert!(
+                    i64::from(position.x) + i64::from(actual.width)
+                        <= i64::from(area.position.x) + i64::from(area.size.width)
+                        && i64::from(position.y) + i64::from(actual.height)
+                            <= i64::from(area.position.y) + i64::from(area.size.height),
+                    "scale={scale}, area={area:?}, outer={actual:?}, position={position:?}"
+                );
+            }
+        }
     }
 
     #[test]

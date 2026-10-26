@@ -304,7 +304,7 @@ fn center_settings_window_on_pointer_screen(
 /// Centers the settings window in the work area of the monitor under the
 /// pointer, as the macOS build does with its screens. A window too tall or
 /// wide for that work area, such as 1024x768 less the taskbar, shrinks to
-/// fit, never below its minimum size.
+/// fit. On small screens only, its minimum yields to the available area.
 #[cfg(target_os = "windows")]
 fn center_settings_window_on_pointer_screen(
     main_window: &tauri::WebviewWindow,
@@ -325,6 +325,13 @@ fn center_settings_window_on_pointer_screen(
         main_window.inner_size()?.to_logical(scale),
         SETTINGS_WINDOW_MIN_SIZE,
     );
+    // Update the native constraint first: otherwise Windows clamps set_size
+    // back to 680x570 even when this monitor has less usable client space.
+    // Returning to a larger monitor restores the usual minimum.
+    main_window.set_min_size(Some(tauri::LogicalSize::new(
+        inner_size.width.min(SETTINGS_WINDOW_MIN_SIZE.0),
+        inner_size.height.min(SETTINGS_WINDOW_MIN_SIZE.1),
+    )))?;
     main_window.set_size(inner_size)?;
     main_window.set_position(position)
 }

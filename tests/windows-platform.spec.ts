@@ -84,3 +84,52 @@ test.describe("Windows build", () => {
       .toEqual({ id: "transcribe", binding: "ctrl+command" });
   });
 });
+
+// Logical client sizes derived from physical work areas and native borders.
+// These are browser layout checks, not native Windows DPI tests.
+for (const viewport of [
+  { width: 780, height: 681 }, // 1024x768, 100%
+  { width: 780, height: 527 }, // 1366x768, 125%
+  { width: 780, height: 425 }, // 1366x768, 150%
+  { width: 666, height: 425 }, // 1024x768, 150%
+  { width: 666, height: 313 }, // 1024x600, 150%; sidebar must scroll
+]) {
+  test(`small Windows settings remain reachable at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await openWindows(page);
+    // Scrolling to an off-screen item must bring it inside its scrollport,
+    // not just inside an ancestor whose overflow clips the button.
+    for (const section of ["About", "Debug", "General", "Advanced"]) {
+      const button = nav(page, section);
+      await button.scrollIntoViewIfNeeded();
+      await expect(button).toBeInViewport({ ratio: 1 });
+      if (section === "About" && viewport.height === 313) {
+        expect(
+          await page
+            .getByRole("navigation")
+            .evaluate((element) => element.scrollTop),
+        ).toBeGreaterThan(0);
+      }
+      await button.click();
+      await expect(button).toHaveAttribute("aria-current", "page");
+    }
+    const lastSetting = page
+      .getByRole("main", { name: "Advanced" })
+      .getByRole("checkbox")
+      .last()
+      .locator("..");
+    await lastSetting.scrollIntoViewIfNeeded();
+    await expect(lastSetting).toBeInViewport({ ratio: 1 });
+    await lastSetting.click();
+    await expect(page.getByText("v1.3.7", { exact: true })).toBeInViewport({
+      ratio: 1,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
