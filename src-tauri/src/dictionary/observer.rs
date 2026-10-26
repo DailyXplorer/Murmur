@@ -494,15 +494,24 @@ mod tests {
             }
         }
 
-        /// The edit gives its Value, the rich edit its text pattern.
+        /// Both controls give a Value. The rich edit also has the text
+        /// pattern a document gives instead, which is read only up to the
+        /// limit.
         #[test]
         fn a_field_longer_than_the_limit_is_not_read() {
             let automation = Automation::new().expect("UI Automation client");
-            for (class, value) in [("EDIT", Some(INSERTED)), (RICH_EDIT, None)] {
+            let window = field_window(RICH_EDIT, (ES_MULTILINE | ES_AUTOHSCROLL) as u32, INSERTED);
+            let field = automation.window(window.handles[0]).unwrap();
+            let document = field.document_text(MAX_FIELD_CHARS).unwrap();
+            assert_eq!(document.trim_end(), INSERTED);
+            let len = document.encode_utf16().count();
+            assert_eq!(field.document_text(len), Some(document));
+            assert_eq!(field.document_text(len - 1), None);
+            drop(window);
+
+            for class in ["EDIT", RICH_EDIT] {
                 let window = field_window(class, (ES_MULTILINE | ES_AUTOHSCROLL) as u32, INSERTED);
                 let field = automation.window(window.handles[0]).unwrap();
-                let read_value = field.value().filter(|value| !value.is_empty());
-                assert_eq!(read_value.as_deref(), value, "{class}");
                 let whole = Fields::text(&automation, &field, MAX_FIELD_CHARS).unwrap();
                 assert_eq!(whole.trim_end(), INSERTED, "{class}");
                 let len = whole.encode_utf16().count();

@@ -217,31 +217,35 @@ impl Element {
 
     /// The whole text of a field, from its Value, else from its text
     /// pattern, which documents give instead. None when it holds more than
-    /// `max` UTF-16 units: the text pattern stops after `max + 1`. A password
-    /// field is never asked.
+    /// `max` UTF-16 units. A password field is never asked.
     pub fn text(&self, max: usize) -> Option<String> {
+        let text = match self.value().filter(|value| !value.is_empty()) {
+            Some(value) => value,
+            None => self.document_text(max)?,
+        };
+        (text.encode_utf16().count() <= max).then_some(text)
+    }
+
+    /// The text pattern's whole document, read up to `max + 1` UTF-16
+    /// units, so the app never sends a long document whole. None when it
+    /// holds more than `max`, and for a password field.
+    pub fn document_text(&self, max: usize) -> Option<String> {
         if self.is_secure() {
             return None;
         }
-        let text = match self.value().filter(|value| !value.is_empty()) {
-            Some(value) => value,
-            None => {
-                let limit = i32::try_from(max).ok()?.checked_add(1)?;
-                // SAFETY: each call asks the app and returns an owned
-                // interface or an error.
-                unsafe {
-                    self.0
-                        .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
-                        .ok()?
-                        .DocumentRange()
-                        .ok()?
-                        .GetText(limit)
-                        .ok()?
-                        .to_string()
-                }
-            }
+        let limit = i32::try_from(max).ok()?.checked_add(1)?;
+        // SAFETY: each call asks the app and returns an owned interface or
+        // an error.
+        let text = unsafe {
+            self.0
+                .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+                .ok()?
+                .DocumentRange()
+                .ok()?
+                .GetText(limit)
+                .ok()?
         };
-        (text.encode_utf16().count() <= max).then_some(text)
+        (text.len() <= max).then(|| text.to_string())
     }
 
     /// The first selection of the element's text, else its caret, which
