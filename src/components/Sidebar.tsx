@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={isWindows ? "my-4 shrink-0" : "m-4"}
       />
       <div
-        className={`flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-2 ${
+        className={`flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-1 ${
           isWindows ? "shrink-0" : ""
         }`}
       >
