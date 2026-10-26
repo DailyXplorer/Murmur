@@ -46,6 +46,7 @@ const PROPER_PHRASES = [
   "FaceTime",
   "Core ML",
   "Discord",
+  "Windows",
   "Log level",
   "Accessibility",
   "Meetings",
