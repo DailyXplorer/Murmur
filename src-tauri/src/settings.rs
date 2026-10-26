@@ -817,6 +817,7 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
     #[cfg(target_os = "windows")]
     {
         updated |= restrict_to_windows(settings);
+        updated |= turn_on_window_context_once(settings);
     }
 
     updated
