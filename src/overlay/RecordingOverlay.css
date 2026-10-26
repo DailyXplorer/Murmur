@@ -206,8 +206,10 @@
    otherwise, then the Copy action in an inner capsule as far from the end
    as the note is from the start. The action never shrinks; the note wraps. The webview measures the
    body and overlay.rs fits the window to it. The body is clipped while the
-   pill grows from the rest capsule. */
-.ov-capsule.ov-copy {
+   pill grows from the rest capsule. The microphone warning sits above the
+   note, or alone in a pill of its own sized the same way. */
+.ov-capsule.ov-copy,
+.ov-capsule.ov-warning {
   width: auto;
   height: auto;
   min-width: var(--ov-rest-w);
@@ -218,6 +220,8 @@
   font: inherit;
   font-size: 12.5px;
   color: var(--ov-ink);
+}
+.ov-capsule.ov-copy {
   cursor: pointer;
   transition: transform 120ms ease;
 }
@@ -242,6 +246,18 @@
   text-wrap: balance;
   color: rgb(255 255 255 / 0.7);
   animation: ov-fade-in 260ms ease 140ms both;
+}
+.ov-copy-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-block: 3px;
+}
+.ov-copy-text > .ov-copy-note {
+  padding-block: 0;
+}
+.ov-copy-warning {
+  color: var(--ov-ink);
 }
 .ov-copy-action {
   flex: none;
@@ -373,6 +389,7 @@
 @media (prefers-reduced-motion: reduce) {
   .ov-capsule,
   .ov-capsule.ov-copy,
+  .ov-capsule.ov-warning,
   .ov-copy-note,
   .ov-copy-action,
   .ov-call-button,
