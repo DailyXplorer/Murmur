@@ -1,34 +1,30 @@
 //! What the window the user dictates into offers the cleanup step: proper
 //! names visible in it, as spelling hints, and a short excerpt of the
 //! focused field around the insertion point. Both are read through
-//! Accessibility on a background thread when dictation starts, reduced
-//! locally, and dropped after use: only the names and the excerpt leave
-//! this module, and nothing is stored or logged.
+//! Accessibility on macOS, or UI Automation on Windows, on a background
+//! thread when dictation starts, reduced locally, and dropped after use:
+//! only the names and the excerpt leave this module, and nothing is stored
+//! or logged.
 
 use crate::field_excerpt::FieldExcerpt;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
 use {
     crate::accessibility::Element,
     crate::field_excerpt::{read_field, FocusedText, Utf16Range},
-    std::time::Instant,
 };
 
 const MAX_NAMES: usize = 50;
 const MAX_NAME_CHARS: usize = 40;
 /// Unbroken tokens this long are keys or hashes, not names.
 const LONG_TOKEN_CHARS: usize = 20;
-#[cfg(target_os = "macos")]
 const MAX_NODES: usize = 1_500;
-#[cfg(target_os = "macos")]
 const MAX_TEXT_CHARS: usize = 40_000;
-#[cfg(target_os = "macos")]
 const READ_BUDGET: Duration = Duration::from_millis(400);
 /// The field is read first, and a slow one must leave the window time.
-#[cfg(target_os = "macos")]
 const FIELD_BUDGET: Duration = Duration::from_millis(200);
 /// Stopping must not wait on a slow app; late names are simply not used.
 const COLLECT_WAIT: Duration = Duration::from_millis(50);
@@ -83,11 +79,94 @@ pub fn collect() -> WindowContext {
         .unwrap_or_default()
 }
 
-/// Reading another app's window on Windows needs UI Automation, which this
-/// build does not have; window names are off there (see `settings`).
+/// Logs lengths and counts only, never what was read.
 #[cfg(target_os = "windows")]
-fn read_frontmost_window(_reads: ContextReads) -> WindowContext {
-    WindowContext::default()
+fn read_frontmost_window(reads: ContextReads) -> WindowContext {
+    let started = Instant::now();
+    let Some(app) = crate::uia::frontmost_app() else {
+        return WindowContext::default();
+    };
+    let automation = match crate::uia::Automation::new() {
+        Ok(automation) => automation,
+        Err(e) => {
+            log::debug!("UI Automation is unavailable for the window context: {e}");
+            return WindowContext::default();
+        }
+    };
+    let context = read_app(reads, &automation, app, started);
+    log::debug!(
+        "Window context: {} names, excerpt {:?}, in {:?}",
+        context.names.len(),
+        context.field,
+        started.elapsed()
+    );
+    context
+}
+
+/// The focused field first, then the window, with what is left of the
+/// budget that began at `started`.
+#[cfg(target_os = "windows")]
+fn read_app(
+    reads: ContextReads,
+    automation: &crate::uia::Automation,
+    app: crate::foreground::ForegroundWindow,
+    started: Instant,
+) -> WindowContext {
+    read_window(
+        reads,
+        || {
+            automation.focus_in(app.pid).and_then(|focused| {
+                crate::field_excerpt::read_around_selection(&focused, started + FIELD_BUDGET)
+            })
+        },
+        || {
+            automation
+                .window(app.window)
+                .map(|element| {
+                    window_text(
+                        UiaNode {
+                            automation,
+                            element,
+                        },
+                        started,
+                    )
+                })
+                .unwrap_or_default()
+        },
+    )
+}
+
+/// An element of the window's UI Automation tree, with the client that
+/// finds its children.
+#[cfg(target_os = "windows")]
+struct UiaNode<'a> {
+    automation: &'a crate::uia::Automation,
+    element: crate::uia::Element,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowNode for UiaNode<'_> {
+    fn is_secure(&self) -> bool {
+        self.element.is_secure()
+    }
+
+    fn texts(&self) -> Vec<String> {
+        [self.element.value(), self.element.name()]
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    fn children(&self) -> Vec<Self> {
+        self.automation
+            .children(&self.element)
+            .into_iter()
+            .map(|element| UiaNode {
+                automation: self.automation,
+                element,
+            })
+            .collect()
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -117,7 +196,6 @@ fn read_app(reads: ContextReads, pid: i32, app: &Element, started: Instant) -> W
 }
 
 /// Runs only the reads `reads` asks for.
-#[cfg(target_os = "macos")]
 fn read_window(
     reads: ContextReads,
     field: impl FnOnce() -> Option<FieldExcerpt>,
@@ -134,7 +212,6 @@ fn read_window(
 
 /// Names in the excerpt come first: they are next to what the user is
 /// writing.
-#[cfg(target_os = "macos")]
 fn names_in(field: Option<&FieldExcerpt>, window_text: &str) -> Vec<String> {
     let excerpt = field
         .map(|field| format!("{}\n{}", field.before, field.after))
@@ -172,12 +249,37 @@ impl FocusedText for Element {
     }
 }
 
-/// The text of `window` and its descendants, breadth first, until the read
-/// budget that started at `started` runs out.
+/// One element of a window's tree, as `window_text` walks it.
+trait WindowNode: Sized {
+    fn is_secure(&self) -> bool;
+    fn texts(&self) -> Vec<String>;
+    fn children(&self) -> Vec<Self>;
+}
+
 #[cfg(target_os = "macos")]
-fn window_text(window: Element, started: Instant) -> String {
+impl WindowNode for Element {
+    fn is_secure(&self) -> bool {
+        Element::is_secure(self)
+    }
+
+    fn texts(&self) -> Vec<String> {
+        ["AXValue", "AXTitle", "AXDescription"]
+            .iter()
+            .filter_map(|attribute| self.string(attribute))
+            .collect()
+    }
+
+    fn children(&self) -> Vec<Self> {
+        Element::children(self)
+    }
+}
+
+/// The text of `window` and its descendants, breadth first, until the read
+/// budget that started at `started` runs out. A secure field is skipped
+/// with everything inside it.
+fn window_text(window: impl WindowNode, started: Instant) -> String {
     let mut text = String::new();
-    let mut queue = std::collections::VecDeque::from([window]);
+    let mut queue = VecDeque::from([window]);
     let mut visited = 0;
     while let Some(element) = queue.pop_front() {
         visited += 1;
@@ -187,12 +289,10 @@ fn window_text(window: Element, started: Instant) -> String {
         if element.is_secure() {
             continue;
         }
-        for attribute in ["AXValue", "AXTitle", "AXDescription"] {
-            if let Some(value) = element.string(attribute) {
-                if !value.trim().is_empty() {
-                    text.push_str(&value);
-                    text.push('\n');
-                }
+        for value in element.texts() {
+            if !value.trim().is_empty() {
+                text.push_str(&value);
+                text.push('\n');
             }
         }
         queue.extend(element.children());
@@ -511,7 +611,6 @@ mod tests {
         assert_eq!(collect(), WindowContext::default());
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn each_read_runs_only_when_asked_for() {
         use std::sync::Arc;
@@ -590,7 +689,6 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn the_excerpt_and_names_are_sent_as_read() {
         let all = ContextReads {
@@ -857,7 +955,6 @@ mod tests {
         println!("{main}");
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn names_in_the_excerpt_come_before_the_window_names() {
         let excerpt = field("Dear Siobhán and Priya, ", "with Ingrid");
@@ -865,5 +962,450 @@ mod tests {
             names_in(excerpt.as_ref(), "meet Tobias and Siobhán today"),
             names(&["Siobhán", "Priya", "Ingrid", "Tobias"])
         );
+    }
+
+    /// A window's tree; reading a node's text takes `delay`, as in a slow app.
+    #[derive(Clone, Default)]
+    struct Node {
+        text: &'static str,
+        secure: bool,
+        delay: Duration,
+        children: Vec<Node>,
+    }
+
+    impl WindowNode for Node {
+        fn is_secure(&self) -> bool {
+            self.secure
+        }
+
+        fn texts(&self) -> Vec<String> {
+            std::thread::sleep(self.delay);
+            vec![self.text.to_string()]
+        }
+
+        fn children(&self) -> Vec<Self> {
+            self.children.clone()
+        }
+    }
+
+    fn node(text: &'static str, children: Vec<Node>) -> Node {
+        Node {
+            text,
+            children,
+            ..Node::default()
+        }
+    }
+
+    #[test]
+    fn the_window_is_read_breadth_first_without_secure_fields() {
+        let window = node(
+            "Draft",
+            vec![
+                node("To", vec![node("Ingrid", vec![])]),
+                Node {
+                    secure: true,
+                    ..node("hunter2", vec![node("inside the password field", vec![])])
+                },
+                node("Subject", vec![]),
+            ],
+        );
+        assert_eq!(
+            window_text(window, Instant::now()),
+            "Draft\nTo\nSubject\nIngrid\n"
+        );
+    }
+
+    #[test]
+    fn the_window_read_stops_after_the_node_limit() {
+        let window = node("Window", vec![node("Item", vec![]); 2 * MAX_NODES]);
+        let text = window_text(window, Instant::now());
+        assert_eq!(text.lines().count(), MAX_NODES);
+    }
+
+    #[test]
+    fn the_window_read_stops_when_the_budget_is_spent() {
+        let slow = Node {
+            delay: Duration::from_millis(50),
+            ..node("Item", vec![])
+        };
+        let window = node("Window", vec![slow; 40]);
+        let started = Instant::now();
+        let text = window_text(window, started);
+        assert!(started.elapsed() < READ_BUDGET + Duration::from_millis(150));
+        assert!(text.lines().count() < 20, "{} lines", text.lines().count());
+    }
+
+    /// The production reads on real Win32 controls, in windows this test
+    /// opens, so no foreground window is needed.
+    #[cfg(target_os = "windows")]
+    mod uia {
+        use super::*;
+        use crate::field_excerpt::{cut, read_around_selection, Utf16Range};
+        use crate::uia::test_window::{child, instance, TestWindow, PLAIN};
+        use crate::uia::{Automation, Element};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Once;
+        use windows::core::{implement, w, Error, IUnknown, Result, BOOL, BSTR, HSTRING, PCWSTR};
+        use windows::Win32::Foundation::{
+            E_NOTIMPL, HWND, LPARAM, LRESULT, VARIANT_FALSE, VARIANT_TRUE, WPARAM,
+        };
+        use windows::Win32::System::LibraryLoader::LoadLibraryW;
+        use windows::Win32::System::Variant::{VARIANT, VT_BOOL};
+        use windows::Win32::UI::Accessibility::{
+            IRawElementProviderSimple, IRawElementProviderSimple_Impl, IValueProvider,
+            IValueProvider_Impl, ProviderOptions, ProviderOptions_ServerSideProvider,
+            UIA_IsPasswordPropertyId, UIA_ValuePatternId, UIA_ValueValuePropertyId,
+            UiaHostProviderFromHwnd, UiaReturnRawElementProvider, UiaRootObjectId, UIA_PATTERN_ID,
+            UIA_PROPERTY_ID,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{
+            DefWindowProcW, RegisterClassW, SendMessageW, ES_AUTOHSCROLL, ES_PASSWORD,
+            WINDOW_STYLE, WM_GETOBJECT, WNDCLASSW, WNDPROC, WS_BORDER,
+        };
+
+        const EM_SETSEL: u32 = 0x00B1;
+        /// The rich edit control of Msftedit.dll, as in WordPad and Windows
+        /// 11's Notepad.
+        const RICH_EDIT: &str = "RICHEDIT50W";
+
+        fn later() -> Instant {
+            Instant::now() + Duration::from_secs(60)
+        }
+
+        /// About 1 400 chars, so each side of the middle is longer than the
+        /// excerpt.
+        fn prose() -> String {
+            "Dear Ingrid, the report from Tobias is ready for review. ".repeat(24)
+        }
+
+        /// A window holding one field of `class` with `text` and the
+        /// selection `selection`, and a label.
+        fn field_window(
+            class: &'static str,
+            style: WINDOW_STYLE,
+            text: String,
+            selection: Utf16Range,
+        ) -> TestWindow {
+            if class == RICH_EDIT {
+                // SAFETY: loads a system library that registers the class.
+                unsafe { LoadLibraryW(w!("Msftedit.dll")) }.expect("Msftedit.dll");
+            }
+            TestWindow::open(move |window| {
+                let field = child(window, class, &text, WS_BORDER | style);
+                // SAFETY: `field` is a live window of this thread.
+                unsafe {
+                    SendMessageW(
+                        field,
+                        EM_SETSEL,
+                        Some(WPARAM(selection.start)),
+                        Some(LPARAM((selection.start + selection.len) as isize)),
+                    )
+                };
+                child(
+                    window,
+                    "STATIC",
+                    "Lunch with Amaya",
+                    WINDOW_STYLE::default(),
+                );
+                vec![field.0 as isize]
+            })
+        }
+
+        fn element(automation: &Automation, window: isize) -> Element {
+            automation.window(window).expect("element of the window")
+        }
+
+        #[test]
+        fn the_excerpt_matches_the_one_cut_from_the_whole_field() {
+            let automation = Automation::new().expect("UI Automation client");
+            let text = prose();
+            for class in ["EDIT", RICH_EDIT] {
+                for selection in [
+                    Utf16Range { start: 700, len: 0 },
+                    Utf16Range {
+                        start: 700,
+                        len: 12,
+                    },
+                ] {
+                    let window = field_window(
+                        class,
+                        WINDOW_STYLE(ES_AUTOHSCROLL as u32),
+                        text.clone(),
+                        selection,
+                    );
+                    let field = element(&automation, window.handles[0]);
+                    let excerpt = read_around_selection(&field, later());
+                    assert!(excerpt.is_some(), "{class} {selection:?}");
+                    assert_eq!(excerpt, cut(&text, selection), "{class} {selection:?}");
+                }
+            }
+        }
+
+        #[test]
+        fn a_password_field_is_never_read() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = field_window(
+                "EDIT",
+                WINDOW_STYLE(ES_PASSWORD as u32),
+                "hunter2 Corvina".to_string(),
+                Utf16Range { start: 7, len: 0 },
+            );
+            let field = element(&automation, window.handles[0]);
+            assert!(field.is_secure());
+            assert_eq!(read_around_selection(&field, later()), None);
+            let root = element(&automation, window.window);
+            let text = window_text(
+                UiaNode {
+                    automation: &automation,
+                    element: root,
+                },
+                Instant::now(),
+            );
+            assert!(text.contains("Amaya"), "the label is read");
+            assert!(!text.contains("hunter2") && !text.contains("Corvina"));
+        }
+
+        /// Classes of fields served by `FieldProvider`, an app's own UI
+        /// Automation provider, which counts how often each is asked for
+        /// its Value.
+        const SECRET_FIELD: &str = "MurmurUiaTestSecretField";
+        const PLAIN_FIELD: &str = "MurmurUiaTestPlainField";
+        /// Value requests of the plain field, then of the password field.
+        static VALUE_REQUESTS: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0)];
+
+        fn value_requests(secure: bool) -> usize {
+            VALUE_REQUESTS[usize::from(secure)].load(Ordering::SeqCst)
+        }
+
+        #[implement(IRawElementProviderSimple)]
+        struct FieldProvider {
+            window: isize,
+            secure: bool,
+        }
+
+        impl IRawElementProviderSimple_Impl for FieldProvider_Impl {
+            fn ProviderOptions(&self) -> Result<ProviderOptions> {
+                Ok(ProviderOptions_ServerSideProvider)
+            }
+
+            fn GetPatternProvider(&self, pattern: UIA_PATTERN_ID) -> Result<IUnknown> {
+                if pattern != UIA_ValuePatternId {
+                    // S_OK and no pattern.
+                    return Err(Error::empty());
+                }
+                let value: IValueProvider = FieldValue {
+                    secure: self.secure,
+                }
+                .into();
+                Ok(value.into())
+            }
+
+            fn GetPropertyValue(&self, property: UIA_PROPERTY_ID) -> Result<VARIANT> {
+                let mut variant = VARIANT::default();
+                if property == UIA_ValueValuePropertyId {
+                    VALUE_REQUESTS[usize::from(self.secure)].fetch_add(1, Ordering::SeqCst);
+                } else if property == UIA_IsPasswordPropertyId {
+                    // SAFETY: writes a VT_BOOL variant's tag and value.
+                    unsafe {
+                        let inner = &mut *variant.Anonymous.Anonymous;
+                        inner.vt = VT_BOOL;
+                        inner.Anonymous.boolVal = if self.secure {
+                            VARIANT_TRUE
+                        } else {
+                            VARIANT_FALSE
+                        };
+                    }
+                }
+                // Empty: UI Automation asks the Value pattern or the window.
+                Ok(variant)
+            }
+
+            fn HostRawElementProvider(&self) -> Result<IRawElementProviderSimple> {
+                // SAFETY: the provider's own window.
+                unsafe { UiaHostProviderFromHwnd(HWND(self.window as *mut _)) }
+            }
+        }
+
+        #[implement(IValueProvider)]
+        struct FieldValue {
+            secure: bool,
+        }
+
+        impl IValueProvider_Impl for FieldValue_Impl {
+            fn SetValue(&self, _: &PCWSTR) -> Result<()> {
+                Err(E_NOTIMPL.into())
+            }
+
+            fn Value(&self) -> Result<BSTR> {
+                VALUE_REQUESTS[usize::from(self.secure)].fetch_add(1, Ordering::SeqCst);
+                Ok(BSTR::from(if self.secure {
+                    "hunter2 Corvina"
+                } else {
+                    "Dear Ingrid"
+                }))
+            }
+
+            fn IsReadOnly(&self) -> Result<BOOL> {
+                Ok(true.into())
+            }
+        }
+
+        unsafe extern "system" fn field_proc<const SECURE: bool>(
+            window: HWND,
+            message: u32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            if message == WM_GETOBJECT && lparam.0 as i32 == UiaRootObjectId {
+                let provider: IRawElementProviderSimple = FieldProvider {
+                    window: window.0 as isize,
+                    secure: SECURE,
+                }
+                .into();
+                // SAFETY: answers this window's own WM_GETOBJECT.
+                return unsafe { UiaReturnRawElementProvider(window, wparam, lparam, &provider) };
+            }
+            // SAFETY: the default handling of this window's message.
+            unsafe { DefWindowProcW(window, message, wparam, lparam) }
+        }
+
+        fn register_provider_fields() {
+            static REGISTER: Once = Once::new();
+            REGISTER.call_once(|| {
+                let classes: [(&str, WNDPROC); 2] = [
+                    (SECRET_FIELD, Some(field_proc::<true>)),
+                    (PLAIN_FIELD, Some(field_proc::<false>)),
+                ];
+                for (class, window_proc) in classes {
+                    let class = HSTRING::from(class);
+                    // SAFETY: registers a class whose procedure lives as
+                    // long as the test executable; the name is copied.
+                    unsafe {
+                        RegisterClassW(&WNDCLASSW {
+                            lpfnWndProc: window_proc,
+                            hInstance: instance(),
+                            lpszClassName: PCWSTR(class.as_ptr()),
+                            ..Default::default()
+                        })
+                    };
+                }
+            });
+        }
+
+        #[test]
+        fn a_password_fields_value_is_never_requested() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = TestWindow::open(|window| {
+                register_provider_fields();
+                vec![
+                    child(window, SECRET_FIELD, "Password", WINDOW_STYLE::default()).0 as isize,
+                    child(window, PLAIN_FIELD, "Message", WINDOW_STYLE::default()).0 as isize,
+                ]
+            });
+            let secret = element(&automation, window.handles[0]);
+            let secure = secret.is_secure();
+            let value = secret.value();
+            let excerpt = read_around_selection(&secret, later());
+            let text = window_text(
+                UiaNode {
+                    automation: &automation,
+                    element: element(&automation, window.window),
+                },
+                Instant::now(),
+            );
+            assert_eq!(value_requests(true), 0, "the password field's Value");
+            assert!(secure);
+            assert_eq!((value, excerpt), (None, None));
+            assert!(text.contains("Dear Ingrid"), "the other field is read");
+            assert!(value_requests(false) > 0);
+        }
+
+        #[test]
+        fn a_control_without_text_or_caret_gives_no_excerpt() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = TestWindow::open(|window| {
+                vec![child(window, "BUTTON", "Send", WINDOW_STYLE::default()).0 as isize]
+            });
+            let button = element(&automation, window.handles[0]);
+            assert_eq!(read_around_selection(&button, later()), None);
+        }
+
+        #[test]
+        fn names_come_from_the_field_and_the_rest_of_the_window() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = field_window(
+                RICH_EDIT,
+                WINDOW_STYLE(ES_AUTOHSCROLL as u32),
+                prose(),
+                Utf16Range { start: 700, len: 0 },
+            );
+            let all = ContextReads {
+                names: true,
+                field: true,
+            };
+            let started = Instant::now();
+            let context = read_window(
+                all,
+                || {
+                    let field = element(&automation, window.handles[0]);
+                    read_around_selection(&field, started + FIELD_BUDGET)
+                },
+                || {
+                    let root = element(&automation, window.window);
+                    window_text(
+                        UiaNode {
+                            automation: &automation,
+                            element: root,
+                        },
+                        started,
+                    )
+                },
+            );
+            assert!(context.field.is_some());
+            for name in ["Ingrid", "Tobias", "Amaya"] {
+                assert!(context.names.contains(&name.to_string()), "{name}");
+            }
+        }
+
+        #[test]
+        fn a_window_of_many_controls_is_read_within_the_budget() {
+            let automation = Automation::new().expect("UI Automation client");
+            let window = TestWindow::open(|window| {
+                for _ in 0..40 {
+                    let group: HWND = child(window, PLAIN, "", WINDOW_STYLE::default());
+                    for item in 0..40 {
+                        child(
+                            group,
+                            "STATIC",
+                            &format!("Item {item}"),
+                            WINDOW_STYLE::default(),
+                        );
+                    }
+                }
+                Vec::new()
+            });
+            let root = element(&automation, window.window);
+            // The first call into the window loads its providers, which an
+            // app the user works in has long done.
+            automation.children(&root);
+            let started = Instant::now();
+            let text = window_text(
+                UiaNode {
+                    automation: &automation,
+                    element: root,
+                },
+                started,
+            );
+            let elapsed = started.elapsed();
+            let lines = text.lines().count();
+            assert!(text.starts_with("Murmur UI Automation test\n"));
+            // The tree holds 1 641 controls, 1 601 of them named.
+            assert!(lines < MAX_NODES, "{lines} lines in {elapsed:?}");
+            // One call may take its whole timeout after the last check.
+            assert!(
+                elapsed < READ_BUDGET + Duration::from_millis(300),
+                "{lines} lines in {elapsed:?}"
+            );
+        }
     }
 }

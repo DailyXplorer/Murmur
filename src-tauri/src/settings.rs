@@ -347,6 +347,11 @@ pub struct AppSettings {
     /// Offer names visible in the frontmost window to the cleanup step.
     #[serde(default = "default_window_names_enabled")]
     pub window_names_enabled: bool,
+    /// Windows only: `window_names_enabled` was turned on once for a store
+    /// from the betas that hid the setting and kept it off. New Windows
+    /// stores start with it set.
+    #[serde(default)]
+    pub window_names_turned_on_once: bool,
     /// More input gain for quiet speech, and a hint that speech was faint.
     #[serde(default)]
     pub whisper_mode: bool,
@@ -444,9 +449,8 @@ fn default_ai_cleanup_enabled() -> bool {
     true
 }
 
-/// On macOS only: see `restrict_to_windows`.
 fn default_window_names_enabled() -> bool {
-    cfg!(target_os = "macos")
+    true
 }
 
 fn default_debug_mode() -> bool {
@@ -536,10 +540,9 @@ pub const DEFAULT_TRANSCRIBE_BINDING: &str = "option+space";
 pub const DEFAULT_TRANSCRIBE_BINDING: &str = "ctrl+super";
 
 /// Turns off what the Windows build does not offer: meetings (the system
-/// audio tap and the analysis helper are macOS code), window-name hints and
-/// the clamshell microphone (both read through macOS APIs), and update
-/// checks, as the Windows beta ships without an updater. Returns whether
-/// anything changed.
+/// audio tap and the analysis helper are macOS code), the clamshell
+/// microphone (read through macOS APIs), and update checks, as the Windows
+/// beta ships without an updater. Returns whether anything changed.
 #[cfg(target_os = "windows")]
 fn restrict_to_windows(settings: &mut AppSettings) -> bool {
     let mut changed = false;
@@ -547,12 +550,25 @@ fn restrict_to_windows(settings: &mut AppSettings) -> bool {
         changed |= std::mem::replace(value, false);
     };
     set(&mut settings.meetings_enabled);
-    set(&mut settings.window_names_enabled);
     set(&mut settings.update_checks_enabled);
     if settings.clamshell_microphone.take().is_some() {
         changed = true;
     }
     changed
+}
+
+/// The betas before window context came to Windows hid the setting and
+/// stored it off, so nobody there chose "off": it is turned on once, as it
+/// is by default. Read from the stored value: a salvaged store takes the
+/// marker from the defaults. Returns whether anything changed.
+#[cfg(target_os = "windows")]
+fn turn_on_window_context_once(stored: &serde_json::Value, settings: &mut AppSettings) -> bool {
+    if stored.get("window_names_turned_on_once").is_some() {
+        return false;
+    }
+    settings.window_names_turned_on_once = true;
+    settings.window_names_enabled = true;
+    true
 }
 
 pub fn get_default_settings() -> AppSettings {
@@ -643,6 +659,7 @@ pub fn get_default_settings() -> AppSettings {
         dictation_style: DictationStyle::default(),
         learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
+        window_names_turned_on_once: cfg!(target_os = "windows"),
         whisper_mode: false,
         extra_recording_buffer_ms: 0,
         overlay_style: default_overlay_style(),
@@ -699,6 +716,10 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
     if settings.onboarding_completed && settings_value.get("transcription_engine").is_none() {
         settings.transcription_engine = Engine::Cloud;
         updated = true;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        updated |= turn_on_window_context_once(settings_value, &mut settings);
     }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
@@ -1275,7 +1296,7 @@ mod tests {
             .expect("all AppSettings fields need serde defaults");
         assert!(!settings.audio_feedback);
         assert!(settings.ai_cleanup_enabled);
-        assert_eq!(settings.window_names_enabled, cfg!(target_os = "macos"));
+        assert!(settings.window_names_enabled);
         assert!(!settings.whisper_mode);
         assert_eq!(settings.accent_color, AccentColor::Pink);
         // Bindings default to empty; the load path merges the real defaults in.
@@ -1535,7 +1556,7 @@ mod tests {
     fn windows_defaults_offer_only_what_the_windows_build_has() {
         let settings = get_default_settings();
         assert!(!settings.meetings_enabled);
-        assert!(!settings.window_names_enabled);
+        assert!(settings.window_names_enabled);
         assert!(!settings.update_checks_enabled);
     }
 
@@ -1544,7 +1565,6 @@ mod tests {
     fn a_store_with_macos_only_features_is_restricted_on_windows() {
         let mut stored = default_settings_json();
         stored["meetings_enabled"] = serde_json::json!(true);
-        stored["window_names_enabled"] = serde_json::json!(true);
         stored["update_checks_enabled"] = serde_json::json!(true);
         stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
         stored["selected_language"] = serde_json::json!("fr");
@@ -1553,12 +1573,40 @@ mod tests {
 
         assert!(updated);
         assert!(!settings.meetings_enabled);
-        assert!(!settings.window_names_enabled);
         assert!(!settings.update_checks_enabled);
         assert!(settings.clamshell_microphone.is_none());
         assert_eq!(settings.selected_language, "fr");
         let (_, rewritten) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
         assert!(!rewritten);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn window_context_is_turned_on_once_for_a_beta_store() {
+        // A store this version cannot read whole is salvaged field by field
+        // over the defaults, which already carry the marker.
+        for paste_method in [None, Some("shift_insert")] {
+            let mut stored = default_settings_json();
+            stored["window_names_enabled"] = serde_json::json!(false);
+            if let Some(paste_method) = paste_method {
+                stored["paste_method"] = serde_json::json!(paste_method);
+            }
+            stored
+                .as_object_mut()
+                .unwrap()
+                .remove("window_names_turned_on_once");
+
+            let (mut settings, updated) = parse_stored_settings(&stored);
+            assert!(updated, "{paste_method:?}");
+            assert!(settings.window_names_enabled, "{paste_method:?}");
+
+            // Turned off afterwards, it stays off.
+            settings.window_names_enabled = false;
+            let (settings, updated) =
+                parse_stored_settings(&serde_json::to_value(settings).unwrap());
+            assert!(!updated, "{paste_method:?}");
+            assert!(!settings.window_names_enabled, "{paste_method:?}");
+        }
     }
 
     #[test]

@@ -908,6 +908,9 @@
         }
       },
       "transcription": {
+        "windowNames": {
+          "description": "Au début de la dictée, Murmur lit le texte de la fenêtre active via l’accessibilité de Windows (UI Automation) et envoie au nettoyage les noms qu’il y trouve, pour bien les orthographier. Il envoie aussi un court extrait du texte autour du curseur. Rien n’est conservé. Les champs de mot de passe et les gestionnaires de mots de passe ne sont jamais lus."
+        },
         "engine": {
           "local": {
             "title": "Sur ce PC",

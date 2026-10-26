@@ -85,119 +85,22 @@ mod browser {
     #[cfg(test)]
     mod tests {
         use super::tab_host;
+        use crate::uia::test_window::{child, TestWindow};
         use crate::uia::Automation;
-        use std::sync::{mpsc, Once};
-        use std::thread::JoinHandle;
-        use windows::core::{w, HSTRING, PCWSTR};
-        use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
-        use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-        use windows::Win32::System::Threading::GetCurrentThreadId;
-        use windows::Win32::UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-            PostThreadMessageW, RegisterClassW, MSG, WINDOW_EX_STYLE, WM_QUIT, WNDCLASSW,
-            WS_BORDER, WS_CHILD, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
-        };
+        use windows::Win32::UI::WindowsAndMessaging::WS_BORDER;
 
-        const CLASS_NAME: PCWSTR = w!("MurmurUiaTestWindow");
-
-        unsafe extern "system" fn window_proc(
-            window: HWND,
-            message: u32,
-            wparam: WPARAM,
-            lparam: LPARAM,
-        ) -> LRESULT {
-            unsafe { DefWindowProcW(window, message, wparam, lparam) }
-        }
-
-        /// A top-level window holding one EDIT control, served by a thread
-        /// of its own, as a browser serves its address bar.
-        struct EditWindow {
-            window: isize,
-            thread_id: u32,
-            thread: Option<JoinHandle<()>>,
-        }
-
-        impl EditWindow {
-            fn open(text: &str) -> Self {
-                let text = HSTRING::from(text);
-                let (sender, receiver) = mpsc::channel();
-                let thread = std::thread::spawn(move || {
-                    // SAFETY: registers this test's class once, then creates
-                    // and serves windows owned by this thread.
-                    unsafe {
-                        let instance = HINSTANCE(GetModuleHandleW(PCWSTR::null()).unwrap().0);
-                        static REGISTER: Once = Once::new();
-                        REGISTER.call_once(|| {
-                            RegisterClassW(&WNDCLASSW {
-                                lpfnWndProc: Some(window_proc),
-                                hInstance: instance,
-                                lpszClassName: CLASS_NAME,
-                                ..Default::default()
-                            });
-                        });
-                        let window = CreateWindowExW(
-                            WINDOW_EX_STYLE::default(),
-                            CLASS_NAME,
-                            w!("Murmur UI Automation test"),
-                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                            0,
-                            0,
-                            480,
-                            160,
-                            None,
-                            None,
-                            Some(instance),
-                            None,
-                        )
-                        .unwrap();
-                        CreateWindowExW(
-                            WINDOW_EX_STYLE::default(),
-                            w!("EDIT"),
-                            &text,
-                            WS_CHILD | WS_VISIBLE | WS_BORDER,
-                            10,
-                            10,
-                            440,
-                            24,
-                            Some(window),
-                            None,
-                            Some(instance),
-                            None,
-                        )
-                        .unwrap();
-                        sender
-                            .send((window.0 as isize, GetCurrentThreadId()))
-                            .unwrap();
-                        let mut message = MSG::default();
-                        while GetMessageW(&mut message, None, 0, 0).0 > 0 {
-                            DispatchMessageW(&message);
-                        }
-                        let _ = DestroyWindow(window);
-                    }
-                });
-                let (window, thread_id) = receiver.recv().unwrap();
-                Self {
-                    window,
-                    thread_id,
-                    thread: Some(thread),
-                }
-            }
-        }
-
-        impl Drop for EditWindow {
-            fn drop(&mut self) {
-                // SAFETY: posts to the window thread's own queue.
-                let _ =
-                    unsafe { PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0)) };
-                if let Some(thread) = self.thread.take() {
-                    let _ = thread.join();
-                }
-            }
+        /// A window holding one EDIT control, as a browser holds its
+        /// address bar.
+        fn edit_window(text: &'static str) -> TestWindow {
+            TestWindow::open(move |window| {
+                child(window, "EDIT", text, WS_BORDER);
+                Vec::new()
+            })
         }
 
         #[test]
         fn reads_the_host_from_an_address_bar_edit() {
-            let window = EditWindow::open("github.com/DailyXplorer/Murmur");
+            let window = edit_window("github.com/DailyXplorer/Murmur");
             let automation = Automation::new().expect("UI Automation client");
             assert_eq!(
                 tab_host(&automation, window.window).as_deref(),
@@ -207,7 +110,7 @@ mod browser {
 
         #[test]
         fn a_search_in_the_address_bar_gives_no_host() {
-            let window = EditWindow::open("best pizza near me");
+            let window = edit_window("best pizza near me");
             let automation = Automation::new().expect("UI Automation client");
             assert_eq!(tab_host(&automation, window.window), None);
         }

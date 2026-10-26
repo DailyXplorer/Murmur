@@ -1103,6 +1103,12 @@ learned_words?: LearnedWord[];
  */
 window_names_enabled?: boolean; 
 /**
+ * Windows only: `window_names_enabled` was turned on once for a store
+ * from the betas that hid the setting and kept it off. New Windows
+ * stores start with it set.
+ */
+window_names_turned_on_once?: boolean; 
+/**
  * More input gain for quiet speech, and a hint that speech was faint.
  */
 whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle; 

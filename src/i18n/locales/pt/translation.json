@@ -908,6 +908,9 @@
         }
       },
       "transcription": {
+        "windowNames": {
+          "description": "Ao começar a ditar, o Murmur lê o texto da janela ativa pela acessibilidade do Windows (UI Automation) e envia para a limpeza os nomes encontrados, para escrevê-los corretamente. Também envia um pequeno trecho do texto ao redor do cursor. Nada é guardado. Campos de senha e gerenciadores de senhas nunca são lidos."
+        },
         "engine": {
           "local": {
             "title": "Neste PC",

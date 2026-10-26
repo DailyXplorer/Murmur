@@ -908,6 +908,9 @@
         }
       },
       "transcription": {
+        "windowNames": {
+          "description": "When you start dictating, Murmur reads the text of the active window through Windows accessibility (UI Automation) and sends the names it finds to cleanup, so they are spelled right. It also sends a short excerpt of the text around the cursor. Nothing is stored. Password fields and password managers are never read."
+        },
         "engine": {
           "local": {
             "title": "On this PC",
