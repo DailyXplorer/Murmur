@@ -335,7 +335,7 @@ mod tests {
 /// own as an app serves its windows.
 #[cfg(test)]
 pub mod test_window {
-    use std::sync::{mpsc, Once};
+    use std::sync::{mpsc, Mutex, MutexGuard, Once, PoisonError};
     use std::thread::JoinHandle;
     use windows::core::{w, HSTRING, PCWSTR};
     use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
@@ -387,18 +387,25 @@ pub mod test_window {
         .unwrap()
     }
 
+    /// Test windows take turns: reads have budgets of a few hundred
+    /// milliseconds, which another test building a large window can use up.
+    static OPEN: Mutex<()> = Mutex::new(());
+
     pub struct TestWindow {
         pub window: isize,
         /// What `build` returned.
         pub handles: Vec<isize>,
         thread_id: u32,
         thread: Option<JoinHandle<()>>,
+        _turn: MutexGuard<'static, ()>,
     }
 
     impl TestWindow {
         /// A top-level window whose children `build` creates on the
-        /// window's thread, returning the handles a test needs.
+        /// window's thread, returning the handles a test needs. Only one
+        /// is open at a time.
         pub fn open(build: impl FnOnce(HWND) -> Vec<isize> + Send + 'static) -> Self {
+            let turn = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
             let (sender, receiver) = mpsc::channel();
             let thread = std::thread::spawn(move || {
                 // SAFETY: registers this test's class once, then creates
@@ -445,6 +452,7 @@ pub mod test_window {
                 handles,
                 thread_id,
                 thread: Some(thread),
+                _turn: turn,
             }
         }
     }
