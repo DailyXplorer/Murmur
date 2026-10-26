@@ -58,6 +58,9 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [registrationError, setRegistrationError] =
     useState<ShortcutRegistrationError>();
   const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
+  // The name to save for a pressed key, by the key's own name: on Windows,
+  // the virtual key the layout puts there, which the shortcut fires on.
+  const recordedKeyNames = useRef<KeyLabels>({});
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
   // The optimistic update re-attaches the key listeners while the first
   // combo is still being saved; a second combo then must not start another.
@@ -82,14 +85,20 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     };
   }, [shortcutId]);
 
-  // Shortcuts name physical keys after a US keyboard; show what the user's
-  // layout prints on them instead.
+  // Shortcuts name keys after a US keyboard; show what the user's layout
+  // prints on them instead.
   useEffect(() => {
     let active = true;
     commands
       .getKeyLabels()
       .then((labels) => {
         if (active) setKeyLabels(labels);
+      })
+      .catch(() => undefined);
+    commands
+      .getRecordedKeyNames()
+      .then((names) => {
+        if (active) recordedKeyNames.current = names;
       })
       .catch(() => undefined);
     return () => {
@@ -152,7 +161,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       e.preventDefault();
       if (committing.current) return;
 
-      const key = normalizeKey(getKeyName(e));
+      const pressed = normalizeKey(getKeyName(e));
+      const key = recordedKeyNames.current[pressed] ?? pressed;
       const modifiers = modifiersHeld(e);
       if (MODIFIER_KEYS.has(key)) {
         setHeldModifiers(modifiers);

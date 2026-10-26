@@ -132,6 +132,43 @@ test.describe("Windows build", () => {
       )
       .toEqual({ id: "transcribe", binding: "ctrl+command" });
   });
+
+  test("records and shows a shortcut as an AZERTY keyboard prints it", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+    );
+    const pasteLast = page.getByRole("button", {
+      name: "Paste last transcription: Press keys...",
+    });
+
+    // Physical key (its US name), the shortcut saved, the row shown.
+    for (const [code, binding, shown] of [
+      // Windows fires "ctrl+1" on the key printed "&".
+      ["Digit1", "ctrl+1", "Ctrl + &"],
+      // The key a US keyboard calls Q is the A key.
+      ["KeyQ", "ctrl+a", "Ctrl + A"],
+      ["KeyM", "ctrl+,", "Ctrl + ,"],
+      ["Semicolon", "ctrl+m", "Ctrl + M"],
+      ["Period", "ctrl+/", "Ctrl + :"],
+    ]) {
+      await pasteLast.click();
+      await page.keyboard.press(`Control+${code}`);
+
+      await expect(pasteLast).toHaveText(shown);
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const changes = window.settingsPages.calls.filter(
+              (call) => call.command === "change_binding",
+            );
+            return changes[changes.length - 1]?.args;
+          }),
+        )
+        .toEqual({ id: "paste_last", binding });
+    }
+  });
 });
 
 // Logical client sizes derived from physical work areas and native borders.

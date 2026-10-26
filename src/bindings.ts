@@ -29,11 +29,19 @@ async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: Short
 },
 /**
  * What the active keyboard layout writes on the keys shortcuts name, keyed
- * by the name, so a shortcut shows the key to press. Empty when macOS cannot
- * tell, and the names are shown as they are.
+ * by the name, so a shortcut shows the key to press. Empty when the system
+ * cannot tell, and the names are shown as they are.
  */
 async getKeyLabels() : Promise<Partial<{ [key in string]: string }>> {
     return await TAURI_INVOKE("get_key_labels");
+},
+/**
+ * The name to record for a key the user presses, keyed by the name of the
+ * physical key, so the shortcut fires on that key. Only keys whose name
+ * changes are listed: none on macOS, which registers the physical key.
+ */
+async getRecordedKeyNames() : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("get_recorded_key_names");
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
