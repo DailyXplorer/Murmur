@@ -559,10 +559,11 @@ fn restrict_to_windows(settings: &mut AppSettings) -> bool {
 
 /// The betas before window context came to Windows hid the setting and
 /// stored it off, so nobody there chose "off": it is turned on once, as it
-/// is by default. Returns whether anything changed.
+/// is by default. Read from the stored value: a salvaged store takes the
+/// marker from the defaults. Returns whether anything changed.
 #[cfg(target_os = "windows")]
-fn turn_on_window_context_once(settings: &mut AppSettings) -> bool {
-    if settings.window_names_turned_on_once {
+fn turn_on_window_context_once(stored: &serde_json::Value, settings: &mut AppSettings) -> bool {
+    if stored.get("window_names_turned_on_once").is_some() {
         return false;
     }
     settings.window_names_turned_on_once = true;
@@ -716,6 +717,10 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
         settings.transcription_engine = Engine::Cloud;
         updated = true;
     }
+    #[cfg(target_os = "windows")]
+    {
+        updated |= turn_on_window_context_once(settings_value, &mut settings);
+    }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
 }
@@ -817,7 +822,6 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
     #[cfg(target_os = "windows")]
     {
         updated |= restrict_to_windows(settings);
-        updated |= turn_on_window_context_once(settings);
     }
 
     updated
