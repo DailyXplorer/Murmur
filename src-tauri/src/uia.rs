@@ -4,6 +4,7 @@
 //! one waiting for the answer.
 
 use std::marker::PhantomData;
+use std::sync::{Mutex, PoisonError};
 
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{
@@ -53,6 +54,10 @@ pub struct Automation {
 impl Automation {
     pub fn new() -> windows::core::Result<Self> {
         let apartment = Apartment::enter()?;
+        // Two clients created at the same moment fail one of them with
+        // E_FAIL, so creation takes turns.
+        static CREATING: Mutex<()> = Mutex::new(());
+        let _turn = CREATING.lock().unwrap_or_else(PoisonError::into_inner);
         // SAFETY: COM is initialised on this thread, and each call returns
         // an owned interface or an error.
         unsafe {
@@ -128,5 +133,28 @@ impl Element {
                 .ok()
         }
         .map(|value| value.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Automation;
+    use std::sync::{Arc, Barrier};
+
+    #[test]
+    fn clients_start_on_several_threads_at_once() {
+        let start = Arc::new(Barrier::new(8));
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let start = Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    Automation::new().map(drop)
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().unwrap().expect("UI Automation client");
+        }
     }
 }
