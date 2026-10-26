@@ -20,7 +20,7 @@ use windows::Win32::UI::Accessibility::{
     TextPatternRangeEndpoint_Start, TextUnit_Character, TreeScope_Children,
     UIA_ControlTypePropertyId, UIA_IsPasswordPropertyId, UIA_NamePropertyId,
     UIA_ProcessIdPropertyId, UIA_TextPattern2Id, UIA_TextPatternId, UIA_ValuePatternId,
-    UIA_ValueValuePropertyId, UIA_CONTROLTYPE_ID,
+    UIA_CONTROLTYPE_ID,
 };
 
 /// How long one call waits for an app, as `AX_TIMEOUT_SECONDS` on macOS.
@@ -82,8 +82,9 @@ impl Drop for Apartment {
 }
 
 /// A UI Automation client for the calling thread. Each element it returns
-/// carries its name, control type, value, process and whether it is a
-/// password field, fetched in the call that found it.
+/// carries its name, control type, process and whether it is a password
+/// field, fetched in the call that found it. Its value is not: `value`
+/// asks for it, and never of a password field.
 pub struct Automation {
     automation: IUIAutomation2,
     cache: IUIAutomationCacheRequest,
@@ -109,7 +110,6 @@ impl Automation {
             automation.SetTransactionTimeout(TIMEOUT_MS)?;
             let cache = automation.CreateCacheRequest()?;
             cache.AddProperty(UIA_ControlTypePropertyId)?;
-            cache.AddProperty(UIA_ValueValuePropertyId)?;
             cache.AddProperty(UIA_NamePropertyId)?;
             cache.AddProperty(UIA_IsPasswordPropertyId)?;
             cache.AddProperty(UIA_ProcessIdPropertyId)?;
@@ -168,7 +168,7 @@ impl Automation {
 }
 
 /// An element read with the client's cache request: these getters make no
-/// call to the app.
+/// call to the app, except `value`.
 pub struct Element(IUIAutomationElement);
 
 impl Element {
@@ -177,14 +177,19 @@ impl Element {
         unsafe { self.0.CachedControlType() }.ok()
     }
 
-    /// The Value pattern's value, when the element has one.
+    /// The Value pattern's value, when the element has one, in one call to
+    /// the app. A password field is never asked, as macOS checks the role
+    /// before it reads AXValue.
     pub fn value(&self) -> Option<String> {
-        // SAFETY: reads the cached pattern and its cached property.
+        if self.is_secure() {
+            return None;
+        }
+        // SAFETY: reads the cached pattern, then asks the app for its value.
         unsafe {
             self.0
                 .GetCachedPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId)
                 .ok()?
-                .CachedValue()
+                .CurrentValue()
                 .ok()
         }
         .map(|value| value.to_string())
