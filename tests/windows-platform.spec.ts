@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const openWindows = async (page: Page) => {
   await page.goto("/tests/fixtures/settings-pages.html?platform=windows");
@@ -7,6 +7,55 @@ const openWindows = async (page: Page) => {
 
 const nav = (page: Page, name: string) =>
   page.getByRole("navigation").getByRole("button", { name, exact: true });
+
+// Scroll offsets/client dimensions are integer CSS pixels while the app's
+// 15px root font produces fractional row edges. Allow at most one CSS pixel
+// at a scrollport edge, not a percentage that could hide a control's label.
+const expectWithinScrollports = async (control: Locator) => {
+  await expect(control).toBeVisible();
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const clip = {
+          left: 0,
+          top: 0,
+          right: innerWidth,
+          bottom: innerHeight,
+        };
+        for (
+          let parent = element.parentElement;
+          parent;
+          parent = parent.parentElement
+        ) {
+          const style = getComputedStyle(parent);
+          const rect = parent.getBoundingClientRect();
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+            clip.left = Math.max(clip.left, rect.left + parent.clientLeft);
+            clip.right = Math.min(
+              clip.right,
+              rect.left + parent.clientLeft + parent.clientWidth,
+            );
+          }
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+            clip.top = Math.max(clip.top, rect.top + parent.clientTop);
+            clip.bottom = Math.min(
+              clip.bottom,
+              rect.top + parent.clientTop + parent.clientHeight,
+            );
+          }
+        }
+        return Math.max(
+          clip.left - bounds.left,
+          bounds.right - clip.right,
+          clip.top - bounds.top,
+          bounds.bottom - clip.bottom,
+          0,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(1);
+};
 
 const transcribeShortcut = (page: Page) =>
   page.getByRole("button", { name: "Transcribe Shortcut: Press keys..." });
@@ -32,6 +81,16 @@ test.describe("Windows build", () => {
     await expect(page.getByText("Show what's new")).toHaveCount(0);
     await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("previews no macOS release notes on the Debug page", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Debug").click();
+
+    await expect(page.getByText("Log level", { exact: true })).toBeVisible();
+    await expect(page.getByText("Preview what's new")).toHaveCount(0);
   });
 
   test("credits only the speech model it downloads", async ({ page }) => {
@@ -74,3 +133,60 @@ test.describe("Windows build", () => {
       .toEqual({ id: "transcribe", binding: "ctrl+command" });
   });
 });
+
+// Logical client sizes derived from physical work areas and native borders.
+// These are browser layout checks, not native Windows DPI tests.
+for (const viewport of [
+  { width: 780, height: 681 }, // 1024x768, 100%
+  { width: 780, height: 527 }, // 1366x768, 125%
+  { width: 780, height: 425 }, // 1366x768, 150%
+  { width: 666, height: 425 }, // 1024x768, 150%
+  { width: 666, height: 313 }, // 1024x600, 150%; sidebar must scroll
+]) {
+  test(`small Windows settings remain reachable at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await openWindows(page);
+    await expect
+      .poll(() =>
+        page
+          .getByRole("navigation")
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      )
+      .toBe(true);
+    // Scrolling to an off-screen item must bring it inside its scrollport,
+    // not just inside an ancestor whose overflow clips the button.
+    for (const section of ["About", "Debug", "General", "Advanced"]) {
+      const button = nav(page, section);
+      await button.scrollIntoViewIfNeeded();
+      await expectWithinScrollports(button);
+      await expect(button.locator("span")).toBeInViewport({ ratio: 1 });
+      if (section === "About" && viewport.height === 313) {
+        expect(
+          await page
+            .getByRole("navigation")
+            .evaluate((element) => element.scrollTop),
+        ).toBeGreaterThan(0);
+      }
+      await button.click();
+      await expect(button).toHaveAttribute("aria-current", "page");
+    }
+    const lastSetting = page
+      .getByRole("main", { name: "Advanced" })
+      .getByRole("checkbox")
+      .last()
+      .locator("..");
+    await lastSetting.scrollIntoViewIfNeeded();
+    await expectWithinScrollports(lastSetting);
+    await lastSetting.click();
+    await expect(page.getByText("v1.3.7", { exact: true })).toBeInViewport({
+      ratio: 1,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}

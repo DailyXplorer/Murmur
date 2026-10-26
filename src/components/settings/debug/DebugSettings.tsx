@@ -19,7 +19,9 @@ export const DebugSettings: React.FC = () => {
     <SettingsPage label={t("sidebar.debug")}>
       <SettingsGroup title={t("settings.debug.title")}>
         <LogLevelSelector grouped={true} />
-        <WhatsNewPreview descriptionMode="tooltip" grouped={true} />
+        {!isWindows && (
+          <WhatsNewPreview descriptionMode="tooltip" grouped={true} />
+        )}
         <SoundPicker
           label={t("settings.debug.soundTheme.label")}
           description={t("settings.debug.soundTheme.description")}
