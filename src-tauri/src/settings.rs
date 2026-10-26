@@ -1579,22 +1579,30 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn window_context_is_turned_on_once_for_a_beta_store() {
-        let mut stored = default_settings_json();
-        stored["window_names_enabled"] = serde_json::json!(false);
-        stored
-            .as_object_mut()
-            .unwrap()
-            .remove("window_names_turned_on_once");
+        // A store this version cannot read whole is salvaged field by field
+        // over the defaults, which already carry the marker.
+        for paste_method in [None, Some("shift_insert")] {
+            let mut stored = default_settings_json();
+            stored["window_names_enabled"] = serde_json::json!(false);
+            if let Some(paste_method) = paste_method {
+                stored["paste_method"] = serde_json::json!(paste_method);
+            }
+            stored
+                .as_object_mut()
+                .unwrap()
+                .remove("window_names_turned_on_once");
 
-        let (mut settings, updated) = parse_stored_settings(&stored);
-        assert!(updated);
-        assert!(settings.window_names_enabled);
+            let (mut settings, updated) = parse_stored_settings(&stored);
+            assert!(updated, "{paste_method:?}");
+            assert!(settings.window_names_enabled, "{paste_method:?}");
 
-        // Turned off afterwards, it stays off.
-        settings.window_names_enabled = false;
-        let (settings, updated) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
-        assert!(!updated);
-        assert!(!settings.window_names_enabled);
+            // Turned off afterwards, it stays off.
+            settings.window_names_enabled = false;
+            let (settings, updated) =
+                parse_stored_settings(&serde_json::to_value(settings).unwrap());
+            assert!(!updated, "{paste_method:?}");
+            assert!(!settings.window_names_enabled, "{paste_method:?}");
+        }
     }
 
     #[test]
