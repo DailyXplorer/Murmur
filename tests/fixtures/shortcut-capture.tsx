@@ -55,6 +55,8 @@ mockIPC(
   (command, args) => {
     if (command === "get_shortcut_registration_errors") return {};
     if (command === "get_key_labels") return AZERTY_LABELS;
+    // macOS records the physical key under its own name.
+    if (command === "get_recorded_key_names") return {};
     if (
       command === "suspend_all_bindings" ||
       command === "resume_all_bindings"

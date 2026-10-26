@@ -1,7 +1,6 @@
 //! Global shortcut registration and settings commands.
 
 mod handler;
-#[cfg(target_os = "macos")]
 mod key_labels;
 #[cfg(target_os = "windows")]
 mod modifier_chord;
@@ -108,35 +107,39 @@ pub fn get_shortcut_registration_errors(
         .unwrap_or_default()
 }
 
-// Windows reads no keyboard layout here, so shortcuts show their names as
-// they are. The doc comment is the macOS one, shared through the bindings.
-#[cfg(target_os = "windows")]
 #[tauri::command]
 #[specta::specta]
 /// What the active keyboard layout writes on the keys shortcuts name, keyed
-/// by the name, so a shortcut shows the key to press. Empty when macOS cannot
-/// tell, and the names are shown as they are.
-pub async fn get_key_labels() -> HashMap<String, String> {
-    HashMap::new()
+/// by the name, so a shortcut shows the key to press. Empty when the system
+/// cannot tell, and the names are shown as they are.
+pub async fn get_key_labels(app: AppHandle) -> HashMap<String, String> {
+    read_keyboard_layout(&app, key_labels::read).await
 }
 
-#[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
-/// What the active keyboard layout writes on the keys shortcuts name, keyed
-/// by the name, so a shortcut shows the key to press. Empty when macOS cannot
-/// tell, and the names are shown as they are.
-pub async fn get_key_labels(app: AppHandle) -> HashMap<String, String> {
+/// The name to record for a key the user presses, keyed by the name of the
+/// physical key, so the shortcut fires on that key. Only keys whose name
+/// changes are listed: none on macOS, which registers the physical key.
+pub async fn get_recorded_key_names(app: AppHandle) -> HashMap<String, String> {
+    read_keyboard_layout(&app, key_labels::read_names).await
+}
+
+/// Runs `read` on the main thread, where the layout APIs answer. Empty when
+/// the layout cannot be read.
+async fn read_keyboard_layout(
+    app: &AppHandle,
+    read: fn() -> Result<HashMap<String, String>, String>,
+) -> HashMap<String, String> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    // The layout APIs answer only on the main thread.
     if let Err(error) = app.run_on_main_thread(move || {
-        let _ = sender.send(crate::input::command_key_chars());
+        let _ = sender.send(read());
     }) {
         warn!("Cannot read the keyboard layout: {error}");
         return HashMap::new();
     }
     match receiver.await {
-        Ok(Ok(chars)) => key_labels::labels(|code| chars.get(usize::from(code)).copied().flatten()),
+        Ok(Ok(keys)) => keys,
         Ok(Err(error)) => {
             warn!("Cannot read the keyboard layout: {error}");
             HashMap::new()

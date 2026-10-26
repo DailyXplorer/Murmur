@@ -195,6 +195,15 @@ const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
 /** `platform=windows` runs the Windows build, with its Ctrl+Win default. */
 const windows = params.get("platform") === "windows";
 const transcribeBinding = windows ? "ctrl+super" : "option+space";
+/**
+ * `keyboard=azerty` reads a French AZERTY layout as Windows reports it, and
+ * saves recorded shortcuts.
+ */
+const azerty = params.get("keyboard") === "azerty";
+// What the layout types on a few virtual keys, by the name they register as.
+const AZERTY_LABELS = { "1": "&", a: "a", q: "q", m: "m", ",": ",", "/": ":" };
+// The virtual key under a few physical keys, by the physical key's US name.
+const AZERTY_RECORDED_NAMES = { q: "a", a: "q", ";": "m", m: ",", ".": "/" };
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -753,7 +762,8 @@ const RESPONSES: Record<string, unknown> = {
   get_microphone_authorization_status: 3,
   get_microphone_channels: 1,
   get_shortcut_registration_errors: {},
-  get_key_labels: {},
+  get_key_labels: azerty ? AZERTY_LABELS : {},
+  get_recorded_key_names: azerty ? AZERTY_RECORDED_NAMES : {},
   initialize_enigo: null,
   initialize_shortcuts: null,
   is_laptop: true,
@@ -809,6 +819,15 @@ mockIPC(
     if (engineCommand.handled) return engineCommand.value;
     const accountCommand = handleAccountCommand(command);
     if (accountCommand.handled) return accountCommand.value;
+    if (command === "change_binding" && azerty) {
+      const { id, binding } = args as { id: string; binding: string };
+      const bindings = SETTINGS.bindings ?? {};
+      return {
+        success: true,
+        binding: { ...bindings[id], current_binding: binding },
+        error: null,
+      };
+    }
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
     if (models) setModel(models);

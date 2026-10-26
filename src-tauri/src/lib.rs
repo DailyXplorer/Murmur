@@ -662,6 +662,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::reset_binding,
             shortcut::get_shortcut_registration_errors,
             shortcut::get_key_labels,
+            shortcut::get_recorded_key_names,
             shortcut::change_audio_feedback_setting,
             shortcut::change_audio_feedback_volume_setting,
             shortcut::change_sound_theme_setting,
