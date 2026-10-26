@@ -94,7 +94,7 @@ url = "2"
 # Parakeet on the CPU of Intel Macs; Apple silicon runs it in the meetings
 # helper. Pinned: the crate is young, and upgrades are deliberate.
 [target.'cfg(target_arch = "x86_64")'.dependencies]
-transcribe-cpp = { version = "=0.4.0", default-features = false }
+transcribe-cpp = { version = "=0.4.1", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
