@@ -171,6 +171,29 @@ test.describe("Windows build", () => {
   });
 });
 
+test("leaves a gap between the logo divider and the first tab on Windows", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixtures/settings-pages.html?platform=windows");
+  const tabs = page.locator("nav > div").first();
+  // The tab list's top padding (pt-2) sits between the divider and the
+  // first tab, as on macOS. It was missing on Windows, so the active tab
+  // touched the divider.
+  const { padding, gap } = await tabs.evaluate((list) => {
+    const style = getComputedStyle(list);
+    const first = list.querySelector("button")!;
+    return {
+      padding: parseFloat(style.paddingTop),
+      gap:
+        first.getBoundingClientRect().top -
+        list.getBoundingClientRect().top -
+        parseFloat(style.borderTopWidth),
+    };
+  });
+  expect(padding).toBeGreaterThan(0);
+  expect(gap).toBeCloseTo(padding, 1);
+});
+
 // Logical client sizes derived from physical work areas and native borders.
 // These are browser layout checks, not native Windows DPI tests.
 for (const viewport of [
