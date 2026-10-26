@@ -148,6 +148,13 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     await openWindows(page);
+    await expect
+      .poll(() =>
+        page
+          .getByRole("navigation")
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      )
+      .toBe(true);
     // Scrolling to an off-screen item must bring it inside its scrollport,
     // not just inside an ancestor whose overflow clips the button.
     for (const section of ["About", "Debug", "General", "Advanced"]) {
