@@ -145,6 +145,24 @@ impl Automation {
         .map(Element)
     }
 
+    /// `element` with its properties fetched again, in one call to the app.
+    /// A reader that keeps an element across polls reads through this: the
+    /// field may have become a password field since it was found.
+    pub fn refreshed(&self, element: &Element) -> Option<Element> {
+        // SAFETY: `element` is a live element of this client; returns an
+        // owned interface or an error.
+        unsafe { element.0.BuildUpdatedCache(&self.cache) }
+            .ok()
+            .map(Element)
+    }
+
+    /// Whether `a` and `b` are the same element of the app, compared by
+    /// runtime id.
+    pub fn same(&self, a: &Element, b: &Element) -> bool {
+        // SAFETY: both are live elements of this client.
+        unsafe { self.automation.CompareElements(&a.0, &b.0) }.is_ok_and(BOOL::as_bool)
+    }
+
     /// The children of `element` in the raw tree. Empty when it has none or
     /// the app did not answer within the timeout.
     pub fn children(&self, element: &Element) -> Vec<Element> {
@@ -168,7 +186,7 @@ impl Automation {
 }
 
 /// An element read with the client's cache request: these getters make no
-/// call to the app, except `value`.
+/// call to the app, except the reads of its text.
 pub struct Element(IUIAutomationElement);
 
 impl Element {
@@ -177,16 +195,20 @@ impl Element {
         unsafe { self.0.CachedControlType() }.ok()
     }
 
+    /// The element, to ask for its text, unless it is a password field or
+    /// cannot tell. Every read of an element's text goes through here, as
+    /// macOS checks the role before it reads AXValue.
+    fn readable(&self) -> Option<&IUIAutomationElement> {
+        (!self.is_secure()).then_some(&self.0)
+    }
+
     /// The Value pattern's value, when the element has one, in one call to
-    /// the app. A password field is never asked, as macOS checks the role
-    /// before it reads AXValue.
+    /// the app. None for a password field, which is never asked.
     pub fn value(&self) -> Option<String> {
-        if self.is_secure() {
-            return None;
-        }
+        let element = self.readable()?;
         // SAFETY: reads the cached pattern, then asks the app for its value.
         unsafe {
-            self.0
+            element
                 .GetCachedPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId)
                 .ok()?
                 .CurrentValue()
@@ -208,23 +230,53 @@ impl Element {
         unsafe { self.0.CachedIsPassword() }.map_or(true, BOOL::as_bool)
     }
 
+    /// The whole text of a field, from its Value, else from its text
+    /// pattern, which documents give instead. None when it holds more than
+    /// `max` UTF-16 units. A password field is never asked.
+    pub fn text(&self, max: usize) -> Option<String> {
+        let text = match self.value().filter(|value| !value.is_empty()) {
+            Some(value) => value,
+            None => self.document_text(max)?,
+        };
+        (text.encode_utf16().count() <= max).then_some(text)
+    }
+
+    /// The text pattern's whole document, read up to `max + 1` UTF-16
+    /// units, so the app never sends a long document whole. None when it
+    /// holds more than `max`, and for a password field.
+    pub fn document_text(&self, max: usize) -> Option<String> {
+        let element = self.readable()?;
+        let limit = i32::try_from(max).ok()?.checked_add(1)?;
+        // SAFETY: each call asks the app and returns an owned interface or
+        // an error.
+        let text = unsafe {
+            element
+                .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+                .ok()?
+                .DocumentRange()
+                .ok()?
+                .GetText(limit)
+                .ok()?
+        };
+        (text.len() <= max).then(|| text.to_string())
+    }
+
     /// The first selection of the element's text, else its caret, which
     /// Chromium gives only through the second text pattern.
     fn text_selection(&self) -> Option<IUIAutomationTextRange> {
+        let element = self.readable()?;
         // SAFETY: each call asks the app and returns an owned interface or
         // an error; `active` is a live local.
         unsafe {
-            if let Ok(text) = self
-                .0
-                .GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+            if let Ok(text) =
+                element.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
             {
                 return first_selection(&text).or_else(|| {
                     let mut active = BOOL::default();
                     text.GetCaretRange(&mut active).ok()
                 });
             }
-            let text = self
-                .0
+            let text = element
                 .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
                 .ok()?;
             first_selection(&text)
@@ -335,6 +387,9 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+pub mod test_fields;
 
 /// Win32 windows for UI Automation tests, each served by a thread of its
 /// own as an app serves its windows.

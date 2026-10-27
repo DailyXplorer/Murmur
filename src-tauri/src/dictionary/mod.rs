@@ -3,30 +3,22 @@
 //! fuzzy matches in the transcript. `learned_words` marks the ones Murmur
 //! learned from a correction: those are hints only and never rewrite text.
 
-// Learning reads the field the user corrects through Accessibility, which
-// has no Windows counterpart here: Windows only uses the word lists.
-#[cfg_attr(target_os = "windows", allow(dead_code))]
 mod learn;
-#[cfg(target_os = "macos")]
 mod observer;
 
 pub(crate) use learn::{is_everyday_word, ELISIONS};
-#[cfg(target_os = "macos")]
 pub use observer::{stop_observing, watch_pasted_text};
 
 use crate::audio_toolkit::apply_custom_words_counted;
+use crate::insights::InsightsManager;
+use crate::settings::{self, AppSettings, MAX_CUSTOM_WORDS};
+use learn::Correction;
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
-#[cfg(target_os = "macos")]
-use {
-    crate::insights::InsightsManager,
-    crate::settings::{self, AppSettings, MAX_CUSTOM_WORDS},
-    learn::Correction,
-    log::{error, info},
-    std::sync::Arc,
-    tauri::{AppHandle, Emitter, Manager},
-};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
 pub struct LearnedWord {
@@ -69,7 +61,6 @@ pub fn correct(
 
 /// Adds learned words to the dictionary, tells the settings UI, and counts
 /// each new word once in Insights as a word the user corrected.
-#[cfg(target_os = "macos")]
 fn remember(app: &AppHandle, corrections: Vec<Correction>) {
     let added = settings::update_settings(app, |value| remember_corrections(value, corrections));
     if added == 0 {
@@ -89,7 +80,6 @@ fn remember(app: &AppHandle, corrections: Vec<Correction>) {
 }
 
 // A pure field-owned mutation, shared by the watcher and regression tests.
-#[cfg(target_os = "macos")]
 fn remember_corrections(value: &mut AppSettings, corrections: Vec<Correction>) -> u32 {
     let mut added = 0;
     for correction in corrections {
@@ -113,7 +103,6 @@ fn remember_corrections(value: &mut AppSettings, corrections: Vec<Correction>) -
 mod tests {
     use super::*;
 
-    #[cfg(target_os = "macos")]
     fn correction(word: &str) -> Correction {
         Correction {
             word: word.to_string(),
@@ -121,7 +110,6 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn learning_preserves_other_preferences_and_only_counts_new_words() {
         let mut value = settings::get_default_settings();
@@ -144,7 +132,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn learning_checks_the_current_dictionary_capacity() {
         let mut value = settings::get_default_settings();
@@ -163,7 +150,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn concurrent_learning_and_context_change_preserve_both_settings() {
         use std::sync::{mpsc, Mutex};

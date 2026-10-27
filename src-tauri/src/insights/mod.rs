@@ -132,7 +132,6 @@ fn insert_dictation(conn: &Connection, d: &NewDictation) -> Result<()> {
 }
 
 /// Returns whether a row was written; a correction of zero words is ignored.
-#[cfg(any(test, target_os = "macos"))]
 fn insert_correction(conn: &Connection, at: i64, words: u32) -> Result<bool> {
     if words == 0 {
         return Ok(false);
@@ -307,7 +306,6 @@ impl InsightsManager {
 
     /// Records misheard words the user corrected after a paste, one per
     /// word the dictionary learned from it.
-    #[cfg(target_os = "macos")]
     pub fn record_correction(&self, words_corrected: u32) -> Result<()> {
         if insert_correction(&self.connection()?, Utc::now().timestamp(), words_corrected)? {
             self.notify();
