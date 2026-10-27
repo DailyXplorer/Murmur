@@ -142,6 +142,14 @@ impl Session {
         result
     }
 
+    /// Releases the model now, after the request running, if any. The next
+    /// request loads it again.
+    pub async fn release(&self) {
+        if self.slot.lock().await.loaded.take().is_some() {
+            log::info!("Local model released");
+        }
+    }
+
     #[cfg(test)]
     pub(super) async fn is_loaded(&self) -> bool {
         self.slot.lock().await.loaded.is_some()
@@ -344,6 +352,22 @@ mod tests {
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
         session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2, "loaded again");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_released_model_is_dropped_at_once_and_loaded_again_when_needed() {
+        let (session, counts, _) = session(Duration::from_millis(100));
+        session.warm().await.unwrap();
+        // The models were deleted: the mapped file must not wait ten minutes.
+        session.release().await;
+        assert!(!session.is_loaded().await);
+        assert_eq!(counts.released.load(Ordering::SeqCst), 1);
+        session.release().await;
+
+        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
+        wait(minutes(11)).await;
+        assert_eq!(counts.released.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test(start_paused = true)]

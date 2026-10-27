@@ -194,7 +194,7 @@ for (const relativePath of collectFiles("src/i18n/locales", ".json")) {
 // architecture, never by OS.
 const cpuEngineSection = [
   `[target.'cfg(target_arch = "x86_64")'.dependencies]`,
-  `transcribe-cpp = { version = "=0.4.0", default-features = false }`,
+  `transcribe-cpp = { version = "=0.4.1", default-features = false }`,
 ].join("\n");
 const cargoManifest = read("src-tauri/Cargo.toml").replace(
   cpuEngineSection,
