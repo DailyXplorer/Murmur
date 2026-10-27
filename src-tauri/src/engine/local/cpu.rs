@@ -108,7 +108,8 @@ impl Loaded for CpuModel {
 mod tests {
     use super::*;
 
-    /// Needs the model and spoken clips, so CI runs it on its own:
+    /// Needs the model and spoken clips, so CI runs it on its own (`local
+    /// engine` on Intel, `windows beta` on Windows):
     /// `MURMUR_SMOKE_GGUF=<model> MURMUR_SMOKE_CLIPS=<dir> cargo test
     /// --target x86_64-apple-darwin --lib engine::local::cpu -- --ignored`.
     /// Each `<name>.wav` (16 kHz mono) in the folder holds speech whose words
