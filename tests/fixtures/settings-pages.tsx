@@ -19,6 +19,7 @@ import type {
   MeetingRuntime,
   MeetingStage,
   ProcessingError,
+  RecordedKeys,
   SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
@@ -42,9 +43,17 @@ declare global {
       emitUpdateStatus: (available: string | null) => Promise<void>;
       /** The update found is no longer offered by the next check. */
       withdrawUpdate: () => void;
+      /** The user switched to another keyboard layout. */
+      switchKeyboard: (keyboard: Keyboard) => void;
+      /** Keeps the keyboard layout reads asked from now on unanswered. */
+      holdKeyboard: (held: boolean) => void;
+      /** Answers the held reads with the layout as it was when asked. */
+      releaseKeyboard: () => void;
     };
   }
 }
+
+type Keyboard = "azerty" | "qwerty";
 
 const params = new URLSearchParams(window.location.search);
 const language = params.get("lang") ?? "en";
@@ -197,17 +206,32 @@ const windows = params.get("platform") === "windows";
 const transcribeBinding = windows ? "ctrl+super" : "option+space";
 /**
  * `keyboard=azerty` reads a French AZERTY layout as Windows reports it, and
- * saves recorded shortcuts.
+ * saves recorded shortcuts; `keyboard=qwerty` a US one. A test can switch
+ * the layout afterwards.
  */
-const azerty = params.get("keyboard") === "azerty";
-// What the layout types on a few virtual keys, by the name they register as.
-const AZERTY_LABELS = { "1": "&", a: "a", q: "q", m: "m", ",": ",", "/": ":" };
-// The virtual key under a few physical keys, by the physical key's US name,
-// and the "!" and "<" keys, whose virtual keys no shortcut registers.
-const AZERTY_RECORDED_KEYS = {
-  names: { q: "a", a: "q", ";": "m", m: ",", ".": "/" },
-  unusable: ["/", "intlbackslash"],
+const savesBindings = params.has("keyboard");
+let keyboard: Keyboard =
+  params.get("keyboard") === "azerty" ? "azerty" : "qwerty";
+const KEYBOARDS: Record<
+  Keyboard,
+  { labels: Record<string, string>; recorded: RecordedKeys }
+> = {
+  azerty: {
+    // What the layout types on a few virtual keys, by the name they
+    // register as.
+    labels: { "1": "&", a: "a", q: "q", m: "m", ",": ",", "/": ":" },
+    // The virtual key under a few physical keys, by the physical key's US
+    // name, and the "!" and "<" keys, whose virtual keys no shortcut
+    // registers.
+    recorded: {
+      names: { q: "a", a: "q", ";": "m", m: ",", ".": "/" },
+      unusable: ["/", "intlbackslash"],
+    },
+  },
+  qwerty: { labels: {}, recorded: { names: {}, unusable: [] } },
 };
+let keyboardHeld = false;
+let heldKeyboardReads: (() => void)[] = [];
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -766,10 +790,6 @@ const RESPONSES: Record<string, unknown> = {
   get_microphone_authorization_status: 3,
   get_microphone_channels: 1,
   get_shortcut_registration_errors: {},
-  get_key_labels: azerty ? AZERTY_LABELS : {},
-  get_recorded_key_names: azerty
-    ? AZERTY_RECORDED_KEYS
-    : { names: {}, unusable: [] },
   initialize_enigo: null,
   initialize_shortcuts: null,
   is_laptop: true,
@@ -808,6 +828,17 @@ window.settingsPages = {
   withdrawUpdate: () => {
     updateWithdrawn = true;
   },
+  switchKeyboard: (layout) => {
+    keyboard = layout;
+  },
+  holdKeyboard: (held) => {
+    keyboardHeld = held;
+  },
+  releaseKeyboard: () => {
+    const reads = heldKeyboardReads;
+    heldKeyboardReads = [];
+    reads.forEach((answer) => answer());
+  },
 };
 
 mockIPC(
@@ -825,7 +856,17 @@ mockIPC(
     if (engineCommand.handled) return engineCommand.value;
     const accountCommand = handleAccountCommand(command);
     if (accountCommand.handled) return accountCommand.value;
-    if (command === "change_binding" && azerty) {
+    if (command === "get_key_labels" || command === "get_recorded_key_names") {
+      // Read when asked, answered when released.
+      const layout = KEYBOARDS[keyboard];
+      const value =
+        command === "get_key_labels" ? layout.labels : layout.recorded;
+      if (!keyboardHeld) return value;
+      return new Promise((resolve) => {
+        heldKeyboardReads.push(() => resolve(value));
+      });
+    }
+    if (command === "change_binding" && savesBindings) {
       const { id, binding } = args as { id: string; binding: string };
       const bindings = SETTINGS.bindings ?? {};
       return {

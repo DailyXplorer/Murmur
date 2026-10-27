@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getKeyName,
@@ -64,7 +64,10 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
   // The name to save for a pressed key, by the key's own name: on Windows,
   // the virtual key the layout puts there, which the shortcut fires on.
-  const recordedKeys = useRef<RecordedKeys>({ names: {}, unusable: [] });
+  // Null until the layout read for this capture answers.
+  const recordedKeys = useRef<RecordedKeys | null>(null);
+  // Counts layout reads, so an older read never overwrites a newer one.
+  const layoutReads = useRef(0);
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
   // The optimistic update re-attaches the key listeners while the first
   // combo is still being saved; a second combo then must not start another.
@@ -90,25 +93,39 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   }, [shortcutId]);
 
   // Shortcuts name keys after a US keyboard; show what the user's layout
-  // prints on them instead.
-  useEffect(() => {
-    let active = true;
+  // prints on them instead. The layout can change while Settings stay open,
+  // so it is read again when a capture starts and when the window comes back.
+  const readLayout = useCallback(() => {
+    const read = ++layoutReads.current;
     commands
       .getKeyLabels()
       .then((labels) => {
-        if (active) setKeyLabels(labels);
+        if (read === layoutReads.current) setKeyLabels(labels);
       })
       .catch(() => undefined);
     commands
       .getRecordedKeyNames()
+      // The backend answers no names when it cannot read the layout too.
+      .catch((): RecordedKeys => ({ names: {}, unusable: [] }))
       .then((keys) => {
-        if (active) recordedKeys.current = keys;
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
+        if (read === layoutReads.current) recordedKeys.current = keys;
+      });
   }, []);
+
+  useEffect(() => {
+    readLayout();
+    const readIfShown = () => {
+      if (document.visibilityState === "visible") readLayout();
+    };
+    window.addEventListener("focus", readLayout);
+    document.addEventListener("visibilitychange", readIfShown);
+    return () => {
+      // Answers still on their way are dropped.
+      layoutReads.current++;
+      window.removeEventListener("focus", readLayout);
+      document.removeEventListener("visibilitychange", readIfShown);
+    };
+  }, [readLayout]);
 
   useEffect(() => () => endCapture(shortcutId), [shortcutId, endCapture]);
 
@@ -164,9 +181,12 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       if (e.repeat) return;
       e.preventDefault();
       if (committing.current) return;
+      // Before the layout read answers, the key's name is unknown.
+      const recorded = recordedKeys.current;
+      if (!recorded) return;
 
       const pressed = normalizeKey(getKeyName(e));
-      const key = recordedKeys.current.names[pressed] ?? pressed;
+      const key = recorded.names[pressed] ?? pressed;
       const modifiers = modifiersHeld(e);
       if (MODIFIER_KEYS.has(key)) {
         setHeldModifiers(modifiers);
@@ -182,7 +202,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
         return;
       }
       // Saved under its own name, the shortcut would fire on another key.
-      if (recordedKeys.current.unusable.includes(pressed)) {
+      if (recorded.unusable.includes(pressed)) {
         toast.error(t("settings.general.shortcut.errors.unusableKey"));
         cancelRecording();
         return;
@@ -196,6 +216,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     const handleKeyUp = (e: KeyboardEvent) => {
       if (cleanup) return;
       e.preventDefault();
+      if (!recordedKeys.current) return;
       const modifiers = modifiersHeld(e);
       setHeldModifiers(modifiers);
       if (isWindows && modifiers.length === 0 && chord.length >= 2) {
@@ -229,6 +250,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     setOriginalBinding(bindings[id]?.current_binding || "");
     setHeldModifiers([]);
+    recordedKeys.current = null;
+    readLayout();
     // Suspends all bindings so no shortcut fires (or swallows the
     // keystrokes) while keys are being recorded
     beginCapture(id);
