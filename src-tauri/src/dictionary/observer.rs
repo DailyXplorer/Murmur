@@ -192,7 +192,9 @@ impl Fields for Accessibility {
 #[cfg(target_os = "windows")]
 fn platform_fields() -> Option<crate::uia::Automation> {
     crate::uia::Automation::new()
-        .map_err(|e| info!("Correction learning: nothing learned, UI Automation is unavailable ({e})"))
+        .map_err(|e| {
+            info!("Correction learning: nothing learned, UI Automation is unavailable ({e})")
+        })
         .ok()
 }
 
