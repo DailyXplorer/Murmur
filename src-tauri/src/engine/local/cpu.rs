@@ -198,7 +198,9 @@ mod tests {
 
     /// `deleting_the_models_releases_the_mapped_model` with the real model,
     /// mapped by transcribe.cpp: the delete removes the file and the next
-    /// dictation loads the model again. `MURMUR_SMOKE_GGUF` as above.
+    /// dictation loads the model again. NTFS deletes a mapped file, so on
+    /// Windows this does not prove the release comes first; the other test
+    /// does, by holding the file. `MURMUR_SMOKE_GGUF` as above.
     #[tokio::test]
     #[ignore = "needs the GGUF model"]
     async fn deleting_the_models_releases_the_loaded_cpu_model() {
@@ -214,12 +216,6 @@ mod tests {
             Box::new(|| false),
         );
         engine.session.warm().await.unwrap();
-        // What this Windows does with the file transcribe.cpp maps.
-        #[cfg(target_os = "windows")]
-        println!(
-            "deleting the mapped model: {:?}",
-            std::fs::remove_file(&model)
-        );
 
         crate::commands::local_models::delete(Arc::clone(&models), Some(&engine))
             .await
