@@ -1,6 +1,6 @@
 //! Intel Macs: the GGUF model (8-bit) through transcribe.cpp, on the CPU in
 //! the app. Forced to the CPU: Intel Macs have no GPU it can use.
-//! Boost terms are not passed: transcribe-cpp 0.4.0's Parakeet does not set
+//! Boost terms are not passed: transcribe-cpp 0.4.1's Parakeet does not set
 //! `TRANSCRIBE_FEATURE_VOCABULARY`, so its `RunOptions.vocabulary` is dropped.
 
 use std::path::PathBuf;
@@ -24,6 +24,9 @@ impl Runtime for CpuRuntime {
                 let options = ModelOptions {
                     backend: Backend::Cpu,
                     device: None,
+                    // Mapped from the file: the model is never rewritten in
+                    // place, only replaced by a rename.
+                    no_mmap: false,
                 };
                 let mut session = Model::load_with(&path, &options)?.session()?;
                 let cancel = CancelToken::new();
@@ -149,5 +152,44 @@ mod tests {
             checked += 1;
         }
         assert!(checked > 0, "no clips in {}", clips.display());
+    }
+
+    /// The loaded model maps its file: a download renaming a new file over
+    /// it, then the models being deleted, leave it hearing the same words.
+    /// Same variables as above.
+    #[tokio::test]
+    #[ignore = "needs the GGUF model and recorded speech"]
+    async fn the_loaded_model_survives_its_file_replaced_then_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let model = dir.path().join("model.gguf");
+        std::fs::copy(
+            std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF"),
+            &model,
+        )
+        .unwrap();
+        let clips = PathBuf::from(std::env::var("MURMUR_SMOKE_CLIPS").expect("MURMUR_SMOKE_CLIPS"));
+        let wav = std::fs::read_dir(&clips)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.extension().is_some_and(|extension| extension == "wav"))
+            .expect("no clip");
+        let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
+        let mut loaded = CpuRuntime {
+            model: model.clone(),
+        }
+        .load()
+        .await
+        .unwrap();
+        let heard = loaded.transcribe(&samples, &[]).await.unwrap();
+        assert!(!heard.is_empty());
+
+        let part = crate::local_models::download::part_path(&model);
+        std::fs::write(&part, vec![0u8; 1 << 20]).unwrap();
+        std::fs::rename(&part, &model).unwrap();
+        assert_eq!(loaded.transcribe(&samples, &[]).await.unwrap(), heard);
+
+        std::fs::remove_file(&model).unwrap();
+        assert_eq!(loaded.transcribe(&samples, &[]).await.unwrap(), heard);
+        println!("still heard after replace and delete: {heard}");
     }
 }

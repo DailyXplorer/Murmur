@@ -68,6 +68,12 @@ impl LocalEngine {
         });
     }
 
+    /// Releases the model. The CPU model maps its file, so deleted models
+    /// keep their disk space until then.
+    pub async fn release(&self) {
+        self.session.release().await;
+    }
+
     /// Transcribes 16 kHz mono audio of any length, listening for `terms`
     /// (see `boost`). Silence gives no text and never reaches the model,
     /// which would invent words.

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::engine::local::LocalEngine;
 use crate::local_models::{LocalModelState, LocalModelStatus, LocalModels};
 use crate::settings::update_settings;
 
@@ -71,6 +72,10 @@ pub async fn delete_local_model(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || models.delete())
         .await
         .map_err(|error| error.to_string())??;
+    // After the delete, which stops dictation from loading the model again.
+    if let Some(engine) = app.try_state::<Arc<LocalEngine>>() {
+        engine.release().await;
+    }
     forget_switch(&app);
     Ok(())
 }
