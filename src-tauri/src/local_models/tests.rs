@@ -460,6 +460,59 @@ fn models_the_helper_found_missing_are_downloaded_again() {
     assert!(!path.join(READY_MARKER).exists());
 }
 
+/// Keeps the files of `file`'s folder from being deleted until dropped, as
+/// a file the system refuses to remove does.
+struct Undeletable {
+    folder: PathBuf,
+}
+
+impl Undeletable {
+    fn new(file: &Path) -> Self {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = file.parent().unwrap().to_path_buf();
+        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o555)).unwrap();
+        Self { folder }
+    }
+}
+
+impl Drop for Undeletable {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.folder, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
+/// A delete stopped halfway says so and leaves models that are no longer
+/// ready, now and after a restart, so dictation stops counting on them and
+/// the custom-word model is fetched again with the next download. Deleting
+/// again finishes the job.
+#[test]
+fn a_delete_stopped_halfway_is_reported_and_leaves_no_ready_models() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_all(&path);
+    let required: Vec<&Source> = fixture.sources.iter().filter(|s| !s.optional).collect();
+    std::fs::write(path.join(READY_MARKER), manifest::id(required)).unwrap();
+    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    std::fs::write(path.join(OPTIONAL_MARKER), manifest::id(optional)).unwrap();
+    let host = Arc::new(FakeHost::default());
+    let ready = models_after_restart(&path, &fixture, &host);
+    assert!(ready.is_ready());
+    assert!(optional_ready(&path));
+    let held = Undeletable::new(&path.join("asr").join(fixture.contents[0].0));
+
+    assert!(ready.delete().is_err());
+    assert_eq!(ready.status().state, LocalModelState::Missing);
+    assert!(ready.status().kept_bytes > 0, "nothing left to delete");
+    assert!(!models_after_restart(&path, &fixture, &host).is_ready());
+    assert!(!optional_ready(&path));
+
+    drop(held);
+    ready.delete().unwrap();
+    assert!(!path.exists());
+}
+
 #[test]
 fn delete_removes_everything_and_reports_missing() {
     let fixture = fixture();

@@ -536,16 +536,26 @@ impl LocalModels {
         }
         self.stop_optional()?;
         self.decline();
-        match std::fs::remove_dir_all(&self.dir) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("Cannot delete the models: {error}")),
+        // The markers go first: a delete stopped halfway, by a file the
+        // system refuses to remove, leaves models that are not ready and a
+        // custom-word model the next download fetches again.
+        for marker in [OPTIONAL_MARKER, READY_MARKER] {
+            match std::fs::remove_file(self.dir.join(marker)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("Cannot delete the models: {error}")),
+            }
         }
+        let removed = match std::fs::remove_dir_all(&self.dir) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("Cannot delete the models: {error}")),
+        };
         if self.support == AnalysisSupport::Available {
             self.set(LocalModelState::Missing);
         }
         drop(slot);
-        Ok(())
+        removed
     }
 }
 
