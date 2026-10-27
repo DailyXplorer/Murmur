@@ -362,22 +362,30 @@ mod tests {
 
     /// Maps the model file read-only, as transcribe.cpp 0.4.1 does
     /// (`CreateFileMapping` and `MapViewOfFile` on Windows), and counts the
-    /// loads.
+    /// loads. On Windows it also keeps the file open without sharing its
+    /// deletion, so no delete gets past the loaded model: NTFS deletes a
+    /// mapped file with POSIX semantics, other volumes and Windows builds
+    /// refuse it.
     struct Mapping {
         model: std::path::PathBuf,
         loads: Arc<std::sync::atomic::AtomicUsize>,
     }
 
-    struct Mapped(memmap2::Mmap);
+    struct Mapped(memmap2::Mmap, std::fs::File);
 
     impl Runtime for Mapping {
         fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
             let (model, loads) = (self.model.clone(), Arc::clone(&self.loads));
             Box::pin(async move {
+                let mut options = std::fs::OpenOptions::new();
+                options.read(true);
+                #[cfg(target_os = "windows")]
+                std::os::windows::fs::OpenOptionsExt::share_mode(&mut options, 1);
+                let file = options.open(model)?;
                 // SAFETY: the tests never write the file while it is mapped.
-                let mapped = unsafe { memmap2::Mmap::map(&std::fs::File::open(model)?)? };
+                let mapped = unsafe { memmap2::Mmap::map(&file)? };
                 loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                Ok(Box::new(Mapped(mapped)) as Box<dyn Loaded>)
+                Ok(Box::new(Mapped(mapped, file)) as Box<dyn Loaded>)
             })
         }
     }
@@ -393,9 +401,9 @@ mod tests {
         }
     }
 
-    /// Windows cannot delete a mapped file: deleting the models releases the
-    /// model dictation mapped, and the next dictation maps it again once the
-    /// models are back.
+    /// Windows may refuse to delete the file of a loaded model: deleting the
+    /// models releases it first, and the next dictation loads it again once
+    /// the models are back.
     #[tokio::test]
     async fn deleting_the_models_releases_the_mapped_model() {
         let dir = tempfile::tempdir().unwrap();
@@ -413,7 +421,7 @@ mod tests {
         #[cfg(target_os = "windows")]
         assert!(
             std::fs::remove_file(&model).is_err(),
-            "Windows deleted a mapped file"
+            "Windows deleted the file of a loaded model"
         );
 
         crate::commands::local_models::delete(Arc::clone(&models), Some(&engine))
