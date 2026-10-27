@@ -135,6 +135,8 @@ transcribe-cpp = { version = "=0.4.1", default-features = false, features = ["dy
 tempfile = "3"
 chrono-tz = "0.10"
 tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread", "test-util"] }
+# Maps a model file as transcribe.cpp does. The version the lock already has.
+memmap2 = "0.9.11"
 
 # `#[implement]`, behind a test's own UI Automation provider, names this
 # crate. The version `windows` already pulls in.

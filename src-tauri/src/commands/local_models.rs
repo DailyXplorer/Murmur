@@ -67,15 +67,26 @@ pub fn cancel_local_model_download(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_local_model(app: AppHandle) -> Result<(), String> {
-    let models = models(&app)?;
+    let engine = app
+        .try_state::<Arc<LocalEngine>>()
+        .map(|engine| Arc::clone(&engine));
+    delete(models(&app)?, engine.as_deref()).await?;
+    forget_switch(&app);
+    Ok(())
+}
+
+/// Deletes the models and releases the dictation model.
+pub(crate) async fn delete(
+    models: Arc<LocalModels>,
+    engine: Option<&LocalEngine>,
+) -> Result<(), String> {
     // Removing about 500 MB of files takes a moment.
     tauri::async_runtime::spawn_blocking(move || models.delete())
         .await
         .map_err(|error| error.to_string())??;
     // After the delete, which stops dictation from loading the model again.
-    if let Some(engine) = app.try_state::<Arc<LocalEngine>>() {
+    if let Some(engine) = engine {
         engine.release().await;
     }
-    forget_switch(&app);
     Ok(())
 }

@@ -360,6 +360,80 @@ mod tests {
             .is_err());
     }
 
+    /// Maps the model file read-only, as transcribe.cpp 0.4.1 does
+    /// (`CreateFileMapping` and `MapViewOfFile` on Windows), and counts the
+    /// loads.
+    struct Mapping {
+        model: std::path::PathBuf,
+        loads: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    struct Mapped(memmap2::Mmap);
+
+    impl Runtime for Mapping {
+        fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
+            let (model, loads) = (self.model.clone(), Arc::clone(&self.loads));
+            Box::pin(async move {
+                // SAFETY: the tests never write the file while it is mapped.
+                let mapped = unsafe { memmap2::Mmap::map(&std::fs::File::open(model)?)? };
+                loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(Box::new(Mapped(mapped)) as Box<dyn Loaded>)
+            })
+        }
+    }
+
+    impl Loaded for Mapped {
+        fn transcribe<'a>(
+            &'a mut self,
+            _: &'a [f32],
+            _: &'a [String],
+        ) -> BoxFuture<'a, anyhow::Result<String>> {
+            let text = format!("{} bytes", self.0.len());
+            Box::pin(async move { Ok(text) })
+        }
+    }
+
+    /// Windows cannot delete a mapped file: deleting the models releases the
+    /// model dictation mapped, and the next dictation maps it again once the
+    /// models are back.
+    #[tokio::test]
+    async fn deleting_the_models_releases_the_mapped_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let (models, model) = crate::local_models::tests::ready_models(&dir.path().join("models"));
+        let loads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let engine = LocalEngine::new(
+            Box::new(Mapping {
+                model: model.clone(),
+                loads: Arc::clone(&loads),
+            }),
+            MAX_PIECE,
+            Box::new(|| false),
+        );
+        engine.session.warm().await.unwrap();
+        #[cfg(target_os = "windows")]
+        assert!(
+            std::fs::remove_file(&model).is_err(),
+            "Windows deleted a mapped file"
+        );
+
+        crate::commands::local_models::delete(Arc::clone(&models), Some(&engine))
+            .await
+            .unwrap();
+        assert!(!model.exists());
+        assert_eq!(
+            models.status().state,
+            crate::local_models::LocalModelState::Missing
+        );
+        assert!(!engine.session.is_loaded().await);
+
+        // No model: the dictation fails, and the engine stays usable.
+        assert!(engine.session.warm().await.is_err());
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
+        std::fs::write(&model, b"the model, downloaded again").unwrap();
+        engine.session.warm().await.unwrap();
+        assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
     #[tokio::test]
     async fn every_piece_of_a_dictation_listens_for_its_terms() {
         let (engine, _, seen) = engine_with_terms(None);

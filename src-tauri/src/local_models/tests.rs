@@ -460,6 +460,83 @@ fn models_the_helper_found_missing_are_downloaded_again() {
     assert!(!path.join(READY_MARKER).exists());
 }
 
+/// Ready models in `path`, for the engine's tests, and one of their files,
+/// which stands in for the model the engine loads.
+pub(crate) fn ready_models(path: &Path) -> (Arc<LocalModels>, PathBuf) {
+    let fixture = fixture();
+    fixture.write_all(path);
+    std::fs::write(path.join(READY_MARKER), manifest::id(fixture.sources)).unwrap();
+    let ready = models_after_restart(path, &fixture, &Arc::new(FakeHost::default()));
+    assert!(ready.is_ready());
+    let model = path
+        .join(fixture.sources[0].folder)
+        .join(fixture.sources[0].files[0].path);
+    (ready, model)
+}
+
+/// Keeps a file of the folder from being deleted until dropped, as Windows
+/// does with a file another program holds open.
+struct Undeletable {
+    #[cfg(target_os = "windows")]
+    _held: std::fs::File,
+    #[cfg(not(target_os = "windows"))]
+    folder: PathBuf,
+}
+
+impl Undeletable {
+    fn new(file: &Path) -> Self {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            const FILE_SHARE_READ: u32 = 1;
+            Self {
+                _held: std::fs::OpenOptions::new()
+                    .read(true)
+                    .share_mode(FILE_SHARE_READ)
+                    .open(file)
+                    .unwrap(),
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let folder = file.parent().unwrap().to_path_buf();
+            std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o555)).unwrap();
+            Self { folder }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+impl Drop for Undeletable {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.folder, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
+/// A delete stopped halfway, as on Windows by a file in use, says so and
+/// leaves models that are no longer ready, now and after a restart, so
+/// dictation stops counting on them. Deleting again finishes the job.
+#[test]
+fn a_delete_stopped_halfway_is_reported_and_leaves_no_ready_models() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let (ready, model) = ready_models(&path);
+    let held = Undeletable::new(&model);
+
+    assert!(ready.delete().is_err());
+    assert_eq!(ready.status().state, LocalModelState::Missing);
+    assert!(ready.status().kept_bytes > 0, "nothing left to delete");
+    let host = Arc::new(FakeHost::default());
+    assert!(!models_after_restart(&path, &fixture, &host).is_ready());
+
+    drop(held);
+    ready.delete().unwrap();
+    assert!(!path.exists());
+}
+
 #[test]
 fn delete_removes_everything_and_reports_missing() {
     let fixture = fixture();

@@ -3093,6 +3093,7 @@ dependencies = [
  "image",
  "libc",
  "log",
+ "memmap2",
  "natural",
  "objc2",
  "objc2-app-kit",
