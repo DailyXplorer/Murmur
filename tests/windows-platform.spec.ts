@@ -235,6 +235,143 @@ test.describe("Windows build", () => {
       ),
     ).toBe(false);
   });
+
+  test.describe("after a keyboard layout switch with Settings open", () => {
+    const savedBindings = (page: Page) =>
+      page.evaluate(() =>
+        window.settingsPages.calls
+          .filter((call) => call.command === "change_binding")
+          .map((call) => (call.args as { binding: string }).binding),
+      );
+    const pasteLast = (page: Page) =>
+      page.getByRole("button", {
+        name: "Paste last transcription: Press keys...",
+      });
+    const capture = (page: Page) =>
+      page.getByRole("status").filter({ hasText: "Press keys..." });
+    const refused = (page: Page) =>
+      page.getByText(
+        "This key can't be used in a shortcut on Windows. Choose a different one.",
+      );
+
+    test("records the keys of the new layout", async ({ page }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+
+      await page.evaluate(() => window.settingsPages.switchKeyboard("qwerty"));
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      // The "/" key, which AZERTY refuses as "!".
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Slash");
+      await expect(pasteLast(page)).toHaveText("Ctrl + /");
+
+      await page.evaluate(() => window.settingsPages.switchKeyboard("azerty"));
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Slash");
+      await expect(refused(page)).toHaveCount(1);
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+
+      expect(await savedBindings(page)).toEqual([
+        "ctrl+a",
+        "ctrl+q",
+        "ctrl+/",
+        "ctrl+a",
+      ]);
+    });
+
+    test("shows the new layout's keys when the window comes back", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Period");
+      await expect(pasteLast(page)).toHaveText("Ctrl + :");
+
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.dispatchEvent(new Event("focus"));
+      });
+      await expect(pasteLast(page)).toHaveText("Ctrl + /");
+
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("azerty");
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "visible",
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await expect(pasteLast(page)).toHaveText("Ctrl + :");
+    });
+
+    test("saves nothing for a key pressed before the layout is read", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await expect(pasteLast(page)).toBeVisible();
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.settingsPages.holdKeyboard(true);
+      });
+
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page.keyboard.press("Control+KeyQ");
+      // Still capturing: the key was neither saved nor refused.
+      await expect(capture(page)).toBeVisible();
+      expect(await savedBindings(page)).toEqual([]);
+
+      await page.evaluate(() => window.settingsPages.releaseKeyboard());
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      expect(await savedBindings(page)).toEqual(["ctrl+q"]);
+    });
+
+    test("keeps the newest layout when an older read answers late", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await expect(pasteLast(page)).toBeVisible();
+
+      // A capture asks for AZERTY, which answers only later, and is left.
+      await page.evaluate(() => window.settingsPages.holdKeyboard(true));
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page
+        .getByRole("heading", { name: "Paste last transcription" })
+        .click();
+      await expect(capture(page)).toHaveCount(0);
+
+      // The next capture reads QWERTY at once.
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.settingsPages.holdKeyboard(false);
+      });
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page.evaluate(() => window.settingsPages.releaseKeyboard());
+
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      expect(await savedBindings(page)).toEqual(["ctrl+q"]);
+    });
+  });
 });
 
 test("leaves a gap between the logo divider and the first tab on Windows", async ({
