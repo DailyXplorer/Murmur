@@ -16,10 +16,10 @@
 Murmur is a free desktop speech-to-text app for macOS and Windows (beta). Press a shortcut, speak, and
 Murmur pastes the transcription into the active application.
 
-On the Mac, Murmur transcribes locally: the audio stays on your Mac, there is
-no quota, and no account is needed. Connect a ChatGPT account (through Codex)
-to add AI cleanup, more languages and cloud transcription. It requires no API
-key.
+Murmur transcribes on your computer: the audio stays there, there is no
+quota, and no account is needed. Sign in with a ChatGPT account from Murmur to
+add AI cleanup, dictation styles, more languages and cloud transcription. It
+requires no API key and no separate Codex app.
 
 ## Requirements
 
@@ -27,9 +27,9 @@ key.
 
 - macOS 10.15 or later
 - A working microphone
-- Codex signed in with a ChatGPT account, for cloud transcription, AI cleanup
-  and meetings. Local transcription, the default, runs without it. A Mac that
-  cannot run the local model needs it to finish setup.
+- A ChatGPT account, signed in from Murmur, for cloud transcription, AI
+  cleanup and meetings. Local transcription, the default, runs without it. A
+  Mac that cannot run the local model needs it to finish setup.
 - Accessibility permission for global shortcuts and text insertion
 - For local transcription: macOS 15 or later on Apple silicon, or an Intel
   Mac, and a one-time download of about 500 MB (740 MB on Intel)
@@ -41,18 +41,21 @@ key.
 
 - Windows 10 or 11, x64
 - A working microphone
-- Codex signed in with a ChatGPT account
-- Network access while transcribing
+- For local transcription: a one-time download of about 740 MB
+- A ChatGPT account, signed in from Murmur, for cloud transcription and AI
+  cleanup. Local transcription runs without it.
+- Network access for cloud transcription and AI cleanup
 
-For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json`,
+Murmur keeps the ChatGPT session in the file the Codex apps use, so both share
+one sign-in: `CODEX_HOME/auth.json`,
 or else `~/.codex/auth.json` on macOS and `%USERPROFILE%\.codex\auth.json` on
 Windows. When the access token is about to expire, or when the
 service rejects it, Murmur refreshes the session the same way the Codex CLI
 does and writes the new tokens back to that file. It changes only the token
 fields and `last_refresh`, keeps the file private (mode 600), and replaces it
 in one step. If Codex updated the file while Murmur was refreshing, Murmur
-keeps the Codex version. When the refresh token itself has expired, sign in to
-Codex again.
+keeps the Codex version. When the refresh token itself has expired, sign in
+again from Murmur.
 
 ### Private interfaces
 
@@ -87,8 +90,8 @@ does not store anything in the keychain.
    and download `Murmur_…_x64-setup.exe` from the first one in the list.
 2. Run the installer. It is not signed, so SmartScreen blocks it: click
    **More info**, then **Run anyway**. Murmur installs for the current user.
-3. Open Murmur and connect Codex. Hold Ctrl+Win to dictate, or double-tap it
-   to record hands-free.
+3. Open Murmur, download the speech model or sign in with ChatGPT. Hold
+   Ctrl+Win to dictate, or double-tap it to record hands-free.
 
 The Windows source lives on the `beta` branch for now, not on `main`.
 
@@ -107,12 +110,14 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   offers a Copy button that puts the text on the clipboard
 - Automatic language detection, or an explicit dictation language
 - Microphone and output-device selection
-- AI cleanup through the Codex session, on by default: removes fillers,
+- AI cleanup through your ChatGPT account, on by default: removes fillers,
   applies self-corrections, fixes punctuation, and formats lists and spoken
   line breaks. Any failure or timeout pastes the raw transcript.
+- Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary that also learns names you correct right after pasting
-- Names from the frontmost window as spelling hints for AI cleanup, read
-  through Accessibility and never stored
+- Names from the frontmost window and a short excerpt around the cursor as
+  hints for AI cleanup, read through Accessibility (UI Automation on Windows)
+  and never stored; password fields and password managers are never read
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
 - Transcription history with saved recordings, keeping the raw and cleaned text; a failed
   or unsatisfying transcription can be sent again from its recording
@@ -125,10 +130,11 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   turned off
 - Audio feedback, tray controls, and automatic updates
 
-The Windows beta has dictation, Codex transcription and AI cleanup, history,
-Insights, custom words, sounds, and launch at login. It does not have
-Meetings, correction learning, names read from the focused window, or
-automatic updates yet.
+The Windows beta has dictation, transcription on the PC or in the cloud, AI
+cleanup with styles, correction learning, names read from the active window,
+history, Insights, custom words, shortcut keys shown for your keyboard layout,
+sounds, and launch at login. It does not have Meetings or automatic updates
+yet.
 
 ## Getting started
 
@@ -138,16 +144,15 @@ and Accessibility permissions; a small pill shows its progress until the model
 is ready. **Use the cloud instead** keeps the model off this Mac. A Mac that
 cannot run the model skips this step.
 
-Then connect Codex. If no session is found, open Codex, sign in there, and
-return to Murmur to refresh its status. The setup screen links to the Codex
-download page. With local transcription this step is optional: **Skip** it to
-dictate without an account, without AI cleanup and the cloud's extra
-languages. With cloud transcription, Codex must be configured before setup
-can finish. Until the model is ready, a connected account transcribes in the
+Then connect ChatGPT: **Sign in** finishes in your browser. If the Codex app
+is already signed in on this computer, Murmur uses that session. With local
+transcription this step is optional: **Skip** it to dictate without an
+account, without AI cleanup and the cloud's extra languages. With cloud
+transcription, ChatGPT must be connected before setup can finish. Until the model is ready, a connected account transcribes in the
 cloud; without one, dictation waits for the model.
 
 "Configured" means Murmur found a local session that is valid or that it can
-refresh. A Codex session that expired and has no usable refresh token shows as
+refresh. A session that expired and has no usable refresh token shows as
 "Session expired". Configured does not prove that the cloud service will
 accept the next request, because network or account limits can still prevent
 transcription.
@@ -269,13 +274,14 @@ transcription leaves the computer and is handled by ChatGPT. Do not describe
 Murmur as offline while AI cleanup or the cloud fallback can run.
 
 While AI cleanup is on, the transcript is sent to ChatGPT for cleanup. A
-cleanup request contains the transcript, your custom dictionary words, and the
-names found in the frontmost window.
+cleanup request contains the transcript, your custom dictionary words, your
+dictation style, and the names and short excerpt around the cursor found in the
+frontmost window.
 
-Those names are read on the Mac through Accessibility when a dictation starts,
-only while AI cleanup and the window-names setting are both on. They are never
-stored, and they leave the Mac only inside a Codex cleanup request. Password
-fields and password managers are never read.
+That context is read when a dictation starts, through Accessibility on the Mac
+and UI Automation on Windows, only while AI cleanup and the window-context
+setting are both on. It is never stored, and it leaves the computer only inside
+a cleanup request. Password fields and password managers are never read.
 
 Meetings stay on the Mac, apart from two requests: the audio pieces sent to
 Codex for transcription, and the transcript sent to Codex for the summary.
@@ -304,9 +310,9 @@ leaves the transcription on the clipboard after insertion.
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy), created by CJ
 Pais. It keeps parts of Handy's Tauri foundation, but most of Handy's original
 transcription engine and local-model stack have been removed. Murmur
-transcribes through Codex using the session already present on the computer,
-or on the Mac with Parakeet: FluidAudio on Apple silicon, and on Intel Macs
-transcribe.cpp, the engine Handy uses.
+transcribes in the cloud through your ChatGPT account, or on the computer with
+Parakeet: FluidAudio on Apple silicon, and transcribe.cpp, the engine Handy
+uses, on Intel Macs and Windows.
 
 ## Support
 
