@@ -68,9 +68,10 @@ impl LocalEngine {
         });
     }
 
-    /// Releases the model, and loads none until `then` is done. The CPU
-    /// model maps its file, which keeps its disk space until then and which
-    /// Windows may refuse to delete or replace.
+    /// Releases the model, once the dictation running, if any, is done, and
+    /// loads none until `then` is done. The CPU model maps its file, which
+    /// keeps its disk space until then and which Windows may refuse to
+    /// delete or replace.
     pub async fn release<T>(&self, then: impl std::future::Future<Output = T>) -> T {
         self.session.release(then).await
     }
@@ -88,6 +89,8 @@ impl LocalEngine {
         if std::env::var("MURMUR_FORCE_LOCAL_FAILURE").is_ok() {
             anyhow::bail!("Simulated local transcription failure (MURMUR_FORCE_LOCAL_FAILURE)");
         }
+        // A release asked between two pieces waits for the last one.
+        let _dictation = self.session.dictation();
         let mut texts = Vec::new();
         for range in speech_pieces(samples, self.max_piece) {
             let piece = padded(&samples[range]);
@@ -191,6 +194,7 @@ mod tests {
     use super::session::{BoxFuture, Loaded};
     use super::*;
     use crate::OperationId;
+    use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
     use std::sync::Mutex;
 
     #[test]
@@ -458,5 +462,112 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(*seen.lock().unwrap(), [terms.clone(), terms]);
+    }
+
+    /// Holds the first piece until `go`, once it told `started`, and counts
+    /// the models loaded and dropped.
+    #[derive(Default)]
+    struct Held {
+        started: tokio::sync::Notify,
+        go: tokio::sync::Notify,
+        pieces: AtomicUsize,
+        loads: AtomicUsize,
+        dropped: AtomicUsize,
+    }
+
+    struct HeldRuntime(Arc<Held>);
+
+    struct HeldModel(Arc<Held>);
+
+    impl Runtime for HeldRuntime {
+        fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
+            self.0.loads.fetch_add(1, SeqCst);
+            let model = HeldModel(Arc::clone(&self.0));
+            Box::pin(async move { Ok(Box::new(model) as Box<dyn Loaded>) })
+        }
+    }
+
+    impl Loaded for HeldModel {
+        fn transcribe<'a>(
+            &'a mut self,
+            _: &'a [f32],
+            _: &'a [String],
+        ) -> BoxFuture<'a, anyhow::Result<String>> {
+            Box::pin(async move {
+                let piece = self.0.pieces.fetch_add(1, SeqCst) + 1;
+                if piece == 1 {
+                    self.0.started.notify_one();
+                    self.0.go.notified().await;
+                }
+                Ok(format!("piece {piece}"))
+            })
+        }
+    }
+
+    impl Drop for HeldModel {
+        fn drop(&mut self) {
+            self.0.dropped.fetch_add(1, SeqCst);
+        }
+    }
+
+    fn held_engine() -> (LocalEngine, Arc<Held>) {
+        let held = Arc::new(Held::default());
+        let engine = LocalEngine::new(
+            Box::new(HeldRuntime(Arc::clone(&held))),
+            10 * SAMPLES_PER_SECOND,
+            Box::new(|| false),
+        );
+        (engine, held)
+    }
+
+    #[tokio::test]
+    async fn a_release_during_a_dictation_waits_for_its_last_piece() {
+        let (engine, held) = held_engine();
+        let operation = operation();
+        let audio = speech(16.0, 1.0);
+        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], &operation), async {
+            held.started.notified().await;
+            // The models are deleted while the first piece runs: Windows may
+            // refuse it until the dictation released the model.
+            let release = engine.release(async {
+                assert_eq!(held.pieces.load(SeqCst), 2, "deleted mid-dictation");
+                assert_eq!(held.dropped.load(SeqCst), 1, "deleted while loaded");
+            });
+            held.go.notify_one();
+            release.await;
+        });
+        assert_eq!(text.unwrap(), "piece 1 piece 2");
+        assert_eq!(held.loads.load(SeqCst), 1, "the second piece loaded again");
+        assert_eq!(held.dropped.load(SeqCst), 1, "kept after the dictation");
+    }
+
+    #[tokio::test]
+    async fn a_dictation_cancelled_after_a_release_still_releases() {
+        let (engine, held) = held_engine();
+        let operation = operation();
+        let audio = speech(16.0, 1.0);
+        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], &operation), async {
+            held.started.notified().await;
+            let release = engine.release(async {
+                assert_eq!(held.dropped.load(SeqCst), 1, "deleted while loaded");
+            });
+            operation.cancel();
+            release.await;
+        });
+        assert!(text.is_err());
+        assert_eq!(held.loads.load(SeqCst), 1);
+        assert_eq!(held.dropped.load(SeqCst), 1, "kept after the cancel");
+    }
+
+    #[tokio::test]
+    async fn a_release_between_dictations_is_at_once() {
+        let (engine, held) = held_engine();
+        held.go.notify_one();
+        engine
+            .transcribe(&speech(4.0, 0.0), &[], &operation())
+            .await
+            .unwrap();
+        engine.release(async {}).await;
+        assert_eq!(held.dropped.load(SeqCst), 1);
     }
 }

@@ -47,8 +47,24 @@ pub struct Session {
     runtime: Box<dyn Runtime>,
     slot: tokio::sync::Mutex<Slot>,
     last_used: Mutex<Instant>,
+    /// The dictations running, which a release waits for.
+    dictations: tokio::sync::watch::Sender<usize>,
     recording: Box<dyn Fn() -> bool + Send + Sync>,
     idle_release: Duration,
+}
+
+/// Keeps the model loaded across the pieces of one dictation: a release
+/// asked meanwhile waits until the last dictation running ends, as an
+/// unlinked file stays until its last descriptor closes. Ends on drop, so a
+/// cancel or an error ends it too.
+pub struct Dictation {
+    session: Arc<Session>,
+}
+
+impl Drop for Dictation {
+    fn drop(&mut self) {
+        self.session.dictations.send_modify(|running| *running -= 1);
+    }
 }
 
 impl Session {
@@ -71,6 +87,7 @@ impl Session {
             runtime,
             slot: tokio::sync::Mutex::new(Slot::default()),
             last_used: Mutex::new(Instant::now()),
+            dictations: tokio::sync::watch::Sender::new(0),
             recording,
             idle_release,
         })
@@ -81,6 +98,14 @@ impl Session {
             .last_used
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Instant::now();
+    }
+
+    /// Starts a dictation, which keeps the model until it is dropped.
+    pub fn dictation(self: &Arc<Self>) -> Dictation {
+        self.dictations.send_modify(|running| *running += 1);
+        Dictation {
+            session: Arc::clone(self),
+        }
     }
 
     fn release_at(&self) -> Instant {
@@ -142,15 +167,26 @@ impl Session {
         result
     }
 
-    /// Releases the model now, after the request running, if any, then runs
-    /// `then` before any request can load it again. The next request loads
-    /// it again.
+    /// Releases the model once the dictations running end, then runs `then`
+    /// before any request can load it again. The next request loads it
+    /// again.
     pub async fn release<T>(&self, then: impl Future<Output = T>) -> T {
-        let mut slot = self.slot.lock().await;
-        if slot.loaded.take().is_some() {
-            log::info!("Local model released");
+        let mut running = self.dictations.subscribe();
+        loop {
+            // A dictation counts itself before it takes the lock, so none is
+            // between two pieces once the count reads zero under it.
+            let mut slot = self.slot.lock().await;
+            if *running.borrow_and_update() == 0 {
+                if slot.loaded.take().is_some() {
+                    log::info!("Local model released");
+                }
+                return then.await;
+            }
+            drop(slot);
+            log::info!("Local model released once the dictation is done");
+            // The sender lives in `self`, so this only ends at zero.
+            let _ = running.wait_for(|running| *running == 0).await;
         }
-        then.await
     }
 
     #[cfg(test)]
