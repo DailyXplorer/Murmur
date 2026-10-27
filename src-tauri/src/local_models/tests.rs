@@ -517,13 +517,17 @@ impl Drop for Undeletable {
 
 /// A delete stopped halfway, as on Windows by a file in use, says so and
 /// leaves models that are no longer ready, now and after a restart, so
-/// dictation stops counting on them. Deleting again finishes the job.
+/// dictation stops counting on them and the custom-word model is fetched
+/// again with the next download. Deleting again finishes the job.
 #[test]
 fn a_delete_stopped_halfway_is_reported_and_leaves_no_ready_models() {
     let fixture = fixture();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("models");
     let (ready, model) = ready_models(&path);
+    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    std::fs::write(path.join(OPTIONAL_MARKER), manifest::id(optional)).unwrap();
+    assert!(optional_ready(&path));
     let held = Undeletable::new(&model);
 
     assert!(ready.delete().is_err());
@@ -531,6 +535,7 @@ fn a_delete_stopped_halfway_is_reported_and_leaves_no_ready_models() {
     assert!(ready.status().kept_bytes > 0, "nothing left to delete");
     let host = Arc::new(FakeHost::default());
     assert!(!models_after_restart(&path, &fixture, &host).is_ready());
+    assert!(!optional_ready(&path));
 
     drop(held);
     ready.delete().unwrap();
