@@ -16,7 +16,7 @@ bundled with Murmur.
 
 ### transcribe.cpp
 
-transcribe.cpp 0.4.0 (Rust crates `transcribe-cpp` and `transcribe-cpp-sys`),
+transcribe.cpp 0.4.1 (Rust crates `transcribe-cpp` and `transcribe-cpp-sys`),
 <https://github.com/handy-computer/transcribe.cpp>, built into the Intel Mac
 app. Licensed under the MIT License; copyright (c) 2026 The transcribe.cpp
 authors. It includes ggml (MIT, copyright (c) 2023-2026 The ggml authors),

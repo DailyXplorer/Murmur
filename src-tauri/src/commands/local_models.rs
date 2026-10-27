@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::engine::local::LocalEngine;
 use crate::local_models::{LocalModelState, LocalModelStatus, LocalModels};
 use crate::settings::update_settings;
 
@@ -66,11 +67,29 @@ pub fn cancel_local_model_download(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_local_model(app: AppHandle) -> Result<(), String> {
-    let models = models(&app)?;
-    // Removing about 500 MB of files takes a moment.
-    tauri::async_runtime::spawn_blocking(move || models.delete())
-        .await
-        .map_err(|error| error.to_string())??;
+    let engine = app
+        .try_state::<Arc<LocalEngine>>()
+        .map(|engine| Arc::clone(&engine));
+    delete(models(&app)?, engine.as_deref()).await?;
     forget_switch(&app);
     Ok(())
+}
+
+/// Deletes the models once the dictation model is released, which loads
+/// again only after the files are gone: Windows may refuse to delete the file
+/// of a loaded model.
+pub(crate) async fn delete(
+    models: Arc<LocalModels>,
+    engine: Option<&LocalEngine>,
+) -> Result<(), String> {
+    // Removing about 500 MB of files takes a moment.
+    let delete = async move {
+        tauri::async_runtime::spawn_blocking(move || models.delete())
+            .await
+            .map_err(|error| error.to_string())?
+    };
+    match engine {
+        Some(engine) => engine.release(delete).await,
+        None => delete.await,
+    }
 }

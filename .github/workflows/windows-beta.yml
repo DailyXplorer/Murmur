@@ -94,6 +94,87 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
+  # The real GGUF model, loaded and mapped by transcribe.cpp: hears spoken
+  # clips, and deleting the models releases it. A job of its own, so a cache
+  # miss (739 MB) costs only this job.
+  cpu-model:
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: cpu-model
+
+      - name: Cache the model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: windows-parakeet-gguf-${{ hashFiles('src-tauri/src/local_models/pinned.rs') }}
+
+      - name: Download the model
+        working-directory: src-tauri
+        run: cargo run --locked --example fetch_models -- "${{ runner.temp }}/models"
+
+      # Windows' own voices, 16 kHz mono as the app records. French only
+      # where the runner has a French voice. ASCII text: Windows PowerShell
+      # reads the script as ANSI.
+      - name: Record the clips
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Speech
+          $clips = Join-Path $env:RUNNER_TEMP "clips"
+          New-Item -ItemType Directory -Force $clips | Out-Null
+          $voices = (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object Enabled
+          $voices | ForEach-Object { Write-Output "voice: $($_.VoiceInfo.Name) ($($_.VoiceInfo.Culture))" }
+          $texts = @(
+            @{ Name = "en"; Culture = "en-US"; Text = "The quick brown fox jumps over the lazy dog near the river bank."; Words = "quick`nbrown`nfox`nriver`n" },
+            @{ Name = "fr"; Culture = "fr-FR"; Text = "Bonjour, je voudrais une table pour quatre personnes jeudi soir."; Words = "table`nquatre`njeudi`n" }
+          )
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $recorded = 0
+          foreach ($clip in $texts) {
+            $voice = $voices | Where-Object { $_.VoiceInfo.Culture.Name -eq $clip.Culture } | Select-Object -First 1
+            if (-not $voice) { Write-Output "no $($clip.Culture) voice: no $($clip.Name) clip"; continue }
+            $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $synth.SelectVoice($voice.VoiceInfo.Name)
+            $synth.SetOutputToWaveFile((Join-Path $clips "$($clip.Name).wav"), $format)
+            $synth.Speak($clip.Text)
+            $synth.Dispose()
+            [System.IO.File]::WriteAllText((Join-Path $clips "$($clip.Name).txt"), $clip.Words)
+            $recorded++
+          }
+          if ($recorded -eq 0) { throw "no voice to record a clip with" }
+
+      # --exact, and the count checked, so a renamed test fails the job
+      # instead of matching nothing. The replace-then-delete test is macOS
+      # only: Windows may refuse both while the file is mapped.
+      - name: Transcribe the clips and delete the loaded model
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SMOKE_GGUF: ${{ runner.temp }}/models/parakeet-tdt-0.6b-v3/parakeet-tdt-0.6b-v3-Q8_0.gguf
+          MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
+        run: |
+          set -euo pipefail
+          cargo test --locked --lib -- --ignored --exact --nocapture \
+            engine::local::cpu::tests::the_cpu_model_hears_the_words_of_each_clip \
+            engine::local::cpu::tests::deleting_the_models_releases_the_loaded_cpu_model \
+            | tee "$RUNNER_TEMP/cpu-model.txt"
+          grep -q "test result: ok. 2 passed" "$RUNNER_TEMP/cpu-model.txt"
+
   installer:
     runs-on: windows-latest
     steps:

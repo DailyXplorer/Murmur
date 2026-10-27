@@ -47,8 +47,24 @@ pub struct Session {
     runtime: Box<dyn Runtime>,
     slot: tokio::sync::Mutex<Slot>,
     last_used: Mutex<Instant>,
+    /// The dictations running, which a release waits for.
+    dictations: tokio::sync::watch::Sender<usize>,
     recording: Box<dyn Fn() -> bool + Send + Sync>,
     idle_release: Duration,
+}
+
+/// Keeps the model loaded across the pieces of one dictation: a release
+/// asked meanwhile waits until the last dictation running ends, as an
+/// unlinked file stays until its last descriptor closes. Ends on drop, so a
+/// cancel or an error ends it too.
+pub struct Dictation {
+    session: Arc<Session>,
+}
+
+impl Drop for Dictation {
+    fn drop(&mut self) {
+        self.session.dictations.send_modify(|running| *running -= 1);
+    }
 }
 
 impl Session {
@@ -71,6 +87,7 @@ impl Session {
             runtime,
             slot: tokio::sync::Mutex::new(Slot::default()),
             last_used: Mutex::new(Instant::now()),
+            dictations: tokio::sync::watch::Sender::new(0),
             recording,
             idle_release,
         })
@@ -81,6 +98,14 @@ impl Session {
             .last_used
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Instant::now();
+    }
+
+    /// Starts a dictation, which keeps the model until it is dropped.
+    pub fn dictation(self: &Arc<Self>) -> Dictation {
+        self.dictations.send_modify(|running| *running += 1);
+        Dictation {
+            session: Arc::clone(self),
+        }
     }
 
     fn release_at(&self) -> Instant {
@@ -140,6 +165,28 @@ impl Session {
         }
         self.touch();
         result
+    }
+
+    /// Releases the model once the dictations running end, then runs `then`
+    /// before any request can load it again. The next request loads it
+    /// again.
+    pub async fn release<T>(&self, then: impl Future<Output = T>) -> T {
+        let mut running = self.dictations.subscribe();
+        loop {
+            // A dictation counts itself before it takes the lock, so none is
+            // between two pieces once the count reads zero under it.
+            let mut slot = self.slot.lock().await;
+            if *running.borrow_and_update() == 0 {
+                if slot.loaded.take().is_some() {
+                    log::info!("Local model released");
+                }
+                return then.await;
+            }
+            drop(slot);
+            log::info!("Local model released once the dictation is done");
+            // The sender lives in `self`, so this only ends at zero.
+            let _ = running.wait_for(|running| *running == 0).await;
+        }
     }
 
     #[cfg(test)]
@@ -344,6 +391,53 @@ mod tests {
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
         session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2, "loaded again");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_released_model_is_dropped_at_once_and_loaded_again_when_needed() {
+        let (session, counts, _) = session(Duration::from_millis(100));
+        session.warm().await.unwrap();
+        // The models were deleted: the mapped file must not wait ten minutes.
+        session.release(async {}).await;
+        assert!(!session.is_loaded().await);
+        assert_eq!(counts.released.load(Ordering::SeqCst), 1);
+        session.release(async {}).await;
+
+        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
+        wait(minutes(11)).await;
+        assert_eq!(counts.released.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_dictation_during_the_delete_loads_the_model_once_it_is_done() {
+        let (session, counts, _) = session(Duration::from_millis(100));
+        session.warm().await.unwrap();
+        let (finish, finished) = tokio::sync::oneshot::channel::<()>();
+        let deleting = tokio::spawn({
+            let (session, counts) = (Arc::clone(&session), Arc::clone(&counts));
+            async move {
+                session
+                    .release(async move {
+                        // Windows may refuse to delete a loaded model's file.
+                        assert_eq!(counts.released.load(Ordering::SeqCst), 1);
+                        finished.await.unwrap();
+                    })
+                    .await;
+            }
+        });
+        wait(Duration::from_millis(10)).await;
+        let dictation = tokio::spawn({
+            let session = Arc::clone(&session);
+            async move { session.transcribe(&[0.0; 4], &[], LIMIT).await }
+        });
+        wait(Duration::from_secs(5)).await;
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 1, "loaded mid-delete");
+
+        finish.send(()).unwrap();
+        deleting.await.unwrap();
+        dictation.await.unwrap().unwrap();
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test(start_paused = true)]
