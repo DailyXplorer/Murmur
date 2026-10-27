@@ -536,12 +536,15 @@ impl LocalModels {
         }
         self.stop_optional()?;
         self.decline();
-        // The marker goes first: a delete stopped halfway, as Windows does on
-        // a file another program holds open, leaves models that are not ready.
-        match std::fs::remove_file(self.dir.join(READY_MARKER)) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("Cannot delete the models: {error}")),
+        // The markers go first: a delete stopped halfway, as Windows does on
+        // a file another program holds open, leaves models that are not ready
+        // and a custom-word model the next download fetches again.
+        for marker in [OPTIONAL_MARKER, READY_MARKER] {
+            match std::fs::remove_file(self.dir.join(marker)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("Cannot delete the models: {error}")),
+            }
         }
         let removed = match std::fs::remove_dir_all(&self.dir) {
             Ok(()) => Ok(()),
