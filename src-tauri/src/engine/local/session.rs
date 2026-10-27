@@ -43,12 +43,54 @@ struct Slot {
     releaser: bool,
 }
 
+/// The dictations running, and whether a release waits for them to end.
+#[derive(Default)]
+struct Dictations {
+    running: usize,
+    release_pending: bool,
+}
+
 pub struct Session {
     runtime: Box<dyn Runtime>,
     slot: tokio::sync::Mutex<Slot>,
     last_used: Mutex<Instant>,
+    dictations: Mutex<Dictations>,
     recording: Box<dyn Fn() -> bool + Send + Sync>,
     idle_release: Duration,
+}
+
+/// Keeps the model loaded across the pieces of one dictation: a release
+/// asked meanwhile waits until the last dictation running ends, as an
+/// unlinked file stays until its last descriptor closes. Ends on drop, so a
+/// cancel or an error ends it too.
+pub struct Dictation {
+    session: Arc<Session>,
+}
+
+impl Drop for Dictation {
+    fn drop(&mut self) {
+        let mut dictations = self.session.dictations();
+        dictations.running -= 1;
+        if dictations.running > 0 || !std::mem::take(&mut dictations.release_pending) {
+            return;
+        }
+        drop(dictations);
+        // The dictation's own request is over, so the lock is free unless a
+        // new recording is loading the model or the idle release runs.
+        match self.session.slot.try_lock() {
+            Ok(mut slot) => release(&mut slot),
+            Err(_) => {
+                let session = Arc::clone(&self.session);
+                tokio::spawn(async move { session.release().await });
+            }
+        }
+    }
+}
+
+fn release(slot: &mut Slot) {
+    if slot.loaded.take().is_some() {
+        log::info!("Local model released");
+    }
 }
 
 impl Session {
@@ -71,6 +113,7 @@ impl Session {
             runtime,
             slot: tokio::sync::Mutex::new(Slot::default()),
             last_used: Mutex::new(Instant::now()),
+            dictations: Mutex::default(),
             recording,
             idle_release,
         })
@@ -81,6 +124,20 @@ impl Session {
             .last_used
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Instant::now();
+    }
+
+    fn dictations(&self) -> std::sync::MutexGuard<'_, Dictations> {
+        self.dictations
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Starts a dictation, which keeps the model until it is dropped.
+    pub fn dictation(self: &Arc<Self>) -> Dictation {
+        self.dictations().running += 1;
+        Dictation {
+            session: Arc::clone(self),
+        }
     }
 
     fn release_at(&self) -> Instant {
@@ -142,12 +199,18 @@ impl Session {
         result
     }
 
-    /// Releases the model now, after the request running, if any. The next
-    /// request loads it again.
+    /// Releases the model now, after the request running, if any, or once
+    /// the dictations running end. The next request loads it again.
     pub async fn release(&self) {
-        if self.slot.lock().await.loaded.take().is_some() {
-            log::info!("Local model released");
+        {
+            let mut dictations = self.dictations();
+            if dictations.running > 0 {
+                dictations.release_pending = true;
+                log::info!("Local model released once the dictation is done");
+                return;
+            }
         }
+        release(&mut *self.slot.lock().await);
     }
 
     #[cfg(test)]
