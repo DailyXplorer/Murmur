@@ -7,8 +7,8 @@
 //! Speech recognition mishears a term as a real word, so the misheard side
 //! may be an everyday word or a name ("cloud" -> "Claude", "Pierre" ->
 //! "PR"). Ordinary lowercase words are never learned: changing "their" to
-//! "there" is grammar, not vocabulary. Nor is an added suffix, or a word the
-//! user kept elsewhere in the same text.
+//! "there" is grammar, not vocabulary. Nor is an added suffix, a changed
+//! number ("Q3" -> "Q4"), or a word the user kept elsewhere in the same text.
 //! Chinese and Japanese, written without spaces, are never learned: only a
 //! Latin term fixed inside them, which is cut out of the text around it. A
 //! possessive or a French elision kept on both sides is cut off the same way.
@@ -135,6 +135,7 @@ pub fn review(inserted: &str, edited: &str) -> Result<Vec<Correction>, Rejected>
             && sounds_alike(heard_as, word)
             && !only_inflected(heard_as, word)
             && !only_extended(heard_as, word)
+            && !only_renumbered(heard_as, word)
             && !kept_elsewhere(heard_as, &new)
             && !learned.iter().any(|known| known.word == word)
         {
@@ -358,6 +359,19 @@ fn only_extended(heard: &str, word: &str) -> bool {
         .is_some_and(|rest| rest.starts_with(|c: char| !c.is_alphanumeric()))
 }
 
+/// "Q3" -> "Q4" or "GPT-4" -> "GPT-5" changes what the user meant; the
+/// number was not misheard. "gpt for" -> "GPT-4" has no digit heard.
+fn only_renumbered(heard: &str, word: &str) -> bool {
+    let has_digit = |text: &str| text.chars().any(|c| c.is_ascii_digit());
+    let without_digits = |text: &str| -> String {
+        letters(text)
+            .chars()
+            .filter(|c| !c.is_ascii_digit())
+            .collect()
+    };
+    has_digit(heard) && has_digit(word) && without_digits(heard) == without_digits(word)
+}
+
 /// A misheard form the user left untouched elsewhere in the text is one
 /// they meant.
 fn kept_elsewhere(heard_as: &str, edited: &[&str]) -> bool {
@@ -506,19 +520,21 @@ mod tests {
     }
 
     #[test]
+    fn changing_only_the_number_of_a_term_is_not_learned() {
+        assert!(learned("Q3 revenue was strong", "Q4 revenue was strong").is_empty());
+        assert!(learned("we moved to GPT-4 today", "we moved to GPT-5 today").is_empty());
+        assert!(learned("export it as mp3", "export it as mp4").is_empty());
+        assert_eq!(
+            learned(
+                "We moved to gpt for yesterday.",
+                "We moved to GPT-4 yesterday."
+            ),
+            vec![pair("GPT-4", "gpt for")]
+        );
+    }
+
+    #[test]
     fn swapping_one_term_for_a_similar_one_is_learned() {
-        assert_eq!(
-            learned("Q3 revenue was strong", "Q4 revenue was strong"),
-            vec![pair("Q4", "Q3")]
-        );
-        assert_eq!(
-            learned("we moved to GPT-4 today", "we moved to GPT-5 today"),
-            vec![pair("GPT-5", "GPT-4")]
-        );
-        assert_eq!(
-            learned("export it as mp3", "export it as mp4"),
-            vec![pair("mp4", "mp3")]
-        );
         assert_eq!(
             learned("open it in Figma", "open it in FigJam"),
             vec![pair("FigJam", "Figma")]
