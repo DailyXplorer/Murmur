@@ -68,10 +68,11 @@ impl LocalEngine {
         });
     }
 
-    /// Releases the model. The CPU model maps its file, so deleted models
-    /// keep their disk space until then.
-    pub async fn release(&self) {
-        self.session.release().await;
+    /// Releases the model, and loads none until `then` is done. The CPU
+    /// model maps its file, which keeps its disk space until then and which
+    /// Windows may refuse to delete or replace.
+    pub async fn release<T>(&self, then: impl std::future::Future<Output = T>) -> T {
+        self.session.release(then).await
     }
 
     /// Transcribes 16 kHz mono audio of any length, listening for `terms`
@@ -371,7 +372,10 @@ mod tests {
         loads: Arc<std::sync::atomic::AtomicUsize>,
     }
 
-    struct Mapped(memmap2::Mmap, std::fs::File);
+    struct Mapped {
+        map: memmap2::Mmap,
+        _file: std::fs::File,
+    }
 
     impl Runtime for Mapping {
         fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
@@ -385,7 +389,10 @@ mod tests {
                 // SAFETY: the tests never write the file while it is mapped.
                 let mapped = unsafe { memmap2::Mmap::map(&file)? };
                 loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                Ok(Box::new(Mapped(mapped, file)) as Box<dyn Loaded>)
+                Ok(Box::new(Mapped {
+                    map: mapped,
+                    _file: file,
+                }) as Box<dyn Loaded>)
             })
         }
     }
@@ -396,7 +403,7 @@ mod tests {
             _: &'a [f32],
             _: &'a [String],
         ) -> BoxFuture<'a, anyhow::Result<String>> {
-            let text = format!("{} bytes", self.0.len());
+            let text = format!("{} bytes", self.map.len());
             Box::pin(async move { Ok(text) })
         }
     }

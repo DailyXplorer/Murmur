@@ -75,18 +75,21 @@ pub async fn delete_local_model(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Deletes the models and releases the dictation model.
+/// Deletes the models once the dictation model is released, which loads
+/// again only after the files are gone: Windows may refuse to delete the file
+/// of a loaded model.
 pub(crate) async fn delete(
     models: Arc<LocalModels>,
     engine: Option<&LocalEngine>,
 ) -> Result<(), String> {
     // Removing about 500 MB of files takes a moment.
-    tauri::async_runtime::spawn_blocking(move || models.delete())
-        .await
-        .map_err(|error| error.to_string())??;
-    // After the delete, which stops dictation from loading the model again.
-    if let Some(engine) = engine {
-        engine.release().await;
+    let delete = async move {
+        tauri::async_runtime::spawn_blocking(move || models.delete())
+            .await
+            .map_err(|error| error.to_string())?
+    };
+    match engine {
+        Some(engine) => engine.release(delete).await,
+        None => delete.await,
     }
-    Ok(())
 }

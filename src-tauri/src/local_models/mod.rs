@@ -536,16 +536,23 @@ impl LocalModels {
         }
         self.stop_optional()?;
         self.decline();
-        match std::fs::remove_dir_all(&self.dir) {
+        // The marker goes first: a delete stopped halfway, as Windows does on
+        // a file another program holds open, leaves models that are not ready.
+        match std::fs::remove_file(self.dir.join(READY_MARKER)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("Cannot delete the models: {error}")),
         }
+        let removed = match std::fs::remove_dir_all(&self.dir) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("Cannot delete the models: {error}")),
+        };
         if self.support == AnalysisSupport::Available {
             self.set(LocalModelState::Missing);
         }
         drop(slot);
-        Ok(())
+        removed
     }
 }
 
