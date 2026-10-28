@@ -8,7 +8,8 @@
 //! may be an everyday word or a name ("cloud" -> "Claude", "Pierre" ->
 //! "PR"). Ordinary lowercase words are never learned: changing "their" to
 //! "there" is grammar, not vocabulary. Nor is an added suffix, a changed
-//! number ("Q3" -> "Q4"), or a word the user kept elsewhere in the same text.
+//! number ("Q3" -> "Q4"), a French verb joined to its pronoun ("Va-t-il"),
+//! or a word the user kept elsewhere in the same text.
 //! Chinese and Japanese, written without spaces, are never learned: only a
 //! Latin term fixed inside them, which is cut out of the text around it. A
 //! possessive or a French elision kept on both sides is cut off the same way.
@@ -132,6 +133,7 @@ pub fn review(inserted: &str, edited: &str) -> Result<Vec<Correction>, Rejected>
         // capital of "D'Anthropic" is the user's, not the sentence's.
         let sentence_start = replacement_core.starts_with(word) && opens_sentence;
         if looks_like_a_term(word, sentence_start)
+            && !joins_a_pronoun(word)
             && sounds_alike(heard_as, word)
             && !only_inflected(heard_as, word)
             && !only_extended(heard_as, word)
@@ -316,6 +318,23 @@ fn looks_like_a_term(word: &str, sentence_start: bool) -> bool {
     inner_capital || digit_or_symbol || (leading_capital && !sentence_start)
 }
 
+/// French subject and object pronouns, written after the verb with a
+/// hyphen: "Va-t-il", "Puis-je", "Dis-moi", "Allez-y".
+const PRONOUNS: [&str; 21] = [
+    "je", "j", "tu", "il", "elle", "on", "nous", "vous", "ils", "elles", "moi", "toi", "lui",
+    "leur", "leurs", "y", "en", "le", "la", "les", "ce",
+];
+
+/// "Va il" -> "Va-t-il", "dis moi" -> "dis-moi" or "va t'en" -> "va-t'en"
+/// joins a French verb to the pronoun after it: grammar, though the hyphen
+/// makes it look like a term.
+fn joins_a_pronoun(word: &str) -> bool {
+    word.contains('-')
+        && word
+            .rsplit_once(['-', '\'', '’'])
+            .is_some_and(|(_, last)| PRONOUNS.contains(&last.to_lowercase().as_str()))
+}
+
 /// Same letters with different spacing count as alike: cosmetic edits were
 /// already filtered out, so equal keys mean words were joined.
 fn sounds_alike(heard: &str, word: &str) -> bool {
@@ -474,6 +493,26 @@ mod tests {
     fn grammar_fixes_of_ordinary_words_are_not_learned() {
         assert!(learned("I think their right.", "I think they're right.").is_empty());
         assert!(learned("Their right.", "There right.").is_empty());
+    }
+
+    #[test]
+    fn a_french_verb_hyphenated_to_its_pronoun_is_not_learned() {
+        assert!(learned("Va il venir demain ?", "Va-t-il venir demain ?").is_empty());
+        assert!(learned("Va tu venir demain ?", "Vas-tu venir demain ?").is_empty());
+        assert!(learned(
+            "Parle elle français couramment ?",
+            "Parle-t-elle français couramment ?"
+        )
+        .is_empty());
+        assert!(learned("Va t'en d'ici !", "Va-t'en d'ici !").is_empty());
+    }
+
+    #[test]
+    fn a_hyphenated_name_is_learned() {
+        assert_eq!(
+            learned("J'ai vu jean pierre hier.", "J'ai vu Jean-Pierre hier."),
+            vec![pair("Jean-Pierre", "jean pierre")]
+        );
     }
 
     #[test]
