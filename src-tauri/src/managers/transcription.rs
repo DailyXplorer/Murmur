@@ -1,5 +1,5 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
-use crate::audio_toolkit::normalize_transcription_output;
+use crate::audio_toolkit::{apply_custom_words_counted, normalize_transcription_output};
 use crate::codex_transcribe;
 use crate::engine::local::boost::boost_terms;
 use crate::engine::local::LocalEngine;
@@ -214,10 +214,9 @@ impl TranscriptionManager {
             return Err(anyhow::anyhow!("Transcription cancelled"));
         }
 
-        let (processed, dictionary_fixes) = crate::dictionary::correct(
+        let (processed, dictionary_fixes) = apply_custom_words_counted(
             &normalize_transcription_output(&text),
             &settings.custom_words,
-            &settings.learned_words,
             settings.word_correction_threshold,
         );
 

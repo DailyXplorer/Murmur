@@ -50,6 +50,8 @@ static MIGRATIONS: &[M] = &[
     ),
     // Drops rows that counted every word changed after a paste, which replies
     // typed into a chat field inflated. A correction is one learned word.
+    // Correction learning was later removed: nothing writes or reads the
+    // table any more, and it is left in place.
     M::up("DELETE FROM corrections;"),
 ];
 
@@ -129,18 +131,6 @@ fn insert_dictation(conn: &Connection, d: &NewDictation) -> Result<()> {
         params![d.at, d.words, d.speaking_ms, d.bundle_id, d.host, d.dictionary_fixes],
     )?;
     Ok(())
-}
-
-/// Returns whether a row was written; a correction of zero words is ignored.
-fn insert_correction(conn: &Connection, at: i64, words: u32) -> Result<bool> {
-    if words == 0 {
-        return Ok(false);
-    }
-    conn.execute(
-        "INSERT INTO corrections (created_at, word_count) VALUES (?1, ?2)",
-        params![at, words],
-    )?;
-    Ok(true)
 }
 
 /// Imports dates, word counts and (when the WAV still exists) durations from
@@ -304,15 +294,6 @@ impl InsightsManager {
         summary_with_conn(&self.connection()?, Utc::now().timestamp(), &Local)
     }
 
-    /// Records misheard words the user corrected after a paste, one per
-    /// word the dictionary learned from it.
-    pub fn record_correction(&self, words_corrected: u32) -> Result<()> {
-        if insert_correction(&self.connection()?, Utc::now().timestamp(), words_corrected)? {
-            self.notify();
-        }
-        Ok(())
-    }
-
     fn record_dictation(
         &self,
         words: u32,
@@ -413,25 +394,6 @@ mod tests {
     }
 
     #[test]
-    fn corrections_counted_as_raw_edits_are_dropped_on_upgrade() {
-        let mut conn = Connection::open_in_memory().unwrap();
-        Migrations::new(MIGRATIONS[..1].to_vec())
-            .to_latest(&mut conn)
-            .unwrap();
-        assert!(insert_correction(&conn, ts(2026, 10, 14, 9), 7).unwrap());
-
-        migrate(&mut conn).unwrap();
-        assert!(insert_correction(&conn, ts(2026, 10, 15, 9), 1).unwrap());
-
-        let words: u32 = conn
-            .query_row("SELECT SUM(word_count) FROM corrections", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        assert_eq!(words, 1);
-    }
-
-    #[test]
     fn backfill_imports_completed_history_once() {
         let mut conn = migrated();
         let rows = vec![
@@ -503,8 +465,6 @@ mod tests {
         ] {
             insert_dictation(&conn, &d).unwrap();
         }
-        assert!(insert_correction(&conn, now, 3).unwrap());
-        assert!(!insert_correction(&conn, now, 0).unwrap());
 
         let summary = summary_with_conn(&conn, now, &Paris).unwrap();
 

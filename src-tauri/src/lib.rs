@@ -17,7 +17,6 @@ mod codex_login;
 mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
-mod dictionary;
 mod engine;
 mod field_excerpt;
 #[cfg(target_os = "windows")]

@@ -295,7 +295,6 @@ const SETTINGS: AppSettings = {
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,
-  learned_words: [{ heard_as: "play right", word: "Playwright" }],
   local_model_download_wanted: false,
   local_stt_card_dismissed: !cardShown,
   log_level: "info",

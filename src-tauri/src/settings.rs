@@ -1,8 +1,5 @@
 mod transaction;
 
-#[cfg(test)]
-pub(crate) use transaction::Transactions;
-
 use crate::engine::Engine;
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
@@ -341,9 +338,6 @@ pub struct AppSettings {
     pub ai_cleanup_enabled: bool,
     #[serde(default)]
     pub dictation_style: DictationStyle,
-    /// Dictionary words learned from corrections; each is also in `custom_words`.
-    #[serde(default)]
-    pub learned_words: Vec<crate::dictionary::LearnedWord>,
     /// Offer names visible in the frontmost window to the cleanup step.
     #[serde(default = "default_window_names_enabled")]
     pub window_names_enabled: bool,
@@ -516,7 +510,9 @@ pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 /// The filler-removal keys are superseded by AI cleanup (see
 /// `parse_stored_settings`). Gemini transcription and Apple Intelligence
 /// cleanup were removed: Codex does both, so their choice is dropped.
-const OBSOLETE_SETTINGS_KEYS: [&str; 7] = [
+/// Correction learning was removed, and its words with it (see
+/// `parse_stored_settings`).
+const OBSOLETE_SETTINGS_KEYS: [&str; 8] = [
     "typing_tool",
     "external_script_path",
     "push_to_talk",
@@ -524,6 +520,7 @@ const OBSOLETE_SETTINGS_KEYS: [&str; 7] = [
     "custom_filler_words",
     "transcription_provider",
     "cleanup_engine",
+    "learned_words",
 ];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
@@ -657,7 +654,6 @@ pub fn get_default_settings() -> AppSettings {
         reliable_paste: default_reliable_paste(),
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
         dictation_style: DictationStyle::default(),
-        learned_words: Vec::new(),
         window_names_enabled: default_window_names_enabled(),
         window_names_turned_on_once: cfg!(target_os = "windows"),
         whisper_mode: false,
@@ -716,6 +712,21 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
     if settings.onboarding_completed && settings_value.get("transcription_engine").is_none() {
         settings.transcription_engine = Engine::Cloud;
         updated = true;
+    }
+    // Correction learning was removed, and the words it added leave the
+    // dictionary; the words the user typed in stay. This runs once: the
+    // store is rewritten without the obsolete `learned_words`.
+    if let Some(learned) = settings_value
+        .get("learned_words")
+        .and_then(serde_json::Value::as_array)
+    {
+        let learned: HashSet<&str> = learned
+            .iter()
+            .filter_map(|entry| entry.get("word")?.as_str())
+            .collect();
+        settings
+            .custom_words
+            .retain(|word| !learned.contains(word.as_str()));
     }
     #[cfg(target_os = "windows")]
     {
@@ -810,10 +821,6 @@ fn normalize_settings(settings: &mut AppSettings) -> bool {
     if normalized_words != settings.custom_words {
         warn!("Repairing invalid setting 'custom_words'");
         settings.custom_words = normalized_words;
-        updated = true;
-    }
-
-    if crate::dictionary::prune_learned(&mut settings.learned_words, &settings.custom_words) {
         updated = true;
     }
 
@@ -1832,10 +1839,6 @@ mod tests {
             "valid <markup>",
             "x".repeat(MAX_CUSTOM_WORD_CHARS + 1)
         ]);
-        stored["learned_words"] = serde_json::json!([
-            { "word": "Murmur App", "heard_as": "murmur up" },
-            { "word": "Deleted", "heard_as": "deleted" }
-        ]);
 
         let (settings, updated) = parse_stored_settings(&stored);
         assert!(updated);
@@ -1850,13 +1853,6 @@ mod tests {
         assert_eq!(
             settings.custom_words,
             vec!["Murmur App".to_string(), "valid <markup>".to_string()]
-        );
-        assert_eq!(
-            settings.learned_words,
-            vec![crate::dictionary::LearnedWord {
-                word: "Murmur App".to_string(),
-                heard_as: "murmur up".to_string(),
-            }]
         );
     }
 
@@ -1884,6 +1880,53 @@ mod tests {
         let mut fresh = default_settings_json();
         fresh.as_object_mut().unwrap().remove("ai_cleanup_enabled");
         assert!(parse_stored_settings(&fresh).0.ai_cleanup_enabled);
+    }
+
+    /// Correction learning is gone: the words it added leave the dictionary
+    /// at the next launch, once, and the words the user typed in stay.
+    #[test]
+    fn learned_words_leave_the_dictionary_once() {
+        let mut stored = default_settings_json();
+        stored["custom_words"] = serde_json::json!(["Murmur", "Tauri", "Kubernetes"]);
+        stored["learned_words"] =
+            serde_json::json!([{ "word": "Kubernetes", "heard_as": "cooper netties" }]);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated, "the cleaned dictionary must be persisted");
+        assert_eq!(settings.custom_words, ["Murmur", "Tauri"]);
+
+        let rewritten = serde_json::to_value(&settings).unwrap();
+        assert!(rewritten.get("learned_words").is_none());
+        let (again, updated) = parse_stored_settings(&rewritten);
+        assert!(!updated, "a second launch has nothing left to clean");
+        assert_eq!(again.custom_words, ["Murmur", "Tauri"]);
+    }
+
+    #[test]
+    fn learned_words_leave_a_salvaged_store_too() {
+        let mut stored = default_settings_json();
+        stored["sound_theme"] = serde_json::json!("theremin");
+        stored["selected_language"] = serde_json::json!("fr");
+        stored["custom_words"] = serde_json::json!(["Murmur", "Kubernetes"]);
+        stored["learned_words"] =
+            serde_json::json!([{ "word": "Kubernetes", "heard_as": "cooper netties" }]);
+        // Precondition: the whole-store parse fails, so salvage is what runs.
+        assert!(serde_json::from_value::<AppSettings>(stored.clone()).is_err());
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated);
+        assert_eq!(settings.selected_language, "fr");
+        assert_eq!(settings.custom_words, ["Murmur"]);
+    }
+
+    #[test]
+    fn a_store_without_learned_words_keeps_its_custom_words() {
+        let mut stored = default_settings_json();
+        stored["custom_words"] = serde_json::json!(["Murmur", "Tauri", "Kubernetes"]);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(!updated);
+        assert_eq!(settings.custom_words, ["Murmur", "Tauri", "Kubernetes"]);
     }
 
     #[test]
