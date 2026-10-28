@@ -1086,10 +1086,6 @@ reliable_paste?: boolean;
  */
 ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle; 
 /**
- * Dictionary words learned from corrections; each is also in `custom_words`.
- */
-learned_words?: LearnedWord[]; 
-/**
  * Offer names visible in the frontmost window to the cleanup step.
  */
 window_names_enabled?: boolean; 
@@ -1284,11 +1280,6 @@ categories: CategoryUsage[];
  */
 categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
 export type InsightsUpdated = null
-export type LearnedWord = { word: string; 
-/**
- * How Murmur wrote it before the user corrected it.
- */
-heard_as: string }
 export type LocalModelState = 
 /**
  * This Mac cannot run the models.

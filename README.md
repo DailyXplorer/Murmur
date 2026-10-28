@@ -114,7 +114,7 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   applies self-corrections, fixes punctuation, and formats lists and spoken
   line breaks. Any failure or timeout pastes the raw transcript.
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
-- A dictionary that also learns names you correct right after pasting
+- A dictionary of custom words, spelled your way in each dictation
 - Names from the frontmost window and a short excerpt around the cursor as
   hints for AI cleanup, read through Accessibility (UI Automation on Windows)
   and never stored; password fields and password managers are never read
@@ -131,10 +131,9 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Audio feedback, tray controls, and automatic updates
 
 The Windows beta has dictation, transcription on the PC or in the cloud, AI
-cleanup with styles, correction learning, names read from the active window,
-history, Insights, custom words, shortcut keys shown for your keyboard layout,
-sounds, and launch at login. It does not have Meetings or automatic updates
-yet.
+cleanup with styles, names read from the active window, history, Insights,
+custom words, shortcut keys shown for your keyboard layout, sounds, and launch
+at login. It does not have Meetings or automatic updates yet.
 
 ## Getting started
 
@@ -288,7 +287,7 @@ Codex for transcription, and the transcript sent to Codex for the summary.
 Speaker detection runs on the Mac. Its models are downloaded from Hugging
 Face once.
 
-History, saved recordings, learned words, and Insights stay on the Mac.
+History, saved recordings, and Insights stay on the Mac.
 For Insights, Murmur records the frontmost app of each dictation and, in a
 browser, the site's host name. Insights store no dictated text. Murmur checks GitHub for updates, which can be
 turned off in Settings.

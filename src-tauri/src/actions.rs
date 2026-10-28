@@ -299,7 +299,6 @@ impl ShortcutAction for TranscribeAction {
                     "Recording request accepted in {:?}; waiting for first microphone samples",
                     recording_start_time.elapsed()
                 );
-                crate::dictionary::stop_observing();
                 crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
                 std::thread::spawn(move || tm.warm_if_local());
@@ -588,12 +587,6 @@ impl ShortcutAction for TranscribeAction {
                                         return;
                                     }
                                     Ok(outcome) => {
-                                        if outcome == crate::clipboard::PasteOutcome::Injected {
-                                            crate::dictionary::watch_pasted_text(
-                                                &ah,
-                                                final_text.clone(),
-                                            );
-                                        }
                                         // The copy pill carries the warning,
                                         // and a failed paste shows its error.
                                         if mic_lost

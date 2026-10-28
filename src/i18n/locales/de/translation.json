@@ -327,9 +327,7 @@
         "placeholder": "Wort hinzufügen",
         "add": "Hinzufügen",
         "remove": "{{word}} entfernen",
-        "duplicate": "\"{{word}}\" existiert bereits",
-        "learned": "Gelernt",
-        "learnedFrom": "{{word}}: gelernt, als du „{{heard}}“ korrigiert hast"
+        "duplicate": "\"{{word}}\" existiert bereits"
       },
       "meetingsToggle": {
         "label": "Meetings",
