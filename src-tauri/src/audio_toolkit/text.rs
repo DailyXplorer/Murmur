@@ -1,8 +1,9 @@
-use crate::dictionary::{is_everyday_word, ELISIONS};
 use crate::meetings::tokens::is_title;
 use natural::phonetics::soundex;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::HashSet;
+use std::sync::OnceLock;
 use strsim::levenshtein;
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
@@ -26,6 +27,14 @@ fn word_key(word: &str) -> String {
         .filter(|c| c.is_alphanumeric())
         .flat_map(|c| c.to_lowercase())
         .collect()
+}
+
+/// Everyday English and French words, lowercase.
+fn is_everyday_word(word: &str) -> bool {
+    static WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    WORDS
+        .get_or_init(|| include_str!("common_words.txt").lines().collect())
+        .contains(word.to_lowercase().as_str())
 }
 
 /// [`word_key`] without accents, so a name compares equal however the
@@ -294,6 +303,11 @@ fn endings(word: &str) -> impl Iterator<Item = (String, &str)> {
             .then(|| (format!("{stem}{punctuation}"), found))
     })
 }
+
+/// French elisions, written against the next word: "d'Anthropic".
+const ELISIONS: [&str; 12] = [
+    "c", "d", "j", "l", "m", "n", "s", "t", "qu", "jusqu", "lorsqu", "puisqu",
+];
 
 /// A French elision written against a word, with any punctuation before
 /// it, and the rest of the word: "«l'" and "iPhone" for "«l'iPhone".

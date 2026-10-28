@@ -22,12 +22,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const [newWord, setNewWord] = useState("");
     const customWords = getSetting("custom_words") || [];
-    const learnedWords = new Map(
-      (getSetting("learned_words") || []).map((entry) => [
-        entry.word,
-        entry.heard_as,
-      ]),
-    );
     const normalizedWord = normalizeCustomWord(newWord);
     const normalizedWordLength = Array.from(normalizedWord).length;
 
@@ -105,41 +99,26 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
             className={`px-4 py-2 ${grouped ? "" : "rounded-lg border border-mid-gray/20"}`}
           >
             <div className="flex flex-wrap justify-start gap-1">
-              {customWords.map((word) => {
-                const heardAs = learnedWords.get(word);
-                return (
-                  <Button
-                    key={word}
-                    // The next chip slides in under the rest of a double
-                    // click, which would remove that word too.
-                    onClick={(event) => {
-                      if (event.detail <= 1) handleRemoveWord(word);
-                    }}
-                    disabled={isUpdating("custom_words")}
-                    size="chip"
-                    className="max-w-full min-w-0 gap-1"
-                    aria-label={t("settings.advanced.customWords.remove", {
-                      word,
-                    })}
-                    title={
-                      heardAs === undefined
-                        ? word
-                        : t("settings.advanced.customWords.learnedFrom", {
-                            word,
-                            heard: heardAs,
-                          })
-                    }
-                  >
-                    <span className="min-w-0 truncate">{word}</span>
-                    {heardAs !== undefined && (
-                      <span className="shrink-0 rounded bg-on-accent/15 px-1 text-[10px] font-medium text-on-accent">
-                        {t("settings.advanced.customWords.learned")}
-                      </span>
-                    )}
-                    <XIcon className="shrink-0" size={12} />
-                  </Button>
-                );
-              })}
+              {customWords.map((word) => (
+                <Button
+                  key={word}
+                  // The next chip slides in under the rest of a double
+                  // click, which would remove that word too.
+                  onClick={(event) => {
+                    if (event.detail <= 1) handleRemoveWord(word);
+                  }}
+                  disabled={isUpdating("custom_words")}
+                  size="chip"
+                  className="max-w-full min-w-0 gap-1"
+                  aria-label={t("settings.advanced.customWords.remove", {
+                    word,
+                  })}
+                  title={word}
+                >
+                  <span className="min-w-0 truncate">{word}</span>
+                  <XIcon className="shrink-0" size={12} />
+                </Button>
+              ))}
             </div>
           </div>
         )}

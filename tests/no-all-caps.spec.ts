@@ -46,7 +46,6 @@ const PROPER_PHRASES = [
   "Accessibility",
   "Meetings",
   "History",
-  "Learned",
   "Minimal",
   "GitHub",
   "OpenAI",
