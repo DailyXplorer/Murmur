@@ -330,9 +330,7 @@
         "placeholder": "Aggiungi una parola",
         "add": "Aggiungi",
         "remove": "Rimuovi {{word}}",
-        "duplicate": "\"{{word}}\" esiste già",
-        "learned": "Appresa",
-        "learnedFrom": "{{word}}: appresa quando hai corretto «{{heard}}»"
+        "duplicate": "\"{{word}}\" esiste già"
       },
       "meetingsToggle": {
         "label": "Riunioni",

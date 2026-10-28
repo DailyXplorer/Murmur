@@ -96,7 +96,7 @@ jobs:
             echo "- AI cleanup with a Formal, Normal or Casual dictation style, custom words, History, Insights."
             echo "- Paste into the app in front, recording overlay, tray menu, start at login, sounds."
             echo
-            echo "Not in this beta: meetings, learning words from your corrections, context from the active window, the copy offer when no text field has the focus, automatic updates."
+            echo "Not in this beta: meetings, context from the active window, the copy offer when no text field has the focus, automatic updates."
             echo
             echo "### Install without administrator rights"
             echo

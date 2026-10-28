@@ -145,24 +145,6 @@ impl Automation {
         .map(Element)
     }
 
-    /// `element` with its properties fetched again, in one call to the app.
-    /// A reader that keeps an element across polls reads through this: the
-    /// field may have become a password field since it was found.
-    pub fn refreshed(&self, element: &Element) -> Option<Element> {
-        // SAFETY: `element` is a live element of this client; returns an
-        // owned interface or an error.
-        unsafe { element.0.BuildUpdatedCache(&self.cache) }
-            .ok()
-            .map(Element)
-    }
-
-    /// Whether `a` and `b` are the same element of the app, compared by
-    /// runtime id.
-    pub fn same(&self, a: &Element, b: &Element) -> bool {
-        // SAFETY: both are live elements of this client.
-        unsafe { self.automation.CompareElements(&a.0, &b.0) }.is_ok_and(BOOL::as_bool)
-    }
-
     /// The children of `element` in the raw tree. Empty when it has none or
     /// the app did not answer within the timeout.
     pub fn children(&self, element: &Element) -> Vec<Element> {
@@ -228,37 +210,6 @@ impl Element {
     pub fn is_secure(&self) -> bool {
         // SAFETY: reads the cached property.
         unsafe { self.0.CachedIsPassword() }.map_or(true, BOOL::as_bool)
-    }
-
-    /// The whole text of a field, from its Value, else from its text
-    /// pattern, which documents give instead. None when it holds more than
-    /// `max` UTF-16 units. A password field is never asked.
-    pub fn text(&self, max: usize) -> Option<String> {
-        let text = match self.value().filter(|value| !value.is_empty()) {
-            Some(value) => value,
-            None => self.document_text(max)?,
-        };
-        (text.encode_utf16().count() <= max).then_some(text)
-    }
-
-    /// The text pattern's whole document, read up to `max + 1` UTF-16
-    /// units, so the app never sends a long document whole. None when it
-    /// holds more than `max`, and for a password field.
-    pub fn document_text(&self, max: usize) -> Option<String> {
-        let element = self.readable()?;
-        let limit = i32::try_from(max).ok()?.checked_add(1)?;
-        // SAFETY: each call asks the app and returns an owned interface or
-        // an error.
-        let text = unsafe {
-            element
-                .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
-                .ok()?
-                .DocumentRange()
-                .ok()?
-                .GetText(limit)
-                .ok()?
-        };
-        (text.len() <= max).then(|| text.to_string())
     }
 
     /// The first selection of the element's text, else its caret, which

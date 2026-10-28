@@ -342,14 +342,6 @@ pub fn front_page_url(app: &Element) -> Option<String> {
     None
 }
 
-/// The keyboard focus anywhere on screen, when it is a readable, non-secure
-/// element of an app that is not a password manager.
-pub fn focused_text_element() -> Option<Element> {
-    let (pid, _) = frontmost_app()?;
-    let focused = Element::system_wide()?.element("AXFocusedUIElement")?;
-    (focused.pid() == Some(pid) && !focused.is_secure()).then_some(focused)
-}
-
 /// The keyboard focus inside the app `pid`: the system-wide focus when it
 /// belongs to that app, else the app's own, which some apps answer only
 /// there. A secure field is returned as well; its reader must check.
