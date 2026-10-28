@@ -125,9 +125,10 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   turned off
 - Audio feedback, tray controls, and automatic updates
 
-The Windows beta has dictation, Codex transcription and AI cleanup, history,
-Insights, custom words, sounds, and launch at login. It does not have
-Meetings, names read from the focused window, or automatic updates yet.
+The Windows beta has dictation, transcription on the PC or in the cloud, AI
+cleanup with styles, names read from the active window, history, Insights,
+custom words, shortcut keys shown for your keyboard layout, sounds, and launch
+at login. It does not have Meetings or automatic updates yet.
 
 ## Getting started
 
