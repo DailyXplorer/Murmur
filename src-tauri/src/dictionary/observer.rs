@@ -3,6 +3,7 @@
 //! memory: it is never stored or logged, and only the corrected words leave.
 
 use super::learn::{self, Correction};
+use log::info;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -30,13 +31,37 @@ pub fn watch_pasted_text(app: &AppHandle, inserted: String) {
         let Some(fields) = platform_fields() else {
             return;
         };
-        let learned = watch(&fields, &inserted, || {
-            GENERATION.load(Ordering::Acquire) == generation
-        });
-        if !learned.is_empty() {
-            super::remember(&app, learned);
+        let current = || GENERATION.load(Ordering::Acquire) == generation;
+        match watch(&fields, &inserted, current) {
+            Ok(learned) => super::remember(&app, learned),
+            Err(stop) => info!("Correction learning: nothing learned, {stop}"),
         }
     });
+}
+
+/// Why a watch ended without learning. Counts only: the field's text and the
+/// words never reach the log.
+#[derive(Debug, PartialEq)]
+enum Stop {
+    NoField,
+    PastedTextNotFound,
+    FocusMoved { polls: u32 },
+    NoSettledEdit { polls: u32 },
+    Rejected(learn::Rejected),
+}
+
+impl std::fmt::Display for Stop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoField => write!(f, "no readable text field was focused"),
+            Self::PastedTextNotFound => write!(f, "the pasted text was not found in the field"),
+            Self::FocusMoved { polls } => {
+                write!(f, "focus moved before an edit settled (polls: {polls})")
+            }
+            Self::NoSettledEdit { polls } => write!(f, "no settled edit (polls: {polls})"),
+            Self::Rejected(rejected) => rejected.fmt(f),
+        }
+    }
 }
 
 /// The fields of the frontmost app, as the platform's accessibility API
@@ -54,22 +79,23 @@ trait Fields {
 
 /// The corrections the user makes to `inserted` in the focused field
 /// within the watch window, while `current` holds and the field keeps the
-/// focus.
-fn watch<F: Fields>(fields: &F, inserted: &str, current: impl Fn() -> bool) -> Vec<Correction> {
+/// focus, or why there were none.
+fn watch<F: Fields>(
+    fields: &F,
+    inserted: &str,
+    current: impl Fn() -> bool,
+) -> Result<Vec<Correction>, Stop> {
     std::thread::sleep(SETTLE_DELAY);
-    let Some(field) = fields.focused() else {
-        return Vec::new();
-    };
+    let field = fields.focused().ok_or(Stop::NoField)?;
     let read = |field: &F::Field| fields.text(field, MAX_FIELD_CHARS);
-    let Some(before) = read(&field) else {
-        return Vec::new();
-    };
+    let before = read(&field).ok_or(Stop::NoField)?;
     if !before.contains(inserted.trim()) {
-        return Vec::new();
+        return Err(Stop::PastedTextNotFound);
     }
 
     let started = Instant::now();
     let mut still_focused = true;
+    let mut polls = 0;
     let snapshots = std::iter::from_fn(|| {
         if !still_focused || started.elapsed() >= WATCH_WINDOW {
             return None;
@@ -78,15 +104,34 @@ fn watch<F: Fields>(fields: &F, inserted: &str, current: impl Fn() -> bool) -> V
         if !current() {
             return None;
         }
+        polls += 1;
         still_focused = fields
             .focused()
             .is_some_and(|focused| fields.same(&focused, &field));
         read(&field)
     });
 
-    settled_edit(&before, inserted, snapshots)
-        .map(|edited| learn::review(inserted.trim(), &edited))
-        .unwrap_or_default()
+    let edited = settled_edit(&before, inserted, snapshots).ok_or(Stop::PastedTextNotFound)?;
+    review(inserted, &edited, still_focused, polls)
+}
+
+/// Reviews the settled edit, or says why there was none: an untouched span
+/// means the user never fixed anything before the watch ended.
+fn review(
+    inserted: &str,
+    edited: &str,
+    still_focused: bool,
+    polls: u32,
+) -> Result<Vec<Correction>, Stop> {
+    let inserted = inserted.trim();
+    if edited == inserted {
+        return Err(if still_focused {
+            Stop::NoSettledEdit { polls }
+        } else {
+            Stop::FocusMoved { polls }
+        });
+    }
+    learn::review(inserted, edited).map_err(Stop::Rejected)
 }
 
 /// What the user left in place of `inserted`: the last span two consecutive
@@ -147,7 +192,9 @@ impl Fields for Accessibility {
 #[cfg(target_os = "windows")]
 fn platform_fields() -> Option<crate::uia::Automation> {
     crate::uia::Automation::new()
-        .map_err(|e| log::debug!("UI Automation is unavailable for learning: {e}"))
+        .map_err(|e| {
+            info!("Correction learning: nothing learned, UI Automation is unavailable ({e})")
+        })
         .ok()
 }
 
@@ -186,6 +233,7 @@ mod tests {
         let snapshots = snapshots.iter().map(|snapshot| snapshot.to_string());
         let edited = settled_edit(before, inserted, snapshots).unwrap();
         learn::review(inserted.trim(), &edited)
+            .unwrap_or_default()
             .into_iter()
             .map(|correction| (correction.word, correction.heard_as))
             .collect()
@@ -254,6 +302,32 @@ mod tests {
         assert!(learned(inserted, inserted, &["", "I talked to Claude about it"]).is_empty());
     }
 
+    #[test]
+    fn a_watch_without_a_fix_says_whether_focus_moved() {
+        let inserted = " I talked to clawd about it ";
+        let untouched = inserted.trim();
+        assert_eq!(
+            review(inserted, untouched, true, 60),
+            Err(Stop::NoSettledEdit { polls: 60 })
+        );
+        assert_eq!(
+            review(inserted, untouched, false, 2),
+            Err(Stop::FocusMoved { polls: 2 })
+        );
+        assert_eq!(
+            review(inserted, "I talked to Clawd about it", false, 2),
+            Err(Stop::Rejected(learn::Rejected::NoCandidate { changes: 0 }))
+        );
+        assert_eq!(
+            review(inserted, "I talked to Claude about it", false, 2).map(|words| words.len()),
+            Ok(1)
+        );
+        assert_eq!(
+            Stop::FocusMoved { polls: 2 }.to_string(),
+            "focus moved before an edit settled (polls: 2)"
+        );
+    }
+
     const INSERTED: &str = "I talked to clawd about it";
     const CORRECTED: &str = "I talked to Claude about it";
 
@@ -307,7 +381,7 @@ mod tests {
             (Some(1), CORRECTED),
             (Some(1), ""),
         ]);
-        assert_eq!(watch(&fields, INSERTED, || true), claude());
+        assert_eq!(watch(&fields, INSERTED, || true), Ok(claude()));
     }
 
     #[test]
@@ -319,7 +393,10 @@ mod tests {
             (Some(1), CORRECTED),
             (Some(1), ""),
         ]);
-        assert!(watch(&fields, INSERTED, || true).is_empty());
+        assert_eq!(
+            watch(&fields, INSERTED, || true),
+            Err(Stop::FocusMoved { polls: 1 })
+        );
     }
 
     #[test]
@@ -336,7 +413,10 @@ mod tests {
             polls.set(polls.get() + 1);
             polls.get() < 2
         };
-        assert!(watch(&fields, INSERTED, current).is_empty());
+        assert_eq!(
+            watch(&fields, INSERTED, current),
+            Err(Stop::NoSettledEdit { polls: 1 })
+        );
     }
 
     #[test]
@@ -346,7 +426,10 @@ mod tests {
             (Some(1), CORRECTED),
             (Some(1), CORRECTED),
         ]);
-        assert!(watch(&fields, INSERTED, || true).is_empty());
+        assert_eq!(
+            watch(&fields, INSERTED, || true),
+            Err(Stop::PastedTextNotFound)
+        );
         assert_eq!(fields.step.get(), 1, "one look, then the watch ended");
     }
 
@@ -427,7 +510,10 @@ mod tests {
         /// in turn, once the watch has read the field before them and read
         /// each earlier edit twice, which settles it. Also returns every
         /// read.
-        fn learned(window: &TestWindow, edits: &[&str]) -> (Vec<Correction>, Vec<Option<String>>) {
+        fn learned(
+            window: &TestWindow,
+            edits: &[&str],
+        ) -> (Result<Vec<Correction>, Stop>, Vec<Option<String>>) {
             let field = window.handles[0];
             let (reads, read) = mpsc::channel();
             let watching = std::thread::spawn(move || {
@@ -472,7 +558,7 @@ mod tests {
             ] {
                 let window = field_window(class, style, INSERTED);
                 let (corrections, _) = learned(&window, &[CORRECTED, ""]);
-                assert_eq!(corrections, claude(), "{class} {style:#x}");
+                assert_eq!(corrections, Ok(claude()), "{class} {style:#x}");
             }
         }
 
@@ -545,7 +631,7 @@ mod tests {
                 "the password field's text"
             );
             assert!(secret.is_secure());
-            assert!(corrections.is_empty());
+            assert_eq!(corrections, Err(Stop::NoField));
             assert_eq!(reads, [None], "nothing read, and the watch ended");
             assert_eq!(document, None);
 
@@ -594,7 +680,7 @@ mod tests {
                 "requests once the field is a password field"
             );
             assert_eq!((shown.as_deref(), hidden), (Some(PLAIN_TEXT), None));
-            assert!(corrections.is_empty());
+            assert_eq!(corrections, Err(Stop::NoSettledEdit { polls: 1 }));
         }
     }
 }

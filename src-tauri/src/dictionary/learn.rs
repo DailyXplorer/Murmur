@@ -4,12 +4,11 @@
 //! replaced by a similar-sounding or similarly spelled term that looks like
 //! a name. A learned word is only a vocabulary hint, like Wispr Flow's
 //! auto-learned names and VoiceInk's vocabulary: it never rewrites text.
-//! Ordinary lowercase words are never learned: changing "their" to "there"
-//! is grammar, not vocabulary. Nor is a correction whose misheard side is
-//! an everyday word ("cloud" -> "Claude"), an added suffix, or a word the
-//! user kept elsewhere in the same text. Nor is swapping one term for
-//! another ("Q3" -> "Q4", "iOS" -> "macOS", "John" -> "Joan"): the
-//! transcript already held a name, so the user changed what they meant.
+//! Speech recognition mishears a term as a real word, so the misheard side
+//! may be an everyday word or a name ("cloud" -> "Claude", "Pierre" ->
+//! "PR"). Ordinary lowercase words are never learned: changing "their" to
+//! "there" is grammar, not vocabulary. Nor is an added suffix, a changed
+//! number ("Q3" -> "Q4"), or a word the user kept elsewhere in the same text.
 //! Chinese and Japanese, written without spaces, are never learned: only a
 //! Latin term fixed inside them, which is cut out of the text around it. A
 //! possessive or a French elision kept on both sides is cut off the same way.
@@ -37,6 +36,34 @@ pub struct Correction {
     pub heard_as: String,
 }
 
+/// Why a review learned nothing. It carries counts only, so it can be logged:
+/// the words themselves never leave the review.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Rejected {
+    /// More words than the diff compares.
+    TooLong { words: usize },
+    /// An emptied span or a rewrite rather than a fix.
+    TooLarge { changed: usize, words: usize },
+    /// Changes of the right size, but none replaced a word with a term.
+    NoCandidate { changes: usize },
+}
+
+impl std::fmt::Display for Rejected {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLong { words } => {
+                write!(f, "edit too large (words: {words}, limit: {MAX_WORDS})")
+            }
+            Self::TooLarge { changed, words } => {
+                write!(f, "edit too large (changed words: {changed} of {words})")
+            }
+            Self::NoCandidate { changes } => {
+                write!(f, "no candidate passed the rules (changes: {changes})")
+            }
+        }
+    }
+}
+
 /// The part of `after` that replaced `inserted` inside `before`, when the
 /// surrounding text is untouched. `before` is the field's value right after
 /// the paste and must contain `inserted`.
@@ -55,14 +82,22 @@ pub fn edited_span<'a>(before: &str, inserted: &str, after: &'a str) -> Option<&
 }
 
 /// Compares what Murmur pasted with what the user left in its place and
-/// returns the words to learn. An emptied or mostly replaced span teaches
-/// nothing: chat apps clear the field when the message is sent, the next
-/// message then takes its place, and a rewrite fixes no word.
-pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
+/// returns the words to learn, at least one. An emptied or mostly replaced
+/// span teaches nothing: chat apps clear the field when the message is sent,
+/// the next message then takes its place, and a rewrite fixes no word.
+pub fn review(inserted: &str, edited: &str) -> Result<Vec<Correction>, Rejected> {
     let old = words(inserted);
     let new = words(edited);
-    if old.is_empty() || new.is_empty() || old.len() > MAX_WORDS || new.len() > MAX_WORDS {
-        return Vec::new();
+    if old.len() > MAX_WORDS || new.len() > MAX_WORDS {
+        return Err(Rejected::TooLong {
+            words: old.len().max(new.len()),
+        });
+    }
+    if old.is_empty() || new.is_empty() {
+        return Err(Rejected::TooLarge {
+            changed: old.len(),
+            words: old.len(),
+        });
     }
 
     let hunks: Vec<Hunk> = diff(&old, &new)
@@ -71,9 +106,13 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         .collect();
     let words_changed: usize = hunks.iter().map(|hunk| hunk.old.len()).sum();
     if words_changed as f64 > (old.len() as f64 * MAX_CHANGED_SHARE).max(2.0) {
-        return Vec::new();
+        return Err(Rejected::TooLarge {
+            changed: words_changed,
+            words: old.len(),
+        });
     }
 
+    let changes = hunks.len();
     let mut learned: Vec<Correction> = Vec::new();
     for hunk in hunks {
         let replaced = &old[hunk.old.clone()];
@@ -92,18 +131,11 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
         // A name after a stripped elision does not open the sentence: the
         // capital of "D'Anthropic" is the user's, not the sentence's.
         let sentence_start = replacement_core.starts_with(word) && opens_sentence;
-        let heard_at_sentence_start = replaced_core.starts_with(heard_as)
-            && (hunk.old.start == 0 || ends_sentence(old[hunk.old.start - 1]));
-        let heard_a_term = heard_as
-            .split_whitespace()
-            .enumerate()
-            .any(|(i, w)| looks_like_a_term(w, i == 0 && heard_at_sentence_start));
         if looks_like_a_term(word, sentence_start)
-            && !heard_a_term
-            && !said_on_purpose(heard_as, word)
             && sounds_alike(heard_as, word)
             && !only_inflected(heard_as, word)
             && !only_extended(heard_as, word)
+            && !only_renumbered(heard_as, word)
             && !kept_elsewhere(heard_as, &new)
             && !learned.iter().any(|known| known.word == word)
         {
@@ -116,7 +148,10 @@ pub fn review(inserted: &str, edited: &str) -> Vec<Correction> {
             break;
         }
     }
-    learned
+    if learned.is_empty() {
+        return Err(Rejected::NoCandidate { changes });
+    }
+    Ok(learned)
 }
 
 /// The words of `text`, split at spaces and where Chinese or Japanese meets
@@ -304,27 +339,6 @@ pub(crate) fn is_everyday_word(word: &str) -> bool {
         .contains(word.to_lowercase().as_str())
 }
 
-/// Everyday words and common first names. A first name is kept apart from
-/// everyday words: it is what a custom spelling overrides ("Lucas" ->
-/// "Lukas").
-fn is_common_word(word: &str) -> bool {
-    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    is_everyday_word(word)
-        || NAMES
-            .get_or_init(|| include_str!("first_names.txt").lines().collect())
-            .contains(word.to_lowercase().as_str())
-}
-
-/// A misheard form made only of everyday words or first names is also
-/// something the user says on purpose, so nothing is learned from it. Two or
-/// more of them spelling the word's exact letters ("open ai" -> "OpenAI") are
-/// the exception: that sequence only ever means the joined word.
-fn said_on_purpose(heard_as: &str, word: &str) -> bool {
-    let words: Vec<&str> = heard_as.split_whitespace().collect();
-    let joined_spelling = words.len() > 1 && letters(heard_as) == letters(word);
-    words.iter().all(|word| is_common_word(word)) && !joined_spelling
-}
-
 /// "Sarah" -> "Sarah's" or "report" -> "reports" changes the grammar of a
 /// word the user already had.
 fn only_inflected(heard: &str, word: &str) -> bool {
@@ -343,6 +357,19 @@ fn only_extended(heard: &str, word: &str) -> bool {
     word.to_lowercase()
         .strip_prefix(&heard.to_lowercase())
         .is_some_and(|rest| rest.starts_with(|c: char| !c.is_alphanumeric()))
+}
+
+/// "Q3" -> "Q4" or "GPT-4" -> "GPT-5" changes what the user meant; the
+/// number was not misheard. "gpt for" -> "GPT-4" has no digit heard.
+fn only_renumbered(heard: &str, word: &str) -> bool {
+    let has_digit = |text: &str| text.chars().any(|c| c.is_ascii_digit());
+    let without_digits = |text: &str| -> String {
+        letters(text)
+            .chars()
+            .filter(|c| !c.is_ascii_digit())
+            .collect()
+    };
+    has_digit(heard) && has_digit(word) && without_digits(heard) == without_digits(word)
 }
 
 /// A misheard form the user left untouched elsewhere in the text is one
@@ -364,6 +391,7 @@ mod tests {
 
     fn learned(inserted: &str, edited: &str) -> Vec<(String, String)> {
         review(inserted, edited)
+            .unwrap_or_default()
             .into_iter()
             .map(|c| (c.word, c.heard_as))
             .collect()
@@ -411,23 +439,73 @@ mod tests {
     }
 
     #[test]
+    fn a_term_heard_as_an_everyday_word_or_a_first_name_is_learned() {
+        assert_eq!(
+            learned(
+                "Je vais ouvrir une pierre demain.",
+                "Je vais ouvrir une PR demain."
+            ),
+            vec![pair("PR", "pierre")]
+        );
+        assert_eq!(
+            learned(
+                "Je vais ouvrir une Pierre demain.",
+                "Je vais ouvrir une PR demain."
+            ),
+            vec![pair("PR", "Pierre")]
+        );
+        assert_eq!(
+            learned(
+                "I talked to cloud about it.",
+                "I talked to Claude about it."
+            ),
+            vec![pair("Claude", "cloud")]
+        );
+        assert_eq!(
+            learned(
+                "I asked Claire to review it.",
+                "I asked Claude to review it."
+            ),
+            vec![pair("Claude", "Claire")]
+        );
+    }
+
+    #[test]
     fn grammar_fixes_of_ordinary_words_are_not_learned() {
         assert!(learned("I think their right.", "I think they're right.").is_empty());
         assert!(learned("Their right.", "There right.").is_empty());
     }
 
     #[test]
-    fn a_common_word_is_never_learned_as_a_mishearing() {
-        assert!(learned("talk to the cloud", "talk to the Claude").is_empty());
-        assert!(learned("ask and about it", "ask Ann about it").is_empty());
-        assert!(learned("please mark it", "please Marc it").is_empty());
-        assert!(learned("envoie le au bureau", "envoie le au Burrow").is_empty());
+    fn a_common_word_replaced_by_a_similar_term_is_learned() {
+        assert_eq!(
+            learned("talk to the cloud", "talk to the Claude"),
+            vec![pair("Claude", "cloud")]
+        );
+        assert_eq!(
+            learned("ask and about it", "ask Ann about it"),
+            vec![pair("Ann", "and")]
+        );
+        assert_eq!(
+            learned("please mark it", "please Marc it"),
+            vec![pair("Marc", "mark")]
+        );
+        assert_eq!(
+            learned("envoie le au bureau", "envoie le au Burrow"),
+            vec![pair("Burrow", "bureau")]
+        );
     }
 
     #[test]
-    fn swapping_one_name_for_another_is_a_content_edit() {
-        assert!(learned("meet John at 3", "meet Joan at 3").is_empty());
-        assert!(learned("ask Mark about it", "ask Marc about it").is_empty());
+    fn a_name_replaced_by_a_similar_name_is_learned() {
+        assert_eq!(
+            learned("meet John at 3", "meet Joan at 3"),
+            vec![pair("Joan", "John")]
+        );
+        assert_eq!(
+            learned("ask Mark about it", "ask Marc about it"),
+            vec![pair("Marc", "Mark")]
+        );
     }
 
     #[test]
@@ -437,14 +515,38 @@ mod tests {
     }
 
     #[test]
-    fn swapping_one_term_for_another_is_not_learned() {
+    fn swapping_one_term_for_a_different_sounding_one_is_not_learned() {
+        assert!(learned("it runs on iOS", "it runs on macOS").is_empty());
+    }
+
+    #[test]
+    fn changing_only_the_number_of_a_term_is_not_learned() {
         assert!(learned("Q3 revenue was strong", "Q4 revenue was strong").is_empty());
         assert!(learned("we moved to GPT-4 today", "we moved to GPT-5 today").is_empty());
         assert!(learned("export it as mp3", "export it as mp4").is_empty());
-        assert!(learned("it runs on iOS", "it runs on macOS").is_empty());
-        assert!(learned("open it in Figma", "open it in FigJam").is_empty());
-        assert!(learned("meet Smith tomorrow", "meet Smyth tomorrow").is_empty());
-        assert!(learned("I talked to Clawd today", "I talked to Claude today").is_empty());
+        assert_eq!(
+            learned(
+                "We moved to gpt for yesterday.",
+                "We moved to GPT-4 yesterday."
+            ),
+            vec![pair("GPT-4", "gpt for")]
+        );
+    }
+
+    #[test]
+    fn swapping_one_term_for_a_similar_one_is_learned() {
+        assert_eq!(
+            learned("open it in Figma", "open it in FigJam"),
+            vec![pair("FigJam", "Figma")]
+        );
+        assert_eq!(
+            learned("meet Smith tomorrow", "meet Smyth tomorrow"),
+            vec![pair("Smyth", "Smith")]
+        );
+        assert_eq!(
+            learned("I talked to Clawd today", "I talked to Claude today"),
+            vec![pair("Claude", "Clawd")]
+        );
     }
 
     #[test]
@@ -486,13 +588,53 @@ mod tests {
     fn a_sent_chat_message_or_the_next_reply_teaches_nothing() {
         let inserted = "see you at five";
         let edited = edited_span(inserted, inserted, "").unwrap();
-        assert!(review(inserted, edited).is_empty());
-        assert!(review("ok", "  ").is_empty());
+        assert!(review(inserted, edited).is_err());
+        assert!(review("ok", "  ").is_err());
         let next_message = edited_span(inserted, inserted, "ok thanks").unwrap();
-        assert!(review(inserted, next_message).is_empty());
-        assert!(review("Sounds good", "see you tomorrow").is_empty());
-        assert!(review("Thanks", "ok").is_empty());
-        assert!(review("Thanks", "Thomas").is_empty());
+        assert!(review(inserted, next_message).is_err());
+        assert!(review("Sounds good", "see you tomorrow").is_err());
+        assert!(review("Thanks", "ok").is_err());
+        assert!(review("Thanks", "Thomas").is_err());
+    }
+
+    #[test]
+    fn a_review_that_learns_nothing_says_which_rule_stopped_it() {
+        assert_eq!(
+            review("see you at five", ""),
+            Err(Rejected::TooLarge {
+                changed: 4,
+                words: 4
+            })
+        );
+        assert_eq!(
+            review(
+                "the quarterly numbers look good for marta",
+                "Revenue grew a lot this quarter, Martha"
+            ),
+            Err(Rejected::TooLarge {
+                changed: 7,
+                words: 7
+            })
+        );
+        let long = "word ".repeat(MAX_WORDS + 1);
+        assert_eq!(
+            review(&long, &long),
+            Err(Rejected::TooLong {
+                words: MAX_WORDS + 1
+            })
+        );
+        assert_eq!(
+            review("I think their right.", "I think they're right."),
+            Err(Rejected::NoCandidate { changes: 1 })
+        );
+        assert_eq!(
+            review("call paris today", "call Paris, today!"),
+            Err(Rejected::NoCandidate { changes: 0 })
+        );
+        assert_eq!(
+            Rejected::NoCandidate { changes: 1 }.to_string(),
+            "no candidate passed the rules (changes: 1)"
+        );
     }
 
     #[test]
@@ -516,12 +658,15 @@ mod tests {
     #[test]
     fn chinese_and_japanese_runs_are_never_learned_as_words() {
         assert!(learned("会议三点开始。", "会议3点开始。").is_empty());
-        assert!(learned("我们用cloud code", "我们用Claude Code").is_empty());
         assert!(learned("ぼくはクロードを使う", "ぼくはClaudeを使う").is_empty());
     }
 
     #[test]
     fn a_name_fixed_inside_chinese_or_japanese_is_learned_alone() {
+        assert_eq!(
+            learned("我们用cloud code", "我们用Claude Code"),
+            vec![pair("Claude", "cloud")]
+        );
         assert_eq!(
             learned("我们用clawd code", "我们用Claude code"),
             vec![pair("Claude", "clawd")]
@@ -542,7 +687,10 @@ mod tests {
             learned("I read clawd’s answer.", "I read Claude’s answer."),
             vec![pair("Claude", "clawd")]
         );
-        assert!(learned("I read the cloud's answer", "I read the Claude's answer").is_empty());
+        assert_eq!(
+            learned("I read the cloud's answer", "I read the Claude's answer"),
+            vec![pair("Claude", "cloud")]
+        );
         assert_eq!(
             learned(
                 "le modèle d'antropic est bon",
@@ -591,7 +739,7 @@ mod tests {
     fn at_most_three_words_are_learned_from_one_dictation() {
         let inserted = "ask zorb quix vlem drub eli fay gus hal ivy jo kim lu mo about it";
         let edited = "ask Zarb Quax Vlam Drab eli fay gus hal ivy jo kim lu mo about it";
-        assert_eq!(review(inserted, edited).len(), 3);
+        assert_eq!(review(inserted, edited).unwrap().len(), 3);
     }
 
     #[test]

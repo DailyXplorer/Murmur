@@ -62,8 +62,10 @@ pub fn correct(
 /// Adds learned words to the dictionary, tells the settings UI, and counts
 /// each new word once in Insights as a word the user corrected.
 fn remember(app: &AppHandle, corrections: Vec<Correction>) {
+    let found = corrections.len();
     let added = settings::update_settings(app, |value| remember_corrections(value, corrections));
     if added == 0 {
+        info!("Correction learning: nothing learned, {found} word(s) already in the dictionary or the dictionary is full");
         return;
     }
     info!("Learned {added} dictionary word(s) from a correction");
