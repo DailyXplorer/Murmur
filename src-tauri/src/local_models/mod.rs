@@ -567,17 +567,16 @@ impl LocalModels {
     }
 
     fn partial_bytes(&self, source: &Source, file: &ModelFile) -> u64 {
-        std::fs::metadata(download::part_path(&self.path_of(source, file)))
-            .map_or(0, |metadata| {
-                // The downloader discards an oversized partial and starts
-                // over: none of it can reduce the remaining download.
-                let have = metadata.len();
-                if have > file.size {
-                    0
-                } else {
-                    have
-                }
-            })
+        std::fs::metadata(download::part_path(&self.path_of(source, file))).map_or(0, |metadata| {
+            // The downloader discards an oversized partial and starts
+            // over: none of it can reduce the remaining download.
+            let have = metadata.len();
+            if have > file.size {
+                0
+            } else {
+                have
+            }
+        })
     }
 
     /// Deletes the models. Refused while they download; the optional files

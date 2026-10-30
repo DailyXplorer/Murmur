@@ -706,7 +706,10 @@ fn optional_files_wait_for_space_without_growing_partials_or_changing_ready() {
             ready.fetched().await;
 
             assert!(ready.is_ready());
-            assert!(seen.lock().unwrap().is_empty(), "fetched without enough space");
+            assert!(
+                seen.lock().unwrap().is_empty(),
+                "fetched without enough space"
+            );
             assert!(host.notified.lock().unwrap().is_empty());
             assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
             assert!(!path.join(OPTIONAL_MARKER).exists());
@@ -803,7 +806,10 @@ fn an_optional_disk_error_gives_back_the_partial_written_after_preflight() {
         assert_eq!(seen.lock().unwrap().len(), 1);
         assert!(ready.is_ready());
         assert!(ctc.is_dir());
-        assert!(!download::part_path(&ctc).exists(), "kept the failed download");
+        assert!(
+            !download::part_path(&ctc).exists(),
+            "kept the failed download"
+        );
         assert!(!path.join(OPTIONAL_MARKER).exists());
         assert!(host.notified.lock().unwrap().is_empty());
         assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
@@ -839,7 +845,11 @@ fn a_partial_write_error_discards_only_this_attempts_optional_files() {
     let path = dir.path().join("models");
     fixture.write_ready_without_optional(&path);
     let ready = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
-    let source = fixture.sources.iter().find(|source| source.optional).unwrap();
+    let source = fixture
+        .sources
+        .iter()
+        .find(|source| source.optional)
+        .unwrap();
     let file = &source.files[0];
     let ctc = ready.path_of(source, file);
     std::fs::create_dir_all(ctc.parent().unwrap()).unwrap();
@@ -864,7 +874,10 @@ fn a_partial_write_error_discards_only_this_attempts_optional_files() {
     assert!(!ctc.exists());
     assert!(!part.exists());
     assert!(!path.join(OPTIONAL_MARKER).exists());
-    assert_eq!(std::fs::read(kept).unwrap(), b"already present, outside this attempt");
+    assert_eq!(
+        std::fs::read(kept).unwrap(),
+        b"already present, outside this attempt"
+    );
     for source in fixture.sources.iter().filter(|source| !source.optional) {
         for file in source.files {
             assert!(verify::matches(&ready.path_of(source, file), file).unwrap());
@@ -884,7 +897,11 @@ fn an_optional_cancel_or_network_error_keeps_its_resumable_partial() {
         let path = dir.path().join("models");
         fixture.write_ready_without_optional(&path);
         let ready = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
-        let source = fixture.sources.iter().find(|source| source.optional).unwrap();
+        let source = fixture
+            .sources
+            .iter()
+            .find(|source| source.optional)
+            .unwrap();
         let file = &source.files[0];
         let part = download::part_path(&ready.path_of(source, file));
         std::fs::create_dir_all(part.parent().unwrap()).unwrap();

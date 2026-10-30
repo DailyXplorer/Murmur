@@ -1229,7 +1229,10 @@ mod tests {
         stop.join().unwrap();
         let started_after_close = start.join().unwrap();
 
-        assert!(held_during_teardown, "Idle must not be exposed before teardown");
+        assert!(
+            held_during_teardown,
+            "Idle must not be exposed before teardown"
+        );
         assert!(started_after_close, "B reused the stream still owned by A");
         assert!(stream_open.load(Ordering::SeqCst), "A closed B's stream");
         assert!(matches!(
