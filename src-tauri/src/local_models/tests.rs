@@ -3,13 +3,27 @@ use super::*;
 use sha2::Digest;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Default)]
 struct FakeHost {
     wanted: Mutex<Vec<bool>>,
     free: Option<u64>,
+    /// Treat `free` as the initial budget and charge files written so far.
+    free_minus_written: bool,
     prepared: AtomicUsize,
     prepare_fails: bool,
     notified: Mutex<Vec<LocalModelState>>,
+}
+
+impl Default for FakeHost {
+    fn default() -> Self {
+        Self {
+            wanted: Mutex::default(),
+            free: Some(u64::MAX),
+            free_minus_written: false,
+            prepared: AtomicUsize::default(),
+            prepare_fails: false,
+            notified: Mutex::default(),
+        }
+    }
 }
 
 impl Host for FakeHost {
@@ -19,8 +33,14 @@ impl Host for FakeHost {
     fn remember_wanted(&self, wanted: bool) {
         self.wanted.lock().unwrap().push(wanted);
     }
-    fn free_bytes(&self, _: &Path) -> Option<u64> {
-        self.free
+    fn free_bytes(&self, dir: &Path) -> Option<u64> {
+        self.free.map(|free| {
+            if self.free_minus_written {
+                free.saturating_sub(dir_bytes(dir))
+            } else {
+                free
+            }
+        })
     }
     fn prepare(&self, _: PathBuf, _: ProcessingOperation) -> PrepareFuture {
         self.prepared.fetch_add(1, Ordering::SeqCst);
@@ -654,6 +674,229 @@ fn paths(seen: &Mutex<Vec<Request>>) -> Vec<String> {
 
 const CTC_URL: &str =
     "/test/ctc/resolve/3333333333333333333333333333333333333333/C.mlmodelc/weights/weight.bin";
+
+#[test]
+fn optional_files_wait_for_space_without_growing_partials_or_changing_ready() {
+    // 3,000 bytes in total: a 300-byte reserve remains necessary even when
+    // only 2,000 bytes are missing. Unknown free space is not an invitation
+    // to take a risk for an optional model either.
+    for (free, partial) in [
+        (Some(3_299), 0),
+        (Some(2_299), 1_000),
+        (Some(3_299), 4_000),
+        (None, 1_000),
+    ] {
+        let fixture = fixture_with_optional();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        fixture.write_ready_without_optional(&path);
+        let part = download::part_path(&path.join("ctc").join(CTC_WEIGHTS));
+        if partial > 0 {
+            std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+            std::fs::write(&part, vec![9; partial]).unwrap();
+        }
+        let host = Arc::new(FakeHost {
+            free,
+            ..FakeHost::default()
+        });
+        tauri::async_runtime::block_on(async {
+            let (base, seen) = test_server::start(fixture.serving()).await;
+            let ready = models(&path, &fixture, &base, &host);
+            ready.resume_on_launch(false);
+            ready.fetched().await;
+
+            assert!(ready.is_ready());
+            assert!(seen.lock().unwrap().is_empty(), "fetched without enough space");
+            assert!(host.notified.lock().unwrap().is_empty());
+            assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
+            assert!(!path.join(OPTIONAL_MARKER).exists());
+            if partial > 0 {
+                assert_eq!(std::fs::read(&part).unwrap(), vec![9; partial]);
+            } else {
+                assert!(!part.exists());
+            }
+        });
+    }
+}
+
+#[test]
+fn an_optional_partial_needs_only_the_remaining_bytes_and_the_full_reserve() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let ctc = path.join("ctc").join(CTC_WEIGHTS);
+    let part = download::part_path(&ctc);
+    std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+    std::fs::write(&part, vec![9; 1_000]).unwrap();
+    let host = Arc::new(FakeHost {
+        free: Some(2_300),
+        ..FakeHost::default()
+    });
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let ready = models(&path, &fixture, &base, &host);
+        ready.resume_on_launch(false);
+        ready.fetched().await;
+
+        assert!(ready.is_ready());
+        assert_eq!(std::fs::read(&ctc).unwrap(), vec![9; 3_000]);
+        assert!(!part.exists());
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert_eq!(seen.lock().unwrap()[0].range_from, Some(1_000));
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
+    });
+}
+
+#[test]
+fn a_first_download_that_only_has_room_for_required_models_stays_ready_without_ctc() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    // Required models need 8,809 bytes with their margin. Once fetched,
+    // this budget cannot also cover the 3,000-byte optional model.
+    let host = Arc::new(FakeHost {
+        free: Some(9_000),
+        free_minus_written: true,
+        ..FakeHost::default()
+    });
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let models = models(&path, &fixture, &base, &host);
+        models.download();
+        assert_eq!(settled(&models).await, LocalModelState::Ready);
+        models.fetched().await;
+
+        assert!(models.is_ready());
+        assert_eq!(seen.lock().unwrap().len(), 3);
+        assert!(!paths(&seen).iter().any(|path| path == CTC_URL));
+        let ctc = path.join("ctc").join(CTC_WEIGHTS);
+        assert!(!ctc.exists());
+        assert!(!download::part_path(&ctc).exists());
+        assert!(!path.join(OPTIONAL_MARKER).exists());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
+    });
+}
+
+#[test]
+fn an_optional_disk_error_gives_back_the_partial_written_after_preflight() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let ctc = path.join("ctc").join(CTC_WEIGHTS);
+    let conflict = ctc.clone();
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(Arc::new(move |_: &Request, _| {
+            // A deterministic filesystem error after the space check: the
+            // response is downloaded and checked, but cannot replace a
+            // directory with a file. No real volume needs to be filled.
+            std::fs::create_dir_all(&conflict).unwrap();
+            Reply::Serve(vec![9; 3_000])
+        }))
+        .await;
+        let ready = models(&path, &fixture, &base, &host);
+        ready.resume_on_launch(false);
+        ready.fetched().await;
+
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert!(ready.is_ready());
+        assert!(ctc.is_dir());
+        assert!(!download::part_path(&ctc).exists(), "kept the failed download");
+        assert!(!path.join(OPTIONAL_MARKER).exists());
+        assert!(host.notified.lock().unwrap().is_empty());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
+    });
+}
+
+#[test]
+fn a_partial_write_error_discards_only_this_attempts_optional_files() {
+    use std::io::Write;
+
+    struct DiskFills {
+        file: std::fs::File,
+        free: usize,
+    }
+
+    impl Write for DiskFills {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.free == 0 {
+                return Err(std::io::ErrorKind::StorageFull.into());
+            }
+            let written = self.file.write(&bytes[..bytes.len().min(self.free)])?;
+            self.free -= written;
+            Ok(written)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.file.flush()
+        }
+    }
+
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let ready = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
+    let source = fixture.sources.iter().find(|source| source.optional).unwrap();
+    let file = &source.files[0];
+    let ctc = ready.path_of(source, file);
+    std::fs::create_dir_all(ctc.parent().unwrap()).unwrap();
+    std::fs::write(&ctc, b"completed earlier in this attempt").unwrap();
+    let kept = path.join("ctc/kept.bin");
+    std::fs::write(&kept, b"already present, outside this attempt").unwrap();
+    let part = download::part_path(&ctc);
+    let mut writer = DiskFills {
+        file: std::fs::File::create(&part).unwrap(),
+        free: 500,
+    };
+    let error = writer.write_all(&[9; 3_000]).unwrap_err();
+    drop(writer);
+    assert_eq!(std::fs::metadata(&part).unwrap().len(), 500);
+    std::fs::write(path.join(OPTIONAL_MARKER), b"incomplete marker").unwrap();
+
+    // The downloader converts a write_all error to Stopped::Failed(Disk).
+    ready.finish_optional(&[(source, file)], Err(error.into()));
+
+    assert!(ready.is_ready());
+    assert!(path.join(READY_MARKER).exists());
+    assert!(!ctc.exists());
+    assert!(!part.exists());
+    assert!(!path.join(OPTIONAL_MARKER).exists());
+    assert_eq!(std::fs::read(kept).unwrap(), b"already present, outside this attempt");
+    for source in fixture.sources.iter().filter(|source| !source.optional) {
+        for file in source.files {
+            assert!(verify::matches(&ready.path_of(source, file), file).unwrap());
+        }
+    }
+}
+
+#[test]
+fn an_optional_cancel_or_network_error_keeps_its_resumable_partial() {
+    for stopped in [
+        Stopped::Cancelled,
+        Stopped::Failed(DownloadFailure::NoInternet),
+        Stopped::Failed(DownloadFailure::ServerUnavailable),
+    ] {
+        let fixture = fixture_with_optional();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        fixture.write_ready_without_optional(&path);
+        let ready = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
+        let source = fixture.sources.iter().find(|source| source.optional).unwrap();
+        let file = &source.files[0];
+        let part = download::part_path(&ready.path_of(source, file));
+        std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+        std::fs::write(&part, vec![9; 1_000]).unwrap();
+
+        ready.finish_optional(&[(source, file)], Err(stopped));
+
+        assert!(ready.is_ready());
+        assert_eq!(std::fs::read(part).unwrap(), vec![9; 1_000]);
+        assert!(path.join(READY_MARKER).exists());
+    }
+}
 
 #[test]
 fn models_ready_before_the_optional_source_stay_ready_and_fetch_it_quietly() {

@@ -396,12 +396,32 @@ impl LocalModels {
         if std::fs::read_to_string(&marker).is_ok_and(|held| held == id) {
             return;
         }
+        // Keep the reserve even when a partial file left little to fetch:
+        // Core ML still needs room to prepare the complete optional model.
+        let reserve = manifest::total_bytes(optional.iter().copied()) / 10;
         let dir = self.dir.clone();
+        let mut missing = Vec::new();
         let fetched = async {
-            let missing =
-                tauri::async_runtime::spawn_blocking(move || missing_files(&dir, optional))
-                    .await
-                    .map_err(|_| Stopped::Failed(DownloadFailure::Disk))??;
+            missing = tauri::async_runtime::spawn_blocking(move || missing_files(&dir, optional))
+                .await
+                .map_err(|_| Stopped::Failed(DownloadFailure::Disk))??;
+            let remaining: u64 = missing
+                .iter()
+                .map(|(source, file)| file.size - self.partial_bytes(source, file))
+                .sum();
+            let needed = remaining.saturating_add(reserve);
+            let Some(free) = self.host.free_bytes(&self.dir) else {
+                // Optional work must not risk the disk when its space cannot
+                // be checked. Required dictation stays ready either way.
+                log::warn!("Optional local models postponed: cannot check free disk space");
+                return Ok(());
+            };
+            if free < needed {
+                return Err(Stopped::Failed(DownloadFailure::NotEnoughSpace {
+                    needed_bytes: needed,
+                    free_bytes: free,
+                }));
+            }
             let client = download::client();
             let fetch = Fetch {
                 client: &client,
@@ -424,7 +444,32 @@ impl LocalModels {
             std::fs::write(&marker, &id)?;
             Ok::<_, Stopped>(())
         };
-        if let Err(Stopped::Failed(reason)) = fetched.await {
+        let result = fetched.await;
+        self.finish_optional(&missing, result);
+    }
+
+    /// A disk error may have used the space checked before the download.
+    /// Give back this attempt's optional files, never the ready required
+    /// models or optional files which already matched. Network failures and
+    /// cancellations keep their partials so they can resume.
+    fn finish_optional(&self, missing: &[(&Source, &ModelFile)], result: Result<(), Stopped>) {
+        if matches!(&result, Err(Stopped::Failed(DownloadFailure::Disk))) {
+            let files = missing.iter().flat_map(|(source, file)| {
+                let path = self.path_of(source, file);
+                [download::part_path(&path), path]
+            });
+            for path in std::iter::once(self.dir.join(OPTIONAL_MARKER)).chain(files) {
+                match std::fs::remove_file(&path) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => log::warn!(
+                        "Cannot discard an optional model after a disk error ({}): {error}",
+                        path.display()
+                    ),
+                }
+            }
+        }
+        if let Err(Stopped::Failed(reason)) = result {
             log::warn!("Optional local model files not fetched: {reason:?}");
         }
     }
@@ -523,7 +568,16 @@ impl LocalModels {
 
     fn partial_bytes(&self, source: &Source, file: &ModelFile) -> u64 {
         std::fs::metadata(download::part_path(&self.path_of(source, file)))
-            .map_or(0, |metadata| metadata.len().min(file.size))
+            .map_or(0, |metadata| {
+                // The downloader discards an oversized partial and starts
+                // over: none of it can reduce the remaining download.
+                let have = metadata.len();
+                if have > file.size {
+                    0
+                } else {
+                    have
+                }
+            })
     }
 
     /// Deletes the models. Refused while they download; the optional files
