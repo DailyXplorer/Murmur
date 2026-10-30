@@ -369,14 +369,31 @@ const run = async (scenario: string): Promise<ProbeResult> => {
   }
 
   if (scenario === "reset-refusal") {
+    setBackend("transcribe", "ctrl+shift+r");
+    useSettingsStore.setState({ settings: structuredClone(backend) });
+    // The refresh below rereads the backend, so record what the rollback
+    // itself published when the write settled.
+    let rolledBackKeys: string | undefined;
+    const unsubscribe = useSettingsStore.subscribe((state, previous) => {
+      if (
+        previous.isUpdating.binding_transcribe &&
+        !state.isUpdating.binding_transcribe
+      ) {
+        rolledBackKeys = current();
+      }
+    });
     const reset = useSettingsStore.getState().resetBinding("transcribe");
+    const pendingKeys = current();
     await waitFor(() => commandCalls === 1);
     const refresh = useSettingsStore.getState().refreshSettings();
     await tick();
     const readsBeforeRelease = reads;
     writes[0].resolve(rejected);
     await Promise.all([reset, refresh]);
+    unsubscribe();
     return {
+      pendingKeys,
+      rolledBackKeys,
       keys: current(),
       readsBeforeRelease,
       updating: useSettingsStore.getState().isUpdatingKey("binding_transcribe"),

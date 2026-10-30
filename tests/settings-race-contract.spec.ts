@@ -70,7 +70,13 @@ const cases = [
   ],
   [
     "reset-refusal",
-    { keys: "ctrl+space", readsBeforeRelease: 0, updating: false },
+    {
+      pendingKeys: "ctrl+space",
+      rolledBackKeys: "ctrl+shift+r",
+      keys: "ctrl+shift+r",
+      readsBeforeRelease: 0,
+      updating: false,
+    },
   ],
 ] as const;
 

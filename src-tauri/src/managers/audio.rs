@@ -303,6 +303,21 @@ fn finish_stop_transaction(
     publish_idle(&mut state);
 }
 
+/// What a finished recording does with the input stream: always-on keeps it
+/// open, on-demand closes it now or schedules the lazy close.
+fn finish_stream_after_stop(
+    mode: &MicrophoneMode,
+    lazy_close: bool,
+    close_now: impl FnOnce(),
+    schedule_lazy_close: impl FnOnce(),
+) {
+    match (mode, lazy_close) {
+        (MicrophoneMode::AlwaysOn, _) => {}
+        (MicrophoneMode::OnDemand, true) => schedule_lazy_close(),
+        (MicrophoneMode::OnDemand, false) => close_now(),
+    }
+}
+
 /// Applies a microphone-mode change as one transaction. The runtime stream is
 /// reconfigured first; only then do we expose the new mode and persist it.
 ///
@@ -1017,13 +1032,13 @@ impl AudioRecordingManager {
             &self.state,
             || {
                 *self.is_recording.lock().unwrap() = false;
-                if matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
-                    if get_settings(&self.app_handle).lazy_stream_close {
-                        self.schedule_lazy_close();
-                    } else {
-                        self.stop_microphone_stream();
-                    }
-                }
+                let mode = self.mode.lock().unwrap().clone();
+                finish_stream_after_stop(
+                    &mode,
+                    get_settings(&self.app_handle).lazy_stream_close,
+                    || self.stop_microphone_stream(),
+                    || self.schedule_lazy_close(),
+                );
             },
             |state| self.set_state(state, RecordingState::Idle),
         );
@@ -1242,21 +1257,33 @@ mod tests {
     }
 
     #[test]
-    fn stop_publishes_idle_after_each_stream_finish_strategy() {
-        for strategy in ["close-now", "schedule-lazy-close", "keep-always-on"] {
+    fn stop_finishes_the_stream_for_its_mode_before_publishing_idle() {
+        let cases: [(MicrophoneMode, bool, &[&str]); 4] = [
+            (MicrophoneMode::OnDemand, false, &["close now", "idle"]),
+            (MicrophoneMode::OnDemand, true, &["lazy close", "idle"]),
+            (MicrophoneMode::AlwaysOn, false, &["idle"]),
+            (MicrophoneMode::AlwaysOn, true, &["idle"]),
+        ];
+        for (mode, lazy_close, expected) in cases {
             let state = Mutex::new(RecordingState::Stopping);
             let steps = RefCell::new(Vec::new());
             finish_stop_transaction(
                 &state,
-                || steps.borrow_mut().push(strategy),
+                || {
+                    finish_stream_after_stop(
+                        &mode,
+                        lazy_close,
+                        || steps.borrow_mut().push("close now"),
+                        || steps.borrow_mut().push("lazy close"),
+                    )
+                },
                 |state| {
                     assert!(matches!(*state, RecordingState::Stopping));
-                    assert_eq!(*steps.borrow(), [strategy]);
                     steps.borrow_mut().push("idle");
                     *state = RecordingState::Idle;
                 },
             );
-            assert_eq!(*steps.borrow(), [strategy, "idle"]);
+            assert_eq!(*steps.borrow(), expected, "{mode:?}, lazy {lazy_close}");
             assert!(matches!(*state.lock().unwrap(), RecordingState::Idle));
         }
     }
