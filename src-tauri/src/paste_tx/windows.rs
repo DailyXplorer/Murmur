@@ -14,7 +14,7 @@
 //! calling (main) thread once the transcript is published.
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU8, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex, Once};
 use std::time::{Duration, Instant};
 
@@ -146,11 +146,48 @@ fn unicode_text_bytes(text: &str) -> Vec<u8> {
         .collect()
 }
 
+const PUBLICATION_WAITING: u8 = 0;
+const PUBLICATION_STARTED: u8 = 1;
+const PUBLICATION_ABANDONED: u8 = 2;
+
+/// The timeout and the worker claim publication atomically. A slow clipboard
+/// read must never publish after the caller has abandoned it. Once publication
+/// starts, its transaction owns recovery even if the acknowledgement is late.
+#[derive(Default)]
+struct PublicationGate(AtomicU8);
+
+impl PublicationGate {
+    fn begin(&self) -> bool {
+        self.0
+            .compare_exchange(
+                PUBLICATION_WAITING,
+                PUBLICATION_STARTED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+    }
+
+    /// True when publication has not started and can no longer start.
+    fn abandon_before_publication(&self) -> bool {
+        matches!(
+            self.0.compare_exchange(
+                PUBLICATION_WAITING,
+                PUBLICATION_ABANDONED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ),
+            Ok(_) | Err(PUBLICATION_ABANDONED)
+        )
+    }
+}
+
 /// One paste transaction, shared by the paste caller and the window that
 /// owns the clipboard. The window procedure can run inside our own clipboard
 /// calls (`EmptyClipboard` sends `WM_DESTROYCLIPBOARD`), so each field locks
 /// on its own and no lock is held across a clipboard call.
 struct Transaction {
+    publication: PublicationGate,
     state: Mutex<TxState>,
     transcript: String,
     /// ClipboardHandling::CopyToClipboard settles by leaving the transcript
@@ -169,6 +206,7 @@ struct Transaction {
 impl Transaction {
     fn new(transcript: &str, preserve_transcript: bool) -> Self {
         Self {
+            publication: PublicationGate::default(),
             state: Mutex::new(TxState::new()),
             transcript: transcript.to_string(),
             preserve_transcript,
@@ -196,15 +234,19 @@ impl Transaction {
     }
 }
 
-/// The transaction currently holding the clipboard, if any. A new paste
+/// The transaction preparing or holding the clipboard, if any. A new paste
 /// settles it before publishing its own transcript (see `flush_pending`).
 static PENDING: Mutex<Option<Arc<Transaction>>> = Mutex::new(None);
 
+fn clear_pending(candidate: &Arc<Transaction>) {
+    let mut pending = lock(&PENDING);
+    if same_pending(pending.as_ref(), candidate) {
+        *pending = None;
+    }
+}
+
 fn is_current_pending(candidate: &Arc<Transaction>) -> bool {
-    PENDING
-        .lock()
-        .map(|slot| same_pending(slot.as_ref(), candidate))
-        .unwrap_or(false)
+    same_pending(lock(&PENDING).as_ref(), candidate)
 }
 
 /// Opens the clipboard for `window`, runs `body`, and closes it on every path.
@@ -316,21 +358,38 @@ fn capture_and_publish(window: HWND, transaction: &Transaction) -> Result<(), St
         } else {
             capture_with(clipboard_formats(), CAPTURE_BUDGET, read_format)
         };
-        if let Err(limit) = &previous {
-            info!("[reliable-paste] previous clipboard not saved ({limit:?} budget exceeded); it will be erased after the paste");
-        }
-        let published = publish_promise();
-        if published.is_err() {
-            // EmptyClipboard may have run: put back what was saved.
-            if let Ok(saved) = &previous {
-                for format in saved {
-                    write_format(format.format, &format.data);
-                }
+        publish_captured(transaction, previous, publish_promise, |format| {
+            write_format(format.format, &format.data);
+        })
+    })?
+}
+
+/// Runs after the potentially uninterruptible capture, immediately before the
+/// first clipboard mutation. The atomic gate needs no lock across clipboard
+/// calls, which can re-enter the window procedure.
+fn publish_captured(
+    transaction: &Transaction,
+    previous: Result<Vec<SavedFormat>, CaptureLimit>,
+    publish: impl FnOnce() -> Result<(), String>,
+    mut restore: impl FnMut(&SavedFormat),
+) -> Result<(), String> {
+    if !transaction.publication.begin() {
+        return Err("the clipboard transaction was abandoned before publication".to_string());
+    }
+    if let Err(limit) = &previous {
+        info!("[reliable-paste] previous clipboard not saved ({limit:?} budget exceeded); it will be erased after the paste");
+    }
+    let published = publish();
+    if published.is_err() {
+        // EmptyClipboard may have run: put back what was saved.
+        if let Ok(saved) = &previous {
+            for format in saved {
+                restore(format);
             }
         }
-        *lock(&transaction.previous) = previous;
-        published
-    })?
+    }
+    *lock(&transaction.previous) = previous;
+    published
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -512,6 +571,7 @@ fn transaction_thread(transaction: Arc<Transaction>, ready: mpsc::Sender<Result<
         Err(e) => {
             let _ = ready.send(Err(e));
             transaction.finish();
+            clear_pending(&transaction);
             return;
         }
     };
@@ -528,7 +588,11 @@ fn transaction_thread(transaction: Arc<Transaction>, ready: mpsc::Sender<Result<
             lock(&transaction.state).published_at = Instant::now();
             // SAFETY: the timer belongs to this thread's window.
             unsafe { SetTimer(Some(window), TIMER_ID, TIMER_INTERVAL_MS, None) };
-            let _ = ready.send(Ok(()));
+            if ready.send(Ok(())).is_err() {
+                // The caller did not receive a publication receipt, so no
+                // paste chord was sent. Never restore over its recovery text.
+                lock(&transaction.state).injection_failed = true;
+            }
             let mut message = MSG::default();
             // SAFETY: a standard message loop for this thread's window.
             while unsafe { GetMessageW(&mut message, None, 0, 0) }.0 > 0 {
@@ -548,26 +612,58 @@ fn transaction_thread(transaction: Arc<Transaction>, ready: mpsc::Sender<Result<
         drop(Arc::from_raw(raw));
     }
     transaction.finish();
+    clear_pending(&transaction);
 }
 
-/// Starts a transaction and waits until its transcript is on the clipboard.
-fn publish(text: &str, preserve_transcript: bool) -> Result<Arc<Transaction>, String> {
+enum PublicationReceipt {
+    Published(Arc<Transaction>),
+    /// Publication won the timeout race, but was not acknowledged in time.
+    /// It is tracked and kept for recovery; never inject a chord for it.
+    Retained,
+}
+
+fn wait_for_publication(
+    transaction: Arc<Transaction>,
+    published: mpsc::Receiver<Result<(), String>>,
+    wait: Duration,
+) -> Result<PublicationReceipt, String> {
+    match published.recv_timeout(wait) {
+        Ok(Ok(())) => Ok(PublicationReceipt::Published(transaction)),
+        Ok(Err(e)) => Err(e),
+        Err(_) if transaction.publication.abandon_before_publication() => {
+            Err("the clipboard transaction did not publish in time".to_string())
+        }
+        Err(_) => {
+            // The native mutation already won. Returning an ordinary error
+            // would orphan it, and injecting now could paste the old value.
+            // Keep it tracked and mark it non-injected before returning.
+            lock(&transaction.state).injection_failed = true;
+            Ok(PublicationReceipt::Retained)
+        }
+    }
+}
+
+/// Starts a tracked transaction and waits until its transcript is published.
+fn publish(text: &str, preserve_transcript: bool) -> Result<PublicationReceipt, String> {
     let transaction = Arc::new(Transaction::new(text, preserve_transcript));
     let (ready, published) = mpsc::channel();
     let for_thread = transaction.clone();
-    std::thread::Builder::new()
+    *lock(&PENDING) = Some(transaction.clone());
+    if let Err(e) = std::thread::Builder::new()
         .name("paste-transaction".into())
         .spawn(move || transaction_thread(for_thread, ready))
-        .map_err(|e| format!("could not start the clipboard transaction: {e}"))?;
-    match published.recv_timeout(PUBLISH_WAIT) {
-        Ok(Ok(())) => Ok(transaction),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err("the clipboard transaction did not publish in time".to_string()),
+    {
+        clear_pending(&transaction);
+        return Err(format!("could not start the clipboard transaction: {e}"));
     }
+    wait_for_publication(transaction, published, PUBLISH_WAIT)
 }
 
 /// Asks a transaction to settle now and waits, bounded, until it has.
 fn settle_now(transaction: &Transaction) {
+    // A flush or shutdown can arrive before the owner window exists. Stop
+    // that worker from publishing after the caller has moved on.
+    transaction.publication.abandon_before_publication();
     let window = HWND(transaction.window.load(Ordering::SeqCst) as *mut c_void);
     if window.is_invalid() {
         return;
@@ -583,7 +679,7 @@ fn settle_now(transaction: &Transaction) {
 /// If a previous transaction is still holding the clipboard, settle it before
 /// publishing a new transcript or before the app exits.
 pub(super) fn flush_pending() {
-    let previous = PENDING.lock().ok().and_then(|mut slot| slot.take());
+    let previous = lock(&PENDING).take();
     if let Some(previous) = previous {
         settle_now(&previous);
     }
@@ -675,7 +771,11 @@ pub(super) fn run(
         text,
         clipboard_handling == ClipboardHandling::CopyToClipboard,
     ) {
-        Ok(transaction) => transaction,
+        Ok(PublicationReceipt::Published(transaction)) => transaction,
+        Ok(PublicationReceipt::Retained) => {
+            info!("[reliable-paste] late publication retained without a paste chord");
+            return ReliablePasteOutcome::Skipped;
+        }
         Err(e) => {
             error!("[reliable-paste] {e}");
             return ReliablePasteOutcome::Skipped;
@@ -704,10 +804,6 @@ pub(super) fn run(
         }
     };
 
-    if let Ok(mut slot) = PENDING.lock() {
-        *slot = Some(transaction.clone());
-    }
-
     match release {
         Some(release) => ReliablePasteOutcome::Injected(ReliablePasteReceipt {
             pending: transaction,
@@ -722,6 +818,121 @@ pub(super) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_capture_finishing_after_timeout_never_publishes_over_a_new_copy() {
+        let transaction = Arc::new(Transaction::new("old transcript", false));
+        let clipboard = Arc::new(Mutex::new("original copy".to_string()));
+        let (capturing, captured) = mpsc::channel();
+        let (resume, resumed) = mpsc::channel();
+        let worker_transaction = transaction.clone();
+        let worker_clipboard = clipboard.clone();
+        let worker = std::thread::spawn(move || {
+            // The native renderer can block at this point with the clipboard
+            // open. No timer or sleep is needed to force that interleaving.
+            capturing.send(()).unwrap();
+            resumed.recv().unwrap();
+            publish_captured(
+                &worker_transaction,
+                Ok(Vec::new()),
+                || {
+                    *lock(&worker_clipboard) = "old transcript".to_string();
+                    Ok(())
+                },
+                |_| panic!("an abandoned capture must not restore anything"),
+            )
+        });
+        captured.recv().unwrap();
+        let (_ready, published) = mpsc::channel();
+        assert!(wait_for_publication(transaction, published, Duration::ZERO).is_err());
+        *lock(&clipboard) = "new user copy".to_string();
+        resume.send(()).unwrap();
+        assert!(worker.join().unwrap().is_err());
+        assert_eq!(*lock(&clipboard), "new user copy");
+    }
+
+    #[test]
+    fn publication_winning_the_timeout_is_retained_without_injection() {
+        let transaction = Arc::new(Transaction::new("transcript", false));
+        let (publishing, started) = mpsc::channel();
+        let (resume, resumed) = mpsc::channel();
+        let (ready, published) = mpsc::channel();
+        let worker_transaction = transaction.clone();
+        let worker = std::thread::spawn(move || {
+            let result = publish_captured(
+                &worker_transaction,
+                Ok(Vec::new()),
+                || {
+                    publishing.send(()).unwrap();
+                    resumed.recv().unwrap();
+                    Ok(())
+                },
+                |_| panic!("publication succeeded"),
+            );
+            assert!(result.is_ok());
+            assert!(ready.send(Ok(())).is_err(), "the caller has moved on");
+        });
+        started.recv().unwrap();
+        assert!(matches!(
+            wait_for_publication(transaction.clone(), published, Duration::ZERO),
+            Ok(PublicationReceipt::Retained)
+        ));
+        assert!(lock(&transaction.state).injection_failed);
+        assert!(lock(&transaction.state).injected_at.is_none());
+        resume.send(()).unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn an_acknowledged_publication_still_allows_the_normal_paste() {
+        let transaction = Arc::new(Transaction::new("transcript", false));
+        publish_captured(&transaction, Ok(Vec::new()), || Ok(()), |_| {}).unwrap();
+        let (ready, published) = mpsc::channel();
+        ready.send(Ok(())).unwrap();
+        let received = wait_for_publication(transaction.clone(), published, Duration::ZERO);
+        let Ok(PublicationReceipt::Published(received)) = received else {
+            panic!("the published transcript must be acknowledged");
+        };
+        assert!(Arc::ptr_eq(&received, &transaction));
+        assert!(!lock(&transaction.state).injection_failed);
+    }
+
+    #[test]
+    fn settling_before_the_window_exists_prevents_later_publication() {
+        let transaction = Transaction::new("transcript", false);
+        settle_now(&transaction);
+        assert!(publish_captured(
+            &transaction,
+            Ok(Vec::new()),
+            || panic!("a settled pending transaction must not publish"),
+            |_| panic!("a settled pending transaction must not restore"),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn a_native_publication_error_restores_the_captured_copy() {
+        let transaction = Transaction::new("transcript", false);
+        let clipboard = Arc::new(Mutex::new("original copy".to_string()));
+        let to_clear = clipboard.clone();
+        let to_restore = clipboard.clone();
+        let result = publish_captured(
+            &transaction,
+            Ok(vec![SavedFormat {
+                format: 13,
+                data: b"original copy".to_vec(),
+            }]),
+            || {
+                *lock(&to_clear) = String::new();
+                Err("publication refused".to_string())
+            },
+            |format| {
+                *lock(&to_restore) = String::from_utf8(format.data.clone()).unwrap();
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(*lock(&clipboard), "original copy");
+    }
 
     #[test]
     fn only_formats_held_in_plain_memory_are_saved() {
@@ -810,11 +1021,19 @@ mod tests {
     /// is rendered on read, then the user's clipboard comes back.
     #[test]
     fn a_paste_renders_the_transcript_then_restores_the_previous_clipboard() {
-        let previous = publish("copied by the user", true).expect("publish the first text");
+        let PublicationReceipt::Published(previous) =
+            publish("copied by the user", true).expect("publish the first text")
+        else {
+            panic!("the first publication was not acknowledged");
+        };
         settle_now(&previous);
         assert_eq!(read_clipboard_text().as_deref(), Some("copied by the user"));
 
-        let transaction = publish("dictated transcript", false).expect("publish the transcript");
+        let PublicationReceipt::Published(transaction) =
+            publish("dictated transcript", false).expect("publish the transcript")
+        else {
+            panic!("the transcript publication was not acknowledged");
+        };
         assert!(lock(&transaction.previous)
             .as_ref()
             .is_ok_and(|saved| !saved.is_empty()));
