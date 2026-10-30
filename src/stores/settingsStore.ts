@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppSettings as Settings,
   AudioDevice,
+  BindingResponse,
+  ShortcutBinding,
   DictationStyle,
   Engine,
   MeetingAudioRetention,
@@ -67,12 +69,14 @@ interface SettingsChangedListenerLifecycleOptions {
     handler: (event: SettingsChangedEvent) => void,
   ) => Promise<SettingsChangedUnlisten>;
   onSettingsChanged: (event: SettingsChangedEvent) => void;
+  onReconnected?: () => void;
 }
 
 export const createSettingsChangedListenerLifecycle = ({
   previousCleanup = Promise.resolve(),
   listen: registerListener,
   onSettingsChanged,
+  onReconnected,
 }: SettingsChangedListenerLifecycleOptions) => {
   let registered = false;
   let unlisten: SettingsChangedUnlisten | null = null;
@@ -125,7 +129,9 @@ export const createSettingsChangedListenerLifecycle = ({
     registrationAttempts += 1;
     const activeRegistration = (async () => {
       try {
-        const listenerUnlisten = await registerListener(onSettingsChanged);
+        const listenerUnlisten = await registerListener((event) => {
+          if (!disposed) onSettingsChanged(event);
+        });
 
         if (disposed) {
           await unregister(listenerUnlisten);
@@ -134,7 +140,10 @@ export const createSettingsChangedListenerLifecycle = ({
 
         unlisten = listenerUnlisten;
         registered = true;
+        const reconnected = registrationAttempts > 1;
         registrationAttempts = 0;
+        // An event may have been missed while registration was unavailable.
+        if (reconnected) onReconnected?.();
       } catch (error) {
         console.error("Failed to register settings listener:", error);
         scheduleRetry();
@@ -190,8 +199,11 @@ const settingsChangedListenerLifecycle = createSettingsChangedListenerLifecycle(
     previousCleanup: previousSettingsChangedListenerCleanup,
     listen: (handler) =>
       listen<{ setting?: string }>("settings-changed", handler),
+    onReconnected: () => {
+      void useSettingsStore.getState().refreshSettings();
+    },
     onSettingsChanged: (event) => {
-      useSettingsStore.getState().refreshSettings();
+      void useSettingsStore.getState().refreshSettings();
       if (event.payload.setting === "selected_microphone") {
         useSettingsStore.getState().refreshAudioDevices();
       }
@@ -315,10 +327,96 @@ interface SettingWriteState {
   tail: Promise<void>;
 }
 
+interface BindingWriteState {
+  committedBinding: ShortcutBinding | undefined;
+  latestRevision: number;
+  pendingCount: number;
+  tail: Promise<void>;
+}
+
 const MAX_SETTINGS_REFRESH_ATTEMPTS = 3;
+const bindingWriteStates = new Map<string, BindingWriteState>();
+let bindingWriteTail = Promise.resolve();
 const settingWriteStates = new Map<keyof Settings, SettingWriteState>();
 let settingsRefreshRevision = 0;
 let settingsWriteRevision = 0;
+
+/** Binding commands share a queue, including resets: Rust checks conflicts
+ * across binding IDs. Refreshes wait for them just like ordinary settings. */
+const writeBinding = (
+  id: string,
+  proposedBinding: string | undefined,
+  command: () => Promise<Result<BindingResponse, string>>,
+): Promise<void> => {
+  const { settings, setUpdating } = useSettingsStore.getState();
+  const updateKey = `binding_${id}`;
+  settingsWriteRevision += 1;
+  let writeState = bindingWriteStates.get(id);
+  if (!writeState) {
+    writeState = {
+      committedBinding: settings?.bindings?.[id],
+      latestRevision: 0,
+      pendingCount: 0,
+      tail: Promise.resolve(),
+    };
+    bindingWriteStates.set(id, writeState);
+  }
+  const revision = ++writeState.latestRevision;
+  writeState.pendingCount += 1;
+
+  const publish = (binding: ShortcutBinding | undefined) => {
+    useSettingsStore.setState((state) => {
+      if (!state.settings) return {};
+      const bindings = { ...state.settings.bindings };
+      if (binding) bindings[id] = binding;
+      else delete bindings[id];
+      return { settings: { ...state.settings, bindings } };
+    });
+  };
+
+  setUpdating(updateKey, true);
+  const current = settings?.bindings?.[id];
+  if (current && proposedBinding !== undefined) {
+    publish({ ...current, current_binding: proposedBinding });
+  }
+
+  const operation = bindingWriteTail.then(async () => {
+    try {
+      const result = await command();
+      if (result.status === "error") throw new Error(result.error);
+      if (!result.data.success || !result.data.binding) {
+        throw new Error(result.data.error || "Failed to update binding");
+      }
+      writeState.committedBinding = result.data.binding;
+      if (revision === writeState.latestRevision) {
+        // The backend owns the accepted spelling and metadata, not the
+        // optimistic proposal (especially for reset).
+        publish(result.data.binding);
+      }
+    } catch (error) {
+      if (revision === writeState.latestRevision) {
+        publish(writeState.committedBinding);
+      }
+      throw error;
+    } finally {
+      writeState.pendingCount -= 1;
+      if (revision === writeState.latestRevision) setUpdating(updateKey, false);
+      if (
+        writeState.pendingCount === 0 &&
+        bindingWriteStates.get(id) === writeState
+      ) {
+        bindingWriteStates.delete(id);
+      }
+    }
+  });
+  // A refusal must not poison later changes or a refresh waiting on them.
+  bindingWriteTail = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+  writeState.tail = bindingWriteTail;
+  return operation;
+};
 
 export const useSettingsStore = create<SettingsStore>()(
   subscribeWithSelector((set, get) => ({
@@ -353,13 +451,15 @@ export const useSettingsStore = create<SettingsStore>()(
           attempt < MAX_SETTINGS_REFRESH_ATTEMPTS;
           attempt++
         ) {
-          const activeWrites = [...settingWriteStates.values()].map(
-            (writeState) => writeState.tail,
-          );
+          const activeWrites = [
+            ...settingWriteStates.values(),
+            ...bindingWriteStates.values(),
+          ].map((writeState) => writeState.tail);
           await Promise.all(activeWrites);
 
           if (refreshRevision !== settingsRefreshRevision) return;
-          if (settingWriteStates.size > 0) continue;
+          if (settingWriteStates.size > 0 || bindingWriteStates.size > 0)
+            continue;
 
           const revisionBeforeRequest = settingsWriteRevision;
           const result = await commands.getAppSettings();
@@ -372,7 +472,8 @@ export const useSettingsStore = create<SettingsStore>()(
 
           if (
             revisionBeforeRequest !== settingsWriteRevision ||
-            settingWriteStates.size > 0
+            settingWriteStates.size > 0 ||
+            bindingWriteStates.size > 0
           ) {
             continue;
           }
@@ -540,76 +641,25 @@ export const useSettingsStore = create<SettingsStore>()(
     },
 
     updateBinding: async (id, binding) => {
-      const { settings, setUpdating } = get();
-      const updateKey = `binding_${id}`;
-      const originalBinding = settings?.bindings?.[id]?.current_binding;
-
-      setUpdating(updateKey, true);
-
       try {
-        set((state) => ({
-          settings: state.settings
-            ? {
-                ...state.settings,
-                bindings: {
-                  ...state.settings.bindings,
-                  [id]: {
-                    ...state.settings.bindings?.[id]!,
-                    current_binding: binding,
-                  },
-                },
-              }
-            : null,
-        }));
-
-        const result = await commands.changeBinding(id, binding);
-
-        if (result.status === "error") {
-          throw new Error(result.error);
-        }
-
-        if (!result.data.success) {
-          throw new Error(result.data.error || "Failed to update binding");
-        }
+        await writeBinding(id, binding, () =>
+          commands.changeBinding(id, binding),
+        );
       } catch (error) {
         console.error(`Failed to update binding ${id}:`, error);
-
-        if (originalBinding && get().settings) {
-          set((state) => ({
-            settings: state.settings
-              ? {
-                  ...state.settings,
-                  bindings: {
-                    ...state.settings.bindings,
-                    [id]: {
-                      ...state.settings.bindings?.[id]!,
-                      current_binding: originalBinding,
-                    },
-                  },
-                }
-              : null,
-          }));
-        }
-
         throw error;
-      } finally {
-        setUpdating(updateKey, false);
       }
     },
 
     resetBinding: async (id) => {
-      const { setUpdating, refreshSettings } = get();
-      const updateKey = `binding_${id}`;
-
-      setUpdating(updateKey, true);
-
       try {
-        await commands.resetBinding(id);
-        await refreshSettings();
+        await writeBinding(
+          id,
+          get().defaultSettings?.bindings?.[id]?.default_binding,
+          () => commands.resetBinding(id),
+        );
       } catch (error) {
         console.error(`Failed to reset binding ${id}:`, error);
-      } finally {
-        setUpdating(updateKey, false);
       }
     },
 
@@ -639,13 +689,14 @@ export const useSettingsStore = create<SettingsStore>()(
         // is responsible for calling refreshAudioDevices/refreshOutputDevices
         // after onboarding completes. This avoids triggering permission dialogs
         // on macOS before the user is ready.
+        // Subscribe before taking the snapshot: an event during any of
+        // these reads must not disappear in the initialization gap.
+        await settingsChangedListenerLifecycle.initialize();
         await Promise.all([
           loadDefaultSettings(),
           refreshSettings(),
           checkCustomSounds(),
         ]);
-
-        await settingsChangedListenerLifecycle.initialize();
       })().finally(() => {
         initializationPromise = null;
       });

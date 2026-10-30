@@ -82,7 +82,7 @@ test("handles settings listener registration failures", async ({ page }) => {
       customSounds: 1,
       defaultSettings: 1,
       listeners: 2,
-      settings: 1,
+      settings: 2,
       unhandledRejections: 0,
     });
 
@@ -94,7 +94,7 @@ test("handles settings listener registration failures", async ({ page }) => {
       customSounds: 1,
       defaultSettings: 1,
       listeners: 2,
-      settings: 2,
+      settings: 3,
       unhandledRejections: 0,
     });
 });
