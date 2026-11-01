@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartBarIcon } from "@phosphor-icons/react/dist/csr/ChartBar";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ClockCounterClockwise";
@@ -12,17 +12,31 @@ import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import type { AppSettings } from "@/bindings";
 import { isWindows } from "@/lib/platform";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
-import { MeetingsPage } from "./meetings/MeetingsPage";
 import { useSettings } from "../hooks/useSettings";
 import {
   GeneralSettings,
   AdvancedSettings,
-  HistorySettings,
-  InsightsSettings,
   DebugSettings,
   AboutSettings,
   TranscriptionSettings,
 } from "./settings";
+
+// Loaded on first open: the window paints General without them.
+const HistorySettings = lazy(() =>
+  import("./settings/history/HistorySettings").then((module) => ({
+    default: module.HistorySettings,
+  })),
+);
+const MeetingsPage = lazy(() =>
+  import("./meetings/MeetingsPage").then((module) => ({
+    default: module.MeetingsPage,
+  })),
+);
+const InsightsSettings = lazy(() =>
+  import("./settings/insights/InsightsSettings").then((module) => ({
+    default: module.InsightsSettings,
+  })),
+);
 
 interface SectionConfig {
   labelKey: string;

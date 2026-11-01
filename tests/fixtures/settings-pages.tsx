@@ -132,6 +132,12 @@ const updateAvailable = params.get("update") === "1";
 /** `missedUpdate=1`: a check finds a new version the footer never heard of. */
 const missedUpdate = params.get("missedUpdate") === "1";
 let updateWithdrawn = false;
+/** `pending=check_updates,…`: what happened while the window was closed. */
+const pendingMainActions = new Set(
+  params.get("pending")?.split(",").filter(Boolean) ?? [],
+);
+/** `lastSection=history`: the section a closed window showed last. */
+const lastSection = params.get("lastSection");
 const UPDATE = {
   body: "",
   currentVersion: "1.3.7",
@@ -685,6 +691,7 @@ const switchIfAsked = () => {
   SETTINGS.switch_to_local_when_ready = false;
   SETTINGS.transcription_engine = "local";
   void emit("settings-changed", { setting: "transcription_engine" });
+  pendingMainActions.add("switched_to_local");
   void events.switchedToLocal.emit({});
 };
 
@@ -839,6 +846,10 @@ const RESPONSES: Record<string, unknown> = {
   get_shortcut_registration_errors: {},
   initialize_enigo: null,
   initialize_shortcuts: null,
+  report_settings_view: null,
+  get_last_settings_section: lastSection,
+  hold_settings_window: null,
+  release_settings_window: null,
   is_laptop: true,
   "plugin:app|version": "1.3.7",
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
@@ -952,6 +963,9 @@ mockIPC(
     if (command === "plugin:updater|check" && updateWithdrawn) return null;
     if (command === "check_for_updates" && updateWithdrawn) {
       return { available: null };
+    }
+    if (command === "take_main_action") {
+      return pendingMainActions.delete((args as { action: string }).action);
     }
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;

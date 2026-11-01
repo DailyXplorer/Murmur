@@ -20,7 +20,9 @@ use std::cell::RefCell;
 #[cfg(target_os = "macos")]
 use std::ptr::NonNull;
 #[cfg(target_os = "macos")]
-use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelBuilder, PanelLevel, StyleMask};
+use tauri_nspanel::{
+    tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
+};
 
 #[cfg(target_os = "macos")]
 tauri_panel! {
@@ -700,9 +702,10 @@ pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
 }
 
 /// Creates the call prompt's panel, hidden. It takes clicks whenever it
-/// shows. Windows has no call detection, so no call prompt.
+/// shows. It only lives while a prompt shows. Windows has no call detection,
+/// so no call prompt.
 #[cfg(target_os = "macos")]
-pub fn create_call_prompt(app_handle: &AppHandle) {
+fn create_call_prompt(app_handle: &AppHandle) {
     if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
         .url(WebviewUrl::App("src/overlay/call.html".into()))
         .title("Call")
@@ -750,6 +753,11 @@ pub fn show_call_prompt(app_handle: &AppHandle) {
     *call_prompt() = Some(labels.clone());
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        // A page built here asks for the labels once it listens.
+        #[cfg(target_os = "macos")]
+        if handle.get_webview_window(CALL_PROMPT_WINDOW).is_none() {
+            create_call_prompt(&handle);
+        }
         let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
             return;
         };
@@ -763,9 +771,15 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
     *call_prompt() = None;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        // The panel store holds the panel too: both go, or its web process
+        // stays.
+        #[cfg(target_os = "macos")]
+        drop(handle.remove_webview_panel(CALL_PROMPT_WINDOW));
         if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
             let _ = window.hide();
-            let _ = handle.emit_to(CALL_PROMPT_WINDOW, "hide-overlay-call", ());
+            if let Err(e) = window.destroy() {
+                log::error!("Failed to destroy the call prompt panel: {}", e);
+            }
         }
     });
 }
