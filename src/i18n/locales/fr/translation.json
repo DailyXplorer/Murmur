@@ -374,6 +374,7 @@
       "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
       "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement.",
       "cleanupFailed": "Le nettoyage IA était indisponible : la transcription brute a été collée.",
+      "shortDictation": "Dictée courte : collée tout de suite, sans nettoyage IA.",
       "showOriginal": "Afficher la transcription d’origine",
       "hideOriginal": "Masquer la transcription d’origine",
       "fallback": {
@@ -506,6 +507,10 @@
         "title": "Nettoyage et mise en forme",
         "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
+      },
+      "cleanupShortDictations": {
+        "title": "Nettoyer aussi les dictées courtes",
+        "description": "Les dictées de moins de 20 mots sont collées tout de suite, sans nettoyage IA."
       },
       "style": {
         "title": "Style de dictée",

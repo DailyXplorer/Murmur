@@ -634,6 +634,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cleanup::change_dictation_style_setting,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
+            commands::cleanup::change_cleanup_short_dictations_setting,
             shortcut::change_app_language_setting,
             shortcut::change_update_checks_setting,
             shortcut::change_show_whats_new_on_update_setting,

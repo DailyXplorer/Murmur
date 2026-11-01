@@ -90,7 +90,11 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
+**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → text passes (`audio_toolkit/text_passes/`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
+
+**Text passes:** deterministic fixes on every dictation, English and French only. They run only when the language is known: the dictation setting when it is `en*` or `fr*`, in `auto` a stopword vote on the text (at least 3 hits and twice the other language), otherwise not at all, since fillers are real words elsewhere ("um" in Portuguese, "er" in German). `before_cleanup` (fillers, spoken line breaks) runs before cleanup; `raw_only` (spoken punctuation) runs only on text cleanup did not edit (off, skipped, failed), because cleanup reads those words in context ("trois virgule cinq"). A command never follows a determiner ("a new line of products"). Meetings do not use them. There is no switch; a new language comes in its own pull request with its own must-not-change corpus.
+
+**Short dictations:** a dictation under 20 words (UAX #29 word count, so Chinese or Japanese count per word) skips the default AI cleanup and is pasted at once, recorded in History as `CleanupOutcome::ShortDictation` without a raw text, and logged as `AI cleanup skipped: short dictation ({n} words)`. Cleanup still runs on it when `cleanup_short_dictations` is on or the user chose a transformation: today only a Formal or Casual `dictation_style` (`actions.rs`, `cleanup_plan`). A future user-chosen transformation (custom prompt, translation, per-app prompt) must keep cleanup on short dictations too.
 
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
 

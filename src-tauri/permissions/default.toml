@@ -38,6 +38,7 @@ permissions = [
   "allow-change-dictation-style-setting",
   "allow-change-window-names-setting",
   "allow-change-whisper-mode-setting",
+  "allow-change-cleanup-short-dictations-setting",
   "allow-change-app-language-setting",
   "allow-change-update-checks-setting",
   "allow-change-show-whats-new-on-update-setting",
