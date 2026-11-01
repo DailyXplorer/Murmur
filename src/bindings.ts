@@ -292,6 +292,14 @@ async changeWhisperModeSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: String(e) };
 }
 },
+async changeCleanupShortDictationsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_short_dictations_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeAppLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_app_language_setting", { language }) };
@@ -1134,7 +1142,12 @@ local_model_download_wanted?: boolean;
  * The user asked to dictate on this Mac as soon as the local model is
  * ready.
  */
-switch_to_local_when_ready?: boolean }
+switch_to_local_when_ready?: boolean; 
+/**
+ * Also send dictations under 20 words to the default AI cleanup. Off:
+ * they are pasted right away.
+ */
+cleanup_short_dictations?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1174,7 +1187,11 @@ export type CleanupOutcome = "cleaned" |
 /**
  * Cleanup was attempted and the raw transcript was used instead.
  */
-"failed"
+"failed" | 
+/**
+ * Too short for the default cleanup to be worth the wait: pasted as is.
+ */
+"short_dictation"
 export type ClipboardHandling = 
 /**
  * Put the user's previous clipboard back after a bounded paste window,

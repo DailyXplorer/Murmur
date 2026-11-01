@@ -624,6 +624,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           {t("settings.history.cleanupFailed")}
         </p>
       )}
+      {!retrying && entry.cleanup === "short_dictation" && (
+        <p className="-mt-3 text-xs text-text/50">
+          {t("settings.history.shortDictation")}
+        </p>
+      )}
       {!retrying && original && (
         <div className="-mt-3 flex flex-col gap-1">
           <button
