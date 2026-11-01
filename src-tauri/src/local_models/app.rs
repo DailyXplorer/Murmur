@@ -15,6 +15,7 @@ use super::{
 };
 use crate::meetings::helper::{self, Ended};
 use crate::settings::{get_settings, update_settings};
+use crate::settings_window::{self, MainAction};
 use crate::ProcessingOperation;
 
 /// The first Core ML load takes about 15 s; this leaves room for a slow Mac.
@@ -90,6 +91,8 @@ pub fn switch_if_asked(app: &AppHandle, model_ready: bool) {
         "settings-changed",
         serde_json::json!({"setting": "transcription_engine"}),
     );
+    // Kept for a settings window that is closed now, which tells it on open.
+    settings_window::queue(app, MainAction::SwitchedToLocal);
     if let Err(error) = (SwitchedToLocal {}).emit(app) {
         log::error!("Failed to emit the switch to the local engine: {error}");
     }

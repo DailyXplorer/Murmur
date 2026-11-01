@@ -250,11 +250,12 @@ test("History entry actions match the meeting header toolbar", async ({
   page,
 }) => {
   await openSection(page, "History");
-  const entryActions = page
+  const copy = page
     .getByRole("button", { name: "Copy transcription to clipboard" })
-    .first()
-    .locator("xpath=..")
-    .getByRole("button");
+    .first();
+  // History loads its code on first open.
+  await expect(copy).toBeVisible();
+  const entryActions = copy.locator("xpath=..").getByRole("button");
   const history = await toolbarSpacing(entryActions);
 
   await openSection(page, "Meetings", "?meetings=1");
