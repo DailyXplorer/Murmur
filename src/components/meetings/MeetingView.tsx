@@ -17,6 +17,7 @@ import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { AudioRow } from "./AudioRow";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
 import { SummaryTab } from "./SummaryTab";
+import type { InitialTextSearch } from "./TabHeaderBar";
 import { TranscriptTab } from "./TranscriptTab";
 
 type Tab = "summary" | "transcript";
@@ -314,9 +315,16 @@ const SystemAudioNotice: React.FC = () => {
 interface MeetingViewProps {
   id: number;
   onBack: () => void;
+  /** The transcript search to open with, its items being the turns. A
+   * matching turn opens the Transcript tab first. */
+  initialSearch?: InitialTextSearch;
 }
 
-export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
+export const MeetingView: React.FC<MeetingViewProps> = ({
+  id,
+  onBack,
+  initialSearch,
+}) => {
   const { t, i18n } = useTranslation();
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [failed, setFailed] = useState(false);
@@ -428,7 +436,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     date: formatMeetingDate(meeting.started_at_ms, i18n.language),
   });
   const tab =
-    chosenTab ?? (meeting.status === "ready" ? "summary" : "transcript");
+    chosenTab ??
+    (meeting.status === "ready" && (initialSearch?.item ?? null) === null
+      ? "summary"
+      : "transcript");
   const hasAudio = meeting.audio !== "deleted";
 
   const retrySummary = async () => {
@@ -508,6 +519,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
             meeting={meeting}
             onRenameSpeaker={(focus) => setRenaming({ focus })}
             onRetry={hasAudio ? () => void retry() : undefined}
+            initialSearch={initialSearch}
           />
         )}
       </div>

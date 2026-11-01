@@ -880,5 +880,14 @@
   "localModelPill": {
     "downloading": "Modell wird geladen… {{percent}} %",
     "preparing": "Modell wird vorbereitet…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Meetings durchsuchen",
+      "history": "Diktate durchsuchen"
+    },
+    "noResults": "Keine Ergebnisse für „{{query}}“",
+    "failed": "Suche fehlgeschlagen. Versuche es erneut.",
+    "clear": "Suche löschen"
   }
 }

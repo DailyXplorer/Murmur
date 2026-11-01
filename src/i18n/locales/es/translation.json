@@ -880,5 +880,14 @@
   "localModelPill": {
     "downloading": "Descargando el modelo… {{percent}} %",
     "preparing": "Preparando el modelo…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Buscar en las reuniones",
+      "history": "Buscar en los dictados"
+    },
+    "noResults": "No hay resultados para «{{query}}»",
+    "failed": "La búsqueda falló. Inténtalo de nuevo.",
+    "clear": "Borrar la búsqueda"
   }
 }

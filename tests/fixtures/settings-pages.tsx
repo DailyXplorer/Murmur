@@ -11,17 +11,21 @@ import type {
   DownloadFailure,
   Engine,
   HistoryEntry,
+  HistoryHit,
   InsightsSummary,
   MeetingDetail,
   LocalModelStatus,
+  MeetingHit,
   MeetingListItem,
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
   ProcessingError,
+  Snippet,
   SpeakerAnalysis,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
+import { findMatches } from "../../src/lib/meetings/search";
 
 declare global {
   interface Window {
@@ -534,6 +538,11 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
 });
 const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
 
+const snippetOf = (text: string, query: string): Snippet => ({
+  text,
+  ranges: findMatches(text, query),
+});
+
 /** Commands whose answer depends on their arguments or changes the data. */
 let meetingLoadsHeld: Promise<void> | null = null;
 let releaseMeetingLoads = () => {};
@@ -592,6 +601,29 @@ const handleMeetingCommand = (
     case "delete_meeting_audio":
       if (meeting) Object.assign(meeting, { audio: "deleted", audio_bytes: 0 });
       return { handled: true, value: null };
+    case "search_meetings": {
+      // Titles and turns holding the query, newest meeting first.
+      const query = String(args.query);
+      const hits: MeetingHit[] = MEETINGS.flatMap((item) => {
+        const title = item.title ? snippetOf(item.title, query) : null;
+        const turns = (DETAILS.get(item.id)?.turns ?? [])
+          .map((turn, seq) => ({ seq, snippet: snippetOf(turn.text, query) }))
+          .filter(({ snippet }) => snippet.ranges.length > 0);
+        if (!title?.ranges.length && turns.length === 0) return [];
+        return [
+          {
+            duration_ms: item.duration_ms,
+            first_turn_seq: turns[0]?.seq ?? null,
+            id: item.id,
+            snippets: turns.slice(0, 2).map(({ snippet }) => snippet),
+            started_at_ms: item.started_at_ms,
+            status: item.status,
+            title,
+          },
+        ];
+      });
+      return { handled: true, value: hits };
+    }
     default:
       return { handled: false };
   }
@@ -839,6 +871,13 @@ mockIPC(
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;
       return Promise.reject("database disk image is malformed");
+    }
+    if (command === "search_history") {
+      const query = String((args as { query: string }).query);
+      return HISTORY.flatMap((entry): HistoryHit[] => {
+        const ranges = findMatches(entry.transcription_text, query);
+        return ranges.length > 0 ? [{ entry, ranges }] : [];
+      });
     }
     if (command in RESPONSES) return RESPONSES[command];
     if (!window.settingsPages.unhandledCommands.includes(command)) {
