@@ -20,6 +20,7 @@ concurrency:
 jobs:
   rust-tests:
     runs-on: macos-26
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -50,9 +51,20 @@ jobs:
       - name: Test macOS icon generator
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      # One process per test, and a hung test fails after 2 minutes with its
+      # name (.config/nextest.toml). nextest does not run doctests.
       - name: Run Rust tests
         working-directory: src-tauri
-        run: cargo test --locked
+        run: cargo nextest run --locked --profile ci
+
+      - name: Run Rust doctests
+        working-directory: src-tauri
+        run: cargo test --locked --doc
 
       - name: Run Clippy
         working-directory: src-tauri
