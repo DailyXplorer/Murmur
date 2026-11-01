@@ -954,5 +954,14 @@
       "downloading": "Downloading… {{percent}}%. Murmur switches to this PC when it's done.",
       "switched": "Now transcribing on this PC."
     }
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Search meetings",
+      "history": "Search dictations"
+    },
+    "noResults": "No results for “{{query}}”",
+    "failed": "Search failed. Try again.",
+    "clear": "Clear search"
   }
 }

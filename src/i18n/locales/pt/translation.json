@@ -954,5 +954,14 @@
       "downloading": "Baixando… {{percent}}%. O Murmur passa para este PC quando terminar.",
       "switched": "Agora a transcrição é feita neste PC."
     }
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Pesquisar reuniões",
+      "history": "Pesquisar ditados"
+    },
+    "noResults": "Nenhum resultado para “{{query}}”",
+    "failed": "A pesquisa falhou. Tente novamente.",
+    "clear": "Limpar pesquisa"
   }
 }

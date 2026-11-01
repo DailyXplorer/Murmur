@@ -14,6 +14,7 @@ use tauri_specta::Event;
 
 use crate::cleanup::{CleanupOutcome, ProcessedText};
 use crate::engine::{Engine, EngineUsed, FallbackReason};
+use crate::search::{fts_query, Snippet};
 
 pub const RECORDING_UNAVAILABLE_ERROR: &str = "Recording unavailable";
 
@@ -61,6 +62,29 @@ static MIGRATIONS: &[M] = &[
     M::up(
         "ALTER TABLE transcription_history ADD COLUMN engine TEXT NOT NULL DEFAULT 'cloud';
         ALTER TABLE transcription_history ADD COLUMN fallback_reason TEXT;",
+    ),
+    // Search, kept by these triggers only.
+    M::up(
+        "CREATE VIRTUAL TABLE history_fts USING fts5(
+            transcription_text, content='transcription_history', content_rowid='id',
+            tokenize='unicode61 remove_diacritics 2', prefix='2 3'
+        );
+        CREATE TRIGGER history_fts_insert AFTER INSERT ON transcription_history BEGIN
+            INSERT INTO history_fts(rowid, transcription_text)
+            VALUES (new.id, new.transcription_text);
+        END;
+        CREATE TRIGGER history_fts_delete AFTER DELETE ON transcription_history BEGIN
+            INSERT INTO history_fts(history_fts, rowid, transcription_text)
+            VALUES ('delete', old.id, old.transcription_text);
+        END;
+        CREATE TRIGGER history_fts_update AFTER UPDATE OF transcription_text
+        ON transcription_history BEGIN
+            INSERT INTO history_fts(history_fts, rowid, transcription_text)
+            VALUES ('delete', old.id, old.transcription_text);
+            INSERT INTO history_fts(rowid, transcription_text)
+            VALUES (new.id, new.transcription_text);
+        END;
+        INSERT INTO history_fts(history_fts) VALUES ('rebuild');",
     ),
 ];
 
@@ -139,6 +163,14 @@ pub struct HistoryEntry {
     pub engine: Engine,
     /// Set when the engine is not the one the user chose.
     pub fallback_reason: Option<FallbackReason>,
+}
+
+/// A dictation that matched a search.
+#[derive(Clone, Debug, Serialize, Type)]
+pub struct HistoryHit {
+    pub entry: HistoryEntry,
+    /// Where `entry.transcription_text` matched, in UTF-16 units.
+    pub ranges: Vec<(u32, u32)>,
 }
 
 pub struct HistoryManager {
@@ -740,6 +772,40 @@ impl HistoryManager {
         }
 
         Ok(PaginatedHistory { entries, has_more })
+    }
+
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<HistoryHit>> {
+        Self::search_with_conn(&self.get_connection()?, query, limit)
+    }
+
+    /// The dictations whose delivered text matches `query`, most relevant
+    /// first, then newest. Read-only: it works on any connection to
+    /// `history.db`.
+    pub fn search_with_conn(
+        conn: &Connection,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<HistoryHit>> {
+        let Some(fts) = fts_query(query) else {
+            return Ok(Vec::new());
+        };
+        let mut statement = conn.prepare(&format!(
+            "SELECT {ENTRY_COLUMNS}, marked FROM transcription_history
+             JOIN (SELECT rowid AS hit_id, bm25(history_fts) AS score,
+                          highlight(history_fts, 0, char(1), char(2)) AS marked
+                   FROM history_fts WHERE history_fts MATCH ?1)
+               ON id = hit_id
+             ORDER BY score, timestamp DESC LIMIT ?2"
+        ))?;
+        let hits = statement
+            .query_map(params![fts, limit as i64], |row| {
+                Ok(HistoryHit {
+                    entry: Self::map_history_entry(row)?,
+                    ranges: Snippet::from_marked(&row.get::<_, String>("marked")?).ranges,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(hits)
     }
 
     #[cfg(test)]
@@ -1510,7 +1576,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read migrated version");
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
 
         let columns = conn
             .prepare("PRAGMA table_info(transcription_history)")
@@ -1555,7 +1621,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read migrated version");
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
 
         let columns = conn
             .prepare("PRAGMA table_info(transcription_history)")
@@ -1617,6 +1683,86 @@ mod tests {
         let final_version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read final version");
-        assert_eq!(final_version, 7);
+        assert_eq!(final_version, 8);
+    }
+
+    fn history_db() -> (tempfile::TempDir, Connection) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("history.db");
+        init_database(&path).unwrap();
+        let conn = Connection::open(&path).unwrap();
+        (directory, conn)
+    }
+
+    fn dictate(conn: &Connection, timestamp: i64, text: &str) -> i64 {
+        let source = EngineUsed {
+            engine: Engine::Cloud,
+            fallback: None,
+        };
+        let text = ProcessedText::unprocessed(text.to_string());
+        insert_row(conn, "a.wav", timestamp, "t", &text, source).unwrap()
+    }
+
+    fn found(conn: &Connection, query: &str) -> Vec<i64> {
+        HistoryManager::search_with_conn(conn, query, 50)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.entry.id)
+            .collect()
+    }
+
+    #[test]
+    fn history_search_finds_accented_word_without_accent() {
+        let (_directory, conn) = history_db();
+        let id = dictate(&conn, 5, "Prépare la réunion de lundi.");
+        dictate(&conn, 6, "Rien à voir.");
+
+        let hits = HistoryManager::search_with_conn(&conn, "reunion", 50).unwrap();
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].entry.id, id);
+        let text: Vec<u16> = hits[0].entry.transcription_text.encode_utf16().collect();
+        let (start, end) = hits[0].ranges[0];
+        assert_eq!(
+            String::from_utf16(&text[start as usize..end as usize]).unwrap(),
+            "réunion"
+        );
+    }
+
+    #[test]
+    fn history_search_prefix_matches() {
+        let (_directory, conn) = history_db();
+        let older = dictate(&conn, 5, "Send the pricing page.");
+        let newer = dictate(&conn, 9, "The price list is out.");
+        dictate(&conn, 7, "Nothing about money.");
+
+        let mut prefixed = found(&conn, "pric");
+        prefixed.sort();
+        assert_eq!(prefixed, [older, newer]);
+        assert_eq!(found(&conn, "pricing"), [older]);
+        assert!(found(&conn, "pricey").is_empty());
+    }
+
+    #[test]
+    fn retention_delete_removes_dictations_from_search() {
+        let (directory, conn) = history_db();
+        let old = dictate(&conn, 5, "Old budget notes.");
+        let kept = dictate(&conn, 9, "New budget notes.");
+
+        let deleted = HistoryManager::delete_entries_and_files_with_conn(
+            &conn,
+            directory.path(),
+            &[(old, "a.wav".to_string())],
+        )
+        .unwrap();
+
+        assert_eq!(deleted, [old]);
+        assert_eq!(found(&conn, "budget"), [kept]);
+        let indexed: i64 = conn
+            .query_row("SELECT count(*) FROM history_fts_docsize", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(indexed, 1);
     }
 }

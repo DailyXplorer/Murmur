@@ -130,6 +130,10 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Meetings: record a call (Control+Option+Command+M or the menu bar), then
   get a transcript with speakers told apart and a summary with a title. See
   [Meetings](#meetings)
+- Search across every meeting (titles, summaries, transcripts) and every
+  dictation, ignoring case and accents; each word matches as a prefix, and
+  quotes match an exact phrase. Opening a meeting from a result jumps to the
+  first passage that matched
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
