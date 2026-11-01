@@ -237,6 +237,7 @@ const SpeakerNotice: React.FC<{
   const action = (() => {
     switch (state?.state) {
       case "ready":
+      case "optimizing":
         return (
           <Button onClick={onSeparate} disabled={starting}>
             {t("meetings.speakers.separate")}

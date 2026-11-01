@@ -4,6 +4,8 @@
 //! FluidAudio expects, and load once after the download so Core ML compiles
 //! them for this Mac. A marker holding the manifest's id is written last,
 //! so "ready" survives restarts and a half-finished download never counts.
+//! Another records the macOS build they were compiled for: at the first
+//! launch on a new one, ready models compile again in the background.
 //! Models an earlier version downloaded are checked file by file and only
 //! the differing files are fetched again. An optional source (the CTC model
 //! that boosts custom words) is fetched once the others are ready, with a
@@ -35,6 +37,8 @@ const READY_MARKER: &str = ".murmur-ready";
 /// Holds the optional sources' id once their files are all in place.
 const OPTIONAL_MARKER: &str = ".murmur-optional";
 const FLUID_REVISION_MARKER: &str = ".fluidaudio-revision";
+/// The macOS build Core ML last compiled the models for.
+const OS_BUILD_MARKER: &str = ".murmur-os-build";
 /// Progress is sent at most this often.
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 
@@ -54,6 +58,9 @@ pub enum LocalModelState {
     /// once so they are compiled for this Mac.
     Preparing,
     Ready,
+    /// Ready models Core ML compiles again, in the background, for the
+    /// macOS version this Mac now runs.
+    Optimizing,
     Failed {
         reason: DownloadFailure,
     },
@@ -89,6 +96,11 @@ pub trait Host: Send + Sync + 'static {
     fn free_bytes(&self, dir: &Path) -> Option<u64>;
     /// Loads the downloaded models once, offline.
     fn prepare(&self, dir: PathBuf, operation: ProcessingOperation) -> PrepareFuture;
+    /// The macOS build `prepare` compiles the models for, `None` where it
+    /// compiles nothing.
+    fn os_build(&self) -> Option<String> {
+        None
+    }
 }
 
 /// What the models folder holds, by its ready marker.
@@ -160,8 +172,17 @@ impl LocalModels {
         }
     }
 
+    pub fn state(&self) -> LocalModelState {
+        self.state.borrow().clone()
+    }
+
+    /// The models can run. While they are compiled again for this macOS
+    /// build they still can: a load waits for the compile.
     pub fn is_ready(&self) -> bool {
-        *self.state.borrow() == LocalModelState::Ready
+        matches!(
+            *self.state.borrow(),
+            LocalModelState::Ready | LocalModelState::Optimizing
+        )
     }
 
     pub fn subscribe(&self) -> watch::Receiver<LocalModelState> {
@@ -200,26 +221,77 @@ impl LocalModels {
     }
 
     /// At launch: checks models from an earlier version, and resumes a
-    /// download the user asked for before the app quit.
-    /// Ready models get the optional files they lack.
+    /// download the user asked for before the app quit. Ready models are
+    /// compiled again if macOS changed since, then get the optional files
+    /// they lack.
     pub fn resume_on_launch(self: &Arc<Self>, wanted: bool) {
         let state = self.state.borrow().clone();
         match state {
             LocalModelState::Preparing => self.start_download(),
             LocalModelState::Missing if wanted => self.start_download(),
+            LocalModelState::Ready if self.compiled_for_another_build() => self.start_recompile(),
             LocalModelState::Ready => self.start_optional(),
             _ => {}
         }
     }
 
-    /// The state once no download or check is running.
+    /// The models were compiled for another macOS build than this one, or
+    /// before builds were recorded.
+    fn compiled_for_another_build(&self) -> bool {
+        self.host.os_build().is_some_and(|build| {
+            std::fs::read_to_string(self.dir.join(OS_BUILD_MARKER)).ok() != Some(build)
+        })
+    }
+
+    /// Core ML compiles the models again on their first load after a macOS
+    /// update: done here, in the background, so no dictation waits for it.
+    /// Holds the download slot, so no download or delete runs meanwhile. A
+    /// failed compile leaves the models ready, and the next launch tries again.
+    fn start_recompile(self: &Arc<Self>) {
+        let operation = {
+            let mut slot = self.download_slot();
+            if slot.is_some() {
+                return;
+            }
+            let operation = ProcessingOperation::new(OperationId(0));
+            *slot = Some(operation.clone());
+            operation
+        };
+        self.set(LocalModelState::Optimizing);
+        let models = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            let started = Instant::now();
+            let result = models.prepare(&operation).await;
+            let mut slot = models.download_slot();
+            *slot = None;
+            match result {
+                Ok(()) => log::info!(
+                    "Local models compiled for this macOS version in {} ms",
+                    started.elapsed().as_millis()
+                ),
+                Err(Stopped::Cancelled) => {}
+                Err(Stopped::Failed(reason)) => {
+                    log::warn!(
+                        "Compiling the local models for this macOS version failed: {reason:?}"
+                    )
+                }
+            }
+            models.set(LocalModelState::Ready);
+            drop(slot);
+            models.start_optional();
+        });
+    }
+
+    /// The state once no download, check or compile is running.
     pub async fn settled(&self) -> LocalModelState {
         let mut state = self.state.subscribe();
         loop {
             let current = state.borrow_and_update().clone();
             let busy = matches!(
                 current,
-                LocalModelState::Downloading { .. } | LocalModelState::Preparing
+                LocalModelState::Downloading { .. }
+                    | LocalModelState::Preparing
+                    | LocalModelState::Optimizing
             );
             if !busy || state.changed().await.is_err() {
                 return current;
@@ -251,7 +323,7 @@ impl LocalModels {
     /// The models went missing under the helper: download them again.
     pub fn invalidate(&self) {
         let _ = std::fs::remove_file(self.dir.join(READY_MARKER));
-        if self.is_ready() {
+        if *self.state.borrow() == LocalModelState::Ready {
             self.set(LocalModelState::Missing);
         }
     }
@@ -416,11 +488,7 @@ impl LocalModels {
             }
             // Core ML compiles a new model on its first load, about 12 s for
             // the CTC model: done here, the first dictation does not wait.
-            match self.host.prepare(self.dir.clone(), operation.clone()).await {
-                Prepared::Done => {}
-                Prepared::Cancelled => return Err(Stopped::Cancelled),
-                Prepared::Failed => return Err(Stopped::Failed(DownloadFailure::PrepareFailed)),
-            }
+            self.prepare(operation).await?;
             std::fs::write(&marker, &id)?;
             Ok::<_, Stopped>(())
         };
@@ -507,13 +575,23 @@ impl LocalModels {
         // Models an earlier version checked and compiled need no new load.
         if !(earlier && missing.is_empty()) {
             self.set(LocalModelState::Preparing);
-            match self.host.prepare(self.dir.clone(), operation.clone()).await {
-                Prepared::Done => {}
-                Prepared::Cancelled => return Err(Stopped::Cancelled),
-                Prepared::Failed => return Err(Stopped::Failed(DownloadFailure::PrepareFailed)),
-            }
+            self.prepare(operation).await?;
         }
         std::fs::write(self.dir.join(READY_MARKER), manifest::id(self.required()))?;
+        Ok(())
+    }
+
+    /// Loads the models once, so Core ML compiles them, and records the
+    /// macOS build they were compiled for.
+    async fn prepare(&self, operation: &ProcessingOperation) -> Result<(), Stopped> {
+        match self.host.prepare(self.dir.clone(), operation.clone()).await {
+            Prepared::Done => {}
+            Prepared::Cancelled => return Err(Stopped::Cancelled),
+            Prepared::Failed => return Err(Stopped::Failed(DownloadFailure::PrepareFailed)),
+        }
+        if let Some(build) = self.host.os_build() {
+            std::fs::write(self.dir.join(OS_BUILD_MARKER), build)?;
+        }
         Ok(())
     }
 

@@ -46,6 +46,7 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
   const text = (() => {
     switch (state.state) {
       case "ready":
+      case "optimizing":
       case "unsupported":
         return t("onboarding.done.ready");
       case "downloading":

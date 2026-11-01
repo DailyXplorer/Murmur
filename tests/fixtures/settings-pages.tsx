@@ -161,6 +161,12 @@ const MODELS: Record<string, LocalModelStatus> = {
     state: { state: "preparing" },
   },
   ready: { kept_bytes: 0, size_bytes: MODEL_BYTES, state: { state: "ready" } },
+  /** Compiled again for a new macOS version, at launch. */
+  optimizing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "optimizing" },
+  },
   failed: failed({ kind: "no_internet" }),
   serverDown: failed({ kind: "server_unavailable" }),
   damaged: failed({ kind: "damaged" }),

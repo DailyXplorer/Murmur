@@ -43,6 +43,8 @@ impl Engine {
 pub enum FallbackReason {
     /// Local chosen: the model is not downloaded or not ready yet.
     ModelNotReady,
+    /// Local chosen: the model was being compiled for a new macOS version.
+    LocalPreparing,
     /// Local chosen: the local run failed.
     LocalFailed,
     /// Local chosen: the dictation language is outside Parakeet's 25.
@@ -57,6 +59,7 @@ impl FallbackReason {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::ModelNotReady => "model_not_ready",
+            Self::LocalPreparing => "local_preparing",
             Self::LocalFailed => "local_failed",
             Self::LanguageNotSupported => "language_not_supported",
             Self::CloudLimitReached => "cloud_limit_reached",
@@ -67,6 +70,7 @@ impl FallbackReason {
     pub fn parse(value: &str) -> Option<Self> {
         [
             Self::ModelNotReady,
+            Self::LocalPreparing,
             Self::LocalFailed,
             Self::LanguageNotSupported,
             Self::CloudLimitReached,
@@ -91,10 +95,20 @@ pub enum Route {
     Refuse(FallbackReason),
 }
 
+/// Whether the local model can transcribe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalReadiness {
+    NotReady,
+    /// Ready once Core ML has compiled it for this macOS version, which a
+    /// local run waits for.
+    Optimizing,
+    Ready,
+}
+
 /// What the dictation settings and this Mac allow at the moment of a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Conditions<'a> {
-    pub model_ready: bool,
+    pub model: LocalReadiness,
     pub signed_in: bool,
     /// The dictation language setting, "auto" included.
     pub language: &'a str,
@@ -110,15 +124,19 @@ pub fn route(choice: Engine, conditions: Conditions) -> Route {
             fallback: None,
         }),
         Engine::Local => {
+            let local = Route::Run(EngineUsed {
+                engine: Engine::Local,
+                fallback: None,
+            });
             if !parakeet_languages::supports(conditions.language) {
-                to_cloud(FallbackReason::LanguageNotSupported, conditions)
-            } else if !conditions.model_ready {
-                to_cloud(FallbackReason::ModelNotReady, conditions)
-            } else {
-                Route::Run(EngineUsed {
-                    engine: Engine::Local,
-                    fallback: None,
-                })
+                return to_cloud(FallbackReason::LanguageNotSupported, conditions);
+            }
+            match conditions.model {
+                LocalReadiness::NotReady => to_cloud(FallbackReason::ModelNotReady, conditions),
+                LocalReadiness::Optimizing if conditions.signed_in => {
+                    to_cloud(FallbackReason::LocalPreparing, conditions)
+                }
+                LocalReadiness::Optimizing | LocalReadiness::Ready => local,
             }
         }
     }
@@ -135,8 +153,8 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
     match failed.engine {
         Engine::Local => Some(to_cloud(FallbackReason::LocalFailed, conditions)),
         Engine::Cloud => {
-            let local_can_serve =
-                conditions.model_ready && parakeet_languages::supports(conditions.language);
+            let local_can_serve = conditions.model == LocalReadiness::Ready
+                && parakeet_languages::supports(conditions.language);
             local_can_serve.then(|| {
                 Route::Run(EngineUsed {
                     engine: Engine::Local,
@@ -155,7 +173,9 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
 /// ChatGPT account is optional.
 fn refused(reason: FallbackReason) -> anyhow::Error {
     let kind = match reason {
-        FallbackReason::ModelNotReady => FailureKind::LocalNotReady,
+        FallbackReason::ModelNotReady | FallbackReason::LocalPreparing => {
+            FailureKind::LocalNotReady
+        }
         FallbackReason::LocalFailed => FailureKind::LocalFailed,
         FallbackReason::LanguageNotSupported => FailureKind::LanguageNeedsCloud,
         FallbackReason::CloudLimitReached | FallbackReason::CloudFailed => FailureKind::Other,
@@ -233,14 +253,15 @@ mod tests {
     use super::*;
     use FallbackReason::*;
 
-    const READY: bool = true;
-    const NOT_READY: bool = false;
+    const READY: LocalReadiness = LocalReadiness::Ready;
+    const NOT_READY: LocalReadiness = LocalReadiness::NotReady;
+    const OPTIMIZING: LocalReadiness = LocalReadiness::Optimizing;
     const ACCOUNT: bool = true;
     const NO_ACCOUNT: bool = false;
 
-    fn when(model_ready: bool, signed_in: bool, language: &str) -> Conditions<'_> {
+    fn when(model: LocalReadiness, signed_in: bool, language: &str) -> Conditions<'_> {
         Conditions {
-            model_ready,
+            model,
             signed_in,
             language,
         }
@@ -304,11 +325,37 @@ mod tests {
     }
 
     #[test]
+    fn route_falls_back_to_cloud_while_optimizing() {
+        assert_eq!(
+            route(Engine::Local, when(OPTIMIZING, ACCOUNT, "fr")),
+            cloud(Some(LocalPreparing))
+        );
+        // Without an account the dictation waits for the compile.
+        assert_eq!(
+            route(Engine::Local, when(OPTIMIZING, NO_ACCOUNT, "fr")),
+            local(None)
+        );
+        assert_eq!(
+            route(Engine::Local, when(OPTIMIZING, ACCOUNT, "ja")),
+            cloud(Some(LanguageNotSupported))
+        );
+        // A failed cloud run does not wait for the compile either.
+        assert_eq!(
+            reroute(
+                used(cloud(None)),
+                FailureKind::RateLimited,
+                when(OPTIMIZING, NO_ACCOUNT, "fr")
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn cloud_choice_always_goes_to_the_cloud_first() {
-        for model_ready in [READY, NOT_READY] {
+        for model in [READY, OPTIMIZING, NOT_READY] {
             for signed_in in [ACCOUNT, NO_ACCOUNT] {
                 for language in ["auto", "fr", "ja"] {
-                    let conditions = when(model_ready, signed_in, language);
+                    let conditions = when(model, signed_in, language);
                     assert_eq!(
                         route(Engine::Cloud, conditions),
                         cloud(None),
@@ -378,6 +425,7 @@ mod tests {
         let conditions = when(READY, ACCOUNT, "fr");
         for failed in [
             used(cloud(Some(ModelNotReady))),
+            used(cloud(Some(LocalPreparing))),
             used(cloud(Some(LocalFailed))),
             used(cloud(Some(LanguageNotSupported))),
             used(local(Some(CloudLimitReached))),
@@ -531,6 +579,7 @@ mod tests {
         }
         for reason in [
             ModelNotReady,
+            LocalPreparing,
             LocalFailed,
             LanguageNotSupported,
             CloudLimitReached,
