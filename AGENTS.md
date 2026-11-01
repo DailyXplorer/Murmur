@@ -92,7 +92,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
 
-**State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
+**State Flow:** Zustand → Tauri Command → Rust State → Persistence (`settings_store.json` through `durable::write`)
 
 ### Technology Stack
 
@@ -113,7 +113,11 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 ### Settings System
 
-Settings are stored using Tauri's store plugin with reactive updates:
+Settings live in `settings_store.json` in the app data folder, as `{"settings": …}` pretty-printed, the shape the store plugin of earlier versions wrote, so an older Murmur still reads the file (`settings/file.rs`). Every change is written by a background thread through `durable::write`, so a burst (a slider drag) costs the caller no disk sync and lands as its latest value; `update_settings_checked` waits for its write to report a failure, and quitting waits for a pending one. `durable::write` takes a temporary file in the same folder, synced, renamed over the file, then the folder synced; a symlink stays a link): a crash or power cut leaves the old file or the new one. Write any file that must survive a crash through `durable::write`, never `fs::write`. A field this version cannot read falls back to its default; the file as it was is kept first as `settings_store.json.unreadable-<12 hex of its SHA-256>` (mode 0600, once per content).
+
+Panics on any thread go to `murmur.log` as one `error` record (`panic_log.rs`): thread, `file:line:col`, the executable's load address and a backtrace, never the panic message, which can quote dictated text. Release builds are stripped; resolve the addresses with the build's `murmur.dSYM` artifact: `atos -o murmur.dSYM -l <load address> <address>…`.
+
+The settings cover:
 
 - Keyboard shortcuts (configurable; the recording shortcut is hold-to-talk or double-tap hands-free, see `dictation_gesture.rs`)
 - Audio devices (microphone/output selection)
@@ -209,6 +213,8 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 Run `bun run check` before pushing. It is the CI `code quality` job. On macOS it also runs Clippy.
 
 For a UI change, also run `bun run test:playwright`. For Rust behavior, from `src-tauri` run `cargo test --locked`.
+
+CI runs the Rust tests with `cargo nextest run --locked --profile ci` (one process per test; `.config/nextest.toml` fails a test still running after 2 minutes), then the doctests with `cargo test --locked --doc`. `cargo test --locked` still works locally. A test that needs the state of another test is a bug: fix the coupling, or put the tests in a nextest `test-group` with `max-threads = 1`.
 
 For a change to how meetings record or process, also run the 3-hour soak on a Mac with the models downloaded: from `src-tauri`, `cargo test --locked meetings_soak -- --ignored --nocapture` (about half an hour, headless). It rewrites `src/meetings/soak-report.md`.
 

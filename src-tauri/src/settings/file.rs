@@ -1,0 +1,313 @@
+//! `settings_store.json`, held in memory and written through
+//! `durable::write`. A change is written by a background thread, so a burst
+//! of changes (a slider drag) costs the caller no disk sync and lands as its
+//! latest value; a change that must report a failure waits for its write.
+//! The file keeps the shape the store plugin of earlier versions wrote
+//! (`{"settings": …}`, pretty-printed), so a Murmur from before this change
+//! still reads it.
+
+use crate::durable;
+use log::{error, warn};
+use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+
+const SETTINGS_KEY: &str = "settings";
+
+pub(crate) struct SettingsFile {
+    shared: Arc<Shared>,
+}
+
+struct Shared {
+    path: PathBuf,
+    /// Every top-level key of the file, `settings` among them.
+    store: Mutex<Map<String, Value>>,
+    /// Held from reading `store` until its bytes are on disk, so two writes
+    /// never land out of order.
+    disk: Mutex<()>,
+    writer: Mutex<Writer>,
+    writer_done: Condvar,
+}
+
+#[derive(Default)]
+struct Writer {
+    running: bool,
+    pending: bool,
+}
+
+impl SettingsFile {
+    /// Reads `path`. A missing or unreadable file reads as empty, as the
+    /// plugin did: `recover_damaged_store` has set any damage aside first.
+    pub(crate) fn open(path: PathBuf) -> Self {
+        remove_staged_copies(&path);
+        let store = match fs::read(&path) {
+            Ok(bytes) => decode(&bytes).unwrap_or_else(|error| {
+                warn!("Cannot read the settings file: {error}");
+                Map::new()
+            }),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Map::new(),
+            Err(error) => {
+                warn!("Cannot read the settings file: {error}");
+                Map::new()
+            }
+        };
+        Self {
+            shared: Arc::new(Shared {
+                path,
+                store: Mutex::new(store),
+                disk: Mutex::new(()),
+                writer: Mutex::new(Writer::default()),
+                writer_done: Condvar::new(),
+            }),
+        }
+    }
+
+    pub(crate) fn get(&self) -> Option<Value> {
+        self.shared.store().get(SETTINGS_KEY).cloned()
+    }
+
+    /// Changes the value in memory only.
+    pub(crate) fn set(&self, value: Option<Value>) {
+        self.shared.set(value);
+    }
+
+    /// Changes the value and writes it in the background.
+    pub(crate) fn store(&self, value: Value) {
+        self.set(Some(value));
+        let mut writer = self.shared.writer();
+        writer.pending = true;
+        if writer.running {
+            return;
+        }
+        let shared = Arc::clone(&self.shared);
+        let spawned = std::thread::Builder::new()
+            .name("settings-writer".into())
+            .spawn(move || shared.write_pending());
+        match spawned {
+            Ok(_) => writer.running = true,
+            Err(spawn_error) => {
+                writer.pending = false;
+                drop(writer);
+                warn!("Cannot start the settings writer: {spawn_error}");
+                self.shared.write_logged();
+            }
+        }
+    }
+
+    /// Changes the value and writes it before returning. On failure the
+    /// previous value is put back, in memory and on disk.
+    pub(crate) fn store_checked(&self, value: Value) -> Result<(), String> {
+        let _disk = self.shared.disk();
+        super::transaction::persist_checked(
+            value,
+            || self.get(),
+            |value| self.shared.set(value),
+            || self.shared.write(),
+        )
+    }
+
+    /// Returns once every change `store` took is on disk, or failed.
+    pub(crate) fn flush(&self) {
+        let mut writer = self.shared.writer();
+        while writer.running {
+            writer = self
+                .shared
+                .writer_done
+                .wait(writer)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// Keeps the file as it is on disk next to it, before a repair rewrites
+    /// it without a field this version cannot read. One copy per distinct
+    /// content, readable by the user only.
+    pub(crate) fn preserve_unreadable(&self) -> io::Result<Option<PathBuf>> {
+        let bytes = match fs::read(&self.shared.path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let digest = Sha256::digest(&bytes);
+        let prefix: String = digest[..6].iter().map(|b| format!("{b:02x}")).collect();
+        let mut name = self.shared.path.as_os_str().to_owned();
+        name.push(format!(".unreadable-{prefix}"));
+        let copy = PathBuf::from(name);
+        Ok(durable::create(&copy, &bytes, 0o600)?.then_some(copy))
+    }
+}
+
+impl Drop for SettingsFile {
+    fn drop(&mut self) {
+        self.flush();
+    }
+}
+
+impl Shared {
+    /// The writer thread: writes the latest value until no change waits.
+    fn write_pending(&self) {
+        loop {
+            {
+                let mut writer = self.writer();
+                if !writer.pending {
+                    writer.running = false;
+                    self.writer_done.notify_all();
+                    return;
+                }
+                writer.pending = false;
+            }
+            self.write_logged();
+        }
+    }
+
+    fn write_logged(&self) {
+        let _disk = self.disk();
+        if let Err(write_error) = self.write() {
+            error!("Cannot save the settings: {write_error}");
+        }
+    }
+
+    /// Only called while `disk` is held.
+    fn write(&self) -> io::Result<()> {
+        let bytes = encode(&self.store());
+        if let Some(parent) = self.path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        durable::write(&self.path, &bytes)
+    }
+
+    fn set(&self, value: Option<Value>) {
+        let mut store = self.store();
+        match value {
+            Some(value) => store.insert(SETTINGS_KEY.to_owned(), value),
+            None => store.remove(SETTINGS_KEY),
+        };
+    }
+
+    fn store(&self) -> MutexGuard<'_, Map<String, Value>> {
+        self.store.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn disk(&self) -> MutexGuard<'_, ()> {
+        self.disk.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn writer(&self) -> MutexGuard<'_, Writer> {
+        self.writer.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// The plugin's format: `serde_json::to_vec_pretty` of the top-level map.
+fn encode(store: &Map<String, Value>) -> Vec<u8> {
+    serde_json::to_vec_pretty(store).expect("a JSON map serializes")
+}
+
+fn decode(bytes: &[u8]) -> serde_json::Result<Map<String, Value>> {
+    serde_json::from_slice(bytes)
+}
+
+/// Copies a write cut off by a crash left behind (`<name>.<pid>.<n>.tmp`).
+/// This runs before this process writes anything.
+fn remove_staged_copies(path: &Path) {
+    let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let prefix = format!("{}.", name.to_string_lossy());
+    for entry in entries.flatten() {
+        let entry_name = entry.file_name();
+        let entry_name = entry_name.to_string_lossy();
+        if entry_name.starts_with(&prefix) && entry_name.ends_with(".tmp") {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    /// Bytes as tauri-plugin-store 2.4.5 saves a store holding one
+    /// `settings` value: `serde_json::to_vec_pretty`, two-space indent, no
+    /// trailing newline.
+    const PLUGIN_FILE: &[u8] = b"{\n  \"settings\": {\n    \"history_limit\": 42,\n    \"onboarding_completed\": true,\n    \"selected_language\": \"fr\"\n  }\n}";
+
+    #[test]
+    fn settings_file_shape_matches_plugin() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        fs::write(&path, PLUGIN_FILE).unwrap();
+
+        let file = SettingsFile::open(path.clone());
+        let (settings, _) = super::super::parse_stored_settings(&file.get().unwrap());
+        assert_eq!(settings.history_limit, 42);
+        assert!(settings.onboarding_completed);
+        assert_eq!(settings.selected_language, "fr");
+
+        file.store_checked(file.get().unwrap()).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), PLUGIN_FILE);
+    }
+
+    /// A slider drag stores a value per input event. While the disk is busy
+    /// with an earlier write, each store returns at once, and the drag ends
+    /// on disk as its last value.
+    #[test]
+    fn stores_during_a_slow_write_return_and_land_as_the_last() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let file = Arc::new(SettingsFile::open(path.clone()));
+        let busy_disk = file.shared.disk();
+
+        let (stored_tx, stored_rx) = mpsc::channel();
+        let dragging = {
+            let file = Arc::clone(&file);
+            std::thread::spawn(move || {
+                for step in 0..=100 {
+                    file.store(serde_json::json!({ "audio_feedback_volume": step }));
+                }
+                stored_tx.send(()).unwrap();
+            })
+        };
+        stored_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a store waited for the disk");
+        dragging.join().unwrap();
+        assert!(!path.exists());
+
+        drop(busy_disk);
+        file.flush();
+        let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(on_disk["settings"]["audio_feedback_volume"], 100);
+    }
+
+    #[test]
+    #[ignore = "a measurement for the pull request"]
+    fn settings_write_latency() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = SettingsFile::open(dir.path().join("settings_store.json"));
+        let mut settings = serde_json::to_value(super::super::get_default_settings()).unwrap();
+        let mut took = Vec::new();
+        for change in 0..100 {
+            settings["history_limit"] = serde_json::json!(change + 1);
+            let start = std::time::Instant::now();
+            file.store_checked(settings.clone()).unwrap();
+            took.push(start.elapsed());
+        }
+        took.sort();
+        eprintln!(
+            "100 settings changes of {} bytes: p50 {:?}, p95 {:?}, max {:?}",
+            fs::metadata(dir.path().join("settings_store.json"))
+                .unwrap()
+                .len(),
+            took[49],
+            took[94],
+            took[99]
+        );
+    }
+}

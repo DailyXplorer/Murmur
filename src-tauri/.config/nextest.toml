@@ -1,0 +1,14 @@
+# A hung test fails with its name after two slow periods instead of holding
+# the run. Each test runs in its own process.
+
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 2 }
+fail-fast = false
+
+[profile.ci]
+slow-timeout = { period = "60s", terminate-after = 2 }
+fail-fast = false
+
+[profile.ci.junit]
+# target/nextest/ci/junit.xml
+path = "junit.xml"
