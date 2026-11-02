@@ -37,7 +37,7 @@ test("AI access is off by default and shows nothing to connect", async ({
   await expect(dictations(page)).toHaveCount(0);
   await expect(group(page).getByRole("tablist")).toHaveCount(0);
   await expect(
-    group(page).getByRole("button", { name: "Copy setup for your AI app" }),
+    group(page).getByRole("button", { name: "Copy setup for your app" }),
   ).toHaveCount(0);
   expect(
     await page.evaluate(() => window.settingsPages.unhandledCommands),
@@ -58,6 +58,28 @@ test("turning AI access on saves it and offers the setup", async ({ page }) => {
   await expect(dictations(page)).not.toBeChecked();
   await expect(group(page).getByTestId("mcp-setup")).toContainText(COMMAND);
 });
+
+for (const width of [800, 1100]) {
+  test(`setup copy action stays right-aligned at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await openAdvanced(page, "?mcp=1");
+
+    await expect(
+      group(page).getByRole("heading", { name: "Connect an app", exact: true }),
+    ).toBeVisible();
+    const setup = await group(page).getByTestId("mcp-setup").boundingBox();
+    const button = await group(page)
+      .getByRole("button", { name: "Copy setup for your app", exact: true })
+      .boundingBox();
+    expect(setup).not.toBeNull();
+    expect(button).not.toBeNull();
+    expect(
+      Math.abs(button!.x + button!.width - setup!.x - setup!.width),
+    ).toBeLessThanOrEqual(1);
+  });
+}
 
 test("dictation history is a second switch", async ({ page }) => {
   await openAdvanced(page, "?mcp=1");
@@ -98,7 +120,7 @@ test("the setup is copied to the clipboard", async ({ page }) => {
   await group(page).getByRole("tab", { name: "Codex" }).click();
 
   await group(page)
-    .getByRole("button", { name: "Copy setup for your AI app" })
+    .getByRole("button", { name: "Copy setup for your app" })
     .click();
 
   await expect(

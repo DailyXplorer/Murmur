@@ -107,11 +107,13 @@ export const McpAccess: React.FC = () => {
               >
                 {setup}
               </pre>
-              <Button onClick={() => void copy()}>
-                {copied
-                  ? t("settings.advanced.mcp.copied")
-                  : t("settings.advanced.mcp.copyConfig")}
-              </Button>
+              <div className="flex justify-end">
+                <Button onClick={() => void copy()}>
+                  {copied
+                    ? t("settings.advanced.mcp.copied")
+                    : t("settings.advanced.mcp.copyConfig")}
+                </Button>
+              </div>
             </div>
           </div>
         </SettingContainer>

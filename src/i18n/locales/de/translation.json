@@ -341,15 +341,15 @@
         "description": "KI-Apps, die du verbindest, etwa Claude oder Codex, können die Transkripte und Zusammenfassungen deiner Meetings auflisten, durchsuchen und lesen. Sie senden das Gelesene möglicherweise an ihre eigenen Server. Murmur ändert dadurch nie etwas.",
         "dictations": "Diktatverlauf einbeziehen",
         "dictationsDescription": "Erlaubt ihnen auch, deine letzten Diktate zu lesen, die persönlicher sind als Meetings.",
-        "setupTitle": "KI-App verbinden",
-        "setupDescription": "Wähle deine App und füge dies dort ein. Die App führt den Befehl von Murmur selbst aus, ohne Fenster und ohne Netzwerkport.",
+        "setupTitle": "App verbinden",
+        "setupDescription": "Wähle deine App und füge dies dort ein. Kein Fenster, kein Netzwerkport.",
         "clientsLabel": "KI-App",
         "clients": {
           "claude_code": "Claude Code",
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Einrichtung für deine KI-App kopieren",
+        "copyConfig": "Einrichtung für deine App kopieren",
         "copied": "Kopiert"
       },
       "meetingsToggle": {

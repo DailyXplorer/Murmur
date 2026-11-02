@@ -341,15 +341,15 @@
         "description": "Las aplicaciones de IA que conecte, como Claude o Codex, pueden listar, buscar y leer las transcripciones y los resúmenes de sus reuniones. Pueden enviar lo que leen a sus propios servidores. Murmur nunca cambia nada por esta vía.",
         "dictations": "Incluir el historial de dictados",
         "dictationsDescription": "También les permite leer sus últimos dictados, más personales que las reuniones.",
-        "setupTitle": "Conectar una aplicación de IA",
-        "setupDescription": "Elija su aplicación y pegue esto en ella. La aplicación ejecuta por sí misma el comando de Murmur, sin ventana ni puerto de red.",
+        "setupTitle": "Conectar una aplicación",
+        "setupDescription": "Elija su aplicación y pegue esto en ella. Sin ventana ni puerto de red.",
         "clientsLabel": "Aplicación de IA",
         "clients": {
           "claude_code": "Claude Code",
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Copiar la configuración para su aplicación de IA",
+        "copyConfig": "Copiar la configuración para su aplicación",
         "copied": "Copiado"
       },
       "meetingsToggle": {

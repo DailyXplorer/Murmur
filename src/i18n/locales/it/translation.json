@@ -341,15 +341,15 @@
         "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le trascrizioni e i riassunti delle tue riunioni. Possono inviare ciò che leggono ai propri server. Murmur non modifica mai nulla in questo modo.",
         "dictations": "Includi la cronologia dei dettati",
         "dictationsDescription": "Permette loro di leggere anche i tuoi ultimi dettati, più personali delle riunioni.",
-        "setupTitle": "Collega un'app IA",
-        "setupDescription": "Scegli la tua app e incolla questo al suo interno. L'app esegue da sola il comando di Murmur, senza finestra e senza porta di rete.",
+        "setupTitle": "Collega un'app",
+        "setupDescription": "Scegli la tua app e incolla questo al suo interno. Senza finestra e senza porta di rete.",
         "clientsLabel": "App IA",
         "clients": {
           "claude_code": "Claude Code",
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Copia la configurazione per la tua app IA",
+        "copyConfig": "Copia la configurazione per la tua app",
         "copied": "Copiato"
       },
       "meetingsToggle": {
