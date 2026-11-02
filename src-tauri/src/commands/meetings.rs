@@ -382,11 +382,11 @@ pub async fn get_live_transcript(
     with_manager(app, move |manager| Ok(manager.live_transcript(id))).await
 }
 
-/// The call prompt's buttons: "Record" when `accept`, else "Not now".
+/// The call prompt's buttons.
 #[tauri::command]
 #[specta::specta]
-pub fn answer_call_prompt(app: AppHandle, accept: bool) {
-    meetings::call_watch::answer(&app, accept);
+pub fn answer_call_prompt(app: AppHandle, answer: meetings::calls::CallAnswer) {
+    meetings::call_watch::answer(&app, answer);
 }
 
 fn with_capture_mode(settings: &mut AppSettings, mode: MeetingCaptureMode) {

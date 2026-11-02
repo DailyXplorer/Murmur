@@ -135,6 +135,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Meetings: record a call (Control+Option+Command+M or the menu bar), read
   it live while it records, then get a transcript with speakers told apart
   and a summary with a title. See [Meetings](#meetings)
+- Call prompts: Murmur offers to record a call when a call app takes the
+  microphone, and to stop and transcribe when the call ends during a meeting
 - Search across every meeting (titles, summaries, transcripts) and every
   dictation, ignoring case and accents; each word matches as a prefix, and
   quotes match an exact phrase. Opening a meeting from a result jumps to the
@@ -224,6 +226,15 @@ warning 5 minutes before.
   hour), which you can delete while keeping the text.
 - Murmur warns at the start of a meeting when less than 1.5 GB is free on
   the disk. Three hours take about 700 MB before compression.
+- On Apple silicon with macOS 14 or later, when a call app (Zoom, Teams,
+  Slack, FaceTime, Webex, Discord, or a meeting page in a browser) holds the
+  microphone for 3 seconds, a panel asks whether to record the call. During
+  a meeting, once every call app it heard has left the microphone for 3
+  seconds, the panel says the call ended and offers **Stop and transcribe**
+  or **Keep recording**. Murmur never stops a meeting without your answer:
+  unanswered, the panel stays and the meeting goes on. Keep recording asks
+  again only if a call comes back and leaves again. **Offer to record calls**
+  in Settings > Advanced turns both off.
 
 ### Permissions after updating to the stable signature
 
