@@ -10,16 +10,17 @@ use std::time::{Duration, Instant};
 
 use log::{debug, error, info};
 use once_cell::sync::Lazy;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::calls::{
-    self, Action, Browser, CallAnswer, CallApp, CallWatch, MicUser, PromptKind, Snapshot,
+    self, Action, Browser, CallAnswer, CallApp, CallPolicy, CallWatch, MicUser, PromptKind,
+    Snapshot,
 };
 use super::coordinator::MeetingAlert;
 use super::MeetingsManager;
 use crate::accessibility::{self, Element};
 use crate::overlay;
-use crate::settings::get_settings;
+use crate::settings::{get_settings, update_settings, AppSettings};
 use crate::user_alert::{self, Alert};
 
 const POLL: Duration = Duration::from_secs(1);
@@ -31,6 +32,16 @@ static WATCH: Lazy<Mutex<CallWatch>> = Lazy::new(Mutex::default);
 
 fn watch() -> MutexGuard<'static, CallWatch> {
     WATCH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// The meeting a rule started, which "Don't record" discards: never one the
+/// user started since.
+static STARTED_BY_RULE: Mutex<Option<i64>> = Mutex::new(None);
+
+fn started_by_rule() -> MutexGuard<'static, Option<i64>> {
+    STARTED_BY_RULE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -71,9 +82,14 @@ pub fn supported() -> bool {
     mic_users().is_some()
 }
 
-fn wanted(app: &AppHandle) -> bool {
-    let settings = get_settings(app);
+/// The switch for call prompts also stops the apps' rules: an app set to
+/// "Always record" records nothing while it is off.
+fn watching(settings: &AppSettings) -> bool {
     settings.meetings_enabled && settings.meeting_call_prompt
+}
+
+fn wanted(app: &AppHandle) -> bool {
+    watching(&get_settings(app))
 }
 
 /// Starts the watcher when meetings and call prompts are on. It ends by
@@ -132,6 +148,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
     let own_pid = i32::try_from(std::process::id()).unwrap_or(-1);
     let snapshot = Snapshot {
         calls: calls::calls_on_mic(&users, own_pid, browser_calls, browser_call),
+        policies: get_settings(app).meeting_call_policies,
         recording: app
             .try_state::<Arc<MeetingsManager>>()
             .is_some_and(|manager| manager.is_recording()),
@@ -143,8 +160,24 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
             match kind {
                 PromptKind::Start => info!("{} started a call: offering to record it", call.name()),
                 PromptKind::Ended => info!("{} left the call: offering to stop", call.name()),
+                PromptKind::Started => {}
             }
             overlay::show_call_prompt(app, kind, call.name());
+        }
+        Some(Action::Start(call)) => {
+            info!(
+                "{} started a call: recording it as its rule says",
+                call.name()
+            );
+            match start_meeting(app) {
+                Some(id) => {
+                    *started_by_rule() = Some(id);
+                    overlay::show_call_prompt(app, PromptKind::Started, call.name());
+                }
+                None => {
+                    watch.answered(PromptKind::Started);
+                }
+            }
         }
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}
@@ -170,32 +203,58 @@ fn browser_call(browser: Browser) -> Option<CallApp> {
     })
 }
 
+/// Starts the meeting for a call, or tells why it did not. `None` when one
+/// already records or the start failed.
+fn start_meeting(app: &AppHandle) -> Option<i64> {
+    let manager = app.try_state::<Arc<MeetingsManager>>()?;
+    if manager.is_recording() {
+        return None;
+    }
+    match manager.start_returning_id() {
+        Ok(id) => Some(id),
+        Err(error) => {
+            error!("Recording the call failed: {error}");
+            user_alert::show(app, Alert::Meeting(MeetingAlert::StartFailed));
+            None
+        }
+    }
+}
+
+/// Keeps the rule the prompt's button chose, and tells an open settings
+/// window.
+fn set_policy(app: &AppHandle, call: CallApp, policy: CallPolicy) {
+    update_settings(app, |settings| {
+        settings.meeting_call_policies.insert(call, policy);
+    });
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({"setting": "meeting_call_policies"}),
+    );
+}
+
 /// The prompt's answer. It acts only while the prompt it answers still
 /// shows, which it then hides: a meeting stops only on "Stop and
-/// transcribe" to the prompt that offered it.
+/// transcribe" to the prompt that offered it, and one is discarded only on
+/// "Don't record" to the prompt of the meeting a rule started.
 pub fn answer(app: &AppHandle, answer: CallAnswer) {
-    {
+    let call = {
         let mut watch = watch();
-        if watch.answered(answer.kind()).is_none() {
+        let Some(call) = watch.answered(answer.kind()) else {
             return;
-        }
+        };
         overlay::hide_call_prompt(app);
-    }
+        call
+    };
     let app = app.clone();
     match answer {
         CallAnswer::NotNow | CallAnswer::KeepRecording => {}
-        CallAnswer::Record => {
+        CallAnswer::NeverAsk => set_policy(&app, call, CallPolicy::Never),
+        CallAnswer::Record | CallAnswer::AlwaysRecord => {
+            if answer == CallAnswer::AlwaysRecord {
+                set_policy(&app, call, CallPolicy::Always);
+            }
             std::thread::spawn(move || {
-                let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
-                    return;
-                };
-                if manager.is_recording() {
-                    return;
-                }
-                if let Err(error) = manager.start() {
-                    error!("Recording the call failed: {error}");
-                    user_alert::show(&app, Alert::Meeting(MeetingAlert::StartFailed));
-                }
+                start_meeting(&app);
             });
         }
         CallAnswer::StopAndTranscribe => {
@@ -211,5 +270,41 @@ pub fn answer(app: &AppHandle, answer: CallAnswer) {
                 }
             });
         }
+        CallAnswer::DontRecord => {
+            std::thread::spawn(move || {
+                let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
+                    return;
+                };
+                let Some(id) = started_by_rule().take() else {
+                    return;
+                };
+                match manager.discard(id) {
+                    Ok(()) => info!("Meeting {id} discarded: not recorded after all"),
+                    Err(error) => error!("Discarding meeting {id} failed: {error}"),
+                }
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::get_default_settings;
+
+    #[test]
+    fn a_rule_records_nothing_while_call_prompts_or_meetings_are_off() {
+        let mut settings = get_default_settings();
+        settings
+            .meeting_call_policies
+            .insert(CallApp::Zoom, CallPolicy::Always);
+        assert!(watching(&settings));
+
+        settings.meeting_call_prompt = false;
+        assert!(!watching(&settings));
+
+        settings.meeting_call_prompt = true;
+        settings.meetings_enabled = false;
+        assert!(!watching(&settings));
     }
 }

@@ -748,6 +748,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::change_meeting_audio_retention_setting,
             commands::meetings::get_meetings_storage,
             commands::meetings::change_meeting_call_prompt_setting,
+            commands::meetings::change_meeting_call_policies_setting,
             commands::meetings::answer_call_prompt,
             overlay::fit_call_prompt,
             overlay::get_call_prompt,

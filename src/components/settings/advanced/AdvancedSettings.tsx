@@ -10,6 +10,7 @@ import { ExperimentalToggle } from "../ExperimentalToggle";
 import { MeetingsToggle } from "../MeetingsToggle";
 import { MeetingsAudioRetention } from "../MeetingsAudioRetention";
 import { MeetingCallPrompt } from "../MeetingCallPrompt";
+import { MeetingCallRules } from "../MeetingCallRules";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
 import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
@@ -34,6 +35,8 @@ export const AdvancedSettings: React.FC = () => {
         {meetingsEnabled && <MeetingCallPrompt />}
         {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
+
+      {meetingsEnabled && <MeetingCallRules />}
 
       <SettingsGroup title={t("settings.advanced.groups.updates")}>
         <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />

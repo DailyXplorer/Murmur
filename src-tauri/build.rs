@@ -119,6 +119,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_meeting_audio_retention_setting",
     "get_meetings_storage",
     "change_meeting_call_prompt_setting",
+    "change_meeting_call_policies_setting",
     "answer_call_prompt",
     "fit_call_prompt",
     "get_call_prompt",

@@ -20,15 +20,19 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-const ANSWERS: Record<PromptKind, { accept: CallAnswer; decline: CallAnswer }> =
-  {
-    start: { accept: "record", decline: "not_now" },
-    ended: { accept: "stop_and_transcribe", decline: "keep_recording" },
-  };
+const ANSWERS: Record<
+  PromptKind,
+  { accept?: CallAnswer; decline: CallAnswer }
+> = {
+  start: { accept: "record", decline: "not_now" },
+  ended: { accept: "stop_and_transcribe", decline: "keep_recording" },
+  started: { decline: "dont_record" },
+};
 
-/** "Record this meeting?", or "Zoom left the call" while the meeting
- * records, in a window of its own: only the call watcher shows or hides it,
- * so nothing the overlay shows takes its place. */
+/** "Record this meeting?", "Zoom left the call" while the meeting records,
+ * or "Recording Zoom" for the first seconds of a meeting its rule started,
+ * in a window of its own: only the call watcher shows or hides it, so
+ * nothing the overlay shows takes its place. */
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
@@ -92,12 +96,14 @@ const CallPromptOverlay: React.FC = () => {
   if (!labels) return null;
 
   const answers = ANSWERS[labels.kind];
+  const { accept } = answers;
   const answer = (sent: CallAnswer) => {
     void commands.answerCallPrompt(sent).catch((error: unknown) => {
       console.warn("Answering the call prompt failed:", error);
     });
   };
-  // The question that the call ended already names the app.
+  // The questions of a call that ended and of a meeting a rule started
+  // already name the app.
   const showsApp = labels.kind === "start";
 
   return (
@@ -110,30 +116,52 @@ const CallPromptOverlay: React.FC = () => {
         aria-describedby={showsApp ? `${id}-app` : undefined}
       >
         <span ref={bodyRef} className="ov-call-body">
-          <span className="ov-call-text">
-            <span id={`${id}-question`} className="ov-call-question">
-              {labels.question}
-            </span>
-            {showsApp && (
-              <span id={`${id}-app`} className="ov-call-app">
-                {labels.app}
+          <span className="ov-call-row">
+            <span className="ov-call-text">
+              <span id={`${id}-question`} className="ov-call-question">
+                {labels.question}
               </span>
+              {showsApp && (
+                <span id={`${id}-app`} className="ov-call-app">
+                  {labels.app}
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              className="ov-call-button"
+              onClick={() => answer(answers.decline)}
+            >
+              {labels.decline}
+            </button>
+            {accept && labels.accept && (
+              <button
+                type="button"
+                className="ov-call-button accept"
+                onClick={() => answer(accept)}
+              >
+                {labels.accept}
+              </button>
             )}
           </span>
-          <button
-            type="button"
-            className="ov-call-button"
-            onClick={() => answer(answers.decline)}
-          >
-            {labels.decline}
-          </button>
-          <button
-            type="button"
-            className="ov-call-button accept"
-            onClick={() => answer(answers.accept)}
-          >
-            {labels.accept}
-          </button>
+          {labels.rules && (
+            <span className="ov-call-rules">
+              <button
+                type="button"
+                className="ov-call-rule"
+                onClick={() => answer("always_record")}
+              >
+                {labels.rules.always}
+              </button>
+              <button
+                type="button"
+                className="ov-call-rule"
+                onClick={() => answer("never_ask")}
+              >
+                {labels.rules.never}
+              </button>
+            </span>
+          )}
         </span>
       </div>
     </div>

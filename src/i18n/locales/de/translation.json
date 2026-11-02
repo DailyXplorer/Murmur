@@ -39,6 +39,10 @@
     "callEndedQuestion": "{{app}} hat den Anruf verlassen. Murmur nimmt weiter auf.",
     "callEndedStop": "Beenden und transkribieren",
     "callEndedKeep": "Weiter aufnehmen",
+    "callStartedQuestion": "{{app}} wird aufgenommen",
+    "callDontRecord": "Nicht aufnehmen",
+    "callAlwaysFor": "Immer für {{app}}",
+    "callNeverFor": "Nie für {{app}}",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",
@@ -338,7 +342,25 @@
       },
       "meetingCallPrompt": {
         "label": "Aufnahme von Anrufen anbieten",
-        "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf. Während eines Meetings außerdem fragen, ob es beendet werden soll, sobald der Anruf endet. Murmur beendet nie ohne Klick."
+        "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nur bei Apps ohne Klick auf, die auf Immer aufnehmen stehen. Während eines Meetings außerdem fragen, ob es beendet werden soll, sobald der Anruf endet. Murmur beendet nie ohne Klick."
+      },
+      "meetingCallRules": {
+        "title": "Wenn ein Anruf beginnt",
+        "description": "Was Murmur tut, wenn {{app}} einen Anruf startet.",
+        "apps": {
+          "zoom": "Zoom",
+          "google_meet": "Google Meet",
+          "teams": "Microsoft Teams",
+          "slack": "Slack",
+          "face_time": "FaceTime",
+          "webex": "Webex",
+          "discord": "Discord"
+        },
+        "options": {
+          "ask": "Fragen",
+          "always": "Immer aufnehmen",
+          "never": "Nie fragen"
+        }
       },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",

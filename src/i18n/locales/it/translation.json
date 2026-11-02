@@ -39,6 +39,10 @@
     "callEndedQuestion": "{{app}} ha lasciato la chiamata. Murmur sta ancora registrando.",
     "callEndedStop": "Interrompi e trascrivi",
     "callEndedKeep": "Continua",
+    "callStartedQuestion": "Registrazione di {{app}}",
+    "callDontRecord": "Non registrare",
+    "callAlwaysFor": "Sempre per {{app}}",
+    "callNeverFor": "Mai per {{app}}",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",
@@ -338,7 +342,25 @@
       },
       "meetingCallPrompt": {
         "label": "Proponi di registrare le chiamate",
-        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic. Durante la registrazione di una riunione, chiedi anche se interromperla quando la chiamata finisce. Murmur non la interrompe mai senza un clic."
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur registra senza un clic solo le app impostate su Registra sempre. Durante la registrazione di una riunione, chiedi anche se interromperla quando la chiamata finisce. Murmur non la interrompe mai senza un clic."
+      },
+      "meetingCallRules": {
+        "title": "Quando inizia una chiamata",
+        "description": "Cosa fa Murmur quando {{app}} avvia una chiamata.",
+        "apps": {
+          "zoom": "Zoom",
+          "google_meet": "Google Meet",
+          "teams": "Microsoft Teams",
+          "slack": "Slack",
+          "face_time": "FaceTime",
+          "webex": "Webex",
+          "discord": "Discord"
+        },
+        "options": {
+          "ask": "Chiedi",
+          "always": "Registra sempre",
+          "never": "Non chiedere mai"
+        }
       },
       "meetingsAudio": {
         "title": "Elimina l'audio delle riunioni",
