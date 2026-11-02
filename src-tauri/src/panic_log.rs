@@ -76,10 +76,10 @@ mod tests {
         log::set_max_level(log::LevelFilter::Trace);
         install();
 
-        let secret = String::from("secret text");
+        let dictated = String::from("some dictated words");
         let joined = std::thread::Builder::new()
             .name("panic-log-test".into())
-            .spawn(move || panic!("{secret}"))
+            .spawn(move || panic!("{dictated}"))
             .unwrap()
             .join();
         drop(std::panic::take_hook());
@@ -92,6 +92,6 @@ mod tests {
             .expect("one record for the panic");
         assert!(record.contains("panic_log.rs:"), "{record}");
         assert!(record.contains("load address 0x"), "{record}");
-        assert!(!record.contains("secret text"), "{record}");
+        assert!(!record.contains("some dictated words"), "{record}");
     }
 }
