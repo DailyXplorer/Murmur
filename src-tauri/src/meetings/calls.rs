@@ -21,19 +21,7 @@ pub const CALL_OVER_AFTER: Duration = Duration::from_secs(30);
 /// that drops the microphone costs a prompt, never a recording.
 pub const ENDED_PROMPT_AFTER: Duration = Duration::from_secs(3);
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
-    specta::Type,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallApp {
     Zoom,
     GoogleMeet,

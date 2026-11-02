@@ -526,7 +526,7 @@ pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 /// cleanup were removed: Codex does both, so their choice is dropped.
 /// Correction learning was removed, and its words with it (see
 /// `parse_stored_settings`).
-const OBSOLETE_SETTINGS_KEYS: [&str; 8] = [
+const OBSOLETE_SETTINGS_KEYS: [&str; 9] = [
     "typing_tool",
     "external_script_path",
     "push_to_talk",
@@ -535,6 +535,9 @@ const OBSOLETE_SETTINGS_KEYS: [&str; 8] = [
     "transcription_provider",
     "cleanup_engine",
     "learned_words",
+    // 1.10.0's per-app call rules: left on disk, an "always" rule would
+    // record calls without a click again after a downgrade.
+    "meeting_call_policies",
 ];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
@@ -1646,17 +1649,30 @@ mod tests {
     }
 
     #[test]
-    fn call_rules_saved_by_1_10_are_dropped_and_every_call_asks() {
+    fn call_rules_saved_by_1_10_are_removed_from_the_file_at_launch() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
         let mut stored = default_settings_json();
+        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT);
         stored["meeting_call_policies"] = serde_json::json!({
             "zoom": "always",
             "face_time": "never",
         });
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap(),
+        )
+        .unwrap();
 
-        let (settings, _) = parse_stored_settings(&stored);
-        assert!(settings.meeting_call_prompt);
-        let saved = serde_json::to_value(&settings).unwrap();
-        assert!(saved.get("meeting_call_policies").is_none());
+        let file = file::SettingsFile::open(path.clone());
+        let settings = read_from(&file);
+        file.flush();
+
+        assert_eq!(settings.history_limit, MAX_HISTORY_LIMIT);
+        let on_disk: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(on_disk["settings"].get("meeting_call_policies").is_none());
+        assert_eq!(on_disk["settings"]["history_limit"], MAX_HISTORY_LIMIT);
     }
 
     #[test]
