@@ -83,6 +83,8 @@ struct ServeRequest: Decodable {
     let wav: String
     /// Words to listen for. Absent when there are none.
     let terms: [String]?
+    /// Work no one waits on, such as a meeting's. Absent for dictation.
+    let background: Bool?
 }
 
 let output = FileHandle.standardOutput
@@ -242,7 +244,8 @@ struct Boost: Sendable {
 /// Parakeet transcript (FluidAudio's `Documentation/ASR/CustomVocabulary.md`).
 /// The CTC model is an optional download, loaded from Murmur's folder rather
 /// than FluidAudio's own cache.
-final class Booster {
+/// Used by one request at a time: `serve` awaits each before reading the next.
+final class Booster: @unchecked Sendable {
     let spotter: CtcKeywordSpotter
     let tokenizer: CtcTokenizer
     let directory: URL
@@ -294,9 +297,37 @@ final class Booster {
     }
 }
 
+/// Transcribes one request's WAV and prints the answer.
+func answer(_ request: ServeRequest, manager: AsrManager, booster: Booster?) async {
+    do {
+        let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: request.wav))
+        var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
+        let terms = request.terms ?? []
+        guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
+            let result = try await manager.transcribe(samples, decoderState: &state)
+            emit(ServeText(id: request.id, text: result.text))
+            return
+        }
+        // The CTC pass needs only the audio, so it runs beside Parakeet.
+        async let spotting = boost.spotter.spotKeywordsWithLogProbs(
+            audioSamples: samples, customVocabulary: boost.vocabulary)
+        let result = try await manager.transcribe(samples, decoderState: &state)
+        let boosted = (try? await spotting).flatMap { boost.rescored(result, spotted: $0) }
+        emit(ServeText(id: request.id, text: boosted ?? result.text))
+    } catch {
+        emit(
+            ServeFailure(
+                id: request.id, code: code(of: error), message: String(describing: error)))
+    }
+}
+
 /// Loads Parakeet once, then answers each request read on stdin until
 /// Murmur closes it. Pieces are at most 15 s, one pass of the encoder.
 func serve(models: URL) async -> Int32 {
+    // Someone waits on every dictation request: the thread that reads them
+    // runs at the highest QoS, and each request's task, whose priority Core
+    // ML's work inherits, at the highest a task can have.
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0)
     ModelHub.offlineMode = true
     let manager = AsrManager(config: .default)
     do {
@@ -313,26 +344,10 @@ func serve(models: URL) async -> Int32 {
         guard let request = try? decoder.decode(ServeRequest.self, from: Data(line.utf8)),
             request.type == "transcribe"
         else { continue }
-        do {
-            let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: request.wav))
-            var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
-            let terms = request.terms ?? []
-            guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
-                let result = try await manager.transcribe(samples, decoderState: &state)
-                emit(ServeText(id: request.id, text: result.text))
-                continue
-            }
-            // The CTC pass needs only the audio, so it runs beside Parakeet.
-            async let spotting = boost.spotter.spotKeywordsWithLogProbs(
-                audioSamples: samples, customVocabulary: boost.vocabulary)
-            let result = try await manager.transcribe(samples, decoderState: &state)
-            let boosted = (try? await spotting).flatMap { boost.rescored(result, spotted: $0) }
-            emit(ServeText(id: request.id, text: boosted ?? result.text))
-        } catch {
-            emit(
-                ServeFailure(
-                    id: request.id, code: code(of: error), message: String(describing: error)))
-        }
+        let priority: TaskPriority = request.background == true ? .utility : .userInitiated
+        await Task(priority: priority) {
+            await answer(request, manager: manager, booster: booster)
+        }.value
     }
     return 0
 }

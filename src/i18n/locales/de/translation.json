@@ -379,6 +379,7 @@
       "hideOriginal": "Originaltranskript ausblenden",
       "fallback": {
         "model_not_ready": "In der Cloud transkribiert: Das lokale Modell war nicht bereit.",
+        "local_preparing": "In der Cloud transkribiert: Das lokale Modell wurde für diese macOS-Version optimiert.",
         "local_failed": "In der Cloud transkribiert: Die lokale Transkription ist fehlgeschlagen.",
         "language_not_supported": "In der Cloud transkribiert: Diese Sprache wird auf diesem Mac nicht unterstützt.",
         "cloud_limit_reached": "Auf diesem Mac transkribiert: Das ChatGPT-Limit war erreicht.",
@@ -552,6 +553,7 @@
           "downloading": "Wird geladen · {{percent}} %",
           "preparing": "Wird vorbereitet…",
           "preparingNote": "Dauert etwa 15 Sekunden.",
+          "optimizing": "Sprachmodell wird für diese macOS-Version optimiert…",
           "meetings": "Auch für Meetings genutzt.",
           "unavailable": "Nicht verfügbar",
           "needs": {

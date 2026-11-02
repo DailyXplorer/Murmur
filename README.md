@@ -105,7 +105,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   languages with no quota. When it can't serve a dictation (model not
   downloaded yet, failure, another language), Murmur uses the cloud if
   ChatGPT is connected; when ChatGPT refuses in cloud mode, a downloaded model
-  takes over. History marks each such dictation.
+  takes over. History marks each such dictation. After a macOS update, the
+  first launch compiles the model for the new version in the background.
 - When no text field is focused, nothing is pasted or copied; the overlay
   offers a Copy button that puts the text on the clipboard
 - Automatic language detection, or an explicit dictation language

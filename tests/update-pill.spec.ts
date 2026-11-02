@@ -138,6 +138,19 @@ for (const theme of THEMES) {
   });
 }
 
+test("the window is held while the update installs", async ({ page }) => {
+  await open(page, "update=1", "light");
+  await page.getByRole("button", { name: "Update available" }).click();
+  await expect(footer(page).getByText(/Downloading\.\.\.\s+42%/)).toBeVisible();
+
+  const held = await commands(page);
+  expect(held.indexOf("hold_settings_window")).toBeGreaterThanOrEqual(0);
+  expect(held.indexOf("hold_settings_window")).toBeLessThan(
+    held.indexOf("plugin:updater|download_and_install"),
+  );
+  expect(held).not.toContain("release_settings_window");
+});
+
 test("an update withdrawn before it installs no longer shows as available", async ({
   page,
 }) => {
@@ -162,4 +175,6 @@ test("an update withdrawn before it installs no longer shows as available", asyn
       ),
     )
     .toBe(true);
+  // Nothing left to finish: the window may go again.
+  await expect.poll(() => commands(page)).toContain("release_settings_window");
 });

@@ -1,4 +1,5 @@
 import {
+  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -126,9 +127,16 @@ const revealMainWindowForPermissions = async () => {
   }
 };
 
+const isSidebarSection = (value: string): value is SidebarSection =>
+  value in SECTIONS_CONFIG;
+
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent = SECTIONS_CONFIG[section].component;
-  return <ActiveComponent />;
+  return (
+    <Suspense fallback={null}>
+      <ActiveComponent />
+    </Suspense>
+  );
 };
 
 /** Settings window shell, including first-run onboarding. */
@@ -262,18 +270,41 @@ function App() {
     };
   }, [t]);
 
+  // Rust closes this window when it is hidden and nothing needs it, and
+  // reopens the section the user left.
+  const settingsView = onboardingState?.kind;
   useEffect(() => {
-    const unlisten = events.switchedToLocal.listen(() => {
+    if (settingsView === undefined) return;
+    void commands
+      .reportSettingsView(
+        settingsView === "done" ? { section: currentSection } : "onboarding",
+      )
+      .catch((error: unknown) => {
+        console.warn("Failed to report the settings view:", error);
+      });
+  }, [settingsView, currentSection]);
+
+  // A switch made while this window was closed is told once it opens: the
+  // toaster renders from then on.
+  const toasterShown = onboardingState !== null;
+  useEffect(() => {
+    if (!toasterShown) return;
+    const announce = async () => {
+      if (!(await commands.takeMainAction("switched_to_local"))) return;
       toast.success(t("localSttCard.switched"), {
         description: t("localSttCard.switchedDescription", {
           section: t("sidebar.transcription"),
         }),
       });
+    };
+    const unlisten = events.switchedToLocal.listen(() => void announce());
+    void unlisten.then(announce).catch((error: unknown) => {
+      console.warn("Failed to read the switch to the local engine:", error);
     });
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [t]);
+  }, [t, toasterShown]);
 
   const checkOnboardingStatus = async () => {
     try {
@@ -308,6 +339,12 @@ function App() {
         hasCompletedPostOnboardingInit.current = true;
         refreshAudioDevices();
         refreshOutputDevices();
+        const lastSection = await commands
+          .getLastSettingsSection()
+          .catch(() => null);
+        if (lastSection && isSidebarSection(lastSection)) {
+          setCurrentSection(lastSection);
+        }
         setOnboardingState({ kind: "done" });
         return;
       }

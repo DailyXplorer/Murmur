@@ -4,8 +4,8 @@ use crate::audio_toolkit::{apply_custom_words_counted, normalize_transcription_o
 use crate::codex_transcribe;
 use crate::engine::local::boost::boost_terms;
 use crate::engine::local::LocalEngine;
-use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
-use crate::local_models::LocalModels;
+use crate::engine::{self, Conditions, Engine, EngineUsed, LocalReadiness, Route};
+use crate::local_models::{LocalModelState, LocalModels};
 use crate::settings::{get_settings, AppSettings};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
@@ -242,13 +242,18 @@ impl TranscriptionManager {
     }
 
     fn conditions<'a>(&self, settings: &'a AppSettings) -> Conditions<'a> {
-        let model_ready = self
+        let engine = self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+        let state = self
             .app_handle
             .try_state::<Arc<LocalModels>>()
-            .is_some_and(|models| models.is_ready())
-            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+            .map(|models| models.state());
+        let model = match state {
+            Some(LocalModelState::Ready) if engine => LocalReadiness::Ready,
+            Some(LocalModelState::Optimizing) if engine => LocalReadiness::Optimizing,
+            _ => LocalReadiness::NotReady,
+        };
         Conditions {
-            model_ready,
+            model,
             signed_in: crate::codex_auth::auth_status().signed_in,
             language: &settings.selected_language,
         }

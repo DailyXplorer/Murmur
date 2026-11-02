@@ -95,6 +95,10 @@ pub enum Request<'a> {
         wav: &'a std::path::Path,
         #[serde(skip_serializing_if = "<[String]>::is_empty")]
         terms: &'a [String],
+        /// Work no one waits on, run at a lower priority. Absent for
+        /// dictation, which runs at the highest.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        background: Option<bool>,
     },
 }
 
@@ -254,6 +258,7 @@ mod tests {
                 id: 7,
                 wav: std::path::Path::new("/tmp/piece 7.wav"),
                 terms: &[],
+                background: None,
             })
             .unwrap(),
             r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
@@ -263,9 +268,10 @@ mod tests {
                 id: 8,
                 wav: std::path::Path::new("/tmp/piece 8.wav"),
                 terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
+                background: Some(true),
             })
             .unwrap(),
-            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"]}"#
+            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(

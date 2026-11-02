@@ -70,6 +70,7 @@ export const SpeakerModels: React.FC<{
     downloading: t("meetings.models.downloading", { percent }),
     preparing: t("meetings.models.preparing"),
     ready: t("meetings.models.ready", { size }),
+    optimizing: t("meetings.models.ready", { size }),
     failed: t("meetings.models.failed"),
   }[state.state];
 
@@ -123,6 +124,8 @@ export const SpeakerModels: React.FC<{
         );
       case "ready":
         return deleteButton;
+      case "optimizing":
+        return null;
     }
   })();
 
