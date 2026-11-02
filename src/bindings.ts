@@ -1207,7 +1207,7 @@ switch_to_local_when_ready?: boolean;
  * Also send dictations under 20 words to the default AI cleanup. Off:
  * they are pasted right away.
  */
-cleanup_short_dictations?: boolean;
+cleanup_short_dictations?: boolean; 
 /**
  * AI apps the user connects (`murmur mcp`) may read meetings. Off until
  * the user turns it on; `mcp::access` reads this key straight from the
