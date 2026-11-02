@@ -761,7 +761,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::change_meeting_audio_retention_setting,
             commands::meetings::get_meetings_storage,
             commands::meetings::change_meeting_call_prompt_setting,
-            commands::meetings::change_meeting_call_policies_setting,
             commands::mcp::change_mcp_enabled_setting,
             commands::mcp::change_mcp_include_dictations_setting,
             commands::mcp::get_mcp_setup,

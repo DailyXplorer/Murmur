@@ -320,20 +320,14 @@
   box-sizing: border-box;
   flex: none;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
   width: max-content;
   max-width: var(--ov-copy-max-w);
   padding: 6px;
   padding-inline-start: 14px;
 }
-.ov-call-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ov-call .ov-call-row::before {
+.ov-call .ov-call-body::before {
   content: "";
   flex: none;
   width: 8px;
@@ -356,31 +350,6 @@
   font-size: 11.5px;
   font-weight: 500;
   color: rgb(255 255 255 / 0.6);
-}
-.ov-call-rules {
-  display: flex;
-  gap: 14px;
-  padding-inline-start: 16px;
-}
-.ov-call-rule {
-  padding: 0;
-  border: none;
-  margin: 0;
-  white-space: nowrap;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: rgb(255 255 255 / 0.6);
-  background: none;
-  cursor: pointer;
-}
-.ov-call-rule:hover {
-  color: var(--ov-ink);
-  text-decoration: underline;
-}
-.ov-call-rule:focus-visible {
-  outline: 2px solid rgb(10 132 255);
-  outline-offset: 2px;
 }
 .ov-call-button {
   flex: none;

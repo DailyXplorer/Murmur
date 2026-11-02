@@ -3,13 +3,12 @@ mod transaction;
 
 use crate::durable;
 use crate::engine::Engine;
-use crate::meetings::calls::{CallApp, CallPolicy};
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::fmt;
 use std::fs;
@@ -362,11 +361,6 @@ pub struct AppSettings {
     /// while meetings are on.
     #[serde(default = "default_meeting_call_prompt")]
     pub meeting_call_prompt: bool,
-    /// What each call app does when it starts a call: the apps missing from
-    /// the map ask. Switched off with `meeting_call_prompt`, whatever a rule
-    /// says.
-    #[serde(default, deserialize_with = "call_policies_from_stored")]
-    pub meeting_call_policies: BTreeMap<CallApp, CallPolicy>,
     /// Shows the meeting's text while it records, made on this Mac when the
     /// local model is ready.
     #[serde(default = "default_meeting_live_transcript")]
@@ -417,26 +411,6 @@ fn default_meetings_enabled() -> bool {
 
 fn default_meeting_call_prompt() -> bool {
     true
-}
-
-/// Reads each app's rule on its own: an app or a rule this version does not
-/// know, from a newer one, is left out without costing the others. "Ask" is
-/// the absence of a rule, so it is not kept.
-fn call_policies_from_stored<'de, D>(
-    deserializer: D,
-) -> Result<BTreeMap<CallApp, CallPolicy>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let stored = BTreeMap::<String, serde_json::Value>::deserialize(deserializer)?;
-    Ok(stored
-        .into_iter()
-        .filter_map(|(app, policy)| {
-            let app = serde_json::from_value(serde_json::Value::String(app)).ok()?;
-            let policy = serde_json::from_value(policy).ok()?;
-            (policy != CallPolicy::Ask).then_some((app, policy))
-        })
-        .collect())
 }
 
 fn default_meeting_live_transcript() -> bool {
@@ -552,7 +526,7 @@ pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 /// cleanup were removed: Codex does both, so their choice is dropped.
 /// Correction learning was removed, and its words with it (see
 /// `parse_stored_settings`).
-const OBSOLETE_SETTINGS_KEYS: [&str; 8] = [
+const OBSOLETE_SETTINGS_KEYS: [&str; 9] = [
     "typing_tool",
     "external_script_path",
     "push_to_talk",
@@ -561,6 +535,9 @@ const OBSOLETE_SETTINGS_KEYS: [&str; 8] = [
     "transcription_provider",
     "cleanup_engine",
     "learned_words",
+    // 1.10.0's per-app call rules: left on disk, an "always" rule would
+    // record calls without a click again after a downgrade.
+    "meeting_call_policies",
 ];
 pub const MAX_PASTE_DELAY_MS: u64 = 500;
 pub const MAX_EXTRA_RECORDING_BUFFER_MS: u64 = 1_500;
@@ -672,7 +649,6 @@ pub fn get_default_settings() -> AppSettings {
         meeting_capture_mode: MeetingCaptureMode::default(),
         meeting_audio_retention: MeetingAudioRetention::default(),
         meeting_call_prompt: default_meeting_call_prompt(),
-        meeting_call_policies: BTreeMap::new(),
         meeting_live_transcript: default_meeting_live_transcript(),
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
@@ -1673,48 +1649,30 @@ mod tests {
     }
 
     #[test]
-    fn settings_saved_before_call_rules_ask_for_every_app() {
+    fn call_rules_saved_by_1_10_are_removed_from_the_file_at_launch() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
         let mut stored = default_settings_json();
-        stored
-            .as_object_mut()
-            .unwrap()
-            .remove("meeting_call_policies");
-
-        assert!(parse_stored_settings(&stored)
-            .0
-            .meeting_call_policies
-            .is_empty());
-        assert!(get_default_settings().meeting_call_policies.is_empty());
-    }
-
-    #[test]
-    fn call_rules_round_trip_and_unknown_entries_are_ignored() {
-        let mut stored = default_settings_json();
+        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT);
         stored["meeting_call_policies"] = serde_json::json!({
             "zoom": "always",
             "face_time": "never",
-            "slack": "ask",
-            "unknown_app": "always",
-            "webex": "sometimes",
         });
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap(),
+        )
+        .unwrap();
 
-        let (settings, _) = parse_stored_settings(&stored);
-        assert_eq!(
-            settings.meeting_call_policies,
-            BTreeMap::from([
-                (CallApp::Zoom, CallPolicy::Always),
-                (CallApp::FaceTime, CallPolicy::Never),
-            ])
-        );
-        let saved = serde_json::to_value(&settings).unwrap();
-        assert_eq!(
-            saved["meeting_call_policies"],
-            serde_json::json!({ "zoom": "always", "face_time": "never" })
-        );
-        assert_eq!(
-            parse_stored_settings(&saved).0.meeting_call_policies,
-            settings.meeting_call_policies
-        );
+        let file = file::SettingsFile::open(path.clone());
+        let settings = read_from(&file);
+        file.flush();
+
+        assert_eq!(settings.history_limit, MAX_HISTORY_LIMIT);
+        let on_disk: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(on_disk["settings"].get("meeting_call_policies").is_none());
+        assert_eq!(on_disk["settings"]["history_limit"], MAX_HISTORY_LIMIT);
     }
 
     #[test]

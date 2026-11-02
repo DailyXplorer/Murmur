@@ -135,13 +135,6 @@ const CALL_PROMPT_WINDOW: &str = "call_prompt";
 /// shows beside it.
 const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 
-/// "Always for Zoom" and "Never for Zoom".
-#[derive(Clone, serde::Serialize, specta::Type)]
-pub struct CallRuleLabels {
-    always: String,
-    never: String,
-}
-
 /// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
 #[derive(Clone, serde::Serialize, specta::Type)]
 pub struct CallPromptLabels {
@@ -150,13 +143,9 @@ pub struct CallPromptLabels {
     /// Which answers the buttons send.
     kind: PromptKind,
     question: String,
-    /// The filled button; the prompt of a meeting that already records has
-    /// none.
-    accept: Option<String>,
+    /// The filled button.
+    accept: String,
     decline: String,
-    /// The two buttons that set the app's rule, on the prompt that offers to
-    /// record.
-    rules: Option<CallRuleLabels>,
     /// The overlay's side of the screen, which the prompt sits on too.
     position: OverlayPosition,
 }
@@ -611,37 +600,24 @@ fn create_call_prompt(app_handle: &AppHandle) {
 }
 
 /// Asks whether to record the call `app` started, with "Record" and "Not
-/// now" and the choice to always or never do so for the app, or, once it left
-/// the call a meeting records, whether to stop, with "Stop and transcribe"
-/// and "Keep recording", or tells that its rule is recording it for a few
-/// seconds, with "Don't record", in a panel of its own: a
+/// now", or, once it left the call a meeting records, whether to stop, with
+/// "Stop and transcribe" and "Keep recording", in a panel of its own: a
 /// dictation, an error or the meeting pill never hides it. It shows even
 /// with the overlay off: the call prompt has a setting of its own. The
 /// panel never takes the focus from the call.
 pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind, app: &str) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
-    let (question, accept, decline, rules) = match kind {
+    let (question, accept, decline) = match kind {
         PromptKind::Start => (
             strings.call_record_question,
-            Some(strings.call_record),
+            strings.call_record,
             strings.call_not_now,
-            Some(CallRuleLabels {
-                always: strings.call_always_for.replace("{{app}}", app),
-                never: strings.call_never_for.replace("{{app}}", app),
-            }),
         ),
         PromptKind::Ended => (
             strings.call_ended_question.replace("{{app}}", app),
-            Some(strings.call_ended_stop),
+            strings.call_ended_stop,
             strings.call_ended_keep,
-            None,
-        ),
-        PromptKind::Started => (
-            strings.call_started_question.replace("{{app}}", app),
-            None,
-            strings.call_dont_record,
-            None,
         ),
     };
     let labels = CallPromptLabels {
@@ -650,7 +626,6 @@ pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind, app: &str) {
         question,
         accept,
         decline,
-        rules,
         position: settings.overlay_position,
     };
     *call_prompt() = Some(labels.clone());

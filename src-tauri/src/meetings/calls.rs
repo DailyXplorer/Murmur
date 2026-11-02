@@ -20,23 +20,8 @@ pub const CALL_OVER_AFTER: Duration = Duration::from_secs(30);
 /// has ended: Murmur offers to stop. Coming back hides the offer, so a mute
 /// that drops the microphone costs a prompt, never a recording.
 pub const ENDED_PROMPT_AFTER: Duration = Duration::from_secs(3);
-/// A meeting an "Always record" rule started shows its "Don't record" panel
-/// this long.
-pub const STARTED_PROMPT_FOR: Duration = Duration::from_secs(10);
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
-    specta::Type,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallApp {
     Zoom,
     GoogleMeet,
@@ -60,22 +45,6 @@ impl CallApp {
             Self::Discord => "Discord",
         }
     }
-}
-
-/// What Murmur does when a call app starts using the microphone while no
-/// meeting records.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum CallPolicy {
-    /// Offer to record it.
-    #[default]
-    Ask,
-    /// Record it at once, with a short chance to take it back.
-    Always,
-    /// Neither offer nor record.
-    Never,
 }
 
 /// A browser edition: its windows and cached call must not belong to a
@@ -335,17 +304,9 @@ fn is_meet_code(segment: &str) -> bool {
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     pub calls: Vec<CallApp>,
-    /// The rule of each app that has one; the others ask.
-    pub policies: BTreeMap<CallApp, CallPolicy>,
     /// Whether a meeting records.
     pub recording: bool,
     pub now: Instant,
-}
-
-impl Snapshot {
-    fn policy(&self, app: CallApp) -> CallPolicy {
-        self.policies.get(&app).copied().unwrap_or_default()
-    }
 }
 
 /// What the call prompt asks.
@@ -356,9 +317,6 @@ pub enum PromptKind {
     Start,
     /// "{{app}} left the call", while the meeting recording it goes on.
     Ended,
-    /// "Recording {{app}}", for the first seconds of a meeting the app's
-    /// "Always record" rule started.
-    Started,
 }
 
 /// The call prompt's buttons.
@@ -367,13 +325,8 @@ pub enum PromptKind {
 pub enum CallAnswer {
     Record,
     NotNow,
-    /// Record, and from now on record this app's calls at once.
-    AlwaysRecord,
-    /// Never offer to record this app's calls.
-    NeverAsk,
     StopAndTranscribe,
     KeepRecording,
-    DontRecord,
 }
 
 impl CallAnswer {
@@ -381,9 +334,8 @@ impl CallAnswer {
     /// showing does nothing.
     pub fn kind(self) -> PromptKind {
         match self {
-            Self::Record | Self::NotNow | Self::AlwaysRecord | Self::NeverAsk => PromptKind::Start,
+            Self::Record | Self::NotNow => PromptKind::Start,
             Self::StopAndTranscribe | Self::KeepRecording => PromptKind::Ended,
-            Self::DontRecord => PromptKind::Started,
         }
     }
 }
@@ -391,9 +343,6 @@ impl CallAnswer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Prompt(PromptKind, CallApp),
-    /// Record the call at once, as its app's rule says, and show the
-    /// `Started` prompt.
-    Start(CallApp),
     /// Hide the prompt showing.
     Hide,
 }
@@ -419,8 +368,6 @@ pub struct CallWatch {
     /// The calls that held the microphone `PROMPT_AFTER` while the meeting
     /// recorded, since it started or since "Keep recording".
     in_meeting: BTreeSet<CallApp>,
-    /// Since when the `Started` prompt shows.
-    started_at: Option<Instant>,
 }
 
 impl CallWatch {
@@ -448,7 +395,7 @@ impl CallWatch {
             if call.off_since.take().is_some() {
                 call.on_since = now;
             }
-            call.asked |= snapshot.recording || snapshot.policy(app) == CallPolicy::Never;
+            call.asked |= snapshot.recording;
         }
         if snapshot.recording {
             let held = self.calls.iter().filter(|(_, call)| {
@@ -475,12 +422,6 @@ impl CallWatch {
                         .any(|app| snapshot.calls.contains(app));
                     snapshot.recording && !back
                 }
-                PromptKind::Started => {
-                    snapshot.recording
-                        && self
-                            .started_at
-                            .is_some_and(|at| now.duration_since(at) < STARTED_PROMPT_FOR)
-                }
             };
             if stays {
                 return None;
@@ -499,11 +440,6 @@ impl CallWatch {
                 && now.duration_since(call.on_since) >= PROMPT_AFTER
         })?;
         call.asked = true;
-        if snapshot.policy(app) == CallPolicy::Always {
-            self.showing = Some((PromptKind::Started, app));
-            self.started_at = Some(now);
-            return Some(Action::Start(app));
-        }
         self.showing = Some((PromptKind::Start, app));
         Some(Action::Prompt(PromptKind::Start, app))
     }
@@ -556,7 +492,6 @@ mod tests {
     struct Clock {
         watch: CallWatch,
         browser_calls: BTreeMap<Browser, CallApp>,
-        policies: BTreeMap<CallApp, CallPolicy>,
         start: Instant,
         second: u64,
     }
@@ -566,7 +501,6 @@ mod tests {
             Self {
                 watch: CallWatch::default(),
                 browser_calls: BTreeMap::new(),
-                policies: BTreeMap::new(),
                 start: Instant::now(),
                 second: 0,
             }
@@ -598,7 +532,6 @@ mod tests {
                     self.second += 1;
                     let snapshot = Snapshot {
                         calls: calls.to_vec(),
-                        policies: self.policies.clone(),
                         recording,
                         now: self.start + Duration::from_secs(at),
                     };
@@ -735,84 +668,6 @@ mod tests {
         clock.run(4, &[], true);
         assert_eq!(clock.watch.answered(PromptKind::Start), None);
         assert_eq!(clock.watch.answered(PromptKind::Ended), Some(CallApp::Zoom));
-    }
-
-    fn with_policies(rules: &[(CallApp, CallPolicy)]) -> Clock {
-        let mut clock = Clock::new();
-        clock.policies = rules.iter().copied().collect();
-        clock
-    }
-
-    const STARTED_ZOOM: Action = Action::Start(CallApp::Zoom);
-
-    #[test]
-    fn always_policy_starts_after_prompt_delay() {
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Always)]);
-        assert_eq!(clock.run(3, ZOOM, false), []);
-        assert_eq!(clock.run(1, ZOOM, false), [(3, STARTED_ZOOM)]);
-        // The meeting records from the next poll; the panel stays 10 s.
-        assert_eq!(clock.run(9, ZOOM, true), []);
-        assert_eq!(clock.run(1, ZOOM, true), [(13, Action::Hide)]);
-        assert_eq!(clock.run(60, ZOOM, true), [], "asked once per call");
-    }
-
-    #[test]
-    fn dont_record_answers_only_the_started_prompt() {
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Always)]);
-        clock.run(4, ZOOM, false);
-        clock.run(2, ZOOM, true);
-        assert_eq!(clock.watch.answered(PromptKind::Start), None);
-        assert_eq!(
-            clock.watch.answered(PromptKind::Started),
-            Some(CallApp::Zoom)
-        );
-        assert_eq!(clock.watch.answered(PromptKind::Started), None);
-        assert_eq!(clock.run(60, ZOOM, true), []);
-    }
-
-    #[test]
-    fn the_started_prompt_hides_when_the_meeting_stops() {
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Always)]);
-        clock.run(4, ZOOM, false);
-        assert_eq!(clock.run(2, ZOOM, true), []);
-        assert_eq!(clock.run(1, ZOOM, false), [(6, Action::Hide)]);
-        assert_eq!(clock.run(60, ZOOM, false), [], "no second start");
-    }
-
-    #[test]
-    fn always_starts_only_the_app_that_has_the_rule() {
-        let mut clock = with_policies(&[(CallApp::Slack, CallPolicy::Always)]);
-        assert_eq!(
-            clock.run(4, ZOOM, false),
-            [(3, Action::Prompt(PromptKind::Start, CallApp::Zoom))]
-        );
-        let mut clock = with_policies(&[(CallApp::Slack, CallPolicy::Always)]);
-        assert_eq!(
-            clock.run(4, &[CallApp::Slack], false),
-            [(3, Action::Start(CallApp::Slack))]
-        );
-    }
-
-    #[test]
-    fn never_policy_never_prompts() {
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Never)]);
-        assert_eq!(clock.run(120, ZOOM, false), []);
-        assert_eq!(clock.run(60, &[], false), []);
-        assert_eq!(clock.run(120, ZOOM, false), [], "a new call neither");
-
-        // Another app's call still asks while Zoom is on the microphone.
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Never)]);
-        assert_eq!(
-            clock.run(5, &[CallApp::Zoom, CallApp::Slack], false),
-            [(3, Action::Prompt(PromptKind::Start, CallApp::Slack))]
-        );
-    }
-
-    #[test]
-    fn a_meeting_recorded_by_hand_still_offers_to_stop_when_a_never_call_ends() {
-        let mut clock = with_policies(&[(CallApp::Zoom, CallPolicy::Never)]);
-        clock.run(10, ZOOM, true);
-        assert_eq!(clock.run(4, &[], true), [(13, ENDED_ZOOM)]);
     }
 
     #[test]
