@@ -39,6 +39,9 @@
     "callRecordQuestion": "Gravar esta reunião?",
     "callRecord": "Gravar",
     "callNotNow": "Agora não",
+    "callEndedQuestion": "{{app}} saiu da chamada. O Murmur continua gravando.",
+    "callEndedStop": "Parar e transcrever",
+    "callEndedKeep": "Continuar gravando",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
     "noticeNothingNewInMeeting": "Ainda não há nada novo.",
     "liveYou": "Você",
@@ -363,7 +366,7 @@
       },
       "meetingCallPrompt": {
         "label": "Oferecer gravar chamadas",
-        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique."
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
       },
       "meetingLiveTranscript": {
         "label": "Transcrição ao vivo das reuniões",
