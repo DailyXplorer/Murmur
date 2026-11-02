@@ -5,12 +5,10 @@ import { SettingContainer } from "../ui/SettingContainer";
 import { PathDisplay } from "../ui/PathDisplay";
 
 interface AppDataDirectoryProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
-  descriptionMode = "inline",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -52,7 +50,6 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
     <SettingContainer
       title={t("settings.about.appDataDirectory.title")}
       description={t("settings.about.appDataDirectory.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="stacked"
     >

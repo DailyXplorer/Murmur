@@ -12,12 +12,11 @@ import {
 import type { AccentColor } from "@/bindings";
 
 interface AccentColorSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t } = useTranslation();
     const { settings, updateSetting, isUpdating } = useSettings();
     const settingsLoaded = settings !== null;
@@ -39,7 +38,6 @@ export const AccentColorSelector: React.FC<AccentColorSelectorProps> =
       <SettingContainer
         title={t("accentColor.title")}
         description={t("accentColor.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <div

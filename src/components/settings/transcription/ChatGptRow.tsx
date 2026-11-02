@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { commands, type Engine } from "@/bindings";
+import { commands } from "@/bindings";
 import {
   type ProviderStatus,
   signInErrorKey,
@@ -53,8 +53,7 @@ const SignOutDialog: React.FC<{
 export const ChatGptRow: React.FC<{
   status: ProviderStatus;
   refreshStatus: () => Promise<void>;
-  engine: Engine;
-}> = ({ status, refreshStatus, engine }) => {
+}> = ({ status, refreshStatus }) => {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   // The last finished check, so a refresh on focus does not swap the button.
@@ -75,23 +74,24 @@ export const ChatGptRow: React.FC<{
   };
 
   const signedIn = checked?.kind === "configured";
-  const description =
+  // A live status, or the error the user must act on: not an explanation.
+  const state =
     signIn.phase === "waiting"
       ? t("settings.transcription.chatgpt.waiting")
       : signIn.phase === "failed" && !signedIn
         ? t(signInErrorKey(signIn.error))
-        : engine === "local" &&
-            checked?.kind === "unavailable" &&
-            checked.reason === "notSignedIn"
-          ? t("settings.transcription.chatgpt.optional")
-          : t(statusTranslationKey(checked ?? status));
+        : t(statusTranslationKey(checked ?? status));
 
   return (
     <SettingContainer
       title={t("settings.transcription.chatgpt.title")}
-      description={description}
-      descriptionMode="inline"
+      description={t("settings.transcription.chatgpt.description")}
       grouped={true}
+      detail={
+        <p data-live-status className="text-pretty text-sm text-text/70">
+          {state}
+        </p>
+      }
     >
       {signIn.phase === "waiting" ? (
         <Button onClick={cancel}>{t("meetings.cancel")}</Button>

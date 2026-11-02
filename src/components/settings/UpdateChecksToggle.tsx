@@ -4,12 +4,10 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface UpdateChecksToggleProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const UpdateChecksToggle: React.FC<UpdateChecksToggleProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -23,7 +21,6 @@ export const UpdateChecksToggle: React.FC<UpdateChecksToggleProps> = ({
       isUpdating={isUpdating("update_checks_enabled")}
       label={t("settings.debug.updateChecks.label")}
       description={t("settings.debug.updateChecks.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
     />
   );

@@ -31,12 +31,15 @@ test.describe("settings labels in French", () => {
         exact: true,
       }),
     ).toBeVisible();
-    await expect(
-      retention.getByText(
-        "Supprime les anciennes transcriptions et leur audio. Les favoris sont conservés.",
-        { exact: true },
-      ),
-    ).toBeVisible();
+    const explanation =
+      "Supprime les anciennes transcriptions et leur audio. Les favoris sont conservés.";
+    await expect(retention.getByText(explanation, { exact: true })).toHaveCount(
+      0,
+    );
+    await retention
+      .getByRole("button", { name: explanation, exact: true })
+      .hover();
+    await expect(page.getByRole("tooltip")).toHaveText(explanation);
   });
 
   test("languages are listed and found by their French name", async ({

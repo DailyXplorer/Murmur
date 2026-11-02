@@ -19,23 +19,16 @@ export const DebugSettings: React.FC = () => {
     <SettingsPage label={t("sidebar.debug")}>
       <SettingsGroup title={t("settings.debug.title")}>
         <LogLevelSelector grouped={true} />
-        {!isWindows && (
-          <WhatsNewPreview descriptionMode="tooltip" grouped={true} />
-        )}
+        {!isWindows && <WhatsNewPreview grouped={true} />}
         <SoundPicker
           label={t("settings.debug.soundTheme.label")}
           description={t("settings.debug.soundTheme.description")}
         />
-        <WordCorrectionThreshold descriptionMode="tooltip" grouped={true} />
-        <RecordingBuffer descriptionMode="tooltip" grouped={true} />
-        <AlwaysOnMicrophone descriptionMode="tooltip" grouped={true} />
-        {!isWindows && (
-          <ClamshellMicrophoneSelector
-            descriptionMode="tooltip"
-            grouped={true}
-          />
-        )}
-        <LiveLogViewer descriptionMode="tooltip" grouped={true} />
+        <WordCorrectionThreshold grouped={true} />
+        <RecordingBuffer grouped={true} />
+        <AlwaysOnMicrophone grouped={true} />
+        {!isWindows && <ClamshellMicrophoneSelector grouped={true} />}
+        <LiveLogViewer grouped={true} />
       </SettingsGroup>
     </SettingsPage>
   );

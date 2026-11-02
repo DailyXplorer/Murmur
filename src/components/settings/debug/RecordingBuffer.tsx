@@ -4,12 +4,10 @@ import { Slider } from "../../ui/Slider";
 import { useSettings } from "../../../hooks/useSettings";
 
 interface RecordingBufferProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const RecordingBuffer: React.FC<RecordingBufferProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -30,7 +28,6 @@ export const RecordingBuffer: React.FC<RecordingBufferProps> = ({
       step={50}
       label={t("settings.debug.recordingBuffer.title")}
       description={t("settings.debug.recordingBuffer.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       formatValue={(v) => `${v}ms`}
     />

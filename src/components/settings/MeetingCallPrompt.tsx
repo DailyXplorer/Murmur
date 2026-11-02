@@ -29,7 +29,6 @@ export const MeetingCallPrompt: React.FC = () => {
       isUpdating={isUpdating("meeting_call_prompt")}
       label={t("settings.advanced.meetingCallPrompt.label")}
       description={t("settings.advanced.meetingCallPrompt.description")}
-      descriptionMode="tooltip"
       grouped={true}
     />
   );

@@ -4,12 +4,10 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface ShowWhatsNewOnUpdateProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ShowWhatsNewOnUpdate: React.FC<ShowWhatsNewOnUpdateProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -25,7 +23,6 @@ export const ShowWhatsNewOnUpdate: React.FC<ShowWhatsNewOnUpdateProps> = ({
       isUpdating={isUpdating("show_whats_new_on_update")}
       label={t("settings.about.whatsNewUpdates.label")}
       description={t("settings.about.whatsNewUpdates.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
     />
   );

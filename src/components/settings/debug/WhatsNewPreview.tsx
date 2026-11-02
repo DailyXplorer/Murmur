@@ -8,12 +8,10 @@ import { findLatestReleaseNote } from "../../whats-new/releaseNotes";
 import type { ReleaseNote } from "../../whats-new/releaseNotes";
 
 interface WhatsNewPreviewProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const WhatsNewPreview: React.FC<WhatsNewPreviewProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -45,7 +43,6 @@ export const WhatsNewPreview: React.FC<WhatsNewPreviewProps> = ({
       <SettingContainer
         title={t("settings.debug.whatsNewPreview.title")}
         description={t("settings.debug.whatsNewPreview.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Button onClick={preview} disabled={isLoading}>

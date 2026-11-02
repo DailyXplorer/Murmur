@@ -6,12 +6,11 @@ import { useSettings } from "../../hooks/useSettings";
 import type { ClipboardHandling } from "@/bindings";
 
 interface ClipboardHandlingProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ClipboardHandlingSetting: React.FC<ClipboardHandlingProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -33,7 +32,6 @@ export const ClipboardHandlingSetting: React.FC<ClipboardHandlingProps> =
       <SettingContainer
         title={t("settings.advanced.clipboardHandling.title")}
         description={t("settings.advanced.clipboardHandling.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Dropdown

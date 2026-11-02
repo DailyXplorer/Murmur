@@ -95,8 +95,11 @@ test.describe("the dictation style in Settings", () => {
       await openTranscription(page, query);
       await expect(picker(page)).toBeDisabled();
       await expect(
-        styleRow(page).getByText(CLEANUP_OFF, { exact: true }),
+        styleRow(page).getByRole("button", {
+          name: new RegExp(`^${CLEANUP_OFF}`),
+        }),
       ).toBeVisible();
+      await expect(styleRow(page).getByText(CLEANUP_OFF)).toHaveCount(0);
     });
   }
 

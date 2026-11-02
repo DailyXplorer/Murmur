@@ -268,9 +268,15 @@ test("without system audio support the sources are fixed to the microphone", asy
   await openMeetings(page, "&systemAudio=os_too_old");
 
   await expect(
-    page.getByText(/System audio needs macOS 14\.4 or later/),
+    page.getByRole("button", {
+      name: /^System audio needs macOS 14\.4 or later/,
+    }),
   ).toBeVisible();
-  const sources = page.getByRole("button", { name: "Microphone only" });
+  await expect(page.getByText(/System audio needs macOS 14\.4/)).toHaveCount(0);
+  const sources = page.getByRole("button", {
+    name: "Microphone only",
+    exact: true,
+  });
   await expect(sources).toBeDisabled();
   await expect(page.getByRole("button", { name: "Open settings" })).toHaveCount(
     0,
@@ -282,7 +288,9 @@ test("a Mac that tells no speakers apart offers no speaker models, even with the
 }) => {
   await openMeetings(page, "&analysis=unsupported&models=ready");
   await expect(
-    page.getByText(/Speaker detection needs a Mac with Apple silicon/),
+    page.getByRole("button", {
+      name: /^Speaker detection needs a Mac with Apple silicon/,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete models" })).toHaveCount(
     0,
@@ -290,7 +298,9 @@ test("a Mac that tells no speakers apart offers no speaker models, even with the
 
   await openMeetings(page, "&analysis=os_too_old");
   await expect(
-    page.getByText(/Speaker detection needs macOS 15 or later/),
+    page.getByRole("button", {
+      name: /^Speaker detection needs macOS 15 or later/,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Download" })).toHaveCount(0);
 });

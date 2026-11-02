@@ -4,12 +4,11 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface ExperimentalToggleProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ExperimentalToggle: React.FC<ExperimentalToggleProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -22,7 +21,6 @@ export const ExperimentalToggle: React.FC<ExperimentalToggleProps> = React.memo(
         isUpdating={isUpdating("experimental_enabled")}
         label={t("settings.advanced.experimentalToggle.label")}
         description={t("settings.advanced.experimentalToggle.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       />
     );

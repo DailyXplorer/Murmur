@@ -56,9 +56,13 @@ export const SpeakerModels: React.FC<{
   if (state.state === "unsupported" || support !== "available") {
     return (
       <SettingsGroup title={t("meetings.models.title")}>
-        <p className="px-4 py-3 text-sm text-text/60">
-          {t(`meetings.models.${support}`)}
-        </p>
+        <SettingContainer
+          title={t("settings.transcription.localModel.row.unavailable")}
+          description={t(`meetings.models.${support}`)}
+          grouped={true}
+        >
+          {null}
+        </SettingContainer>
       </SettingsGroup>
     );
   }
