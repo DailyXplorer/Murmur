@@ -985,6 +985,10 @@ pub fn run(cli_args: CliArgs) {
                     dispatch_single_instance_action(&app_handle, action)
                 });
 
+            // scripts/smoke-macos-app.sh waits for this line before a release
+            // is published.
+            log::info!("Setup complete (version {})", env!("CARGO_PKG_VERSION"));
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
