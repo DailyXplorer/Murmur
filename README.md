@@ -142,6 +142,9 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   dictation, ignoring case and accents; each word matches as a prefix, and
   quotes match an exact phrase. Opening a meeting from a result jumps to the
   first passage that matched
+- Let an AI assistant such as Claude Code, Codex or Claude Desktop read your
+  meetings, read-only and off until you turn it on. See
+  [Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant)
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
@@ -247,6 +250,34 @@ warning 5 minutes before.
   on the call that you record it, as you would for a meeting you start by
   hand.
 
+### Use your meetings from an AI assistant
+
+An AI assistant that supports the Model Context Protocol can list, search and
+read your meetings: "what did we decide about pricing last week?". It is off
+until you turn on "Let AI agents read your meetings (MCP)" in Settings →
+Advanced, which then shows what to paste into Claude Code, Codex or Claude
+Desktop. For Claude Code, for example:
+
+```bash
+claude mcp add murmur -- /Applications/Murmur.app/Contents/MacOS/murmur mcp
+```
+
+- The assistant starts `murmur mcp` itself and talks to it through the
+  process's standard input and output. Murmur opens no window and no network
+  port for it, and nothing else on your Mac or the internet can reach it.
+- It is read-only: it opens your meetings with read-only access, offers no
+  tool that changes anything and takes no file path. It never returns audio,
+  audio paths, window names, settings or account data.
+- Five tools: `list_meetings`, `search`, `get_transcript`, `get_summary`, and
+  `recent_dictations`. The last exists only when you also turn on "Include
+  dictation history", which is off by default because dictations are more
+  personal than meetings.
+- Whatever the assistant reads goes to the assistant's own servers, not only
+  to your Mac. Turn the switch off to stop it; this takes effect on the next
+  request, without restarting the assistant.
+- If Murmur was updated and not opened since, open it once: the server never
+  changes your data to catch up.
+
 ### Permissions after updating to the stable signature
 
 Releases are signed with a stable Murmur certificate, so macOS keeps the
@@ -270,7 +301,11 @@ murmur --start-hidden
 murmur --no-tray
 murmur --debug
 murmur --transcribe-file recording.wav --json
+murmur mcp
 ```
+
+`murmur mcp` is for AI assistants to launch, not to run by hand; see
+[Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant).
 
 On Unix systems, `SIGUSR2` also toggles transcription for a running instance:
 
@@ -329,7 +364,8 @@ a cleanup request. Password fields and password managers are never read.
 Meetings stay on the Mac, apart from two requests: the audio pieces sent to
 Codex for transcription, and the transcript sent to Codex for the summary.
 Speaker detection runs on the Mac. Its models are downloaded from Hugging
-Face once.
+Face once. An AI assistant you connect through `murmur mcp` reads meetings on
+the Mac, but what it reads is then sent to its own servers.
 
 The audio of a cancelled dictation stays in memory for 60 seconds for Restore,
 and is never written to disk. It is overwritten with zeros when the minute

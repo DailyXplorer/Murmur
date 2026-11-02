@@ -306,6 +306,9 @@ const settingUpdaters: {
     commands.changeMeetingCallPromptSetting(value as boolean),
   meeting_call_policies: (value) =>
     commands.changeMeetingCallPoliciesSetting(value ?? {}),
+  mcp_enabled: (value) => commands.changeMcpEnabledSetting(value as boolean),
+  mcp_include_dictations: (value) =>
+    commands.changeMcpIncludeDictationsSetting(value as boolean),
   meeting_live_transcript: (value) =>
     commands.changeMeetingLiveTranscriptSetting(value as boolean),
   transcription_engine: (value) =>

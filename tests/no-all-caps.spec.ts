@@ -13,6 +13,7 @@ const ACRONYMS = [
   "GB",
   "GGUF", // the file format of the Intel model
   "MB",
+  "MCP", // Model Context Protocol, the name of the AI assistants' connector
   "NVIDIA",
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
 ];
@@ -41,6 +42,9 @@ const PROPER_PHRASES = [
   "Markdown",
   "FaceTime",
   "Core ML",
+  "Claude Desktop",
+  "Claude Code",
+  "Claude",
   "Discord",
   "Log level",
   "Accessibility",

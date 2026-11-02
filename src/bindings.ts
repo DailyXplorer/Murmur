@@ -1058,6 +1058,30 @@ async changeMeetingCallPoliciesSetting(policies: Partial<{ [key in CallApp]: Cal
     else return { status: "error", error: String(e) };
 }
 },
+async changeMcpEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_mcp_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async changeMcpIncludeDictationsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_mcp_include_dictations_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getMcpSetup() : Promise<Result<McpSetup, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_mcp_setup") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 /**
  * The call prompt's buttons.
  */
@@ -1229,6 +1253,16 @@ local_model_download_wanted?: boolean;
  * ready.
  */
 switch_to_local_when_ready?: boolean; 
+/**
+ * AI apps the user connects (`murmur mcp`) may read meetings. Off until
+ * the user turns it on; `mcp::access` reads this key straight from the
+ * settings file.
+ */
+mcp_enabled?: boolean; 
+/**
+ * Those apps may also read dictations. Needs `mcp_enabled`.
+ */
+mcp_include_dictations?: boolean; 
 /**
  * Also send dictations under 20 words to the default AI cleanup. Off:
  * they are pasted right away.
@@ -1529,6 +1563,14 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * next one to act on.
  */
 export type MainAction = "check_updates" | "switched_to_local"
+/**
+ * What an AI app needs to launch the read-only server.
+ */
+export type McpSetup = { 
+/**
+ * This app's executable: the AI app runs it with the `mcp` argument.
+ */
+command: string }
 /**
  * How long a processed meeting keeps its audio. Its transcript and summary
  * stay either way. The names are spelled out: serde and the TypeScript

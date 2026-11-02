@@ -11,6 +11,7 @@ import { MeetingsToggle } from "../MeetingsToggle";
 import { MeetingsAudioRetention } from "../MeetingsAudioRetention";
 import { MeetingCallPrompt } from "../MeetingCallPrompt";
 import { MeetingCallRules } from "../MeetingCallRules";
+import { McpAccess } from "../McpAccess";
 import { MeetingLiveTranscript } from "../MeetingLiveTranscript";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
@@ -39,6 +40,10 @@ export const AdvancedSettings: React.FC = () => {
       </SettingsGroup>
 
       {meetingsEnabled && <MeetingCallRules />}
+
+      <SettingsGroup title={t("settings.advanced.groups.mcp")}>
+        <McpAccess />
+      </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.updates")}>
         <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />
