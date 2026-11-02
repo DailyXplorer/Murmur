@@ -42,3 +42,30 @@ for (const { saved, system, shown } of [
     ).toBeVisible();
   });
 }
+
+test("a French setting paints French first and loads only English and French", async ({
+  page,
+}) => {
+  const bundles = new Set<string>();
+  page.on("request", (request) => {
+    const code = request
+      .url()
+      .match(/\/locales\/([^/]+)\/translation\.json/)?.[1];
+    if (code) bundles.add(code);
+  });
+
+  await page.goto("/tests/fixtures/app-language.html?saved=fr");
+
+  await expect(
+    page.getByText("Langue de l'application", { exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => window.appLanguageFirstPaint)).toContain(
+    "Langue de l'application",
+  );
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe("fr");
+  expect([...bundles].sort()).toEqual(["en", "fr"]);
+  const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
+  if (outputDir) {
+    await page.screenshot({ path: `${outputDir}/first-paint-fr.png` });
+  }
+});

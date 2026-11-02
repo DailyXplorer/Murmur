@@ -171,6 +171,8 @@ const visit = async (
     await page.getByRole("button", { name: /Point hebdo produit/ }).click();
     await page.getByRole("tab").nth(1).click();
   }
+  // History, Meetings and Insights load their code on first open.
+  await page.waitForLoadState("networkidle");
   await page.waitForTimeout(200);
 };
 
