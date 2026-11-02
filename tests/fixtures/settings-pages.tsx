@@ -81,16 +81,6 @@ const offline = params.get("offline") === "1";
 const analysis = params.get("analysis") ?? "available";
 /** `0`: a Mac that cannot tell a call started (Intel, or before macOS 14). */
 const callDetection = params.get("callDetection") !== "0";
-/** `0`: call prompts switched off. */
-const callPrompt = params.get("callPrompt") !== "0";
-/** The rule saved for each call app, as `zoom:always,face_time:never`; every
- * app asks by default. */
-const callRules = Object.fromEntries(
-  (params.get("callRules") ?? "")
-    .split(",")
-    .filter(Boolean)
-    .map((rule) => rule.split(":")),
-);
 /** `failed` (rate limited), `server` or `pending`; ready by default. */
 const meetingSummary = params.get("summary");
 /** The stage saved for the processing meeting; `transcribing` by default. */
@@ -296,8 +286,7 @@ const SETTINGS: AppSettings = {
   local_stt_card_dismissed: !cardShown,
   log_level: "info",
   meeting_audio_retention: "keep",
-  meeting_call_policies: callRules,
-  meeting_call_prompt: callPrompt,
+  meeting_call_prompt: true,
   meeting_capture_mode: "both",
   mcp_enabled: params.get("mcp") === "1",
   mcp_include_dictations: params.get("mcpDictations") === "1",
@@ -806,7 +795,6 @@ const RESPONSES: Record<string, unknown> = {
   get_mcp_setup: { command: "/Applications/Murmur.app/Contents/MacOS/murmur" },
   change_meeting_audio_retention_setting: null,
   change_meeting_call_prompt_setting: null,
-  change_meeting_call_policies_setting: null,
   change_meeting_capture_mode_setting: null,
   get_meetings_storage: {
     audio_bytes: meetingsStorageBytes,

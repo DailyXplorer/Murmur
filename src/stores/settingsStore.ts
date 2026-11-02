@@ -304,8 +304,6 @@ const settingUpdaters: {
     commands.changeMeetingAudioRetentionSetting(value as MeetingAudioRetention),
   meeting_call_prompt: (value) =>
     commands.changeMeetingCallPromptSetting(value as boolean),
-  meeting_call_policies: (value) =>
-    commands.changeMeetingCallPoliciesSetting(value ?? {}),
   mcp_enabled: (value) => commands.changeMcpEnabledSetting(value as boolean),
   mcp_include_dictations: (value) =>
     commands.changeMcpIncludeDictationsSetting(value as boolean),

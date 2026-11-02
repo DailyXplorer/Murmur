@@ -91,10 +91,6 @@ test.describe("call prompt screenshots", () => {
         question: tray.callRecordQuestion,
         accept: tray.callRecord,
         decline: tray.callNotNow,
-        rules: {
-          always: tray.callAlwaysFor.replace("{{app}}", "Zoom"),
-          never: tray.callNeverFor.replace("{{app}}", "Zoom"),
-        },
         position: "bottom",
       });
       await expect(
@@ -105,36 +101,6 @@ test.describe("call prompt screenshots", () => {
       await page.mouse.move(0, 0);
       await page.screenshot({
         path: `${outputDir}/overlay-call-record-en-${theme}.png`,
-      });
-    });
-
-    test(`en started ${theme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: theme });
-      await openCallPrompt(page);
-      await page.evaluate(
-        (background) => (document.body.style.background = background),
-        DESKTOP[theme],
-      );
-      await page.evaluate(() => document.fonts.ready);
-      const tray = trayStrings("en");
-      const question = tray.callStartedQuestion.replace("{{app}}", "Zoom");
-      await dispatch(page, "show-overlay-call", {
-        app: "Zoom",
-        kind: "started",
-        question,
-        accept: null,
-        decline: tray.callDontRecord,
-        rules: null,
-        position: "bottom",
-      });
-      await expect(
-        page.getByRole("alertdialog", { name: question }),
-      ).toBeVisible();
-      await entranceFinished(page);
-      await fitCopyWindow(page);
-      await page.mouse.move(0, 0);
-      await page.screenshot({
-        path: `${outputDir}/overlay-call-started-en-${theme}.png`,
       });
     });
   }

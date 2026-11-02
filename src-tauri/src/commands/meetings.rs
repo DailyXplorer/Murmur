@@ -1,9 +1,7 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::meetings::calls::{CallApp, CallPolicy};
 use crate::meetings::coordinator::MeetingRuntime;
 use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingHit, MeetingsPage};
@@ -362,23 +360,6 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
 pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     update_settings(&app, |settings| settings.meeting_call_prompt = enabled);
     meetings::call_watch::sync(&app);
-    Ok(())
-}
-
-/// The rule of each call app. "Ask" is the absence of a rule, so it is not
-/// kept.
-#[tauri::command]
-#[specta::specta]
-pub fn change_meeting_call_policies_setting(
-    app: AppHandle,
-    policies: BTreeMap<CallApp, CallPolicy>,
-) -> Result<(), String> {
-    update_settings(&app, |settings| {
-        settings.meeting_call_policies = policies
-            .into_iter()
-            .filter(|(_, policy)| *policy != CallPolicy::Ask)
-            .collect();
-    });
     Ok(())
 }
 

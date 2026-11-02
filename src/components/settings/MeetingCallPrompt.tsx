@@ -4,9 +4,11 @@ import { commands } from "@/bindings";
 import { useSettings } from "../../hooks/useSettings";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 
-/** Whether this Mac can tell that a call started: not Intel, nor macOS
- * before 14. */
-export const useCallDetection = (): boolean => {
+/** Whether to offer recording when a call starts. Hidden where the Mac
+ * cannot tell (Intel, or macOS before 14). */
+export const MeetingCallPrompt: React.FC = () => {
+  const { t } = useTranslation();
+  const { getSetting, updateSetting, isUpdating } = useSettings();
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
@@ -18,16 +20,6 @@ export const useCallDetection = (): boolean => {
       current = false;
     };
   }, []);
-
-  return supported;
-};
-
-/** Whether to offer recording when a call starts. Hidden where the Mac
- * cannot tell. */
-export const MeetingCallPrompt: React.FC = () => {
-  const { t } = useTranslation();
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-  const supported = useCallDetection();
 
   if (!supported) return null;
   return (
