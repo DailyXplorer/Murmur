@@ -349,7 +349,7 @@
         "description": "Lets AI apps you connect, such as Claude or Codex, list, search and read your meetings. Read-only. They may send what they read to their own servers.",
         "dictations": "Include dictation history",
         "dictationsDescription": "Also lets them read your latest dictations, which are more personal than meetings.",
-        "setupTitle": "Connect an AI app",
+        "setupTitle": "Connect an app",
         "setupDescription": "Pick your app, then paste this into it. No window, no network port.",
         "clientsLabel": "AI app",
         "clients": {
@@ -357,7 +357,7 @@
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Copy setup for your AI app",
+        "copyConfig": "Copy setup for your app",
         "copied": "Copied"
       },
       "meetingsToggle": {

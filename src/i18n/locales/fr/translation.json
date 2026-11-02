@@ -349,7 +349,7 @@
         "description": "Les applications IA que vous connectez, comme Claude ou Codex, peuvent lister, rechercher et lire vos réunions. Lecture seule. Elles peuvent envoyer ce qu’elles lisent à leurs propres serveurs.",
         "dictations": "Inclure l’historique des dictées",
         "dictationsDescription": "Leur permet aussi de lire vos dernières dictées, plus personnelles que les réunions.",
-        "setupTitle": "Connecter une application IA",
+        "setupTitle": "Connecter une application",
         "setupDescription": "Choisissez votre application, puis collez ceci dedans. Sans fenêtre ni port réseau.",
         "clientsLabel": "Application IA",
         "clients": {
@@ -357,7 +357,7 @@
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Copier la configuration pour votre application IA",
+        "copyConfig": "Copier la configuration pour votre application",
         "copied": "Copié"
       },
       "meetingsToggle": {

@@ -349,7 +349,7 @@
         "description": "Verbundene KI-Apps wie Claude oder Codex können deine Meetings auflisten, durchsuchen und lesen. Nur Lesezugriff. Sie senden das Gelesene möglicherweise an ihre eigenen Server.",
         "dictations": "Diktatverlauf einbeziehen",
         "dictationsDescription": "Erlaubt ihnen auch, deine letzten Diktate zu lesen, die persönlicher sind als Meetings.",
-        "setupTitle": "KI-App verbinden",
+        "setupTitle": "App verbinden",
         "setupDescription": "Wähle deine App und füge dies dort ein. Kein Fenster, kein Netzwerkport.",
         "clientsLabel": "KI-App",
         "clients": {
@@ -357,7 +357,7 @@
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Einrichtung für deine KI-App kopieren",
+        "copyConfig": "Einrichtung für deine App kopieren",
         "copied": "Kopiert"
       },
       "meetingsToggle": {
