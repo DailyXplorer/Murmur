@@ -413,6 +413,12 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });
 },
+/**
+ * The cancelled pill's Restore button.
+ */
+async restoreCancelledDictation() : Promise<void> {
+    await TAURI_INVOKE("restore_cancelled_dictation");
+},
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_app_dir_path") };

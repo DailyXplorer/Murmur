@@ -6,6 +6,7 @@ const expectedListenerCounts = {
   "show-overlay-error": 2,
   "show-overlay-copy": 2,
   "show-overlay-warning": 2,
+  "show-overlay-cancelled": 2,
   "hide-overlay": 2,
   "recording-ready": 2,
   "mic-level": 2,
@@ -151,7 +152,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         window.recordingOverlayListenerHarness.pendingCount(),
       ),
     )
-    .toBe(16);
+    .toBe(18);
 
   const initialSummary = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.summary(),

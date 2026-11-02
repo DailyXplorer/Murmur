@@ -56,6 +56,7 @@ rodio = "0.21.1"
 reqwest = { version = "0.13", features = ["json", "query", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
 strsim = "0.11.0"
+zeroize = "1"
 # Accent-insensitive word keys for meeting transcripts.
 unicode-normalization = "0.1"
 # Word count (UAX #29) that decides whether a dictation is short.

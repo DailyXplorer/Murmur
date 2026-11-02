@@ -1,11 +1,14 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
+use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error, Capture};
 use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
 use crate::engine::EngineUsed;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
-use crate::managers::transcription::TranscriptionManager;
+use crate::managers::transcription::{Transcript, TranscriptionManager};
+use crate::overlay::DictationEpoch;
+use crate::recently_cancelled::{self, Kept};
 use crate::settings::{get_settings, AppSettings, DictationStyle, OverlayStyle};
 use crate::shortcut;
 use crate::transcription_error::{FailureKind, TranscriptionError};
@@ -369,6 +372,7 @@ impl ShortcutAction for TranscribeAction {
                     "Recording request accepted in {:?}; waiting for first microphone samples",
                     recording_start_time.elapsed()
                 );
+                recently_cancelled::wipe(app);
                 crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
                 std::thread::spawn(move || tm.warm_if_local());
@@ -476,37 +480,117 @@ impl ShortcutAction for TranscribeAction {
         let stop_time = Instant::now();
         debug!("TranscribeAction::stop called for binding: {}", binding_id);
 
-        let ah = app.clone();
-        let rm = Arc::clone(&app.state::<Arc<AudioRecordingManager>>());
-        let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
-        let hm = Arc::clone(&app.state::<Arc<HistoryManager>>());
-
         change_tray_icon(app, TrayIconState::Transcribing);
         show_transcribing_overlay(app);
 
         // Unmute before playing audio feedback so the stop sound is audible
-        rm.remove_mute();
+        app.state::<Arc<AudioRecordingManager>>().remove_mute();
 
         play_feedback_sound(app, SoundType::Stop);
 
-        let binding_id = binding_id.to_string();
+        Self::run_pipeline(
+            app,
+            operation,
+            Input::Recording {
+                binding_id: binding_id.to_string(),
+            },
+        );
+
+        debug!(
+            "TranscribeAction::stop completed in {:?}",
+            stop_time.elapsed()
+        );
+    }
+}
+
+/// What a dictation transcribes.
+enum Input {
+    /// The recording `stop` ends now.
+    Recording { binding_id: String },
+    /// A cancelled dictation the user restored.
+    Restored(Kept),
+}
+
+/// Restore: runs a cancelled dictation through the pipeline as if its
+/// recording had just ended. It pastes into the app focused now, so cleanup
+/// reads that window too.
+pub(crate) fn restore(app: &AppHandle, operation: ProcessingOperation, kept: Kept) {
+    crate::window_names::capture(context_reads(&get_settings(app)));
+    change_tray_icon(app, TrayIconState::Transcribing);
+    show_transcribing_overlay(app);
+    shortcut::register_cancel_shortcut(app);
+    TranscribeAction::run_pipeline(app, operation, Input::Restored(kept));
+}
+
+/// The engine needs more than a second of audio, so a shorter capture is
+/// padded with silence to 1.25 s. Returns the length captured: a cancel keeps
+/// only that, so the 1 s minimum for Restore reads the real dictation.
+fn pad_short_capture(mut samples: Vec<f32>) -> (Vec<f32>, usize) {
+    let captured = samples.len();
+    let second = TARGET_SAMPLE_RATE as usize;
+    if captured > 0 && captured < second {
+        samples.resize(second * 5 / 4, 0.0);
+    }
+    (samples, captured)
+}
+
+/// The audio a cancel keeps: what was captured, without the padding.
+fn captured_audio(samples: Arc<Vec<f32>>, captured: usize) -> Vec<f32> {
+    let mut samples = Arc::try_unwrap(samples).unwrap_or_else(|shared| shared.to_vec());
+    samples.truncate(captured);
+    samples
+}
+
+/// Keeps the audio of a dictation cancelled before its paste, for Restore.
+/// `shown` is the overlay epoch of that dictation.
+fn keep_cancelled(
+    app: &AppHandle,
+    samples: Arc<Vec<f32>>,
+    captured: usize,
+    transcript: Option<Transcript>,
+    shown: DictationEpoch,
+) {
+    recently_cancelled::keep(app, captured_audio(samples, captured), transcript, shown);
+}
+
+impl TranscribeAction {
+    fn run_pipeline(app: &AppHandle, operation: ProcessingOperation, input: Input) {
+        let ah = app.clone();
+        let rm = Arc::clone(&app.state::<Arc<AudioRecordingManager>>());
+        let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+        let hm = Arc::clone(&app.state::<Arc<HistoryManager>>());
         let cancel_generation = rm.cancel_generation();
+        // Its transcribing state showed just before: a newer dictation takes
+        // the overlay after it, so a pill raised for this one by a late cancel
+        // can tell them apart.
+        let shown = utils::dictation_epoch();
 
         tauri::async_runtime::spawn(async move {
             let _guard = FinishGuard {
                 app: ah.clone(),
                 operation: operation.clone(),
             };
-            debug!(
-                "Starting async transcription task for binding: {}",
-                binding_id
-            );
+            debug!("Starting async transcription task");
 
             let stop_recording_time = Instant::now();
             let window = crate::window_names::collect();
-            if let Some(Capture { samples, mic_lost }) =
-                rm.stop_recording(&binding_id, cancel_generation)
-            {
+            let captured = match input {
+                Input::Recording { binding_id } => rm
+                    .stop_recording(&binding_id, cancel_generation)
+                    .map(|capture| (capture, None)),
+                Input::Restored(mut kept) => {
+                    let samples = std::mem::take(&mut kept.samples);
+                    let transcript = kept.transcript.take();
+                    Some((
+                        Capture {
+                            samples,
+                            mic_lost: false,
+                        },
+                        transcript,
+                    ))
+                }
+            };
+            if let Some((Capture { samples, mic_lost }, kept_transcript)) = captured {
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
                     stop_recording_time.elapsed(),
@@ -515,6 +599,7 @@ impl ShortcutAction for TranscribeAction {
 
                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                     debug!("Transcription operation cancelled after recording stop");
+                    recently_cancelled::keep(&ah, samples, kept_transcript, shown);
                     return;
                 }
 
@@ -524,6 +609,7 @@ impl ShortcutAction for TranscribeAction {
                         show_mic_lost_notice(&ah, &operation);
                     }
                 } else {
+                    let (samples, captured) = pad_short_capture(samples);
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
                     let samples = Arc::new(samples);
@@ -553,8 +639,15 @@ impl ShortcutAction for TranscribeAction {
                         user_alert::show(&ah, Alert::LongRecording);
                     }
                     let transcription_time = Instant::now();
-                    let transcription_result =
-                        tm.transcribe_samples(samples, operation.clone()).await;
+                    // A dictation cancelled after the engine answered is
+                    // restored from its transcript.
+                    let transcription_result = match kept_transcript {
+                        Some(transcript) => Ok(transcript),
+                        None => {
+                            tm.transcribe_samples(Arc::clone(&samples), operation.clone())
+                                .await
+                        }
+                    };
 
                     let wav_saved = match wav_handle {
                         None => false,
@@ -584,6 +677,7 @@ impl ShortcutAction for TranscribeAction {
 
                     if operation_was_cancelled(&operation, &rm, cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");
+                        keep_cancelled(&ah, samples, captured, transcription_result.ok(), shown);
                         return;
                     }
 
@@ -613,6 +707,18 @@ impl ShortcutAction for TranscribeAction {
                             .await
                             else {
                                 debug!("Transcription operation cancelled during output handling");
+                                keep_cancelled(
+                                    &ah,
+                                    samples,
+                                    captured,
+                                    Some(Transcript {
+                                        text: transcription,
+                                        dictionary_fixes,
+                                        source,
+                                        pass_language,
+                                    }),
+                                    shown,
+                                );
                                 return;
                             };
                             let final_text = processed.text.clone();
@@ -656,6 +762,18 @@ impl ShortcutAction for TranscribeAction {
                                 {
                                     Ok(outcome) if !paste_outcome_commits_history(outcome) => {
                                         debug!("Transcription operation cancelled before paste execution");
+                                        keep_cancelled(
+                                            &ah,
+                                            samples,
+                                            captured,
+                                            Some(Transcript {
+                                                text: transcription,
+                                                dictionary_fixes,
+                                                source,
+                                                pass_language,
+                                            }),
+                                            shown,
+                                        );
                                         return;
                                     }
                                     Ok(outcome) => {
@@ -704,6 +822,7 @@ impl ShortcutAction for TranscribeAction {
                                 debug!(
                                     "Transcription operation cancelled after transcription error"
                                 );
+                                keep_cancelled(&ah, samples, captured, None, shown);
                                 return;
                             }
 
@@ -721,6 +840,7 @@ impl ShortcutAction for TranscribeAction {
                             if wav_saved {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
+                                    keep_cancelled(&ah, samples, captured, None, shown);
                                     return;
                                 }
                                 // Nothing transcribed it; Retry records the
@@ -743,11 +863,6 @@ impl ShortcutAction for TranscribeAction {
                 debug!("No samples retrieved from recording stop");
             }
         });
-
-        debug!(
-            "TranscribeAction::stop completed in {:?}",
-            stop_time.elapsed()
-        );
     }
 }
 
@@ -796,8 +911,9 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        cleanup_context, cleanup_plan, complete_unless_cancelled, context_reads, deliver,
-        paste_outcome_commits_history, CleanupPlan, PendingWav, SHORT_DICTATION_WORDS,
+        captured_audio, cleanup_context, cleanup_plan, complete_unless_cancelled, context_reads,
+        deliver, pad_short_capture, paste_outcome_commits_history, CleanupPlan, PendingWav,
+        SHORT_DICTATION_WORDS,
     };
     use crate::audio_toolkit::text_passes::PassLanguage;
     use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
@@ -813,6 +929,22 @@ mod tests {
     use std::thread;
     use std::time::Duration;
     use unicode_segmentation::UnicodeSegmentation;
+
+    #[test]
+    fn a_cancel_keeps_the_captured_audio_not_the_padding() {
+        let (padded, captured) = pad_short_capture(vec![0.5; 8_000]);
+        assert_eq!(padded.len(), 20_000);
+        let kept = captured_audio(Arc::new(padded), captured);
+        assert_eq!(kept, vec![0.5; 8_000]);
+        assert!(
+            kept.len() < crate::recently_cancelled::MIN_SAMPLES,
+            "a half-second dictation is too short for Restore, padded or not"
+        );
+
+        let (samples, captured) = pad_short_capture(vec![0.5; 24_000]);
+        assert_eq!(samples.len(), 24_000);
+        assert_eq!(captured_audio(Arc::new(samples), captured).len(), 24_000);
+    }
 
     #[test]
     fn cleanup_follows_the_chosen_dictation_style() {

@@ -3134,6 +3134,7 @@ dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
  "url",
+ "zeroize",
 ]
 
 [[package]]

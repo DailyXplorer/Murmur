@@ -99,6 +99,7 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 
 - One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
+- Restore after a cancel: for 60 seconds, the overlay's Restore button (shown 5 seconds) or the tray's "Restore cancelled dictation" transcribes the cancelled dictation and pastes it where you are now
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Transcription on this Mac or in the cloud, chosen in Settings →
   Transcription. On the Mac, NVIDIA Parakeet TDT 0.6B v3 covers 25 European
@@ -299,6 +300,10 @@ Meetings stay on the Mac, apart from two requests: the audio pieces sent to
 Codex for transcription, and the transcript sent to Codex for the summary.
 Speaker detection runs on the Mac. Its models are downloaded from Hugging
 Face once.
+
+The audio of a cancelled dictation stays in memory for 60 seconds for Restore,
+and is never written to disk. It is overwritten with zeros when the minute
+ends, when a new recording starts, or when Murmur quits.
 
 History, saved recordings, and Insights stay on the Mac.
 For Insights, Murmur records the frontmost app of each dictation and, in a
