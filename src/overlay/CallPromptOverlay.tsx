@@ -92,16 +92,11 @@ const CallPromptOverlay: React.FC = () => {
         dir="auto"
         className="ov-capsule ov-call"
         aria-labelledby={`${id}-question`}
-        aria-describedby={`${id}-app`}
       >
         <span ref={bodyRef} className="ov-call-body">
-          <span className="ov-call-text">
-            <span id={`${id}-question`} className="ov-call-question">
-              {labels.question}
-            </span>
-            <span id={`${id}-app`} className="ov-call-app">
-              {labels.app}
-            </span>
+          <span className="ov-glyph rec" aria-hidden="true" />
+          <span id={`${id}-question`} className="ov-call-question">
+            {labels.question}
           </span>
           <button
             type="button"

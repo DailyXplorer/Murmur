@@ -1,9 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 
-// CARD_MARGIN, OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
+// CARD_MARGIN, ORB_OVERLAY_SIZE, OVERLAY_* and ERROR_OVERLAY_* in
+// src-tauri/src/overlay.rs.
 const CARD_MARGIN = 16;
-export const RECORDING_WINDOW = { width: 158, height: 62 };
-export const ERROR_WINDOW = { width: 312, height: 116 };
+export const ORB_WINDOW = { width: 66, height: 66 };
+export const MEETING_WINDOW = { width: 140, height: 66 };
+export const ERROR_WINDOW = { width: 336, height: 116 };
 
 /** Opens the overlay page, or the call prompt's with `fixture`, with
  * Tauri's event bridge mocked; `readyOn` is an event the page listens to,

@@ -5,12 +5,13 @@
      (CARD_MARGIN, OVERLAY_*, ERROR_OVERLAY_*, COPY_OVERLAY_*), so keep the
      two in sync. */
   --ov-margin: 16px; /* room for the shadow between capsule and window edge */
-  --ov-h: 30px;
-  --ov-rest-w: 108px;
-  /* Extra width per grow step; GROW_STEPS in waveform.ts sets how many. */
-  --ov-grow-step: 2px;
+  /* The dictation orb (ORB_SIZE in waveform.ts), and the least height of
+     every pill, which opens from it. */
+  --ov-orb: 34px;
+  --ov-h: 34px;
+  --ov-meeting-w: 108px;
   --ov-error-min-h: 36px;
-  --ov-error-max-w: 280px;
+  --ov-error-max-w: 304px;
   /* The widest copy pill: with its window margins, well inside a
      1280-px-wide screen. */
   --ov-copy-max-w: 560px;
@@ -71,7 +72,7 @@
   box-sizing: border-box;
   flex: none;
   height: var(--ov-h);
-  width: calc(var(--ov-rest-w) + var(--grow-step, 0) * var(--ov-grow-step));
+  width: var(--ov-meeting-w);
   border-radius: calc(var(--ov-h) / 2);
   display: flex;
   align-items: center;
@@ -85,15 +86,9 @@
     var(--ov-shadow);
   transform-origin: center bottom;
   animation: ov-in 380ms cubic-bezier(0.34, 1.36, 0.64, 1);
-  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ov-stage.top .ov-capsule {
   transform-origin: center top;
-}
-/* Live width moves in whole-pixel steps; a transition would put the edges back
-   on fractional pixels on every step. */
-.ov-capsule.live {
-  transition: none;
 }
 @keyframes ov-in {
   from {
@@ -106,49 +101,118 @@
   }
 }
 
-/* Each bar keeps a fixed layout box and is drawn at --s of it, the height over
-   BAR_MAX_PX in waveform.ts. Animating layout height instead snaps the top and
-   bottom edges to different pixels on every frame. Registering --s lets the
-   ripple keyframes interpolate it. */
-@property --s {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0.2222;
+/* Dictation: the orb alone, a circle whose ring wobbles with the voice
+   (orbPath in waveform.ts). The capsule never changes size. */
+.ov-capsule.ov-dictation {
+  width: var(--ov-orb);
+  height: var(--ov-orb);
+  border-radius: 50%;
 }
-.ov-wave {
-  display: flex;
-  gap: 3px;
-  height: 18px;
+.ov-orb {
+  display: block;
+  width: var(--ov-orb);
+  height: var(--ov-orb);
 }
-.ov-wave i {
-  flex: none;
-  width: 3px;
-  height: 100%;
-  /* The vertical radius is divided by the scale so the caps stay round. */
-  border-radius: 1.5px / calc(1.5px / var(--s));
-  background: var(--ov-ink);
-  transform: scaleY(var(--s));
-  will-change: transform;
-  transition: opacity 200ms ease;
+.ov-orb-ring {
+  fill: var(--ov-ink);
+  fill-opacity: 0;
+  stroke: var(--ov-ink);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  transition: stroke-opacity 200ms ease;
 }
 /* Until the microphone delivers its first samples. */
-.arming .ov-wave i {
-  opacity: 0.4;
+.arming .ov-orb-ring {
+  stroke-opacity: 0.4;
 }
-/* Transcribing: a soft pulse rippling out from the centre bar. */
-.processing .ov-wave i {
-  animation: ov-ripple 1.3s ease-in-out infinite;
-  animation-delay: calc(var(--d) * 90ms);
+/* Transcribing: the ring dims and an arc runs round it. */
+.processing .ov-orb-ring {
+  stroke-opacity: 0.22;
 }
-@keyframes ov-ripple {
-  0%,
-  100% {
-    --s: 0.2222;
-    opacity: 0.45;
+.ov-orb-arc {
+  fill: none;
+  stroke: var(--ov-ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  /* An arc of 1.6 radians on the 8.5-point ring. */
+  stroke-dasharray: 13.6 100;
+  transform-origin: center;
+  animation: ov-spin 1.15s linear infinite;
+}
+@keyframes ov-spin {
+  to {
+    transform: rotate(1turn);
   }
+}
+
+/* The orb, small, at the start of a pill. */
+.ov-glyph {
+  flex: none;
+  position: relative;
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  border: 1.6px solid var(--ov-ink);
+  border-radius: 50%;
+}
+.ov-glyph.dim {
+  border-color: rgb(255 255 255 / 0.4);
+}
+.ov-glyph.done {
+  background: var(--ov-ink);
+}
+.ov-glyph.done::after {
+  content: "";
+  position: absolute;
+  left: 3.6px;
+  top: 1.4px;
+  width: 3.2px;
+  height: 6.4px;
+  border: solid rgb(10 10 12);
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+}
+/* The microphone went away: the ring crossed out. */
+.ov-glyph.off::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 1.6px;
+  height: 18px;
+  margin-left: -0.8px;
+  border-radius: 1px;
+  background: var(--ov-ink);
+  box-shadow: 0 0 0 1.4px rgb(10 10 12);
+  transform: rotate(-45deg);
+}
+.ov-glyph.alert {
+  border-color: rgb(255 105 97);
+}
+.ov-glyph.alert::after {
+  content: "!";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgb(255 105 97);
+}
+/* Recording a meeting: a red core that beats. */
+.ov-glyph.rec::after {
+  content: "";
+  position: absolute;
+  inset: 2.4px;
+  border-radius: 50%;
+  background: rgb(255 69 58);
+  animation: ov-beat 1.6s ease-in-out infinite;
+}
+@keyframes ov-beat {
   50% {
-    --s: 0.5555;
-    opacity: 1;
+    opacity: 0.45;
+    transform: scale(0.85);
   }
 }
 
@@ -157,18 +221,20 @@
   max-width: var(--ov-error-max-w);
   height: auto;
   min-height: var(--ov-error-min-h);
-  padding: 8px 16px;
+  gap: 9px;
+  justify-content: flex-start;
+  padding: 8px 16px 8px 10px;
   border-radius: 18px;
   box-shadow:
     inset 0 0.5px 0 var(--ov-highlight),
     0 0 0 0.5px rgb(255 105 97 / 0.8),
     var(--ov-shadow);
 }
-.ov-error span {
+.ov-error-text {
   font-size: 12.5px;
   line-height: 16px;
   color: var(--ov-ink);
-  text-align: center;
+  text-align: start;
   text-wrap: balance;
   display: -webkit-box;
   -webkit-line-clamp: 4;
@@ -176,29 +242,19 @@
   overflow: hidden;
 }
 
-/* Meeting pill: a red dot and the elapsed time. The width is fixed and the
-   digits are tabular, so the edges stay still as the seconds change. */
+/* Meeting pill: the orb with its red core, and the elapsed time. The width
+   is fixed and the digits are tabular, so the edges stay still as the
+   seconds change. */
 .ov-capsule.ov-meeting {
-  gap: 7px;
+  gap: 8px;
   font-size: 13px;
   font-weight: 560;
   font-variant-numeric: tabular-nums;
   color: var(--ov-ink);
 }
-.ov-meeting::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgb(255 69 58);
-}
-/* The last 5 minutes before the 3-hour cap. */
+/* The last 5 minutes before the 3-hour cap: the time turns red. */
 .ov-meeting.warning {
-  color: rgb(255 204 0);
-}
-.ov-meeting.warning::before {
-  background: rgb(255 204 0);
+  color: rgb(255 69 58);
 }
 
 /* Copy pill: the whole capsule is one button around a body that sizes itself
@@ -212,7 +268,7 @@
 .ov-capsule.ov-warning {
   width: auto;
   height: auto;
-  min-width: var(--ov-rest-w);
+  min-width: var(--ov-orb);
   overflow: hidden;
   padding: 0;
   border: none;
@@ -230,12 +286,12 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: max-content;
   max-width: var(--ov-copy-max-w);
   min-height: var(--ov-h);
-  padding-block: 4px;
-  padding-inline: 14px;
+  padding-block: 5px;
+  padding-inline: 10px 5px;
   text-align: start;
 }
 .ov-copy-note {
@@ -259,15 +315,20 @@
 .ov-copy-warning {
   color: var(--ov-ink);
 }
+/* A pill with no action keeps the same margin at both ends. */
+.ov-warning .ov-copy-body {
+  padding-block: 7px;
+  padding-inline-end: 14px;
+}
 .ov-copy-action {
   flex: none;
   white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 22px;
-  padding-inline: 7px 9px;
-  border-radius: 11px;
+  height: 24px;
+  padding-inline: 8px 10px;
+  border-radius: 12px;
   font-weight: 600;
   background: rgb(255 255 255 / 0.12);
   transition: background-color 120ms ease;
@@ -295,24 +356,20 @@
   outline: 2px solid rgb(10 132 255);
   outline-offset: 2px;
 }
-.ov-copy.copied svg {
-  color: rgb(48 209 88);
-}
 @keyframes ov-fade-in {
   from {
     opacity: 0;
   }
 }
 
-/* Call prompt: the question over the call app's name, then the two answers,
-   the one that acts last and filled, after the meeting pill's red dot. Like
-   the copy pill, the body sizes itself and overlay.rs fits its window to
-   it. */
+/* Call prompt: the meeting pill's orb, the question, then the two answers,
+   the one that acts last and filled. Like the copy pill, the body sizes
+   itself and overlay.rs fits its window to it. */
 .ov-capsule.ov-call {
   width: auto;
   height: auto;
-  min-width: var(--ov-rest-w);
-  border-radius: 22px;
+  min-width: var(--ov-orb);
+  border-radius: calc(var(--ov-h) / 2);
   font-size: 12.5px;
   color: var(--ov-ink);
 }
@@ -324,39 +381,22 @@
   gap: 8px;
   width: max-content;
   max-width: var(--ov-copy-max-w);
-  padding: 6px;
-  padding-inline-start: 14px;
-}
-.ov-call .ov-call-body::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgb(255 69 58);
-}
-.ov-call-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  margin-inline-end: 4px;
-  line-height: 16px;
+  min-height: var(--ov-h);
+  padding: 5px;
+  padding-inline-start: 10px;
 }
 .ov-call-question {
+  margin-inline: 1px 4px;
   font-weight: 600;
+  line-height: 16px;
   text-wrap: balance;
-}
-.ov-call-app {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: rgb(255 255 255 / 0.6);
 }
 .ov-call-button {
   flex: none;
-  height: 28px;
-  padding: 0 12px;
+  height: 24px;
+  padding: 0 11px;
   border: none;
-  border-radius: 14px;
+  border-radius: 12px;
   margin: 0;
   white-space: nowrap;
   font: inherit;
@@ -393,7 +433,9 @@
   .ov-copy-note,
   .ov-copy-action,
   .ov-call-button,
-  .ov-wave i {
+  .ov-orb-ring,
+  .ov-orb-arc,
+  .ov-glyph::after {
     animation: none;
     transition: none;
   }
@@ -401,8 +443,7 @@
   .ov-call-button:active {
     transform: none;
   }
-  .processing .ov-wave i {
-    animation: none;
-    opacity: 0.55;
+  .processing .ov-orb-ring {
+    stroke-opacity: 0.55;
   }
 }
