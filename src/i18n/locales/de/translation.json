@@ -386,6 +386,7 @@
       "recordingUnavailable": "Die Aufnahme ist nicht mehr verfügbar und kann daher nicht erneut transkribiert werden.",
       "noSpeech": "In der Aufnahme wurde keine Sprache erkannt.",
       "cleanupFailed": "Die KI-Bereinigung war nicht verfügbar, daher wurde das Rohtranskript eingefügt.",
+      "shortDictation": "Kurzes Diktat, sofort ohne KI-Bereinigung eingefügt.",
       "showOriginal": "Originaltranskript anzeigen",
       "hideOriginal": "Originaltranskript ausblenden",
       "fallback": {
@@ -519,6 +520,10 @@
         "title": "Bereinigung und Formatierung",
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt nie und ändert nie die Bedeutung. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
+      },
+      "cleanupShortDictations": {
+        "title": "Auch kurze Diktate bereinigen",
+        "description": "Diktate unter 20 Wörtern werden sofort eingefügt, ohne KI-Bereinigung."
       },
       "style": {
         "title": "Diktierstil",
@@ -909,5 +914,14 @@
   "localModelPill": {
     "downloading": "Modell wird geladen… {{percent}} %",
     "preparing": "Modell wird vorbereitet…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Meetings durchsuchen",
+      "history": "Diktate durchsuchen"
+    },
+    "noResults": "Keine Ergebnisse für „{{query}}“",
+    "failed": "Suche fehlgeschlagen. Versuche es erneut.",
+    "clear": "Suche löschen"
   }
 }

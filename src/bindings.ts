@@ -283,6 +283,14 @@ async changeWhisperModeSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: String(e) };
 }
 },
+async changeCleanupShortDictationsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_short_dictations_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeAppLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_app_language_setting", { language }) };
@@ -330,6 +338,31 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async reportSettingsView(view: SettingsView) : Promise<void> {
+    await TAURI_INVOKE("report_settings_view", { view });
+},
+async getLastSettingsSection() : Promise<string | null> {
+    return await TAURI_INVOKE("get_last_settings_section");
+},
+/**
+ * Until the matching release, closing the settings window only hides it:
+ * the page runs work that would die with it.
+ */
+async holdSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("hold_settings_window");
+},
+/**
+ * Ends one hold. A window closed while held is destroyed once none is left.
+ */
+async releaseSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("release_settings_window");
+},
+/**
+ * True once per `action` kept for this window.
+ */
+async takeMainAction(action: MainAction) : Promise<boolean> {
+    return await TAURI_INVOKE("take_main_action", { action });
 },
 /**
  * Restarts into the installed update and shows the settings window again.
@@ -667,6 +700,17 @@ async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<R
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Up to 50 dictations matching `query`, best first.
+ */
+async searchHistory(query: string) : Promise<Result<HistoryHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_history", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("toggle_history_entry_saved", { id }) };
@@ -767,6 +811,17 @@ async discardMeeting(id: number) : Promise<Result<null, string>> {
 async getMeetings(cursor: number | null, limit: number | null) : Promise<Result<MeetingsPage, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_meetings", { cursor, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Up to 50 meetings matching `query`, best first.
+ */
+async searchMeetings(query: string) : Promise<Result<MeetingHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_meetings", { query }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -1149,7 +1204,12 @@ local_model_download_wanted?: boolean;
  * The user asked to dictate on this Mac as soon as the local model is
  * ready.
  */
-switch_to_local_when_ready?: boolean }
+switch_to_local_when_ready?: boolean; 
+/**
+ * Also send dictations under 20 words to the default AI cleanup. Off:
+ * they are pasted right away.
+ */
+cleanup_short_dictations?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1189,7 +1249,11 @@ export type CleanupOutcome = "cleaned" |
 /**
  * Cleanup was attempted and the raw transcript was used instead.
  */
-"failed"
+"failed" | 
+/**
+ * Too short for the default cleanup to be worth the wait: pasted as is.
+ */
+"short_dictation"
 export type ClipboardHandling = 
 /**
  * Put the user's previous clipboard back after a bounded paste window,
@@ -1295,6 +1359,14 @@ raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine;
  * Set when the engine is not the one the user chose.
  */
 fallback_reason: FallbackReason | null }
+/**
+ * A dictation that matched a search.
+ */
+export type HistoryHit = { entry: HistoryEntry; 
+/**
+ * Where `entry.transcription_text` matched, in UTF-16 units.
+ */
+ranges: ([number, number])[] }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
@@ -1381,6 +1453,11 @@ size_bytes: number;
 kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 /**
+ * Something that happened while the settings window was gone, for the
+ * next one to act on.
+ */
+export type MainAction = "check_updates" | "switched_to_local"
+/**
  * How long a processed meeting keeps its audio. Its transcript and summary
  * stay either way. The names are spelled out: serde and the TypeScript
  * bindings split `Days7` differently.
@@ -1434,6 +1511,23 @@ waiting_for_connection: boolean;
  * refused it. "Transcribe again" sends it all to Codex once more.
  */
 local_fallback_ms: number }
+/**
+ * A meeting that matched a search.
+ */
+export type MeetingHit = { id: number; 
+/**
+ * `None` until a summary names the meeting.
+ */
+title: Snippet | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; 
+/**
+ * Up to two passages: the summary's, then the first matching turns.
+ */
+snippets: Snippet[]; 
+/**
+ * The index in `MeetingDetail::turns` of the first matching turn (of
+ * the newest it read, for a query matching very many turns).
+ */
+first_turn_seq: number | null }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
@@ -1550,6 +1644,10 @@ export type ProcessingError =
  */
 "other"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
+/**
+ * What the settings page shows, as it reports it.
+ */
+export type SettingsView = "onboarding" | { section: string }
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
  * Why a binding holds no hotkey.
@@ -1564,6 +1662,11 @@ export type ShortcutRegistrationError =
  */
 "used_by_another_action"
 export type SignInError = "port_busy" | "cancelled" | "timed_out" | "denied" | "not_entitled" | "network" | "rejected" | "save_failed" | "browser_failed"
+/**
+ * Text with the parts that matched. `ranges` are `[start, end)` offsets in
+ * UTF-16 code units, the unit JavaScript strings index by.
+ */
+export type Snippet = { text: string; ranges: ([number, number])[] }
 export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * How the speakers of a meeting were told apart.

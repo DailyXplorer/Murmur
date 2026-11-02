@@ -386,6 +386,7 @@
       "recordingUnavailable": "La registrazione non è più disponibile, quindi non può essere trascritta di nuovo.",
       "noSpeech": "Nessun parlato rilevato nella registrazione.",
       "cleanupFailed": "La pulizia IA non era disponibile, quindi è stata incollata la trascrizione grezza.",
+      "shortDictation": "Dettatura breve: incollata subito, senza pulizia IA.",
       "showOriginal": "Mostra trascrizione originale",
       "hideOriginal": "Nascondi trascrizione originale",
       "fallback": {
@@ -519,6 +520,10 @@
         "title": "Pulizia e formattazione",
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
+      },
+      "cleanupShortDictations": {
+        "title": "Pulisci anche le dettature brevi",
+        "description": "Le dettature sotto le 20 parole vengono incollate subito, senza pulizia IA."
       },
       "style": {
         "title": "Stile di dettatura",
@@ -909,5 +914,14 @@
   "localModelPill": {
     "downloading": "Download del modello… {{percent}}%",
     "preparing": "Preparazione del modello…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Cerca nelle riunioni",
+      "history": "Cerca nelle dettature"
+    },
+    "noResults": "Nessun risultato per «{{query}}»",
+    "failed": "Ricerca non riuscita. Riprova.",
+    "clear": "Cancella ricerca"
   }
 }

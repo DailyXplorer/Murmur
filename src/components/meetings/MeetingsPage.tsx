@@ -6,6 +6,7 @@ import {
   commands,
   events,
   type MeetingCaptureMode,
+  type MeetingHit,
   type MeetingListItem,
   type MeetingRuntime,
   type MeetingStatus,
@@ -13,11 +14,15 @@ import {
   type SystemAudioSupport,
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
+import { findMatches } from "@/lib/meetings/search";
 import { LiveMeetingView } from "./LiveMeetingView";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
+import type { InitialTextSearch } from "./TabHeaderBar";
 import { useLocalModel } from "../../hooks/useLocalModel";
 import { useNow } from "../../hooks/useNow";
+import { type SearchState, useSearch } from "../../hooks/useSearch";
+import { Highlighted, SearchField } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -38,32 +43,97 @@ const STATUS_KEYS: Record<MeetingStatus, string> = {
   failed: "meetings.status.failed",
 };
 
+/**
+ * What the transcript search opens with. It looks for the query as one
+ * phrase, while the meeting search matches each word on its own: when the
+ * phrase is not in the matching passage, the first word marked there is.
+ */
+const transcriptQuery = (hit: MeetingHit, query: string) => {
+  // Quotes are search syntax; the transcript search reads them as text.
+  const typed = query.replace(/"/g, "").trim();
+  // Transcript passages come after the summary's.
+  const passage =
+    hit.first_turn_seq === null
+      ? undefined
+      : hit.snippets[hit.snippets.length - 1];
+  const first = passage?.ranges[0];
+  if (!passage || !first || findMatches(passage.text, typed).length > 0) {
+    return typed;
+  }
+  return passage.text.slice(first[0], first[1]);
+};
+
+interface Opened {
+  id: number;
+  /** The meeting is recording: it opens in the live view. */
+  live: boolean;
+  initialSearch?: InitialTextSearch;
+}
+
 export const MeetingsPage: React.FC = () => {
-  const [selected, setSelected] = useState<{
-    id: number;
-    live: boolean;
-  } | null>(null);
+  const [opened, setOpened] = useState<Opened | null>(null);
   const stopped = useCallback(
-    () => setSelected((current) => current && { ...current, live: false }),
+    () => setOpened((current) => current && { ...current, live: false }),
     [],
   );
-  if (selected === null) {
-    return <MeetingsList onOpen={(id, live) => setSelected({ id, live })} />;
+  // Here rather than in the list, so Back returns to the same results.
+  const [query, setQuery] = useState("");
+  const search = useSearch(query, commands.searchMeetings);
+  const { refresh } = search;
+  useEffect(() => {
+    const updated = events.meetingsUpdated.listen(refresh);
+    return () => void updated.then((stop) => stop());
+  }, [refresh]);
+  if (opened === null) {
+    return (
+      <MeetingsList
+        onOpen={(id, live) => setOpened({ id, live })}
+        onOpenHit={(hit) =>
+          setOpened({
+            id: hit.id,
+            live: false,
+            initialSearch: {
+              query: transcriptQuery(hit, query),
+              item: hit.first_turn_seq,
+            },
+          })
+        }
+        query={query}
+        onQueryChange={setQuery}
+        search={search.state}
+      />
+    );
   }
-  return selected.live ? (
-    <LiveMeetingView
-      id={selected.id}
-      onBack={() => setSelected(null)}
-      onStopped={stopped}
-    />
+  const back = () => {
+    setOpened(null);
+    refresh();
+  };
+  return opened.live ? (
+    <LiveMeetingView id={opened.id} onBack={back} onStopped={stopped} />
   ) : (
-    <MeetingView id={selected.id} onBack={() => setSelected(null)} />
+    <MeetingView
+      id={opened.id}
+      initialSearch={opened.initialSearch}
+      onBack={back}
+    />
   );
 };
 
-const MeetingsList: React.FC<{
+interface MeetingsListProps {
   onOpen: (id: number, live: boolean) => void;
-}> = ({ onOpen }) => {
+  onOpenHit: (hit: MeetingHit) => void;
+  query: string;
+  onQueryChange: (query: string) => void;
+  search: SearchState<MeetingHit>;
+}
+
+const MeetingsList: React.FC<MeetingsListProps> = ({
+  onOpen,
+  onOpenHit,
+  query,
+  onQueryChange,
+  search,
+}) => {
   const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
   const [runtime, setRuntime] = useState<MeetingRuntime>({ state: "idle" });
@@ -285,7 +355,23 @@ const MeetingsList: React.FC<{
       <SpeakerModels status={models} analysis={analysis} />
 
       <SettingsGroup title={t("meetings.list.title")}>
-        {loading ? (
+        {(meetings.length > 0 || query !== "") && (
+          <div className="px-4 py-3">
+            <SearchField
+              value={query}
+              onChange={onQueryChange}
+              placeholder={t("search.placeholder.meetings")}
+            />
+          </div>
+        )}
+        {search.status !== "idle" ? (
+          <MeetingHits
+            search={search}
+            query={query.trim()}
+            liveId={recording ? runtime.id : null}
+            onOpen={onOpenHit}
+          />
+        ) : loading ? (
           <div className="px-4 py-3 text-center text-text/60">
             {t("common.loading")}
           </div>
@@ -338,7 +424,7 @@ const MeetingsList: React.FC<{
             })}
           </ul>
         )}
-        {hasMore && !loading && (
+        {hasMore && !loading && search.status === "idle" && (
           <div className="flex justify-center px-4 py-2">
             <Button
               onClick={() => void loadMeetings(meetings.length + PAGE_SIZE)}
@@ -407,5 +493,67 @@ const MeetingsList: React.FC<{
         </p>
       </Dialog>
     </SettingsPage>
+  );
+};
+
+/** The search's answer in place of the list: one row per meeting. */
+const MeetingHits: React.FC<{
+  search: Exclude<SearchState<MeetingHit>, { status: "idle" }>;
+  query: string;
+  /** The meeting being recorded, which cannot be opened yet. */
+  liveId: number | null;
+  onOpen: (hit: MeetingHit) => void;
+}> = ({ search, query, liveId, onOpen }) => {
+  const { t, i18n } = useTranslation();
+  if (search.status === "error" || search.hits.length === 0) {
+    return (
+      <div className="px-4 py-3 text-center text-text/60">
+        {search.status === "error"
+          ? t("search.failed")
+          : search.status === "loading"
+            ? t("common.loading")
+            : t("search.noResults", { query })}
+      </div>
+    );
+  }
+  return (
+    <ul className="divide-y divide-mid-gray/20">
+      {search.hits.map((hit) => {
+        const date = formatMeetingDate(hit.started_at_ms, i18n.language);
+        const details = t("meetings.list.details", {
+          duration: formatDuration(hit.duration_ms),
+          status: t(STATUS_KEYS[hit.status]),
+        });
+        return (
+          <li key={hit.id} className="px-4 py-2">
+            <button
+              type="button"
+              disabled={hit.id === liveId}
+              onClick={() => onOpen(hit)}
+              className="w-full min-w-0 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
+            >
+              <p className="truncate text-sm font-medium">
+                {hit.title ? (
+                  <Highlighted {...hit.title} />
+                ) : (
+                  t("meetings.list.untitled", { date })
+                )}
+              </p>
+              <p className="text-xs text-text/60 tabular-nums">
+                {hit.title ? `${date} · ${details}` : details}
+              </p>
+              {hit.snippets.map((snippet, index) => (
+                <p
+                  key={index}
+                  className="mt-1 line-clamp-2 text-xs text-text/60"
+                >
+                  <Highlighted {...snippet} />
+                </p>
+              ))}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 };

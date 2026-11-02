@@ -68,6 +68,8 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 - `window_names.rs`, `accessibility.rs`, `field_excerpt.rs` - Name hints and the text around the cursor, read from the frontmost window for cleanup
 - `updates/` - Automatic update checks while `update_checks_enabled` is on: at launch, every 4 hours and after the Mac wakes (`schedule.rs`, a wake is wall-clock time `Instant` did not see), one check at a time (`checks.rs`). The result is the one update status the tray item and the settings footer show (`update-status` event). Nothing downloads until the user clicks the footer's "Update available"
 - `utils.rs` - Tray, window, and application helpers
+- `search.rs` - Search across meetings and dictations (`search_meetings`, `search_history`, 50 results). `fts_query` turns the user's words into an FTS5 query: each word a prefix, quoted phrases kept, every piece quoted so no input is FTS5 syntax, nothing under 2 characters. A meeting matches when every word is somewhere in it (title, summary or any turn, `fts_terms` checked one at a time), a dictation when its text holds every word. The FTS5 tables (`meetings_fts` on title and summary and `meeting_turns_fts` in `meetings.db`, `history_fts` on `transcription_text` in `history.db`, accents folded, prefix indexes for 2 and 3 letters) are external-content tables kept current by triggers only, never by call sites, so cascades, reprocessing and retention deletes update them; their migrations stay append-only like the others. `meetings::store::search` and `HistoryManager::search_with_conn` take any `&Connection`, so a read-only one works. Meetings rank by where they matched (title, summary, transcript), then relevance, then date; a query matching more than 2,000 turns skips the per-turn ranking and reads the newest turns (`search_bench`, ignored, measures it). Hits come back as plain text with highlight ranges in UTF-16 units, never HTML; summary snippets show speaker names for `[[key]]` markers. Speaker names and `raw_text` are not searched. `meeting_turns_fts` points at the implicit rowid of `meeting_turns`: a `VACUUM` of `meetings.db` must be followed by a `'rebuild'` of it
+- `settings_window.rs` - When the settings window is destroyed, the section it reopens on, and the actions it takes when it opens (see Window Lifecycle)
 
 ### Frontend Structure (src/)
 
@@ -90,9 +92,13 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
+**Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → text passes (`audio_toolkit/text_passes/`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
 
-**State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
+**Text passes:** deterministic fixes on every dictation, English and French only. They run only when the language is known: the dictation setting when it is `en*` or `fr*`, in `auto` a stopword vote on the text (at least 3 hits and twice the other language), otherwise not at all, since fillers are real words elsewhere ("um" in Portuguese, "er" in German). `before_cleanup` (fillers, spoken line breaks) runs before cleanup; `raw_only` (spoken punctuation) runs only on text cleanup did not edit (off, skipped, failed), because cleanup reads those words in context ("trois virgule cinq"). A command never follows a determiner ("a new line of products"). Meetings do not use them. There is no switch; a new language comes in its own pull request with its own must-not-change corpus.
+
+**Short dictations:** a dictation under 20 words (UAX #29 word count, so Chinese or Japanese count per word) skips the default AI cleanup and is pasted at once, recorded in History as `CleanupOutcome::ShortDictation` without a raw text, and logged as `AI cleanup skipped: short dictation ({n} words)`. Cleanup still runs on it when `cleanup_short_dictations` is on or the user chose a transformation: today only a Formal or Casual `dictation_style` (`actions.rs`, `cleanup_plan`). A future user-chosen transformation (custom prompt, translation, per-app prompt) must keep cleanup on short dictations too.
+
+**State Flow:** Zustand → Tauri Command → Rust State → Persistence (`settings_store.json` through `durable::write`)
 
 ### Technology Stack
 
@@ -113,7 +119,11 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 ### Settings System
 
-Settings are stored using Tauri's store plugin with reactive updates:
+Settings live in `settings_store.json` in the app data folder, as `{"settings": …}` pretty-printed, the shape the store plugin of earlier versions wrote, so an older Murmur still reads the file (`settings/file.rs`). Every change is written by a background thread through `durable::write`, so a burst (a slider drag) costs the caller no disk sync and lands as its latest value; `update_settings_checked` waits for its write to report a failure, and quitting waits for a pending one. `durable::write` takes a temporary file in the same folder, synced, renamed over the file, then the folder synced; a symlink stays a link): a crash or power cut leaves the old file or the new one. Write any file that must survive a crash through `durable::write`, never `fs::write`. A field this version cannot read falls back to its default; the file as it was is kept first as `settings_store.json.unreadable-<12 hex of its SHA-256>` (mode 0600, once per content).
+
+Panics on any thread go to `murmur.log` as one `error` record (`panic_log.rs`): thread, `file:line:col`, the executable's load address and a backtrace, never the panic message, which can quote dictated text. Release builds are stripped; resolve the addresses with the build's `murmur.dSYM` artifact: `atos -o murmur.dSYM -l <load address> <address>…`.
+
+The settings cover:
 
 - Keyboard shortcuts (configurable; the recording shortcut is hold-to-talk or double-tap hands-free, see `dictation_gesture.rs`)
 - Audio devices (microphone/output selection)
@@ -123,6 +133,16 @@ Settings are stored using Tauri's store plugin with reactive updates:
 ### Single Instance Architecture
 
 The app enforces single instance behavior — launching when already running brings the settings window to front rather than creating a new process. Remote control flags (`--toggle-transcription`, etc.) work by launching a second instance that sends args to the running instance via `tauri_plugin_single_instance`, then exits.
+
+### Window Lifecycle
+
+While Murmur sits in the menu bar, the recording pill is the only live webview.
+
+- Closing the settings window destroys it, web process included, when the tray icon is visible, `initialize_shortcuts` has succeeded, and the page reported that it left onboarding (`report_settings_view`). Otherwise closing hides it: with `--no-tray` or the tray icon off, before the shortcuts run, on any onboarding step, and while the page holds it (`holdSettingsWindow` in `src/lib/`) for work whose later steps run in the page, such as an update install and its relaunch; the release destroys a window closed meanwhile. A hidden start builds the window so its page can run the onboarding checks and start the shortcuts. Rust destroys it once both are done and it is still hidden.
+- Every open goes through `show_main_window`, which builds the window again if it is gone. The new page opens on the section the user left (`get_last_settings_section`, kept in memory, not across launches).
+- What happens while the window is closed is kept as a pending action in Rust (`MainAction`). The event still goes out. The page takes the action when it hears the event, and once after it listens on mount (`take_main_action`), so it runs exactly once. The tray's "Check for updates" and the switch to the local engine work this way. Dictation errors are not kept: the pill and the notifications show them.
+- The call prompt panel is created when a prompt shows and destroyed when it hides, together with its entry in the nspanel store. Its page asks for the prompt (`get_call_prompt`) once it listens.
+- Locales load lazily: a window loads `en` and the active language before its first render (`i18nReady` in `src/i18n`). History, Meetings, Insights and the What's New modal load with their first open.
 
 ## Internationalization (i18n)
 
@@ -209,6 +229,8 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 Run `bun run check` before pushing. It is the CI `code quality` job. On macOS it also runs Clippy.
 
 For a UI change, also run `bun run test:playwright`. For Rust behavior, from `src-tauri` run `cargo test --locked`.
+
+CI runs the Rust tests with `cargo nextest run --locked --profile ci` (one process per test; `.config/nextest.toml` fails a test still running after 2 minutes), then the doctests with `cargo test --locked --doc`. `cargo test --locked` still works locally. A test that needs the state of another test is a bug: fix the coupling, or put the tests in a nextest `test-group` with `max-threads = 1`.
 
 For a change to how meetings record or process, also run the 3-hour soak on a Mac with the models downloaded: from `src-tauri`, `cargo test --locked meetings_soak -- --ignored --nocapture` (about half an hour, headless). It rewrites `src/meetings/soak-report.md`.
 

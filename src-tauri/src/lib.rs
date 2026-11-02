@@ -16,6 +16,7 @@ mod codex_login;
 mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
+mod durable;
 mod engine;
 mod field_excerpt;
 mod helpers;
@@ -26,9 +27,12 @@ mod managers;
 mod meetings;
 mod operation;
 mod overlay;
+mod panic_log;
 mod paste_last;
 mod paste_tx;
+mod search;
 mod settings;
+mod settings_window;
 mod shortcut;
 mod signal_handle;
 mod single_instance_actions;
@@ -285,8 +289,36 @@ fn center_settings_window_on_pointer_screen(
     Ok(())
 }
 
+/// Builds the settings window, hidden. Closing it can destroy it, so every
+/// open after the first may build it again.
+fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    let window = tauri::WebviewWindowBuilder::new(
+        app,
+        settings_window::MAIN_WINDOW,
+        tauri::WebviewUrl::App("/".into()),
+    )
+    .title("Murmur")
+    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
+    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
+    .resizable(true)
+    .maximizable(true)
+    .visible(false)
+    .build()?;
+    // Apply the persisted appearance theme to the native title bar before
+    // the window is shown, so it matches the in-app palette without a flash
+    // of the wrong theme.
+    shortcut::apply_window_theme(app, get_settings(app).theme);
+    Ok(window)
+}
+
 fn show_main_window(app: &AppHandle) {
-    if let Some(main_window) = app.get_webview_window("main") {
+    let main_window = match app.get_webview_window(settings_window::MAIN_WINDOW) {
+        Some(window) => Some(window),
+        None => build_main_window(app)
+            .inspect_err(|e| log::error!("Failed to build the settings window: {}", e))
+            .ok(),
+    };
+    if let Some(main_window) = main_window {
         let app = app.clone();
         let window = main_window.clone();
         if let Err(e) = main_window.run_on_main_thread(move || {
@@ -414,6 +446,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             "check_updates" => {
                 let settings = settings::get_settings(app);
                 if settings.update_checks_enabled {
+                    // A window built here is not listening yet: it takes
+                    // the check once it is.
+                    settings_window::queue(app, settings_window::MainAction::CheckUpdates);
                     show_main_window(app);
                     let _ = app.emit("check-for-updates", ());
                 }
@@ -453,9 +488,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
     utils::create_recording_overlay(app_handle);
-    if meetings::call_watch::supported() {
-        utils::create_call_prompt(app_handle);
-    }
 }
 
 #[tauri::command]
@@ -634,12 +666,18 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cleanup::change_dictation_style_setting,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
+            commands::cleanup::change_cleanup_short_dictations_setting,
             shortcut::change_app_language_setting,
             shortcut::change_update_checks_setting,
             shortcut::change_show_whats_new_on_update_setting,
             shortcut::change_whats_new_last_seen_version_setting,
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
+            settings_window::report_settings_view,
+            settings_window::get_last_settings_section,
+            settings_window::hold_settings_window,
+            settings_window::release_settings_window,
+            settings_window::take_main_action,
             relaunch_after_update,
             updates::get_update_status,
             updates::check_for_updates,
@@ -678,6 +716,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::transcription::switch_to_local_when_ready,
             commands::transcription::change_local_stt_card_dismissed_setting,
             commands::history::get_history_entries,
+            commands::history::search_history,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
@@ -691,6 +730,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::stop_meeting,
             commands::meetings::discard_meeting,
             commands::meetings::get_meetings,
+            commands::meetings::search_meetings,
             commands::meetings::delete_meeting,
             commands::meetings::get_meeting,
             commands::meetings::rename_meeting,
@@ -799,6 +839,7 @@ pub fn run(cli_args: CliArgs) {
                 ])
                 .build(),
         );
+    panic_log::install();
 
     builder = builder.plugin(tauri_nspanel::init());
 
@@ -829,7 +870,6 @@ pub fn run(cli_args: CliArgs) {
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -860,6 +900,7 @@ pub fn run(cli_args: CliArgs) {
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
                         .shutdown();
+                    settings::flush_pending_save(&handle);
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();
@@ -868,24 +909,14 @@ pub fn run(cli_args: CliArgs) {
                 return Ok(());
             }
 
-            let main_window =
-                tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Murmur")
-                    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
-                    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
-                    .resizable(true)
-                    .maximizable(true)
-                    .visible(false)
-                    .build()?;
+            app.manage(settings_window::SettingsWindow::default());
+            // Built even for a hidden start: its page runs the onboarding
+            // checks and starts the shortcuts, then Rust releases it.
+            let main_window = build_main_window(app.handle())?;
 
             prepare_settings_window_for_active_space(&main_window)?;
 
             let mut settings = get_settings(app.handle());
-
-            // Apply the persisted appearance theme to the native title bar before
-            // the window is shown, so it matches the in-app palette without a flash
-            // of the wrong theme.
-            shortcut::apply_window_theme(app.handle(), settings.theme);
 
             if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
                 log::warn!("Failed to apply native accent icon: {error}");
@@ -952,15 +983,22 @@ pub fn run(cli_args: CliArgs) {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _res = window.hide();
-
-                let settings = get_settings(window.app_handle());
-                let tray_visible =
-                    settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
-                if tray_visible {
-                    accent::set_dock_presence(window.app_handle(), accent::DockPresence::Hidden);
+                let app = window.app_handle();
+                // A destroyed settings window takes its web process with it.
+                let destroy = window.label() == settings_window::MAIN_WINDOW
+                    && settings_window::current_close_action(app)
+                        == settings_window::CloseAction::Destroy;
+                if !destroy {
+                    api.prevent_close();
+                    let _res = window.hide();
                 }
+
+                if settings_window::tray_visible(app) {
+                    accent::set_dock_presence(app, accent::DockPresence::Hidden);
+                }
+            }
+            tauri::WindowEvent::Destroyed if window.label() == settings_window::MAIN_WINDOW => {
+                settings_window::on_destroyed(window.app_handle());
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
@@ -974,6 +1012,13 @@ pub fn run(cli_args: CliArgs) {
         .run(|app, event| match &event {
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            // No exit code: the last window went. Murmur lives in the menu
+            // bar, and the settings window is destroyed on close.
+            tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } => {
+                api.prevent_exit();
             }
             tauri::RunEvent::ExitRequested { api, .. } => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
@@ -1009,6 +1054,8 @@ pub fn run(cli_args: CliArgs) {
                 if !codex_auth::wait_for_refreshes(codex_auth::REFRESH_TIMEOUT) {
                     log::warn!("Timed out waiting for a Codex token refresh while quitting");
                 }
+                // A settings change is written in the background.
+                settings::flush_pending_save(app);
             }
             _ => {}
         });
@@ -1269,5 +1316,12 @@ mod exit_tests {
             .rfind(".shutdown()")
             .expect("quitting shuts the managers down");
         assert!(shutdown < wait);
+    }
+
+    /// A setting changed just before quitting may still be on its way to
+    /// disk in the background; the exit would cut that write off.
+    #[test]
+    fn quitting_writes_pending_settings() {
+        assert!(exit_arm().contains("settings::flush_pending_save(app)"));
     }
 }

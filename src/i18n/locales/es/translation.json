@@ -386,6 +386,7 @@
       "recordingUnavailable": "La grabación ya no está disponible, así que no se puede volver a transcribir.",
       "noSpeech": "No se encontró voz en la grabación.",
       "cleanupFailed": "La limpieza con IA no estaba disponible, así que se pegó la transcripción sin procesar.",
+      "shortDictation": "Dictado corto: se pegó al instante, sin limpieza con IA.",
       "showOriginal": "Mostrar transcripción original",
       "hideOriginal": "Ocultar transcripción original",
       "fallback": {
@@ -519,6 +520,10 @@
         "title": "Limpieza y formato",
         "description": "Elimina las muletillas, conserva solo tu versión final cuando te corriges, arregla la puntuación y da formato a listas y saltos de línea dictados. Nunca traduce ni cambia el significado. Si falla o tarda demasiado, se pega la transcripción sin procesar.",
         "needsAccount": "Conecta ChatGPT para usar la limpieza con IA."
+      },
+      "cleanupShortDictations": {
+        "title": "Limpiar también los dictados cortos",
+        "description": "Los dictados de menos de 20 palabras se pegan al instante, sin limpieza con IA."
       },
       "style": {
         "title": "Estilo de dictado",
@@ -909,5 +914,14 @@
   "localModelPill": {
     "downloading": "Descargando el modelo… {{percent}} %",
     "preparing": "Preparando el modelo…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Buscar en las reuniones",
+      "history": "Buscar en los dictados"
+    },
+    "noResults": "No hay resultados para «{{query}}»",
+    "failed": "La búsqueda falló. Inténtalo de nuevo.",
+    "clear": "Borrar la búsqueda"
   }
 }

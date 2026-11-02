@@ -4,7 +4,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::meetings::coordinator::MeetingRuntime;
 use crate::meetings::paths::MeetingsStorage;
-use crate::meetings::store::{MeetingDetail, MeetingsPage};
+use crate::meetings::store::{MeetingDetail, MeetingHit, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
 use crate::settings::{
     get_settings, update_settings, AppSettings, MeetingAudioRetention, MeetingCaptureMode,
@@ -73,6 +73,13 @@ pub async fn get_meetings(
 ) -> Result<MeetingsPage, String> {
     let limit = page_limit(limit);
     with_manager(app, move |manager| manager.list(cursor, limit)).await
+}
+
+/// Up to 50 meetings matching `query`, best first.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_meetings(app: AppHandle, query: String) -> Result<Vec<MeetingHit>, String> {
+    with_manager(app, move |manager| manager.search(&query)).await
 }
 
 #[tauri::command]

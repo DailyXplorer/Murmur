@@ -62,7 +62,7 @@ use helper::AnalysisSupport;
 use models::Models;
 use offline::{CodexHost, OfflineHold, Reachability};
 use processor::{MeetingProgress, ProcessEvents, Processor};
-use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
+use store::{MeetingDetail, MeetingHit, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
 use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, Transcriber};
 
@@ -935,6 +935,12 @@ impl MeetingsManager {
         self.store
             .list(cursor, limit)
             .map_err(|error| error.to_string())
+    }
+
+    pub fn search(&self, query: &str) -> Result<Vec<MeetingHit>, String> {
+        self.store
+            .search(query, crate::search::SEARCH_LIMIT)
+            .map_err(|error| crate::search::search_failed("Meeting", &error))
     }
 
     pub fn delete(&self, id: i64) -> Result<(), String> {

@@ -30,7 +30,6 @@ tauri = { version = "2.11.5", features = [
 ] }
 tauri-plugin-log = "2.7.1"
 tauri-plugin-opener = "2.5.2"
-tauri-plugin-store = "2.4.1"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-macos-permissions = "2.3.0"
@@ -59,6 +58,8 @@ rustfft = "6.4.0"
 strsim = "0.11.0"
 # Accent-insensitive word keys for meeting transcripts.
 unicode-normalization = "0.1"
+# Word count (UAX #29) that decides whether a dictation is short.
+unicode-segmentation = "1.12"
 natural = "0.5.0"
 regex = "1"
 chrono = "0.4"
@@ -106,3 +107,7 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "unwind"
+# The shipped binary stays stripped; its line tables go to murmur.dSYM, which
+# build.yml uploads, so the addresses of a panic backtrace can be resolved.
+debug = "line-tables-only"
+split-debuginfo = "packed"
