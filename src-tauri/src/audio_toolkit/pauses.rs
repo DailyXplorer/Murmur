@@ -11,9 +11,9 @@ use std::ops::Range;
 /// A cut is searched for in the last 6 s before a piece's maximum length.
 const SEARCH_FRAMES: usize = 6 * TARGET_SAMPLE_RATE as usize / FRAME;
 /// Frames up to this far above the clip's noise floor are a pause.
-const PAUSE_OVER_NOISE_DB: f32 = 6.0;
+pub(crate) const PAUSE_OVER_NOISE_DB: f32 = 6.0;
 /// 160 ms, the shortest run of quiet frames that counts as a pause.
-const MIN_PAUSE_FRAMES: usize = 8;
+pub(crate) const MIN_PAUSE_FRAMES: usize = 8;
 /// Without a pause, the cut lands in the quietest 100 ms.
 const QUIETEST_FRAMES: usize = 5;
 /// Less speech than 200 ms is no speech.
@@ -22,7 +22,7 @@ const MIN_SPEECH_FRAMES: usize = 10;
 const MIN_WORD_FRAMES: usize = 5;
 
 /// The noise floor: the 10th percentile of the frames that hold any signal.
-fn noise_floor(levels: &[f32]) -> f32 {
+pub(crate) fn noise_floor(levels: &[f32]) -> f32 {
     let mut sorted: Vec<f32> = levels
         .iter()
         .copied()

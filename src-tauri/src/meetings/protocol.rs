@@ -103,6 +103,9 @@ pub enum Request<'a> {
         /// model is to detect it.
         #[serde(skip_serializing_if = "Option::is_none")]
         language: Option<&'a str>,
+        /// Asks for the words of the text with their times.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        words: Option<bool>,
     },
 }
 
@@ -116,9 +119,10 @@ pub enum Reply {
     Text {
         id: u64,
         text: String,
-        /// The words of `text` with their times. An older helper sends none.
+        /// The words of `text` with their times, when the request asked and
+        /// the text is the one the model timed.
         #[serde(default)]
-        words: Vec<Word>,
+        words: Option<Vec<Word>>,
     },
     /// A failed request, or without `id` a failed load.
     Error {
@@ -267,6 +271,7 @@ mod tests {
                 terms: &[],
                 background: None,
                 language: None,
+                words: None,
             })
             .unwrap(),
             r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
@@ -278,9 +283,10 @@ mod tests {
                 terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
                 background: Some(true),
                 language: Some("fr"),
+                words: Some(true),
             })
             .unwrap(),
-            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true,"language":"fr"}"#
+            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true,"language":"fr","words":true}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(
@@ -288,7 +294,7 @@ mod tests {
             Reply::Text {
                 id: 7,
                 text: "Bonjour à tous.".into(),
-                words: Vec::new(),
+                words: None,
             }
         );
         assert_eq!(
@@ -299,7 +305,7 @@ mod tests {
             Reply::Text {
                 id: 9,
                 text: "Bonjour à tous.".into(),
-                words: vec![
+                words: Some(vec![
                     Word {
                         w: "Bonjour".into(),
                         s: 0.32,
@@ -315,7 +321,7 @@ mod tests {
                         s: 0.9,
                         e: 1.25
                     },
-                ],
+                ]),
             }
         );
         assert_eq!(

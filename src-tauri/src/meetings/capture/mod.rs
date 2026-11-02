@@ -22,6 +22,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use super::coordinator::{CaptureBackend, Track};
+use super::live::LiveTap;
 use super::paths::{MIC_TRACK, SYSTEM_TRACK};
 use super::wav_recovery::repair_wav;
 use crate::audio_toolkit::audio::FrameResampler;
@@ -70,6 +71,7 @@ enum Message {
     Finish {
         total: u64,
     },
+    Live(LiveTap),
 }
 
 /// Hands mono audio from a capture callback to its writer. It never blocks:
@@ -178,6 +180,11 @@ impl TrackWriter {
         }
     }
 
+    /// Hands what is written from now on to the live transcript too.
+    pub fn live(&self, tap: LiveTap) {
+        let _ = self.sender.send(Message::Live(tap));
+    }
+
     /// The file can no longer be written (for example, the disk is full).
     pub fn failed(&self) -> bool {
         self.failed.load(Ordering::SeqCst)
@@ -231,8 +238,10 @@ fn write_track(
     let mut placed = 0f64;
     let mut last_flush = Instant::now();
     let mut last_sync = Instant::now();
+    let mut live: Option<LiveTap> = None;
     loop {
         match receiver.recv_timeout(Duration::from_millis(250)) {
+            Ok(Message::Live(tap)) => live = Some(tap),
             Ok(Message::Samples {
                 data,
                 sample_rate,
@@ -270,7 +279,11 @@ fn write_track(
                     let ahead = (-offset * rate).round() as usize;
                     audio = &audio[ahead.min(audio.len())..];
                 }
-                written += feed(resampler, &mut wav, audio)?;
+                let frames = feed(resampler, &mut wav, audio)?;
+                if let Some(tap) = live.as_mut() {
+                    tap.push(written, &frames);
+                }
+                written += frames.len() as u64;
                 placed += audio.len() as f64 / rate;
             }
             Ok(Message::Finish { total }) => {
@@ -287,6 +300,9 @@ fn write_track(
                     written = total;
                 }
                 disk.sync()?;
+                if let Some(tap) = live.take() {
+                    tap.finish();
+                }
                 return Ok(written);
             }
             Err(RecvTimeoutError::Timeout) => {}
@@ -309,10 +325,15 @@ fn write_track(
     }
 }
 
-fn feed(resampler: &mut FrameResampler, wav: &mut Wav, samples: &[f32]) -> Result<u64, String> {
+fn feed(
+    resampler: &mut FrameResampler,
+    wav: &mut Wav,
+    samples: &[f32],
+) -> Result<Vec<f32>, String> {
     let mut frames = Vec::new();
     resampler.push(samples, |frame| frames.extend_from_slice(frame));
-    write_samples(wav, &frames)
+    write_samples(wav, &frames)?;
+    Ok(frames)
 }
 
 /// Silence goes through the resampler too, so it lands in order with the
@@ -326,7 +347,7 @@ fn feed_silence(
     let mut written = 0;
     while count > 0 {
         let take = count.min(BLOCK.len());
-        written += feed(resampler, wav, &BLOCK[..take])?;
+        written += feed(resampler, wav, &BLOCK[..take])?.len() as u64;
         count -= take;
     }
     Ok(written)
@@ -414,6 +435,30 @@ impl CaptureBackend for DeviceCapture {
 
     fn output_route(&self) -> route::OutputRoute {
         route::OutputRoute::of(system::output_route_facts())
+    }
+
+    fn live(
+        &self,
+        id: i64,
+        dir: &Path,
+        sources: &[super::merge::Track],
+        route: route::OutputRoute,
+    ) -> Option<super::live::LiveMeeting> {
+        use tauri::Manager;
+        let live = self.0.try_state::<Arc<super::live::Live>>()?;
+        let engine = crate::settings::get_settings(&self.0)
+            .meeting_live_transcript
+            .then(|| {
+                Arc::new(super::live::AppEngine(self.0.clone())) as Arc<dyn super::live::LiveEngine>
+            });
+        super::live::start(
+            &live,
+            engine,
+            id,
+            dir.to_path_buf(),
+            sources,
+            route == route::OutputRoute::Headphones,
+        )
     }
 }
 
@@ -732,6 +777,33 @@ mod tests {
         }
         assert!(writer.failed());
         assert!(writer.finish(Duration::from_secs(1)).is_err());
+    }
+
+    #[test]
+    fn full_live_tap_never_blocks_the_writer() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(MIC_TRACK);
+        let origin = Instant::now();
+        let writer = TrackWriter::create(&path, origin).unwrap();
+        let (meeting, mut pieces) = crate::meetings::live::meeting(1);
+        writer.live(meeting.tap(crate::meetings::merge::Track::Mic));
+        deliver(
+            &writer.feeder(),
+            origin,
+            &sine(48_000, 40.0),
+            48_000,
+            48_000,
+            48_000.0,
+            0.0,
+        );
+
+        let written = writer.finish(Duration::from_secs(40)).unwrap();
+
+        assert_eq!(written, 40 * 16_000);
+        assert_eq!(read(&path).1.len(), 40 * 16_000);
+        let first = pieces.try_recv().unwrap();
+        assert_eq!(first.start_sample, 0);
+        assert!(pieces.try_recv().is_err(), "the full queue took no more");
     }
 
     #[test]

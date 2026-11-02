@@ -67,9 +67,10 @@ struct ServeText: Encodable {
     let type = "text"
     let id: UInt64
     let text: String
-    /// When each word of `text` was said, one per word. Empty when `text`
-    /// was rewritten after the words were timed.
-    let words: [Word]
+    /// When each word of `text` was said, one per word. Absent unless the
+    /// request asked, and when `text` was rewritten after the words were
+    /// timed.
+    var words: [Word]? = nil
 }
 
 struct ServeFailure: Encodable {
@@ -91,6 +92,7 @@ struct ServeRequest: Decodable {
     /// The language spoken, as a code such as `fr`. Absent or unknown: the
     /// model detects it.
     let language: String?
+    let words: Bool?
 }
 
 let output = FileHandle.standardOutput
@@ -317,10 +319,13 @@ func answer(_ request: ServeRequest, manager: AsrManager, booster: Booster?) asy
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
         let terms = request.terms ?? []
         let language = request.language.flatMap(Language.init(rawValue:))
+        let wantsWords = request.words == true
         guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
             let result = try await manager.transcribe(
                 samples, decoderState: &state, language: language)
-            emit(ServeText(id: request.id, text: result.text, words: timedWords(result)))
+            var text = ServeText(id: request.id, text: result.text)
+            if wantsWords { text.words = timedWords(result) }
+            emit(text)
             return
         }
         // The CTC pass needs only the audio, so it runs beside Parakeet.
@@ -329,10 +334,9 @@ func answer(_ request: ServeRequest, manager: AsrManager, booster: Booster?) asy
         let result = try await manager.transcribe(
             samples, decoderState: &state, language: language)
         let boosted = (try? await spotting).flatMap { boost.rescored(result, spotted: $0) }
-        emit(
-            ServeText(
-                id: request.id, text: boosted ?? result.text,
-                words: boosted == nil ? timedWords(result) : []))
+        var text = ServeText(id: request.id, text: boosted ?? result.text)
+        if wantsWords && boosted == nil { text.words = timedWords(result) }
+        emit(text)
     } catch {
         emit(
             ServeFailure(

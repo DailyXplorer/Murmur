@@ -103,6 +103,10 @@ impl Track for MicCapture {
         self.writer.dropped_ms()
     }
 
+    fn live(&self, tap: crate::meetings::live::LiveTap) {
+        self.writer.live(tap);
+    }
+
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.supervisor.join();
