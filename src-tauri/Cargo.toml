@@ -58,6 +58,8 @@ rustfft = "6.4.0"
 strsim = "0.11.0"
 # Accent-insensitive word keys for meeting transcripts.
 unicode-normalization = "0.1"
+# Word count (UAX #29) that decides whether a dictation is short.
+unicode-segmentation = "1.12"
 natural = "0.5.0"
 regex = "1"
 chrono = "0.4"

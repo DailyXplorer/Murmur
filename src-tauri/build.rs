@@ -34,6 +34,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_dictation_style_setting",
     "change_window_names_setting",
     "change_whisper_mode_setting",
+    "change_cleanup_short_dictations_setting",
     "change_app_language_setting",
     "change_update_checks_setting",
     "change_show_whats_new_on_update_setting",

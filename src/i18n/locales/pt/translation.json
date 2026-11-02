@@ -374,6 +374,7 @@
       "recordingUnavailable": "A gravação não está mais disponível, então não pode ser transcrita novamente.",
       "noSpeech": "Nenhuma fala foi encontrada na gravação.",
       "cleanupFailed": "A limpeza com IA estava indisponível, então a transcrição bruta foi colada.",
+      "shortDictation": "Ditado curto: colado na hora, sem limpeza com IA.",
       "showOriginal": "Mostrar transcrição original",
       "hideOriginal": "Ocultar transcrição original",
       "fallback": {
@@ -507,6 +508,10 @@
         "title": "Limpeza e formatação",
         "description": "Remove palavras de preenchimento, mantém apenas a sua versão final quando se corrige, corrige a pontuação e formata listas e quebras de linha ditadas. Nunca traduz nem muda o sentido. Se falhar ou demorar demasiado, a transcrição bruta é colada.",
         "needsAccount": "Conecte o ChatGPT para usar a limpeza com IA."
+      },
+      "cleanupShortDictations": {
+        "title": "Limpar também os ditados curtos",
+        "description": "Ditados com menos de 20 palavras são colados na hora, sem limpeza com IA."
       },
       "style": {
         "title": "Estilo de ditado",
