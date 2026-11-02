@@ -106,12 +106,12 @@ test("auto-delete says it deletes the transcriptions, not only the audio", async
   await expect(
     page.getByText("Auto-delete history", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText(
-      "Deletes old transcriptions and their audio. Saved entries are kept.",
-      { exact: true },
-    ),
-  ).toBeVisible();
+  const explanation =
+    "Deletes old transcriptions and their audio. Saved entries are kept.";
+  await expect(page.getByText(explanation, { exact: true })).toHaveCount(0);
+  const info = page.getByRole("button", { name: explanation, exact: true });
+  await info.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(explanation);
 });
 
 test("keeping one dictation reads as one in French", async ({ page }) => {

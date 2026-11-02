@@ -4,12 +4,11 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface WindowNamesProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const WindowNames: React.FC<WindowNamesProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -20,7 +19,6 @@ export const WindowNames: React.FC<WindowNamesProps> = React.memo(
         isUpdating={isUpdating("window_names_enabled")}
         label={t("settings.transcription.windowNames.title")}
         description={t("settings.transcription.windowNames.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       />
     );

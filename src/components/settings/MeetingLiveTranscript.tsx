@@ -13,7 +13,6 @@ export const MeetingLiveTranscript: React.FC = () => {
       isUpdating={isUpdating("meeting_live_transcript")}
       label={t("settings.advanced.meetingLiveTranscript.label")}
       description={t("settings.advanced.meetingLiveTranscript.description")}
-      descriptionMode="tooltip"
       grouped={true}
     />
   );

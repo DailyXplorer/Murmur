@@ -183,6 +183,12 @@ For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONT
 - Tailwind CSS for styling
 - Path aliases: `@/` → `./src/`
 
+## UI rules
+
+**Settings rows show a title and a control, nothing else.** Any explanation goes in the row's info bubble, the (i) tooltip of `SettingContainer` (its `description`, `RadioOption`'s `description`, `DescriptionTooltip` elsewhere). `SettingContainer` has no inline mode and no section heading takes a subtitle: no helper text under or beside a title anywhere in Settings. A dynamic note (a reason a row is disabled, a size) is merged into the bubble's text, not rendered below.
+
+The only text that may stay inline is a live status that is not an explanation, or an error the user must act on: the ChatGPT row's state ("Signed in", "Session expired, sign in again"), a failed model download's reason, a shortcut registration error, a download's progress bar. A state that sits under a row title goes in `SettingContainer`'s `detail`, in a paragraph marked `data-live-status` (the ChatGPT row); `tests/settings-no-inline-help.spec.ts` fails on any other paragraph under a row title. The download failure and the shortcut error are error paragraphs of their own, outside the title block. Dialogs, the onboarding, history entries and the announcement card (`LocalSttCard`) are not settings rows.
+
 ## CLI Parameters
 
 Murmur supports command-line parameters for integration with scripts and autostart configurations.

@@ -5,12 +5,10 @@ import { SettingContainer } from "../../ui/SettingContainer";
 import { PathDisplay } from "../../ui/PathDisplay";
 
 interface LogDirectoryProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const LogDirectory: React.FC<LogDirectoryProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -54,7 +52,6 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
     <SettingContainer
       title={t("settings.debug.logDirectory.title")}
       description={t("settings.debug.logDirectory.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="stacked"
     >

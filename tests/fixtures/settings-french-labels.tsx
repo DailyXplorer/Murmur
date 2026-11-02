@@ -45,7 +45,7 @@ const SettingsFrenchLabelsFixture: React.FC = () => (
         <LanguageSelector />
       </div>
       <div data-testid="retention">
-        <RecordingRetentionPeriodSelector descriptionMode="inline" />
+        <RecordingRetentionPeriodSelector />
       </div>
     </section>
   </main>

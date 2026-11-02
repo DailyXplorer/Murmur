@@ -49,14 +49,10 @@ export const MeetingsAudioRetention: React.FC = () => {
   return (
     <SettingContainer
       title={t("settings.advanced.meetingsAudio.title")}
-      description={t("settings.advanced.meetingsAudio.description")}
+      description={[t("settings.advanced.meetingsAudio.description"), used]
+        .filter(Boolean)
+        .join(" ")}
       grouped={true}
-      detail={
-        <div className="text-pretty text-xs text-text/60">
-          <p>{t("settings.advanced.meetingsAudio.textKept")}</p>
-          {used && <p>{used}</p>}
-        </div>
-      }
     >
       <Dropdown
         options={RETENTIONS.map((value) => ({

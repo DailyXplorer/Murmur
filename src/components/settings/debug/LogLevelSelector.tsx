@@ -14,12 +14,10 @@ const LOG_LEVEL_OPTIONS: DropdownOption[] = [
 ];
 
 interface LogLevelSelectorProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -40,7 +38,6 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
     <SettingContainer
       title={t("settings.debug.logLevel.title")}
       description={t("settings.debug.logLevel.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="horizontal"
     >

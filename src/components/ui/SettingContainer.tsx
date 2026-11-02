@@ -4,11 +4,12 @@ import { Tooltip } from "./Tooltip";
 
 interface SettingContainerProps {
   title: string;
+  /** The row's explanation, shown in its info bubble and nowhere else. */
   description: string;
   children: React.ReactNode;
-  /** Shown under the title and description, in the text column. */
+  /** Shown under the title, in the text column. A control or a live status,
+   * never an explanation: that goes in `description`. */
   detail?: React.ReactNode;
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   layout?: "horizontal" | "stacked";
   disabled?: boolean;
@@ -118,7 +119,6 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
   description,
   children,
   detail,
-  descriptionMode = "tooltip",
   grouped = false,
   layout = "horizontal",
   disabled = false,
@@ -136,20 +136,11 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
           <h3 className={titleClasses} title={title}>
             {title}
           </h3>
-          {descriptionMode === "tooltip" && (
-            <DescriptionTooltip
-              description={description}
-              position={tooltipPosition}
-            />
-          )}
+          <DescriptionTooltip
+            description={description}
+            position={tooltipPosition}
+          />
         </div>
-        {descriptionMode === "inline" && (
-          <p
-            className={`mb-2 text-pretty text-sm text-text/70 ${disabled ? "opacity-50" : ""}`}
-          >
-            {description}
-          </p>
-        )}
         {detail}
         <div className="w-full">{children}</div>
       </div>
@@ -167,20 +158,11 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
           <h3 className={titleClasses} title={title}>
             {title}
           </h3>
-          {descriptionMode === "tooltip" && (
-            <DescriptionTooltip
-              description={description}
-              position={tooltipPosition}
-            />
-          )}
+          <DescriptionTooltip
+            description={description}
+            position={tooltipPosition}
+          />
         </div>
-        {descriptionMode === "inline" && (
-          <p
-            className={`text-pretty text-sm text-text/70 ${disabled ? "opacity-50" : ""}`}
-          >
-            {description}
-          </p>
-        )}
         {detail}
       </div>
       <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">

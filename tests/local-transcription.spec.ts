@@ -79,59 +79,71 @@ test.describe("how Murmur transcribes", () => {
       page.getByRole("radio", { name: /On this Mac/ }),
     ).toBeDisabled();
     await expect(
-      page.getByText("Local transcription needs macOS 15 or later."),
+      page.getByRole("button", {
+        name: "Local transcription needs macOS 15 or later.",
+      }),
     ).toBeVisible();
     await expectNoUnhandledCommands(page);
   });
 
   const meetings = "Also used by Meetings.";
-  for (const [query, lines, buttons] of [
-    ["models=missing", ["Not downloaded", meetings], ["Download (505 MB)"]],
-    ["models=downloading", ["Downloading · 42%", meetings], ["Cancel"]],
-    ["models=preparing", ["Preparing…", "Takes about 15 seconds."], []],
-    ["models=ready", ["Ready · 505 MB", meetings], ["Delete"]],
+  for (const [query, lines, buttons, info] of [
+    ["models=missing", ["Not downloaded"], ["Download (505 MB)"], meetings],
+    ["models=downloading", ["Downloading · 42%"], ["Cancel"], meetings],
+    ["models=preparing", ["Preparing…"], [], "Takes about 15 seconds."],
+    ["models=ready", ["Ready · 505 MB"], ["Delete"], meetings],
     [
       "models=optimizing",
       ["Optimizing the speech model for this macOS version…"],
       [],
+      null,
     ],
     [
       "models=failed",
       ["Download stopped", "No internet connection."],
       ["Try again"],
+      null,
     ],
     [
       "models=serverDown",
       ["Download stopped", "The server isn't responding."],
       ["Try again"],
+      null,
     ],
     [
       "models=damaged",
       ["Download stopped", "The file arrived damaged."],
       ["Try again"],
+      null,
     ],
     [
       "models=noSpace",
       ["Not enough space", "556 MB needed, 120 MB free."],
       ["Try again"],
+      null,
     ],
     [
       "models=disk",
       ["Download stopped", "Couldn't save it on this Mac."],
       ["Try again"],
+      null,
     ],
     [
       "models=prepareFailed",
       ["Couldn't load", "Downloaded but won't start."],
       ["Try again", "Delete"],
+      null,
     ],
-    ["analysis=unsupported", ["Ready · 740 MB"], ["Delete"]],
-    ["analysis=os_too_old", ["Not available", "Needs macOS 15 or later."], []],
+    ["analysis=unsupported", ["Ready · 740 MB"], ["Delete"], null],
+    ["analysis=os_too_old", ["Not available"], [], "Needs macOS 15 or later."],
   ] as const) {
     test(`the model row when ${query}`, async ({ page }) => {
       await open(page, `engine=local&${query}`, "Transcription");
       const row = page.getByTestId("local-model-row");
       await expect(row.locator("p")).toHaveText([...lines]);
+      await expect(
+        row.getByRole("button", { name: info ?? "no info bubble" }),
+      ).toHaveCount(info === null ? 0 : 1);
       await expect(
         row.getByRole("button", {
           name: /^(Download|Cancel|Try again|Delete)/,
@@ -231,14 +243,21 @@ test.describe("how Murmur transcribes", () => {
   }) => {
     await open(page, "engine=local&account=none", "Transcription");
     await expect(
-      page.getByText("Optional: connect for AI cleanup and more languages."),
+      page.getByRole("button", {
+        name: "Connect your ChatGPT account for AI cleanup, more languages and cloud transcription.",
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: "Cleanup and formatting" }),
     ).toBeDisabled();
     await expect(
-      page.getByText("Connect ChatGPT to use AI cleanup."),
+      page.getByRole("button", {
+        name: /^Connect ChatGPT to use AI cleanup\./,
+      }),
     ).toBeVisible();
+    await expect(
+      page.getByText("Connect ChatGPT to use AI cleanup."),
+    ).toHaveCount(0);
     await expectNoUnhandledCommands(page);
   });
 
@@ -248,10 +267,9 @@ test.describe("how Murmur transcribes", () => {
       page.getByRole("checkbox", { name: "Cleanup and formatting" }),
     ).toBeEnabled();
     await expect(
-      page.getByText("Connect ChatGPT to use AI cleanup."),
-    ).toHaveCount(0);
-    await expect(
-      page.getByText("Optional: connect for AI cleanup and more languages."),
+      page.getByRole("button", {
+        name: /^Connect ChatGPT to use AI cleanup\./,
+      }),
     ).toHaveCount(0);
   });
 });

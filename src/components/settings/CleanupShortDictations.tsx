@@ -22,7 +22,6 @@ export const CleanupShortDictations: React.FC<{ noAccount: boolean }> =
         description={t(
           "settings.transcription.cleanupShortDictations.description",
         )}
-        descriptionMode="tooltip"
         grouped={true}
       />
     );

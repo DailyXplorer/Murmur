@@ -14,7 +14,6 @@ const AccentControlsFixture: React.FC = () => (
         onChange={() => undefined}
         label="Show what's new"
         description="Show release notes after updates"
-        descriptionMode="inline"
       />
       <Button>Donate</Button>
       <Slider
