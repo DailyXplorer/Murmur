@@ -349,7 +349,7 @@
         "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le tue riunioni. Sola lettura. Possono inviare ciò che leggono ai propri server.",
         "dictations": "Includi la cronologia dei dettati",
         "dictationsDescription": "Permette loro di leggere anche i tuoi ultimi dettati, più personali delle riunioni.",
-        "setupTitle": "Collega un'app IA",
+        "setupTitle": "Collega un'app",
         "setupDescription": "Scegli la tua app e incolla questo al suo interno. Senza finestra e senza porta di rete.",
         "clientsLabel": "App IA",
         "clients": {
@@ -357,7 +357,7 @@
           "codex": "Codex",
           "claude_desktop": "Claude Desktop"
         },
-        "copyConfig": "Copia la configurazione per la tua app IA",
+        "copyConfig": "Copia la configurazione per la tua app",
         "copied": "Copiato"
       },
       "meetingsToggle": {
