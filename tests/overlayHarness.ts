@@ -157,28 +157,32 @@ export async function fitCopyWindow(page: Page) {
 }
 
 /** Sends `event`, then reads the laid-out width of the capsule `selector`
- * finds on every animation frame for 0.9 s: a pill that opens from the orb
- * starts at its 34 points. */
+ * finds on every animation frame for 0.9 s, from the first frame it shows
+ * `shows` (a pill replacing another of the same capsule): a pill that opens
+ * from the orb starts at its 34 points. */
 export const widthsAfter = (
   page: Page,
   event: string,
   payload: unknown,
   selector: string,
+  shows = "",
 ) =>
   page.evaluate(
-    ([name, value, capsule]) =>
+    ([name, value, capsule, text]) =>
       new Promise<number[]>((resolve) => {
         window.overlayHarness.dispatch(name as string, value);
         const seen: number[] = [];
         const start = performance.now();
         requestAnimationFrame(function sample(now) {
           const pill = document.querySelector<HTMLElement>(capsule as string);
-          if (pill) seen.push(pill.offsetWidth);
+          if (pill?.textContent?.includes(text as string)) {
+            seen.push(pill.offsetWidth);
+          }
           if (now - start < 900) requestAnimationFrame(sample);
           else resolve(seen);
         });
       }),
-    [event, payload, selector] as const,
+    [event, payload, selector, shows] as const,
   );
 
 // Drawn sizes include the capsule's pop-in scale until it ends.

@@ -8,12 +8,11 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
 import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
-import { openFromOrb } from "./openFromOrb";
+import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import {
   approach,
   ORB_RADIUS,
@@ -107,22 +106,10 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-const reducedMotionQuery = window.matchMedia(
-  "(prefers-reduced-motion: reduce)",
-);
-const subscribeReducedMotion = (onChange: () => void) => {
-  reducedMotionQuery.addEventListener("change", onChange);
-  return () => reducedMotionQuery.removeEventListener("change", onChange);
-};
-const getReducedMotion = () => reducedMotionQuery.matches;
-
 const RecordingOverlay: React.FC = () => {
   const [view, setView] = useState<View>({ kind: "hidden" });
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
-  const reducedMotion = useSyncExternalStore(
-    subscribeReducedMotion,
-    getReducedMotion,
-  );
+  const reducedMotion = useReducedMotion();
   const levelsRef = useRef<number[]>([]);
   const ringRef = useRef<SVGPathElement>(null);
   const pillRef = useRef<HTMLElement | null>(null);

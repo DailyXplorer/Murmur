@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
-import { openFromOrb } from "./openFromOrb";
+import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import {
   commands,
   type CallAnswer,
@@ -34,6 +34,7 @@ const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
   const capsuleRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
   const id = useId();
 
   useEffect(() => {
@@ -96,11 +97,10 @@ const CallPromptOverlay: React.FC = () => {
   const kind = labels?.kind ?? null;
   useLayoutEffect(() => {
     const capsule = capsuleRef.current;
-    if (!kind || !capsule) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!kind || !capsule || reducedMotion) return;
     const growth = openFromOrb(capsule);
     return () => growth.cancel();
-  }, [kind]);
+  }, [kind, reducedMotion]);
 
   if (!labels) return null;
 
