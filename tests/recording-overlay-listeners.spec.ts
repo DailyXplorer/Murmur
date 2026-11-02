@@ -202,12 +202,12 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
   await expect
     .poll(() =>
-      page
-        .locator(".ov-wave i")
-        .nth(6)
-        .evaluate((bar) => bar.getBoundingClientRect().height),
+      page.locator(".ov-orb-ring").evaluate((ring: SVGGraphicsElement) => {
+        const box = ring.getBBox();
+        return Math.max(box.width, box.height);
+      }),
     )
-    .toBeGreaterThan(17);
+    .toBeGreaterThan(21);
 
   const hidden = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.dispatch("hide-overlay"),

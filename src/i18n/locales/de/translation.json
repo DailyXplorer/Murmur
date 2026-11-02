@@ -39,7 +39,7 @@
     "callRecordQuestion": "Dieses Meeting aufnehmen?",
     "callRecord": "Aufnehmen",
     "callNotNow": "Nicht jetzt",
-    "callEndedQuestion": "{{app}} hat den Anruf verlassen. Murmur nimmt weiter auf.",
+    "callEndedQuestion": "Anruf beendet.",
     "callEndedStop": "Beenden und transkribieren",
     "callEndedKeep": "Weiter aufnehmen",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",

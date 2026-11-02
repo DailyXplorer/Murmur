@@ -39,7 +39,7 @@
     "callRecordQuestion": "¿Grabar esta reunión?",
     "callRecord": "Grabar",
     "callNotNow": "Ahora no",
-    "callEndedQuestion": "{{app}} salió de la llamada. Murmur sigue grabando.",
+    "callEndedQuestion": "Llamada finalizada.",
     "callEndedStop": "Detener y transcribir",
     "callEndedKeep": "Seguir grabando",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",

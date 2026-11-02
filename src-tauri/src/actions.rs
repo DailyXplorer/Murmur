@@ -789,7 +789,8 @@ impl TranscribeAction {
                                         return;
                                     }
                                     Ok(outcome) => {
-                                        // The copy pill carries the warning,
+                                        // The warning follows the copy pill
+                                        // (`Notice::Copy { mic_lost_next }`),
                                         // and a failed paste shows its error.
                                         if mic_lost
                                             && matches!(

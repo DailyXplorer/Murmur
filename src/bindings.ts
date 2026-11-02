@@ -1278,10 +1278,6 @@ export type CallAnswer = "record" | "not_now" | "stop_and_transcribe" | "keep_re
  */
 export type CallPromptLabels = { 
 /**
- * The call app's name.
- */
-app: string; 
-/**
  * Which answers the buttons send.
  */
 kind: PromptKind; question: string; 
@@ -1712,7 +1708,7 @@ export type PromptKind =
  */
 "start" | 
 /**
- * "{{app}} left the call", while the meeting recording it goes on.
+ * "Call ended.", while the meeting recording it goes on.
  */
 "ended"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"

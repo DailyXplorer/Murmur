@@ -144,7 +144,7 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Let an AI assistant such as Claude Code, Codex or Claude Desktop read your
   meetings, read-only and off until you turn it on. See
   [Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant)
-- A minimal waveform overlay at the top or bottom of the screen, which can be
+- A small orb overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
 
