@@ -31,6 +31,8 @@ pub enum CleanupOutcome {
     Cleaned,
     /// Cleanup was attempted and the raw transcript was used instead.
     Failed,
+    /// Too short for the default cleanup to be worth the wait: pasted as is.
+    ShortDictation,
 }
 
 impl CleanupOutcome {
@@ -38,6 +40,7 @@ impl CleanupOutcome {
         match self {
             Self::Cleaned => "cleaned",
             Self::Failed => "failed",
+            Self::ShortDictation => "short_dictation",
         }
     }
 
@@ -45,6 +48,7 @@ impl CleanupOutcome {
         match value {
             "cleaned" => Some(Self::Cleaned),
             "failed" => Some(Self::Failed),
+            "short_dictation" => Some(Self::ShortDictation),
             _ => None,
         }
     }
@@ -73,6 +77,13 @@ impl ProcessedText {
             text: raw.clone(),
             raw,
             cleanup: Some(CleanupOutcome::Failed),
+        }
+    }
+
+    pub fn short_dictation(text: String) -> Self {
+        Self {
+            cleanup: Some(CleanupOutcome::ShortDictation),
+            ..Self::unprocessed(text)
         }
     }
 }
@@ -461,7 +472,11 @@ mod tests {
 
     #[test]
     fn outcome_round_trips_through_its_history_name() {
-        for outcome in [CleanupOutcome::Cleaned, CleanupOutcome::Failed] {
+        for outcome in [
+            CleanupOutcome::Cleaned,
+            CleanupOutcome::Failed,
+            CleanupOutcome::ShortDictation,
+        ] {
             assert_eq!(CleanupOutcome::parse(outcome.as_str()), Some(outcome));
         }
         assert_eq!(CleanupOutcome::parse("other"), None);

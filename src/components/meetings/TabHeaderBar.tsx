@@ -14,15 +14,34 @@ interface Match {
   end: number;
 }
 
+/** A search to open with: `query`, on its first match at or after `item`. */
+export interface InitialTextSearch {
+  query: string;
+  /** `null` opens it only when the texts hold a match, on the first one. */
+  item: number | null;
+}
+
+/** Where `initial` opens, or `null` when it stays closed. */
+const openingOf = (texts: string[], initial?: InitialTextSearch) => {
+  if (!initial) return null;
+  const items = texts.flatMap((text, item) =>
+    findMatches(text, initial.query).map(() => item),
+  );
+  if (initial.item === null && items.length === 0) return null;
+  const at = items.findIndex((item) => item >= (initial.item ?? 0));
+  return { query: initial.query, chosen: Math.max(at, 0) };
+};
+
 /**
  * Search across the texts of a tab, ignoring case and accents. `highlight`
  * renders one text with its matches marked; the current one scrolls into
  * view.
  */
-export const useTextSearch = (texts: string[]) => {
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
-  const [chosen, setChosen] = useState(0);
+export const useTextSearch = (texts: string[], initial?: InitialTextSearch) => {
+  const [opening] = useState(() => openingOf(texts, initial));
+  const [searching, setSearching] = useState(opening !== null);
+  const [query, setTypedQuery] = useState(opening?.query ?? "");
+  const [chosen, setChosen] = useState(opening?.chosen ?? 0);
   const currentMark = useRef<HTMLElement | null>(null);
 
   const matches = useMemo<Match[]>(
@@ -51,7 +70,10 @@ export const useTextSearch = (texts: string[]) => {
   // The text can change under the search and leave fewer matches.
   const current = Math.min(chosen, Math.max(matches.length - 1, 0));
 
-  useEffect(() => setChosen(0), [query]);
+  const setQuery = (next: string) => {
+    setTypedQuery(next);
+    setChosen(0);
+  };
   useEffect(() => {
     currentMark.current?.scrollIntoView({ block: "center" });
   }, [current, matches]);
