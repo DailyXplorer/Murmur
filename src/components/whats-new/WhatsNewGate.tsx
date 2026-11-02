@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useSettings } from "../../hooks/useSettings";
 import { findReleaseNoteToShow } from "./releaseNotes";
 import type { ReleaseNote } from "./releaseNotes";
-import { WhatsNewModal } from "./WhatsNewModal";
+import { LazyWhatsNewModal } from "./LazyWhatsNewModal";
 
 export const WhatsNewGate: React.FC = () => {
   const { settings, isLoading, updateSetting } = useSettings();
@@ -68,5 +68,5 @@ export const WhatsNewGate: React.FC = () => {
 
   if (!note) return null;
 
-  return <WhatsNewModal note={note} open={isOpen} onDismiss={dismiss} />;
+  return <LazyWhatsNewModal note={note} open={isOpen} onDismiss={dismiss} />;
 };

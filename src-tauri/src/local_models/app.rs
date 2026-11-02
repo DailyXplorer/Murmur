@@ -15,6 +15,7 @@ use super::{
 };
 use crate::meetings::helper::{self, Ended};
 use crate::settings::{get_settings, update_settings};
+use crate::settings_window::{self, MainAction};
 use crate::ProcessingOperation;
 
 /// The first Core ML load takes about 15 s; this leaves room for a slow Mac.
@@ -74,6 +75,44 @@ impl Host for AppHost {
             }
         })
     }
+
+    fn os_build(&self) -> Option<String> {
+        // Like `prepare`: only Core ML compiles the models.
+        if !cfg!(target_arch = "aarch64") {
+            return None;
+        }
+        let build = kern_osversion();
+        if build.is_none() {
+            log::warn!("Cannot read the macOS build");
+        }
+        build
+    }
+}
+
+/// `kern.osversion`, such as "24F74": it changes with every macOS update.
+fn kern_osversion() -> Option<String> {
+    let name = c"kern.osversion";
+    let mut buffer = [0u8; 64];
+    let mut length = buffer.len();
+    // SAFETY: `buffer` holds `length` writable bytes, and sysctlbyname writes
+    // at most that many, then sets `length` to what it wrote.
+    let status = unsafe {
+        libc::sysctlbyname(
+            name.as_ptr(),
+            buffer.as_mut_ptr().cast(),
+            &mut length,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if status != 0 {
+        return None;
+    }
+    let build = std::ffi::CStr::from_bytes_until_nul(&buffer[..length.min(buffer.len())])
+        .ok()?
+        .to_str()
+        .ok()?;
+    (!build.is_empty()).then(|| build.to_string())
 }
 
 /// Moves dictation to this Mac if the user asked for it once the model is
@@ -90,6 +129,8 @@ pub fn switch_if_asked(app: &AppHandle, model_ready: bool) {
         "settings-changed",
         serde_json::json!({"setting": "transcription_engine"}),
     );
+    // Kept for a settings window that is closed now, which tells it on open.
+    settings_window::queue(app, MainAction::SwitchedToLocal);
     if let Err(error) = (SwitchedToLocal {}).emit(app) {
         log::error!("Failed to emit the switch to the local engine: {error}");
     }

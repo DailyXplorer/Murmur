@@ -3132,7 +3132,9 @@ dependencies = [
  "tokio",
  "transcribe-cpp",
  "unicode-normalization",
+ "unicode-segmentation",
  "url",
+ "zeroize",
 ]
 
 [[package]]

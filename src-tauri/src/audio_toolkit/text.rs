@@ -576,8 +576,8 @@ fn collapse_stutters(text: &str) -> String {
     result.join(" ")
 }
 
-/// Collapses stutters and repeated whitespace. Fillers and formatting are
-/// the AI cleanup's job.
+/// Collapses stutters and repeated whitespace. Fillers and spoken formatting
+/// are `text_passes`' job.
 pub fn normalize_transcription_output(text: &str) -> String {
     let mut normalized = collapse_stutters(text);
 
