@@ -8,12 +8,10 @@ const MIN_HISTORY_LIMIT = 1;
 const MAX_HISTORY_LIMIT = 1000;
 
 interface HistoryLimitProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const HistoryLimit: React.FC<HistoryLimitProps> = ({
-  descriptionMode = "inline",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -52,7 +50,6 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
     <SettingContainer
       title={t("settings.debug.historyLimit.title")}
       description={t("settings.debug.historyLimit.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="horizontal"
     >

@@ -350,11 +350,11 @@
       },
       "mcp": {
         "label": "Lascia che gli agenti IA leggano le tue riunioni (MCP)",
-        "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le trascrizioni e i riassunti delle tue riunioni. Possono inviare ciò che leggono ai propri server. Murmur non modifica mai nulla in questo modo.",
+        "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le tue riunioni. Sola lettura. Possono inviare ciò che leggono ai propri server.",
         "dictations": "Includi la cronologia dei dettati",
         "dictationsDescription": "Permette loro di leggere anche i tuoi ultimi dettati, più personali delle riunioni.",
         "setupTitle": "Collega un'app IA",
-        "setupDescription": "Scegli la tua app e incolla questo al suo interno. L'app esegue da sola il comando di Murmur, senza finestra e senza porta di rete.",
+        "setupDescription": "Scegli la tua app e incolla questo al suo interno. Senza finestra e senza porta di rete.",
         "clientsLabel": "App IA",
         "clients": {
           "claude_code": "Claude Code",
@@ -397,7 +397,6 @@
       "meetingsAudio": {
         "title": "Elimina l'audio delle riunioni",
         "description": "Elimina l'audio delle riunioni elaborate dopo il periodo scelto, per risparmiare spazio. Trascrizioni e riepiloghi vengono conservati.",
-        "textKept": "Trascrizioni e riepiloghi vengono conservati.",
         "used": "L'audio delle riunioni occupa {{size}}.",
         "usedWithSetAside": "L'audio delle riunioni occupa {{size}}, più {{setAside}} di registrazioni non elencate, eliminate dopo 30 giorni.",
         "options": {
@@ -651,7 +650,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Facoltativo: collegalo per la pulizia con IA e più lingue.",
+        "description": "Collega il tuo account ChatGPT per la pulizia con IA, più lingue e la trascrizione nel cloud.",
         "signedIn": "Accesso effettuato",
         "signIn": "Accedi",
         "signOut": "Esci",

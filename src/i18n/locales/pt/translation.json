@@ -350,11 +350,11 @@
       },
       "mcp": {
         "label": "Permitir que agentes de IA leiam suas reuniões (MCP)",
-        "description": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem listar, pesquisar e ler as transcrições e os resumos das suas reuniões. Eles podem enviar o que leem para os próprios servidores. O Murmur nunca altera nada por esse caminho.",
+        "description": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem listar, pesquisar e ler suas reuniões. Somente leitura. Eles podem enviar o que leem para os próprios servidores.",
         "dictations": "Incluir o histórico de ditados",
         "dictationsDescription": "Também permite que leiam seus últimos ditados, mais pessoais que as reuniões.",
         "setupTitle": "Conectar um aplicativo de IA",
-        "setupDescription": "Escolha seu aplicativo e cole isto nele. O aplicativo executa por conta própria o comando do Murmur, sem janela e sem porta de rede.",
+        "setupDescription": "Escolha seu aplicativo e cole isto nele. Sem janela e sem porta de rede.",
         "clientsLabel": "Aplicativo de IA",
         "clients": {
           "claude_code": "Claude Code",
@@ -397,7 +397,6 @@
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",
         "description": "Apaga o áudio das reuniões processadas após o prazo escolhido, para poupar espaço. As transcrições e os resumos são mantidos.",
-        "textKept": "As transcrições e os resumos são mantidos.",
         "used": "O áudio das reuniões ocupa {{size}}.",
         "usedWithSetAside": "O áudio das reuniões ocupa {{size}}, mais {{setAside}} de gravações não listadas, apagadas após 30 dias.",
         "options": {
@@ -651,7 +650,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Opcional: conecte para a limpeza com IA e mais idiomas.",
+        "description": "Conecte sua conta do ChatGPT para a limpeza com IA, mais idiomas e a transcrição na nuvem.",
         "signedIn": "Sessão iniciada",
         "signIn": "Entrar",
         "signOut": "Sair",

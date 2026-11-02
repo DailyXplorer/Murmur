@@ -7,12 +7,11 @@ import { ResetButton } from "../ui/ResetButton";
 import { useSettings } from "../../hooks/useSettings";
 
 interface ClamshellMicrophoneSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ClamshellMicrophoneSelector: React.FC<ClamshellMicrophoneSelectorProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t } = useTranslation();
     const {
       getSetting,
@@ -73,7 +72,6 @@ export const ClamshellMicrophoneSelector: React.FC<ClamshellMicrophoneSelectorPr
       <SettingContainer
         title={t("settings.debug.clamshellMicrophone.title")}
         description={t("settings.debug.clamshellMicrophone.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <div className="flex min-w-0 items-center space-x-1">

@@ -79,12 +79,10 @@ const formatTime = (date: Date): string => {
 };
 
 interface LiveLogViewerProps {
-  descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
 export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
 }) => {
   const { t } = useTranslation();
@@ -177,7 +175,6 @@ export const LiveLogViewer: React.FC<LiveLogViewerProps> = ({
     <SettingContainer
       title={t("settings.debug.liveLogs.title")}
       description={t("settings.debug.liveLogs.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="stacked"
     >

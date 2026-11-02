@@ -62,7 +62,6 @@ export const McpAccess: React.FC = () => {
         isUpdating={isUpdating("mcp_enabled")}
         label={t("settings.advanced.mcp.label")}
         description={t("settings.advanced.mcp.description")}
-        descriptionMode="inline"
         grouped={true}
       />
       {enabled && (
@@ -72,7 +71,6 @@ export const McpAccess: React.FC = () => {
           isUpdating={isUpdating("mcp_include_dictations")}
           label={t("settings.advanced.mcp.dictations")}
           description={t("settings.advanced.mcp.dictationsDescription")}
-          descriptionMode="inline"
           grouped={true}
         />
       )}
@@ -80,7 +78,6 @@ export const McpAccess: React.FC = () => {
         <SettingContainer
           title={t("settings.advanced.mcp.setupTitle")}
           description={t("settings.advanced.mcp.setupDescription")}
-          descriptionMode="inline"
           grouped={true}
           layout="stacked"
         >

@@ -102,31 +102,23 @@ export const TranscriptionSettings: React.FC = () => {
             meetingsUseIt={analysis === "available"}
           />
         )}
-        <ChatGptRow
-          status={status}
-          refreshStatus={refreshStatus}
-          engine={engine}
-        />
+        <ChatGptRow status={status} refreshStatus={refreshStatus} />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.processing")}>
-        <AiCleanup
-          descriptionMode="tooltip"
-          grouped={true}
-          needsAccount={noAccount}
-        />
+        <AiCleanup grouped={true} needsAccount={noAccount} />
         <CleanupShortDictations noAccount={noAccount} />
         <DictationStyleSetting noAccount={noAccount} />
-        <WindowNames descriptionMode="tooltip" grouped={true} />
-        <WhisperMode descriptionMode="tooltip" grouped={true} />
-        <CustomWords descriptionMode="tooltip" grouped={true} />
-        <AppendTrailingSpace descriptionMode="tooltip" grouped={true} />
+        <WindowNames grouped={true} />
+        <WhisperMode grouped={true} />
+        <CustomWords grouped={true} />
+        <AppendTrailingSpace grouped={true} />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.transcription.groups.output")}>
-        <PasteMethodSetting descriptionMode="tooltip" grouped={true} />
-        <ClipboardHandlingSetting descriptionMode="tooltip" grouped={true} />
-        <AutoSubmit descriptionMode="tooltip" grouped={true} />
+        <PasteMethodSetting grouped={true} />
+        <ClipboardHandlingSetting grouped={true} />
+        <AutoSubmit grouped={true} />
       </SettingsGroup>
     </SettingsPage>
   );

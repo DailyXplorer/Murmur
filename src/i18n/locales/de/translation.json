@@ -350,11 +350,11 @@
       },
       "mcp": {
         "label": "KI-Agenten deine Meetings lesen lassen (MCP)",
-        "description": "KI-Apps, die du verbindest, etwa Claude oder Codex, können die Transkripte und Zusammenfassungen deiner Meetings auflisten, durchsuchen und lesen. Sie senden das Gelesene möglicherweise an ihre eigenen Server. Murmur ändert dadurch nie etwas.",
+        "description": "Verbundene KI-Apps wie Claude oder Codex können deine Meetings auflisten, durchsuchen und lesen. Nur Lesezugriff. Sie senden das Gelesene möglicherweise an ihre eigenen Server.",
         "dictations": "Diktatverlauf einbeziehen",
         "dictationsDescription": "Erlaubt ihnen auch, deine letzten Diktate zu lesen, die persönlicher sind als Meetings.",
         "setupTitle": "KI-App verbinden",
-        "setupDescription": "Wähle deine App und füge dies dort ein. Die App führt den Befehl von Murmur selbst aus, ohne Fenster und ohne Netzwerkport.",
+        "setupDescription": "Wähle deine App und füge dies dort ein. Kein Fenster, kein Netzwerkport.",
         "clientsLabel": "KI-App",
         "clients": {
           "claude_code": "Claude Code",
@@ -397,7 +397,6 @@
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",
         "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",
-        "textKept": "Transkripte und Zusammenfassungen bleiben erhalten.",
         "used": "Meeting-Audio belegt {{size}}.",
         "usedWithSetAside": "Meeting-Audio belegt {{size}}, dazu {{setAside}} nicht aufgeführte Aufnahmen, die nach 30 Tagen gelöscht werden.",
         "options": {
@@ -651,7 +650,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Optional: verbinden für KI-Bereinigung und mehr Sprachen.",
+        "description": "Verbinde dein ChatGPT-Konto für KI-Bereinigung, mehr Sprachen und Cloud-Transkription.",
         "signedIn": "Angemeldet",
         "signIn": "Anmelden",
         "signOut": "Abmelden",

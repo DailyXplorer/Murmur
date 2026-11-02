@@ -350,11 +350,11 @@
       },
       "mcp": {
         "label": "Permitir que los agentes de IA lean sus reuniones (MCP)",
-        "description": "Las aplicaciones de IA que conecte, como Claude o Codex, pueden listar, buscar y leer las transcripciones y los resúmenes de sus reuniones. Pueden enviar lo que leen a sus propios servidores. Murmur nunca cambia nada por esta vía.",
+        "description": "Las aplicaciones de IA que conecte, como Claude o Codex, pueden listar, buscar y leer sus reuniones. Solo lectura. Pueden enviar lo que leen a sus propios servidores.",
         "dictations": "Incluir el historial de dictados",
         "dictationsDescription": "También les permite leer sus últimos dictados, más personales que las reuniones.",
         "setupTitle": "Conectar una aplicación de IA",
-        "setupDescription": "Elija su aplicación y pegue esto en ella. La aplicación ejecuta por sí misma el comando de Murmur, sin ventana ni puerto de red.",
+        "setupDescription": "Elija su aplicación y pegue esto en ella. Sin ventana ni puerto de red.",
         "clientsLabel": "Aplicación de IA",
         "clients": {
           "claude_code": "Claude Code",
@@ -397,7 +397,6 @@
       "meetingsAudio": {
         "title": "Eliminar el audio de las reuniones",
         "description": "Elimina el audio de las reuniones procesadas tras el plazo elegido, para ahorrar espacio. Las transcripciones y los resúmenes se conservan.",
-        "textKept": "Las transcripciones y los resúmenes se conservan.",
         "used": "El audio de las reuniones ocupa {{size}}.",
         "usedWithSetAside": "El audio de las reuniones ocupa {{size}}, más {{setAside}} de grabaciones no listadas, que se eliminan a los 30 días.",
         "options": {
@@ -651,7 +650,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Opcional: conéctalo para la limpieza con IA y más idiomas.",
+        "description": "Conecta tu cuenta de ChatGPT para la limpieza con IA, más idiomas y la transcripción en la nube.",
         "signedIn": "Sesión iniciada",
         "signIn": "Iniciar sesión",
         "signOut": "Cerrar sesión",

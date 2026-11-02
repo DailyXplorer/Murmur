@@ -14,6 +14,10 @@ const row = (page: Page) =>
     .getByRole("heading", { name: "ChatGPT", exact: true })
     .locator("xpath=ancestor::div[contains(@class,'px-4')][1]");
 
+/** The row's labelled buttons, not its info bubble. */
+const actions = (page: Page) =>
+  row(page).getByRole("button").filter({ hasText: /\S/ });
+
 const callsTo = (page: Page, command: string) =>
   page.evaluate(
     (name) =>
@@ -35,7 +39,11 @@ for (const engine of ["cloud", "local"]) {
     await expect(
       row(page).getByText("Signed in", { exact: true }),
     ).toBeVisible();
-    await expect(row(page).getByRole("button")).toHaveText(["Sign out"]);
+    await expect(actions(page)).toHaveText(["Sign out"]);
+    await expect(
+      row(page).getByRole("button", { name: /^Connect your ChatGPT account/ }),
+    ).toHaveAccessibleName(/cloud transcription\.$/);
+    await expect(row(page)).not.toContainText("Optional");
     await expect(row(page)).not.toContainText("@");
     await expect(page.getByRole("heading", { name: "Codex" })).toHaveCount(0);
     await expect(page.getByText("Open Codex setup")).toHaveCount(0);
@@ -57,13 +65,13 @@ test("Sign out asks first, says Codex is signed out too, and Cancel keeps the se
 
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(row(page).getByRole("button")).toHaveText(["Sign out"]);
+  await expect(actions(page)).toHaveText(["Sign out"]);
   expect(await callsTo(page, "sign_out_of_chatgpt")).toBe(0);
 
   await row(page).getByRole("button", { name: "Sign out" }).click();
   await dialog.getByRole("button", { name: "Sign out" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(row(page).getByRole("button")).toHaveText(["Sign in"]);
+  await expect(actions(page)).toHaveText(["Sign in"]);
   await expect(
     row(page).getByText("Not signed in", { exact: true }),
   ).toBeVisible();
@@ -80,7 +88,7 @@ test("a failed sign-out says so and keeps the session", async ({ page }) => {
     .click();
   await expect(page.getByText("Couldn't sign out of ChatGPT.")).toBeVisible();
   await expect(page.getByText("Couldn't remove auth.json")).toHaveCount(0);
-  await expect(row(page).getByRole("button")).toHaveText(["Sign out"]);
+  await expect(actions(page)).toHaveText(["Sign out"]);
 });
 
 test("Sign in waits for the browser, then shows the session", async ({
@@ -96,11 +104,11 @@ test("Sign in waits for the browser, then shows the session", async ({
       exact: true,
     }),
   ).toBeVisible();
-  await expect(row(page).getByRole("button")).toHaveText(["Cancel"]);
+  await expect(actions(page)).toHaveText(["Cancel"]);
   expect(await callsTo(page, "sign_in_with_chatgpt")).toBe(1);
 
   await page.evaluate(() => window.settingsPages.resolveSignIn());
-  await expect(row(page).getByRole("button")).toHaveText(["Sign out"]);
+  await expect(actions(page)).toHaveText(["Sign out"]);
   await expect(row(page).getByText("Signed in", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("checkbox", { name: "Cleanup and formatting" }),
@@ -108,14 +116,35 @@ test("Sign in waits for the browser, then shows the session", async ({
   await expectNoUnhandledCommands(page);
 });
 
+test("on the cloud engine the bubble never calls the account optional", async ({
+  page,
+}) => {
+  await open(page, "engine=cloud&account=none");
+  await expect(
+    row(page).getByRole("button", {
+      name: "Connect your ChatGPT account for AI cleanup, more languages and cloud transcription.",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    row(page).getByText("Not signed in", { exact: true }),
+  ).toBeVisible();
+  await expect(row(page)).not.toContainText("Optional");
+});
+
 test("Cancel stops a sign-in from settings", async ({ page }) => {
   await open(page, "engine=local&account=none");
   await expect(
-    row(page).getByText("Optional: connect for AI cleanup and more languages."),
+    row(page).getByRole("button", {
+      name: "Connect your ChatGPT account for AI cleanup, more languages and cloud transcription.",
+    }),
+  ).toBeVisible();
+  await expect(
+    row(page).getByText("Not signed in", { exact: true }),
   ).toBeVisible();
   await row(page).getByRole("button", { name: "Sign in" }).click();
   await row(page).getByRole("button", { name: "Cancel" }).click();
-  await expect(row(page).getByRole("button")).toHaveText(["Sign in"]);
+  await expect(actions(page)).toHaveText(["Sign in"]);
   expect(await callsTo(page, "cancel_chatgpt_sign_in")).toBe(1);
   await expectNoUnhandledCommands(page);
 });
@@ -125,5 +154,5 @@ test("an expired session asks to sign in again", async ({ page }) => {
   await expect(
     row(page).getByText("Session expired, sign in again", { exact: true }),
   ).toBeVisible();
-  await expect(row(page).getByRole("button")).toHaveText(["Sign in"]);
+  await expect(actions(page)).toHaveText(["Sign in"]);
 });

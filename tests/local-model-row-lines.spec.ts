@@ -75,7 +75,10 @@ for (const locale of LOCALES) {
         expect(lines, at).toBeGreaterThanOrEqual(1);
         expect(lines, at).toBeLessThanOrEqual(2);
         expect(text, at).not.toMatch(/Parakeet/);
-        expect(buttons, `no info button in the text, ${at}`).toBe(0);
+        expect(
+          buttons,
+          `at most the info bubble in the text, ${at}`,
+        ).toBeLessThanOrEqual(1);
       }
     });
   }

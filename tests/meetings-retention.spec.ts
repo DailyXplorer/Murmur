@@ -36,8 +36,13 @@ test("meeting audio is kept by default, and the space meetings use is shown", as
   const row = retentionRow(page);
 
   await expect(row.getByRole("button", { name: "Never" })).toBeVisible();
-  await expect(row).toContainText("Transcripts and summaries are kept.");
-  await expect(row).toContainText("Meeting audio uses 1.2 GB.");
+  await expect(
+    row.getByRole("button", { name: /^Deletes the audio/ }),
+  ).toHaveAccessibleName(
+    "Deletes the audio of processed meetings after the chosen time, to save space. Transcripts and summaries are kept. Meeting audio uses 1.2 GB.",
+  );
+  await expect(row).not.toContainText("Transcripts and summaries");
+  await expect(row).not.toContainText("Meeting audio uses");
   expect(
     await page.evaluate(() => window.settingsPages.unhandledCommands),
   ).toEqual([]);
@@ -62,8 +67,10 @@ test("choosing a delay saves it", async ({ page }) => {
 test("recordings set aside are counted on their own", async ({ page }) => {
   await openAdvanced(page, "?storageBytes=482000000&setAsideBytes=96000000");
 
-  await expect(retentionRow(page)).toContainText(
-    "Meeting audio uses 482 MB, plus 96 MB of unlisted recordings, deleted after 30 days.",
+  await expect(
+    retentionRow(page).getByRole("button", { name: /^Deletes the audio/ }),
+  ).toHaveAccessibleName(
+    /Meeting audio uses 482 MB, plus 96 MB of unlisted recordings, deleted after 30 days\.$/,
   );
 });
 
@@ -96,7 +103,9 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.setViewportSize(DEFAULT_WINDOW);
     await openAdvanced(page, `?theme=${theme}`);
-    await expect(retentionRow(page)).toContainText("Meeting audio uses");
+    await expect(
+      retentionRow(page).getByRole("button", { name: /^Deletes the audio/ }),
+    ).toBeVisible();
     // The sidebar's selection slides over to Advanced.
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${outputDir}/advanced-${theme}.png` });

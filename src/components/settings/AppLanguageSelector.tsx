@@ -10,12 +10,11 @@ import {
 import { useSettings } from "@/hooks/useSettings";
 
 interface AppLanguageSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const AppLanguageSelector: React.FC<AppLanguageSelectorProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t, i18n } = useTranslation();
     const { settings, getSetting, isUpdating, updateSetting } = useSettings();
 
@@ -43,7 +42,6 @@ export const AppLanguageSelector: React.FC<AppLanguageSelectorProps> =
       <SettingContainer
         title={t("appLanguage.title")}
         description={t("appLanguage.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Dropdown
