@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { DEFAULT_WINDOW } from "./windowSizes";
+import { DEFAULT_WINDOW, MIN_WINDOW } from "./windowSizes";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
@@ -59,11 +59,11 @@ test("turning AI access on saves it and offers the setup", async ({ page }) => {
   await expect(group(page).getByTestId("mcp-setup")).toContainText(COMMAND);
 });
 
-for (const width of [800, 1100]) {
-  test(`setup copy action stays right-aligned at ${width}px`, async ({
+for (const size of [MIN_WINDOW, DEFAULT_WINDOW]) {
+  test(`setup copy action stays right-aligned at ${size.width}px`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width, height: 800 });
+    await page.setViewportSize(size);
     await openAdvanced(page, "?mcp=1");
 
     await expect(
