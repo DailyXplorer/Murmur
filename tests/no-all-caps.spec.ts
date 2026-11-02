@@ -27,6 +27,8 @@ const PROPER_PHRASES = [
   "System Settings",
   "Apache License",
   "Fluid Inference",
+  "Parakeet Ultra",
+  "Moondream",
   "Hugging Face",
   "Google Meet",
   "Community-1",

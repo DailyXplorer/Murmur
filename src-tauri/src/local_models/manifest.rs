@@ -45,11 +45,59 @@ pub fn this_mac() -> &'static [Source] {
     }
 }
 
-/// The GGUF model the CPU loads, relative to the models directory.
-#[cfg(not(target_arch = "aarch64"))]
-pub fn gguf_path() -> std::path::PathBuf {
-    let source = &pinned::X86_64[0];
-    std::path::Path::new(source.folder).join(source.files[0].path)
+/// The speech model earlier versions downloaded, Parakeet TDT 0.6B v3. A
+/// folder it left ready stays in use while Parakeet Ultra downloads beside
+/// it, and is deleted once Ultra is ready.
+#[derive(Debug)]
+pub struct Previous {
+    /// What `.murmur-ready` held once it was ready.
+    pub ready_id: &'static str,
+    pub folder: &'static str,
+}
+
+pub const PREVIOUS: Previous = if cfg!(target_arch = "aarch64") {
+    Previous {
+        ready_id: "FluidInference/parakeet-tdt-0.6b-v3-coreml@7dd20fe6b1797d35f5e3307e8b1732d9a178edfe\n\
+                   FluidInference/speaker-diarization-coreml@df2625ac79a7ac6b65ad868fee6d80f320da4232",
+        folder: "parakeet-tdt-0.6b-v3",
+    }
+} else {
+    Previous {
+        ready_id:
+            "handy-computer/parakeet-tdt-0.6b-v3-gguf@d8d8c32cb2017c57e5307767343e97870f8a7f53",
+        folder: "parakeet-tdt-0.6b-v3",
+    }
+};
+
+/// Which speech model a ready models folder runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Asr {
+    Current,
+    Previous,
+}
+
+impl Asr {
+    /// The helper's `--asr` value.
+    pub fn helper_name(self) -> &'static str {
+        match self {
+            Asr::Current => "ultra",
+            Asr::Previous => "v3",
+        }
+    }
+
+    /// The GGUF model the CPU loads, relative to the models directory.
+    #[cfg(not(target_arch = "aarch64"))]
+    pub fn gguf_path(self) -> std::path::PathBuf {
+        match self {
+            Asr::Current => {
+                let source = &pinned::X86_64[0];
+                std::path::Path::new(source.folder).join(source.files[0].path)
+            }
+            Asr::Previous => {
+                std::path::Path::new(PREVIOUS.folder).join("parakeet-tdt-0.6b-v3-Q8_0.gguf")
+            }
+        }
+    }
 }
 
 pub fn total_bytes<'a>(sources: impl IntoIterator<Item = &'a Source>) -> u64 {
@@ -95,8 +143,8 @@ mod tests {
 
     #[test]
     fn the_download_sizes_are_the_ones_shown() {
-        assert_eq!(total_bytes(pinned::APPLE_SILICON), 607_846_663);
-        assert_eq!(total_bytes(pinned::X86_64), 739_508_576);
+        assert_eq!(total_bytes(pinned::APPLE_SILICON), 756_903_921);
+        assert_eq!(total_bytes(pinned::X86_64), 740_363_168);
     }
 
     /// The Meetings page shows the size the download really is, in every
@@ -140,7 +188,7 @@ mod tests {
         assert_eq!(
             folders,
             [
-                "parakeet-tdt-0.6b-v3",
+                "parakeet-ultra",
                 "speaker-diarization",
                 "parakeet-ctc-110m-coreml"
             ]
@@ -169,8 +217,21 @@ mod tests {
         let source = &pinned::X86_64[0];
         assert_eq!(
             source.url(HUGGING_FACE, &source.files[0]),
-            "https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf/resolve/\
-             d8d8c32cb2017c57e5307767343e97870f8a7f53/parakeet-tdt-0.6b-v3-Q8_0.gguf"
+            "https://huggingface.co/handy-computer/parakeet-ultra-gguf/resolve/\
+             a1539be1b849ea7463b88343e5277b373d0c4ea9/parakeet-ultra-Q8_0.gguf"
+        );
+    }
+
+    /// The previous model's folder is deleted once the current one is ready:
+    /// it must hold nothing the current models need.
+    #[test]
+    fn the_previous_speech_model_shares_no_folder_with_the_current_models() {
+        for source in pinned::APPLE_SILICON.iter().chain(pinned::X86_64) {
+            assert_ne!(source.folder, PREVIOUS.folder, "{}", source.repo);
+        }
+        assert_ne!(
+            PREVIOUS.ready_id,
+            id(this_mac().iter().filter(|s| !s.optional))
         );
     }
 }

@@ -4,91 +4,76 @@ use super::manifest::{ModelFile, Source};
 
 pub const APPLE_SILICON: &[Source] = &[
     Source {
-        repo: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-        commit: "7dd20fe6b1797d35f5e3307e8b1732d9a178edfe",
-        folder: "parakeet-tdt-0.6b-v3",
+        repo: "FluidInference/parakeet-ultra-coreml",
+        commit: "95eaa59a39d4394f047a4dc5cce480388a60d1b6",
+        folder: "parakeet-ultra",
         fluid_revision_marker: false,
         optional: false,
         files: &[
             ModelFile {
                 path: "config.json",
-                size: 475,
-                sha256: "97f19ecccd0fdc730d76fb918090fa8bc64bce8ea4ad43715d5e9c2c7350db66",
+                size: 414,
+                sha256: "965c69bf500c7be18958df6438dc1ba897721690ae412937ca7c91e28cec1870",
             },
             ModelFile {
                 path: "Decoder.mlmodelc/analytics/coremldata.bin",
                 size: 243,
-                sha256: "4238c4e81ecd0dc94bd7dfbb60f7e2cc824107c1ffe0387b8607b72833dba350",
+                sha256: "fe92b6cfaa012abd5248c0bc877832f19807015abffc60d87b8ccc8ccb48b3b5",
             },
             ModelFile {
                 path: "Decoder.mlmodelc/coremldata.bin",
-                size: 554,
-                sha256: "18647af085d87bd8f3121c8a9b4d4564c1ede038dab63d295b4e745cf2d7fb99",
-            },
-            ModelFile {
-                path: "Decoder.mlmodelc/metadata.json",
-                size: 3427,
-                sha256: "a39e93cd8371b8ded92635c7804fcd0590f0d1dd9415c6d19a0484be073077d9",
+                size: 560,
+                sha256: "3b06e66768f0df7e21795f50e2b29300e33eeb1a2579dc42c695279c2d308497",
             },
             ModelFile {
                 path: "Decoder.mlmodelc/model.mil",
                 size: 13110,
-                sha256: "ef2a0a281695398a62fde86ac269c68f73d5b578d7ed3b31f2ba91a2d1ea1f35",
+                sha256: "956f600207f88396017ca5c96cfa3acd5bfee60835a5b44b762e033a8fb28955",
             },
             ModelFile {
                 path: "Decoder.mlmodelc/weights/weight.bin",
                 size: 23604992,
-                sha256: "48adf0f0d47c406c8253d4f7fef967436a39da14f5a65e66d5a4b407be355d41",
+                sha256: "02a0d219f281b9665bc10c8768649403b2eebbbf4b44c627041d948e0de11bb4",
             },
             ModelFile {
                 path: "Encoder.mlmodelc/analytics/coremldata.bin",
                 size: 243,
-                sha256: "42e638870d73f26b332918a3496ce36793fbb413a81cbd3d16ba01328637a105",
+                sha256: "d87101d824d6723cf95304da33755c3c60e762663b9ef2b0c4bd0aa166a09a0d",
             },
             ModelFile {
                 path: "Encoder.mlmodelc/coremldata.bin",
-                size: 485,
-                sha256: "d48034a167a82e88fc3df64f60af963ab3983538271175b8319e7d5720a0fb86",
-            },
-            ModelFile {
-                path: "Encoder.mlmodelc/metadata.json",
-                size: 2921,
-                sha256: "da24da9cca943fb29d7fa8e376d57fca7cb3aa08ca51b956b0b0e56813f087e9",
+                size: 514,
+                sha256: "397a84a4062f563cbc5f56077c674f09a61d85be5090f61d2f1932afb92ac0fe",
             },
             ModelFile {
                 path: "Encoder.mlmodelc/model.mil",
-                size: 959769,
-                sha256: "ed7b19156ca29fa7dfd6891deb9fda4b0e8893f68597c985d135736546a43808",
+                size: 1002653,
+                sha256: "f5d601568a4171d99a314c0fe3f6bc67715da2623732a3fb566e050ea83e5848",
             },
             ModelFile {
                 path: "Encoder.mlmodelc/weights/weight.bin",
-                size: 445187200,
-                sha256: "e2020f323703477a5b21d7c2d282c403e371afb5962e79877e3033e73ba6f421",
+                size: 594211328,
+                sha256: "315ba01f33cadbf601d43ac7f5c86208b7aa75fdaa34705c9869d5abe3521c9b",
             },
             ModelFile {
                 path: "JointDecisionv3.mlmodelc/analytics/coremldata.bin",
                 size: 243,
-                sha256: "26def4bf73dd56d29dee21c8ef97cb8969e62f6120ed1adc91e46828e2737b6c",
+                sha256: "68d38ca646aebafa7a9329e2efda50f5767c49e89fdb5f77f212072bb66f97c4",
             },
             ModelFile {
                 path: "JointDecisionv3.mlmodelc/coremldata.bin",
-                size: 521,
-                sha256: "f5fc08b741400f0088492c9e839418b1e18522f19cba28d361dd030c5f398342",
-            },
-            ModelFile {
-                path: "JointDecisionv3.mlmodelc/metadata.json",
-                size: 3453,
-                sha256: "d9307211b9a37e0f0ac260c7660b1571a3de25841035cfdf9b58fd40425f890f",
+                size: 592,
+                sha256: "5e3af5a4ce686f6c237cadbd9284e10d333bc0e1546633cd0e430e6194044bc4",
             },
             ModelFile {
                 path: "JointDecisionv3.mlmodelc/model.mil",
-                size: 11775,
-                sha256: "be60732943389a047175111a83f8839f3eb39d4803adafa828a0871b2f39818d",
+                size: 11777,
+                sha256: "791b3c3cf3eb2079c84623fc880f6bba008d1366e5f8b03e9a8ed8bd4d7194a0",
             },
             ModelFile {
                 path: "JointDecisionv3.mlmodelc/weights/weight.bin",
                 size: 12642764,
-                sha256: "4e0e63d840032f7f07ddb1d64446051166281e5491bf22da8a945c41f6eedb3e",
+                sha256: "3f310b85b82341c53ec383025ab094a4e462ee1c592e1ad7c6bfe39cff66ca25",
             },
             ModelFile {
                 path: "parakeet_v3_vocab.json",
@@ -328,14 +313,14 @@ pub const APPLE_SILICON: &[Source] = &[
 ];
 
 pub const X86_64: &[Source] = &[Source {
-    repo: "handy-computer/parakeet-tdt-0.6b-v3-gguf",
-    commit: "d8d8c32cb2017c57e5307767343e97870f8a7f53",
-    folder: "parakeet-tdt-0.6b-v3",
+    repo: "handy-computer/parakeet-ultra-gguf",
+    commit: "a1539be1b849ea7463b88343e5277b373d0c4ea9",
+    folder: "parakeet-ultra",
     fluid_revision_marker: false,
     optional: false,
     files: &[ModelFile {
-        path: "parakeet-tdt-0.6b-v3-Q8_0.gguf",
-        size: 739508576,
-        sha256: "5859f77944efcd8eafa23a6350731960b2b55b2203df51f319665c807d802cc7",
+        path: "parakeet-ultra-Q8_0.gguf",
+        size: 740363168,
+        sha256: "007a59761e9258779f189df396b50d12b83bb5b79e66df4b955c230d2f2a0a59",
     }],
 }];

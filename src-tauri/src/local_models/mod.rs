@@ -9,7 +9,10 @@
 //! Models an earlier version downloaded are checked file by file and only
 //! the differing files are fetched again. An optional source (the CTC model
 //! that boosts custom words) is fetched once the others are ready, with a
-//! marker of its own, and never changes the state.
+//! marker of its own, and never changes the state. Models ready with the
+//! previous speech model (`manifest::PREVIOUS`) stay ready and in use while
+//! the current one downloads beside them; once it is ready, the previous
+//! one's folder is deleted.
 
 mod app;
 pub mod download;
@@ -25,13 +28,14 @@ use specta::Type;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
 
 use crate::{OperationId, ProcessingOperation};
 use download::{DownloadFailure, Fetch, Stopped};
-use manifest::{ModelFile, Source};
+use manifest::{Asr, ModelFile, Source};
 
 const READY_MARKER: &str = ".murmur-ready";
 /// Holds the optional sources' id once their files are all in place.
@@ -107,6 +111,9 @@ pub trait Host: Send + Sync + 'static {
 #[derive(Debug, PartialEq, Eq)]
 enum OnDisk {
     Current,
+    /// Ready with the previous speech model, which runs until the current
+    /// one is ready beside it.
+    Previous,
     /// Models from before this manifest, never checked against it.
     Earlier,
     Absent,
@@ -122,6 +129,9 @@ pub struct LocalModels {
     download: Mutex<Option<ProcessingOperation>>,
     /// The optional sources' fetch, which ready models run on their own.
     optional: Mutex<Option<ProcessingOperation>>,
+    /// The download slot's operation is `start_upgrade`'s, which a delete
+    /// cancels instead of being refused.
+    upgrading: AtomicBool,
 }
 
 impl LocalModels {
@@ -141,12 +151,13 @@ impl LocalModels {
             state: watch::channel(LocalModelState::Missing).0,
             download: Mutex::new(None),
             optional: Mutex::new(None),
+            upgrading: AtomicBool::new(false),
         };
         let state = if support != AnalysisSupport::Available {
             LocalModelState::Unsupported { support }
         } else {
             match models.on_disk() {
-                OnDisk::Current => LocalModelState::Ready,
+                OnDisk::Current | OnDisk::Previous => LocalModelState::Ready,
                 OnDisk::Earlier => LocalModelState::Preparing,
                 OnDisk::Absent => LocalModelState::Missing,
             }
@@ -214,6 +225,7 @@ impl LocalModels {
     fn on_disk(&self) -> OnDisk {
         match std::fs::read_to_string(self.dir.join(READY_MARKER)) {
             Ok(id) if id == manifest::id(self.required()) => OnDisk::Current,
+            Ok(id) if id == manifest::PREVIOUS.ready_id => OnDisk::Previous,
             Ok(_) => OnDisk::Earlier,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => OnDisk::Absent,
             Err(_) => OnDisk::Earlier,
@@ -221,17 +233,70 @@ impl LocalModels {
     }
 
     /// At launch: checks models from an earlier version, and resumes a
-    /// download the user asked for before the app quit. Ready models are
-    /// compiled again if macOS changed since, then get the optional files
-    /// they lack.
+    /// download the user asked for before the app quit. Ready models of the
+    /// previous speech model fetch the current one. Others are compiled
+    /// again if macOS changed since, then get the optional files they lack.
     pub fn resume_on_launch(self: &Arc<Self>, wanted: bool) {
         let state = self.state.borrow().clone();
         match state {
             LocalModelState::Preparing => self.start_download(),
             LocalModelState::Missing if wanted => self.start_download(),
-            LocalModelState::Ready if self.compiled_for_another_build() => self.start_recompile(),
-            LocalModelState::Ready => self.start_optional(),
+            LocalModelState::Ready if self.on_disk() == OnDisk::Previous => self.start_upgrade(),
+            LocalModelState::Ready => {
+                // A quit between the new ready marker and the delete left it.
+                self.remove_previous();
+                if self.compiled_for_another_build() {
+                    self.start_recompile();
+                } else {
+                    self.start_optional();
+                }
+            }
             _ => {}
+        }
+    }
+
+    /// Fetches the current speech model beside the previous one, which
+    /// stays ready and in use meanwhile: the state does not change until
+    /// the switch. A failure is logged, and the next launch tries again.
+    fn start_upgrade(self: &Arc<Self>) {
+        let operation = {
+            let mut slot = self.download_slot();
+            if slot.is_some() {
+                return;
+            }
+            let operation = ProcessingOperation::new(OperationId(0));
+            *slot = Some(operation.clone());
+            self.upgrading.store(true, Ordering::SeqCst);
+            operation
+        };
+        let models = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            let result = models.fetch(&operation, false, &|_| {}).await;
+            let mut slot = models.download_slot();
+            *slot = None;
+            models.upgrading.store(false, Ordering::SeqCst);
+            match result {
+                Ok(()) => {
+                    log::info!("Local models switched to the current speech model");
+                    models.set(LocalModelState::Ready);
+                    drop(slot);
+                    models.start_optional();
+                }
+                Err(Stopped::Cancelled) => {}
+                Err(Stopped::Failed(reason)) => {
+                    log::warn!("The current speech model was not fetched: {reason:?}")
+                }
+            }
+        });
+    }
+
+    /// Deletes the previous speech model's folder, once the current one is
+    /// ready. A model it loaded keeps running from the files it opened.
+    fn remove_previous(&self) {
+        match std::fs::remove_dir_all(self.dir.join(manifest::PREVIOUS.folder)) {
+            Ok(()) => log::info!("Deleted the previous speech model"),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => log::warn!("Cannot delete the previous speech model: {error}"),
         }
     }
 
@@ -320,8 +385,13 @@ impl LocalModels {
         }
     }
 
-    /// The models went missing under the helper: download them again.
-    pub fn invalidate(&self) {
+    /// The models went missing under the helper, which looked for the
+    /// speech model `looked_for`: download them again. Not when that model
+    /// was replaced since, as the current one is not known to be missing.
+    pub fn invalidate(&self, looked_for: Asr) {
+        if asr_in_use(&self.dir) != looked_for {
+            return;
+        }
         let _ = std::fs::remove_file(self.dir.join(READY_MARKER));
         if *self.state.borrow() == LocalModelState::Ready {
             self.set(LocalModelState::Missing);
@@ -403,7 +473,9 @@ impl LocalModels {
         });
         let models = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
-            let result = models.fetch(&operation, earlier).await;
+            let result = models
+                .fetch(&operation, earlier, &|state| models.set(state))
+                .await;
             let mut slot = models.download_slot();
             *slot = None;
             match result {
@@ -442,18 +514,23 @@ impl LocalModels {
     /// Cancels the optional fetch and waits for it to stop, so it writes
     /// nothing more into the folder.
     fn stop_optional(&self) -> Result<(), String> {
-        const STOP_WITHIN: Duration = Duration::from_secs(10);
         if let Some(operation) = self.optional_slot().as_ref() {
             operation.cancel();
         }
-        let started = Instant::now();
-        while self.optional_slot().is_some() {
-            if started.elapsed() > STOP_WITHIN {
-                return Err("The models are downloading".to_string());
+        wait_until_stopped(|| self.optional_slot().is_none())
+    }
+
+    /// Cancels the background fetch of the current speech model and waits
+    /// for it to stop: the user's delete wins over it. Any other download
+    /// is left alone, and the delete refuses it.
+    fn stop_upgrade(&self) -> Result<(), String> {
+        match self.download_slot().as_ref() {
+            Some(operation) if self.upgrading.load(Ordering::SeqCst) => {
+                operation.cancel();
             }
-            std::thread::sleep(Duration::from_millis(10));
+            _ => return Ok(()),
         }
-        Ok(())
+        wait_until_stopped(|| self.download_slot().is_none())
     }
 
     /// The state stays as it is: a failure is logged, and the next launch
@@ -497,7 +574,14 @@ impl LocalModels {
         }
     }
 
-    async fn fetch(&self, operation: &ProcessingOperation, earlier: bool) -> Result<(), Stopped> {
+    /// Fetches what the required sources lack, then prepares them. `show`
+    /// gets the states it goes through.
+    async fn fetch(
+        &self,
+        operation: &ProcessingOperation,
+        earlier: bool,
+        show: &(dyn Fn(LocalModelState) + Sync),
+    ) -> Result<(), Stopped> {
         std::fs::create_dir_all(&self.dir)?;
         let (dir, sources) = (self.dir.clone(), self.required());
         let missing = tauri::async_runtime::spawn_blocking(move || missing_files(&dir, sources))
@@ -534,7 +618,7 @@ impl LocalModels {
         }
         if !missing.is_empty() {
             log::info!("Downloading {} local model file(s)", missing.len());
-            self.set(LocalModelState::Downloading {
+            show(LocalModelState::Downloading {
                 done_bytes: done,
                 total_bytes: total,
             });
@@ -556,7 +640,7 @@ impl LocalModels {
                     &mut |bytes| {
                         if last_sent.elapsed() >= PROGRESS_EVERY {
                             last_sent = Instant::now();
-                            self.set(LocalModelState::Downloading {
+                            show(LocalModelState::Downloading {
                                 done_bytes: before + bytes,
                                 total_bytes: total,
                             });
@@ -574,10 +658,11 @@ impl LocalModels {
         }
         // Models an earlier version checked and compiled need no new load.
         if !(earlier && missing.is_empty()) {
-            self.set(LocalModelState::Preparing);
+            show(LocalModelState::Preparing);
             self.prepare(operation).await?;
         }
         std::fs::write(self.dir.join(READY_MARKER), manifest::id(self.required()))?;
+        self.remove_previous();
         Ok(())
     }
 
@@ -604,10 +689,12 @@ impl LocalModels {
             .map_or(0, |metadata| metadata.len().min(file.size))
     }
 
-    /// Deletes the models. Refused while they download; the optional files
-    /// ready models are still fetching are given up. Blocks until that fetch
-    /// stops. No download starts until it returns.
+    /// Deletes the models. Refused while they download; the current speech
+    /// model fetched beside the previous one, and the optional files ready
+    /// models are still fetching, are given up. Blocks until those fetches
+    /// stop. No download starts until it returns.
     pub fn delete(&self) -> Result<(), String> {
+        self.stop_upgrade()?;
         let slot = self.download_slot();
         if slot.is_some() {
             return Err("The models are downloading".to_string());
@@ -637,12 +724,34 @@ impl LocalModels {
     }
 }
 
+/// Polls `stopped` until it holds, for at most 10 s.
+fn wait_until_stopped(stopped: impl Fn() -> bool) -> Result<(), String> {
+    const STOP_WITHIN: Duration = Duration::from_secs(10);
+    let started = Instant::now();
+    while !stopped() {
+        if started.elapsed() > STOP_WITHIN {
+            return Err("The models are downloading".to_string());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
 /// Whether this build's optional sources are in place in the models folder
 /// `dir`: their marker is written once they are fetched and prepared. An
 /// earlier pin's marker stays while its files are replaced.
 pub fn optional_ready(dir: &Path) -> bool {
     let optional = manifest::this_mac().iter().filter(|source| source.optional);
     std::fs::read_to_string(dir.join(OPTIONAL_MARKER)).is_ok_and(|id| id == manifest::id(optional))
+}
+
+/// The speech model the models folder `dir` runs: the previous one until
+/// the current one is ready beside it.
+pub fn asr_in_use(dir: &Path) -> Asr {
+    match std::fs::read_to_string(dir.join(READY_MARKER)) {
+        Ok(id) if id == manifest::PREVIOUS.ready_id => Asr::Previous,
+        _ => Asr::Current,
+    }
 }
 
 /// The size of every file under `dir`, 0 when it is absent.

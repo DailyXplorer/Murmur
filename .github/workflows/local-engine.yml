@@ -69,6 +69,6 @@ jobs:
       - name: Transcribe the clips on the CPU
         working-directory: src-tauri
         env:
-          MURMUR_SMOKE_GGUF: ${{ runner.temp }}/models/parakeet-tdt-0.6b-v3/parakeet-tdt-0.6b-v3-Q8_0.gguf
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
           MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
         run: cargo test --locked --target x86_64-apple-darwin --lib engine::local::cpu -- --ignored --nocapture

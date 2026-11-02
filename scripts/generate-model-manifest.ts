@@ -31,9 +31,9 @@ type Source = {
 const SOURCES: Source[] = [
   {
     set: "APPLE_SILICON",
-    repo: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-    commit: "7dd20fe6b1797d35f5e3307e8b1732d9a178edfe",
-    folder: "parakeet-tdt-0.6b-v3",
+    repo: "FluidInference/parakeet-ultra-coreml",
+    commit: "95eaa59a39d4394f047a4dc5cce480388a60d1b6",
+    folder: "parakeet-ultra",
     fluidRevisionMarker: false,
     optional: false,
     take: [
@@ -79,12 +79,12 @@ const SOURCES: Source[] = [
   },
   {
     set: "X86_64",
-    repo: "handy-computer/parakeet-tdt-0.6b-v3-gguf",
-    commit: "d8d8c32cb2017c57e5307767343e97870f8a7f53",
-    folder: "parakeet-tdt-0.6b-v3",
+    repo: "handy-computer/parakeet-ultra-gguf",
+    commit: "a1539be1b849ea7463b88343e5277b373d0c4ea9",
+    folder: "parakeet-ultra",
     fluidRevisionMarker: false,
     optional: false,
-    take: ["parakeet-tdt-0.6b-v3-Q8_0.gguf"],
+    take: ["parakeet-ultra-Q8_0.gguf"],
     rootMetadata: false,
   },
 ];

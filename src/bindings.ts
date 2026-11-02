@@ -1350,7 +1350,7 @@ export type DownloadFailure = { kind: "no_internet" } |
 { kind: "prepare_failed" }
 export type Engine = 
 /**
- * Parakeet TDT 0.6B v3 on this Mac, what a new install starts with.
+ * Parakeet Ultra on this Mac, what a new install starts with.
  */
 "local" | 
 /**

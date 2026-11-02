@@ -2,7 +2,7 @@
 //! Unknown message types are ignored, so the helper can grow without
 //! breaking an older app.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::align::TimedWord;
 use super::merge::Track;
@@ -63,6 +63,7 @@ pub enum Message {
     },
     Words {
         track: Track,
+        #[serde(deserialize_with = "known_words")]
         words: Vec<Word>,
     },
     Diarization {
@@ -78,6 +79,24 @@ pub enum Message {
     Done,
     #[serde(other)]
     Unknown,
+}
+
+// The model's `<unk>` tokens never leave the parser (`engine::local::unknown`).
+fn known_text<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let text = String::deserialize(deserializer)?;
+    Ok(crate::engine::local::unknown::text_without_unknown(&text))
+}
+
+fn known_words<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Word>, D::Error> {
+    let words = Vec::<Word>::deserialize(deserializer)?;
+    Ok(crate::engine::local::unknown::words_without_unknown(words))
+}
+
+fn some_known_words<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<Word>>, D::Error> {
+    let words = Option::<Vec<Word>>::deserialize(deserializer)?;
+    Ok(words.map(crate::engine::local::unknown::words_without_unknown))
 }
 
 pub fn parse_line(line: &str) -> serde_json::Result<Message> {
@@ -118,10 +137,11 @@ pub enum Reply {
     Ready,
     Text {
         id: u64,
+        #[serde(deserialize_with = "known_text")]
         text: String,
         /// The words of `text` with their times, when the request asked and
         /// the text is the one the model timed.
-        #[serde(default)]
+        #[serde(default, deserialize_with = "some_known_words")]
         words: Option<Vec<Word>>,
     },
     /// A failed request, or without `id` a failed load.
@@ -418,6 +438,33 @@ mod tests {
                 start_ms: 0,
                 end_ms: 1_250
             }]
+        );
+    }
+
+    #[test]
+    fn unknown_tokens_from_the_model_never_reach_the_app() {
+        assert_eq!(
+            parse_reply(
+                r#"{"type":"text","id":3,"text":"Le mot <unk> civis <unk> signifie citoyen <unk>.","words":[{"w":"Le","s":0,"e":0.1},{"w":"mot","s":0.1,"e":0.2},{"w":"<unk>","s":0.2,"e":0.3},{"w":"civis","s":0.3,"e":0.4},{"w":"<unk>","s":0.4,"e":0.5},{"w":"signifie","s":0.5,"e":0.6},{"w":"citoyen","s":0.6,"e":0.7},{"w":"<unk>.","s":0.7,"e":0.8}]}"#
+            )
+            .unwrap(),
+            Reply::Text {
+                id: 3,
+                text: "Le mot civis signifie citoyen.".into(),
+                words: Some(
+                    [("Le", 0.0, 0.1), ("mot", 0.1, 0.2), ("civis", 0.3, 0.4), ("signifie", 0.5, 0.6), ("citoyen.", 0.6, 0.8)]
+                        .map(|(w, s, e)| Word { w: w.into(), s, e })
+                        .to_vec()
+                ),
+            }
+        );
+        assert_eq!(
+            parse_line(r#"{"type":"words","track":"system","words":[{"w":"<unk>","s":1,"e":2},{"w":"Bonjour","s":2,"e":3}]}"#)
+                .unwrap(),
+            Message::Words {
+                track: Track::System,
+                words: vec![Word { w: "Bonjour".into(), s: 2.0, e: 3.0 }],
+            }
         );
     }
 }
