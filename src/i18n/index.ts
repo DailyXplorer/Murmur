@@ -1,23 +1,39 @@
-import i18n from "i18next";
+import i18n, { type BackendModule } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { locale } from "@tauri-apps/plugin-os";
 import { LANGUAGE_METADATA } from "./languages";
 import { commands } from "@/bindings";
 
-const localeModules = import.meta.glob<{ default: Record<string, unknown> }>(
+// Each language is its own chunk: a window loads English, the fallback,
+// and the one it shows.
+const localeLoaders = import.meta.glob<{ default: Record<string, unknown> }>(
   "./locales/*/translation.json",
-  { eager: true },
 );
 
-const resources: Record<string, { translation: Record<string, unknown> }> = {};
-for (const [path, module] of Object.entries(localeModules)) {
-  const langCode = path.match(/\.\/locales\/(.+)\/translation\.json/)?.[1];
-  if (langCode) {
-    resources[langCode] = { translation: module.default };
-  }
-}
+const localeLoader = (code: string) =>
+  localeLoaders[`./locales/${code}/translation.json`];
 
-export const SUPPORTED_LANGUAGES = Object.keys(resources)
+/** Every `changeLanguage` waits for its bundle through this backend. */
+const localeBackend: BackendModule = {
+  type: "backend",
+  init: () => undefined,
+  read: (language, _namespace, callback) => {
+    const load = localeLoader(language);
+    if (!load) {
+      callback(new Error(`No translations for "${language}"`), false);
+      return;
+    }
+    load().then(
+      (module) => callback(null, module.default),
+      (error: unknown) => callback(error as Error, false),
+    );
+  },
+};
+
+export const SUPPORTED_LANGUAGES = Object.keys(localeLoaders)
+  .flatMap(
+    (path) => path.match(/\.\/locales\/(.+)\/translation\.json/)?.[1] ?? [],
+  )
   .map((code) => {
     const meta = LANGUAGE_METADATA[code];
     if (!meta) {
@@ -55,17 +71,23 @@ export const getSupportedLanguage = (
   return (find(normalized) ?? find(language))?.code ?? null;
 };
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: "en",
-  fallbackLng: "en",
-  interpolation: {
-    escapeValue: false, // React already escapes values
-  },
-  react: {
-    useSuspense: false,
-  },
+i18n.on("languageChanged", (lng) => {
+  document.documentElement.lang = lng;
 });
+
+const initialized = i18n
+  .use(localeBackend)
+  .use(initReactI18next)
+  .init({
+    lng: "en",
+    fallbackLng: "en",
+    interpolation: {
+      escapeValue: false, // React already escapes values
+    },
+    react: {
+      useSuspense: false,
+    },
+  });
 
 export const syncLanguageFromSettings = async () => {
   try {
@@ -87,10 +109,8 @@ export const syncLanguageFromSettings = async () => {
   }
 };
 
-syncLanguageFromSettings();
-
-i18n.on("languageChanged", (lng) => {
-  document.documentElement.lang = lng;
-});
+/** Resolves once the window's language is loaded and active, so a first
+ * render never shows English to a user who chose another language. */
+export const i18nReady = initialized.then(syncLanguageFromSettings);
 
 export default i18n;

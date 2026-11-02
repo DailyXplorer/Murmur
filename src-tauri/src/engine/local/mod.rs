@@ -133,6 +133,7 @@ fn runtime(app: &AppHandle, models: &LocalModels) -> Option<Box<dyn Runtime>> {
         program,
         models.dir().to_path_buf(),
         scratch,
+        models.subscribe(),
     )))
 }
 

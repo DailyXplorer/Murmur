@@ -91,6 +91,11 @@ test.describe("how Murmur transcribes", () => {
     ["models=preparing", ["Preparing…", "Takes about 15 seconds."], []],
     ["models=ready", ["Ready · 505 MB", meetings], ["Delete"]],
     [
+      "models=optimizing",
+      ["Optimizing the speech model for this macOS version…"],
+      [],
+    ],
+    [
       "models=failed",
       ["Download stopped", "No internet connection."],
       ["Try again"],

@@ -49,6 +49,7 @@ export const LocalSttCard: React.FC = () => {
           }),
         ];
       case "ready":
+      case "optimizing":
         return [t("localSttCard.description"), switchLabel];
       case "downloading":
         return switching

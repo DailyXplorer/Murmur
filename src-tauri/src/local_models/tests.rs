@@ -10,6 +10,7 @@ struct FakeHost {
     prepared: AtomicUsize,
     prepare_fails: bool,
     notified: Mutex<Vec<LocalModelState>>,
+    os_build: Option<String>,
 }
 
 impl Host for FakeHost {
@@ -32,6 +33,9 @@ impl Host for FakeHost {
                 Prepared::Done
             }
         })
+    }
+    fn os_build(&self) -> Option<String> {
+        self.os_build.clone()
     }
 }
 
@@ -751,4 +755,69 @@ fn waiting_returns_at_once_when_nothing_downloads() {
     assert!(!tauri::async_runtime::block_on(
         missing.wait_ready(&operation)
     ));
+}
+
+fn host_on(build: Option<&str>) -> Arc<FakeHost> {
+    Arc::new(FakeHost {
+        os_build: build.map(str::to_string),
+        ..FakeHost::default()
+    })
+}
+
+#[test]
+fn different_os_build_triggers_background_prepare() {
+    let fixture = fixture();
+    // Compiled for an earlier macOS build, and by a version that recorded none.
+    for compiled_for in [Some("24F74"), None] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        fixture.write_ready_without_optional(&path);
+        if let Some(build) = compiled_for {
+            std::fs::write(path.join(OS_BUILD_MARKER), build).unwrap();
+        }
+        let host = host_on(Some("25A354"));
+        let models = models_after_restart(&path, &fixture, &host);
+        tauri::async_runtime::block_on(async {
+            models.resume_on_launch(false);
+            assert_eq!(models.state(), LocalModelState::Optimizing);
+            // A meeting processed meanwhile still gets the local engine.
+            assert!(models.is_ready());
+            assert_eq!(settled(&models).await, LocalModelState::Ready);
+            models.fetched().await;
+        });
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1, "{compiled_for:?}");
+        assert_eq!(
+            *host.notified.lock().unwrap(),
+            [LocalModelState::Optimizing, LocalModelState::Ready]
+        );
+        assert_eq!(
+            std::fs::read_to_string(path.join(OS_BUILD_MARKER)).unwrap(),
+            "25A354"
+        );
+
+        // Once per macOS build: the next launch compiles nothing.
+        let after_restart = models_after_restart(&path, &fixture, &host);
+        after_restart.resume_on_launch(false);
+        assert!(after_restart.is_ready());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn same_os_build_is_ready_without_prepare() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    std::fs::write(path.join(OS_BUILD_MARKER), "25A354").unwrap();
+    // On Apple silicon, then on a Mac where nothing compiles.
+    for host in [host_on(Some("25A354")), host_on(None)] {
+        let models = models_after_restart(&path, &fixture, &host);
+        tauri::async_runtime::block_on(async {
+            models.resume_on_launch(false);
+            assert_eq!(settled(&models).await, LocalModelState::Ready);
+        });
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
+        assert!(host.notified.lock().unwrap().is_empty());
+    }
 }
