@@ -304,6 +304,8 @@ const settingUpdaters: {
     commands.changeMeetingAudioRetentionSetting(value as MeetingAudioRetention),
   meeting_call_prompt: (value) =>
     commands.changeMeetingCallPromptSetting(value as boolean),
+  meeting_live_transcript: (value) =>
+    commands.changeMeetingLiveTranscriptSetting(value as boolean),
   transcription_engine: (value) =>
     commands.changeTranscriptionEngineSetting(value as Engine),
   local_stt_card_dismissed: (value) =>

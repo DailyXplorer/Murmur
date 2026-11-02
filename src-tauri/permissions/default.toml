@@ -130,4 +130,6 @@ permissions = [
   "allow-answer-call-prompt",
   "allow-fit-call-prompt",
   "allow-get-call-prompt",
+  "allow-change-meeting-live-transcript-setting",
+  "allow-get-live-transcript",
 ]
