@@ -116,7 +116,7 @@ async fn dictation(session: &Arc<Session>, clip: &[f32]) -> Duration {
     let _dictation = session.dictation();
     for range in speech_pieces(clip, MAX_PIECE) {
         session
-            .transcribe(&padded(&clip[range]), &[], LIMIT)
+            .transcribe(&padded(&clip[range]), &[], None, LIMIT)
             .await
             .unwrap();
     }
@@ -158,9 +158,10 @@ async fn live_replay() {
         for range in speech_pieces(&audio, MAX_PIECE) {
             after_stop.push(
                 session
-                    .transcribe(&padded(&audio[range]), &[], LIMIT)
+                    .transcribe(&padded(&audio[range]), &[], None, LIMIT)
                     .await
-                    .unwrap(),
+                    .unwrap()
+                    .text,
             );
         }
         let after_stop = words(&after_stop.join(" "));

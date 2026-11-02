@@ -5,6 +5,7 @@
 //! next request starts from a fresh load.
 
 use std::future::Future;
+use std::ops::Range;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
@@ -15,6 +16,16 @@ use crate::meetings::protocol::Word;
 pub const IDLE_RELEASE: Duration = Duration::from_secs(10 * 60);
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// What the model heard in one piece.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Heard {
+    pub text: String,
+    /// When each word of `text` was said, in seconds from the piece start,
+    /// one per whitespace-separated word. Empty when the runtime gives no
+    /// times.
+    pub words: Vec<Range<f64>>,
+}
 
 /// How a model is loaded on this Mac.
 pub trait Runtime: Send + Sync + 'static {
@@ -30,12 +41,13 @@ pub trait Loaded: Send {
     }
 
     /// Transcribes one piece of 16 kHz mono audio, short enough for one pass,
-    /// listening for `terms` where the runtime can.
+    /// listening for `terms` and in `language` where the runtime can.
     fn transcribe<'a>(
         &'a mut self,
         samples: &'a [f32],
         terms: &'a [String],
-    ) -> BoxFuture<'a, anyhow::Result<String>>;
+        language: Option<&'a str>,
+    ) -> BoxFuture<'a, anyhow::Result<Heard>>;
 
     /// Transcribes one piece of a live meeting at background priority, with
     /// each word's times in seconds from the piece's start.
@@ -200,17 +212,19 @@ impl Session {
         self: &Arc<Self>,
         samples: &[f32],
         terms: &[String],
+        language: Option<&str>,
         limit: Duration,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Heard> {
         let mut slot = self.slot.lock().await;
         self.ensure_loaded(&mut slot).await?;
         let Some(loaded) = slot.loaded.as_mut() else {
             anyhow::bail!("The local model is not loaded");
         };
-        let result = match tokio::time::timeout(limit, loaded.transcribe(samples, terms)).await {
-            Ok(result) => result,
-            Err(_) => Err(anyhow::anyhow!("Local transcription took over {limit:?}")),
-        };
+        let result =
+            match tokio::time::timeout(limit, loaded.transcribe(samples, terms, language)).await {
+                Ok(result) => result,
+                Err(_) => Err(anyhow::anyhow!("Local transcription took over {limit:?}")),
+            };
         if result.is_err() {
             slot.loaded = None;
         }
@@ -357,7 +371,8 @@ mod tests {
             &'a mut self,
             samples: &'a [f32],
             _: &'a [String],
-        ) -> BoxFuture<'a, anyhow::Result<String>> {
+            _: Option<&'a str>,
+        ) -> BoxFuture<'a, anyhow::Result<Heard>> {
             Box::pin(async move {
                 let now = self.counts.running.fetch_add(1, Ordering::SeqCst) + 1;
                 self.counts.peak.fetch_max(now, Ordering::SeqCst);
@@ -366,7 +381,10 @@ mod tests {
                 if samples.first() == Some(&-1.0) {
                     anyhow::bail!("the model failed");
                 }
-                Ok(format!("{} samples", samples.len()))
+                Ok(Heard {
+                    text: format!("{} samples", samples.len()),
+                    words: Vec::new(),
+                })
             })
         }
 
@@ -375,7 +393,7 @@ mod tests {
             samples: &'a [f32],
         ) -> BoxFuture<'a, anyhow::Result<Vec<Word>>> {
             Box::pin(async move {
-                let text = self.transcribe(samples, &[]).await?;
+                let text = self.transcribe(samples, &[], None).await?.text;
                 Ok(vec![Word {
                     w: text,
                     s: 0.0,
@@ -426,7 +444,11 @@ mod tests {
         session.warm().await.unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 1);
         assert_eq!(
-            session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap(),
+            session
+                .transcribe(&[0.0; 4], &[], None, LIMIT)
+                .await
+                .unwrap()
+                .text,
             "4 samples"
         );
         session.warm().await.unwrap();
@@ -438,7 +460,10 @@ mod tests {
         let (session, counts, _) = session(Duration::from_millis(100));
         session.warm().await.unwrap();
         wait(minutes(6)).await;
-        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        session
+            .transcribe(&[0.0; 4], &[], None, LIMIT)
+            .await
+            .unwrap();
         wait(minutes(9)).await;
         assert!(session.is_loaded().await, "released too early");
         wait(minutes(2)).await;
@@ -446,7 +471,10 @@ mod tests {
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
 
         // The next dictation loads it again.
-        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        session
+            .transcribe(&[0.0; 4], &[], None, LIMIT)
+            .await
+            .unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
         wait(minutes(11)).await;
         assert_eq!(counts.released.load(Ordering::SeqCst), 2);
@@ -469,11 +497,11 @@ mod tests {
     async fn two_dictations_run_one_after_the_other() {
         let (session, counts, _) = session(Duration::from_secs(2));
         let (first, second) = tokio::join!(
-            session.transcribe(&[0.0; 4], &[], LIMIT),
-            session.transcribe(&[0.0; 8], &[], LIMIT)
+            session.transcribe(&[0.0; 4], &[], None, LIMIT),
+            session.transcribe(&[0.0; 8], &[], None, LIMIT)
         );
-        assert_eq!(first.unwrap(), "4 samples");
-        assert_eq!(second.unwrap(), "8 samples");
+        assert_eq!(first.unwrap().text, "4 samples");
+        assert_eq!(second.unwrap().text, "8 samples");
         assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
         assert_eq!(counts.loads.load(Ordering::SeqCst), 1);
     }
@@ -505,14 +533,14 @@ mod tests {
 
         let running = tokio::spawn({
             let session = Arc::clone(&session);
-            async move { session.transcribe(&[0.0; 8], &[], LIMIT).await }
+            async move { session.transcribe(&[0.0; 8], &[], None, LIMIT).await }
         });
         wait(Duration::from_millis(100)).await;
         assert!(matches!(
             session.transcribe_background(&[0.0; 4], LIMIT).await,
             Background::Busy
         ));
-        assert_eq!(running.await.unwrap().unwrap(), "8 samples");
+        assert_eq!(running.await.unwrap().unwrap().text, "8 samples");
         assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
 
         assert_eq!(
@@ -540,7 +568,11 @@ mod tests {
         });
         wait(Duration::from_millis(500)).await;
         let asked = Instant::now();
-        let text = session.transcribe(&[0.0; 8], &[], LIMIT).await.unwrap();
+        let text = session
+            .transcribe(&[0.0; 8], &[], None, LIMIT)
+            .await
+            .unwrap()
+            .text;
         let waited = asked.elapsed();
         assert_eq!(text, "8 samples");
         assert!(
@@ -569,10 +601,16 @@ mod tests {
         session.warm().await.unwrap();
         // The custom-word model finished downloading.
         counts.on_disk.fetch_add(1, Ordering::SeqCst);
-        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        session
+            .transcribe(&[0.0; 4], &[], None, LIMIT)
+            .await
+            .unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
-        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        session
+            .transcribe(&[0.0; 4], &[], None, LIMIT)
+            .await
+            .unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2, "loaded again");
     }
 
@@ -586,7 +624,10 @@ mod tests {
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
         session.release().await;
 
-        session.transcribe(&[0.0; 4], &[], LIMIT).await.unwrap();
+        session
+            .transcribe(&[0.0; 4], &[], None, LIMIT)
+            .await
+            .unwrap();
         assert_eq!(counts.loads.load(Ordering::SeqCst), 2);
         wait(minutes(11)).await;
         assert_eq!(counts.released.load(Ordering::SeqCst), 2);
@@ -595,18 +636,22 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn a_failed_or_hung_model_is_dropped_and_loaded_again() {
         let (session, counts, _) = session(Duration::from_secs(5));
-        assert!(session.transcribe(&[-1.0], &[], LIMIT).await.is_err());
+        assert!(session.transcribe(&[-1.0], &[], None, LIMIT).await.is_err());
         assert!(!session.is_loaded().await);
         assert_eq!(counts.released.load(Ordering::SeqCst), 1);
 
         let hung = session
-            .transcribe(&[0.0], &[], Duration::from_secs(1))
+            .transcribe(&[0.0], &[], None, Duration::from_secs(1))
             .await;
         assert!(hung.unwrap_err().to_string().contains("took over"));
         assert!(!session.is_loaded().await);
 
         assert_eq!(
-            session.transcribe(&[0.0], &[], LIMIT).await.unwrap(),
+            session
+                .transcribe(&[0.0], &[], None, LIMIT)
+                .await
+                .unwrap()
+                .text,
             "1 samples"
         );
         assert_eq!(counts.loads.load(Ordering::SeqCst), 3);
