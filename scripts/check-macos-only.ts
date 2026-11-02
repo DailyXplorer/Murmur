@@ -273,6 +273,7 @@ checkCapability(
     "allow-cancel-operation",
     "allow-copy-notice-again",
     "allow-fit-copy-notice",
+    "allow-restore-cancelled-dictation",
   ],
 );
 checkCapability(

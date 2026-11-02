@@ -99,6 +99,7 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 
 - One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
+- Restore after a cancel: for 60 seconds, the overlay's Restore button (shown 5 seconds) or the tray's "Restore cancelled dictation" transcribes the cancelled dictation and pastes it where you are now
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Transcription on this Mac or in the cloud, chosen in Settings →
   Transcription. On the Mac, NVIDIA Parakeet TDT 0.6B v3 covers 25 European
@@ -114,6 +115,13 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - AI cleanup through your ChatGPT account, on by default: removes fillers,
   applies self-corrections, fixes punctuation, and formats lists and spoken
   line breaks. Any failure or timeout pastes the raw transcript.
+- Short dictations, under 20 words, are pasted right away without AI cleanup
+  unless you chose a Formal or Casual style or turned on "Also clean up short
+  dictations"
+- Instant fixes on English and French dictations, without AI: hesitations
+  (um, uh, euh) removed, and "new line", "new paragraph" or "à la ligne" turned
+  into breaks; spoken punctuation ("comma", "question mark", "virgule") too
+  when AI cleanup did not run
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary of custom words, spelled your way in each dictation
 - Names from the frontmost window and a short excerpt around the cursor as
@@ -127,6 +135,10 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Meetings: record a call (Control+Option+Command+M or the menu bar), then
   get a transcript with speakers told apart and a summary with a title. See
   [Meetings](#meetings)
+- Search across every meeting (titles, summaries, transcripts) and every
+  dictation, ignoring case and accents; each word matches as a prefix, and
+  quotes match an exact phrase. Opening a meeting from a result jumps to the
+  first passage that matched
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
@@ -258,7 +270,7 @@ Murmur uses Tauri 2 with a Rust backend and a React/TypeScript frontend. The
 runtime pipeline is:
 
 ```text
-microphone -> quiet-speech gain -> local (Parakeet) or Codex transcription -> dictionary -> AI cleanup (Codex) -> clipboard/paste
+microphone -> quiet-speech gain -> local (Parakeet) or Codex transcription -> dictionary -> text passes -> AI cleanup (Codex, 20 words or more) -> clipboard/paste
 ```
 
 The backend owns audio capture, the Codex session and its refresh, transcription,
@@ -273,7 +285,8 @@ the local model can't help; History marks those. In cloud mode, audio sent for
 transcription leaves the computer and is handled by ChatGPT. Do not describe
 Murmur as offline while AI cleanup or the cloud fallback can run.
 
-While AI cleanup is on, the transcript is sent to ChatGPT for cleanup. A
+While AI cleanup is on, the transcript is sent to ChatGPT for cleanup, except
+for a short dictation that the default cleanup skips. A
 cleanup request contains the transcript, your custom dictionary words, your
 dictation style, and the names and short excerpt around the cursor found in the
 frontmost window.
@@ -287,6 +300,10 @@ Meetings stay on the Mac, apart from two requests: the audio pieces sent to
 Codex for transcription, and the transcript sent to Codex for the summary.
 Speaker detection runs on the Mac. Its models are downloaded from Hugging
 Face once.
+
+The audio of a cancelled dictation stays in memory for 60 seconds for Restore,
+and is never written to disk. It is overwritten with zeros when the minute
+ends, when a new recording starts, or when Murmur quits.
 
 History, saved recordings, and Insights stay on the Mac.
 For Insights, Murmur records the frontmost app of each dictation and, in a

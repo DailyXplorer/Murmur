@@ -292,6 +292,8 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
     app.manage(ShortcutsInitialized);
 
     log::info!("Shortcuts initialized successfully");
+    // A hidden start built the window only to get here.
+    crate::settings_window::release_if_hidden(&app);
     Ok(())
 }
 

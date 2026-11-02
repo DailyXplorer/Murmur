@@ -2,7 +2,9 @@ use crate::actions::process_transcription_output;
 use crate::cleanup::ProcessedText;
 use crate::engine::EngineUsed;
 use crate::managers::{
-    history::{HistoryEntry, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR},
+    history::{
+        HistoryEntry, HistoryHit, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR,
+    },
     transcription::TranscriptionManager,
 };
 use crate::window_names::WindowContext;
@@ -23,6 +25,18 @@ pub async fn get_history_entries(
         .get_history_entries(cursor, limit)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Up to 50 dictations matching `query`, best first.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_history(
+    history_manager: State<'_, Arc<HistoryManager>>,
+    query: String,
+) -> Result<Vec<HistoryHit>, String> {
+    history_manager
+        .search(&query, crate::search::SEARCH_LIMIT)
+        .map_err(|error| crate::search::search_failed("History", &error))
 }
 
 #[tauri::command]
@@ -117,6 +131,7 @@ pub async fn retry_history_entry_transcription(
                 .await
                 .map_err(|e| e.to_string())?;
             let (transcription, source) = (transcript.text, transcript.source);
+            let pass_language = transcript.pass_language;
             // A retry is not delivered by paste, so it stays out of Insights,
             // which only counts delivered dictations.
             if transcription.is_empty() {
@@ -128,6 +143,7 @@ pub async fn retry_history_entry_transcription(
             let text = process_transcription_output(
                 &app,
                 &transcription,
+                pass_language,
                 WindowContext::default(),
                 &operation,
             )

@@ -33,6 +33,9 @@
     "overlayCopied": "Copied",
     "overlayNotPasted": "There was no text field to paste into.",
     "overlayMicDisconnected": "Recording stopped early: your microphone disconnected.",
+    "overlayCancelled": "Dictation cancelled",
+    "overlayRestore": "Restore",
+    "restoreCancelled": "Restore cancelled dictation ({{duration}})",
     "callRecordQuestion": "Record this meeting?",
     "callRecord": "Record",
     "callNotNow": "Not now",
@@ -374,6 +377,7 @@
       "recordingUnavailable": "The recording is no longer available, so it can't be transcribed again.",
       "noSpeech": "No speech was found in the recording.",
       "cleanupFailed": "AI cleanup was unavailable, so the raw transcript was pasted.",
+      "shortDictation": "Short dictation, pasted right away without AI cleanup.",
       "showOriginal": "Show original transcript",
       "hideOriginal": "Hide original transcript",
       "fallback": {
@@ -507,6 +511,10 @@
         "title": "Cleanup and formatting",
         "description": "Removes filler words, keeps only your final wording when you correct yourself, fixes punctuation, and formats lists and spoken line breaks. It never translates or changes the meaning. If it fails or takes too long, the raw transcript is pasted.",
         "needsAccount": "Connect ChatGPT to use AI cleanup."
+      },
+      "cleanupShortDictations": {
+        "title": "Also clean up short dictations",
+        "description": "Dictations under 20 words are pasted right away, without AI cleanup."
       },
       "style": {
         "title": "Dictation style",
@@ -882,5 +890,14 @@
   "localModelPill": {
     "downloading": "Downloading the model… {{percent}}%",
     "preparing": "Preparing the model…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Search meetings",
+      "history": "Search dictations"
+    },
+    "noResults": "No results for “{{query}}”",
+    "failed": "Search failed. Try again.",
+    "clear": "Clear search"
   }
 }
