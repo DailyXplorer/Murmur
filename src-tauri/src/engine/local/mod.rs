@@ -7,15 +7,17 @@ pub mod boost;
 mod cpu;
 #[cfg(target_arch = "aarch64")]
 mod fluid;
+mod holes;
 #[cfg(test)]
 mod real_engine;
 pub mod session;
 
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
-use crate::audio_toolkit::pauses::speech_pieces;
+use crate::audio_toolkit::gain::FRAME;
+use crate::audio_toolkit::pauses::{speech_frames, speech_pieces};
 use crate::local_models::LocalModels;
 use crate::ProcessingOperation;
-use session::{Runtime, Session};
+use session::{Heard, Runtime, Session};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -76,12 +78,14 @@ impl LocalEngine {
     }
 
     /// Transcribes 16 kHz mono audio of any length, listening for `terms`
-    /// (see `boost`). Silence gives no text and never reaches the model,
-    /// which would invent words.
+    /// (see `boost`) and in `language` (a code such as `fr`) when it is
+    /// known, else detecting it. Silence gives no text and never reaches the
+    /// model, which would invent words.
     pub async fn transcribe(
         &self,
         samples: &[f32],
         terms: &[String],
+        language: Option<&str>,
         operation: &ProcessingOperation,
     ) -> anyhow::Result<String> {
         #[cfg(debug_assertions)]
@@ -90,18 +94,63 @@ impl LocalEngine {
         }
         // A release asked between two pieces waits for the last one.
         let _dictation = self.session.dictation();
+        let speech = speech_frames(samples);
         let mut texts = Vec::new();
         for range in speech_pieces(samples, self.max_piece) {
-            let piece = padded(&samples[range]);
-            let limit = RUN_ALLOWANCE + seconds(piece.len());
-            let text = tokio::select! {
-                biased;
-                () = operation.cancelled() => anyhow::bail!("Local transcription cancelled"),
-                text = self.session.transcribe(&piece, terms, limit) => text?,
-            };
-            texts.push(text.trim().to_string());
+            let frames = range.start / FRAME..range.end.div_ceil(FRAME);
+            let piece = &samples[range];
+            texts.push(
+                self.piece(piece, &speech[frames], terms, language, operation)
+                    .await?,
+            );
         }
         Ok(join(texts))
+    }
+
+    /// One piece, and again each stretch of it the model left without a
+    /// word (see `holes`). A stretch that fails the second time keeps the
+    /// piece's first text.
+    async fn piece(
+        &self,
+        piece: &[f32],
+        speech: &[bool],
+        terms: &[String],
+        language: Option<&str>,
+        operation: &ProcessingOperation,
+    ) -> anyhow::Result<String> {
+        let heard = self.hear(piece, terms, language, operation).await?;
+        let mut fills = Vec::new();
+        for hole in holes::find(&heard, piece.len(), speech) {
+            match self
+                .hear(&piece[hole.audio], terms, language, operation)
+                .await
+            {
+                Ok(again) => fills.push((hole.words_before, again.text)),
+                Err(error) if operation.is_cancelled() => return Err(error),
+                Err(error) => log::warn!("Cannot transcribe a stretch again: {error:#}"),
+            }
+        }
+        if !fills.is_empty() {
+            log::info!("Local piece: {} stretch(es) transcribed again", fills.len());
+        }
+        Ok(holes::fill(&heard.text, &fills))
+    }
+
+    /// One request to the model, ended by a cancelled operation.
+    async fn hear(
+        &self,
+        audio: &[f32],
+        terms: &[String],
+        language: Option<&str>,
+        operation: &ProcessingOperation,
+    ) -> anyhow::Result<Heard> {
+        let audio = padded(audio);
+        let limit = RUN_ALLOWANCE + seconds(audio.len());
+        tokio::select! {
+            biased;
+            () = operation.cancelled() => anyhow::bail!("Local transcription cancelled"),
+            heard = self.session.transcribe(&audio, terms, language, limit) => heard,
+        }
     }
 }
 
@@ -235,13 +284,19 @@ mod tests {
             &'a mut self,
             samples: &'a [f32],
             terms: &'a [String],
-        ) -> BoxFuture<'a, anyhow::Result<String>> {
+            _: Option<&'a str>,
+        ) -> BoxFuture<'a, anyhow::Result<Heard>> {
             self.pieces.lock().unwrap().push(samples.len());
             self.terms.lock().unwrap().push(terms.to_vec());
             let text = self
                 .answer
                 .map_or_else(|| format!(" {} ", samples.len()), str::to_string);
-            Box::pin(async move { Ok(text) })
+            Box::pin(async move {
+                Ok(Heard {
+                    text,
+                    words: Vec::new(),
+                })
+            })
         }
     }
 
@@ -300,7 +355,10 @@ mod tests {
     async fn a_long_dictation_is_cut_at_its_pause_and_the_texts_joined() {
         let (engine, pieces) = engine(None);
         let audio = speech(16.0, 1.0);
-        let text = engine.transcribe(&audio, &[], &operation()).await.unwrap();
+        let text = engine
+            .transcribe(&audio, &[], None, &operation())
+            .await
+            .unwrap();
         let pieces = pieces.lock().unwrap().clone();
         assert_eq!(pieces.len(), 2, "{pieces:?}");
         assert_eq!(pieces.iter().sum::<usize>(), audio.len());
@@ -316,11 +374,11 @@ mod tests {
     async fn a_short_dictation_is_one_piece_and_a_very_short_one_is_padded() {
         let (engine, pieces) = engine(None);
         engine
-            .transcribe(&speech(4.0, 0.0), &[], &operation())
+            .transcribe(&speech(4.0, 0.0), &[], None, &operation())
             .await
             .unwrap();
         engine
-            .transcribe(&speech(0.25, 0.0), &[], &operation())
+            .transcribe(&speech(0.25, 0.0), &[], None, &operation())
             .await
             .unwrap();
         assert_eq!(*pieces.lock().unwrap(), [4 * SAMPLES_PER_SECOND, MIN_PIECE]);
@@ -330,7 +388,7 @@ mod tests {
     async fn silence_never_reaches_the_model() {
         let (engine, pieces) = engine(Some("Thank you."));
         let text = engine
-            .transcribe(&vec![0.0; 5 * SAMPLES_PER_SECOND], &[], &operation())
+            .transcribe(&vec![0.0; 5 * SAMPLES_PER_SECOND], &[], None, &operation())
             .await
             .unwrap();
         assert_eq!(text, "");
@@ -347,7 +405,10 @@ mod tests {
             (0..3 * SAMPLES_PER_SECOND)
                 .map(|i| 0.001 * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()),
         );
-        let text = engine.transcribe(&audio, &[], &operation()).await.unwrap();
+        let text = engine
+            .transcribe(&audio, &[], None, &operation())
+            .await
+            .unwrap();
         let pieces = pieces.lock().unwrap().clone();
         assert_eq!(pieces.len(), 1, "{pieces:?}");
         assert!(pieces[0] < audio.len());
@@ -360,7 +421,7 @@ mod tests {
         let cancelled = operation();
         cancelled.cancel();
         assert!(engine
-            .transcribe(&speech(4.0, 0.0), &[], &cancelled)
+            .transcribe(&speech(4.0, 0.0), &[], None, &cancelled)
             .await
             .is_err());
     }
@@ -370,10 +431,165 @@ mod tests {
         let (engine, _, seen) = engine_with_terms(None);
         let terms = vec!["Siobhán".to_string(), "Kubernetes".to_string()];
         engine
-            .transcribe(&speech(16.0, 1.0), &terms, &operation())
+            .transcribe(&speech(16.0, 1.0), &terms, None, &operation())
             .await
             .unwrap();
         assert_eq!(*seen.lock().unwrap(), [terms.clone(), terms]);
+    }
+
+    type Answer = Arc<dyn Fn(usize) -> anyhow::Result<Heard> + Send + Sync>;
+
+    /// Answers each request from its length in samples, and keeps the
+    /// length and language of every request.
+    struct Scripted {
+        answer: Answer,
+        seen: Seen<(usize, Option<String>)>,
+    }
+
+    impl Runtime for Scripted {
+        fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
+            let model = Scripted {
+                answer: Arc::clone(&self.answer),
+                seen: Arc::clone(&self.seen),
+            };
+            Box::pin(async move { Ok(Box::new(model) as Box<dyn Loaded>) })
+        }
+    }
+
+    impl Loaded for Scripted {
+        fn transcribe<'a>(
+            &'a mut self,
+            samples: &'a [f32],
+            _: &'a [String],
+            language: Option<&'a str>,
+        ) -> BoxFuture<'a, anyhow::Result<Heard>> {
+            self.seen
+                .lock()
+                .unwrap()
+                .push((samples.len(), language.map(str::to_string)));
+            let heard = (self.answer)(samples.len());
+            Box::pin(async move { heard })
+        }
+    }
+
+    fn scripted(
+        answer: impl Fn(usize) -> anyhow::Result<Heard> + Send + Sync + 'static,
+    ) -> (LocalEngine, Seen<(usize, Option<String>)>) {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let runtime = Scripted {
+            answer: Arc::new(answer),
+            seen: Arc::clone(&seen),
+        };
+        let engine = LocalEngine::new(
+            Box::new(runtime),
+            10 * SAMPLES_PER_SECOND,
+            Box::new(|| false),
+        );
+        (engine, seen)
+    }
+
+    fn heard(text: &str, words: &[std::ops::Range<f64>]) -> anyhow::Result<Heard> {
+        Ok(Heard {
+            text: text.into(),
+            words: words.to_vec(),
+        })
+    }
+
+    /// Of 8 s of speech, the model hears the first and the last half second
+    /// and nothing between them: the 7 s in the middle come back alone.
+    fn skips_the_middle(len: usize) -> anyhow::Result<Heard> {
+        if len == 8 * SAMPLES_PER_SECOND {
+            heard("début fin", &[0.0..0.5, 7.5..8.0])
+        } else if len == 7 * SAMPLES_PER_SECOND {
+            heard("milieu", &[0.0..1.0])
+        } else {
+            anyhow::bail!("unexpected request of {len} samples")
+        }
+    }
+
+    #[tokio::test]
+    async fn the_dictation_language_reaches_every_piece_or_none_is_named() {
+        let (engine, seen) = scripted(|_| heard("texte", &[]));
+        let audio = speech(16.0, 1.0);
+        engine
+            .transcribe(&audio, &[], Some("fr"), &operation())
+            .await
+            .unwrap();
+        engine
+            .transcribe(&audio, &[], None, &operation())
+            .await
+            .unwrap();
+        let languages: Vec<_> = seen
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(_, l)| l.clone())
+            .collect();
+        let french = Some("fr".to_string());
+        assert_eq!(languages, [french.clone(), french, None, None]);
+    }
+
+    #[tokio::test]
+    async fn a_stretch_the_model_skipped_is_heard_again_and_put_back() {
+        let (engine, seen) = scripted(skips_the_middle);
+        let text = engine
+            .transcribe(&speech(8.0, 0.0), &[], Some("fr"), &operation())
+            .await
+            .unwrap();
+        assert_eq!(text, "début milieu fin");
+        // The stretch is asked in the same language, and on its own.
+        let french = Some("fr".to_string());
+        assert_eq!(
+            *seen.lock().unwrap(),
+            [
+                (8 * SAMPLES_PER_SECOND, french.clone()),
+                (7 * SAMPLES_PER_SECOND, french)
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_piece_the_model_heard_to_its_end_is_asked_once() {
+        let (engine, seen) = scripted(|_| heard("tout entendu", &[0.0..4.0, 4.0..7.9]));
+        let text = engine
+            .transcribe(&speech(8.0, 0.0), &[], None, &operation())
+            .await
+            .unwrap();
+        assert_eq!(text, "tout entendu");
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_stretch_that_fails_the_second_time_keeps_the_first_text() {
+        let (engine, seen) = scripted(|len| {
+            if len == 7 * SAMPLES_PER_SECOND {
+                anyhow::bail!("the model failed");
+            }
+            skips_the_middle(len)
+        });
+        let text = engine
+            .transcribe(&speech(8.0, 0.0), &[], None, &operation())
+            .await
+            .unwrap();
+        assert_eq!(text, "début fin");
+        assert_eq!(seen.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_dictation_cancelled_during_the_second_try_stops() {
+        let operation = operation();
+        let cancelling = operation.clone();
+        let (engine, _) = scripted(move |len| {
+            if len == 7 * SAMPLES_PER_SECOND {
+                cancelling.cancel();
+                anyhow::bail!("the model stopped");
+            }
+            skips_the_middle(len)
+        });
+        let result = engine
+            .transcribe(&speech(8.0, 0.0), &[], None, &operation)
+            .await;
+        assert!(result.is_err());
     }
 
     /// Holds the first piece until `go`, once it told `started`, and counts
@@ -404,14 +620,18 @@ mod tests {
             &'a mut self,
             _: &'a [f32],
             _: &'a [String],
-        ) -> BoxFuture<'a, anyhow::Result<String>> {
+            _: Option<&'a str>,
+        ) -> BoxFuture<'a, anyhow::Result<Heard>> {
             Box::pin(async move {
                 let piece = self.0.pieces.fetch_add(1, SeqCst) + 1;
                 if piece == 1 {
                     self.0.started.notify_one();
                     self.0.go.notified().await;
                 }
-                Ok(format!("piece {piece}"))
+                Ok(Heard {
+                    text: format!("piece {piece}"),
+                    words: Vec::new(),
+                })
             })
         }
     }
@@ -437,7 +657,7 @@ mod tests {
         let (engine, held) = held_engine();
         let operation = operation();
         let audio = speech(16.0, 1.0);
-        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], &operation), async {
+        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], None, &operation), async {
             held.started.notified().await;
             // The models were deleted while the first piece runs.
             let release = engine.release();
@@ -454,7 +674,7 @@ mod tests {
         let (engine, held) = held_engine();
         let operation = operation();
         let audio = speech(16.0, 1.0);
-        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], &operation), async {
+        let (text, ()) = tokio::join!(engine.transcribe(&audio, &[], None, &operation), async {
             held.started.notified().await;
             let release = engine.release();
             operation.cancel();
@@ -470,7 +690,7 @@ mod tests {
         let (engine, held) = held_engine();
         held.go.notify_one();
         engine
-            .transcribe(&speech(4.0, 0.0), &[], &operation())
+            .transcribe(&speech(4.0, 0.0), &[], None, &operation())
             .await
             .unwrap();
         engine.release().await;

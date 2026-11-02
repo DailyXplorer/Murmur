@@ -24,6 +24,7 @@ pub struct Transcript {
 
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
 /// Only the local engine listens for `terms`: the Codex endpoint takes none.
+/// "auto" names no language to either engine.
 async fn run(
     engine: Engine,
     local: Option<&LocalEngine>,
@@ -32,9 +33,9 @@ async fn run(
     terms: &[String],
     operation: &ProcessingOperation,
 ) -> Result<String> {
+    let language = (language != "auto").then_some(language);
     match engine {
         Engine::Cloud => {
-            let language = (language != "auto").then_some(language);
             debug!(
                 "Sending {} samples to Codex transcription (language={:?})",
                 audio.len(),
@@ -51,7 +52,7 @@ async fn run(
                 audio.len(),
                 terms.len()
             );
-            local.transcribe(audio, terms, operation).await
+            local.transcribe(audio, terms, language, operation).await
         }
     }
 }

@@ -130,6 +130,16 @@ pub fn speech_pieces(samples: &[f32], max_len: usize) -> Vec<Range<usize>> {
         .collect()
 }
 
+/// Whether each 20 ms frame of `samples` is speech, by the whole clip's
+/// speech level as `speech_pieces` judges. Empty for a clip with no speech.
+pub fn speech_frames(samples: &[f32]) -> Vec<bool> {
+    let levels = frame_levels(samples);
+    match speech_level(&levels) {
+        Some(threshold) => levels.iter().map(|level| *level >= threshold).collect(),
+        None => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +339,19 @@ mod tests {
         ])));
         assert!(!is_silent(&clip(&talking(5_000))));
         assert!(!is_silent(&clip(&[(2_000, SPEECH)])));
+    }
+
+    #[test]
+    fn each_frame_is_speech_by_the_level_of_the_whole_clip() {
+        let samples = clip(&[(1_000, ROOM), (2_000, SPEECH), (1_000, ROOM)]);
+        let frames = speech_frames(&samples);
+        let per_second = SECOND / FRAME;
+        assert_eq!(frames.len(), samples.len() / FRAME);
+        assert!(frames[..per_second - 2].iter().all(|frame| !frame));
+        assert!(frames[per_second + 2..3 * per_second - 2]
+            .iter()
+            .all(|frame| *frame));
+        assert!(frames[3 * per_second + 2..].iter().all(|frame| !frame));
+        assert!(speech_frames(&clip(&[(3_000, ROOM)])).is_empty());
     }
 }

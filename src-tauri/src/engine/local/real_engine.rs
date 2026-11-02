@@ -239,7 +239,10 @@ async fn the_downloaded_model_transcribes_speech_and_is_released_when_idle() {
         let expected = std::fs::read_to_string(wav.with_extension("txt")).unwrap();
         let pieces = crate::audio_toolkit::pauses::split_at_pauses(&samples, MAX_PIECE).len();
         let started = Instant::now();
-        let heard = engine.transcribe(&samples, &[], &operation).await.unwrap();
+        let heard = engine
+            .transcribe(&samples, &[], None, &operation)
+            .await
+            .unwrap();
         let latency = started.elapsed();
         let rate = word_error_rate(&words(&expected), &words(&heard));
         let name = wav.file_stem().unwrap().to_string_lossy();
@@ -438,7 +441,7 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
             // rescorer again.
             let started = Instant::now();
             engine
-                .transcribe(&samples, terms, &operation)
+                .transcribe(&samples, terms, None, &operation)
                 .await
                 .unwrap();
             let first = started.elapsed();
@@ -447,7 +450,7 @@ async fn boosting_hears_custom_words_and_leaves_other_speech_alone() {
             for _ in 0..BOOST_RUNS {
                 let started = Instant::now();
                 heard = engine
-                    .transcribe(&samples, terms, &operation)
+                    .transcribe(&samples, terms, None, &operation)
                     .await
                     .unwrap();
                 runs.push(started.elapsed());

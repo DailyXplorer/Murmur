@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::watch;
 
-use super::session::{BoxFuture, Loaded, Runtime};
+use super::session::{BoxFuture, Heard, Loaded, Runtime};
 use super::SAMPLES_PER_SECOND;
 use crate::local_models::LocalModelState;
 use crate::meetings::protocol::{parse_reply, Reply, Request};
@@ -71,7 +71,7 @@ impl Runtime for FluidRuntime {
                 // cost off the dictation, and finds a broken model before it.
                 let prewarm = Instant::now();
                 serve
-                    .transcribe(&vec![0.0; SAMPLES_PER_SECOND], &[])
+                    .transcribe(&vec![0.0; SAMPLES_PER_SECOND], &[], None)
                     .await?;
                 log::info!("Local model prewarm {} ms", prewarm.elapsed().as_millis());
                 anyhow::Ok(())
@@ -176,11 +176,13 @@ impl Loaded for Serve {
 
     /// The helper boosts `terms` with FluidAudio's CTC keyword spotting when
     /// the optional CTC model is downloaded, and otherwise ignores them.
+    /// `language` keeps Parakeet's text in that language.
     fn transcribe<'a>(
         &'a mut self,
         samples: &'a [f32],
         terms: &'a [String],
-    ) -> BoxFuture<'a, anyhow::Result<String>> {
+        language: Option<&'a str>,
+    ) -> BoxFuture<'a, anyhow::Result<Heard>> {
         Box::pin(async move {
             let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
             let wav = Scratch(self.scratch.join(format!("piece-{id}.wav")));
@@ -190,6 +192,7 @@ impl Loaded for Serve {
                 wav: &wav.0,
                 terms,
                 background: None,
+                language,
             })?;
             line.push('\n');
             self.stdin.write_all(line.as_bytes()).await?;
@@ -197,7 +200,16 @@ impl Loaded for Serve {
             // Answers to an abandoned request may come first.
             loop {
                 match self.reply().await? {
-                    Reply::Text { id: answered, text } if answered == id => return Ok(text),
+                    Reply::Text {
+                        id: answered,
+                        text,
+                        words,
+                    } if answered == id => {
+                        return Ok(Heard {
+                            text,
+                            words: words.into_iter().map(|word| word.s..word.e).collect(),
+                        })
+                    }
                     Reply::Error {
                         id: Some(answered),
                         code,
@@ -272,8 +284,9 @@ done"#,
         assert!(requests.starts_with(&silence), "{requests}");
         assert_eq!(requests.lines().count(), 1, "{requests}");
         assert!(!requests.contains("terms") && !requests.contains("background"));
+        assert!(!requests.contains("language"), "{requests}");
 
-        model.transcribe(&samples(), &[]).await.unwrap();
+        model.transcribe(&samples(), &[], None).await.unwrap();
         let requests = std::fs::read_to_string(&log).unwrap();
         assert_eq!(requests.lines().count(), 2, "{requests}");
     }
@@ -304,10 +317,10 @@ done"#,
 
         // The next dictation starts a fresh helper, prewarmed again.
         let text = session
-            .transcribe(&samples(), &[], Duration::from_secs(30))
+            .transcribe(&samples(), &[], None, Duration::from_secs(30))
             .await
             .unwrap();
-        assert_eq!(text, "ok 2");
+        assert_eq!(text.text, "ok 2");
     }
 
     #[tokio::test]
@@ -378,8 +391,10 @@ done"#
         let mut model = runtime.load().await.unwrap();
         // 44 bytes of header, then 16-bit samples.
         let expected = format!("Bonjour {}", 44 + 2 * samples().len());
-        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
-        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), expected);
+        for _ in 0..2 {
+            let heard = model.transcribe(&samples(), &[], None).await.unwrap();
+            assert_eq!(heard.text, expected);
+        }
         let left: Vec<_> = std::fs::read_dir(dir.path().join("scratch"))
             .unwrap()
             .collect();
@@ -405,11 +420,57 @@ done"#
         );
         let mut model = runtime.load().await.unwrap();
         let terms = ["Siobhán".to_string(), "Nguyen".to_string()];
-        assert_eq!(
-            model.transcribe(&samples(), &terms).await.unwrap(),
-            "boosted"
+        let heard = model.transcribe(&samples(), &terms, None).await.unwrap();
+        assert_eq!(heard.text, "boosted");
+        let heard = model.transcribe(&samples(), &[], None).await.unwrap();
+        assert_eq!(heard.text, "plain");
+    }
+
+    #[tokio::test]
+    async fn the_language_reaches_the_helper_only_when_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = runtime(
+            dir.path(),
+            &format!(
+                r#"echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+case "$line" in
+*'"language":"fr"'*) heard=french ;;
+*language*) heard=garbled ;;
+*) heard=detected ;;
+esac
+echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"$heard\"}}"
+done"#
+            ),
         );
-        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "plain");
+        let mut model = runtime.load().await.unwrap();
+        let heard = model.transcribe(&samples(), &[], Some("fr")).await.unwrap();
+        assert_eq!(heard.text, "french");
+        let heard = model.transcribe(&samples(), &[], None).await.unwrap();
+        assert_eq!(heard.text, "detected");
+    }
+
+    #[tokio::test]
+    async fn the_words_of_a_reply_come_with_their_times() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = runtime(
+            dir.path(),
+            &format!(
+                r#"echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"Bonjour à tous.\",\"words\":[{{\"w\":\"Bonjour\",\"s\":0.25,\"e\":0.75}},{{\"w\":\"à\",\"s\":0.75,\"e\":1.0}},{{\"w\":\"tous.\",\"s\":1.0,\"e\":1.5}}]}}"
+done"#
+            ),
+        );
+        let mut model = runtime.load().await.unwrap();
+        let heard = model.transcribe(&samples(), &[], None).await.unwrap();
+        assert_eq!(
+            heard,
+            Heard {
+                text: "Bonjour à tous.".into(),
+                words: vec![0.25..0.75, 0.75..1.0, 1.0..1.5],
+            }
+        );
     }
 
     #[tokio::test]
@@ -429,9 +490,10 @@ done"#
             ),
         );
         let mut model = runtime.load().await.unwrap();
-        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[], None).await.unwrap_err();
         assert!(error.to_string().contains("bad audio"), "{error}");
-        assert_eq!(model.transcribe(&samples(), &[]).await.unwrap(), "ok");
+        let heard = model.transcribe(&samples(), &[], None).await.unwrap();
+        assert_eq!(heard.text, "ok");
     }
 
     #[tokio::test]
@@ -456,7 +518,7 @@ done"#
             ),
         );
         let mut model = crashes.load().await.unwrap();
-        let error = model.transcribe(&samples(), &[]).await.unwrap_err();
+        let error = model.transcribe(&samples(), &[], None).await.unwrap_err();
         assert!(error.to_string().contains("stopped"), "{error}");
     }
 }

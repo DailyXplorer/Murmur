@@ -67,6 +67,9 @@ struct ServeText: Encodable {
     let type = "text"
     let id: UInt64
     let text: String
+    /// When each word of `text` was said, one per word. Empty when `text`
+    /// was rewritten after the words were timed.
+    let words: [Word]
 }
 
 struct ServeFailure: Encodable {
@@ -85,6 +88,9 @@ struct ServeRequest: Decodable {
     let terms: [String]?
     /// Work no one waits on, such as a meeting's. Absent for dictation.
     let background: Bool?
+    /// The language spoken, as a code such as `fr`. Absent or unknown: the
+    /// model detects it.
+    let language: String?
 }
 
 let output = FileHandle.standardOutput
@@ -297,23 +303,36 @@ final class Booster: @unchecked Sendable {
     }
 }
 
+/// The words of `result` with their times.
+func timedWords(_ result: ASRResult) -> [Word] {
+    buildWordTimings(from: result.tokenTimings ?? []).map {
+        Word(w: $0.word, s: $0.startTime, e: $0.endTime)
+    }
+}
+
 /// Transcribes one request's WAV and prints the answer.
 func answer(_ request: ServeRequest, manager: AsrManager, booster: Booster?) async {
     do {
         let samples = try AudioConverter().resampleAudioFile(URL(fileURLWithPath: request.wav))
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
         let terms = request.terms ?? []
+        let language = request.language.flatMap(Language.init(rawValue:))
         guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
-            let result = try await manager.transcribe(samples, decoderState: &state)
-            emit(ServeText(id: request.id, text: result.text))
+            let result = try await manager.transcribe(
+                samples, decoderState: &state, language: language)
+            emit(ServeText(id: request.id, text: result.text, words: timedWords(result)))
             return
         }
         // The CTC pass needs only the audio, so it runs beside Parakeet.
         async let spotting = boost.spotter.spotKeywordsWithLogProbs(
             audioSamples: samples, customVocabulary: boost.vocabulary)
-        let result = try await manager.transcribe(samples, decoderState: &state)
+        let result = try await manager.transcribe(
+            samples, decoderState: &state, language: language)
         let boosted = (try? await spotting).flatMap { boost.rescored(result, spotted: $0) }
-        emit(ServeText(id: request.id, text: boosted ?? result.text))
+        emit(
+            ServeText(
+                id: request.id, text: boosted ?? result.text,
+                words: boosted == nil ? timedWords(result) : []))
     } catch {
         emit(
             ServeFailure(
