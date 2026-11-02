@@ -108,8 +108,6 @@ fn restore_mute(prev_muted: Option<bool>) {
     }
 }
 
-const TARGET_SAMPLE_RATE: usize = 16000;
-
 #[derive(Clone, Debug)]
 pub enum RecordingState {
     Idle,
@@ -1039,19 +1037,8 @@ impl AudioRecordingManager {
                     }
                 }
 
-                if self.was_cancelled_since(cancel_generation) {
-                    debug!("Recording stop cancelled; discarding captured samples");
-                    return None;
-                }
-
-                let s_len = samples.len();
-                let samples = if s_len < TARGET_SAMPLE_RATE && s_len > 0 {
-                    let mut padded = samples;
-                    padded.resize(TARGET_SAMPLE_RATE * 5 / 4, 0.0);
-                    padded
-                } else {
-                    samples
-                };
+                // A cancelled stop still returns what it captured: the
+                // pipeline's cancel check keeps it for Restore.
                 Some(Capture { samples, mic_lost })
             }
             _ => None,
@@ -1081,8 +1068,8 @@ impl AudioRecordingManager {
         self.is_recording() && !self.is_recording_started()
     }
 
-    /// Cancel any ongoing recording without returning audio samples
-    pub fn cancel_recording(&self) {
+    /// Cancels any ongoing recording and returns what it captured, for Restore.
+    pub fn cancel_recording(&self) -> Option<Vec<f32>> {
         self.invalidate_recording_readiness();
         // An always-on or lazily closed stream stays open after a cancel, so
         // the stream teardown would not restore the user's audio.
@@ -1095,9 +1082,13 @@ impl AudioRecordingManager {
                 self.set_state(&mut state, RecordingState::Idle);
                 drop(state);
 
-                if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                    let _ = rec.stop();
-                }
+                let captured = self
+                    .recorder
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|rec| rec.stop().ok())
+                    .map(|capture| capture.samples);
 
                 *self.is_recording.lock().unwrap() = false;
 
@@ -1108,11 +1099,13 @@ impl AudioRecordingManager {
                         self.stop_microphone_stream();
                     }
                 }
+                captured
             }
             RecordingState::Stopping => {
                 debug!("Cancellation requested while recording is stopping");
+                None
             }
-            RecordingState::Idle => {}
+            RecordingState::Idle => None,
         }
     }
 }
