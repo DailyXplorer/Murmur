@@ -1046,6 +1046,18 @@ async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, st
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * The rule of each call app. "Ask" is the absence of a rule, so it is not
+ * kept.
+ */
+async changeMeetingCallPoliciesSetting(policies: Partial<{ [key in CallApp]: CallPolicy }>) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_call_policies_setting", { policies }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeMcpEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_mcp_enabled_setting", { enabled }) };
@@ -1214,6 +1226,12 @@ meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_a
  */
 meeting_call_prompt?: boolean; 
 /**
+ * What each call app does when it starts a call: the apps missing from
+ * the map ask. Switched off with `meeting_call_prompt`, whatever a rule
+ * says.
+ */
+meeting_call_policies?: Partial<{ [key in CallApp]: CallPolicy }>; 
+/**
  * Shows the meeting's text while it records, made on this Mac when the
  * local model is ready.
  */
@@ -1272,7 +1290,33 @@ export type BindingResponse = { success: boolean; binding: ShortcutBinding | nul
 /**
  * The call prompt's buttons.
  */
-export type CallAnswer = "record" | "not_now" | "stop_and_transcribe" | "keep_recording"
+export type CallAnswer = "record" | "not_now" | 
+/**
+ * Record, and from now on record this app's calls at once.
+ */
+"always_record" | 
+/**
+ * Never offer to record this app's calls.
+ */
+"never_ask" | "stop_and_transcribe" | "keep_recording" | "dont_record"
+export type CallApp = "zoom" | "google_meet" | "teams" | "slack" | "face_time" | "webex" | "discord"
+/**
+ * What Murmur does when a call app starts using the microphone while no
+ * meeting records.
+ */
+export type CallPolicy = 
+/**
+ * Offer to record it.
+ */
+"ask" | 
+/**
+ * Record it at once, with a short chance to take it back.
+ */
+"always" | 
+/**
+ * Neither offer nor record.
+ */
+"never"
 /**
  * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
  */
@@ -1284,11 +1328,25 @@ app: string;
 /**
  * Which answers the buttons send.
  */
-kind: PromptKind; question: string; accept: string; decline: string; 
+kind: PromptKind; question: string; 
+/**
+ * The filled button; the prompt of a meeting that already records has
+ * none.
+ */
+accept: string | null; decline: string; 
+/**
+ * The two buttons that set the app's rule, on the prompt that offers to
+ * record.
+ */
+rules: CallRuleLabels | null; 
 /**
  * The overlay's side of the screen, which the prompt sits on too.
  */
 position: OverlayPosition }
+/**
+ * "Always for Zoom" and "Never for Zoom".
+ */
+export type CallRuleLabels = { always: string; never: string }
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.
@@ -1710,7 +1768,12 @@ export type PromptKind =
 /**
  * "{{app}} left the call", while the meeting recording it goes on.
  */
-"ended"
+"ended" | 
+/**
+ * "Recording {{app}}", for the first seconds of a meeting the app's
+ * "Always record" rule started.
+ */
+"started"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * What the settings page shows, as it reports it.

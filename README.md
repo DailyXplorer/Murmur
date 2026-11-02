@@ -136,7 +136,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   it live while it records, then get a transcript with speakers told apart
   and a summary with a title. See [Meetings](#meetings)
 - Call prompts: Murmur offers to record a call when a call app takes the
-  microphone, and to stop and transcribe when the call ends during a meeting
+  microphone, and to stop and transcribe when the call ends during a meeting.
+  Each call app can ask, always record or never ask
 - Search across every meeting (titles, summaries, transcripts) and every
   dictation, ignoring case and accents; each word matches as a prefix, and
   quotes match an exact phrase. Opening a meeting from a result jumps to the
@@ -238,6 +239,16 @@ warning 5 minutes before.
   unanswered, the panel stays and the meeting goes on. Keep recording asks
   again only if a call comes back and leaves again. **Offer to record calls**
   in Settings > Advanced turns both off.
+- Each call app has a rule, **Ask** by default, set from the first panel
+  (**Always for Zoom**, **Never for Zoom**) or under **When a call starts**
+  in Settings > Advanced. **Never ask** shows no panel for that app.
+  **Always record** starts the meeting once the app holds the microphone for
+  3 seconds, and a panel says **Recording Zoom** with a **Don't record**
+  button for 10 seconds: it discards the meeting, and nothing is kept. Only
+  apps you set to **Always record** are recorded without a click, and
+  turning off **Offer to record calls** turns every rule off. Tell the people
+  on the call that you record it, as you would for a meeting you start by
+  hand.
 
 ### Use your meetings from an AI assistant
 

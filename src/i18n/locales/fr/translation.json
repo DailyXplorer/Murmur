@@ -42,6 +42,10 @@
     "callEndedQuestion": "{{app}} a quitté l’appel. Murmur enregistre toujours.",
     "callEndedStop": "Arrêter et transcrire",
     "callEndedKeep": "Continuer",
+    "callStartedQuestion": "Enregistrement de {{app}}",
+    "callDontRecord": "Ne pas enregistrer",
+    "callAlwaysFor": "Toujours pour {{app}}",
+    "callNeverFor": "Jamais pour {{app}}",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
     "noticeNothingNewInMeeting": "Rien de nouveau pour l’instant.",
     "liveYou": "Vous",
@@ -366,7 +370,25 @@
       },
       "meetingCallPrompt": {
         "label": "Proposer d’enregistrer les appels",
-        "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer. La question reste affichée jusqu’à votre réponse ou la fin de l’appel. Murmur n’enregistre jamais sans un clic. Pendant l’enregistrement d’une réunion, demander aussi s’il faut l’arrêter quand l’appel se termine. Murmur ne l’arrête jamais sans un clic."
+        "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer. La question reste affichée jusqu’à votre réponse ou la fin de l’appel. Murmur n’enregistre sans un clic que les applications réglées sur Toujours enregistrer. Pendant l’enregistrement d’une réunion, demander aussi s’il faut l’arrêter quand l’appel se termine. Murmur ne l’arrête jamais sans un clic."
+      },
+      "meetingCallRules": {
+        "title": "Au début d’un appel",
+        "description": "Ce que Murmur fait quand {{app}} démarre un appel.",
+        "apps": {
+          "zoom": "Zoom",
+          "google_meet": "Google Meet",
+          "teams": "Microsoft Teams",
+          "slack": "Slack",
+          "face_time": "FaceTime",
+          "webex": "Webex",
+          "discord": "Discord"
+        },
+        "options": {
+          "ask": "Demander",
+          "always": "Toujours enregistrer",
+          "never": "Ne jamais demander"
+        }
       },
       "meetingLiveTranscript": {
         "label": "Transcription en direct des réunions",

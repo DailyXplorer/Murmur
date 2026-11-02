@@ -127,6 +127,7 @@ permissions = [
   "allow-change-meeting-audio-retention-setting",
   "allow-get-meetings-storage",
   "allow-change-meeting-call-prompt-setting",
+  "allow-change-meeting-call-policies-setting",
   "allow-change-mcp-enabled-setting",
   "allow-change-mcp-include-dictations-setting",
   "allow-get-mcp-setup",

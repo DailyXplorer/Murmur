@@ -636,18 +636,32 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
 
 const callLabels = (tray: Record<string, string>) => ({
   app: "Google Meet",
-  kind: "start",
+  kind: "start" as const,
   question: tray.callRecordQuestion,
   accept: tray.callRecord,
   decline: tray.callNotNow,
+  rules: {
+    always: tray.callAlwaysFor.replace("{{app}}", "Google Meet"),
+    never: tray.callNeverFor.replace("{{app}}", "Google Meet"),
+  },
   position: "bottom",
 });
 const endedLabels = (tray: Record<string, string>) => ({
   app: "Google Meet",
-  kind: "ended",
+  kind: "ended" as const,
   question: tray.callEndedQuestion.replace("{{app}}", "Google Meet"),
   accept: tray.callEndedStop,
   decline: tray.callEndedKeep,
+  rules: null,
+  position: "bottom",
+});
+const startedLabels = (tray: Record<string, string>) => ({
+  app: "Google Meet",
+  kind: "started" as const,
+  question: tray.callStartedQuestion.replace("{{app}}", "Google Meet"),
+  accept: null,
+  decline: tray.callDontRecord,
+  rules: null,
   position: "bottom",
 });
 const englishTray = trayStringsByLocale.find(
@@ -673,6 +687,45 @@ test("a call prompt asks to record the meeting and sends back Record or Not now"
   await dispatch(page, "show-overlay-call", callLabels(englishTray));
   await prompt.getByRole("button", { name: "Not now", exact: true }).click();
   expect(await callAnswers(page)).toEqual(["record", "not_now"]);
+});
+
+test("a call prompt sets the app's rule from its own buttons", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  const prompt = page.getByRole("alertdialog", {
+    name: "Record this meeting?",
+  });
+
+  await prompt
+    .getByRole("button", { name: "Always for Google Meet", exact: true })
+    .click();
+  await dispatch(page, "show-overlay-call", callLabels(englishTray));
+  await prompt
+    .getByRole("button", { name: "Never for Google Meet", exact: true })
+    .click();
+  expect(await callAnswers(page)).toEqual(["always_record", "never_ask"]);
+});
+
+test("the prompt of a meeting a rule started has one button, Don't record", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", startedLabels(englishTray));
+
+  const prompt = page.getByRole("alertdialog", {
+    name: "Recording Google Meet",
+  });
+  await expect(prompt).toBeVisible();
+  await expect(prompt, "the app is named once").toHaveAccessibleDescription("");
+  await expect(prompt.getByRole("button")).toHaveCount(1);
+  expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
+
+  await prompt
+    .getByRole("button", { name: "Don't record", exact: true })
+    .click();
+  expect(await callAnswers(page)).toEqual(["dont_record"]);
 });
 
 test("a call ended prompt offers to stop the meeting and sends back Stop and transcribe or Keep recording", async ({
@@ -781,6 +834,7 @@ test("the call prompt closes when the call ends", async ({ page }) => {
 const callPromptCases = trayStringsByLocale.flatMap(({ locale, tray }) => [
   { name: `${locale} call prompt`, labels: callLabels(tray) },
   { name: `${locale} call ended prompt`, labels: endedLabels(tray) },
+  { name: `${locale} call started prompt`, labels: startedLabels(tray) },
 ]);
 
 for (const { name, labels } of callPromptCases) {
@@ -814,9 +868,9 @@ for (const { name, labels } of callPromptCases) {
       };
     });
     expect(layout.inWindow, "capsule in its window").toBe(true);
-    expect(layout.answers, "answers").toEqual([
-      { inside: true, oneLine: true },
-      { inside: true, oneLine: true },
-    ]);
+    const buttons = { start: 4, ended: 2, started: 1 }[labels.kind];
+    expect(layout.answers, "answers").toEqual(
+      Array(buttons).fill({ inside: true, oneLine: true }),
+    );
   });
 }

@@ -864,10 +864,15 @@ impl MeetingsManager {
     }
 
     pub fn start(&self) -> Result<(), String> {
+        self.start_with(&mut self.coordinator()).map(drop)
+    }
+
+    /// Starts a meeting and returns its id.
+    pub fn start_returning_id(&self) -> Result<i64, String> {
         self.start_with(&mut self.coordinator())
     }
 
-    fn start_with(&self, coordinator: &mut AppCoordinator) -> Result<(), String> {
+    fn start_with(&self, coordinator: &mut AppCoordinator) -> Result<i64, String> {
         let settings = get_settings(&self.app);
         if !settings.meetings_enabled {
             return Err("Meetings are turned off".to_string());
@@ -888,7 +893,7 @@ impl MeetingsManager {
         if helper::support() == AnalysisSupport::Available {
             self.models.download_unless_declined();
         }
-        Ok(())
+        Ok(id)
     }
 
     pub fn stop(&self) -> Result<(), String> {
@@ -925,7 +930,7 @@ impl MeetingsManager {
     pub fn toggle(&self) -> Result<(), String> {
         let mut coordinator = self.coordinator();
         if coordinator.runtime() == MeetingRuntime::Idle {
-            self.start_with(&mut coordinator)
+            self.start_with(&mut coordinator).map(drop)
         } else {
             Self::stop_with(&mut coordinator)
         }

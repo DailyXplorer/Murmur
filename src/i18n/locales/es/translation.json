@@ -42,6 +42,10 @@
     "callEndedQuestion": "{{app}} salió de la llamada. Murmur sigue grabando.",
     "callEndedStop": "Detener y transcribir",
     "callEndedKeep": "Seguir grabando",
+    "callStartedQuestion": "Grabando {{app}}",
+    "callDontRecord": "No grabar",
+    "callAlwaysFor": "Siempre para {{app}}",
+    "callNeverFor": "Nunca para {{app}}",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
     "noticeNothingNewInMeeting": "Todavía no hay nada nuevo.",
     "liveYou": "Tú",
@@ -366,7 +370,25 @@
       },
       "meetingCallPrompt": {
         "label": "Ofrecer grabar las llamadas",
-        "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba. La pregunta se mantiene hasta que respondas o termine la llamada. Murmur nunca graba sin un clic. Mientras se graba una reunión, preguntar también si se detiene cuando termine la llamada. Murmur nunca la detiene sin un clic."
+        "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba. La pregunta se mantiene hasta que respondas o termine la llamada. Murmur solo graba sin un clic las aplicaciones configuradas en Grabar siempre. Mientras se graba una reunión, preguntar también si se detiene cuando termine la llamada. Murmur nunca la detiene sin un clic."
+      },
+      "meetingCallRules": {
+        "title": "Cuando empieza una llamada",
+        "description": "Lo que hace Murmur cuando {{app}} inicia una llamada.",
+        "apps": {
+          "zoom": "Zoom",
+          "google_meet": "Google Meet",
+          "teams": "Microsoft Teams",
+          "slack": "Slack",
+          "face_time": "FaceTime",
+          "webex": "Webex",
+          "discord": "Discord"
+        },
+        "options": {
+          "ask": "Preguntar",
+          "always": "Grabar siempre",
+          "never": "No preguntar nunca"
+        }
       },
       "meetingLiveTranscript": {
         "label": "Transcripción en directo de las reuniones",
