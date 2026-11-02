@@ -309,6 +309,8 @@ const settingUpdaters: {
   mcp_enabled: (value) => commands.changeMcpEnabledSetting(value as boolean),
   mcp_include_dictations: (value) =>
     commands.changeMcpIncludeDictationsSetting(value as boolean),
+  meeting_live_transcript: (value) =>
+    commands.changeMeetingLiveTranscriptSetting(value as boolean),
   transcription_engine: (value) =>
     commands.changeTranscriptionEngineSetting(value as Engine),
   local_stt_card_dismissed: (value) =>

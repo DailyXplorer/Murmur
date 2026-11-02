@@ -96,7 +96,7 @@ impl Host for TestHost {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn runtime(models: &Path, scratch: &Path) -> Box<dyn Runtime> {
+pub(super) fn runtime(models: &Path, scratch: &Path) -> Box<dyn Runtime> {
     Box::new(super::fluid::FluidRuntime::new(
         helper(),
         models.to_path_buf(),
@@ -112,7 +112,7 @@ fn runtime(models: &Path, _scratch: &Path) -> Box<dyn Runtime> {
 }
 
 /// Lowercase words, punctuation and apostrophes taken as spaces.
-fn words(text: &str) -> Vec<String> {
+pub(super) fn words(text: &str) -> Vec<String> {
     text.to_lowercase()
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { ' ' })
@@ -123,7 +123,7 @@ fn words(text: &str) -> Vec<String> {
 }
 
 /// Word edits (substitutions, insertions, deletions) per reference word.
-fn word_error_rate(reference: &[String], heard: &[String]) -> f64 {
+pub(super) fn word_error_rate(reference: &[String], heard: &[String]) -> f64 {
     let mut previous: Vec<usize> = (0..=heard.len()).collect();
     for (i, expected) in reference.iter().enumerate() {
         let mut row = vec![i + 1];
@@ -138,7 +138,7 @@ fn word_error_rate(reference: &[String], heard: &[String]) -> f64 {
 
 /// The resident memory of the processes whose command line names `dir`, in
 /// MB: the helper that holds the model on Apple silicon.
-fn helper_memory_mb(dir: &Path) -> Option<u64> {
+pub(super) fn helper_memory_mb(dir: &Path) -> Option<u64> {
     let pids = std::process::Command::new("pgrep")
         .arg("-f")
         .arg(dir)

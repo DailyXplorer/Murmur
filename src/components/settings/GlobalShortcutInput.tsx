@@ -350,7 +350,9 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
                 startRecording(shortcutId);
               }}
             >
-              {formatKeyCombination(binding.current_binding, keyLabels)}
+              {binding.current_binding
+                ? formatKeyCombination(binding.current_binding, keyLabels)
+                : t("settings.general.shortcut.notSet")}
             </button>
           )}
           <ResetButton

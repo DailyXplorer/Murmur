@@ -61,6 +61,7 @@ enum Command {
     /// Run the last cancelled dictation through the pipeline. Admitted only
     /// while idle, like `PasteLast`.
     RestoreCancelled,
+    PasteMeeting,
     Shutdown,
     ProcessingFinished(OperationId),
 }
@@ -407,6 +408,17 @@ impl Worker {
                 };
                 crate::actions::restore(&self.app, operation, kept);
             }
+            Command::PasteMeeting => {
+                if matches!(self.stage, Stage::Idle) {
+                    let operation = self.next_operation();
+                    self.stage = Stage::Processing {
+                        operation: operation.clone(),
+                    };
+                    crate::meetings::live::paste::spawn(&self.app, operation);
+                } else {
+                    debug!("Ignoring meeting paste request: dictation in progress");
+                }
+            }
             Command::Shutdown => {
                 self.gesture = Gesture::Idle;
                 let may_return_idle = request_cancel(&self.stage);
@@ -592,6 +604,10 @@ impl TranscriptionCoordinator {
 
     pub fn send_restore_cancelled(&self) {
         self.send(Command::RestoreCancelled);
+    }
+
+    pub fn send_paste_meeting(&self) {
+        self.send(Command::PasteMeeting);
     }
 
     pub fn notify_processing_finished(&self, id: OperationId) {

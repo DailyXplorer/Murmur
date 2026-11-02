@@ -222,6 +222,10 @@ impl Track for SystemCapture {
         self.writer.dropped_ms()
     }
 
+    fn live(&self, tap: crate::meetings::live::LiveTap) {
+        self.writer.live(tap);
+    }
+
     /// On Windows the answer is always "no": it only feeds the check for a
     /// denied System Audio Recording permission (zeros while another app
     /// played), which Windows has no counterpart for. A silent loopback there

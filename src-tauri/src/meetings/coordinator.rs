@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use super::cap::{cap_action, slept, CapAction, CAP};
 use super::capture::route::OutputRoute;
 use super::capture::system::SystemAudioSupport;
+use super::live::{LiveMeeting, LiveTap};
 use super::merge::Track as Source;
 use super::paths;
 use super::store::{MeetingTracks, MeetingsStore};
@@ -28,6 +29,8 @@ pub trait Track: Send {
     /// Audio the source delivered faster than the disk took it, recorded as
     /// silence instead.
     fn dropped_ms(&self) -> u64;
+    /// Hands what the track writes from now on to the live transcript too.
+    fn live(&self, _tap: LiveTap) {}
     /// Stops the source and pads the file to `duration`. Returns whether
     /// another app played sound while it recorded, which only system audio
     /// can tell.
@@ -50,6 +53,17 @@ pub trait CaptureBackend: Send {
     fn keep_awake(&self) -> Option<Box<dyn Send>>;
     /// Where the Mac plays sound now.
     fn output_route(&self) -> OutputRoute;
+    /// Starts the live transcript of meeting `id`, recording `sources` in
+    /// `dir`. `None` when it does not run.
+    fn live(
+        &self,
+        _id: i64,
+        _dir: &Path,
+        _sources: &[Source],
+        _route: OutputRoute,
+    ) -> Option<LiveMeeting> {
+        None
+    }
 }
 
 /// Below this much free space a meeting warns at start: three hours of both
@@ -164,6 +178,7 @@ struct Active {
     playing_on: OutputRoute,
     /// Keeps the Mac awake until the meeting ends, however it ends.
     _awake: Option<Box<dyn Send>>,
+    live: Option<LiveMeeting>,
 }
 
 /// A recording whose end the database refused, on a full disk.
@@ -302,6 +317,13 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         }
         let route = self.backend.output_route();
         info!("Meeting {id}: sound plays on {route:?}");
+        let sources: Vec<Source> = tracks.iter().map(|(source, _)| *source).collect();
+        let live = self.backend.live(id, &dir, &sources, route);
+        if let Some(live) = &live {
+            for (source, track) in &tracks {
+                track.live(live.tap(*source));
+            }
+        }
         self.active = Some(Active {
             id,
             started_at_ms,
@@ -315,6 +337,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             route,
             playing_on: route,
             _awake: self.backend.keep_awake(),
+            live,
         });
         self.notifier.runtime_changed(&self.runtime());
         if self
@@ -353,6 +376,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
                 ),
             }
         }
+        drop(active.live);
         if played {
             if let Err(error) = self.store.set_system_played(active.id) {
                 error!(
@@ -427,6 +451,9 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
             .active
             .take_if(|active| active.id == id)
             .ok_or(MeetingError::NotRecording)?;
+        if let Some(live) = active.live {
+            live.discard();
+        }
         for (_, track) in active.tracks {
             let _ = track.finish(Duration::ZERO);
         }
@@ -489,6 +516,9 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         if playing_on != active.playing_on {
             info!("Meeting {id}: sound now plays on {playing_on:?}");
             active.playing_on = playing_on;
+            if let Some(live) = &active.live {
+                live.set_headphones(playing_on == OutputRoute::Headphones);
+            }
         }
         active.route = active.route.and(playing_on);
         // A disk too slow for a moment is not a full one: the meeting goes on.

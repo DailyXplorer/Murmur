@@ -53,6 +53,9 @@
     "callEndedStop": "Parar e transcrever",
     "callEndedKeep": "Continuar gravando",
     "noticeNothingToPaste": "Ainda não há nenhuma transcrição para colar.",
+    "noticeNothingNewInMeeting": "Ainda não há nada novo.",
+    "liveYou": "Você",
+    "liveOthers": "Os outros",
     "startMeeting": "Iniciar reunião",
     "stopMeeting": "Parar reunião",
     "meetingSystemAudioUnavailable": "O áudio do sistema não está disponível, então a reunião grava apenas o microfone.",
@@ -194,6 +197,7 @@
         "none": "Nenhum atalho configurado",
         "notFound": "Atalho não encontrado",
         "pressKeys": "Pressione as teclas...",
+        "notSet": "Não definido",
         "bindings": {
           "transcribe": {
             "name": "Atalho de transcrição",
@@ -210,6 +214,10 @@
           "meeting_toggle": {
             "name": "Atalho de reunião",
             "description": "Começa a gravar uma reunião ou para a que está em andamento."
+          },
+          "meeting_paste_new": {
+            "name": "Colar o texto novo da reunião",
+            "description": "Cola o que foi dito na reunião desde a última colagem, ou no último minuto."
           }
         },
         "errors": {
@@ -375,6 +383,10 @@
         "label": "Oferecer gravar chamadas",
         "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique.",
         "descriptionWindows": "Quando Zoom, Google Meet, Teams, Slack, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
+      },
+      "meetingLiveTranscript": {
+        "label": "Transcrição ao vivo das reuniões",
+        "description": "Mostra o texto da reunião enquanto você grava. Ele é feito neste Mac pelo modelo local, nunca na nuvem."
       },
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",
@@ -915,7 +927,22 @@
         "description": "O Codex transcreve a gravação de novo, e a transcrição e o resumo são substituídos. Um título que você definiu é mantido."
       }
     },
-    "localFallback": "O Codex ficou indisponível por {{duration}} desta reunião, então essa parte foi transcrita neste Mac."
+    "localFallback": "O Codex ficou indisponível por {{duration}} desta reunião, então essa parte foi transcrita neste Mac.",
+    "live": {
+      "title": "Transcrição ao vivo",
+      "you": "Você",
+      "others": "Os outros",
+      "starting": "Ouvindo… o texto aparece alguns segundos depois que alguém fala.",
+      "catchingUp": "Recuperando o atraso",
+      "gap": "… (lacuna, a transcrição final vai incluí-la)",
+      "unavailable": "O texto ao vivo precisa do modelo de voz local.",
+      "off": "A transcrição ao vivo está desativada. A transcrição será feita depois de parar.",
+      "unsupported": "O texto ao vivo precisa de um Mac com Apple silicon. A transcrição será feita depois de parar.",
+      "failed": "O texto ao vivo parou. A gravação continua e a transcrição será feita depois de parar.",
+      "copyAll": "Copiar tudo",
+      "pasteHint": "Para colar o que acabou de ser dito em outro app, escolha teclas para colar o texto novo da reunião na página Reuniões.",
+      "draftNotice": "Rascunho. A transcrição final o substitui quando o processamento termina."
+    }
   },
   "localSttCard": {
     "title": "Novo: transcrição local, sem cota.",

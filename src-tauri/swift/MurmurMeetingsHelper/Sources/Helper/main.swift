@@ -68,6 +68,7 @@ struct ServeText: Encodable {
     let type = "text"
     let id: UInt64
     let text: String
+    var words: [Word]? = nil
 }
 
 struct ServeFailure: Encodable {
@@ -84,6 +85,9 @@ struct ServeRequest: Decodable {
     let wav: String
     /// Words to listen for. Absent when there are none.
     let terms: [String]?
+    /// Work no one waits on, such as a meeting's. Absent for dictation.
+    let background: Bool?
+    let words: Bool?
 }
 
 let output = FileHandle.standardOutput
@@ -330,7 +334,13 @@ func serve(models: URL, asr: Asr) async -> Int32 {
             let terms = request.terms ?? []
             guard !terms.isEmpty, let boost = await booster?.boost(terms) else {
                 let result = try await manager.transcribe(samples, decoderState: &state)
-                emit(ServeText(id: request.id, text: result.text))
+                var text = ServeText(id: request.id, text: result.text)
+                if request.words == true {
+                    text.words = buildWordTimings(from: result.tokenTimings ?? []).map {
+                        Word(w: $0.word, s: $0.startTime, e: $0.endTime)
+                    }
+                }
+                emit(text)
                 continue
             }
             // The CTC pass needs only the audio, so it runs beside Parakeet.

@@ -107,6 +107,12 @@ pub enum Request<'a> {
         wav: &'a std::path::Path,
         #[serde(skip_serializing_if = "<[String]>::is_empty")]
         terms: &'a [String],
+        /// Work no one waits on, run at a lower priority. Absent for
+        /// dictation, which runs at the highest.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        background: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        words: Option<bool>,
     },
 }
 
@@ -121,6 +127,8 @@ pub enum Reply {
         id: u64,
         #[serde(deserialize_with = "known_text")]
         text: String,
+        #[serde(default)]
+        words: Option<Vec<Word>>,
     },
     /// A failed request, or without `id` a failed load.
     Error {
@@ -267,6 +275,8 @@ mod tests {
                 id: 7,
                 wav: std::path::Path::new("/tmp/piece 7.wav"),
                 terms: &[],
+                background: None,
+                words: None,
             })
             .unwrap(),
             r#"{"type":"transcribe","id":7,"wav":"/tmp/piece 7.wav"}"#
@@ -276,16 +286,34 @@ mod tests {
                 id: 8,
                 wav: std::path::Path::new("/tmp/piece 8.wav"),
                 terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
+                background: Some(true),
+                words: Some(true),
             })
             .unwrap(),
-            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"]}"#
+            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true,"words":true}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(
             parse_reply(r#"{"type":"text","id":7,"text":"Bonjour à tous."}"#).unwrap(),
             Reply::Text {
                 id: 7,
-                text: "Bonjour à tous.".into()
+                text: "Bonjour à tous.".into(),
+                words: None,
+            }
+        );
+        assert_eq!(
+            parse_reply(
+                r#"{"type":"text","id":9,"text":"Oui.","words":[{"w":"Oui.","s":0.4,"e":0.7}]}"#
+            )
+            .unwrap(),
+            Reply::Text {
+                id: 9,
+                text: "Oui.".into(),
+                words: Some(vec![Word {
+                    w: "Oui.".into(),
+                    s: 0.4,
+                    e: 0.7
+                }]),
             }
         );
         assert_eq!(
