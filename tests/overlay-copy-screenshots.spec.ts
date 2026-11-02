@@ -87,6 +87,7 @@ test.describe("call prompt screenshots", () => {
       const tray = trayStrings("en");
       await dispatch(page, "show-overlay-call", {
         app: "Zoom",
+        kind: "start",
         question: tray.callRecordQuestion,
         accept: tray.callRecord,
         decline: tray.callNotNow,

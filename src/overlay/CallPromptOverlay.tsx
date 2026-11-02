@@ -7,7 +7,12 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
-import { commands, type CallPromptLabels } from "@/bindings";
+import {
+  commands,
+  type CallAnswer,
+  type CallPromptLabels,
+  type PromptKind,
+} from "@/bindings";
 
 // The window renders no text until its first message, so without this the
 // font would still be loading when the prompt measures its fitted size.
@@ -15,8 +20,15 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-/** "Record this meeting?", in a window of its own: only the call watcher
- * shows or hides it, so nothing the overlay shows takes its place. */
+const ANSWERS: Record<PromptKind, { accept: CallAnswer; decline: CallAnswer }> =
+  {
+    start: { accept: "record", decline: "not_now" },
+    ended: { accept: "stop_and_transcribe", decline: "keep_recording" },
+  };
+
+/** "Record this meeting?", or "Zoom left the call" while the meeting
+ * records, in a window of its own: only the call watcher shows or hides it,
+ * so nothing the overlay shows takes its place. */
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
@@ -79,11 +91,14 @@ const CallPromptOverlay: React.FC = () => {
 
   if (!labels) return null;
 
-  const answer = (accept: boolean) => {
-    void commands.answerCallPrompt(accept).catch((error: unknown) => {
+  const answers = ANSWERS[labels.kind];
+  const answer = (sent: CallAnswer) => {
+    void commands.answerCallPrompt(sent).catch((error: unknown) => {
       console.warn("Answering the call prompt failed:", error);
     });
   };
+  // The question that the call ended already names the app.
+  const showsApp = labels.kind === "start";
 
   return (
     <div className={`ov-stage ${labels.position}`}>
@@ -92,28 +107,30 @@ const CallPromptOverlay: React.FC = () => {
         dir="auto"
         className="ov-capsule ov-call"
         aria-labelledby={`${id}-question`}
-        aria-describedby={`${id}-app`}
+        aria-describedby={showsApp ? `${id}-app` : undefined}
       >
         <span ref={bodyRef} className="ov-call-body">
           <span className="ov-call-text">
             <span id={`${id}-question`} className="ov-call-question">
               {labels.question}
             </span>
-            <span id={`${id}-app`} className="ov-call-app">
-              {labels.app}
-            </span>
+            {showsApp && (
+              <span id={`${id}-app`} className="ov-call-app">
+                {labels.app}
+              </span>
+            )}
           </span>
           <button
             type="button"
             className="ov-call-button"
-            onClick={() => answer(false)}
+            onClick={() => answer(answers.decline)}
           >
             {labels.decline}
           </button>
           <button
             type="button"
             className="ov-call-button accept"
-            onClick={() => answer(true)}
+            onClick={() => answer(answers.accept)}
           >
             {labels.accept}
           </button>
