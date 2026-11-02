@@ -789,11 +789,29 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
     *call_prompt() = None;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        // The panel store holds the panel too: both go, or its web process
-        // stays.
+        // The panel's window must get its own class back before Tauri
+        // destroys it: destroying it as a panel raises an Objective-C
+        // exception, which aborts Murmur. `to_window` also takes the panel
+        // out of the store, or its web process would stay. It marks the
+        // window released when closed, but tao releases its windows itself:
+        // left on, the window would be freed twice.
         #[cfg(target_os = "macos")]
-        drop(handle.remove_webview_panel(CALL_PROMPT_WINDOW));
-        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+        let window = match handle.get_webview_panel(CALL_PROMPT_WINDOW) {
+            Ok(panel) => panel.to_window(),
+            Err(_) => handle.get_webview_window(CALL_PROMPT_WINDOW),
+        };
+        #[cfg(not(target_os = "macos"))]
+        let window = handle.get_webview_window(CALL_PROMPT_WINDOW);
+        if let Some(window) = window {
+            #[cfg(target_os = "macos")]
+            if let Ok(ns_window) = window.ns_window() {
+                // SAFETY: on the main thread, a live NSWindow of this window;
+                // tao keeps it retained until the destroy below.
+                unsafe {
+                    let ns_window = &*(ns_window as *const objc2_app_kit::NSWindow);
+                    ns_window.setReleasedWhenClosed(false);
+                }
+            }
             let _ = window.hide();
             if let Err(e) = window.destroy() {
                 log::error!("Failed to destroy the call prompt panel: {}", e);
