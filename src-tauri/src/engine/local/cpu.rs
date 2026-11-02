@@ -97,8 +97,7 @@ impl Loaded for CpuModel {
                 if abandoned.load(Ordering::SeqCst) {
                     anyhow::bail!("Local transcription abandoned");
                 }
-                let text = session.run(&samples, &RunOptions::default())?.text;
-                Ok(super::unknown::text_without_unknown(&text))
+                Ok(session.run(&samples, &RunOptions::default())?.text)
             })
             .await??;
             abort.0 = None;
@@ -143,6 +142,9 @@ mod tests {
                 .await
                 .unwrap()
                 .to_lowercase();
+            // transcribe.cpp drops the `<unk>` Parakeet Ultra writes
+            // (`keep_special_tags` is off), as `unknown` does on Apple silicon.
+            assert!(!text.contains("<unk>"), "{text}");
             println!(
                 "{}: {:.1} s of audio in {:?}: {text}",
                 wav.display(),

@@ -890,3 +890,33 @@ fn a_helper_that_missed_the_previous_model_after_the_switch_leaves_the_current_o
         LocalModelState::Ready
     );
 }
+
+#[test]
+fn a_delete_during_the_background_switch_cancels_it_and_deletes_everything() {
+    let fixture = fixture();
+    let weights = fixture.contents[0].1.clone();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let previous = write_ready_with_the_previous_model(&fixture, &path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(Arc::new(move |_, _| {
+            Reply::HangAfter(weights.clone(), 1_000)
+        }))
+        .await;
+        let models = models(&path, &fixture, &base, &host);
+        models.resume_on_launch(false);
+        while seen.lock().unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let deleting = Arc::clone(&models);
+        tauri::async_runtime::spawn_blocking(move || deleting.delete())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(models.state(), LocalModelState::Missing);
+        assert!(!path.exists());
+        assert!(!previous.exists());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
+    });
+}

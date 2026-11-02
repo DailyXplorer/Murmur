@@ -1,9 +1,10 @@
 //! Parakeet Ultra writes `<unk>` where its training text had a character its
 //! tokenizer cannot spell: quotes, brackets, dashes, `&`. v3 left those
-//! characters out, and so does Murmur. The text and the timed words are
-//! cleaned by the same rule, so they still split into the same words: a word
-//! left empty goes, and one left with only closing punctuation joins the
-//! word before it.
+//! characters out, and so does Murmur. FluidAudio keeps them, so the helper
+//! protocol's parser drops them here; on Intel Macs transcribe.cpp drops
+//! them itself, by the same rule. The text and the timed words are cleaned
+//! alike, so they still split into the same words: a word left empty goes,
+//! and one left with only closing punctuation joins the word before it.
 
 use crate::meetings::protocol::Word;
 
