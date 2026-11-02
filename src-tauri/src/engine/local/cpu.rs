@@ -13,12 +13,14 @@ use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Sess
 use super::session::{BoxFuture, Heard, Loaded, Runtime};
 
 pub struct CpuRuntime {
-    pub model: PathBuf,
+    /// The models folder: which GGUF file it runs is read at each load.
+    pub models: PathBuf,
 }
 
 impl Runtime for CpuRuntime {
     fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
-        let path = self.model.clone();
+        let asr = crate::local_models::asr_in_use(&self.models);
+        let path = self.models.join(asr.gguf_path());
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
                 let options = ModelOptions {
@@ -84,7 +86,8 @@ impl Loaded for CpuModel {
                 if abandoned.load(Ordering::SeqCst) {
                     anyhow::bail!("Local transcription abandoned");
                 }
-                Ok(session.run(&samples, &RunOptions::default())?.text)
+                let text = session.run(&samples, &RunOptions::default())?.text;
+                Ok(super::unknown::text_without_unknown(&text))
             })
             .await??;
             abort.0 = None;
@@ -100,19 +103,19 @@ impl Loaded for CpuModel {
 mod tests {
     use super::*;
 
-    /// Needs the model and spoken clips, so CI runs it on its own:
-    /// `MURMUR_SMOKE_GGUF=<model> MURMUR_SMOKE_CLIPS=<dir> cargo test
+    /// Needs the models and spoken clips, so CI runs it on its own:
+    /// `MURMUR_SMOKE_MODELS=<models dir> MURMUR_SMOKE_CLIPS=<dir> cargo test
     /// --target x86_64-apple-darwin --lib engine::local::cpu -- --ignored`.
     /// Each `<name>.wav` (16 kHz mono) in the folder holds speech whose words
     /// are listed, one per line, in `<name>.txt`.
     #[tokio::test]
     #[ignore = "needs the GGUF model and recorded speech"]
     async fn the_cpu_model_hears_the_words_of_each_clip() {
-        let model = std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF");
+        let models = std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS");
         let clips = PathBuf::from(std::env::var("MURMUR_SMOKE_CLIPS").expect("MURMUR_SMOKE_CLIPS"));
         let started = std::time::Instant::now();
         let mut loaded = CpuRuntime {
-            model: model.into(),
+            models: models.into(),
         }
         .load()
         .await
@@ -153,10 +156,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "needs the GGUF model and recorded speech"]
     async fn the_loaded_model_survives_its_file_replaced_then_deleted() {
+        let gguf = crate::local_models::manifest::Asr::Current.gguf_path();
         let dir = tempfile::tempdir().unwrap();
-        let model = dir.path().join("model.gguf");
+        let model = dir.path().join(&gguf);
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
         std::fs::copy(
-            std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF"),
+            PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"))
+                .join(&gguf),
             &model,
         )
         .unwrap();
@@ -168,7 +174,7 @@ mod tests {
             .expect("no clip");
         let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
         let mut loaded = CpuRuntime {
-            model: model.clone(),
+            models: dir.path().to_path_buf(),
         }
         .load()
         .await

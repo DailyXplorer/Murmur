@@ -68,8 +68,13 @@ impl Host for TestHost {
         Box::pin(async move {
             #[cfg(target_arch = "aarch64")]
             {
-                let args: Vec<std::ffi::OsString> =
-                    vec!["prepare".into(), "--models-dir".into(), dir.into()];
+                let args: Vec<std::ffi::OsString> = vec![
+                    "prepare".into(),
+                    "--models-dir".into(),
+                    dir.into(),
+                    "--asr".into(),
+                    manifest::Asr::Current.helper_name().into(),
+                ];
                 let timeout = Duration::from_secs(10 * 60);
                 match crate::meetings::helper::run(&helper(), &args, &operation, timeout, |_| {})
                     .await
@@ -103,7 +108,7 @@ pub(super) fn runtime(models: &Path, scratch: &Path) -> Box<dyn Runtime> {
 #[cfg(not(target_arch = "aarch64"))]
 fn runtime(models: &Path, _scratch: &Path) -> Box<dyn Runtime> {
     Box::new(super::cpu::CpuRuntime {
-        model: models.join(manifest::gguf_path()),
+        models: models.to_path_buf(),
     })
 }
 

@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          "$HELPER" prepare --models-dir "$RUNNER_TEMP/models" < <(sleep 7200) | tail -n 3
+          "$HELPER" prepare --models-dir "$RUNNER_TEMP/models" --asr ultra < <(sleep 7200) | tail -n 3
 
       - name: Analyse a synthetic dialogue
         working-directory: src-tauri/swift/MurmurMeetingsHelper/smoke
@@ -66,7 +66,7 @@ jobs:
           test "$(wc -l <<<"$voices")" -eq 2
           python3 make_dialogue.py "$RUNNER_TEMP/dialogue.wav" $voices
           for command in analyze diarize; do
-            "$HELPER" "$command" --models-dir "$RUNNER_TEMP/models" \
+            "$HELPER" "$command" --models-dir "$RUNNER_TEMP/models" --asr ultra \
               --system "$RUNNER_TEMP/dialogue.wav" < <(sleep 7200)
           done | grep -v '"type":"progress"' > "$RUNNER_TEMP/analysis.jsonl"
           python3 check_analysis.py "$RUNNER_TEMP/analysis.jsonl"
@@ -88,7 +88,7 @@ jobs:
             printf '{"type":"transcribe","id":1,"wav":"%s"}\n' "$RUNNER_TEMP/fr.wav"
             printf '{"type":"transcribe","id":2,"wav":"%s"}\n' "$RUNNER_TEMP/en.wav"
             sleep 60
-          } | "$HELPER" serve --models-dir "$RUNNER_TEMP/models" | head -n 3)
+          } | "$HELPER" serve --models-dir "$RUNNER_TEMP/models" --asr ultra | head -n 3)
           echo "$out"
           grep -q '"type":"ready"' <<<"$out"
           grep '"id":1' <<<"$out" | grep -q 'jeudi'

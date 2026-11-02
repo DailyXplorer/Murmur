@@ -17,6 +17,7 @@ use super::merge::Track;
 use super::models::Models;
 use super::protocol::{timed_words, ErrorCode, Message, Turn, Word};
 use super::store::SpeakerAnalysis;
+use crate::local_models::manifest::Asr;
 use crate::ProcessingOperation;
 
 pub const ANALYSIS_FILE: &str = "analysis.json";
@@ -151,12 +152,14 @@ impl Analyzer for HelperAnalyzer {
                 return AnalyzerOutcome::Ran(analysis);
             };
             let started = std::time::Instant::now();
+            let asr = crate::local_models::asr_in_use(models.dir());
             // The words first: what was said on each track picks the one
             // whose voices are told apart.
             let mut ended = run_helper(
                 &program,
                 "analyze",
                 &models,
+                asr,
                 &request.tracks,
                 &operation,
                 &mut analysis,
@@ -174,6 +177,7 @@ impl Analyzer for HelperAnalyzer {
                     &program,
                     "diarize",
                     &models,
+                    asr,
                     &track,
                     &operation,
                     &mut analysis,
@@ -189,7 +193,7 @@ impl Analyzer for HelperAnalyzer {
             if analysis.models_missing {
                 // Run again once the models are back.
                 analysis.complete = false;
-                models.invalidate();
+                models.invalidate(asr);
             }
             log::info!(
                 "Meeting analysis: {:?} in {:.1} s",
@@ -207,6 +211,7 @@ async fn run_helper(
     program: &Path,
     command: &str,
     models: &Models,
+    asr: Asr,
     tracks: &[(Track, PathBuf)],
     operation: &ProcessingOperation,
     analysis: &mut Analysis,
@@ -215,6 +220,8 @@ async fn run_helper(
         command.into(),
         "--models-dir".into(),
         models.dir().as_os_str().to_owned(),
+        "--asr".into(),
+        asr.helper_name().into(),
     ];
     for (track, path) in tracks {
         args.push(format!("--{}", track_arg(*track)).into());

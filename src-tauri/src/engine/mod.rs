@@ -13,7 +13,7 @@ use std::future::Future;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Engine {
-    /// Parakeet TDT 0.6B v3 on this Mac, what a new install starts with.
+    /// Parakeet Ultra on this Mac, what a new install starts with.
     #[default]
     Local,
     /// Codex through the user's ChatGPT session.

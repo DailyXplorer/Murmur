@@ -2,17 +2,18 @@
 
 ## Local transcription
 
-Murmur transcribes on this Mac with NVIDIA's Parakeet TDT 0.6B v3
-(`nvidia/parakeet-tdt-0.6b-v3`), licensed under CC BY 4.0,
+Murmur transcribes on this Mac with Parakeet Ultra by Moondream
+(`moondream/parakeet-ultra`), a post-trained version of NVIDIA's Parakeet TDT
+0.6B v3 (`nvidia/parakeet-tdt-0.6b-v3`). Both are licensed under CC BY 4.0,
 <https://creativecommons.org/licenses/by/4.0/>. Murmur downloads a converted
 copy from Hugging Face, at a pinned commit and checked by SHA-256; it is not
-bundled with Murmur.
+bundled with Murmur. Murmur removes the `<unk>` tokens the model writes in
+place of characters its tokenizer cannot spell.
 
-- Apple silicon: `FluidInference/parakeet-tdt-0.6b-v3-coreml`, converted to
-  Core ML by Fluid Inference, run by FluidAudio in the meetings helper (see
-  below).
-- Intel Macs: `handy-computer/parakeet-tdt-0.6b-v3-gguf`, converted to GGUF
-  and quantised to 8 bits by handy-computer, run on the CPU by transcribe.cpp.
+- Apple silicon: `FluidInference/parakeet-ultra-coreml`, converted to Core ML
+  by Fluid Inference, run by FluidAudio in the meetings helper (see below).
+- Intel Macs: `handy-computer/parakeet-ultra-gguf`, converted to GGUF and
+  quantised to 8 bits by handy-computer, run on the CPU by transcribe.cpp.
 
 ### transcribe.cpp
 
@@ -34,10 +35,11 @@ folder. The models are not bundled with Murmur.
 FluidAudio 0.17.7, by Fluid Inference, <https://github.com/FluidInference/FluidAudio>.
 Licensed under the Apache License 2.0, <https://www.apache.org/licenses/LICENSE-2.0>.
 
-### Parakeet TDT 0.6B v3 (word timing)
+### Parakeet Ultra (word timing)
 
-`FluidInference/parakeet-tdt-0.6b-v3-coreml`: a Core ML conversion by Fluid
-Inference of NVIDIA's `nvidia/parakeet-tdt-0.6b-v3`. Licensed under CC BY 4.0,
+`FluidInference/parakeet-ultra-coreml`: a Core ML conversion by Fluid
+Inference of Moondream's `moondream/parakeet-ultra`, itself a post-trained
+version of NVIDIA's `nvidia/parakeet-tdt-0.6b-v3`. Licensed under CC BY 4.0,
 <https://creativecommons.org/licenses/by/4.0/>. Meetings use it to time
 words, and to transcribe the parts Codex refuses.
 

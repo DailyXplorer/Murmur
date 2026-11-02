@@ -223,7 +223,7 @@ func meanDecibels(_ powers: [Double], at frames: [Int]) -> Double {
 func heardWords(_ wav: URL, helper: String, models: String) -> [String] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: helper)
-    process.arguments = ["analyze", "--models-dir", models, "--mic", wav.path]
+    process.arguments = ["analyze", "--models-dir", models, "--asr", "ultra", "--mic", wav.path]
     let input = Pipe(), output = Pipe()
     // The helper stops when its standard input closes.
     process.standardInput = input
